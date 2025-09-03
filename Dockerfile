@@ -7,6 +7,7 @@ WORKDIR /app
 # Copy package files and install dependencies first (for better caching)
 COPY package.json package-lock.json* ./
 RUN npm install
+RUN chmod -R 755 node_modules/.bin
 
 # Copy the rest of the project files
 COPY . .

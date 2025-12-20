@@ -44,9 +44,9 @@ Tasks are organized by **Sprint** and then by **User Story** to enable independe
 
 - [x] T008 [P] Update `.gitignore` to exclude node_modules, .next, coverage, .amplify directories
 
-- [ ] T009 Run `npm run typecheck` and verify zero errors; run `npm run lint` and fix all warnings
+- [x] T009 Run `npm run typecheck` and verify zero errors; run `npm run lint` and fix all warnings; run `npm run build` and verify success
 
-- [ ] T010 Run local dev server: `npm run dev` and verify it starts on http://localhost:3000 without errors
+- [x] T010 Run local dev server: `npm run dev` and verify it starts on http://localhost:3000 without errors
 
 ---
 
@@ -55,33 +55,34 @@ Tasks are organized by **Sprint** and then by **User Story** to enable independe
 **Goal**: Implement Amplify Data schema with 8 entities and Cognito role configuration  
 **Owner**: Backend Developer  
 **Independent Test**: Schema compiles, GraphQL API accessible, authorization rules enforced  
-**Success**: `npx tsc --noEmit` passes for amplify/ directory
+**Success**: `npx tsc --noEmit` passes for amplify/ directory  
+**Status**: ✓ COMPLETE
 
 ### Data Model & Schema
 
-- [ ] T011 [P] Backup current `amplify/data/resource.ts` and create complete schema (data-model.md Phase 1.1) with 8 entities: Customer, Operator, Route, Stop, Invoice, LineItem, PaymentRecord, AuditLog
+- [x] T011 [P] Backup current `amplify/data/resource.ts` and create complete schema (data-model.md Phase 1.1) with 8 entities: Customer, Operator, Route, Stop, Invoice, LineItem, PaymentRecord, AuditLog
 
-- [ ] T012 [P] Implement Customer entity in schema with fields: id, name, email, contactPhone, status, billingRatePerHour, timestamps, and relationships to routes/invoices/payments
+- [x] T012 [P] Implement Customer entity in schema with fields: id, name, email, contactPhone, status, billingRatePerHour, timestamps, and relationships to routes/invoices/payments
 
-- [ ] T013 [P] Implement Operator entity with fields: id, name, email, role (admin/manager/staff), createdAt, and authorization rules
+- [x] T013 [P] Implement Operator entity with fields: id, name, email, role (admin/manager/staff), createdAt, and authorization rules
 
-- [ ] T014 [P] Implement Route entity with fields: id, customerId, status, estimatedDurationMinutes, actualStartTime, actualEndTime, actualDurationMinutes, notes, timestamps, and hasMany(Stop) relationship
+- [x] T014 [P] Implement Route entity with fields: id, customerId, status, estimatedDurationMinutes, actualStartTime, actualEndTime, actualDurationMinutes, notes, timestamps, and hasMany(Stop) relationship
 
-- [ ] T015 [P] Implement Stop entity with fields: id, routeId, sequence, address, serviceType, estimatedArrivalTime, actualArrivalTime, actualDepartureTime, notes, timestamps, and belongsTo(Route) relationship
+- [x] T015 [P] Implement Stop entity with fields: id, routeId, sequence, address, serviceType, estimatedArrivalTime, actualArrivalTime, actualDepartureTime, notes, timestamps, and belongsTo(Route) relationship
 
-- [ ] T016 [P] Implement Invoice entity with fields: id, customerId, invoiceNumber, invoiceDate, periodStartDate, periodEndDate, totalAmount, status, timestamps, and hasMany(LineItem) relationship
+- [x] T016 [P] Implement Invoice entity with fields: id, customerId, invoiceNumber, invoiceDate, periodStartDate, periodEndDate, totalAmount, status, timestamps, and hasMany(LineItem) relationship
 
-- [ ] T017 [P] Implement LineItem entity with fields: id, invoiceId, routeId, description, quantity, ratePerUnit, amount, createdAt, and belongsTo(Invoice) relationship
+- [x] T017 [P] Implement LineItem entity with fields: id, invoiceId, routeId, description, quantity, ratePerUnit, amount, createdAt, and belongsTo(Invoice) relationship
 
-- [ ] T018 [P] Implement PaymentRecord entity with fields: id, customerId, invoiceId, paymentDate, amount, paymentMethod, referenceNumber, status, notes, createdAt
+- [x] T018 [P] Implement PaymentRecord entity with fields: id, customerId, invoiceId, paymentDate, amount, paymentMethod, referenceNumber, status, notes, createdAt
 
-- [ ] T019 [P] Implement AuditLog entity with fields: id, customerId, operatorId, eventType, resourceType, resourceId, action, status, reason, ipAddress, userAgent, timestamp
+- [x] T019 [P] Implement AuditLog entity with fields: id, customerId, operatorId, eventType, resourceType, resourceId, action, status, reason, ipAddress, userAgent, timestamp
 
-- [ ] T020 Verify schema compiles: `cd amplify && npx tsc --noEmit` with zero errors
+- [x] T020 Verify schema compiles: `cd amplify && npx tsc --noEmit` with zero errors
 
 ### Cognito Configuration
 
-- [ ] T021 [P] Update `amplify/auth/resource.ts` to configure email-based authentication (already exists, verify)
+- [x] T021 [P] Update `amplify/auth/resource.ts` to configure email-based authentication (already exists, verify)
 
 - [ ] T022 Configure custom Cognito attributes for operator role: `amplify env add` and update auth resource to support role claim in tokens
 
@@ -95,9 +96,9 @@ Tasks are organized by **Sprint** and then by **User Story** to enable independe
 
 - [ ] T026 [P] Export Schema type from `amplify/data/resource.ts` for use in frontend code generation
 
-- [ ] T027 Create utility functions in `lib/amplify-config.ts`: configureAmplify(), isCustomer(), isOperator() for checking user roles
+- [x] T027 Create utility functions in `lib/amplify-config.ts`: configureAmplify(), isCustomer(), isOperator() for checking user roles
 
-- [ ] T028 Write unit test for utility functions in `lib/amplify-config.test.ts` covering role detection logic
+- [x] T028 Write unit test for utility functions in `lib/amplify-config.test.ts` covering role detection logic
 
 ---
 

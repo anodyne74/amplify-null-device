@@ -3,11 +3,9 @@
  * - output: 'export' creates an `out/` folder usable with S3 static hosting
  * - images.unoptimized: avoid next image optimization on static hosting
  */
-module.exports = {
+
+export default {
   reactStrictMode: true,
-  experimental: {
-    appDir: true,
-  },
   output: 'export',
   images: {
     unoptimized: true,

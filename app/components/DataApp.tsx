@@ -16,7 +16,7 @@ export default function DataApp() {
             next: (data: any) => setTodos([...data.items]),
           });
         }
-      } catch (e) {
+      } catch (_e) {
         // library not available or not configured — silently ignore
         // You can log or surface a message if desired.
       }

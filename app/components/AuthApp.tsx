@@ -3,15 +3,10 @@ import Image from 'next/image';
 import { Authenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
 import { Amplify } from 'aws-amplify';
+import outputs from '../../amplify_outputs.json';
 
-// Client-side Amplify configuration using NEXT_PUBLIC_* env vars
-Amplify.configure({
-  Auth: {
-    region: process.env.NEXT_PUBLIC_COGNITO_REGION || 'YOUR_COGNITO_REGION',
-    userPoolId: process.env.NEXT_PUBLIC_USER_POOL_ID || 'YOUR_USER_POOL_ID',
-    userPoolWebClientId: process.env.NEXT_PUBLIC_APP_CLIENT_ID || 'YOUR_APP_CLIENT_ID',
-  },
-});
+// Configure Amplify with outputs from Amplify backend
+Amplify.configure(outputs);
 
 export default function AuthApp() {
   return (

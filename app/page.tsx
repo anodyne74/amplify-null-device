@@ -1,3 +1,4 @@
+"use client";
 import dynamic from 'next/dynamic';
 
 const AuthApp = dynamic(() => import('./components/AuthApp'), { ssr: false });

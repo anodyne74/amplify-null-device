@@ -18,6 +18,11 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "preserve",
+    /* Path mapping for cleaner imports */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
     /* Linting */
     "strict": true,
     "noUnusedLocals": false,

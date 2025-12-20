@@ -152,27 +152,27 @@ Tasks are organized by **Sprint** and then by **User Story** to enable independe
 
 ### Layout & Authentication Components
 
-- [ ] T029 [P] Create `app/layout.tsx` (root layout) with Amplify provider, Authenticator wrapper, and error boundary
+- [x] T029 [P] Create `app/layout.tsx` (root layout) with Amplify provider, Authenticator wrapper, and error boundary
 
-- [ ] T030 [P] Create `app/components/ProtectedRoute.tsx` for customer-protected pages (redirects unauthenticated users to login)
+- [x] T030 [P] Create `app/components/ProtectedRoute.tsx` for customer-protected pages (redirects unauthenticated users to login)
 
-- [ ] T031 [P] Create `app/components/OperatorRoute.tsx` for operator-protected pages (redirects non-operators to customer portal)
+- [x] T031 [P] Create `app/components/OperatorRoute.tsx` for operator-protected pages (redirects non-operators to customer portal)
 
-- [ ] T032 [P] Create `app/components/ErrorBoundary.tsx` for catching and displaying React errors
+- [x] T032 [P] Create `app/components/ErrorBoundary.tsx` for catching and displaying React errors
 
-- [ ] T033 [P] Create `app/components/LoadingSpinner.tsx` for showing loading states during data fetch
+- [x] T033 [P] Create `app/components/LoadingSpinner.tsx` for showing loading states during data fetch
 
-- [ ] T034 [P] Create `app/types/index.ts` with TypeScript interfaces for Customer, Route, Invoice, etc. (aligned with GraphQL types)
+- [x] T034 [P] Create `app/types/index.ts` with TypeScript interfaces for Customer, Route, Invoice, etc. (aligned with GraphQL types)
 
-- [ ] T035 Write unit tests for components in `app/components/*.test.tsx` (ProtectedRoute, OperatorRoute, ErrorBoundary)
+- [x] T035 Write unit tests for components in `app/components/*.test.tsx` (ProtectedRoute, OperatorRoute, ErrorBoundary)
 
 ### Customer Login Flow
 
-- [ ] T036 Create `app/page.tsx` (home page) that redirects authenticated customers to `/customer/dashboard` and operators to `/operator/dashboard`
+- [x] T036 Create `app/page.tsx` (home page) that redirects authenticated customers to `/customer/dashboard` and operators to `/operator/dashboard`
 
-- [ ] T037 Create `app/customer/layout.tsx` (customer portal layout) with navbar, sidebar, logout button, responsive design
+- [x] T037 Create `app/customer/layout.tsx` (customer portal layout) with navbar, sidebar, logout button, responsive design
 
-- [ ] T038 Create `app/operator/layout.tsx` (operator portal layout) with admin menu, navigation, role indicators
+- [x] T038 Create `app/operator/layout.tsx` (operator portal layout) with admin menu, navigation, role indicators
 
 - [ ] T039 Test login flow manually: signup → verify email → login → redirected to correct dashboard
 

@@ -84,11 +84,11 @@ Tasks are organized by **Sprint** and then by **User Story** to enable independe
 
 - [x] T021 [P] Update `amplify/auth/resource.ts` to configure email-based authentication (already exists, verify)
 
-- [ ] T022 Configure custom Cognito attributes for operator role: `amplify env add` and update auth resource to support role claim in tokens
+- [x] T022 Configure custom Cognito attributes for operator role: `amplify env add` and update auth resource to support role claim in tokens
 
-- [ ] T023 Create Cognito user groups: "customer" (default) and "operator" (staff members); add authorization rules to use these groups
+- [x] T023 Create Cognito user groups: "customer" (default) and "operator" (staff members); add authorization rules to use these groups
 
-- [ ] T024 Test Cognito integration locally: `npx ampx sandbox` and verify Cognito User Pool is accessible
+- [x] T024 Test Cognito integration locally: `npx ampx sandbox` and verify Cognito User Pool is accessible
 
 ### Backend Type Definitions
 

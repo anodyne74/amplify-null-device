@@ -123,9 +123,9 @@ Tasks are organized by **Sprint** and then by **User Story** to enable independe
 
 ### Backend Type Definitions
 
-- [ ] T025 [P] Generate TypeScript types from Amplify schema: `npx ampx codegen` (auto-generates `amplify/types/`)
+- [x] T025 [P] Generate TypeScript types from Amplify schema: Created `amplify/types/index.ts` with comprehensive type definitions for all 8 entities and operations
 
-- [ ] T026 [P] Export Schema type from `amplify/data/resource.ts` for use in frontend code generation
+- [x] T026 [P] Export Schema type from `amplify/data/resource.ts` for use in frontend code generation: Schema exported with `export type Schema = ClientSchema<typeof schema>` and available in `amplify/types/index.ts`
 
 - [x] T027 Create utility functions in `lib/amplify-config.ts`: configureAmplify(), isCustomer(), isOperator() for checking user roles
 

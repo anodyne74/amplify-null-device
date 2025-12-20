@@ -1,0 +1,70 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, 1-delivery-management]
+  pull_request:
+    branches: [main, 1-delivery-management]
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: TypeScript type checking
+        run: npm run typecheck
+      
+      - name: ESLint
+        run: npm run lint
+      
+      - name: Run tests with coverage
+        run: npm run test:ci
+      
+      - name: Security audit
+        run: npm audit --production
+
+  amplify-build:
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.x
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Install Amplify CLI
+        run: npm install -g @aws-amplify/cli
+      
+      - name: Deploy to Amplify
+        env:
+          AMPLIFY_DOCKER_IMAGE_URI: ${{ secrets.AMPLIFY_DOCKER_IMAGE_URI }}
+        run: |
+          amplify pull --appId ${{ secrets.AMPLIFY_APP_ID }} --envName prod --yes
+          amplify publish --yes

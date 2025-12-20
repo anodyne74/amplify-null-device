@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Next.js
+.next
+out
+
+# Testing
+coverage
+.nyc_output
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -23,9 +31,7 @@ dist-ssr
 *.sln
 *.sw?
 
-
-# amplify
-node_modules
+# Amplify
 .amplify
 amplify_outputs*
 amplifyconfiguration*

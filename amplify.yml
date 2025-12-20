@@ -4,6 +4,11 @@ backend:
     build:
       commands:
         - npm ci --cache .npm --prefer-offline
+        # TypeScript type checking (Constitutional requirement II)
+        - npx tsc --noEmit
+        # ESLint validation (Code quality)
+        - npx eslint amplify/ --ext .ts
+        # Deploy Amplify infrastructure
         - npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
 frontend:
   phases:
@@ -12,6 +17,13 @@ frontend:
         - npm ci --cache .npm --prefer-offline
     build:
       commands:
+        # TypeScript type checking (Constitutional requirement II)
+        - npm run typecheck
+        # ESLint validation (Constitutional requirement III)
+        - npm run lint
+        # Jest test suite (Constitutional requirement V)
+        - npm run test:ci
+        # Build frontend
         - npm run build
   artifacts:
     # Next static export outputs to `out/` by default when using `next export`

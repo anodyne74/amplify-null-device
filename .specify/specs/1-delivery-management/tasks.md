@@ -28,21 +28,21 @@ Tasks are organized by **Sprint** and then by **User Story** to enable independe
 
 ### Setup Tasks
 
-- [ ] T001 Install testing dependencies: npm install --save-dev jest @testing-library/react @testing-library/jest-dom ts-jest @testing-library/jest-dom
+- [x] T001 Install testing dependencies: npm install --save-dev jest @testing-library/react @testing-library/jest-dom ts-jest @testing-library/jest-dom
 
-- [ ] T002 [P] Create Jest configuration file at `jest.config.js` with Next.js preset, jsdom environment, and coverage settings
+- [x] T002 [P] Create Jest configuration file at `jest.config.js` with Next.js preset, jsdom environment, and coverage settings
 
-- [ ] T003 [P] Create Jest setup file at `jest.setup.js` importing @testing-library/jest-dom
+- [x] T003 [P] Create Jest setup file at `jest.setup.js` importing @testing-library/jest-dom
 
-- [ ] T004 [P] Update `package.json` scripts to add: "test": "jest --watch", "test:ci": "jest --ci --coverage --maxWorkers=2 --passWithNoTests"
+- [x] T004 [P] Update `package.json` scripts to add: "test": "jest --watch", "test:ci": "jest --ci --coverage --maxWorkers=2 --passWithNoTests"
 
-- [ ] T005 [P] Create `.github/workflows/ci.yml` with GitHub Actions workflow for type checking, linting, testing, and security scanning
+- [x] T005 [P] Create `.github/workflows/ci.yml` with GitHub Actions workflow for type checking, linting, testing, and security scanning
 
-- [ ] T006 Update `amplify.yml` with quality gates: add tsc type checking, eslint linting, and jest test execution before and after build steps (per cicd-improvements.md Step 1)
+- [x] T006 Update `amplify.yml` with quality gates: add tsc type checking, eslint linting, and jest test execution before and after build steps (per cicd-improvements.md Step 1)
 
-- [ ] T007 [P] Create `.env.local.example` documenting required environment variables (NEXT_PUBLIC_API_REGION, etc.)
+- [x] T007 [P] Create `.env.local.example` documenting required environment variables (NEXT_PUBLIC_API_REGION, etc.)
 
-- [ ] T008 [P] Update `.gitignore` to exclude node_modules, .next, coverage, .amplify directories
+- [x] T008 [P] Update `.gitignore` to exclude node_modules, .next, coverage, .amplify directories
 
 - [ ] T009 Run `npm run typecheck` and verify zero errors; run `npm run lint` and fix all warnings
 

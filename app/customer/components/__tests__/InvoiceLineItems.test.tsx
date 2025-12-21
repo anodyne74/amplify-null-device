@@ -3,28 +3,28 @@ import InvoiceLineItems from '../InvoiceLineItems';
 import type { LineItem } from '@/amplify/types';
 
 describe('InvoiceLineItems', () => {
-  const mockLineItems: LineItem[] = [
-    {
-      id: 'line-1',
-      invoiceId: 'invoice-1',
-      description: 'Delivery Service - 10 stops',
-      quantity: 10,
-      ratePerUnit: 50.00,
-      amount: 500.00,
-      createdAt: '2024-01-15T10:00:00Z',
-    },
-    {
-      id: 'line-2',
-      invoiceId: 'invoice-1',
-      description: 'Fuel surcharge',
-      quantity: 1,
-      ratePerUnit: 75.00,
-      amount: 75.00,
-      createdAt: '2024-01-15T10:00:00Z',
-    },
-  ];
-
-  it('renders line items table', () => {
+const mockLineItems: LineItem[] = [
+  {
+    id: 'line-1',
+    invoiceId: 'invoice-1',
+    routeId: 'route-1',
+    description: 'Delivery Service - 10 stops',
+    quantity: 10,
+    ratePerUnit: 50.00,
+    amount: 500.00,
+    createdAt: '2024-01-15T10:00:00Z',
+  },
+  {
+    id: 'line-2',
+    invoiceId: 'invoice-1',
+    routeId: 'route-1',
+    description: 'Fuel surcharge',
+    quantity: 1,
+    ratePerUnit: 75.00,
+    amount: 75.00,
+    createdAt: '2024-01-15T10:00:00Z',
+  },
+];  it('renders line items table', () => {
     const { container } = render(<InvoiceLineItems lineItems={mockLineItems} totalAmount={575.00} />);
 
     expect(screen.getByText(/Description/i)).toBeInTheDocument();

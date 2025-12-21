@@ -45,14 +45,14 @@ describe('InvoiceListItem', () => {
     expect(screen.getByText(/2,500.50/i)).toBeInTheDocument();
   });
 
-  it('handles pending status', () => {
-    const pendingInvoice: Invoice = {
+  it('handles sent status', () => {
+    const sentInvoice: Invoice = {
       ...mockInvoice,
-      status: 'pending',
+      status: 'sent',
     };
 
-    render(<InvoiceListItem invoice={pendingInvoice} />);
-    expect(screen.getByText(/Pending/i)).toBeInTheDocument();
+    render(<InvoiceListItem invoice={sentInvoice} />);
+    expect(screen.getByText(/Sent/i)).toBeInTheDocument();
   });
 
   it('handles overdue status', () => {
@@ -70,23 +70,13 @@ describe('InvoiceListItem', () => {
     expect(screen.getByText(/INV-2024-001/i)).toBeInTheDocument();
   });
 
-  it('handles missing invoice number gracefully', () => {
-    const invoiceNoNumber: Invoice = {
+  it('handles zero amount', () => {
+    const invoiceZeroAmount: Invoice = {
       ...mockInvoice,
-      invoiceNumber: undefined,
+      totalAmount: 0,
     };
 
-    const { container } = render(<InvoiceListItem invoice={invoiceNoNumber} />);
-    expect(container).toBeInTheDocument();
-  });
-
-  it('handles null amount', () => {
-    const invoiceNullAmount: Invoice = {
-      ...mockInvoice,
-      totalAmount: null,
-    };
-
-    render(<InvoiceListItem invoice={invoiceNullAmount} />);
+    render(<InvoiceListItem invoice={invoiceZeroAmount} />);
     expect(screen.getByText(/\$0.00/i)).toBeInTheDocument();
   });
 });

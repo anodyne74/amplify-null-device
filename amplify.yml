@@ -13,8 +13,9 @@ frontend:
     preBuild:
       commands:
         - npm ci --cache .npm --prefer-offline
-        # Generate placeholder amplify_outputs.json for TypeScript compilation if needed
-        - npm run generate:config
+        # Generate amplify_outputs.json with backend values or placeholders
+        # Environment variables: AMPLIFY_COGNITO_USER_POOL_ID, AMPLIFY_COGNITO_CLIENT_ID, AMPLIFY_IDENTITY_POOL_ID
+        - node scripts/generate-amplify-outputs-from-backend.js
     build:
       commands:
         # TypeScript type checking (Constitutional requirement II)

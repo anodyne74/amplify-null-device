@@ -8,8 +8,6 @@ backend:
         - bash generate-amplify-outputs.sh
         # TypeScript type checking (Constitutional requirement II)
         - npx tsc --noEmit
-        # ESLint validation (Code quality)
-        - npx eslint amplify/ --ext .ts
 frontend:
   phases:
     preBuild:

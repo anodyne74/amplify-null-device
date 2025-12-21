@@ -244,37 +244,37 @@ Tasks are organized by **Sprint** and then by **User Story** to enable independe
 
 ### Invoice List & Filtering
 
-- [ ] T061 [US2] Create GraphQL query `queries/ListMyInvoices.ts` to fetch customer's invoices with date filtering
+- [x] T061 [US2] Create GraphQL query `queries/ListMyInvoices.ts` to fetch customer's invoices with date filtering
 
-- [ ] T062 [US2] Create `app/customer/invoices/page.tsx` (invoice list) showing: invoice number, date, period, amount, status, download button
+- [x] T062 [US2] Create `app/customer/invoices/page.tsx` (invoice list) showing: invoice number, date, period, amount, status, download button
 
-- [ ] T063 [US2] Create `app/customer/components/InvoiceListItem.tsx` for individual invoice display (reusable)
+- [x] T063 [US2] Create `app/customer/components/InvoiceListItem.tsx` for individual invoice display (reusable)
 
-- [ ] T064 [US2] Implement date range filter for invoices (start date, end date) with calendar picker or text inputs
+- [x] T064 [US2] Implement date range filter for invoices (start date, end date) with calendar picker or text inputs
 
-- [ ] T065 [US2] [P] Write unit test for InvoiceListItem: renders invoice data, status badge, download button
+- [x] T065 [US2] [P] Write unit test for InvoiceListItem: renders invoice data, status badge, download button
 
-- [ ] T066 [US2] [P] Write integration test for invoice list: fetches invoices, filters by date range, displays results
+- [x] T066 [US2] [P] Write integration test for invoice list: fetches invoices, filters by date range, displays results
 
 ### Invoice Detail & PDF Download
 
-- [ ] T067 [US2] Create GraphQL query `queries/GetInvoiceDetail.ts` to fetch invoice with line items (from plan.md)
+- [x] T067 [US2] Create GraphQL query `queries/GetInvoiceDetail.ts` to fetch invoice with line items (from plan.md)
 
-- [ ] T068 [US2] Create `app/customer/invoices/[id]/page.tsx` (invoice detail) showing: number, period, line items table, total amount, PDF download button
+- [x] T068 [US2] Create `app/customer/invoices/[id]/page.tsx` (invoice detail) showing: number, period, line items table, total amount, PDF download button
 
-- [ ] T069 [US2] Create `app/customer/components/InvoiceLineItems.tsx` for displaying itemized charges table (description, quantity, rate, amount)
+- [x] T069 [US2] Create `app/customer/components/InvoiceLineItems.tsx` for displaying itemized charges table (description, quantity, rate, amount)
 
-- [ ] T070 [US2] Implement PDF download: call API endpoint `/api/invoices/[id]/download` which returns signed S3 URL
+- [x] T070 [US2] Implement PDF download: call API endpoint `/api/invoices/[id]/download` which returns signed S3 URL
 
-- [ ] T071 [US2] [P] Write unit test for InvoiceLineItems: renders table with correct data
+- [x] T071 [US2] [P] Write unit test for InvoiceLineItems: renders table with correct data
 
-- [ ] T072 [US2] [P] Write integration test for invoice detail page: fetches invoice, displays line items, PDF download initiates
+- [x] T072 [US2] [P] Write integration test for invoice detail page: fetches invoice, displays line items, PDF download initiates
 
 - [ ] T073 [US2] Test PDF download performance: verify download initiates within 2 seconds (SC-004 requirement)
 
 ### File Access Control (Security - US7)
 
-- [ ] T074 [US2] Create API route `/api/invoices/[id]/download` that: (1) verifies customer is authenticated, (2) checks customer ID matches invoice owner, (3) generates signed S3 URL, (4) logs access to AuditLog
+- [x] T074 [US2] Create API route `/api/invoices/[id]/download` that: (1) verifies customer is authenticated, (2) checks customer ID matches invoice owner, (3) generates signed S3 URL, (4) logs access to AuditLog
 
 - [ ] T075 [US2] [P] Write unit test for download endpoint: authorized customer succeeds, other customer denied, logs AuditLog entry
 

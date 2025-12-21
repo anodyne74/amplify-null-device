@@ -1,12 +1,13 @@
 /**
  * Next.js configuration optimized for Amplify Hosting
- * - output: 'standalone' creates a Node.js server usable with Amplify Hosting
+ * - output: 'export' creates a static HTML export to `out/` directory
  * - images.unoptimized: true for better CDN caching
+ * This configuration generates static files suitable for CDN hosting via Amplify
  */
 
 export default {
   reactStrictMode: true,
-  output: 'standalone',
+  output: 'export',
   images: {
     unoptimized: true,
   },

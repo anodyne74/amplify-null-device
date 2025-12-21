@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
  * 3. Generate signed S3 URL
  * 4. Log access to AuditLog
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: NextRequest,
   context: { params: { id: string } }

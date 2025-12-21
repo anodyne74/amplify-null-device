@@ -11,22 +11,17 @@ import RouteTimeline from '@/app/customer/components/RouteTimeline';
 import StopListItem from '@/app/customer/components/StopListItem';
 import type { Route } from '@/amplify/types';
 
-interface RouteDetailPageProps {
+interface RouteDetailContentProps {
   params: {
     id: string;
   };
-}
-
-// Required for static export with dynamic routes
-export async function generateStaticParams() {
-  return [];
 }
 
 /**
  * Customer Route Detail Page
  * Shows full route information with stops and timeline
  */
-export default function RouteDetailPage({ params }: RouteDetailPageProps) {
+export default function RouteDetailContent({ params }: RouteDetailContentProps) {
   const { user } = useAuthenticator();
   const customerId = user ? getCurrentCustomerId(user) : undefined;
   const [route, setRoute] = useState<Route | null>(null);

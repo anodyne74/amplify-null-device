@@ -7,22 +7,17 @@ import { getInvoiceDetail, type InvoiceDetail } from '@/lib/queries/GetInvoiceDe
 import InvoiceLineItems from '@/app/customer/components/InvoiceLineItems';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 
-interface InvoiceDetailPageProps {
+interface InvoiceDetailContentProps {
   params: {
     id: string;
   };
-}
-
-// Required for static export with dynamic routes
-export async function generateStaticParams() {
-  return [];
 }
 
 /**
  * Invoice Detail Page
  * Displays invoice with line items and download option
  */
-export default function InvoiceDetailPage({ params }: InvoiceDetailPageProps) {
+export default function InvoiceDetailContent({ params }: InvoiceDetailContentProps) {
   const { user } = useAuthenticator();
   const router = useRouter();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);

@@ -13,6 +13,11 @@ interface InvoiceDetailPageProps {
   };
 }
 
+// Required for static export with dynamic routes
+export async function generateStaticParams() {
+  return [];
+}
+
 /**
  * Invoice Detail Page
  * Displays invoice with line items and download option

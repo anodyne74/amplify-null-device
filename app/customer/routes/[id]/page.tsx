@@ -17,6 +17,11 @@ interface RouteDetailPageProps {
   };
 }
 
+// Required for static export with dynamic routes
+export async function generateStaticParams() {
+  return [];
+}
+
 /**
  * Customer Route Detail Page
  * Shows full route information with stops and timeline

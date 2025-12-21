@@ -37,6 +37,9 @@ export interface Customer {
   billingRatePerHour: number;
   createdAt?: string;
   updatedAt?: string;
+  routes?: Route[];
+  invoices?: Invoice[];
+  paymentRecords?: PaymentRecord[];
 }
 
 export interface Operator {
@@ -51,28 +54,32 @@ export interface Operator {
 export interface Route {
   id: string;
   customerId: string;
-  status: RouteStatus;
-  estimatedDurationMinutes: number;
-  actualStartTime?: string;
-  actualEndTime?: string;
-  actualDurationMinutes?: number;
+  status?: RouteStatus | null;
+  estimatedDurationMinutes?: number | null;
+  actualStartTime?: string | null;
+  actualEndTime?: string | null;
+  actualDurationMinutes?: number | null;
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
+  customer?: Customer;
+  stops?: Stop[];
+  lineItems?: LineItem[];
 }
 
 export interface Stop {
   id: string;
   routeId: string;
-  sequence: number;
-  address: string;
-  serviceType: ServiceType;
-  estimatedArrivalTime?: string;
-  actualArrivalTime?: string;
-  actualDepartureTime?: string;
+  sequence?: number | null;
+  address?: string;
+  serviceType?: ServiceType | null;
+  estimatedArrivalTime?: string | null;
+  actualArrivalTime?: string | null;
+  actualDepartureTime?: string | null;
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
+  route?: Route;
 }
 
 export interface Invoice {
@@ -86,6 +93,8 @@ export interface Invoice {
   status: InvoiceStatus;
   createdAt?: string;
   updatedAt?: string;
+  customer?: Customer;
+  lineItems?: LineItem[];
 }
 
 export interface LineItem {
@@ -97,6 +106,8 @@ export interface LineItem {
   ratePerUnit: number;
   amount: number;
   createdAt?: string;
+  invoice?: Invoice;
+  route?: Route;
 }
 
 export interface PaymentRecord {
@@ -110,6 +121,8 @@ export interface PaymentRecord {
   status: PaymentStatus;
   notes?: string;
   createdAt?: string;
+  customer?: Customer;
+  invoice?: Invoice;
 }
 
 export interface AuditLog {
@@ -134,8 +147,8 @@ export interface AuditLog {
 
 export type CustomerStatus = 'active' | 'inactive' | 'suspended';
 export type OperatorRole = 'admin' | 'manager' | 'staff';
-export type RouteStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-export type ServiceType = 'delivery' | 'pickup' | 'inspection' | 'consultation';
+export type RouteStatus = 'planned' | 'active' | 'completed' | 'archived';
+export type ServiceType = 'delivery' | 'pickup' | 'inspection';
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled';
 export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'check' | 'cash' | 'other';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'cancelled';

@@ -1,0 +1,202 @@
+'use client';
+
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import CustomerLayout from '../layout';
+import { useRouter } from 'next/navigation';
+import { useAuthenticator } from '@aws-amplify/ui-react';
+
+// Mock the router
+jest.mock('next/navigation', () => ({
+  useRouter: jest.fn(),
+}));
+
+// Mock the authenticator
+jest.mock('@aws-amplify/ui-react', () => ({
+  useAuthenticator: jest.fn(),
+  Authenticator: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+// Mock the ProtectedRoute component
+jest.mock('@/app/components/ProtectedRoute', () => {
+  return function MockProtectedRoute({ children }: { children: React.ReactNode }) {
+    return <>{children}</>;
+  };
+});
+
+// Mock utilities
+jest.mock('@/lib/amplify-config', () => ({
+  getUserEmail: jest.fn(() => 'test@example.com'),
+  getUserGroups: jest.fn(() => ['customer']),
+}));
+
+describe('Customer Session Management Integration', () => {
+  let mockPush: jest.Mock;
+  let mockSignOut: jest.Mock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+
+    mockPush = jest.fn();
+    mockSignOut = jest.fn().mockResolvedValue(undefined);
+
+    (useRouter as jest.Mock).mockReturnValue({
+      push: mockPush,
+    });
+
+    (useAuthenticator as jest.Mock).mockReturnValue({
+      signOut: mockSignOut,
+      user: {
+        userId: 'test-user-id',
+        signInUserSession: {
+          idToken: {
+            payload: {
+              email: 'test@example.com',
+            },
+          },
+        },
+      },
+    });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('displays logout button in sidebar', () => {
+    render(
+      <CustomerLayout>
+        <div>Test Content</div>
+      </CustomerLayout>
+    );
+
+    expect(screen.getByText(/Logout/)).toBeInTheDocument();
+  });
+
+  it('shows logout confirmation dialog when logout is clicked', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    render(
+      <CustomerLayout>
+        <div>Test Content</div>
+      </CustomerLayout>
+    );
+
+    const logoutButton = screen.getByText(/Logout/);
+    await user.click(logoutButton);
+
+    expect(screen.getByText(/Are you sure you want to logout/i)).toBeInTheDocument();
+  });
+
+  it('confirms logout and calls signOut', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    render(
+      <CustomerLayout>
+        <div>Test Content</div>
+      </CustomerLayout>
+    );
+
+    // Click logout
+    const logoutButton = screen.getByText(/Logout/);
+    await user.click(logoutButton);
+
+    // Click confirm
+    const confirmButton = screen.getByText(/Yes, Logout/);
+    await user.click(confirmButton);
+
+    await waitFor(() => {
+      expect(mockSignOut).toHaveBeenCalled();
+    });
+  });
+
+  it('cancels logout when cancel is clicked', async () => {
+    const user = userEvent.setup({ delay: null });
+
+    render(
+      <CustomerLayout>
+        <div>Test Content</div>
+      </CustomerLayout>
+    );
+
+    // Click logout
+    let logoutButton = screen.getByText(/Logout/);
+    await user.click(logoutButton);
+
+    // Click cancel
+    const cancelButton = screen.getByText(/Cancel/);
+    await user.click(cancelButton);
+
+    // Logout button should be visible again
+    await waitFor(() => {
+      logoutButton = screen.getByText(/Logout/);
+      expect(logoutButton).toBeInTheDocument();
+    });
+
+    expect(mockSignOut).not.toHaveBeenCalled();
+  });
+
+  it('displays user email in sidebar', () => {
+    render(
+      <CustomerLayout>
+        <div>Test Content</div>
+      </CustomerLayout>
+    );
+
+    expect(screen.getByText(/test@example.com/)).toBeInTheDocument();
+  });
+
+  it('shows navigation links', () => {
+    render(
+      <CustomerLayout>
+        <div>Test Content</div>
+      </CustomerLayout>
+    );
+
+    expect(screen.getByText(/Dashboard/)).toBeInTheDocument();
+    expect(screen.getByText(/Routes/)).toBeInTheDocument();
+    expect(screen.getByText(/Invoices/)).toBeInTheDocument();
+  });
+
+  it('renders children content', () => {
+    render(
+      <CustomerLayout>
+        <div>Test Content Here</div>
+      </CustomerLayout>
+    );
+
+    expect(screen.getByText(/Test Content Here/)).toBeInTheDocument();
+  });
+
+  it('initializes session timeout monitoring', () => {
+    const setIntervalSpy = jest.spyOn(global, 'setInterval');
+
+    render(
+      <CustomerLayout>
+        <div>Test Content</div>
+      </CustomerLayout>
+    );
+
+    expect(setIntervalSpy).toHaveBeenCalled();
+
+    setIntervalSpy.mockRestore();
+  });
+
+  it('sets up activity event listeners', () => {
+    const addEventListenerSpy = jest.spyOn(window, 'addEventListener');
+
+    render(
+      <CustomerLayout>
+        <div>Test Content</div>
+      </CustomerLayout>
+    );
+
+    expect(addEventListenerSpy).toHaveBeenCalledWith('mousedown', expect.any(Function));
+    expect(addEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(addEventListenerSpy).toHaveBeenCalledWith('scroll', expect.any(Function));
+    expect(addEventListenerSpy).toHaveBeenCalledWith('touchstart', expect.any(Function));
+
+    addEventListenerSpy.mockRestore();
+  });
+});

@@ -1,12 +1,12 @@
 /**
- * Next.js configuration optimized for static export (S3 + CloudFront)
- * - output: 'export' creates an `out/` folder usable with S3 static hosting
- * - images.unoptimized: avoid next image optimization on static hosting
+ * Next.js configuration optimized for Amplify Hosting
+ * - output: 'standalone' creates a Node.js server usable with Amplify Hosting
+ * - images.unoptimized: true for better CDN caching
  */
 
 export default {
   reactStrictMode: true,
-  output: 'export',
+  output: 'standalone',
   images: {
     unoptimized: true,
   },

@@ -5,7 +5,7 @@ backend:
       commands:
         - npm ci --cache .npm --prefer-offline
         # Generate placeholder amplify_outputs.json for TypeScript compilation
-        - bash generate-amplify-outputs.sh
+        - npm run generate:config
         # TypeScript type checking (Constitutional requirement II)
         - npx tsc --noEmit
 frontend:
@@ -14,7 +14,7 @@ frontend:
       commands:
         - npm ci --cache .npm --prefer-offline
         # Generate placeholder amplify_outputs.json for TypeScript compilation if needed
-        - bash generate-amplify-outputs.sh
+        - npm run generate:config
     build:
       commands:
         # TypeScript type checking (Constitutional requirement II)

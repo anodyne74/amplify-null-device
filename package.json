@@ -10,7 +10,8 @@
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "typecheck": "tsc --noEmit",
     "test": "jest --watch",
-    "test:ci": "jest --ci --coverage --maxWorkers=2 --passWithNoTests"
+    "test:ci": "jest --ci --coverage --maxWorkers=2 --passWithNoTests",
+    "generate:config": "bash generate-amplify-outputs.sh"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.12.0",

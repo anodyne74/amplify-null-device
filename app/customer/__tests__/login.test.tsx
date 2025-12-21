@@ -30,9 +30,12 @@ function LoginFlow() {
     return <div data-testid="login-form">Login Form - Sign in with email</div>;
   }
 
+  // Cast to any to access Cognito token structure
+  const userAny = user as any;
+
   return (
     <div data-testid="dashboard">
-      <h1>Welcome, {user?.signInUserSession?.idToken?.payload?.email}</h1>
+      <h1>Welcome, {userAny?.signInUserSession?.idToken?.payload?.email}</h1>
       <p>Customer ID: {user?.userId}</p>
       <button onClick={() => {}}>Logout</button>
     </div>

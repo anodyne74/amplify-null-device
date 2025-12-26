@@ -18,14 +18,7 @@ frontend:
         - node scripts/generate-amplify-outputs-from-backend.js
     build:
       commands:
-        # TypeScript type checking (Constitutional requirement II)
-        - npm run typecheck
-        # ESLint validation (Constitutional requirement III)
-        - npm run lint
-        # Jest test suite (Constitutional requirement V)
-        # Note: Using --passWithNoTests during Amplify build since tests may not all pass in CI
-        - npm run test:ci -- --passWithNoTests || true
-        # Build frontend
+        # Build frontend (quality checks already passed in GitHub Actions)
         - npm run build
   artifacts:
     # Next static export outputs to `out/` by default when using `next export`

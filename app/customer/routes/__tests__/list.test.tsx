@@ -50,7 +50,7 @@ describe('Customer Routes List Page', () => {
     {
       id: 'route-1',
       customerId: 'test-customer-1',
-      status: 'scheduled',
+      status: 'planned',
       estimatedDurationMinutes: 120,
       createdAt: '2024-01-15T10:00:00Z',
     },
@@ -64,7 +64,7 @@ describe('Customer Routes List Page', () => {
     {
       id: 'route-3',
       customerId: 'test-customer-1',
-      status: 'in_progress',
+      status: 'active',
       estimatedDurationMinutes: 150,
       createdAt: '2024-01-16T11:00:00Z',
     },

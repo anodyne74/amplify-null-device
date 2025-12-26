@@ -4,7 +4,7 @@ backend:
     build:
       commands:
         - npm ci --cache .npm --prefer-offline
-        - npm run build --prefix amplify
+        - npx tsc --noEmit --project amplify/tsconfig.json
 frontend:
   phases:
     preBuild:

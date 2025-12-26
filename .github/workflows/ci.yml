@@ -59,6 +59,7 @@ jobs:
       - name: Deploy backend (Amplify Gen 2)
         if: github.ref_name == 'main' || github.ref_name == '1-delivery-management'
         run: |
+          npm install -g @aws-amplify/cli
           npx ampx pipeline-deploy --branch ${{ github.ref_name }} --app-id d2qllmg205y34i
       
       - name: Build project

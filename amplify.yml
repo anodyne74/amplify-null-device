@@ -3,9 +3,10 @@ backend:
   phases:
     build:
       commands:
-        - echo "Backend deployment via GitHub Actions"
-        # Amplify Gen 2 backends are deployed via npx ampx in GitHub Actions
-        # Amplify Console only handles frontend builds
+        - npm ci --cache .npm --prefer-offline
+        - npm exec -- tsc --noEmit amplify/backend.ts
+        # The above compiles the backend TypeScript to validate it
+        # Amplify's platform detects amplify/backend.ts and deploys via CDK
 frontend:
   phases:
     preBuild:

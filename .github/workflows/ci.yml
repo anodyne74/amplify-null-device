@@ -73,13 +73,12 @@ jobs:
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID }} \
             --paths "/*"
-      
-      - name: Install Amplify CLI
-        run: npm install -g @aws-amplify/cli
-      
-      - name: Deploy to Amplify
-        env:
-          AMPLIFY_DOCKER_IMAGE_URI: ${{ secrets.AMPLIFY_DOCKER_IMAGE_URI }}
-        run: |
-          amplify pull --appId ${{ secrets.AMPLIFY_APP_ID }} --envName prod --yes
-          amplify publish --yes
+
+      # Amplify Gen 2 Backend Deployment Note:
+      # Backend deployment is handled automatically by Amplify's GitHub integration.
+      # When code is pushed with amplify/ directory, Amplify will:
+      # 1. Detect the push via webhook
+      # 2. Run buildspec in amplify.yml
+      # 3. Execute: npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
+      # 4. Deploy CloudFormation stacks for backend resources
+      # This GitHub Actions workflow handles frontend deployment to S3/CloudFront only.

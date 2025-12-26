@@ -4,12 +4,6 @@ backend:
     build:
       commands:
         - npm ci --cache .npm --prefer-offline
-        # Backend deployment via Amplify environments
-        # Branch-to-environment mapping:
-        # - main branch → production environment (Cognito, AppSync, DynamoDB)
-        # - 1-delivery-management branch → uat environment (Cognito, AppSync, DynamoDB)
-        # Amplify automatically deploys backend CDK resources defined in amplify/backend.ts
-        - echo "Backend environment: Amplify will deploy based on branch mapping"
 frontend:
   phases:
     preBuild:

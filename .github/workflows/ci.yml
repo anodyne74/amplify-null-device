@@ -49,15 +49,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      - name: Build project
-        run: npm run build
-      
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
+      
+      - name: Deploy backend (Amplify Gen 2)
+        if: github.ref_name == 'main' || github.ref_name == '1-delivery-management'
+        run: |
+          npx ampx pipeline-deploy --branch ${{ github.ref_name }} --app-id d2qllmg205y34i
+      
+      - name: Build project
+        run: npm run build
       
       - name: Sync build output to S3
         run: aws s3 sync ./out s3://${{ secrets.AWS_S3_BUCKET }} --delete
@@ -70,12 +75,3 @@ jobs:
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID }} \
             --paths "/*"
-
-      # Amplify Gen 2 Backend Deployment Note:
-      # Backend deployment is handled automatically by Amplify's GitHub integration.
-      # When code is pushed with amplify/ directory, Amplify will:
-      # 1. Detect the push via webhook
-      # 2. Run buildspec in amplify.yml
-      # 3. Execute: npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
-      # 4. Deploy CloudFormation stacks for backend resources
-      # This GitHub Actions workflow handles frontend deployment to S3/CloudFront only.

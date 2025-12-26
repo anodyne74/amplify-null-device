@@ -4,7 +4,6 @@ backend:
     build:
       commands:
         - npm ci --cache .npm --prefer-offline
-        - cd amplify && npm ci && cd ..
         - npx --yes tsx node_modules/@aws-amplify/cli/lib/index.js gen2 deploy
 frontend:
   phases:

@@ -1,3 +1,43 @@
+// Mock the Amplify client BEFORE importing the queries
+const mockCustomerList = jest.fn();
+const mockCustomerGet = jest.fn();
+const mockRouteList = jest.fn();
+const mockRouteGet = jest.fn();
+const mockRouteCreate = jest.fn();
+const mockRouteUpdate = jest.fn();
+const mockStopList = jest.fn();
+const mockInvoiceList = jest.fn();
+const mockInvoiceGet = jest.fn();
+const mockLineItemList = jest.fn();
+
+jest.mock('aws-amplify/data', () => ({
+  generateClient: () => ({
+    models: {
+      Customer: {
+        list: mockCustomerList,
+        get: mockCustomerGet,
+      },
+      Route: {
+        list: mockRouteList,
+        get: mockRouteGet,
+        create: mockRouteCreate,
+        update: mockRouteUpdate,
+        observeQuery: jest.fn(),
+      },
+      Stop: {
+        list: mockStopList,
+      },
+      Invoice: {
+        list: mockInvoiceList,
+        get: mockInvoiceGet,
+      },
+      LineItem: {
+        list: mockLineItemList,
+      },
+    },
+  }),
+}));
+
 import {
   listCustomers,
   getCustomer,
@@ -9,35 +49,6 @@ import {
   updateRoute,
 } from './queries';
 
-// Mock the Amplify client
-jest.mock('aws-amplify/data', () => ({
-  generateClient: () => ({
-    models: {
-      Customer: {
-        list: jest.fn(),
-        get: jest.fn(),
-      },
-      Route: {
-        list: jest.fn(),
-        get: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        observeQuery: jest.fn(),
-      },
-      Stop: {
-        list: jest.fn(),
-      },
-      Invoice: {
-        list: jest.fn(),
-        get: jest.fn(),
-      },
-      LineItem: {
-        list: jest.fn(),
-      },
-    },
-  }),
-}));
-
 describe('queries', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -45,17 +56,15 @@ describe('queries', () => {
 
   describe('listCustomers', () => {
     it('should fetch customers with default pagination', async () => {
-      const mockClients = require('aws-amplify/data');
-      const client = mockClients.generateClient();
-
-      client.models.Customer.list.mockResolvedValue({
-        data: [{ id: '1', name: 'Customer 1', email: 'c1@example.com' }],
+      const mockCustomers = [{ id: '1', name: 'Customer 1', email: 'c1@example.com' }];
+      mockCustomerList.mockResolvedValue({
+        data: mockCustomers,
         errors: undefined,
       });
 
       const result = await listCustomers();
 
-      expect(client.models.Customer.list).toHaveBeenCalledWith({
+      expect(mockCustomerList).toHaveBeenCalledWith({
         limit: 20,
         nextToken: undefined,
       });
@@ -64,10 +73,7 @@ describe('queries', () => {
     });
 
     it('should handle errors gracefully', async () => {
-      const mockClients = require('aws-amplify/data');
-      const client = mockClients.generateClient();
-
-      client.models.Customer.list.mockResolvedValue({
+      mockCustomerList.mockResolvedValue({
         data: [],
         errors: ['Error fetching customers'],
       });
@@ -81,40 +87,34 @@ describe('queries', () => {
 
   describe('getCustomer', () => {
     it('should fetch a single customer by ID', async () => {
-      const mockClients = require('aws-amplify/data');
-      const client = mockClients.generateClient();
-
       const mockCustomer = { id: '1', name: 'Customer 1', email: 'c1@example.com' };
-      client.models.Customer.get.mockResolvedValue({
+      mockCustomerGet.mockResolvedValue({
         data: mockCustomer,
         errors: undefined,
       });
 
       const result = await getCustomer('1');
 
-      expect(client.models.Customer.get).toHaveBeenCalledWith({ id: '1' });
+      expect(mockCustomerGet).toHaveBeenCalledWith({ id: '1' });
       expect(result.data).toEqual(mockCustomer);
     });
   });
 
   describe('listCustomerRoutes', () => {
     it('should fetch routes for a specific customer', async () => {
-      const mockClients = require('aws-amplify/data');
-      const client = mockClients.generateClient();
-
       const mockRoutes = [
         { id: 'r1', customerId: 'c1', status: 'planned', name: 'Route 1' },
         { id: 'r2', customerId: 'c1', status: 'active', name: 'Route 2' },
       ];
 
-      client.models.Route.list.mockResolvedValue({
+      mockRouteList.mockResolvedValue({
         data: mockRoutes,
         errors: undefined,
       });
 
       const result = await listCustomerRoutes('c1');
 
-      expect(client.models.Route.list).toHaveBeenCalledWith({
+      expect(mockRouteList).toHaveBeenCalledWith({
         filter: { customerId: { eq: 'c1' } },
         limit: 20,
         nextToken: undefined,
@@ -123,15 +123,12 @@ describe('queries', () => {
     });
 
     it('should filter routes by status on client side', async () => {
-      const mockClients = require('aws-amplify/data');
-      const client = mockClients.generateClient();
-
       const mockRoutes = [
         { id: 'r1', customerId: 'c1', status: 'planned' },
         { id: 'r2', customerId: 'c1', status: 'active' },
       ];
 
-      client.models.Route.list.mockResolvedValue({
+      mockRouteList.mockResolvedValue({
         data: mockRoutes,
         errors: undefined,
       });
@@ -145,21 +142,18 @@ describe('queries', () => {
 
   describe('getRouteWithStops', () => {
     it('should fetch route and its associated stops', async () => {
-      const mockClients = require('aws-amplify/data');
-      const client = mockClients.generateClient();
-
       const mockRoute = { id: 'r1', customerId: 'c1', status: 'active' };
       const mockStops = [
         { id: 's1', routeId: 'r1', sequence: 1, address: '123 Main St' },
         { id: 's2', routeId: 'r1', sequence: 2, address: '456 Oak Ave' },
       ];
 
-      client.models.Route.get.mockResolvedValue({
+      mockRouteGet.mockResolvedValue({
         data: mockRoute,
         errors: undefined,
       });
 
-      client.models.Stop.list.mockResolvedValue({
+      mockStopList.mockResolvedValue({
         data: mockStops,
         errors: undefined,
       });
@@ -173,11 +167,8 @@ describe('queries', () => {
 
   describe('createRoute', () => {
     it('should create a new route', async () => {
-      const mockClients = require('aws-amplify/data');
-      const client = mockClients.generateClient();
-
       const mockRoute = { id: 'r1', customerId: 'c1', status: 'planned' };
-      client.models.Route.create.mockResolvedValue({
+      mockRouteCreate.mockResolvedValue({
         data: mockRoute,
         errors: undefined,
       });
@@ -188,7 +179,7 @@ describe('queries', () => {
         estimatedDurationMinutes: 120,
       });
 
-      expect(client.models.Route.create).toHaveBeenCalledWith({
+      expect(mockRouteCreate).toHaveBeenCalledWith({
         customerId: 'c1',
         status: 'planned',
         estimatedDurationMinutes: 120,
@@ -199,11 +190,8 @@ describe('queries', () => {
 
   describe('updateRoute', () => {
     it('should update an existing route', async () => {
-      const mockClients = require('aws-amplify/data');
-      const client = mockClients.generateClient();
-
       const mockRoute = { id: 'r1', status: 'completed', actualDurationMinutes: 115 };
-      client.models.Route.update.mockResolvedValue({
+      mockRouteUpdate.mockResolvedValue({
         data: mockRoute,
         errors: undefined,
       });
@@ -213,7 +201,7 @@ describe('queries', () => {
         actualDurationMinutes: 115,
       });
 
-      expect(client.models.Route.update).toHaveBeenCalledWith({
+      expect(mockRouteUpdate).toHaveBeenCalledWith({
         id: 'r1',
         status: 'completed',
         actualDurationMinutes: 115,

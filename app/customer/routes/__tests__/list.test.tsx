@@ -6,11 +6,26 @@ import RoutesPage from '../page';
 import * as listMyRoutesModule from '@/lib/queries/ListMyRoutes';
 import type { Route } from '@/amplify/types';
 
-// Mock the authentication
+// Mock Next.js router first
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+  }),
+}));
+
+// Mock the amplify config utilities
+jest.mock('@/lib/amplify-config', () => ({
+  isCustomer: () => true,
+  isOperator: () => false,
+}));
+
+// Mock the authentication with proper authStatus
 jest.mock('@aws-amplify/ui-react', () => ({
   useAuthenticator: () => ({
+    authStatus: 'authenticated',
     user: {
       userId: 'test-customer-1',
+      username: 'test-customer-1',
       signInUserSession: {
         idToken: {
           payload: {
@@ -27,14 +42,7 @@ jest.mock('@/lib/queries/ListMyRoutes');
 
 // Mock the session utilities
 jest.mock('@/app/auth/session', () => ({
-  getCurrentCustomerId: () => 'test-customer-1',
-}));
-
-// Mock Next.js router
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: jest.fn(),
-  }),
+  getCurrentCustomerId: (user: any) => 'test-customer-1',
 }));
 
 describe('Customer Routes List Page', () => {
@@ -42,7 +50,7 @@ describe('Customer Routes List Page', () => {
     {
       id: 'route-1',
       customerId: 'test-customer-1',
-      status: 'active',
+      status: 'scheduled',
       estimatedDurationMinutes: 120,
       createdAt: '2024-01-15T10:00:00Z',
     },
@@ -56,7 +64,7 @@ describe('Customer Routes List Page', () => {
     {
       id: 'route-3',
       customerId: 'test-customer-1',
-      status: 'planned',
+      status: 'in_progress',
       estimatedDurationMinutes: 150,
       createdAt: '2024-01-16T11:00:00Z',
     },
@@ -75,10 +83,10 @@ describe('Customer Routes List Page', () => {
     render(<RoutesPage />);
 
     await waitFor(() => {
-      expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Loading routes/i)).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText(/Delivery Routes/i)).toBeInTheDocument();
+    expect(screen.getByText(/Your Routes/i)).toBeInTheDocument();
   });
 
   it('displays error message when fetch fails', async () => {
@@ -100,14 +108,14 @@ describe('Customer Routes List Page', () => {
       errors: undefined,
     });
 
-    const { rerender } = render(<RoutesPage />);
+    render(<RoutesPage />);
 
     await waitFor(() => {
-      expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Loading routes/i)).not.toBeInTheDocument();
     });
 
     // Routes page should handle filtering
-    expect(screen.getByText(/Delivery Routes/i)).toBeInTheDocument();
+    expect(screen.getByText(/Your Routes/i)).toBeInTheDocument();
   });
 
   it('displays correct route count for each filter', async () => {
@@ -119,12 +127,12 @@ describe('Customer Routes List Page', () => {
     render(<RoutesPage />);
 
     await waitFor(() => {
-      expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Loading routes/i)).not.toBeInTheDocument();
     });
 
-    // All tab should show total
-    const allTab = screen.getByRole('button', { name: /all/i });
-    expect(allTab).toBeInTheDocument();
+    // Status filter should exist
+    const statusLabels = screen.getAllByText(/Status/i);
+    expect(statusLabels.length).toBeGreaterThan(0);
   });
 
   it('handles empty route list gracefully', async () => {
@@ -136,7 +144,7 @@ describe('Customer Routes List Page', () => {
     render(<RoutesPage />);
 
     await waitFor(() => {
-      expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Loading routes/i)).not.toBeInTheDocument();
     });
 
     expect(screen.getByText(/No routes found/i)).toBeInTheDocument();

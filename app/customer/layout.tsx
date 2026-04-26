@@ -16,13 +16,54 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const userEmail = user ? getUserEmail(user) : '';
   const { logout } = useLogout();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Initialize session timeout monitoring
   useSessionTimeout();
 
   return (
     <ProtectedRoute requireCustomer={true}>
-      <div style={{ display: 'flex', height: '100vh', backgroundColor: '#fafafa' }}>
+      <div style={{ display: 'flex', height: '100vh', backgroundColor: '#fafafa', flexDirection: 'row', overflow: 'hidden' }}>
+        {/* Mobile Menu Toggle */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          style={{
+            display: 'none',
+            position: 'fixed',
+            top: '1rem',
+            left: '1rem',
+            zIndex: 1001,
+            background: '#1976d2',
+            color: 'white',
+            border: 'none',
+            padding: '0.5rem 1rem',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '1.2rem',
+          }}
+          className="mobile-menu-toggle"
+        >
+          ☰
+        </button>
+
+        {/* Mobile Overlay */}
+        {sidebarOpen && (
+          <div
+            onClick={() => setSidebarOpen(false)}
+            style={{
+              display: 'none',
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              zIndex: 999,
+            }}
+            className="mobile-overlay"
+          />
+        )}
+
         {/* Sidebar Navigation */}
         <aside
           style={{
@@ -32,7 +73,10 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
             padding: '20px',
             overflowY: 'auto',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            transition: 'transform 0.3s ease',
+            position: 'relative',
           }}
+          className="sidebar"
         >
           <div style={{ marginBottom: '32px' }}>
             <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>
@@ -198,12 +242,44 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
             flex: 1,
             overflowY: 'auto',
             backgroundColor: 'white',
+            padding: 'clamp(1rem, 4vw, 2rem)',
+            width: '100%',
           }}
         >
-          <div style={{ padding: '20px' }}>
-            {children}
-          </div>
+          {children}
         </main>
+
+        <style>{`
+          @media (max-width: 768px) {
+            .mobile-menu-toggle {
+              display: block !important;
+            }
+            .mobile-overlay {
+              display: block !important;
+            }
+            .sidebar {
+              position: fixed !important;
+              left: 0;
+              top: 0;
+              height: 100vh !important;
+              transform: ${sidebarOpen ? 'translateX(0)' : 'translateX(-100%)'} !important;
+              z-index: 1000;
+              width: 250px;
+            }
+            main {
+              padding-top: 3rem !important;
+              margin-left: 0 !important;
+            }
+          }
+          @media (min-width: 769px) {
+            .mobile-menu-toggle {
+              display: none !important;
+            }
+            .mobile-overlay {
+              display: none !important;
+            }
+          }
+        `}</style>
       </div>
     </ProtectedRoute>
   );

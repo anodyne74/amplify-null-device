@@ -40,16 +40,23 @@ export default function Home() {
         alignItems: 'center',
         minHeight: '100vh',
         backgroundColor: '#f5f5f5',
+        width: '100%',
+        padding: '1rem',
       }}
     >
-      <div style={{ width: '100%', maxWidth: '400px', padding: '20px' }}>
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '400px',
+          padding: 'clamp(1rem, 5vw, 2rem)',
+        }}
+      >
         <h1 style={{ textAlign: 'center', marginBottom: '24px' }}>
           Delivery Management System
         </h1>
         <p style={{ textAlign: 'center', color: '#666', marginBottom: '24px' }}>
           Sign in to access your account
         </p>
-        {/* Authenticator component is provided by the layout */}
       </div>
     </div>
   );

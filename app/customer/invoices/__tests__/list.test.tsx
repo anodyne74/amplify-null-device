@@ -113,6 +113,7 @@ describe('Invoice List Page Integration', () => {
   });
 
   it('displays error message on fetch failure', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
     (listMyInvoicesModule.listMyInvoices as jest.Mock).mockResolvedValueOnce({
       data: [],
       errors: [new Error('API Error')],
@@ -123,6 +124,8 @@ describe('Invoice List Page Integration', () => {
     await waitFor(() => {
       expect(screen.getByText(/Failed to load invoices/i)).toBeInTheDocument();
     });
+
+    consoleErrorSpy.mockRestore();
   });
 
   it('displays invoice count summary', async () => {

@@ -5,7 +5,9 @@
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 
-const client = generateClient<Schema>();
+function getClient() {
+  return generateClient<Schema>();
+}
 
 export interface ListMyRoutesParams {
   limit?: number;
@@ -15,7 +17,7 @@ export interface ListMyRoutesParams {
 
 export async function listMyRoutes(params: ListMyRoutesParams) {
   try {
-    const { data, errors, nextToken } = await client.models.Route.list({
+    const { data, errors, nextToken } = await getClient().models.Route.list({
       filter: {
         customerId: {
           eq: params.customerId,

@@ -5,7 +5,9 @@
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 
-const client = generateClient<Schema>();
+function getClient() {
+  return generateClient<Schema>();
+}
 
 export interface ListMyInvoicesParams {
   limit?: number;
@@ -35,7 +37,7 @@ export async function listMyInvoices(params: ListMyInvoicesParams) {
       }
     }
 
-    const { data, errors, nextToken } = await client.models.Invoice.list({
+    const { data, errors, nextToken } = await getClient().models.Invoice.list({
       filter,
       limit: params.limit || 20,
       nextToken: params.nextToken,

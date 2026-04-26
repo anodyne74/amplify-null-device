@@ -139,6 +139,7 @@ describe('Session Management', () => {
     });
 
     it('handles signOut errors gracefully', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       mockSignOut.mockRejectedValueOnce(new Error('Logout failed'));
 
       const { result } = renderHook(() => useLogout());
@@ -149,6 +150,7 @@ describe('Session Management', () => {
       });
 
       expect(mockSignOut).toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
     });
 
     it('logs console error on failure', async () => {

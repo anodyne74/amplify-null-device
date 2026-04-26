@@ -1,6 +1,6 @@
 'use client';
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CustomerLayout from '../layout';
 import { useRouter } from 'next/navigation';
@@ -36,7 +36,6 @@ describe('Customer Session Management Integration', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.useFakeTimers();
 
     mockPush = jest.fn();
     mockSignOut = jest.fn().mockResolvedValue(undefined);
@@ -60,10 +59,6 @@ describe('Customer Session Management Integration', () => {
     });
   });
 
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
   it('displays logout button in sidebar', () => {
     render(
       <CustomerLayout>
@@ -75,7 +70,7 @@ describe('Customer Session Management Integration', () => {
   });
 
   it('shows logout confirmation dialog when logout is clicked', async () => {
-    const user = userEvent.setup({ delay: null });
+    const user = userEvent.setup();
 
     render(
       <CustomerLayout>
@@ -84,13 +79,15 @@ describe('Customer Session Management Integration', () => {
     );
 
     const logoutButton = screen.getByText(/Logout/);
-    await user.click(logoutButton);
+    await act(async () => {
+      await user.click(logoutButton);
+    });
 
     expect(screen.getByText(/Are you sure you want to logout/i)).toBeInTheDocument();
   });
 
   it('confirms logout and calls signOut', async () => {
-    const user = userEvent.setup({ delay: null });
+    const user = userEvent.setup();
 
     render(
       <CustomerLayout>
@@ -100,11 +97,15 @@ describe('Customer Session Management Integration', () => {
 
     // Click logout
     const logoutButton = screen.getByText(/Logout/);
-    await user.click(logoutButton);
+    await act(async () => {
+      await user.click(logoutButton);
+    });
 
     // Click confirm
     const confirmButton = screen.getByText(/Yes, Logout/);
-    await user.click(confirmButton);
+    await act(async () => {
+      await user.click(confirmButton);
+    });
 
     await waitFor(() => {
       expect(mockSignOut).toHaveBeenCalled();
@@ -112,7 +113,7 @@ describe('Customer Session Management Integration', () => {
   });
 
   it('cancels logout when cancel is clicked', async () => {
-    const user = userEvent.setup({ delay: null });
+    const user = userEvent.setup();
 
     render(
       <CustomerLayout>
@@ -122,11 +123,15 @@ describe('Customer Session Management Integration', () => {
 
     // Click logout
     let logoutButton = screen.getByText(/Logout/);
-    await user.click(logoutButton);
+    await act(async () => {
+      await user.click(logoutButton);
+    });
 
     // Click cancel
     const cancelButton = screen.getByText(/Cancel/);
-    await user.click(cancelButton);
+    await act(async () => {
+      await user.click(cancelButton);
+    });
 
     // Logout button should be visible again
     await waitFor(() => {

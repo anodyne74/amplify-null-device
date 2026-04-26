@@ -73,6 +73,7 @@ describe('queries', () => {
     });
 
     it('should handle errors gracefully', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       mockCustomerList.mockResolvedValue({
         data: [],
         errors: ['Error fetching customers'],
@@ -82,6 +83,7 @@ describe('queries', () => {
 
       expect(result.data).toEqual([]);
       expect(result.errors).toBeDefined();
+      consoleErrorSpy.mockRestore();
     });
   });
 

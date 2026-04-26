@@ -1,33 +1,166 @@
-# Copilot Instructions for nd-assets (React + AWS Cognito)
+# Copilot Instructions for nd-assets (Delivery Management System)
 
 ## Project Overview
-This project is a React app (created with Vite) that uses AWS Cognito for secure login and admin access. It also embeds a Google Map. Only authenticated users can access the admin area.
+
+This is a **Next.js + AWS Amplify Gen 2** delivery management system. It uses:
+
+- **AWS Cognito** for authentication with two user groups: `customer` and `operator`
+- **AWS AppSync** (GraphQL) for the data API
+- **DynamoDB** for persistent storage (8 tables)
+- **AWS Amplify Hosting** + CloudFront for the frontend
+- **GitHub Actions** for quality gates; **Amplify Console** for deployment
+
+All backend infrastructure is defined as TypeScript code in the `amplify/` directory (Amplify Gen 2 / CDK approach — do **not** use `amplify pull`, which is a Gen 1 command).
 
 ## How to Use GitHub Copilot
-- Use Copilot to generate code snippets, automate repetitive tasks, and get suggestions for React, AWS Amplify, and Cognito integration.
-- You can ask Copilot to:
-  - Add new features (e.g., admin tools, custom styles)
-  - Help with Cognito or Amplify configuration
-  - Troubleshoot authentication or deployment issues
 
-## AWS Cognito Integration
-- Update `Amplify.configure` in `src/App.tsx` with your Cognito region, user pool ID, and app client ID.
-- Use the Authenticator component for login/logout and user session management.
-- Place admin features inside the authenticated section of the app.
+Use Copilot to:
+- Generate React components, hooks, and TypeScript types
+- Write AppSync GraphQL queries and mutations
+- Scaffold Amplify backend resource definitions in `amplify/`
+- Help with Cognito integration (`isCustomer`, `isOperator` helpers in `lib/amplify-config.ts`)
+- Troubleshoot authentication, authorization, or build failures
+- Write and update Jest tests for components
 
-## Deployment
-- Deploy through AWS Amplify Console for this repository.
-- Use GitHub Actions for quality gates, then let Amplify deploy the connected branch.
-- Treat S3 or CloudFront deployment notes as legacy unless the pipeline is explicitly changed back.
+## Repository Structure
 
-## Customization
-- Edit `src/App.tsx` to change the map, add content, or update styles.
-- Ask Copilot for help with React, Amplify, or new features.
+```
+amplify/                  # Backend (Amplify Gen 2 CDK)
+├── auth/resource.ts      # Cognito User Pool (email auth, password policy)
+├── data/resource.ts      # AppSync schema + DynamoDB authorization rules
+└── backend.ts            # Root backend entry point
+
+app/                      # Next.js app router pages
+├── customer/             # Customer portal
+└── operator/             # Operator portal
+
+src/                      # Shared React source
+lib/                      # Auth utilities and Amplify config helpers
+scripts/
+├── generate-amplify-outputs-from-backend.js   # Generates amplify_outputs.json
+└── validate-amplify-outputs.js                # Blocks deployed builds with placeholders
+
+amplify.yml               # Amplify build spec (committed)
+amplify_outputs.json      # Generated AWS config (not committed)
+```
+
+## User Groups and Authorization
+
+Two Cognito groups control access throughout the app:
+
+| Group | Access |
+|---|---|
+| `customer` | Read own routes, invoices, stops, line items, payment records (scoped by `customerId == user.sub`) |
+| `operator` | Full CRUD on all models; read/create AuditLog |
+
+Group membership is available in the ID token as `cognito:groups`. Use the helpers in `lib/amplify-config.ts`:
+
+```typescript
+import { isCustomer, isOperator } from '@/lib/amplify-config';
+const { user } = useAuthenticator();
+if (isOperator(user)) { /* operator view */ }
+```
+
+### Setting Up User Groups
+
+After the backend is deployed, create groups in the AWS Cognito Console:
+
+1. **AWS Console → Cognito → User pools** → select your pool
+2. **User groups → Create group**
+   - Name: `customer`, Description: `Regular customers`, Precedence: `1`
+   - Name: `operator`, Description: `Staff with elevated permissions`, Precedence: `2`
+3. Manually add operator users to the `operator` group
+4. Optionally, attach a Post Confirmation Lambda trigger to auto-assign new sign-ups to `customer`
+
+See [COGNITO_SETUP section in copilot-instructions.md](#setting-up-user-groups) for IAM role JSON examples and Lambda trigger guidance.
+
+## AWS Amplify Deployment
+
+### CI/CD Flow
+
+```
+git push → GitHub Actions (quality gates) → Amplify Console (build + deploy)
+```
+
+GitHub Actions runs only quality gates — no AWS credentials are needed in GitHub Secrets for the current setup. Amplify Console handles deployment when a push lands on a connected branch.
+
+### Amplify Build Phases (amplify.yml)
+
+**Backend phase**: installs deps, type-checks and lints `amplify/`  
+**Frontend preBuild**: installs deps, runs `npm run generate:config` and `npm run validate:amplify-outputs`  
+**Frontend build**: type-checks, lints, runs tests, then `npm run build`
+
+### Required Amplify Console Configuration
+
+1. **Connect repository**: GitHub → `anodyne74/amplify-null-device` → branch `1-delivery-management`
+2. **IAM compute role**: Create `AmplifyBackendDeployRole` with the following policies and assign it in Amplify Console → Build settings → IAM roles:
+   - `AmazonDynamoDBFullAccess`
+   - `AppSyncFullAccess`
+   - `AmazonCognitoPowerUser`
+   - `AWSCloudFormationFullAccess`
+   - `IAMFullAccess`
+3. **Environment variables** (Amplify Console → App → Environment variables):
+
+   | Variable | Value |
+   |---|---|
+   | `AMPLIFY_COGNITO_USER_POOL_ID` | `ap-southeast-2_xxxxx` |
+   | `AMPLIFY_COGNITO_CLIENT_ID` | (your client ID) |
+   | `AMPLIFY_IDENTITY_POOL_ID` | `ap-southeast-2:xxxx-...` |
+   | `AWS_REGION` | `ap-southeast-2` |
+
+See the [Amplify IAM Setup section](#required-amplify-console-configuration) above for step-by-step role creation.
+
+### Amplify Gen 2 Notes
+
+- Backend definitions live in `amplify/` as TypeScript — never use `amplify pull`
+- Backend is per-branch (each branch gets isolated AWS resources)
+- Use `npx ampx pipeline-deploy --app-id <id> --branch <branch>` for manual backend deploys
+- `amplify_outputs.json` is generated during build; do not commit it
 
 ## Troubleshooting
-- If authentication fails, check Cognito configuration and Amplify setup.
-- For deployment issues, verify Amplify Console branch connection, build logs, and service role permissions.
-- Ask Copilot for help debugging issues.
 
----
-Generated by GitHub Copilot
+### "Auth UserPool not configured"
+
+The deployed `amplify_outputs.json` contains placeholder values. Fix:
+1. Get your Cognito IDs from Amplify Console (Deployments → Stack outputs) or CloudFormation (your stack → Outputs tab)
+2. Add them as environment variables in Amplify Console (see the [Required Amplify Console Configuration](#required-amplify-console-configuration) section)
+3. Trigger a new build — the `generate:config` script will inject real values
+
+### "Cannot find module amplify_outputs.json"
+
+Run `npm run generate:config` locally to create the file with placeholder values.
+
+### Amplify validate:amplify-outputs fails in CI
+
+The `validate-amplify-outputs.js` script fails deployed builds when placeholder values remain. This means the Cognito environment variables are not set in Amplify Console.
+
+### Backend not deploying / CloudFormation stacks missing
+
+- Verify the compute role is assigned in Amplify Console → Build settings → IAM roles
+- Check Amplify Console backend deployment logs
+- Look for errors in AWS CloudFormation console (stacks prefixed with your app name)
+
+### Groups not appearing in token
+
+- Confirm the user is added to the group (not just that the group exists)
+- Log out and log back in to refresh the ID token
+- Verify the app client has the `cognito:groups` claim in ID token settings
+
+## Local Development
+
+```bash
+npm ci                        # Install dependencies
+npm run generate:config       # Create local amplify_outputs.json (placeholders)
+npm run dev                   # Start Next.js dev server at localhost:3000
+npm run typecheck             # TypeScript check
+npm run lint                  # ESLint
+npm run test                  # Jest (watch mode)
+npm run test:ci               # Jest (CI mode, with coverage)
+```
+
+## Key References
+
+- [AWS Amplify Gen 2 docs](https://docs.amplify.aws/gen2/)
+- [AppSync with Amplify](https://docs.amplify.aws/gen2/build-a-backend/data/)
+- [Amplify Environment Variables](https://docs.amplify.aws/react/deploy-and-host/fullstack-branching/environment-variables/)
+- [AWS Cognito Documentation](https://docs.aws.amazon.com/cognito/)

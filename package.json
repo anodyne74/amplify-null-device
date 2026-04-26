@@ -26,6 +26,7 @@
     "@aws-amplify/backend": "^1.19.0",
     "@aws-amplify/backend-cli": "^1.8.2",
     "@aws-amplify/cli": "^14.2.3",
+    "@aws-sdk/client-cognito-identity-provider": "^3.540.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^14.3.1",
     "@testing-library/user-event": "^14.6.1",

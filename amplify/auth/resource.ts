@@ -1,5 +1,9 @@
 import { defineAuth, defineFunction } from '@aws-amplify/backend';
 
+const postConfirmation = defineFunction({
+  entry: './post-confirmation.ts',
+});
+
 /**
  * Define and configure your auth resource
  * Supports email-based authentication with custom attributes for role management
@@ -17,9 +21,8 @@ export const auth = defineAuth({
    */
   groups: ['customer', 'operator'],
   triggers: {
-    postConfirmation: defineFunction({
-      entry: './post-confirmation.ts',
-    }),
+    postConfirmation,
   },
+  access: (allow) => [allow.resource(postConfirmation).to(['addUserToGroup'])],
 });
 

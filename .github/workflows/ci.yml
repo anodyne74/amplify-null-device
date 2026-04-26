@@ -40,5 +40,6 @@ jobs:
         run: npm run test:ci
       
       - name: Security audit (informational)
-        continue-on-error: true
-        run: npm audit --omit=dev --audit-level=high
+        run: |
+          npm audit --omit=dev --audit-level=high || \
+          echo "::warning title=Security audit::Vulnerabilities detected by npm audit (non-blocking for this pipeline)."

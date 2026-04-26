@@ -18,8 +18,8 @@ sudo ./aws/install
 # Verify installation
 aws --version
 
-# Install Amplify CLI (optional, for local testing)
-npm install -g @aws-amplify/cli
+# Verify Amplify Gen 2 CLI (optional, for local testing)
+npx ampx --version
 ```
 
 ### 3. GitHub Integration
@@ -112,11 +112,7 @@ aws s3api put-bucket-policy \
 
 #### Step 5: Deploy Backend with Amplify
 ```bash
-# Initialize/configure Amplify (if not already done)
-npm install -g @aws-amplify/cli
-amplify configure
-
-# Deploy backend
+# Deploy backend with Amplify Gen 2 CLI
 npx ampx pipeline-deploy --branch 1-delivery-management --app-id [your-app-id]
 ```
 

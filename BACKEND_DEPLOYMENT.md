@@ -59,16 +59,19 @@ Once deployed, there will be a button to download the outputs file. This will co
 
 ## Option 2: Deploy via Local CLI (If You Have Permissions)
 
-Currently your AWS user (`deploy-agent`) doesn't have Amplify CLI permissions, but if that changes:
+Currently your AWS user (`deploy-agent`) doesn't have Amplify CLI permissions, but if that changes, use the Gen 2 CLI:
 
 ```bash
 cd /home/dave/Code/amplify-null-device
 
-# Connect to existing Amplify app
-amplify pull --appId d2qllmg205y34i --branch 1-delivery-management
+# Verify CLI availability
+npx ampx --version
 
-# Deploy backend
-amplify deploy
+# Optional local sandbox
+npx ampx sandbox
+
+# Deploy backend pipeline for this branch
+npx ampx pipeline-deploy --app-id d2qllmg205y34i --branch 1-delivery-management
 ```
 
 ---

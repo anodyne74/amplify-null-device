@@ -4,14 +4,17 @@ backend:
     build:
       commands:
         - npm ci --cache .npm --prefer-offline
+        - npm run preflight:ampx
+        - npx ampx pipeline-deploy --app-id "$AWS_APP_ID" --branch "$AWS_BRANCH"
 frontend:
   phases:
     preBuild:
       commands:
         - npm ci --cache .npm --prefer-offline
-        # Generate amplify_outputs.json with backend values or placeholders
-        # Environment variables: AMPLIFY_COGNITO_USER_POOL_ID, AMPLIFY_COGNITO_CLIENT_ID, AMPLIFY_IDENTITY_POOL_ID
-        - node scripts/generate-amplify-outputs-from-backend.js
+        # Generate amplify_outputs.json from backend outputs or environment variables.
+        - npm run generate:config
+        # Fail deployed CI builds if placeholders remain.
+        - npm run validate:amplify-outputs
     build:
       commands:
         # Build frontend (quality checks already passed in GitHub Actions)

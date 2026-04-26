@@ -40,8 +40,8 @@ const schema = a.schema({
       auditLogs: a.hasMany('AuditLog', 'customerId'),
     })
     .authorization((allow) => [
-      allow.owner().to(['read', 'update']),
-      allow.authenticated().to(['read', 'create', 'update', 'delete']),
+      allow.owner().identityClaim('sub').to(['create', 'read', 'update']),
+      allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
   /**
@@ -57,8 +57,8 @@ const schema = a.schema({
       updatedAt: a.datetime(),
     })
     .authorization((allow) => [
-      allow.owner().to(['read']),
-      allow.authenticated().to(['read', 'create', 'update', 'delete']),
+      allow.owner().identityClaim('sub').to(['read']),
+      allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
   /**
@@ -82,8 +82,8 @@ const schema = a.schema({
       lineItems: a.hasMany('LineItem', 'routeId'),
     })
     .authorization((allow) => [
-      allow.owner().to(['read', 'update']),
-      allow.authenticated().to(['read', 'create', 'update', 'delete']),
+      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
   /**
@@ -93,6 +93,7 @@ const schema = a.schema({
   Stop: a
     .model({
       routeId: a.id().required(), // Foreign key to Route
+      customerId: a.id(), // Denormalized customer owner for tenant-safe read access
       sequence: a.integer().required(), // Order of stops in route
       address: a.string().required(),
       serviceType: a.enum(['delivery', 'pickup', 'inspection']),
@@ -104,10 +105,11 @@ const schema = a.schema({
       updatedAt: a.datetime(),
       // Relationships
       route: a.belongsTo('Route', 'routeId'),
+      customer: a.belongsTo('Customer', 'customerId'),
     })
     .authorization((allow) => [
-      allow.owner().to(['read', 'update']),
-      allow.authenticated().to(['read', 'create', 'update', 'delete']),
+      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
   /**
@@ -132,8 +134,8 @@ const schema = a.schema({
       payment: a.hasOne('PaymentRecord', 'invoiceId'),
     })
     .authorization((allow) => [
-      allow.owner().to(['read']),
-      allow.authenticated().to(['read', 'create', 'update', 'delete']),
+      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
   /**
@@ -144,6 +146,7 @@ const schema = a.schema({
   LineItem: a
     .model({
       invoiceId: a.id().required(), // Foreign key to Invoice
+      customerId: a.id(), // Denormalized customer owner for tenant-safe read access
       routeId: a.id(), // Optional reference to Route for tracking
       description: a.string().required(),
       quantity: a.float(),
@@ -154,10 +157,11 @@ const schema = a.schema({
       // Relationships
       invoice: a.belongsTo('Invoice', 'invoiceId'),
       route: a.belongsTo('Route', 'routeId'),
+      customer: a.belongsTo('Customer', 'customerId'),
     })
     .authorization((allow) => [
-      allow.owner().to(['read']),
-      allow.authenticated().to(['read', 'create', 'update', 'delete']),
+      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
   /**
@@ -181,8 +185,8 @@ const schema = a.schema({
       invoice: a.belongsTo('Invoice', 'invoiceId'),
     })
     .authorization((allow) => [
-      allow.owner().to(['read']),
-      allow.authenticated().to(['read', 'create', 'update', 'delete']),
+      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
   /**
@@ -207,7 +211,7 @@ const schema = a.schema({
       createdAt: a.datetime(),
     })
     .authorization((allow) => [
-      allow.authenticated().to(['read', 'create']),
+      allow.groups(['operator']).to(['read', 'create']),
     ]),
 });
 

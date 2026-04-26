@@ -228,6 +228,115 @@ export async function updateRoute(
 }
 
 /**
+ * Create a stop within a route.
+ * customerId MUST be the owning customer's identity (sub) so the tenant-based
+ * ownerDefinedIn('customerId') authorization rule grants customer read access.
+ */
+export async function createStop(input: {
+  routeId: string;
+  customerId: string;
+  sequence: number;
+  address: string;
+  serviceType: 'delivery' | 'pickup' | 'inspection';
+  estimatedArrivalTime?: string;
+  notes?: string;
+}) {
+  try {
+    const { data, errors } = await client.models.Stop.create(input);
+
+    if (errors) {
+      console.error('Errors creating stop:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error creating stop:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Create an invoice for a customer.
+ */
+export async function createInvoice(input: {
+  customerId: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  periodStartDate?: string;
+  periodEndDate?: string;
+  totalAmount: number;
+  status: 'draft' | 'finalized' | 'sent' | 'paid';
+}) {
+  try {
+    const { data, errors } = await client.models.Invoice.create(input);
+
+    if (errors) {
+      console.error('Errors creating invoice:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error creating invoice:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Create a line item on an invoice.
+ * customerId MUST be the owning customer's identity (sub) so the tenant-based
+ * ownerDefinedIn('customerId') authorization rule grants customer read access.
+ */
+export async function createLineItem(input: {
+  invoiceId: string;
+  routeId?: string;
+  customerId: string;
+  description: string;
+  quantity?: number;
+  ratePerUnit: number;
+  amount: number;
+}) {
+  try {
+    const { data, errors } = await client.models.LineItem.create(input);
+
+    if (errors) {
+      console.error('Errors creating line item:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error creating line item:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Create a payment record for a customer.
+ */
+export async function createPaymentRecord(input: {
+  customerId: string;
+  invoiceId?: string;
+  paymentDate: string;
+  amount: number;
+  paymentMethod: 'credit_card' | 'bank_transfer' | 'check' | 'other';
+  referenceNumber?: string;
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
+  notes?: string;
+}) {
+  try {
+    const { data, errors } = await client.models.PaymentRecord.create(input);
+
+    if (errors) {
+      console.error('Errors creating payment record:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error creating payment record:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
  * Subscribe to route updates in real-time
  */
 export function subscribeToRoute(routeId: string, onUpdate: (route: any) => void) {

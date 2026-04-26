@@ -7,11 +7,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "preflight:ampx": "npx ampx --version",
+    "validate:amplify-outputs": "node scripts/validate-amplify-outputs.js",
     "test": "jest --watch",
     "test:ci": "jest --ci --coverage --maxWorkers=2 --passWithNoTests",
-    "generate:config": "bash generate-amplify-outputs.sh"
+    "generate:config": "node scripts/generate-amplify-outputs-from-backend.js"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.13.2",
@@ -22,6 +24,7 @@
   },
   "devDependencies": {
     "@aws-amplify/backend": "^1.19.0",
+    "@aws-amplify/backend-cli": "^1.8.2",
     "@aws-amplify/cli": "^14.2.3",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^14.3.1",

@@ -71,6 +71,32 @@ fi
 echo "Dry Run: $DRY_RUN"
 echo ""
 
+# Check Amplify Gen 2 CLI availability
+if [ "$DRY_RUN" = true ]; then
+  echo -e "${BLUE}=== Amplify CLI Preflight ===${NC}"
+  echo "[DRY RUN] Would run: npx ampx --version"
+  echo ""
+else
+  echo -e "${BLUE}=== Amplify CLI Preflight ===${NC}"
+  if ! npx --no-install ampx --version > /dev/null 2>&1; then
+    echo -e "${YELLOW}⚠ Amplify Gen 2 CLI (ampx) is not installed locally.${NC}"
+    echo "Installing @aws-amplify/backend-cli in this project..."
+    npm install --save-dev @aws-amplify/backend-cli || {
+      echo -e "${RED}❌ Failed to install @aws-amplify/backend-cli${NC}"
+      exit 1
+    }
+  fi
+
+  AMPX_VERSION=$(npx ampx --version 2>/dev/null || true)
+  if [ -z "$AMPX_VERSION" ]; then
+    echo -e "${RED}❌ Unable to run 'npx ampx --version' after install.${NC}"
+    echo "Ensure npm dependencies are installed and retry."
+    exit 1
+  fi
+  echo -e "${GREEN}✓ Amplify Gen 2 CLI ready (ampx $AMPX_VERSION)${NC}"
+  echo ""
+fi
+
 # Check prerequisites
 echo -e "${BLUE}=== Checking Prerequisites ===${NC}"
 
@@ -180,13 +206,7 @@ echo ""
 # Step 4: Deploy with Amplify CLI (if app-id provided)
 if [ -n "$APP_ID" ]; then
   echo -e "${BLUE}=== Step 4: Deploying with AWS Amplify ===${NC}"
-  
-  # Check for Amplify CLI
-  if ! command -v ampx &> /dev/null; then
-    echo -e "${YELLOW}⚠ @aws-amplify/cli not found, installing...${NC}"
-    npm install -g @aws-amplify/cli
-  fi
-  
+
   if [ "$DRY_RUN" = true ]; then
     echo "[DRY RUN] Would run: npx ampx pipeline-deploy --app-id $APP_ID --branch $BRANCH"
   else

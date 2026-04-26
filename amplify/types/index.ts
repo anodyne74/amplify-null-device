@@ -70,6 +70,7 @@ export interface Route {
 export interface Stop {
   id: string;
   routeId: string;
+  customerId?: string; // Denormalized for tenant-safe customer reads
   sequence?: number | null;
   address?: string;
   serviceType?: ServiceType | null;
@@ -101,6 +102,7 @@ export interface LineItem {
   id: string;
   invoiceId: string;
   routeId: string;
+  customerId?: string; // Denormalized for tenant-safe customer reads
   description: string;
   quantity: number;
   ratePerUnit: number;
@@ -195,6 +197,7 @@ export interface UpdateRouteInput {
 
 export interface CreateStopInput {
   routeId: string;
+  customerId: string; // Required: must be set to the owning customer's sub/id
   sequence: number;
   address: string;
   serviceType: ServiceType;
@@ -232,6 +235,7 @@ export interface UpdateInvoiceInput {
 export interface CreateLineItemInput {
   invoiceId: string;
   routeId: string;
+  customerId: string; // Required: must be set to the owning customer's sub/id
   description: string;
   quantity: number;
   ratePerUnit: number;

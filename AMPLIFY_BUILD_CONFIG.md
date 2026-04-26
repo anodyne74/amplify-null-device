@@ -36,12 +36,14 @@ backend:
 preBuild:
   commands:
     - npm ci --cache .npm --prefer-offline
-    - bash generate-amplify-outputs.sh
+      - npm run generate:config
+      - npm run validate:amplify-outputs
 ```
 
 **What it does:**
 1. Installs frontend dependencies
-2. **Generates placeholder `amplify_outputs.json`** if it doesn't exist
+2. Generates `amplify_outputs.json` from backend outputs or environment variables
+3. Validates output values and blocks deployed CI builds when placeholders remain
 
 **Why placeholder is needed:**
 - `amplify_outputs.json` contains AWS resource IDs (Cognito, AppSync, etc.)
@@ -82,11 +84,17 @@ build:
 - **Committed**: ✓ Yes (contains no secrets)
 - **Modified**: For CI/CD compatibility
 
-### generate-amplify-outputs.sh
-- **Purpose**: Creates placeholder config for TypeScript compilation
+### scripts/generate-amplify-outputs-from-backend.js
+- **Purpose**: Canonical config generator from backend outputs or environment variables
 - **Committed**: ✓ Yes
 - **When it runs**: During Amplify preBuild phase
-- **Output**: Generates `amplify_outputs.json` with placeholder values
+- **Output**: Generates `amplify_outputs.json` with real values when available, otherwise placeholders for local/non-deployed contexts
+
+### scripts/validate-amplify-outputs.js
+- **Purpose**: Enforces placeholder policy per environment context
+- **Committed**: ✓ Yes
+- **When it runs**: During Amplify preBuild phase
+- **Behavior**: Warns locally when placeholders exist; fails deployed CI builds when placeholders remain
 
 ### amplify_outputs.json
 - **Purpose**: Contains AWS resource IDs (auto-generated)
@@ -126,19 +134,19 @@ build:
 
 ### Error: "Cannot find module 'amplify_outputs.json'"
 
-**Cause**: The `generate-amplify-outputs.sh` script didn't run or failed
+**Cause**: The `generate:config` script didn't run or failed
 
 **Solution**:
-1. Check that `generate-amplify-outputs.sh` exists in repo root
-2. Verify it's executable: `chmod +x generate-amplify-outputs.sh`
-3. Run manually to test:
+1. Check that `scripts/generate-amplify-outputs-from-backend.js` exists
+2. Run manually to test:
    ```bash
-   bash generate-amplify-outputs.sh
+   npm run generate:config
+   npm run validate:amplify-outputs
    ```
-4. Commit the script:
+3. Commit the scripts if missing:
    ```bash
-   git add generate-amplify-outputs.sh
-   git commit -m "Ensure script is in repo"
+   git add scripts/generate-amplify-outputs-from-backend.js scripts/validate-amplify-outputs.js
+   git commit -m "Ensure amplify output scripts are in repo"
    git push
    ```
 
@@ -218,7 +226,8 @@ To simulate Amplify build locally:
 ```bash
 # Simulate preBuild
 npm ci --cache .npm --prefer-offline
-bash generate-amplify-outputs.sh
+npm run generate:config
+npm run validate:amplify-outputs
 
 # Simulate build
 npm run typecheck

@@ -25,6 +25,7 @@ out
 # Testing
 coverage
 .nyc_output
+tsconfig.tsbuildinfo
 
 # Editor directories and files
 .vscode/*

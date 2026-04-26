@@ -139,15 +139,16 @@ This file contains generated configuration for the frontend:
 ### Generation Process
 
 1. **Placeholder** (local development):
-   - `generate-amplify-outputs.sh` creates placeholder values
+   - `npm run generate:config` creates values from backend outputs/env vars, falling back to placeholders
    - Prevents "Cannot find module" TypeScript errors
    - Used during local `npm run build`
 
-2. **Real Values** (GitHub Actions):
+2. **Real Values** (Amplify/CI deployments):
    - Amplify backend generates real values after deployment
-   - `scripts/generate-amplify-outputs-from-backend.js` injects real IDs
+   - `scripts/generate-amplify-outputs-from-backend.js` injects real IDs when available
+   - `scripts/validate-amplify-outputs.js` fails deployed CI builds if placeholders remain
    - Environment variables injected: `AMPLIFY_COGNITO_USER_POOL_ID`, `AMPLIFY_COGNITO_CLIENT_ID`, etc.
-   - File is committed to GitHub for build reproducibility
+   - Output file is generated during build; not required to be committed
 
 3. **Runtime** (browser):
    - `Amplify.configure(outputs)` uses these values
@@ -200,7 +201,7 @@ When deployment succeeds, you should see:
 
 **Cause**: File missing during TypeScript compilation
 
-**Solution**: Run `bash generate-amplify-outputs.sh` to create placeholder
+**Solution**: Run `npm run generate:config` to generate the file
 
 ### Cognito credentials in frontend
 
@@ -218,7 +219,7 @@ When deployment succeeds, you should see:
 |---------|-------|-------|
 | Definition | CloudFormation YAML | TypeScript CDK |
 | Location | AWS Console pull/push | Code repository |
-| CLI Commands | `amplify push/pull` | Not used |
+| CLI Commands | `amplify push/pull` | `ampx` commands |
 | Configuration | CLI-driven | Code-driven |
 | Infrastructure | Managed by CLI | Deployed via GitHub Actions |
 | Version Control | Generated files | Source code |

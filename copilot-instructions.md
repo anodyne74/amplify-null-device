@@ -11,22 +11,22 @@ This project is a React app (created with Vite) that uses AWS Cognito for secure
   - Troubleshoot authentication or deployment issues
 
 ## AWS Cognito Integration
-- Update `Amplify.configure` in `src/App.jsx` with your Cognito region, user pool ID, and app client ID.
+- Update `Amplify.configure` in `src/App.tsx` with your Cognito region, user pool ID, and app client ID.
 - Use the Authenticator component for login/logout and user session management.
 - Place admin features inside the authenticated section of the app.
 
 ## Deployment
-- Deploy as a static site to AWS S3 or use GitHub Actions for automated deployment.
-- For S3, sync the build output (`dist` folder) to your S3 bucket.
-- For GitHub Actions, set up secrets for AWS credentials and bucket info.
+- Deploy through AWS Amplify Console for this repository.
+- Use GitHub Actions for quality gates, then let Amplify deploy the connected branch.
+- Treat S3 or CloudFront deployment notes as legacy unless the pipeline is explicitly changed back.
 
 ## Customization
-- Edit `src/App.jsx` to change the map, add content, or update styles.
+- Edit `src/App.tsx` to change the map, add content, or update styles.
 - Ask Copilot for help with React, Amplify, or new features.
 
 ## Troubleshooting
 - If authentication fails, check Cognito configuration and Amplify setup.
-- For deployment issues, verify AWS credentials and bucket permissions.
+- For deployment issues, verify Amplify Console branch connection, build logs, and service role permissions.
 - Ask Copilot for help debugging issues.
 
 ---

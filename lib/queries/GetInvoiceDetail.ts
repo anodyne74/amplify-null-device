@@ -56,6 +56,9 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
         invoiceId: {
           eq: params.invoiceId,
         },
+        customerId: {
+          eq: params.customerId,
+        },
       },
     });
 

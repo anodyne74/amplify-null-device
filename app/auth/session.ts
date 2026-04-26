@@ -5,14 +5,17 @@
 
 /**
  * Get current authenticated customer from Cognito user
- * Extracts the customer ID from the user's owner field
+ * Extracts the customer identity from common Amplify/Cognito shapes.
  */
 export function getCurrentCustomerId(user: any): string | undefined {
   if (!user) return undefined;
-  
-  // In Amplify Data, the owner field is automatically set to the user's sub (subject)
-  // We'll use the user's sub as the customer ID for owner-based queries
-  return user.userId || user.sub;
+
+  return (
+    user.userId ||
+    user.sub ||
+    user.signInUserSession?.idToken?.payload?.sub ||
+    user.signInDetails?.loginId
+  );
 }
 
 /**
@@ -37,5 +40,5 @@ export function verifyCustomerAccess(user: any, targetCustomerId: string): boole
  * Cognito automatically refreshes tokens, so we just check if user exists
  */
 export function isSessionValid(user: any): boolean {
-  return !!user && !!user.userId;
+  return !!getCurrentCustomerId(user);
 }

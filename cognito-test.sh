@@ -18,6 +18,14 @@ if [ ! -d "node_modules" ]; then
     npm install
 fi
 
+# Verify Amplify Gen 2 CLI is available before offering sandbox/deploy actions
+if ! npx --no-install ampx --version > /dev/null 2>&1; then
+    echo ""
+    echo "❌ Amplify Gen 2 CLI (ampx) not found in local dependencies."
+    echo "Install it with: npm install --save-dev @aws-amplify/backend-cli"
+    exit 1
+fi
+
 # Display options
 echo "What would you like to do?"
 echo ""

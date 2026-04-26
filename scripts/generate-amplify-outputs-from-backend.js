@@ -12,6 +12,16 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const readPath = (obj, paths) => {
+  for (const entry of paths) {
+    const value = entry.split('.').reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
+    if (value !== undefined && value !== null && value !== '') {
+      return value;
+    }
+  }
+  return undefined;
+};
+
 // Try to read backend outputs from Amplify environment
 const getBackendOutputs = () => {
   // In Amplify Console, the backend outputs are available via environment
@@ -38,16 +48,43 @@ const getBackendOutputs = () => {
   return null;
 };
 
+const getExistingOutputs = () => {
+  const outputPath = path.join(process.cwd(), 'amplify_outputs.json');
+  if (!fs.existsSync(outputPath)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
+  } catch (error) {
+    console.warn(`Failed to parse existing amplify_outputs.json: ${error.message}`);
+    return null;
+  }
+};
+
 // Build amplify_outputs.json from environment or backend outputs
 const generateAmplifyOutputs = () => {
   const backendOutputs = getBackendOutputs();
+  const existingOutputs = getExistingOutputs();
 
   // Extract values from environment variables or backend outputs
-  const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || backendOutputs?.auth?.userPoolId;
-  const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || backendOutputs?.auth?.userPoolClientId;
-  const identityPoolId = process.env.AMPLIFY_IDENTITY_POOL_ID || backendOutputs?.auth?.identityPoolId;
+  const userPoolId =
+    process.env.AMPLIFY_COGNITO_USER_POOL_ID ||
+    readPath(backendOutputs, ['auth.userPoolId', 'auth.user_pool_id']) ||
+    readPath(existingOutputs, ['auth.user_pool_id']);
+  const userPoolClientId =
+    process.env.AMPLIFY_COGNITO_CLIENT_ID ||
+    readPath(backendOutputs, ['auth.userPoolClientId', 'auth.user_pool_client_id']) ||
+    readPath(existingOutputs, ['auth.user_pool_client_id']);
+  const identityPoolId =
+    process.env.AMPLIFY_IDENTITY_POOL_ID ||
+    readPath(backendOutputs, ['auth.identityPoolId', 'auth.identity_pool_id']) ||
+    readPath(existingOutputs, ['auth.identity_pool_id']);
   const region = process.env.AWS_REGION || 'ap-southeast-2';
-  const graphqlUrl = process.env.AMPLIFY_GRAPHQL_ENDPOINT || backendOutputs?.data?.url;
+  const graphqlUrl =
+    process.env.AMPLIFY_GRAPHQL_ENDPOINT ||
+    readPath(backendOutputs, ['data.url']) ||
+    readPath(existingOutputs, ['data.url']);
 
   // If we have real values, use them; otherwise use placeholders
   const outputs = {

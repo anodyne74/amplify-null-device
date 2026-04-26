@@ -41,8 +41,11 @@ const collectPlaceholderPaths = (value, currentPath = '', results = []) => {
 
 const isCi = process.env.CI === 'true';
 const hasAmplifyBranch = Boolean(process.env.AWS_BRANCH);
+const hasAmplifyAppId = Boolean(process.env.AWS_APP_ID);
+const hasAmplifyEnv = Boolean(process.env.AMPLIFY_ENVIRONMENT_NAME);
 const forceRealOutputs = process.env.AMPLIFY_FORCE_REAL_OUTPUTS === 'true';
-const requireRealOutputs = forceRealOutputs || (isCi && hasAmplifyBranch);
+const isAmplifyHostedContext = hasAmplifyBranch || hasAmplifyAppId || hasAmplifyEnv;
+const requireRealOutputs = forceRealOutputs || (isCi && isAmplifyHostedContext);
 
 if (!fs.existsSync(outputPath)) {
   console.error('❌ Missing amplify_outputs.json');

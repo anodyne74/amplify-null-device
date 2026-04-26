@@ -209,6 +209,8 @@ const schema = a.schema({
       userAgent: a.string(),
       timestamp: a.datetime().required(),
       createdAt: a.datetime(),
+      // Relationships
+      customer: a.belongsTo('Customer', 'customerId'),
     })
     .authorization((allow) => [
       allow.groups(['operator']).to(['read', 'create']),

@@ -7,10 +7,25 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node.js
 node_modules
 dist
 dist-ssr
+.npm
+.env
+.env.*
+.node_repl_history
 *.local
+*.tgz
+
+# Next.js
+.next
+out
+
+# Testing
+coverage
+.nyc_output
+tsconfig.tsbuildinfo
 
 # Editor directories and files
 .vscode/*
@@ -23,9 +38,7 @@ dist-ssr
 *.sln
 *.sw?
 
-
-# amplify
-node_modules
+# Amplify
 .amplify
 amplify_outputs*
 amplifyconfiguration*

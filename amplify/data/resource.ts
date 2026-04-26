@@ -35,7 +35,9 @@ const schema = a.schema({
       updatedAt: a.datetime(),
       // Relationships
       routes: a.hasMany('Route', 'customerId'),
+      stops: a.hasMany('Stop', 'customerId'),
       invoices: a.hasMany('Invoice', 'customerId'),
+      lineItems: a.hasMany('LineItem', 'customerId'),
       payments: a.hasMany('PaymentRecord', 'customerId'),
       auditLogs: a.hasMany('AuditLog', 'customerId'),
     })

@@ -72,7 +72,7 @@ After the backend is deployed, create groups in the AWS Cognito Console:
 3. Manually add operator users to the `operator` group
 4. Optionally, attach a Post Confirmation Lambda trigger to auto-assign new sign-ups to `customer`
 
-See [`COGNITO_SETUP.md`](COGNITO_SETUP.md) for IAM role JSON examples and a ready-to-use Lambda function.
+See [COGNITO_SETUP section in copilot-instructions.md](#setting-up-user-groups) for IAM role JSON examples and Lambda trigger guidance.
 
 ## AWS Amplify Deployment
 
@@ -108,7 +108,7 @@ GitHub Actions runs only quality gates — no AWS credentials are needed in GitH
    | `AMPLIFY_IDENTITY_POOL_ID` | `ap-southeast-2:xxxx-...` |
    | `AWS_REGION` | `ap-southeast-2` |
 
-See [`AMPLIFY_IAM_SETUP.md`](AMPLIFY_IAM_SETUP.md) for step-by-step IAM role creation.
+See the [Amplify IAM Setup section](#required-amplify-console-configuration) above for step-by-step role creation.
 
 ### Amplify Gen 2 Notes
 
@@ -122,8 +122,8 @@ See [`AMPLIFY_IAM_SETUP.md`](AMPLIFY_IAM_SETUP.md) for step-by-step IAM role cre
 ### "Auth UserPool not configured"
 
 The deployed `amplify_outputs.json` contains placeholder values. Fix:
-1. Get your Cognito IDs from Amplify Console or CloudFormation stack outputs (see [`GET_COGNITO_IDS.md`](GET_COGNITO_IDS.md))
-2. Add them as environment variables in Amplify Console (see above)
+1. Get your Cognito IDs from Amplify Console (Deployments → Stack outputs) or CloudFormation (your stack → Outputs tab)
+2. Add them as environment variables in Amplify Console (see the [Required Amplify Console Configuration](#required-amplify-console-configuration) section)
 3. Trigger a new build — the `generate:config` script will inject real values
 
 ### "Cannot find module amplify_outputs.json"
@@ -160,10 +160,7 @@ npm run test:ci               # Jest (CI mode, with coverage)
 
 ## Key References
 
-- [`AMPLIFY_GEN2_DEPLOYMENT.md`](AMPLIFY_GEN2_DEPLOYMENT.md) — Gen 2 architecture and deployment detail
-- [`AMPLIFY_BUILD_CONFIG.md`](AMPLIFY_BUILD_CONFIG.md) — build spec explanation
-- [`AMPLIFY_AUTH_SETUP.md`](AMPLIFY_AUTH_SETUP.md) — Cognito configuration walkthrough
-- [`AUTHORIZATION_ACCESS_MATRIX.md`](AUTHORIZATION_ACCESS_MATRIX.md) — per-model access rules
-- [`GITHUB_SECRETS_SETUP.md`](GITHUB_SECRETS_SETUP.md) — CI/CD secrets guidance
 - [AWS Amplify Gen 2 docs](https://docs.amplify.aws/gen2/)
 - [AppSync with Amplify](https://docs.amplify.aws/gen2/build-a-backend/data/)
+- [Amplify Environment Variables](https://docs.amplify.aws/react/deploy-and-host/fullstack-branching/environment-variables/)
+- [AWS Cognito Documentation](https://docs.aws.amazon.com/cognito/)

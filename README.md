@@ -83,14 +83,14 @@ Set these in **Amplify Console → App → Environment variables** so the build 
 
 ### Cognito User Groups
 
-Create two groups in the deployed Cognito User Pool:
+Create two groups in the deployed Cognito User Pool (**Cognito Console → User pools → your pool → User groups**):
 
 | Group | Description | Precedence |
 |---|---|---|
 | `customer` | Regular customers — read own data | 1 |
 | `operator` | Staff with elevated permissions | 2 |
 
-New users are not automatically assigned to a group. Operators must be manually added via the Cognito Console, or you can configure a **Post Confirmation** Lambda trigger to auto-assign new sign-ups to the `customer` group. See [`COGNITO_SETUP.md`](COGNITO_SETUP.md) for a ready-to-use Lambda example.
+New users are not automatically assigned to a group. Operators must be manually added via the Cognito Console. To auto-assign new sign-ups to `customer`, add a **Post Confirmation** Lambda trigger that calls `cognito-idp:AdminAddUserToGroup` on the pool.
 
 ## Deployment
 
@@ -134,13 +134,11 @@ npm run typecheck && npm run lint && npm run build
 git push origin 1-delivery-management
 ```
 
-For full deployment options including IAM role setup and backend-only deploys, see:
+For manual backend-only deploys:
 
-- [`DEPLOY_QUICK_START.md`](DEPLOY_QUICK_START.md) — fastest path
-- [`DEPLOY_TO_AWS_UAT.md`](DEPLOY_TO_AWS_UAT.md) — comprehensive guide
-- [`AMPLIFY_GEN2_DEPLOYMENT.md`](AMPLIFY_GEN2_DEPLOYMENT.md) — Gen 2 architecture details
-- [`AMPLIFY_IAM_SETUP.md`](AMPLIFY_IAM_SETUP.md) — compute role setup
-- [`GITHUB_SECRETS_SETUP.md`](GITHUB_SECRETS_SETUP.md) — CI/CD secrets
+```bash
+npx ampx pipeline-deploy --app-id <YOUR_APP_ID> --branch 1-delivery-management
+```
 
 ## Project Structure
 
@@ -168,16 +166,15 @@ scripts/
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| "Auth UserPool not configured" | `amplify_outputs.json` has placeholder values | Set Cognito env vars in Amplify Console — see [`AUTH_USERPOOL_NOT_CONFIGURED_FIX.md`](AUTH_USERPOOL_NOT_CONFIGURED_FIX.md) |
+| "Auth UserPool not configured" | `amplify_outputs.json` has placeholder values | Set the four Cognito env vars in Amplify Console → Environment variables, then redeploy |
 | "Cannot find module amplify_outputs.json" | File not generated | Run `npm run generate:config` |
 | Build fails: TypeScript errors | Type errors in source | Run `npm run typecheck` locally and fix errors |
 | Build fails: ESLint | Lint violations | Run `npm run lint` locally |
 | 404 after deploy | Wrong artifact directory | Verify Amplify artifact base directory is `out` |
-| Backend not deployed | Missing compute role | Follow [`AMPLIFY_IAM_SETUP.md`](AMPLIFY_IAM_SETUP.md) |
+| Backend not deployed | Missing compute role | Create `AmplifyBackendDeployRole` in IAM and assign it in Amplify Console → Build settings → IAM roles |
 
-For Cognito ID lookups, see [`GET_COGNITO_IDS.md`](GET_COGNITO_IDS.md).  
-For AWS credential and CLI setup, see [`AWS_SETUP.md`](AWS_SETUP.md).
+To find Cognito IDs: **Amplify Console → Deployments → Stack outputs**, or **CloudFormation → your stack → Outputs tab**.
 
 ## Contribution
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for contribution guidelines, pull request process, and code of conduct.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines, pull request process, and code of conduct.

@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import RouteDetailPage from '../[id]/page';
+import RouteDetailPage from '../detail/page';
 import * as getRouteDetailModule from '@/lib/queries/GetRouteDetail';
 import * as deleteStopModule from '@/lib/queries/DeleteStop';
 import type { Route, Stop } from '@/amplify/types';
@@ -9,7 +9,7 @@ import type { Route, Stop } from '@/amplify/types';
 // Mock Next.js navigation
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn() }),
-  useParams: () => ({ id: 'route-test-id-1234' }),
+  useSearchParams: () => ({ get: (key: string) => key === 'id' ? 'route-test-id-1234' : null }),
 }));
 
 // Mock Amplify UI

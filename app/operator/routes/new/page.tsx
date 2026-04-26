@@ -51,7 +51,7 @@ export default function NewRoutePage() {
       }
 
       if (result.data?.id) {
-        router.push(`/operator/routes/${result.data.id}`);
+        router.push(`/operator/routes/detail?id=${result.data.id}`);
       } else {
         setSubmitError('Route created but ID not returned.');
         setIsSubmitting(false);

@@ -226,7 +226,7 @@ export default function OperatorRoutesPage() {
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <Link
-                        href={`/operator/routes/${route.id}`}
+                        href={`/operator/routes/detail?id=${route.id}`}
                         style={{
                           color: '#1b5e20',
                           fontWeight: '600',

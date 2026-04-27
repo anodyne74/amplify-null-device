@@ -19,7 +19,7 @@ const OPERATOR_NAV = [
  */
 export default function OperatorLayout({ children }: { children: React.ReactNode }) {
   const { signOut, user } = useAuthenticator();
-  const userEmail = user ? getUserEmail(user) : '';
+  const userEmail = user ? getUserEmail(user) ?? '' : '';
 
   return (
     <OperatorRoute>

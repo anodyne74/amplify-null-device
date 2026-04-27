@@ -34,7 +34,7 @@ export default function RouteListItem({ route }: RouteListItemProps) {
   };
 
   const statusClass =
-    { scheduled: styles.badgePlanned, in_progress: styles.badgeActive, completed: styles.badgeCompleted, cancelled: styles.badgeDanger }[route.status ?? ''] ?? styles.badgePlanned;
+    (({ scheduled: styles.badgePlanned, in_progress: styles.badgeActive, completed: styles.badgeCompleted, cancelled: styles.badgeDanger, active: styles.badgeActive, planned: styles.badgePlanned, archived: styles.badgeArchived } as Record<string, string>)[route.status ?? '']) ?? styles.badgePlanned;
 
   return (
     <Link href={`/customer/routes/${route.id}`}>

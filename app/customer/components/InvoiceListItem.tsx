@@ -34,7 +34,7 @@ export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
   };
 
   const statusClass =
-    { paid: styles.badgeCompleted, pending: styles.badgePlanned, overdue: styles.badgeDanger }[invoice.status ?? ''] ?? styles.badgeArchived;
+    (({ paid: styles.badgeCompleted, pending: styles.badgePlanned, overdue: styles.badgeDanger, cancelled: styles.badgeDanger, draft: styles.badgeArchived, sent: styles.badgePlanned, viewed: styles.badgePlanned } as Record<string, string>)[invoice.status ?? '']) ?? styles.badgeArchived;
 
   return (
     <div className={styles.row}>

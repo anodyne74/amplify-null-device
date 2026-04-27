@@ -19,7 +19,7 @@ const CUSTOMER_NAV = [
  */
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuthenticator();
-  const userEmail = user ? getUserEmail(user) : '';
+  const userEmail = user ? getUserEmail(user) ?? '' : '';
   const { logout } = useLogout();
 
   useSessionTimeout();

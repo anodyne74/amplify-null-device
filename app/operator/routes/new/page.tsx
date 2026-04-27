@@ -7,6 +7,7 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { RouteForm } from '@/app/operator/components/RouteForm';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { createRoute } from '@/lib/queries';
+import styles from './page.module.css';
 
 export default function NewRoutePage() {
   const router = useRouter();
@@ -68,8 +69,8 @@ export default function NewRoutePage() {
 
   return (
     <OperatorRoute>
-      <div style={{ padding: '24px', maxWidth: '600px', margin: '0 auto' }}>
-        <h1 style={{ color: '#1b5e20', marginBottom: '24px' }}>Create New Route</h1>
+      <div className={styles.container}>
+        <h1 className={styles.heading}>Create New Route</h1>
 
         {loadingCustomers ? (
           <LoadingSpinner message="Loading customers..." />

@@ -10,6 +10,7 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 import RouteTimeline from '@/app/customer/components/RouteTimeline';
 import StopListItem from '@/app/customer/components/StopListItem';
 import type { Route } from '@/amplify/types';
+import styles from './_RouteDetailContent.module.css';
 
 interface RouteDetailContentProps {
   params: {
@@ -61,19 +62,11 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   if (error || !route) {
     return (
       <ProtectedRoute>
-        <div style={{ padding: '20px' }}>
-          <Link href="/customer/routes" style={{ color: '#1976d2', textDecoration: 'none' }}>
+        <div className={styles.errorPage}>
+          <Link href="/customer/routes" className={styles.backLink}>
             ← Back to Routes
           </Link>
-          <div
-            style={{
-              marginTop: '16px',
-              padding: '16px',
-              backgroundColor: '#ffebee',
-              color: '#c62828',
-              borderRadius: '4px',
-            }}
-          >
+          <div className={styles.errorBanner}>
             {error || 'Route not found'}
           </div>
         </div>
@@ -102,88 +95,53 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   return (
     <ProtectedRoute>
       <div>
-        <Link href="/customer/routes" style={{ color: '#1976d2', textDecoration: 'none' }}>
+        <Link href="/customer/routes" className={styles.backLink}>
           ← Back to Routes
         </Link>
 
-        <h1 style={{ marginTop: '16px' }}>Route {route.id.slice(0, 8)}...</h1>
+        <h1 className={styles.pageTitle}>Route {route.id.slice(0, 8)}...</h1>
 
         {/* Status and Timeline */}
-        <div style={{ marginBottom: '32px' }}>
+        <div className={styles.timelineWrapper}>
           <RouteTimeline route={route} />
         </div>
 
         {/* Route Details Grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '16px',
-            marginBottom: '32px',
-          }}
-        >
-          <div
-            style={{
-              padding: '16px',
-              backgroundColor: '#f5f5f5',
-              borderRadius: '8px',
-              border: '1px solid #e0e0e0',
-            }}
-          >
-            <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#666', textTransform: 'uppercase' }}>
+        <div className={styles.detailsGrid}>
+          <div className={styles.detailCard}>
+            <p className={styles.detailLabel}>
               Status
             </p>
-            <p style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
+            <p className={styles.detailValue}>
               {(route.status || 'unknown').replace(/_/g, ' ')}
             </p>
           </div>
 
-          <div
-            style={{
-              padding: '16px',
-              backgroundColor: '#f5f5f5',
-              borderRadius: '8px',
-              border: '1px solid #e0e0e0',
-            }}
-          >
-            <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#666', textTransform: 'uppercase' }}>
+          <div className={styles.detailCard}>
+            <p className={styles.detailLabel}>
               Estimated Duration
             </p>
-            <p style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
+            <p className={styles.detailValue}>
               {formatDuration(route.estimatedDurationMinutes as number | undefined)}
             </p>
           </div>
 
           {route.actualDurationMinutes && (
-            <div
-              style={{
-                padding: '16px',
-                backgroundColor: '#f5f5f5',
-                borderRadius: '8px',
-                border: '1px solid #e0e0e0',
-              }}
-            >
-              <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#666', textTransform: 'uppercase' }}>
+            <div className={styles.detailCard}>
+              <p className={styles.detailLabel}>
                 Actual Duration
               </p>
-              <p style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
+              <p className={styles.detailValue}>
                 {formatDuration(route.actualDurationMinutes as number | undefined)}
               </p>
             </div>
           )}
 
-          <div
-            style={{
-              padding: '16px',
-              backgroundColor: '#f5f5f5',
-              borderRadius: '8px',
-              border: '1px solid #e0e0e0',
-            }}
-          >
-            <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#666', textTransform: 'uppercase' }}>
+          <div className={styles.detailCard}>
+            <p className={styles.detailLabel}>
               Created
             </p>
-            <p style={{ margin: 0, fontSize: '14px', fontWeight: 'bold' }}>
+            <p className={styles.detailValueSmall}>
               {formatDate(route.createdAt)}
             </p>
           </div>
@@ -191,11 +149,9 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
 
         {/* Notes */}
         {route.notes && (
-          <div style={{ marginBottom: '32px' }}>
+          <div className={styles.notesSection}>
             <h3>Notes</h3>
-            <p style={{ padding: '12px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-              {route.notes}
-            </p>
+            <p className={styles.notesText}>{route.notes}</p>
           </div>
         )}
 
@@ -204,9 +160,9 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
           <h3>Delivery Stops ({route.stops?.length || 0})</h3>
 
           {(!route.stops || route.stops.length === 0) ? (
-            <p style={{ color: '#666' }}>No stops scheduled for this route</p>
+            <p className={styles.noStopsText}>No stops scheduled for this route</p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className={styles.stopsList}>
               {route.stops.map((stop, index) => (
                 <StopListItem key={stop.id} stop={stop} sequence={index + 1} />
               ))}

@@ -13,35 +13,12 @@ import { createStop } from '@/lib/queries';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import type { Route, Stop, RouteStatus } from '@/amplify/types';
-
-const STATUS_COLORS: Record<RouteStatus, string> = {
-  planned: '#1976d2',
-  active: '#f57c00',
-  completed: '#388e3c',
-  archived: '#757575',
-};
-
-const SERVICE_TYPE_COLORS: Record<string, string> = {
-  delivery: '#4caf50',
-  pickup: '#ff9800',
-  inspection: '#2196f3',
-};
+import styles from './page.module.css';
 
 function StatusBadge({ status }: { status?: string | null }) {
-  const color = STATUS_COLORS[(status as RouteStatus)] || '#757575';
+  const badgeClass = { planned: styles.badgePlanned, active: styles.badgeActive, completed: styles.badgeCompleted, archived: styles.badgeArchived }[(status ?? 'planned') as string] ?? styles.badgePlanned;
   return (
-    <span
-      style={{
-        display: 'inline-block',
-        padding: '4px 12px',
-        backgroundColor: color,
-        color: 'white',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        textTransform: 'uppercase',
-      }}
-    >
+    <span className={`${styles.badge} ${badgeClass}`}>
       {status || 'unknown'}
     </span>
   );
@@ -250,25 +227,14 @@ function RouteDetailContent() {
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
   return (
-    <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
+    <div className={styles.container}>
       {/* Back link */}
-      <Link
-        href="/operator/routes"
-        style={{ color: '#1b5e20', textDecoration: 'none', fontSize: '14px' }}
-      >
+      <Link href="/operator/routes" className={styles.backLink}>
         ← Back to Routes
       </Link>
 
       {error && (
-        <div
-          style={{
-            padding: '16px',
-            backgroundColor: '#ffebee',
-            color: '#c62828',
-            borderRadius: '4px',
-            marginTop: '16px',
-          }}
-        >
+        <div className={styles.errorBanner}>
           {error}
         </div>
       )}
@@ -276,93 +242,61 @@ function RouteDetailContent() {
       {route && (
         <>
           {/* Route Header */}
-          <div
-            style={{
-              marginTop: '20px',
-              padding: '20px',
-              backgroundColor: 'white',
-              border: '1px solid #e0e0e0',
-              borderRadius: '8px',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                marginBottom: '16px',
-              }}
-            >
-              <h1 style={{ margin: 0, fontSize: '22px', color: '#1b5e20' }}>
+          <div className={styles.routeCard}>
+            <div className={styles.routeCardHeader}>
+              <h1 className={styles.routeTitle}>
                 Route {route.id.slice(0, 8)}
               </h1>
               <StatusBadge status={route.status} />
             </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '16px',
-                fontSize: '14px',
-              }}
-            >
+            <div className={styles.routeInfoGrid}>
               <div>
-                <div style={{ color: '#999', fontSize: '12px' }}>Customer ID</div>
-                <div style={{ fontFamily: 'monospace' }}>{route.customerId.slice(0, 8)}</div>
+                <div className={styles.infoLabel}>Customer ID</div>
+                <div className={styles.infoValueMono}>{route.customerId.slice(0, 8)}</div>
               </div>
               <div>
-                <div style={{ color: '#999', fontSize: '12px' }}>Created</div>
-                <div>{formatDate(route.createdAt)}</div>
+                <div className={styles.infoLabel}>Created</div>
+                <div className={styles.infoValue}>{formatDate(route.createdAt)}</div>
               </div>
               <div>
-                <div style={{ color: '#999', fontSize: '12px' }}>Est. Duration</div>
-                <div>
+                <div className={styles.infoLabel}>Est. Duration</div>
+                <div className={styles.infoValue}>
                   {route.estimatedDurationMinutes
                     ? `${route.estimatedDurationMinutes} min`
                     : '—'}
                 </div>
               </div>
               <div>
-                <div style={{ color: '#999', fontSize: '12px' }}>Actual Duration</div>
-                <div>
+                <div className={styles.infoLabel}>Actual Duration</div>
+                <div className={styles.infoValue}>
                   {route.actualDurationMinutes ? `${route.actualDurationMinutes} min` : '—'}
                 </div>
               </div>
               <div>
-                <div style={{ color: '#999', fontSize: '12px' }}>Start Time</div>
-                <div>{formatDateTime(route.actualStartTime)}</div>
+                <div className={styles.infoLabel}>Start Time</div>
+                <div className={styles.infoValue}>{formatDateTime(route.actualStartTime)}</div>
               </div>
               <div>
-                <div style={{ color: '#999', fontSize: '12px' }}>End Time</div>
-                <div>{formatDateTime(route.actualEndTime)}</div>
+                <div className={styles.infoLabel}>End Time</div>
+                <div className={styles.infoValue}>{formatDateTime(route.actualEndTime)}</div>
               </div>
             </div>
 
             {route.notes && (
-              <div style={{ marginTop: '12px', fontSize: '14px', color: '#555' }}>
-                <span style={{ fontWeight: '600' }}>Notes: </span>
+              <div className={styles.routeNotes}>
+                <span className={styles.routeNotesBold}>Notes: </span>
                 {route.notes}
               </div>
             )}
 
             {/* Status transitions */}
-            <div style={{ marginTop: '16px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div className={styles.transitionRow}>
               {route.status === 'planned' && (
                 <button
                   onClick={handleStartRoute}
                   disabled={transitioning}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#f57c00',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: transitioning ? 'not-allowed' : 'pointer',
-                    opacity: transitioning ? 0.7 : 1,
-                  }}
+                  className={styles.btnStart}
                 >
                   {transitioning ? 'Starting…' : 'Start Route'}
                 </button>
@@ -371,53 +305,27 @@ function RouteDetailContent() {
                 <button
                   onClick={handleCompleteRoute}
                   disabled={transitioning}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#388e3c',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: transitioning ? 'not-allowed' : 'pointer',
-                    opacity: transitioning ? 0.7 : 1,
-                  }}
+                  className={styles.btnComplete}
                 >
                   {transitioning ? 'Completing…' : 'Complete Route'}
                 </button>
               )}
               {transitionError && (
-                <span style={{ color: '#c62828', fontSize: '14px' }}>{transitionError}</span>
+                <span className={styles.transitionError}>{transitionError}</span>
               )}
             </div>
           </div>
 
           {/* Stops Section */}
-          <div style={{ marginTop: '24px' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '16px',
-              }}
-            >
-              <h2 style={{ margin: 0, fontSize: '18px', color: '#1b5e20' }}>
+          <div className={styles.stopsSection}>
+            <div className={styles.stopsHeader}>
+              <h2 className={styles.stopsHeading}>
                 Stops ({stops.length})
               </h2>
               {!showAddStop && (
                 <button
                   onClick={() => setShowAddStop(true)}
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: '#1b5e20',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                  }}
+                  className={styles.btnAddStop}
                 >
                   Add Stop
                 </button>
@@ -426,16 +334,8 @@ function RouteDetailContent() {
 
             {/* Add Stop Form */}
             {showAddStop && (
-              <div
-                style={{
-                  padding: '20px',
-                  backgroundColor: '#f9f9f9',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '8px',
-                  marginBottom: '16px',
-                }}
-              >
-                <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Add Stop</h3>
+              <div className={styles.formContainer}>
+                <h3 className={styles.formHeading}>Add Stop</h3>
                 <StopForm
                   onSubmit={handleAddStop}
                   onCancel={() => {
@@ -450,33 +350,17 @@ function RouteDetailContent() {
             )}
 
             {stops.length === 0 && !showAddStop && (
-              <div
-                style={{
-                  padding: '32px',
-                  textAlign: 'center',
-                  color: '#666',
-                  border: '1px dashed #ccc',
-                  borderRadius: '8px',
-                }}
-              >
+              <div className={styles.emptyState}>
                 No stops yet. Click &quot;Add Stop&quot; to add the first one.
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className={styles.stopsList}>
               {stops.map((stop) => {
                 if (editingStopId === stop.id) {
                   return (
-                    <div
-                      key={stop.id}
-                      style={{
-                        padding: '20px',
-                        backgroundColor: '#f9f9f9',
-                        border: '1px solid #e0e0e0',
-                        borderRadius: '8px',
-                      }}
-                    >
-                      <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Edit Stop</h3>
+                    <div key={stop.id} className={styles.formContainer}>
+                      <h3 className={styles.formHeading}>Edit Stop</h3>
                       <StopForm
                         initialValues={{
                           address: stop.address,
@@ -497,99 +381,51 @@ function RouteDetailContent() {
                   );
                 }
 
-                const color = SERVICE_TYPE_COLORS[stop.serviceType as string] || '#1976d2';
+                const svcKey = (stop.serviceType as string) || 'delivery';
+                const stopCardClass = { delivery: styles.cardDelivery, pickup: styles.cardPickup, inspection: styles.cardInspection }[svcKey] ?? '';
+                const stopCircleClass = { delivery: styles.circleDelivery, pickup: styles.circlePickup, inspection: styles.circleInspection }[svcKey] ?? '';
+                const stopSvcBadgeClass = { delivery: styles.svcBadgeDelivery, pickup: styles.svcBadgePickup, inspection: styles.svcBadgeInspection }[svcKey] ?? '';
                 return (
                   <div
                     key={stop.id}
-                    style={{
-                      padding: '16px',
-                      backgroundColor: 'white',
-                      border: `2px solid ${color}`,
-                      borderRadius: '8px',
-                      display: 'grid',
-                      gridTemplateColumns: '48px 1fr auto',
-                      gap: '16px',
-                      alignItems: 'start',
-                    }}
+                    className={`${styles.stopCard} ${stopCardClass}`}
                   >
                     {/* Sequence circle */}
-                    <div
-                      style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '50%',
-                        backgroundColor: color,
-                        color: 'white',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 'bold',
-                        fontSize: '16px',
-                        flexShrink: 0,
-                      }}
-                    >
+                    <div className={`${styles.circle} ${stopCircleClass}`}>
                       {stop.sequence ?? '?'}
                     </div>
 
                     {/* Details */}
                     <div>
-                      <div style={{ fontWeight: '600', marginBottom: '4px' }}>
+                      <div className={styles.stopAddress}>
                         {stop.address}
                       </div>
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          padding: '2px 8px',
-                          backgroundColor: color,
-                          color: 'white',
-                          borderRadius: '8px',
-                          fontSize: '11px',
-                          fontWeight: 'bold',
-                          textTransform: 'uppercase',
-                          marginBottom: '4px',
-                        }}
-                      >
+                      <span className={`${styles.svcBadge} ${stopSvcBadgeClass}`}>
                         {stop.serviceType || 'delivery'}
                       </span>
                       {stop.estimatedArrivalTime && (
-                        <div style={{ fontSize: '12px', color: '#666' }}>
+                        <div className={styles.stopEta}>
                           ETA: {formatDateTime(stop.estimatedArrivalTime)}
                         </div>
                       )}
                       {stop.notes && (
-                        <div style={{ fontSize: '12px', color: '#999', fontStyle: 'italic', marginTop: '4px' }}>
+                        <div className={styles.stopNotes}>
                           {stop.notes}
                         </div>
                       )}
                     </div>
 
                     {/* Actions */}
-                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                    <div className={styles.stopActions}>
                       <button
                         onClick={() => setEditingStopId(stop.id)}
-                        style={{
-                          padding: '6px 12px',
-                          backgroundColor: 'white',
-                          color: '#1b5e20',
-                          border: '1px solid #1b5e20',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                        }}
+                        className={styles.btnEdit}
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => handleDeleteStop(stop.id)}
-                        style={{
-                          padding: '6px 12px',
-                          backgroundColor: 'white',
-                          color: '#c62828',
-                          border: '1px solid #c62828',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                        }}
+                        className={styles.btnDelete}
                       >
                         Delete
                       </button>

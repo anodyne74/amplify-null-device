@@ -1,0 +1,91 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-space-lg);
+}
+
+.heading {
+  color: var(--nd-text-primary);
+  margin-bottom: var(--nd-space-xs);
+}
+
+.welcome {
+  color: var(--nd-text-muted);
+  font-family: var(--nd-font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--nd-space-md);
+}
+
+.statCard {
+  padding: var(--nd-space-md);
+  background-color: var(--nd-bg-surface);
+  border-radius: var(--nd-radius-lg);
+  border: 1px solid var(--nd-border-subtle);
+}
+
+.statLabel {
+  margin: 0 0 var(--nd-space-sm);
+  font-size: 0.7rem;
+  font-family: var(--nd-font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nd-text-muted);
+}
+
+.statValue {
+  margin: 0;
+  font-size: 2.2rem;
+  font-weight: 700;
+  font-family: var(--nd-font-mono);
+  line-height: 1;
+}
+
+.statValue.cyan {
+  color: var(--nd-customer-accent);
+}
+
+.statValue.green {
+  color: var(--nd-accent-primary);
+}
+
+.statValue.amber {
+  color: var(--nd-operator-accent);
+}
+
+.statValue.danger {
+  color: var(--nd-status-danger);
+}
+
+.infoPanel {
+  padding: var(--nd-space-lg);
+  background-color: var(--nd-bg-surface);
+  border-radius: var(--nd-radius-lg);
+  border: 1px solid var(--nd-border-subtle);
+}
+
+.infoPanel h3 {
+  color: var(--nd-text-primary);
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--nd-space-md);
+}
+
+.infoPanel ul {
+  margin: 0;
+  padding-left: var(--nd-space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-space-sm);
+}
+
+.infoPanel li {
+  font-size: 0.85rem;
+  color: var(--nd-text-secondary);
+}

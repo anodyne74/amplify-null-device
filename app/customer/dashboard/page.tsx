@@ -2,6 +2,7 @@
 
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { getUserEmail } from '@/lib/amplify-config';
+import styles from '@/app/dashboard.module.css';
 
 /**
  * Customer Dashboard
@@ -12,68 +13,28 @@ export default function CustomerDashboard() {
   const userEmail = user ? getUserEmail(user) : '';
 
   return (
-    <div>
-      <h1>Customer Dashboard</h1>
-      <p>Welcome, {userEmail}!</p>
+    <div className={styles.page}>
+      <div>
+        <h1 className={styles.heading}>Dashboard</h1>
+        <p className={styles.welcome}>Welcome, {userEmail}</p>
+      </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-          gap: '20px',
-          marginTop: '24px',
-        }}
-      >
-        <div
-          style={{
-            padding: '20px',
-            backgroundColor: '#f5f5f5',
-            borderRadius: '8px',
-            border: '1px solid #e0e0e0',
-          }}
-        >
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#666' }}>
-            Active Routes
-          </h3>
-          <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#1976d2' }}>
-            0
-          </p>
+      <div className={styles.statsGrid}>
+        <div className={styles.statCard}>
+          <p className={styles.statLabel}>Active Routes</p>
+          <p className={`${styles.statValue} ${styles.cyan}`}>0</p>
         </div>
-
-        <div
-          style={{
-            padding: '20px',
-            backgroundColor: '#f5f5f5',
-            borderRadius: '8px',
-            border: '1px solid #e0e0e0',
-          }}
-        >
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#666' }}>
-            Pending Invoices
-          </h3>
-          <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#d32f2f' }}>
-            0
-          </p>
+        <div className={styles.statCard}>
+          <p className={styles.statLabel}>Pending Invoices</p>
+          <p className={`${styles.statValue} ${styles.amber}`}>0</p>
         </div>
-
-        <div
-          style={{
-            padding: '20px',
-            backgroundColor: '#f5f5f5',
-            borderRadius: '8px',
-            border: '1px solid #e0e0e0',
-          }}
-        >
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#666' }}>
-            Outstanding Balance
-          </h3>
-          <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#f57c00' }}>
-            $0
-          </p>
+        <div className={styles.statCard}>
+          <p className={styles.statLabel}>Outstanding Balance</p>
+          <p className={`${styles.statValue} ${styles.danger}`}>$0</p>
         </div>
       </div>
 
-      <div style={{ marginTop: '32px', padding: '20px', backgroundColor: '#e3f2fd', borderRadius: '8px' }}>
+      <div className={styles.infoPanel}>
         <h3>Getting Started</h3>
         <ul>
           <li>View your active routes in the Routes section</li>

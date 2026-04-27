@@ -1,0 +1,87 @@
+.errorPage {
+  padding: 20px;
+}
+
+.backLink {
+  color: var(--nd-customer-accent);
+  text-decoration: none;
+}
+
+.backLink:hover {
+  text-decoration: underline;
+}
+
+.errorBanner {
+  padding: var(--nd-space-md);
+  background-color: rgba(255,71,87,0.12);
+  color: var(--nd-status-danger);
+  border-radius: var(--nd-radius-md);
+  margin-top: var(--nd-space-md);
+  font-size: 14px;
+  border: 1px solid var(--nd-status-danger);
+}
+
+.pageTitle {
+  margin-top: var(--nd-space-md);
+  color: var(--nd-text-primary);
+}
+
+.timelineWrapper {
+  margin-bottom: var(--nd-space-2xl);
+}
+
+.detailsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--nd-space-md);
+  margin-bottom: var(--nd-space-2xl);
+}
+
+.detailCard {
+  padding: var(--nd-space-md);
+  background-color: var(--nd-bg-elevated);
+  border-radius: var(--nd-radius-lg);
+  border: 1px solid var(--nd-border-subtle);
+}
+
+.detailLabel {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: var(--nd-text-secondary);
+  text-transform: uppercase;
+}
+
+.detailValue {
+  margin: 0;
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--nd-text-primary);
+}
+
+.detailValueSmall {
+  margin: 0;
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--nd-text-primary);
+}
+
+.notesSection {
+  margin-bottom: var(--nd-space-2xl);
+}
+
+.notesText {
+  padding: 12px;
+  background-color: var(--nd-bg-elevated);
+  border-radius: var(--nd-radius-sm);
+  color: var(--nd-text-primary);
+}
+
+.noStopsText {
+  color: var(--nd-text-secondary);
+}
+
+.stopsList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

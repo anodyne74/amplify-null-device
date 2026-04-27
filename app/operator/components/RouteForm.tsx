@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import styles from './RouteForm.module.css';
 
 interface RouteFormProps {
   customers: Array<{ id: string; name: string; email: string }>;
@@ -34,52 +35,23 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
     await onSubmit({ customerId, estimatedDurationMinutes: duration, notes });
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '8px 12px',
-    border: '1px solid #ccc',
-    borderRadius: '4px',
-    fontSize: '14px',
-    boxSizing: 'border-box',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    marginBottom: '4px',
-    fontWeight: '600',
-    fontSize: '14px',
-  };
-
-  const fieldStyle: React.CSSProperties = {
-    marginBottom: '16px',
-  };
-
   return (
     <form onSubmit={handleSubmit} noValidate>
       {(validationError || error) && (
-        <div
-          style={{
-            padding: '12px',
-            backgroundColor: '#ffebee',
-            color: '#c62828',
-            borderRadius: '4px',
-            marginBottom: '16px',
-            fontSize: '14px',
-          }}
-        >
+        <div className={styles.errorBanner}>
           {validationError || error}
         </div>
       )}
 
-      <div style={fieldStyle}>
-        <label htmlFor="customerId" style={labelStyle}>
-          Customer <span style={{ color: '#c62828' }}>*</span>
+      <div className={styles.field}>
+        <label htmlFor="customerId" className={styles.label}>
+          Customer <span className={styles.required}>*</span>
         </label>
         <select
           id="customerId"
           value={customerId}
           onChange={(e) => setCustomerId(e.target.value)}
-          style={inputStyle}
+          className={styles.select}
           disabled={isSubmitting}
         >
           <option value="">Select a customer…</option>
@@ -91,9 +63,9 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
         </select>
       </div>
 
-      <div style={fieldStyle}>
-        <label htmlFor="estimatedDurationMinutes" style={labelStyle}>
-          Estimated Duration (minutes) <span style={{ color: '#c62828' }}>*</span>
+      <div className={styles.field}>
+        <label htmlFor="estimatedDurationMinutes" className={styles.label}>
+          Estimated Duration (minutes) <span className={styles.required}>*</span>
         </label>
         <input
           id="estimatedDurationMinutes"
@@ -101,41 +73,31 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
           min={1}
           value={estimatedDurationMinutes}
           onChange={(e) => setEstimatedDurationMinutes(e.target.value)}
-          style={inputStyle}
+          className={styles.input}
           disabled={isSubmitting}
           placeholder="e.g. 120"
         />
       </div>
 
-      <div style={fieldStyle}>
-        <label htmlFor="notes" style={labelStyle}>
+      <div className={styles.field}>
+        <label htmlFor="notes" className={styles.label}>
           Notes
         </label>
         <textarea
           id="notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
+          className={styles.textarea}
           disabled={isSubmitting}
           placeholder="Optional notes…"
         />
       </div>
 
-      <div style={{ display: 'flex', gap: '12px' }}>
+      <div className={styles.actions}>
         <button
           type="submit"
           disabled={isSubmitting}
-          style={{
-            padding: '10px 24px',
-            backgroundColor: '#1b5e20',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: isSubmitting ? 'not-allowed' : 'pointer',
-            opacity: isSubmitting ? 0.7 : 1,
-          }}
+          className={styles.btnSubmit}
         >
           {isSubmitting ? 'Creating…' : 'Create Route'}
         </button>
@@ -143,15 +105,7 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
           type="button"
           onClick={onCancel}
           disabled={isSubmitting}
-          style={{
-            padding: '10px 24px',
-            backgroundColor: 'white',
-            color: '#333',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            fontSize: '14px',
-            cursor: isSubmitting ? 'not-allowed' : 'pointer',
-          }}
+          className={styles.btnCancel}
         >
           Cancel
         </button>

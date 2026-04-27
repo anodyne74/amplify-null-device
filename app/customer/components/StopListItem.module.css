@@ -1,0 +1,105 @@
+.card {
+  padding: var(--nd-space-md);
+  background-color: var(--nd-bg-surface);
+  border: 2px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-lg);
+  display: grid;
+  grid-template-columns: 50px 1fr auto;
+  gap: var(--nd-space-md);
+  align-items: start;
+}
+
+.cardDelivery {
+  border-color: var(--nd-status-active);
+}
+
+.cardPickup {
+  border-color: var(--nd-operator-accent);
+}
+
+.cardInspection {
+  border-color: var(--nd-customer-accent);
+}
+
+.sequenceCircle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--nd-border-default);
+  color: var(--nd-text-primary);
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.circleDelivery {
+  background-color: var(--nd-status-active);
+  color: var(--nd-text-inverse);
+}
+
+.circlePickup {
+  background-color: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+}
+
+.circleInspection {
+  background-color: var(--nd-customer-accent);
+  color: var(--nd-text-inverse);
+}
+
+.stopTitle {
+  margin: 0 0 4px 0;
+  color: var(--nd-text-primary);
+}
+
+.address {
+  margin: 4px 0;
+  font-size: 14px;
+  color: var(--nd-text-secondary);
+}
+
+.notes {
+  margin: 8px 0 0 0;
+  font-size: 13px;
+  color: var(--nd-text-muted);
+  font-style: italic;
+}
+
+.metaColumn {
+  text-align: right;
+  min-width: 120px;
+}
+
+.serviceLabel {
+  margin: 0 0 4px 0;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--nd-text-muted);
+}
+
+.labelDelivery {
+  color: var(--nd-status-active);
+}
+
+.labelPickup {
+  color: var(--nd-operator-accent);
+}
+
+.labelInspection {
+  color: var(--nd-customer-accent);
+}
+
+.departureTime {
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--nd-text-secondary);
+}
+
+.etaTime {
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--nd-text-muted);
+}

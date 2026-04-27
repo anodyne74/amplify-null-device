@@ -1,0 +1,83 @@
+.card {
+  padding: var(--nd-space-md);
+  background-color: var(--nd-bg-surface);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-lg);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: all var(--nd-transition-base);
+}
+
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  border-color: var(--nd-border-strong);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  color: var(--nd-text-primary);
+}
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+  text-transform: uppercase;
+  border: 1px solid;
+}
+
+.badgePlanned {
+  color: var(--nd-status-planned);
+  border-color: var(--nd-status-planned);
+  background-color: var(--nd-operator-accent-dim);
+}
+
+.badgeActive {
+  color: var(--nd-status-active);
+  border-color: var(--nd-status-active);
+  background-color: var(--nd-accent-primary-dim);
+}
+
+.badgeCompleted {
+  color: var(--nd-status-completed);
+  border-color: var(--nd-status-completed);
+  background-color: var(--nd-customer-accent-dim);
+}
+
+.badgeArchived {
+  color: var(--nd-status-archived);
+  border-color: var(--nd-status-archived);
+  background-color: transparent;
+}
+
+.body {
+  margin-bottom: 12px;
+}
+
+.meta {
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--nd-text-secondary);
+}
+
+.footer {
+  padding-top: 12px;
+  border-top: 1px solid var(--nd-border-subtle);
+}
+
+.footerLink {
+  margin: 0;
+  font-size: 12px;
+  color: var(--nd-accent-primary);
+  font-weight: 600;
+}

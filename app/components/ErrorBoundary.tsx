@@ -1,6 +1,7 @@
 'use client';
 
 import React, { ReactNode } from 'react';
+import styles from './ErrorBoundary.module.css';
 
 interface Props {
   children: ReactNode;
@@ -32,33 +33,12 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            alignItems: 'center',
-            height: '100vh',
-            backgroundColor: '#f5f5f5',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-          }}
-        >
-          <h1 style={{ color: '#d32f2f', marginBottom: '16px' }}>Oops! Something went wrong</h1>
-          <p style={{ color: '#666', marginBottom: '24px', maxWidth: '500px', textAlign: 'center' }}>
+        <div className={styles.wrapper}>
+          <h1 className={styles.heading}>Oops! Something went wrong</h1>
+          <p className={styles.message}>
             {this.state.error?.message || 'An unexpected error occurred. Please try refreshing the page.'}
           </p>
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              padding: '10px 24px',
-              backgroundColor: '#1976d2',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '16px',
-            }}
-          >
+          <button className={styles.refreshButton} onClick={() => window.location.reload()}>
             Refresh Page
           </button>
         </div>

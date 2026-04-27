@@ -1,6 +1,7 @@
 'use client';
 
 import type { Stop } from '@/amplify/types';
+import styles from './StopListItem.module.css';
 
 interface StopListItemProps {
   stop: Stop;
@@ -12,19 +13,6 @@ interface StopListItemProps {
  * Displays a single delivery stop in a route
  */
 export default function StopListItem({ stop, sequence }: StopListItemProps) {
-  const getStatusColor = (serviceType?: string | null): string => {
-    switch (serviceType) {
-      case 'delivery':
-        return '#4caf50';
-      case 'pickup':
-        return '#ff9800';
-      case 'inspection':
-        return '#2196f3';
-      default:
-        return '#1976d2';
-    }
-  };
-
   const formatTime = (dateString?: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleTimeString('en-US', {
@@ -33,76 +21,49 @@ export default function StopListItem({ stop, sequence }: StopListItemProps) {
     });
   };
 
+  const serviceTypeKey = (stop.serviceType as string | undefined) ?? 'delivery';
+  const cardClass = { delivery: styles.cardDelivery, pickup: styles.cardPickup, inspection: styles.cardInspection }[serviceTypeKey] ?? '';
+  const circleClass = { delivery: styles.circleDelivery, pickup: styles.circlePickup, inspection: styles.circleInspection }[serviceTypeKey] ?? '';
+  const labelClass = { delivery: styles.labelDelivery, pickup: styles.labelPickup, inspection: styles.labelInspection }[serviceTypeKey] ?? '';
+
   return (
-    <div
-      style={{
-        padding: '16px',
-        backgroundColor: '#fff',
-        border: `2px solid ${getStatusColor(stop.serviceType as string | undefined)}`,
-        borderRadius: '8px',
-        display: 'grid',
-        gridTemplateColumns: '50px 1fr auto',
-        gap: '16px',
-        alignItems: 'start',
-      }}
-    >
+    <div className={`${styles.card} ${cardClass}`}>
       {/* Sequence Number */}
-      <div
-        style={{
-          width: '40px',
-          height: '40px',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: getStatusColor(stop.serviceType as string | undefined),
-          color: '#fff',
-          fontWeight: 'bold',
-          fontSize: '16px',
-        }}
-      >
+      <div className={`${styles.sequenceCircle} ${circleClass}`}>
         {sequence}
       </div>
 
       {/* Stop Details */}
       <div>
-        <h4 style={{ margin: '0 0 4px 0' }}>
+        <h4 className={styles.stopTitle}>
           Stop {sequence}
         </h4>
 
-        <p style={{ margin: '4px 0', fontSize: '14px', color: '#666' }}>
+        <p className={styles.address}>
           {stop.address}
         </p>
 
         {stop.notes && (
-          <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#999', fontStyle: 'italic' }}>
+          <p className={styles.notes}>
             "{stop.notes}"
           </p>
         )}
       </div>
 
       {/* Status and Time */}
-      <div style={{ textAlign: 'right', minWidth: '120px' }}>
-        <p
-          style={{
-            margin: '0 0 4px 0',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            color: getStatusColor(stop.serviceType as string | undefined),
-            textTransform: 'uppercase',
-          }}
-        >
+      <div className={styles.metaColumn}>
+        <p className={`${styles.serviceLabel} ${labelClass}`}>
           {(stop.serviceType || 'delivery').replace(/_/g, ' ')}
         </p>
 
         {stop.actualDepartureTime && (
-          <p style={{ margin: '4px 0', fontSize: '12px', color: '#666' }}>
+          <p className={styles.departureTime}>
             {formatTime(stop.actualDepartureTime)}
           </p>
         )}
 
         {stop.estimatedArrivalTime && !stop.actualDepartureTime && (
-          <p style={{ margin: '4px 0', fontSize: '12px', color: '#999' }}>
+          <p className={styles.etaTime}>
             ETA: {formatTime(stop.estimatedArrivalTime)}
           </p>
         )}

@@ -1,0 +1,36 @@
+.wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: var(--nd-bg-void);
+  width: 100%;
+  padding: var(--nd-space-md);
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  padding: clamp(1.5rem, 5vw, 2.5rem);
+  background-color: var(--nd-bg-surface);
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-lg);
+}
+
+.heading {
+  text-align: center;
+  margin-bottom: var(--nd-space-sm);
+  color: var(--nd-accent-primary);
+  font-family: var(--nd-font-mono);
+  letter-spacing: 0.04em;
+}
+
+.subtitle {
+  text-align: center;
+  color: var(--nd-text-muted);
+  margin-bottom: var(--nd-space-lg);
+  font-size: 0.85rem;
+  font-family: var(--nd-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}

@@ -1,0 +1,10 @@
+.container {
+  padding: var(--nd-space-lg);
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.heading {
+  color: var(--nd-operator-accent);
+  margin-bottom: var(--nd-space-lg);
+}

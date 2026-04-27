@@ -1,0 +1,146 @@
+.container {
+  padding: var(--nd-space-lg);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.errorWrapper {
+  padding: var(--nd-space-lg);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.errorBox {
+  padding: var(--nd-space-lg);
+  background-color: rgba(255,71,87,0.12);
+  color: var(--nd-status-danger);
+  border-radius: var(--nd-radius-lg);
+  font-size: 14px;
+  border: 1px solid var(--nd-status-danger);
+}
+
+.errorMessage {
+  margin: 0 0 12px 0;
+}
+
+.goBackBtn {
+  padding: 8px 16px;
+  background-color: var(--nd-status-danger);
+  color: var(--nd-text-inverse);
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.goBackBtn:hover {
+  opacity: 0.9;
+}
+
+.pageHeader {
+  margin-bottom: var(--nd-space-lg);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.backBtn {
+  padding: 8px 12px;
+  background-color: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--nd-text-secondary);
+  transition: border-color var(--nd-transition-fast);
+}
+
+.backBtn:hover {
+  border-color: var(--nd-border-strong);
+  color: var(--nd-text-primary);
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--nd-text-primary);
+}
+
+.infoCard {
+  padding: var(--nd-space-lg);
+  background-color: var(--nd-bg-surface);
+  border-radius: var(--nd-radius-lg);
+  border: 1px solid var(--nd-border-default);
+  margin-bottom: var(--nd-space-lg);
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--nd-space-lg);
+  margin-bottom: var(--nd-space-lg);
+}
+
+.infoLabel {
+  margin: 0 0 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nd-text-muted);
+  text-transform: uppercase;
+}
+
+.infoValue {
+  margin: 0;
+  font-size: 16px;
+  color: var(--nd-text-primary);
+}
+
+.infoValueBold {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--nd-text-primary);
+}
+
+.statusPaid {
+  color: var(--nd-status-active);
+}
+
+.statusOverdue {
+  color: var(--nd-status-danger);
+}
+
+.statusPending {
+  color: var(--nd-status-planned);
+}
+
+.downloadBtn {
+  padding: 12px 24px;
+  background-color: var(--nd-accent-primary);
+  color: var(--nd-text-inverse);
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.downloadBtn:hover {
+  opacity: 0.9;
+}
+
+.downloadBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.lineItemsCard {
+  padding: var(--nd-space-lg);
+  background-color: var(--nd-bg-surface);
+  border-radius: var(--nd-radius-lg);
+  border: 1px solid var(--nd-border-default);
+}

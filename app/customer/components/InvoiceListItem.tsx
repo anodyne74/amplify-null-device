@@ -1,6 +1,7 @@
 'use client';
 
 import type { Invoice } from '@/amplify/types';
+import styles from './InvoiceListItem.module.css';
 
 interface InvoiceListItemProps {
   invoice: Invoice;
@@ -27,87 +28,48 @@ export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
-  // Get status color
-  const getStatusColor = (status?: string | null) => {
-    switch (status) {
-      case 'paid':
-        return '#4caf50'; // Green
-      case 'pending':
-        return '#ff9800'; // Orange
-      case 'overdue':
-        return '#f44336'; // Red
-      default:
-        return '#999'; // Gray
-    }
-  };
-
   // Get status label
   const getStatusLabel = (status?: string | null) => {
     return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
   };
 
+  const statusClass =
+    { paid: styles.badgeCompleted, pending: styles.badgePlanned, overdue: styles.badgeDanger }[invoice.status ?? ''] ?? styles.badgeArchived;
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '12px 16px',
-        borderBottom: '1px solid #e0e0e0',
-        backgroundColor: '#fff',
-        gap: '16px',
-      }}
-    >
+    <div className={styles.row}>
       {/* Invoice Number */}
-      <div style={{ flex: 0.8, fontWeight: '600', fontSize: '14px' }}>
+      <div className={styles.colId}>
         {invoice.invoiceNumber || invoice.id}
       </div>
 
       {/* Invoice Date */}
-      <div style={{ flex: 0.9, fontSize: '14px', color: '#666' }}>
+      <div className={styles.colDate}>
         {formatDate(invoice.invoiceDate)}
       </div>
 
       {/* Period */}
-      <div style={{ flex: 1.2, fontSize: '13px', color: '#666' }}>
+      <div className={styles.colPeriod}>
         {formatDate(invoice.periodStartDate)} to {formatDate(invoice.periodEndDate)}
       </div>
 
       {/* Total Amount */}
-      <div style={{ flex: 0.8, fontWeight: '600', fontSize: '14px', textAlign: 'right' }}>
+      <div className={styles.colAmount}>
         {formatCurrency(invoice.totalAmount)}
       </div>
 
       {/* Status Badge */}
-      <div
-        style={{
-          flex: 0.6,
-          padding: '4px 8px',
-          borderRadius: '4px',
-          backgroundColor: getStatusColor(invoice.status),
-          color: '#fff',
-          fontSize: '12px',
-          fontWeight: '600',
-          textAlign: 'center',
-        }}
-      >
-        {getStatusLabel(invoice.status)}
+      <div className={styles.colStatus}>
+        <span className={`${styles.badge} ${statusClass}`}>
+          {getStatusLabel(invoice.status)}
+        </span>
       </div>
 
-      {/* Download Button */}
-      <div style={{ flex: 0.6 }}>
+      {/* View Button */}
+      <div className={styles.colAction}>
         <a
           href={`/customer/invoices/${invoice.id}`}
-          style={{
-            padding: '8px 12px',
-            backgroundColor: '#1976d2',
-            color: '#fff',
-            textDecoration: 'none',
-            borderRadius: '4px',
-            fontSize: '13px',
-            fontWeight: '600',
-            display: 'inline-block',
-            textAlign: 'center',
-          }}
+          className={styles.viewLink}
         >
           View
         </a>

@@ -1,0 +1,62 @@
+.errorBanner {
+  padding: var(--nd-space-md);
+  background-color: rgba(255,71,87,0.12);
+  color: var(--nd-status-danger);
+  border-radius: var(--nd-radius-md);
+  margin-bottom: var(--nd-space-md);
+  font-size: 14px;
+  border: 1px solid var(--nd-status-danger);
+}
+
+.filtersRow {
+  margin-bottom: var(--nd-space-lg);
+  display: flex;
+  gap: var(--nd-space-md);
+  flex-wrap: wrap;
+}
+
+.filterLabel {
+  display: block;
+  margin-bottom: var(--nd-space-sm);
+  font-weight: bold;
+  color: var(--nd-text-primary);
+}
+
+.select {
+  padding: 8px 12px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  font-size: 14px;
+  background-color: var(--nd-bg-surface);
+  color: var(--nd-text-primary);
+}
+
+.emptyState {
+  padding: var(--nd-space-xl);
+  text-align: center;
+  color: var(--nd-text-secondary);
+}
+
+.routesList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.summary {
+  margin-top: var(--nd-space-lg);
+  padding: var(--nd-space-md);
+  background-color: var(--nd-bg-elevated);
+  border-radius: var(--nd-radius-sm);
+}
+
+.summaryText {
+  margin: 0 0 8px 0;
+  color: var(--nd-text-primary);
+}
+
+.summarySubtext {
+  margin: 0;
+  font-size: 14px;
+  color: var(--nd-text-secondary);
+}

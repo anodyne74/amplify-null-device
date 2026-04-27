@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import styles from './StopForm.module.css';
 
 interface StopFormProps {
   initialValues?: {
@@ -56,67 +57,38 @@ export function StopForm({
     });
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '8px 12px',
-    border: '1px solid #ccc',
-    borderRadius: '4px',
-    fontSize: '14px',
-    boxSizing: 'border-box',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    marginBottom: '4px',
-    fontWeight: '600',
-    fontSize: '14px',
-  };
-
-  const fieldStyle: React.CSSProperties = {
-    marginBottom: '16px',
-  };
-
   return (
     <form onSubmit={handleSubmit} noValidate>
       {(validationError || error) && (
-        <div
-          style={{
-            padding: '12px',
-            backgroundColor: '#ffebee',
-            color: '#c62828',
-            borderRadius: '4px',
-            marginBottom: '16px',
-            fontSize: '14px',
-          }}
-        >
+        <div className={styles.errorBanner}>
           {validationError || error}
         </div>
       )}
 
-      <div style={fieldStyle}>
-        <label htmlFor="address" style={labelStyle}>
-          Address <span style={{ color: '#c62828' }}>*</span>
+      <div className={styles.field}>
+        <label htmlFor="address" className={styles.label}>
+          Address <span className={styles.required}>*</span>
         </label>
         <input
           id="address"
           type="text"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
-          style={inputStyle}
+          className={styles.input}
           disabled={isSubmitting}
           placeholder="e.g. 123 Main St, Springfield"
         />
       </div>
 
-      <div style={fieldStyle}>
-        <label htmlFor="serviceType" style={labelStyle}>
+      <div className={styles.field}>
+        <label htmlFor="serviceType" className={styles.label}>
           Service Type
         </label>
         <select
           id="serviceType"
           value={serviceType}
           onChange={(e) => setServiceType(e.target.value as 'delivery' | 'pickup' | 'inspection')}
-          style={inputStyle}
+          className={styles.select}
           disabled={isSubmitting}
         >
           <option value="delivery">Delivery</option>
@@ -125,8 +97,8 @@ export function StopForm({
         </select>
       </div>
 
-      <div style={fieldStyle}>
-        <label htmlFor="estimatedArrivalTime" style={labelStyle}>
+      <div className={styles.field}>
+        <label htmlFor="estimatedArrivalTime" className={styles.label}>
           Estimated Arrival Time
         </label>
         <input
@@ -134,40 +106,30 @@ export function StopForm({
           type="datetime-local"
           value={estimatedArrivalTime}
           onChange={(e) => setEstimatedArrivalTime(e.target.value)}
-          style={inputStyle}
+          className={styles.input}
           disabled={isSubmitting}
         />
       </div>
 
-      <div style={fieldStyle}>
-        <label htmlFor="stopNotes" style={labelStyle}>
+      <div className={styles.field}>
+        <label htmlFor="stopNotes" className={styles.label}>
           Notes
         </label>
         <textarea
           id="stopNotes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
+          className={styles.textarea}
           disabled={isSubmitting}
           placeholder="Optional notes…"
         />
       </div>
 
-      <div style={{ display: 'flex', gap: '12px' }}>
+      <div className={styles.actions}>
         <button
           type="submit"
           disabled={isSubmitting}
-          style={{
-            padding: '10px 24px',
-            backgroundColor: '#1b5e20',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: isSubmitting ? 'not-allowed' : 'pointer',
-            opacity: isSubmitting ? 0.7 : 1,
-          }}
+          className={styles.btnSubmit}
         >
           {isSubmitting ? 'Saving…' : submitLabel}
         </button>
@@ -175,15 +137,7 @@ export function StopForm({
           type="button"
           onClick={onCancel}
           disabled={isSubmitting}
-          style={{
-            padding: '10px 24px',
-            backgroundColor: 'white',
-            color: '#333',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            fontSize: '14px',
-            cursor: isSubmitting ? 'not-allowed' : 'pointer',
-          }}
+          className={styles.btnCancel}
         >
           Cancel
         </button>

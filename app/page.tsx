@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { isOperator } from '@/lib/amplify-config';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import styles from './page.module.css';
 
 /**
  * Home Page
@@ -31,32 +32,11 @@ export default function Home() {
     return <LoadingSpinner message="Redirecting to dashboard..." />;
   }
 
-  // Unauthenticated users will see the Authenticator component from the layout
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        backgroundColor: '#f5f5f5',
-        width: '100%',
-        padding: '1rem',
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '400px',
-          padding: 'clamp(1rem, 5vw, 2rem)',
-        }}
-      >
-        <h1 style={{ textAlign: 'center', marginBottom: '24px' }}>
-          Delivery Management System
-        </h1>
-        <p style={{ textAlign: 'center', color: '#666', marginBottom: '24px' }}>
-          Sign in to access your account
-        </p>
+    <div className={styles.wrapper}>
+      <div className={styles.card}>
+        <h1 className={styles.heading}>NullDevice</h1>
+        <p className={styles.subtitle}>Delivery Management System</p>
       </div>
     </div>
   );

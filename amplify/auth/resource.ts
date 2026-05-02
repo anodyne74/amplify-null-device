@@ -14,6 +14,13 @@ export const auth = defineAuth({
   loginWith: {
     email: true,
   },
+  /**
+   * Cognito User Groups:
+   * - customer: all new sign-ups are added here automatically via post-confirmation trigger
+   * - operator: staff members; must be added manually by an admin
+   * - administrator: superusers with full access; must be added manually by an admin
+   */
+  groups: ['customer', 'operator', 'administrator'],
   triggers: {
     postConfirmation,
   },

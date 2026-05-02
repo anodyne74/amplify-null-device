@@ -6,6 +6,7 @@ backend:
         - npm ci --cache .npm --prefer-offline
         - npm run preflight:ampx
         - npx ampx pipeline-deploy --app-id "$AWS_APP_ID" --branch "$AWS_BRANCH"
+        - node scripts/ensure-cognito-groups.js
 frontend:
   phases:
     preBuild:

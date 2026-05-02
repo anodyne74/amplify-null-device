@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { isAdmin, isOperator } from '@/lib/amplify-config';
+import { useUserGroups } from '@/lib/use-user-groups';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import styles from './page.module.css';
 
@@ -17,19 +17,20 @@ import styles from './page.module.css';
  */
 export default function Home() {
   const router = useRouter();
-  const { authStatus, user } = useAuthenticator();
+  const { authStatus } = useAuthenticator();
+  const { loading, isAdmin, isOperator } = useUserGroups();
 
   useEffect(() => {
-    if (authStatus === 'authenticated' && user) {
-      if (isAdmin(user)) {
+    if (authStatus === 'authenticated' && !loading) {
+      if (isAdmin) {
         router.push('/operator/admin');
-      } else if (isOperator(user)) {
+      } else if (isOperator) {
         router.push('/operator/dashboard');
       } else {
         router.push('/customer/dashboard');
       }
     }
-  }, [authStatus, user, router]);
+  }, [authStatus, loading, isAdmin, isOperator, router]);
 
   if (authStatus === 'authenticated') {
     return <LoadingSpinner message="Redirecting to dashboard..." />;

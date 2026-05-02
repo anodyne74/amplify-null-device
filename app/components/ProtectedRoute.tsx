@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { isCustomer, isOperator } from '@/lib/amplify-config';
+import { useUserGroups } from '@/lib/use-user-groups';
 import LoadingSpinner from './LoadingSpinner';
 
 /**
@@ -19,35 +19,25 @@ export default function ProtectedRoute({
   requireCustomer?: boolean;
 }) {
   const router = useRouter();
-  const { authStatus, user } = useAuthenticator();
+  const { authStatus } = useAuthenticator();
+  const { loading, isOperator } = useUserGroups();
 
   useEffect(() => {
-    if (authStatus === 'authenticated' && user) {
-      // If this is a customer-only route and user is an operator, redirect to operator portal
-      if (requireCustomer && isOperator(user)) {
-        router.push('/operator/dashboard');
-        return;
-      }
-
-      // Customer access is allowed
-      if (requireCustomer && isCustomer(user)) {
-        return;
-      }
-
-      // If no specific requirement, just check authentication
-      if (!requireCustomer) {
-        return;
-      }
-    }
-
-    // If not authenticated, redirect to login
     if (authStatus === 'unauthenticated') {
       router.push('/');
+      return;
     }
-  }, [authStatus, user, router, requireCustomer]);
 
-  if (authStatus === 'configuring') {
-    return <LoadingSpinner message="Configuring authentication..." />;
+    if (authStatus === 'authenticated' && !loading) {
+      // If this is a customer-only route and user is an operator, redirect to operator portal
+      if (requireCustomer && isOperator) {
+        router.push('/operator/dashboard');
+      }
+    }
+  }, [authStatus, loading, isOperator, router, requireCustomer]);
+
+  if (authStatus === 'configuring' || (authStatus === 'authenticated' && loading)) {
+    return <LoadingSpinner message="Loading..." />;
   }
 
   if (authStatus === 'authenticated') {

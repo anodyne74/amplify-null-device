@@ -109,8 +109,8 @@ describe('amplify-config utilities', () => {
   });
 
   describe('isAdmin', () => {
-    it('should return true for operator user', () => {
-      expect(isAdmin(operatorUser)).toBe(true);
+    it('should return false for operator user (operator ≠ administrator)', () => {
+      expect(isAdmin(operatorUser)).toBe(false);
     });
 
     it('should return false for customer user', () => {

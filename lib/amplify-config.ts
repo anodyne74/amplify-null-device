@@ -1,4 +1,5 @@
 import { Amplify } from 'aws-amplify';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import outputs from '../amplify_outputs.json';
 
 /**
@@ -12,6 +13,9 @@ export function configureAmplify() {
 /**
  * Get the current user's groups/roles from the authentication token
  * Returns an array of group names (e.g., ['customer'] or ['operator'])
+ *
+ * @deprecated For Amplify v6, use fetchUserGroups() or the useUserGroups() hook.
+ * This synchronous version only works when user has the v5 signInUserSession shape.
  */
 export function getUserGroups(user: any): string[] {
   if (!user) return [];
@@ -19,6 +23,22 @@ export function getUserGroups(user: any): string[] {
   // Cognito groups are stored in the idToken's 'cognito:groups' claim
   const groups = user.signInUserSession?.idToken?.payload?.['cognito:groups'];
   return Array.isArray(groups) ? groups : [];
+}
+
+/**
+ * Fetch the current user's Cognito groups from the active session token.
+ * This is the Amplify v6-compatible version. Use this (or useUserGroups hook)
+ * instead of the synchronous getUserGroups(user) when using aws-amplify v6.
+ */
+export async function fetchUserGroups(): Promise<string[]> {
+  try {
+    const session = await fetchAuthSession();
+    const payload = session.tokens?.idToken?.payload;
+    const groups = payload?.['cognito:groups'];
+    return Array.isArray(groups) ? (groups as string[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 /**

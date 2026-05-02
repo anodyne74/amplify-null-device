@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { isAdmin, isOperator } from '@/lib/amplify-config';
+import { useUserGroups } from '@/lib/use-user-groups';
 import LoadingSpinner from './LoadingSpinner';
 
 /**
@@ -19,39 +19,34 @@ export default function OperatorRoute({
   requireAdmin?: boolean;
 }) {
   const router = useRouter();
-  const { authStatus, user } = useAuthenticator();
+  const { authStatus } = useAuthenticator();
+  const { loading, isAdmin, isOperator } = useUserGroups();
 
   useEffect(() => {
-    if (authStatus === 'authenticated' && user) {
-      const canAccess = requireAdmin ? isAdmin(user) : isOperator(user);
-
-      if (canAccess) {
-        return;
-      }
-
-      // If not an operator, redirect to customer portal
-      router.push('/customer/dashboard');
+    if (authStatus === 'unauthenticated') {
+      router.push('/');
       return;
     }
 
-    // If not authenticated, redirect to login
-    if (authStatus === 'unauthenticated') {
-      router.push('/');
+    if (authStatus === 'authenticated' && !loading) {
+      const canAccess = requireAdmin ? isAdmin : isOperator;
+      if (!canAccess) {
+        router.push('/customer/dashboard');
+      }
     }
-  }, [authStatus, user, router, requireAdmin]);
+  }, [authStatus, loading, isAdmin, isOperator, router, requireAdmin]);
 
-  if (authStatus === 'configuring') {
-    return <LoadingSpinner message="Configuring authentication..." />;
+  if (authStatus === 'configuring' || loading) {
+    return <LoadingSpinner message={requireAdmin ? 'Verifying administrator access...' : 'Verifying operator access...'} />;
   }
 
-  if (authStatus === 'authenticated' && user) {
-    const canAccess = requireAdmin ? isAdmin(user) : isOperator(user);
+  if (authStatus === 'authenticated') {
+    const canAccess = requireAdmin ? isAdmin : isOperator;
     if (canAccess) {
       return <>{children}</>;
     }
-
-    return <LoadingSpinner message={requireAdmin ? 'Redirecting to authorized portal...' : 'Redirecting to operator portal...'} />;
+    return <LoadingSpinner message="Redirecting to authorized portal..." />;
   }
 
-  return <LoadingSpinner message={requireAdmin ? 'Verifying administrator access...' : 'Verifying operator access...'} />;
+  return <LoadingSpinner message="Redirecting to login..." />;
 }

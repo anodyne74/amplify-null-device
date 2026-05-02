@@ -75,6 +75,19 @@ async function main() {
 }
 
 main().catch((error) => {
+  const code = error?.name || error?.Code || error?.__type;
+  const isAccessDenied =
+    code === 'AccessDeniedException' ||
+    (typeof error?.message === 'string' && error.message.includes('not authorized to perform: cognito-idp:'));
+
+  if (isAccessDenied) {
+    // Amplify Hosting build roles often do not include Cognito admin permissions.
+    // Don't fail deployment in that case: auth groups are still managed by backend IaC.
+    console.warn('Skipping Cognito group ensure due to IAM permissions:', error.message || code);
+    process.exitCode = 0;
+    return;
+  }
+
   console.error('Failed to ensure Cognito groups:', error);
   process.exitCode = 1;
 });

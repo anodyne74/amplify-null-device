@@ -138,6 +138,35 @@
   margin-top: var(--nd-space-lg);
 }
 
+.mapSection {
+  margin-bottom: var(--nd-space-md);
+}
+
+.mapHeading {
+  margin: 0 0 var(--nd-space-sm) 0;
+  font-size: 15px;
+  color: var(--nd-text-primary);
+}
+
+.mapLoading {
+  padding: var(--nd-space-lg);
+  border: 1px dashed var(--nd-border-default);
+  border-radius: var(--nd-radius-lg);
+  color: var(--nd-text-secondary);
+}
+
+.reorderHint {
+  margin-bottom: var(--nd-space-sm);
+  color: var(--nd-text-muted);
+  font-size: 12px;
+}
+
+.reorderStatus {
+  margin-bottom: var(--nd-space-sm);
+  color: var(--nd-operator-accent);
+  font-size: 12px;
+}
+
 .stopsHeader {
   display: flex;
   align-items: center;
@@ -205,6 +234,10 @@
   grid-template-columns: 48px 1fr auto;
   gap: var(--nd-space-md);
   align-items: start;
+}
+
+.stopCardDragging {
+  opacity: 0.72;
 }
 
 .cardDelivery {
@@ -300,6 +333,28 @@
   display: flex;
   gap: var(--nd-space-sm);
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.btnReorder {
+  padding: 6px 10px;
+  background-color: transparent;
+  color: var(--nd-text-secondary);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.btnReorder:hover {
+  opacity: 0.8;
+}
+
+.btnReorder:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btnEdit {
@@ -317,6 +372,11 @@
   opacity: 0.8;
 }
 
+.btnEdit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .btnDelete {
   padding: 6px 12px;
   background-color: transparent;
@@ -330,6 +390,11 @@
 
 .btnDelete:hover {
   opacity: 0.8;
+}
+
+.btnDelete:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* Badge pattern */
@@ -365,4 +430,72 @@
   color: var(--nd-status-archived);
   border-color: var(--nd-status-archived);
   background-color: transparent;
+}
+
+/* Stop execution actions — spans full card width */
+.stopExecution {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--nd-border-subtle);
+  padding-top: var(--nd-space-sm);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: var(--nd-space-md);
+  flex-wrap: wrap;
+}
+
+.btnArrived {
+  padding: 8px 18px;
+  background-color: var(--nd-status-planned);
+  color: var(--nd-text-inverse);
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.btnArrived:hover {
+  opacity: 0.9;
+}
+
+.btnArrived:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.execTimestamp {
+  font-size: 12px;
+  color: var(--nd-text-muted);
+}
+
+.btnExecComplete {
+  padding: 8px 18px;
+  background-color: var(--nd-status-active);
+  color: var(--nd-text-inverse);
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.btnExecComplete:hover {
+  opacity: 0.9;
+}
+
+.btnExecComplete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.execDone {
+  display: flex;
+  gap: var(--nd-space-md);
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--nd-status-active);
+  font-weight: 500;
 }

@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { isOperator } from '@/lib/amplify-config';
+import { isAdmin, isOperator } from '@/lib/amplify-config';
 import LoadingSpinner from './LoadingSpinner';
 
 /**
@@ -13,16 +13,19 @@ import LoadingSpinner from './LoadingSpinner';
  */
 export default function OperatorRoute({
   children,
+  requireAdmin = false,
 }: {
   children: React.ReactNode;
+  requireAdmin?: boolean;
 }) {
   const router = useRouter();
   const { authStatus, user } = useAuthenticator();
 
   useEffect(() => {
     if (authStatus === 'authenticated' && user) {
-      // Check if user is an operator
-      if (isOperator(user)) {
+      const canAccess = requireAdmin ? isAdmin(user) : isOperator(user);
+
+      if (canAccess) {
         return;
       }
 
@@ -35,15 +38,20 @@ export default function OperatorRoute({
     if (authStatus === 'unauthenticated') {
       router.push('/');
     }
-  }, [authStatus, user, router]);
+  }, [authStatus, user, router, requireAdmin]);
 
   if (authStatus === 'configuring') {
     return <LoadingSpinner message="Configuring authentication..." />;
   }
 
-  if (authStatus === 'authenticated' && user && isOperator(user)) {
-    return <>{children}</>;
+  if (authStatus === 'authenticated' && user) {
+    const canAccess = requireAdmin ? isAdmin(user) : isOperator(user);
+    if (canAccess) {
+      return <>{children}</>;
+    }
+
+    return <LoadingSpinner message={requireAdmin ? 'Redirecting to authorized portal...' : 'Redirecting to operator portal...'} />;
   }
 
-  return <LoadingSpinner message="Verifying operator access..." />;
+  return <LoadingSpinner message={requireAdmin ? 'Verifying administrator access...' : 'Verifying operator access...'} />;
 }

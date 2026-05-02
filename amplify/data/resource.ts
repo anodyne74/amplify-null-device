@@ -85,7 +85,8 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
-      allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+      allow.groups(['operator']).to(['read', 'update']),
     ]),
 
   /**
@@ -102,6 +103,12 @@ const schema = a.schema({
       estimatedArrivalTime: a.datetime(),
       actualArrivalTime: a.datetime(),
       actualDepartureTime: a.datetime(),
+      numberOfSigns: a.integer(),
+      agent: a.string(),
+      isAuction: a.boolean(),
+      latitude: a.float(),
+      longitude: a.float(),
+      formattedAddress: a.string(),
       notes: a.string(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
@@ -111,7 +118,8 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
-      allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+      allow.groups(['operator']).to(['read', 'update']),
     ]),
 
   /**

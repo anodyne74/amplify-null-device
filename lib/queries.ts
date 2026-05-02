@@ -107,7 +107,11 @@ export async function getRouteWithStops(routeId: string) {
       console.error('Errors fetching stops:', stopsErrors);
     }
 
-    return { route, stops: stops || [], errors: stopsErrors || [] };
+    const sortedStops = [...(stops || [])].sort(
+      (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
+    );
+
+    return { route, stops: sortedStops, errors: stopsErrors || [] };
   } catch (error) {
     console.error('Error getting route with stops:', error);
     return { route: null, stops: [], errors: [error] };
@@ -227,6 +231,46 @@ export async function updateRoute(
   }
 }
 
+export interface RouteExecutionUpdateInput {
+  status?: 'planned' | 'active' | 'completed' | 'archived';
+  actualStartTime?: string;
+  actualEndTime?: string;
+  actualDurationMinutes?: number;
+}
+
+/**
+ * Execution-only route updates for operators (status and timing fields only).
+ */
+export async function updateRouteExecution(routeId: string, updates: RouteExecutionUpdateInput) {
+  return updateRoute(routeId, updates);
+}
+
+export interface StopExecutionUpdateInput {
+  actualArrivalTime?: string;
+  actualDepartureTime?: string;
+}
+
+/**
+ * Execution-only stop updates for operators (actual timing fields only).
+ */
+export async function updateStopExecution(stopId: string, updates: StopExecutionUpdateInput) {
+  try {
+    const { data, errors } = await client.models.Stop.update({
+      id: stopId,
+      ...updates,
+    });
+
+    if (errors) {
+      console.error('Errors updating stop execution fields:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error updating stop execution fields:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
 /**
  * Create a stop within a route.
  * customerId MUST be the owning customer's identity (sub) so the tenant-based
@@ -239,6 +283,12 @@ export async function createStop(input: {
   address: string;
   serviceType: 'delivery' | 'pickup' | 'inspection';
   estimatedArrivalTime?: string;
+  numberOfSigns?: number;
+  agent?: string;
+  isAuction?: boolean;
+  latitude?: number;
+  longitude?: number;
+  formattedAddress?: string;
   notes?: string;
 }) {
   try {
@@ -253,6 +303,35 @@ export async function createStop(input: {
     console.error('Error creating stop:', error);
     return { data: null, errors: [error] };
   }
+}
+
+/**
+ * Fetch operator-visible routes.
+ */
+export async function listOperatorRoutes(options?: { limit?: number; nextToken?: string }) {
+  try {
+    const { data, errors } = await client.models.Route.list({
+      limit: options?.limit || 20,
+      nextToken: options?.nextToken,
+    });
+
+    if (errors) {
+      console.error('Errors fetching operator routes:', errors);
+      return { data: [], errors };
+    }
+
+    return { data: data || [], errors };
+  } catch (error) {
+    console.error('Error listing operator routes:', error);
+    return { data: [], errors: [error] };
+  }
+}
+
+/**
+ * Fetch one route and all ordered stops for operator consumption.
+ */
+export async function getOperatorRouteDetail(routeId: string) {
+  return getRouteWithStops(routeId);
 }
 
 /**

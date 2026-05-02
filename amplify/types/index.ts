@@ -77,6 +77,12 @@ export interface Stop {
   estimatedArrivalTime?: string | null;
   actualArrivalTime?: string | null;
   actualDepartureTime?: string | null;
+  numberOfSigns?: number | null;
+  agent?: string;
+  isAuction?: boolean | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  formattedAddress?: string;
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -202,6 +208,12 @@ export interface CreateStopInput {
   address: string;
   serviceType: ServiceType;
   estimatedArrivalTime?: string;
+  numberOfSigns?: number;
+  agent?: string;
+  isAuction?: boolean;
+  latitude?: number;
+  longitude?: number;
+  formattedAddress?: string;
   notes?: string;
 }
 
@@ -213,6 +225,12 @@ export interface UpdateStopInput {
   estimatedArrivalTime?: string;
   actualArrivalTime?: string;
   actualDepartureTime?: string;
+  numberOfSigns?: number;
+  agent?: string;
+  isAuction?: boolean;
+  latitude?: number;
+  longitude?: number;
+  formattedAddress?: string;
   notes?: string;
 }
 

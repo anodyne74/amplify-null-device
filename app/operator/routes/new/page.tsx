@@ -68,7 +68,7 @@ export default function NewRoutePage() {
   };
 
   return (
-    <OperatorRoute>
+    <OperatorRoute requireAdmin>
       <div className={styles.container}>
         <h1 className={styles.heading}>Create New Route</h1>
 

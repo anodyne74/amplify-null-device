@@ -3,17 +3,29 @@
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { StopForm } from '@/app/operator/components/StopForm';
+import { isAdmin } from '@/lib/amplify-config';
+import { geocodeAddress } from '@/lib/googleMaps';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import { createStop } from '@/lib/queries';
+import { createStop, updateRouteExecution, updateStopExecution } from '@/lib/queries';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
-import type { Route, Stop, RouteStatus } from '@/amplify/types';
+import type { Route, Stop } from '@/amplify/types';
 import styles from './page.module.css';
+
+const RouteStopsMap = dynamic(
+  () => import('@/app/operator/components/RouteStopsMap').then((mod) => mod.RouteStopsMap),
+  {
+    ssr: false,
+    loading: () => <div className={styles.mapLoading}>Loading map preview...</div>,
+  }
+);
 
 function StatusBadge({ status }: { status?: string | null }) {
   const badgeClass = { planned: styles.badgePlanned, active: styles.badgeActive, completed: styles.badgeCompleted, archived: styles.badgeArchived }[(status ?? 'planned') as string] ?? styles.badgePlanned;
@@ -46,6 +58,8 @@ function formatDateTime(dateString?: string | null) {
 function RouteDetailContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id') ?? '';
+  const { user } = useAuthenticator();
+  const canManagePlanning = isAdmin(user);
 
   const [route, setRoute] = useState<Route | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
@@ -59,8 +73,12 @@ function RouteDetailContent() {
   const [editingStopId, setEditingStopId] = useState<string | null>(null);
   const [editingStop, setEditingStop] = useState(false);
   const [editStopError, setEditStopError] = useState<string | null>(null);
+  const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
+  const [reordering, setReordering] = useState(false);
+  const [reorderError, setReorderError] = useState<string | null>(null);
 
   const [transitioning, setTransitioning] = useState(false);
+  const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [transitionError, setTransitionError] = useState<string | null>(null);
 
   const fetchStops = useCallback(async () => {
@@ -75,6 +93,65 @@ function RouteDetailContent() {
       setStops(sorted);
     }
   }, [id]);
+
+  const handleStopArrived = useCallback(async (stopId: string) => {
+    setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
+    try {
+      const arrivedAt = new Date().toISOString();
+      const { errors } = await updateStopExecution(stopId, { actualArrivalTime: arrivedAt });
+      if (!errors || errors.length === 0) {
+        setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, actualArrivalTime: arrivedAt } : s)));
+      }
+    } catch { /* ignore */ }
+    setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
+  }, []);
+
+  const handleStopCompleted = useCallback(async (stopId: string) => {
+    setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
+    try {
+      const completedAt = new Date().toISOString();
+      const { errors } = await updateStopExecution(stopId, { actualDepartureTime: completedAt });
+      if (!errors || errors.length === 0) {
+        setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, actualDepartureTime: completedAt } : s)));
+      }
+    } catch { /* ignore */ }
+    setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
+  }, []);
+
+  const persistStopOrder = useCallback(
+    async (orderedStops: Stop[]) => {
+      const client = generateClient<Schema>();
+      const updates = orderedStops.map((stop, index) =>
+        client.models.Stop.update({ id: stop.id, sequence: index + 1 })
+      );
+      await Promise.all(updates);
+      await fetchStops();
+    },
+    [fetchStops]
+  );
+
+  const reorderStops = useCallback(
+    async (reorderedStops: Stop[]) => {
+      const resequenced = reorderedStops.map((stop, index) => ({
+        ...stop,
+        sequence: index + 1,
+      }));
+
+      setStops(resequenced);
+      setReordering(true);
+      setReorderError(null);
+
+      try {
+        await persistStopOrder(resequenced);
+      } catch {
+        setReorderError('Failed to save stop order. Restoring latest server order...');
+        await fetchStops();
+      } finally {
+        setReordering(false);
+      }
+    },
+    [fetchStops, persistStopOrder]
+  );
 
   useEffect(() => {
     async function fetchAll() {
@@ -99,16 +176,15 @@ function RouteDetailContent() {
     setTransitioning(true);
     setTransitionError(null);
     try {
-      const client = generateClient<Schema>();
-      const { errors } = await client.models.Route.update({
-        id: route.id,
+      const startedAt = new Date().toISOString();
+      const { errors } = await updateRouteExecution(route.id, {
         status: 'active',
-        actualStartTime: new Date().toISOString(),
+        actualStartTime: startedAt,
       });
       if (errors && errors.length > 0) {
         setTransitionError('Failed to start route.');
       } else {
-        setRoute((r) => r ? { ...r, status: 'active', actualStartTime: new Date().toISOString() } : r);
+        setRoute((r) => (r ? { ...r, status: 'active', actualStartTime: startedAt } : r));
       }
     } catch {
       setTransitionError('Failed to start route.');
@@ -121,12 +197,10 @@ function RouteDetailContent() {
     setTransitioning(true);
     setTransitionError(null);
     try {
-      const client = generateClient<Schema>();
       const now = new Date();
       const start = route.actualStartTime ? new Date(route.actualStartTime) : now;
       const actualDurationMinutes = Math.round((now.getTime() - start.getTime()) / 60000);
-      const { errors } = await client.models.Route.update({
-        id: route.id,
+      const { errors } = await updateRouteExecution(route.id, {
         status: 'completed',
         actualEndTime: now.toISOString(),
         actualDurationMinutes,
@@ -155,19 +229,34 @@ function RouteDetailContent() {
     address: string;
     serviceType: 'delivery' | 'pickup' | 'inspection';
     estimatedArrivalTime?: string;
+    numberOfSigns?: number;
+    agent?: string;
+    isAuction?: boolean;
     notes?: string;
   }) => {
     if (!route) return;
+    if (!canManagePlanning) {
+      setAddStopError('Only administrators can add planned stops.');
+      return;
+    }
+
     setAddingStop(true);
     setAddStopError(null);
     try {
+      const geocoded = await geocodeAddress(values.address);
       const result = await createStop({
         routeId: route.id,
         customerId: route.customerId,
         sequence: stops.length + 1,
         address: values.address,
+        formattedAddress: geocoded.formattedAddress,
+        latitude: geocoded.latitude,
+        longitude: geocoded.longitude,
         serviceType: values.serviceType,
         estimatedArrivalTime: values.estimatedArrivalTime,
+        numberOfSigns: values.numberOfSigns,
+        agent: values.agent,
+        isAuction: values.isAuction,
         notes: values.notes,
       });
       if (result.errors && result.errors.length > 0) {
@@ -186,17 +275,32 @@ function RouteDetailContent() {
     address: string;
     serviceType: 'delivery' | 'pickup' | 'inspection';
     estimatedArrivalTime?: string;
+    numberOfSigns?: number;
+    agent?: string;
+    isAuction?: boolean;
     notes?: string;
   }) => {
     if (!editingStopId) return;
+    if (!canManagePlanning) {
+      setEditStopError('Only administrators can edit planned stops.');
+      return;
+    }
+
     setEditingStop(true);
     setEditStopError(null);
     try {
+      const geocoded = await geocodeAddress(values.address);
       const result = await updateStop({
         id: editingStopId,
         address: values.address,
+        formattedAddress: geocoded.formattedAddress,
+        latitude: geocoded.latitude,
+        longitude: geocoded.longitude,
         serviceType: values.serviceType,
         estimatedArrivalTime: values.estimatedArrivalTime,
+        numberOfSigns: values.numberOfSigns,
+        agent: values.agent,
+        isAuction: values.isAuction,
         notes: values.notes,
       });
       if (result.errors && result.errors.length > 0) {
@@ -212,6 +316,9 @@ function RouteDetailContent() {
   };
 
   const handleDeleteStop = async (stopId: string) => {
+    if (!canManagePlanning) {
+      return;
+    }
     if (!window.confirm('Delete this stop?')) return;
     await deleteStop(stopId);
     const remaining = stops.filter((s) => s.id !== stopId);
@@ -222,6 +329,56 @@ function RouteDetailContent() {
       )
     );
     await fetchStops();
+  };
+
+  const handleDropStop = async (targetStopId: string) => {
+    if (!canManagePlanning || !draggingStopId || draggingStopId === targetStopId || reordering) {
+      setDraggingStopId(null);
+      return;
+    }
+
+    const fromIndex = stops.findIndex((stop) => stop.id === draggingStopId);
+    const toIndex = stops.findIndex((stop) => stop.id === targetStopId);
+
+    if (fromIndex === -1 || toIndex === -1) {
+      setDraggingStopId(null);
+      return;
+    }
+
+    const reordered = [...stops];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+
+    try {
+      await reorderStops(reordered);
+    } catch {
+      setReorderError('Failed to save stop order. Restoring latest server order...');
+      await fetchStops();
+    } finally {
+      setDraggingStopId(null);
+    }
+  };
+
+  const handleMoveStop = async (stopId: string, direction: 'up' | 'down') => {
+    if (!canManagePlanning || reordering) {
+      return;
+    }
+
+    const currentIndex = stops.findIndex((stop) => stop.id === stopId);
+    if (currentIndex === -1) {
+      return;
+    }
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= stops.length) {
+      return;
+    }
+
+    const reordered = [...stops];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+
+    await reorderStops(reordered);
   };
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
@@ -322,7 +479,7 @@ function RouteDetailContent() {
               <h2 className={styles.stopsHeading}>
                 Stops ({stops.length})
               </h2>
-              {!showAddStop && (
+              {canManagePlanning && !showAddStop && (
                 <button
                   onClick={() => setShowAddStop(true)}
                   className={styles.btnAddStop}
@@ -331,6 +488,17 @@ function RouteDetailContent() {
                 </button>
               )}
             </div>
+
+            <div className={styles.mapSection}>
+              <h3 className={styles.mapHeading}>Route Map and Ordered Addresses</h3>
+              <RouteStopsMap stops={stops} />
+            </div>
+
+            {canManagePlanning && (
+              <div className={styles.reorderHint}>Drag and drop stop cards to change sequence.</div>
+            )}
+            {reordering && <div className={styles.reorderStatus}>Saving updated stop order...</div>}
+            {reorderError && <div className={styles.errorBanner}>{reorderError}</div>}
 
             {/* Add Stop Form */}
             {showAddStop && (
@@ -356,7 +524,7 @@ function RouteDetailContent() {
             )}
 
             <div className={styles.stopsList}>
-              {stops.map((stop) => {
+              {stops.map((stop, index) => {
                 if (editingStopId === stop.id) {
                   return (
                     <div key={stop.id} className={styles.formContainer}>
@@ -366,6 +534,9 @@ function RouteDetailContent() {
                           address: stop.address,
                           serviceType: stop.serviceType as 'delivery' | 'pickup' | 'inspection' | undefined,
                           estimatedArrivalTime: stop.estimatedArrivalTime ?? undefined,
+                          numberOfSigns: stop.numberOfSigns ?? undefined,
+                          agent: stop.agent ?? undefined,
+                          isAuction: Boolean(stop.isAuction),
                           notes: stop.notes,
                         }}
                         onSubmit={handleEditStop}
@@ -388,7 +559,18 @@ function RouteDetailContent() {
                 return (
                   <div
                     key={stop.id}
-                    className={`${styles.stopCard} ${stopCardClass}`}
+                    className={`${styles.stopCard} ${stopCardClass} ${draggingStopId === stop.id ? styles.stopCardDragging : ''}`}
+                    draggable={canManagePlanning && !reordering}
+                    onDragStart={() => setDraggingStopId(stop.id)}
+                    onDragOver={(event) => {
+                      if (canManagePlanning) {
+                        event.preventDefault();
+                      }
+                    }}
+                    onDrop={() => {
+                      void handleDropStop(stop.id);
+                    }}
+                    onDragEnd={() => setDraggingStopId(null)}
                   >
                     {/* Sequence circle */}
                     <div className={`${styles.circle} ${stopCircleClass}`}>
@@ -398,11 +580,20 @@ function RouteDetailContent() {
                     {/* Details */}
                     <div>
                       <div className={styles.stopAddress}>
-                        {stop.address}
+                        {stop.formattedAddress || stop.address}
                       </div>
                       <span className={`${styles.svcBadge} ${stopSvcBadgeClass}`}>
                         {stop.serviceType || 'delivery'}
                       </span>
+                      {typeof stop.numberOfSigns === 'number' && (
+                        <div className={styles.stopEta}>Signs: {stop.numberOfSigns}</div>
+                      )}
+                      {stop.agent && (
+                        <div className={styles.stopEta}>Agent: {stop.agent}</div>
+                      )}
+                      {stop.isAuction && (
+                        <div className={styles.stopEta}>Auction: Yes</div>
+                      )}
                       {stop.estimatedArrivalTime && (
                         <div className={styles.stopEta}>
                           ETA: {formatDateTime(stop.estimatedArrivalTime)}
@@ -416,22 +607,84 @@ function RouteDetailContent() {
                     </div>
 
                     {/* Actions */}
-                    <div className={styles.stopActions}>
-                      <button
-                        onClick={() => setEditingStopId(stop.id)}
-                        className={styles.btnEdit}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteStop(stop.id)}
-                        className={styles.btnDelete}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                );
+                    {canManagePlanning && (
+                      <div className={styles.stopActions}>
+                        <button
+                          onClick={() => {
+                            void handleMoveStop(stop.id, 'up');
+                          }}
+                          className={styles.btnReorder}
+                          disabled={index === 0 || reordering}
+                        >
+                          Move Up
+                        </button>
+                        <button
+                          onClick={() => {
+                            void handleMoveStop(stop.id, 'down');
+                          }}
+                          className={styles.btnReorder}
+                          disabled={index === stops.length - 1 || reordering}
+                        >
+                          Move Down
+                        </button>
+                        <button
+                          onClick={() => setEditingStopId(stop.id)}
+                          className={styles.btnEdit}
+                          disabled={reordering}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteStop(stop.id)}
+                          className={styles.btnDelete}
+                          disabled={reordering}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Execution actions — visible to all operators when route is active */}
+                    {route?.status === 'active' && (
+                      <div className={styles.stopExecution}>
+                        {!stop.actualArrivalTime && (
+                          <button
+                            onClick={() => { void handleStopArrived(stop.id); }}
+                            className={styles.btnArrived}
+                            disabled={!!stopExecuting[stop.id]}
+                          >
+                            {stopExecuting[stop.id] ? 'Saving…' : 'Arrived'}
+                          </button>
+                        )}
+                        {stop.actualArrivalTime && !stop.actualDepartureTime && (
+                          <>
+                            <span className={styles.execTimestamp}>
+                              Arrived: {formatDateTime(stop.actualArrivalTime)}
+                            </span>
+                            <button
+                              onClick={() => { void handleStopCompleted(stop.id); }}
+                              className={styles.btnExecComplete}
+                              disabled={!!stopExecuting[stop.id]}
+                            >
+                              {stopExecuting[stop.id]
+                                ? 'Saving…'
+                                : stop.serviceType === 'pickup'
+                                ? 'Collected Signs'
+                                : 'Placed Signs'}
+                            </button>
+                          </>
+                        )}
+                        {stop.actualArrivalTime && stop.actualDepartureTime && (
+                          <div className={styles.execDone}>
+                            <span>Arrived: {formatDateTime(stop.actualArrivalTime)}</span>
+                            <span>
+                              {stop.serviceType === 'pickup' ? 'Collected' : 'Placed'}:{' '}
+                              {formatDateTime(stop.actualDepartureTime)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}                  </div>                );
               })}
             </div>
           </div>

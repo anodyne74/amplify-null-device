@@ -2,6 +2,7 @@
 
 import './globals.css';
 import '@aws-amplify/ui-react/styles.css';
+import 'leaflet/dist/leaflet.css';
 import { JetBrains_Mono, Inter } from 'next/font/google';
 import { Authenticator } from '@aws-amplify/ui-react';
 import { configureAmplify } from '@/lib/amplify-config';

@@ -36,7 +36,7 @@ export function isCustomer(user: any): boolean {
  */
 export function isOperator(user: any): boolean {
   const groups = getUserGroups(user);
-  return groups.includes('operator');
+  return groups.includes('operator') || groups.includes('administrator');
 }
 
 /**
@@ -45,9 +45,8 @@ export function isOperator(user: any): boolean {
  * or in a separate database table
  */
 export function isAdmin(user: any): boolean {
-  // For now, we check if user is in operator group
-  // More specific admin check would require additional user attributes
-  return isOperator(user);
+  const groups = getUserGroups(user);
+  return groups.includes('administrator');
 }
 
 /**

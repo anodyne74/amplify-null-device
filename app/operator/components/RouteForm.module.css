@@ -51,6 +51,120 @@
   resize: vertical;
 }
 
+.stopsSection {
+  margin-top: var(--nd-space-lg);
+  padding-top: var(--nd-space-md);
+  border-top: 1px solid var(--nd-border-default);
+}
+
+.stopsHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--nd-space-sm);
+}
+
+.stopsHeading {
+  margin: 0;
+  font-size: 18px;
+  color: var(--nd-text-primary);
+}
+
+.btnAddStop {
+  padding: 8px 14px;
+  background-color: transparent;
+  color: var(--nd-accent-primary);
+  border: 1px solid var(--nd-accent-primary);
+  border-radius: var(--nd-radius-md);
+  cursor: pointer;
+}
+
+.btnAddStop:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.stopFormCard {
+  margin-bottom: var(--nd-space-md);
+  padding: var(--nd-space-md);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-md);
+  background-color: var(--nd-bg-elevated);
+}
+
+.emptyStops {
+  color: var(--nd-text-secondary);
+  margin-bottom: var(--nd-space-md);
+}
+
+.stopsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: var(--nd-space-md);
+}
+
+.stopRow {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-md);
+  padding: 10px;
+  background-color: var(--nd-bg-elevated);
+}
+
+.stopSequence {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: var(--nd-accent-primary);
+  color: var(--nd-text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stopAddress {
+  font-size: 14px;
+  color: var(--nd-text-primary);
+}
+
+.stopMeta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--nd-text-muted);
+  text-transform: capitalize;
+}
+
+.btnRemoveStop {
+  background-color: transparent;
+  border: 1px solid var(--nd-status-danger);
+  color: var(--nd-status-danger);
+  border-radius: var(--nd-radius-md);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.btnRemoveStop:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mapSection {
+  margin-bottom: var(--nd-space-md);
+}
+
+.mapLoading {
+  border: 1px dashed var(--nd-border-default);
+  border-radius: var(--nd-radius-md);
+  padding: var(--nd-space-md);
+  color: var(--nd-text-secondary);
+}
+
 .actions {
   display: flex;
   gap: 12px;

@@ -2,7 +2,7 @@ import { render, waitFor } from '@testing-library/react';
 import Home from '@/app/page';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { isAdmin, isOperator } from '@/lib/amplify-config';
+import { useUserGroups } from '@/lib/use-user-groups';
 
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
@@ -12,9 +12,8 @@ jest.mock('@aws-amplify/ui-react', () => ({
   useAuthenticator: jest.fn(),
 }));
 
-jest.mock('@/lib/amplify-config', () => ({
-  isAdmin: jest.fn(),
-  isOperator: jest.fn(),
+jest.mock('@/lib/use-user-groups', () => ({
+  useUserGroups: jest.fn(),
 }));
 
 describe('Home Redirect', () => {
@@ -28,10 +27,13 @@ describe('Home Redirect', () => {
   it('redirects administrators to /operator/admin', async () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',
-      user: { username: 'admin-user' },
     });
-    (isAdmin as jest.Mock).mockReturnValue(true);
-    (isOperator as jest.Mock).mockReturnValue(true);
+    (useUserGroups as jest.Mock).mockReturnValue({
+      loading: false,
+      isAdmin: true,
+      isOperator: true,
+      isCustomer: false,
+    });
 
     render(<Home />);
 
@@ -43,10 +45,13 @@ describe('Home Redirect', () => {
   it('redirects operators to /operator/dashboard', async () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',
-      user: { username: 'operator-user' },
     });
-    (isAdmin as jest.Mock).mockReturnValue(false);
-    (isOperator as jest.Mock).mockReturnValue(true);
+    (useUserGroups as jest.Mock).mockReturnValue({
+      loading: false,
+      isAdmin: false,
+      isOperator: true,
+      isCustomer: false,
+    });
 
     render(<Home />);
 
@@ -58,15 +63,36 @@ describe('Home Redirect', () => {
   it('redirects customers to /customer/dashboard', async () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',
-      user: { username: 'customer-user' },
     });
-    (isAdmin as jest.Mock).mockReturnValue(false);
-    (isOperator as jest.Mock).mockReturnValue(false);
+    (useUserGroups as jest.Mock).mockReturnValue({
+      loading: false,
+      isAdmin: false,
+      isOperator: false,
+      isCustomer: true,
+    });
 
     render(<Home />);
 
     await waitFor(() => {
       expect(push).toHaveBeenCalledWith('/customer/dashboard');
+    });
+  });
+
+  it('redirects pending users to /pending-approval', async () => {
+    (useAuthenticator as jest.Mock).mockReturnValue({
+      authStatus: 'authenticated',
+    });
+    (useUserGroups as jest.Mock).mockReturnValue({
+      loading: false,
+      isAdmin: false,
+      isOperator: false,
+      isCustomer: false,
+    });
+
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith('/pending-approval');
     });
   });
 });

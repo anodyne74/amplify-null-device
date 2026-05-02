@@ -29,7 +29,42 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ErrorBoundary>
           <Authenticator.Provider>
-            <Authenticator>
+            <Authenticator
+              hideSignUp={false}
+              formFields={{
+                signUp: {
+                  given_name: {
+                    order: 1,
+                    label: 'First Name',
+                    placeholder: 'Enter your first name',
+                    isRequired: true,
+                  },
+                  email: {
+                    order: 2,
+                  },
+                  password: {
+                    order: 3,
+                  },
+                  confirm_password: {
+                    order: 4,
+                  },
+                },
+              }}
+              components={{
+                SignUp: {
+                  Header() {
+                    return (
+                      <div style={{ marginBottom: '0.75rem' }}>
+                        <h2 style={{ margin: 0 }}>Request Access</h2>
+                        <p style={{ marginTop: '0.4rem', opacity: 0.8 }}>
+                          New accounts require administrator approval before portal access is granted.
+                        </p>
+                      </div>
+                    );
+                  },
+                },
+              }}
+            >
               {children}
             </Authenticator>
           </Authenticator.Provider>

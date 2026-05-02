@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
-import { RouteForm } from '@/app/operator/components/RouteForm';
+import { RouteForm, type RouteDraftStop } from '@/app/operator/components/RouteForm';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { createRoute } from '@/lib/queries';
+import { createRoute, createStop } from '@/lib/queries';
 import styles from './page.module.css';
 
 export default function NewRoutePage() {
@@ -34,6 +34,7 @@ export default function NewRoutePage() {
     customerId: string;
     estimatedDurationMinutes: number;
     notes: string;
+    stops: RouteDraftStop[];
   }) => {
     setIsSubmitting(true);
     setSubmitError(null);
@@ -52,6 +53,31 @@ export default function NewRoutePage() {
       }
 
       if (result.data?.id) {
+        for (let index = 0; index < values.stops.length; index += 1) {
+          const stop = values.stops[index];
+          const stopResult = await createStop({
+            routeId: result.data.id,
+            customerId: values.customerId,
+            sequence: index + 1,
+            address: stop.address,
+            serviceType: stop.serviceType,
+            estimatedArrivalTime: stop.estimatedArrivalTime,
+            numberOfSigns: stop.numberOfSigns,
+            agent: stop.agent,
+            isAuction: stop.isAuction,
+            latitude: stop.latitude,
+            longitude: stop.longitude,
+            formattedAddress: stop.formattedAddress,
+            notes: stop.notes,
+          });
+
+          if (stopResult.errors && stopResult.errors.length > 0) {
+            setSubmitError('Route was created, but one or more stops failed to save.');
+            setIsSubmitting(false);
+            return;
+          }
+        }
+
         router.push(`/operator/routes/detail?id=${result.data.id}`);
       } else {
         setSubmitError('Route created but ID not returned.');

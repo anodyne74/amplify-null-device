@@ -8,6 +8,7 @@ export interface UserGroupState {
   groups: string[];
   /** True while authStatus is configuring or the session fetch is in flight */
   loading: boolean;
+  isPending: boolean;
   isAdmin: boolean;
   isOperator: boolean;
   isCustomer: boolean;
@@ -43,6 +44,7 @@ export function useUserGroups(): UserGroupState {
   return {
     groups,
     loading,
+    isPending: groups.length === 0,
     isAdmin: groups.includes('administrator'),
     isOperator: groups.includes('operator') || groups.includes('administrator'),
     isCustomer: groups.includes('customer'),

@@ -23,6 +23,13 @@ type AdminUserRequest = {
   groupName?: (typeof ALLOWED_GROUPS)[number];
 };
 
+function getAttributeValue(
+  attributes: { Name?: string; Value?: string }[] | undefined,
+  attributeName: string
+): string | undefined {
+  return attributes?.find((attribute) => attribute.Name === attributeName)?.Value;
+}
+
 type VerifiedClaims = {
   sub?: string;
   email?: string;
@@ -170,6 +177,8 @@ export async function POST(request: NextRequest) {
         username: user.Username,
         enabled: user.Enabled,
         status: user.UserStatus,
+        firstName: getAttributeValue(user.Attributes, 'given_name'),
+        email: getAttributeValue(user.Attributes, 'email'),
       }));
 
       await writeAuditLog(authResult.token, {

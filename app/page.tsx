@@ -18,7 +18,7 @@ import styles from './page.module.css';
 export default function Home() {
   const router = useRouter();
   const { authStatus } = useAuthenticator();
-  const { loading, isAdmin, isOperator } = useUserGroups();
+  const { loading, isAdmin, isOperator, isCustomer } = useUserGroups();
 
   useEffect(() => {
     if (authStatus === 'authenticated' && !loading) {
@@ -26,11 +26,13 @@ export default function Home() {
         router.push('/operator/admin');
       } else if (isOperator) {
         router.push('/operator/dashboard');
-      } else {
+      } else if (isCustomer) {
         router.push('/customer/dashboard');
+      } else {
+        router.push('/pending-approval');
       }
     }
-  }, [authStatus, loading, isAdmin, isOperator, router]);
+  }, [authStatus, loading, isAdmin, isOperator, isCustomer, router]);
 
   if (authStatus === 'authenticated') {
     return <LoadingSpinner message="Redirecting to dashboard..." />;

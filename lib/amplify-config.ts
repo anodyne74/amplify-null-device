@@ -47,7 +47,7 @@ export async function fetchUserGroups(): Promise<string[]> {
  */
 export function isCustomer(user: any): boolean {
   const groups = getUserGroups(user);
-  return groups.includes('customer') || groups.length === 0; // Default to customer if no groups
+  return groups.includes('customer');
 }
 
 /**

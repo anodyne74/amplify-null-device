@@ -9,6 +9,8 @@ type CognitoUser = {
   username?: string;
   enabled?: boolean;
   status?: string;
+  firstName?: string;
+  email?: string;
 };
 
 const GROUPS = ['customer', 'operator', 'administrator'] as const;
@@ -145,7 +147,9 @@ export default function UsersAdminPage() {
             >
               {users.map((user) => (
                 <option key={user.username} value={user.username}>
-                  {user.username} ({user.status || 'UNKNOWN'})
+                  {user.firstName ? `${user.firstName} - ` : ''}
+                  {user.username}
+                  {user.status ? ` (${user.status})` : ''}
                 </option>
               ))}
             </select>
@@ -156,6 +160,11 @@ export default function UsersAdminPage() {
 
           {selectedUsername && (
             <div>
+              {users.find((u) => u.username === selectedUsername)?.email && (
+                <p className={styles.welcome}>
+                  Email: {users.find((u) => u.username === selectedUsername)?.email}
+                </p>
+              )}
               <h4>Current Groups</h4>
               {groups.length === 0 ? (
                 <p className={styles.welcome}>No groups assigned.</p>

@@ -3,13 +3,14 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { isOperator } from '@/lib/amplify-config';
+import { isAdmin, isOperator } from '@/lib/amplify-config';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import styles from './page.module.css';
 
 /**
  * Home Page
  * Redirects authenticated users to their appropriate portal:
+ * - Administrators → /operator/admin
  * - Operators → /operator/dashboard
  * - Customers → /customer/dashboard
  * Unauthenticated users see the login form (from Authenticator)
@@ -20,7 +21,9 @@ export default function Home() {
 
   useEffect(() => {
     if (authStatus === 'authenticated' && user) {
-      if (isOperator(user)) {
+      if (isAdmin(user)) {
+        router.push('/operator/admin');
+      } else if (isOperator(user)) {
         router.push('/operator/dashboard');
       } else {
         router.push('/customer/dashboard');

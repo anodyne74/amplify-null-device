@@ -46,6 +46,78 @@ export async function getCustomer(customerId: string) {
 }
 
 /**
+ * Create a customer record.
+ */
+export async function createCustomer(input: {
+  name: string;
+  email: string;
+  contactPhone?: string;
+  status?: 'active' | 'inactive' | 'suspended';
+  billingRatePerHour: number;
+}) {
+  try {
+    const { data, errors } = await client.models.Customer.create(input);
+
+    if (errors) {
+      console.error('Errors creating customer:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error creating customer:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Update an existing customer.
+ */
+export async function updateCustomer(
+  customerId: string,
+  updates: Partial<{
+    name: string;
+    email: string;
+    contactPhone: string;
+    status: 'active' | 'inactive' | 'suspended';
+    billingRatePerHour: number;
+  }>
+) {
+  try {
+    const { data, errors } = await client.models.Customer.update({
+      id: customerId,
+      ...updates,
+    });
+
+    if (errors) {
+      console.error('Errors updating customer:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error updating customer:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Delete a customer record.
+ */
+export async function deleteCustomer(customerId: string) {
+  try {
+    const { data, errors } = await client.models.Customer.delete({ id: customerId });
+
+    if (errors) {
+      console.error('Errors deleting customer:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error deleting customer:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
  * Fetch all routes for a specific customer
  */
 export async function listCustomerRoutes(
@@ -140,6 +212,36 @@ export async function listCustomerInvoices(
     return { data: data || [], errors };
   } catch (error) {
     console.error('Error listing customer invoices:', error);
+    return { data: [], errors: [error] };
+  }
+}
+
+/**
+ * Fetch all invoices for administrators/operators.
+ */
+export async function listInvoices(options?: {
+  limit?: number;
+  nextToken?: string;
+  status?: 'draft' | 'finalized' | 'sent' | 'paid';
+}) {
+  try {
+    const { data, errors } = await client.models.Invoice.list({
+      limit: options?.limit || 20,
+      nextToken: options?.nextToken,
+    });
+
+    if (errors) {
+      console.error('Errors fetching invoices:', errors);
+      return { data: [], errors };
+    }
+
+    const filtered = options?.status
+      ? (data || []).filter((invoice) => invoice.status === options.status)
+      : (data || []);
+
+    return { data: filtered, errors };
+  } catch (error) {
+    console.error('Error listing invoices:', error);
     return { data: [], errors: [error] };
   }
 }
@@ -356,6 +458,37 @@ export async function createInvoice(input: {
     return { data, errors };
   } catch (error) {
     console.error('Error creating invoice:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Update invoice lifecycle and totals.
+ */
+export async function updateInvoice(
+  invoiceId: string,
+  updates: Partial<{
+    invoiceNumber: string;
+    invoiceDate: string;
+    periodStartDate: string;
+    periodEndDate: string;
+    totalAmount: number;
+    status: 'draft' | 'finalized' | 'sent' | 'paid';
+  }>
+) {
+  try {
+    const { data, errors } = await client.models.Invoice.update({
+      id: invoiceId,
+      ...updates,
+    });
+
+    if (errors) {
+      console.error('Errors updating invoice:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error updating invoice:', error);
     return { data: null, errors: [error] };
   }
 }

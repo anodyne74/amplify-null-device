@@ -43,6 +43,7 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.owner().identityClaim('sub').to(['create', 'read', 'update']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
@@ -60,6 +61,7 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.owner().identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
@@ -145,6 +147,7 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
@@ -171,6 +174,7 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
@@ -196,6 +200,7 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
@@ -223,6 +228,7 @@ const schema = a.schema({
       customer: a.belongsTo('Customer', 'customerId'),
     })
     .authorization((allow) => [
+      allow.groups(['administrator']).to(['read', 'create']),
       allow.groups(['operator']).to(['read', 'create']),
     ]),
 });

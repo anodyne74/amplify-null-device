@@ -19,7 +19,7 @@ frontend:
         # Build frontend (quality checks already passed in GitHub Actions)
         - npm run build
   artifacts:
-    # Next static export outputs to `out/` by default when using `next export`
+    # Next Web Compute output is served from `.next`
     baseDirectory: .next
     files:
       - '**/*'

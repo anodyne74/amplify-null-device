@@ -7,7 +7,6 @@
 
 export default {
   reactStrictMode: true,
-  // Remove: output: 'export',
   images: {
     unoptimized: true,
   },

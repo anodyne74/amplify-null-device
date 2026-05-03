@@ -233,6 +233,9 @@ function RouteDetailContent() {
     agent?: string;
     isAuction?: boolean;
     notes?: string;
+    latitude?: number;
+    longitude?: number;
+    formattedAddress?: string;
   }) => {
     if (!route) return;
     if (!canManagePlanning) {
@@ -243,15 +246,25 @@ function RouteDetailContent() {
     setAddingStop(true);
     setAddStopError(null);
     try {
-      const geocoded = await geocodeAddress(values.address);
+      let lat = values.latitude;
+      let lng = values.longitude;
+      let formatted = values.formattedAddress ?? values.address;
+
+      if (lat === undefined || lng === undefined) {
+        const geocoded = await geocodeAddress(values.address);
+        lat = geocoded.latitude;
+        lng = geocoded.longitude;
+        formatted = geocoded.formattedAddress;
+      }
+
       const result = await createStop({
         routeId: route.id,
         customerId: route.customerId,
         sequence: stops.length + 1,
         address: values.address,
-        formattedAddress: geocoded.formattedAddress,
-        latitude: geocoded.latitude,
-        longitude: geocoded.longitude,
+        formattedAddress: formatted,
+        latitude: lat,
+        longitude: lng,
         serviceType: values.serviceType,
         estimatedArrivalTime: values.estimatedArrivalTime,
         numberOfSigns: values.numberOfSigns,
@@ -279,6 +292,9 @@ function RouteDetailContent() {
     agent?: string;
     isAuction?: boolean;
     notes?: string;
+    latitude?: number;
+    longitude?: number;
+    formattedAddress?: string;
   }) => {
     if (!editingStopId) return;
     if (!canManagePlanning) {
@@ -289,13 +305,23 @@ function RouteDetailContent() {
     setEditingStop(true);
     setEditStopError(null);
     try {
-      const geocoded = await geocodeAddress(values.address);
+      let lat = values.latitude;
+      let lng = values.longitude;
+      let formatted = values.formattedAddress ?? values.address;
+
+      if (lat === undefined || lng === undefined) {
+        const geocoded = await geocodeAddress(values.address);
+        lat = geocoded.latitude;
+        lng = geocoded.longitude;
+        formatted = geocoded.formattedAddress;
+      }
+
       const result = await updateStop({
         id: editingStopId,
         address: values.address,
-        formattedAddress: geocoded.formattedAddress,
-        latitude: geocoded.latitude,
-        longitude: geocoded.longitude,
+        formattedAddress: formatted,
+        latitude: lat,
+        longitude: lng,
         serviceType: values.serviceType,
         estimatedArrivalTime: values.estimatedArrivalTime,
         numberOfSigns: values.numberOfSigns,

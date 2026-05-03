@@ -33,6 +33,12 @@ export interface Customer {
   name: string;
   email: string;
   contactPhone?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postcode?: string;
+  country?: string;
   status: CustomerStatus;
   billingRatePerHour: number;
   createdAt?: string;
@@ -40,6 +46,7 @@ export interface Customer {
   routes?: Route[];
   invoices?: Invoice[];
   paymentRecords?: PaymentRecord[];
+  users?: CustomerUser[];
 }
 
 export interface Operator {
@@ -54,6 +61,7 @@ export interface Operator {
 export interface Route {
   id: string;
   customerId: string;
+  viewerSubs?: string[] | null;
   status?: RouteStatus | null;
   estimatedDurationMinutes?: number | null;
   actualStartTime?: string | null;
@@ -71,6 +79,7 @@ export interface Stop {
   id: string;
   routeId: string;
   customerId?: string; // Denormalized for tenant-safe customer reads
+  viewerSubs?: string[] | null;
   sequence?: number | null;
   address?: string;
   serviceType?: ServiceType | null;
@@ -149,11 +158,25 @@ export interface AuditLog {
   createdAt?: string;
 }
 
+export interface CustomerUser {
+  id: string;
+  customerId: string;
+  userSub: string;
+  accountOwnerSub: string;
+  name?: string;
+  email?: string;
+  role: CustomerUserRole;
+  createdAt?: string;
+  updatedAt?: string;
+  customer?: Customer;
+}
+
 /**
  * Enums and union types from schema
  */
 
 export type CustomerStatus = 'active' | 'inactive' | 'suspended';
+export type CustomerUserRole = 'account_owner' | 'read_only';
 export type OperatorRole = 'admin' | 'manager' | 'staff';
 export type RouteStatus = 'planned' | 'active' | 'completed' | 'archived';
 export type ServiceType = 'delivery' | 'pickup' | 'inspection';
@@ -172,6 +195,12 @@ export interface CreateCustomerInput {
   name: string;
   email: string;
   contactPhone?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postcode?: string;
+  country?: string;
   status: CustomerStatus;
   billingRatePerHour: number;
 }
@@ -181,12 +210,19 @@ export interface UpdateCustomerInput {
   name?: string;
   email?: string;
   contactPhone?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postcode?: string;
+  country?: string;
   status?: CustomerStatus;
   billingRatePerHour?: number;
 }
 
 export interface CreateRouteInput {
   customerId: string;
+  viewerSubs?: string[];
   status: RouteStatus;
   estimatedDurationMinutes: number;
   notes?: string;
@@ -204,6 +240,7 @@ export interface UpdateRouteInput {
 export interface CreateStopInput {
   routeId: string;
   customerId: string; // Required: must be set to the owning customer's sub/id
+  viewerSubs?: string[];
   sequence: number;
   address: string;
   serviceType: ServiceType;
@@ -282,6 +319,22 @@ export interface CreateAuditLogInput {
   reason?: string;
   ipAddress?: string;
   userAgent?: string;
+}
+
+export interface CreateCustomerUserInput {
+  customerId: string;
+  userSub: string;
+  accountOwnerSub: string;
+  role: CustomerUserRole;
+  name?: string;
+  email?: string;
+}
+
+export interface UpdateCustomerUserInput {
+  id: string;
+  name?: string;
+  email?: string;
+  role?: CustomerUserRole;
 }
 
 /**

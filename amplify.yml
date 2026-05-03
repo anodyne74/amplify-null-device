@@ -20,7 +20,7 @@ frontend:
         - npm run build
   artifacts:
     # Next static export outputs to `out/` by default when using `next export`
-    baseDirectory: out
+    baseDirectory: .next
     files:
       - '**/*'
   cache:

@@ -6,7 +6,11 @@
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../amplify/data/resource';
 
-const client = generateClient<Schema>();
+let _client: ReturnType<typeof generateClient<Schema>> | null = null;
+function getClient() {
+  if (!_client) _client = generateClient<Schema>();
+  return _client;
+}
 
 /**
  * Fetch all customers
@@ -14,7 +18,7 @@ const client = generateClient<Schema>();
  */
 export async function listCustomers(options?: { limit?: number; nextToken?: string }) {
   try {
-    const { data, errors } = await client.models.Customer.list({
+    const { data, errors } = await getClient().models.Customer.list({
       limit: options?.limit || 20,
       nextToken: options?.nextToken,
     });
@@ -34,7 +38,7 @@ export async function listCustomers(options?: { limit?: number; nextToken?: stri
  */
 export async function getCustomer(customerId: string) {
   try {
-    const { data, errors } = await client.models.Customer.get({ id: customerId });
+    const { data, errors } = await getClient().models.Customer.get({ id: customerId });
     if (errors) {
       console.error('Errors fetching customer:', errors);
     }
@@ -52,11 +56,17 @@ export async function createCustomer(input: {
   name: string;
   email: string;
   contactPhone?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postcode?: string;
+  country?: string;
   status?: 'active' | 'inactive' | 'suspended';
   billingRatePerHour: number;
 }) {
   try {
-    const { data, errors } = await client.models.Customer.create(input);
+    const { data, errors } = await getClient().models.Customer.create(input);
 
     if (errors) {
       console.error('Errors creating customer:', errors);
@@ -78,12 +88,18 @@ export async function updateCustomer(
     name: string;
     email: string;
     contactPhone: string;
+    addressLine1: string;
+    addressLine2: string;
+    city: string;
+    state: string;
+    postcode: string;
+    country: string;
     status: 'active' | 'inactive' | 'suspended';
     billingRatePerHour: number;
   }>
 ) {
   try {
-    const { data, errors } = await client.models.Customer.update({
+    const { data, errors } = await getClient().models.Customer.update({
       id: customerId,
       ...updates,
     });
@@ -104,7 +120,7 @@ export async function updateCustomer(
  */
 export async function deleteCustomer(customerId: string) {
   try {
-    const { data, errors } = await client.models.Customer.delete({ id: customerId });
+    const { data, errors } = await getClient().models.Customer.delete({ id: customerId });
 
     if (errors) {
       console.error('Errors deleting customer:', errors);
@@ -129,7 +145,7 @@ export async function listCustomerRoutes(
     let nextToken: string | undefined = options?.nextToken;
 
     // Fetch routes with pagination
-    const { data, errors } = await client.models.Route.list({
+    const { data, errors } = await getClient().models.Route.list({
       filter: { customerId: { eq: customerId } },
       limit: options?.limit || 20,
       nextToken,
@@ -159,7 +175,7 @@ export async function listCustomerRoutes(
  */
 export async function getRouteWithStops(routeId: string) {
   try {
-    const { data: route, errors: routeErrors } = await client.models.Route.get({ id: routeId });
+    const { data: route, errors: routeErrors } = await getClient().models.Route.get({ id: routeId });
 
     if (routeErrors) {
       console.error('Errors fetching route:', routeErrors);
@@ -171,7 +187,7 @@ export async function getRouteWithStops(routeId: string) {
     }
 
     // Fetch stops for this route
-    const { data: stops, errors: stopsErrors } = await client.models.Stop.list({
+    const { data: stops, errors: stopsErrors } = await getClient().models.Stop.list({
       filter: { routeId: { eq: routeId } },
     });
 
@@ -198,7 +214,7 @@ export async function listCustomerInvoices(
   options?: { limit?: number; nextToken?: string }
 ) {
   try {
-    const { data, errors } = await client.models.Invoice.list({
+    const { data, errors } = await getClient().models.Invoice.list({
       filter: { customerId: { eq: customerId } },
       limit: options?.limit || 20,
       nextToken: options?.nextToken,
@@ -225,7 +241,7 @@ export async function listInvoices(options?: {
   status?: 'draft' | 'finalized' | 'sent' | 'paid';
 }) {
   try {
-    const { data, errors } = await client.models.Invoice.list({
+    const { data, errors } = await getClient().models.Invoice.list({
       limit: options?.limit || 20,
       nextToken: options?.nextToken,
     });
@@ -251,7 +267,7 @@ export async function listInvoices(options?: {
  */
 export async function getInvoiceWithLineItems(invoiceId: string) {
   try {
-    const { data: invoice, errors: invoiceErrors } = await client.models.Invoice.get({
+    const { data: invoice, errors: invoiceErrors } = await getClient().models.Invoice.get({
       id: invoiceId,
     });
 
@@ -265,7 +281,7 @@ export async function getInvoiceWithLineItems(invoiceId: string) {
     }
 
     // Fetch line items for this invoice
-    const { data: lineItems, errors: lineItemsErrors } = await client.models.LineItem.list({
+    const { data: lineItems, errors: lineItemsErrors } = await getClient().models.LineItem.list({
       filter: { invoiceId: { eq: invoiceId } },
     });
 
@@ -285,12 +301,13 @@ export async function getInvoiceWithLineItems(invoiceId: string) {
  */
 export async function createRoute(input: {
   customerId: string;
+  viewerSubs?: string[];
   status: 'planned' | 'active' | 'completed' | 'archived';
   estimatedDurationMinutes?: number;
   notes?: string;
 }) {
   try {
-    const { data, errors } = await client.models.Route.create(input);
+    const { data, errors } = await getClient().models.Route.create(input);
 
     if (errors) {
       console.error('Errors creating route:', errors);
@@ -317,7 +334,7 @@ export async function updateRoute(
   }>
 ) {
   try {
-    const { data, errors } = await client.models.Route.update({
+    const { data, errors } = await getClient().models.Route.update({
       id: routeId,
       ...updates,
     });
@@ -357,7 +374,7 @@ export interface StopExecutionUpdateInput {
  */
 export async function updateStopExecution(stopId: string, updates: StopExecutionUpdateInput) {
   try {
-    const { data, errors } = await client.models.Stop.update({
+    const { data, errors } = await getClient().models.Stop.update({
       id: stopId,
       ...updates,
     });
@@ -381,6 +398,7 @@ export async function updateStopExecution(stopId: string, updates: StopExecution
 export async function createStop(input: {
   routeId: string;
   customerId: string;
+  viewerSubs?: string[];
   sequence: number;
   address: string;
   serviceType: 'delivery' | 'pickup' | 'inspection';
@@ -394,7 +412,7 @@ export async function createStop(input: {
   notes?: string;
 }) {
   try {
-    const { data, errors } = await client.models.Stop.create(input);
+    const { data, errors } = await getClient().models.Stop.create(input);
 
     if (errors) {
       console.error('Errors creating stop:', errors);
@@ -412,7 +430,7 @@ export async function createStop(input: {
  */
 export async function listOperatorRoutes(options?: { limit?: number; nextToken?: string }) {
   try {
-    const { data, errors } = await client.models.Route.list({
+    const { data, errors } = await getClient().models.Route.list({
       limit: options?.limit || 20,
       nextToken: options?.nextToken,
     });
@@ -449,7 +467,7 @@ export async function createInvoice(input: {
   status: 'draft' | 'finalized' | 'sent' | 'paid';
 }) {
   try {
-    const { data, errors } = await client.models.Invoice.create(input);
+    const { data, errors } = await getClient().models.Invoice.create(input);
 
     if (errors) {
       console.error('Errors creating invoice:', errors);
@@ -477,7 +495,7 @@ export async function updateInvoice(
   }>
 ) {
   try {
-    const { data, errors } = await client.models.Invoice.update({
+    const { data, errors } = await getClient().models.Invoice.update({
       id: invoiceId,
       ...updates,
     });
@@ -508,7 +526,7 @@ export async function createLineItem(input: {
   amount: number;
 }) {
   try {
-    const { data, errors } = await client.models.LineItem.create(input);
+    const { data, errors } = await getClient().models.LineItem.create(input);
 
     if (errors) {
       console.error('Errors creating line item:', errors);
@@ -535,7 +553,7 @@ export async function createPaymentRecord(input: {
   notes?: string;
 }) {
   try {
-    const { data, errors } = await client.models.PaymentRecord.create(input);
+    const { data, errors } = await getClient().models.PaymentRecord.create(input);
 
     if (errors) {
       console.error('Errors creating payment record:', errors);
@@ -552,7 +570,7 @@ export async function createPaymentRecord(input: {
  * Subscribe to route updates in real-time
  */
 export function subscribeToRoute(routeId: string, onUpdate: (route: any) => void) {
-  const subscription = client.models.Route.observeQuery({
+  const subscription = getClient().models.Route.observeQuery({
     filter: { id: { eq: routeId } },
   }).subscribe({
     next: (data) => {
@@ -566,4 +584,126 @@ export function subscribeToRoute(routeId: string, onUpdate: (route: any) => void
   });
 
   return () => subscription.unsubscribe();
+}
+
+/**
+ * List all CustomerUser records for a given customer.
+ * Only accessible by administrators.
+ */
+export async function listCustomerUsers(customerId: string) {
+  try {
+    const { data, errors } = await getClient().models.CustomerUser.list({
+      filter: { customerId: { eq: customerId } },
+    });
+    if (errors) {
+      console.error('Errors listing customer users:', errors);
+    }
+    return { data: data || [], errors };
+  } catch (error) {
+    console.error('Error listing customer users:', error);
+    return { data: [], errors: [error] };
+  }
+}
+
+/**
+ * Create a CustomerUser record linking a Cognito user to a customer.
+ * Only accessible by administrators.
+ * accountOwnerSub must be the account owner's Cognito sub (same for all rows per customer).
+ */
+export async function createCustomerUser(input: {
+  customerId: string;
+  userSub: string;
+  accountOwnerSub: string;
+  role: 'account_owner' | 'read_only';
+  name?: string;
+  email?: string;
+}) {
+  try {
+    const { data, errors } = await getClient().models.CustomerUser.create(input);
+    if (errors) {
+      console.error('Errors creating customer user:', errors);
+    }
+    return { data, errors };
+  } catch (error) {
+    console.error('Error creating customer user:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Delete a CustomerUser record by ID.
+ * Only accessible by administrators.
+ */
+export async function deleteCustomerUser(customerUserId: string) {
+  try {
+    const { data, errors } = await getClient().models.CustomerUser.delete({ id: customerUserId });
+    if (errors) {
+      console.error('Errors deleting customer user:', errors);
+    }
+    return { data, errors };
+  } catch (error) {
+    console.error('Error deleting customer user:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Sync the viewerSubs array on every Route and Stop belonging to a customer.
+ * Must be called after adding or removing a CustomerUser so read-only users
+ * gain / lose access to existing records.
+ *
+ * viewerSubs should contain the Cognito subs of ALL CustomerUsers for the customer
+ * (both account_owner and read_only) so every user can read every route/stop.
+ */
+export async function syncViewerSubsForCustomer(
+  customerId: string,
+  viewerSubs: string[]
+): Promise<{ updatedRoutes: number; updatedStops: number; errors: unknown[] }> {
+  const allErrors: unknown[] = [];
+  let updatedRoutes = 0;
+  let updatedStops = 0;
+
+  try {
+    // Fetch all routes for this customer
+    const { data: routes, errors: routeErrors } = await getClient().models.Route.list({
+      filter: { customerId: { eq: customerId } },
+      limit: 1000,
+    });
+    if (routeErrors) allErrors.push(...routeErrors);
+
+    for (const route of routes || []) {
+      // Update route viewerSubs
+      const { errors: routeUpdateErrors } = await getClient().models.Route.update({
+        id: route.id,
+        viewerSubs,
+      });
+      if (routeUpdateErrors) allErrors.push(...routeUpdateErrors);
+      else updatedRoutes++;
+
+      // Fetch and update all stops for this route
+      const { data: stops, errors: stopListErrors } = await getClient().models.Stop.list({
+        filter: { routeId: { eq: route.id } },
+        limit: 1000,
+      });
+      if (stopListErrors) allErrors.push(...stopListErrors);
+
+      for (const stop of stops || []) {
+        const { errors: stopUpdateErrors } = await getClient().models.Stop.update({
+          id: stop.id,
+          viewerSubs,
+        });
+        if (stopUpdateErrors) allErrors.push(...stopUpdateErrors);
+        else updatedStops++;
+      }
+    }
+  } catch (error) {
+    console.error('Error syncing viewer subs:', error);
+    allErrors.push(error);
+  }
+
+  if (allErrors.length > 0) {
+    console.error(`syncViewerSubsForCustomer completed with ${allErrors.length} error(s):`, allErrors);
+  }
+
+  return { updatedRoutes, updatedStops, errors: allErrors };
 }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import styles from './StopForm.module.css';
+import { AddressAutocompleteInput, type ResolvedAddress } from './AddressAutocompleteInput';
 
 interface StopFormProps {
   initialValues?: {
@@ -21,6 +22,9 @@ interface StopFormProps {
     agent?: string;
     isAuction?: boolean;
     notes?: string;
+    latitude?: number;
+    longitude?: number;
+    formattedAddress?: string;
   }) => Promise<void>;
   onCancel: () => void;
   isSubmitting?: boolean;
@@ -48,11 +52,12 @@ export function StopForm({
   );
   const [agent, setAgent] = useState(initialValues?.agent || '');
   const [isAuction, setIsAuction] = useState(Boolean(initialValues?.isAuction));
+  const [resolvedAddress, setResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [notes, setNotes] = useState(initialValues?.notes || '');
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setValidationError(null);
 
     if (!address.trim()) {
@@ -77,11 +82,14 @@ export function StopForm({
       agent: agent.trim() || undefined,
       isAuction,
       notes: notes || undefined,
+      latitude: resolvedAddress?.latitude,
+      longitude: resolvedAddress?.longitude,
+      formattedAddress: resolvedAddress?.formattedAddress,
     });
   };
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <div>
       {(validationError || error) && (
         <div className={styles.errorBanner}>
           {validationError || error}
@@ -92,14 +100,17 @@ export function StopForm({
         <label htmlFor="address" className={styles.label}>
           Address <span className={styles.required}>*</span>
         </label>
-        <input
+        <AddressAutocompleteInput
           id="address"
-          type="text"
           value={address}
-          onChange={(e) => setAddress(e.target.value)}
+          onChange={(val) => setAddress(val)}
+          onResolved={(resolved) => {
+            setResolvedAddress(resolved);
+            if (resolved) setAddress(resolved.formattedAddress);
+          }}
           className={styles.input}
           disabled={isSubmitting}
-          placeholder="e.g. 123 Main St, Springfield"
+          placeholder="Start typing an address…"
         />
       </div>
 
@@ -194,7 +205,8 @@ export function StopForm({
 
       <div className={styles.actions}>
         <button
-          type="submit"
+          type="button"
+          onClick={() => handleSubmit()}
           disabled={isSubmitting}
           className={styles.btnSubmit}
         >
@@ -209,6 +221,6 @@ export function StopForm({
           Cancel
         </button>
       </div>
-    </form>
+    </div>
   );
 }

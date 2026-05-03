@@ -18,6 +18,35 @@ interface GeocodeResponse {
   }>;
 }
 
+let _mapsScriptPromise: Promise<void> | null = null;
+
+/**
+ * Lazily loads the Google Maps JavaScript API (with Places library) once.
+ * Safe to call multiple times — returns the same promise after first call.
+ */
+export function loadGoogleMapsScript(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve();
+  // Already loaded
+  if ((window as any).google?.maps?.places) return Promise.resolve();
+  if (_mapsScriptPromise) return _mapsScriptPromise;
+
+  _mapsScriptPromise = new Promise((resolve, reject) => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      reject(new Error('Google Maps API key is missing. Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY.'));
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async&v=weekly`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Google Maps script.'));
+    document.head.appendChild(script);
+  });
+  return _mapsScriptPromise;
+}
+
 export async function geocodeAddress(address: string): Promise<GeocodedAddress> {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   if (!apiKey) {

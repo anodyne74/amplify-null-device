@@ -1,6 +1,7 @@
 'use client';
 
-import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from 'react-leaflet';
+import { useEffect, useRef } from 'react';
+import type { Map as LeafletMap } from 'leaflet';
 import type { Stop } from '@/amplify/types';
 import styles from './RouteStopsMap.module.css';
 
@@ -21,8 +22,89 @@ function markerColor(serviceType?: string | null) {
 }
 
 export function RouteStopsMap({ stops }: RouteStopsMapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+
   const orderedStops = [...stops].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
   const mappedStops = orderedStops.filter(hasCoordinates);
+
+  useEffect(() => {
+    if (!containerRef.current || mappedStops.length === 0) return;
+
+    // cancelled flag prevents the async import callback from running after cleanup
+    let cancelled = false;
+
+    import('leaflet').then((mod) => {
+      if (cancelled || !containerRef.current) return;
+
+      const L = mod.default;
+
+      // Destroy any existing instance before creating a new one.
+      // This handles both React StrictMode double-mount and stops changing.
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+
+      const center: [number, number] = [mappedStops[0].latitude, mappedStops[0].longitude];
+      const map = L.map(containerRef.current, { scrollWheelZoom: true });
+      map.setView(center, 12);
+      mapRef.current = map;
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+
+      const positions = mappedStops.map((s): [number, number] => [s.latitude, s.longitude]);
+      L.polyline(positions, { color: '#00e5ff', weight: 4 }).addTo(map);
+
+      mappedStops.forEach((stop) => {
+        const circle = L.circleMarker([stop.latitude, stop.longitude], {
+          radius: 10,
+          color: '#10131a',
+          weight: 1,
+          fillColor: markerColor(stop.serviceType),
+          fillOpacity: 0.95,
+        }).addTo(map);
+
+        // Permanent centred sequence label
+        circle.bindTooltip(String(stop.sequence ?? '?'), {
+          permanent: true,
+          direction: 'center',
+          opacity: 1,
+          className: styles.sequenceLabel,
+        });
+
+        // Address shown on hover
+        circle.on('mouseover', () => {
+          circle.unbindTooltip();
+          circle.bindTooltip(stop.formattedAddress || stop.address || 'Unknown address', {
+            direction: 'top',
+            offset: [0, -12],
+            opacity: 0.95,
+          }).openTooltip();
+        });
+        circle.on('mouseout', () => {
+          circle.unbindTooltip();
+          circle.bindTooltip(String(stop.sequence ?? '?'), {
+            permanent: true,
+            direction: 'center',
+            opacity: 1,
+            className: styles.sequenceLabel,
+          });
+        });
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stops]);
 
   if (orderedStops.length === 0) {
     return (
@@ -40,39 +122,9 @@ export function RouteStopsMap({ stops }: RouteStopsMapProps) {
     );
   }
 
-  const center: [number, number] = [mappedStops[0].latitude, mappedStops[0].longitude];
-  const polylinePositions: Array<[number, number]> = mappedStops.map((stop) => [
-    stop.latitude,
-    stop.longitude,
-  ]);
-
   return (
     <div className={styles.wrapper}>
-      <MapContainer center={center} zoom={12} scrollWheelZoom className={styles.map}>
-        <TileLayer
-          attribution='&copy; OpenStreetMap contributors'
-          url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-        />
-
-        <Polyline positions={polylinePositions} pathOptions={{ color: '#00e5ff', weight: 4 }} />
-
-        {mappedStops.map((stop) => (
-          <CircleMarker
-            key={stop.id}
-            center={[stop.latitude, stop.longitude]}
-            radius={10}
-            pathOptions={{ color: '#10131a', weight: 1, fillColor: markerColor(stop.serviceType), fillOpacity: 0.95 }}
-          >
-            <Tooltip permanent direction='center' opacity={1}>
-              <span className={styles.sequenceLabel}>{stop.sequence ?? '?'}</span>
-            </Tooltip>
-            <Tooltip direction='top' offset={[0, -12]} opacity={0.95}>
-              <span>{stop.formattedAddress || stop.address || 'Unknown address'}</span>
-            </Tooltip>
-          </CircleMarker>
-        ))}
-      </MapContainer>
-
+      <div ref={containerRef} className={styles.map} />
       <div className={styles.addressRail}>
         {orderedStops.map((stop) => (
           <div key={stop.id} className={styles.addressItem}>

@@ -100,6 +100,7 @@ body {
   min-height: 100vh;
   background-color: var(--nd-bg-void);
   color: var(--nd-text-primary);
+  justify-content: center;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -189,7 +190,7 @@ button:focus-visible {
   --amplify-radii-medium: var(--nd-radius-md);
 }
 
-[data-amplify-authenticator] [data-amplify-form] {
+[data-amplify-router]{
   background-color: var(--nd-bg-surface);
   border: 1px solid var(--nd-border-subtle);
   border-radius: var(--nd-radius-lg);

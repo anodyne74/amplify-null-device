@@ -6,7 +6,11 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import type { Invoice, LineItem } from '@/amplify/types';
 
-const client = generateClient<Schema>();
+let _client: ReturnType<typeof generateClient<Schema>> | null = null;
+function getClient() {
+  if (!_client) _client = generateClient<Schema>();
+  return _client;
+}
 
 export interface GetInvoiceDetailParams {
   invoiceId: string;
@@ -35,7 +39,7 @@ export interface InvoiceDetail {
 export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
   try {
     // Fetch the invoice
-    const invoiceResponse = await client.models.Invoice.get({
+    const invoiceResponse = await getClient().models.Invoice.get({
       id: params.invoiceId,
     });
 
@@ -51,7 +55,7 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
     }
 
     // Fetch line items for this invoice
-    const { data: lineItems, errors: lineItemsErrors } = await client.models.LineItem.list({
+    const { data: lineItems, errors: lineItemsErrors } = await getClient().models.LineItem.list({
       filter: {
         invoiceId: {
           eq: params.invoiceId,

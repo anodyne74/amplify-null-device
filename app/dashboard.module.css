@@ -89,3 +89,45 @@
   font-size: 0.85rem;
   color: var(--nd-text-secondary);
 }
+
+.infoPanel input {
+  padding: 8px 12px;
+  background-color: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-md);
+  border-width: var(--nd-space-sm);
+  font-size: 0.9rem;
+  color: var(--nd-text-primary);
+} 
+
+.infoPanel button {
+  padding: 10px 16px;
+  background-color: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  border: none;
+  border-radius: var(--nd-radius-md);
+  border-width: var(--nd-space-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+} 
+
+.infoPanel table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.infoPanel th, .infoPanel td {
+  padding: 12px;
+  border: 1px solid var(--nd-border-subtle);
+  text-align: center;
+}
+
+.infoPanel select {
+  padding: 8px 12px;
+  background-color: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-md);
+  font-size: 0.9rem;
+  color: var(--nd-text-primary);
+} 

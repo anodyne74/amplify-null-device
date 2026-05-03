@@ -75,17 +75,29 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
     agent?: string;
     isAuction?: boolean;
     notes?: string;
+    latitude?: number;
+    longitude?: number;
+    formattedAddress?: string;
   }) => {
     setAddingStop(true);
     setStopError(null);
 
     try {
       let geocoded: { latitude: number; longitude: number; formattedAddress: string } | undefined;
-      try {
-        geocoded = await geocodeAddress(values.address);
-      } catch {
-        // Keep stop creation unblocked if geocoding fails. The stop can still be saved.
-        setStopError('Stop added without coordinates. Map preview may be incomplete until address geocoding succeeds.');
+
+      if (values.latitude !== undefined && values.longitude !== undefined) {
+        // Coordinates already resolved by the autocomplete input — no extra API call needed.
+        geocoded = {
+          latitude: values.latitude,
+          longitude: values.longitude,
+          formattedAddress: values.formattedAddress ?? values.address,
+        };
+      } else {
+        try {
+          geocoded = await geocodeAddress(values.address);
+        } catch {
+          setStopError('Stop added without coordinates. Map preview may be incomplete until address geocoding succeeds.');
+        }
       }
 
       setStops((prev) => [

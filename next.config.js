@@ -7,10 +7,9 @@
 
 export default {
   reactStrictMode: true,
-  output: 'export',
+  // Remove: output: 'export',
   images: {
     unoptimized: true,
   },
-  // If you host behind CloudFront / asset prefix, set NEXT_PUBLIC_ASSET_PREFIX
   assetPrefix: process.env.NEXT_PUBLIC_ASSET_PREFIX || '',
 };

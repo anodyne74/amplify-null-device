@@ -10,12 +10,6 @@ export const auth = defineAuth({
   loginWith: {
     email: true,
   },
-  userAttributes: {
-    givenName: {
-      required: true,
-      mutable: true,
-    },
-  },
   /**
    * Cognito User Groups:
    * - customer: assigned by an administrator when a signup request is approved

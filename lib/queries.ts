@@ -300,10 +300,10 @@ export async function getInvoiceWithLineItems(invoiceId: string) {
  * Create a new route for a customer
  */
 export async function createRoute(input: {
+  routeCode?: string;
   customerId: string;
   viewerSubs?: string[];
   status: 'planned' | 'active' | 'completed' | 'archived';
-  estimatedDurationMinutes?: number;
   notes?: string;
 }) {
   try {
@@ -326,6 +326,8 @@ export async function createRoute(input: {
 export async function updateRoute(
   routeId: string,
   updates: Partial<{
+    routeCode: string;
+    customerId: string;
     status: 'planned' | 'active' | 'completed' | 'archived';
     actualStartTime: string;
     actualEndTime: string;

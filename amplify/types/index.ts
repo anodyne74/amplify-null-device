@@ -60,6 +60,7 @@ export interface Operator {
 
 export interface Route {
   id: string;
+  routeCode?: string | null;
   customerId: string;
   viewerSubs?: string[] | null;
   status?: RouteStatus | null;
@@ -221,15 +222,17 @@ export interface UpdateCustomerInput {
 }
 
 export interface CreateRouteInput {
+  routeCode?: string;
   customerId: string;
   viewerSubs?: string[];
   status: RouteStatus;
-  estimatedDurationMinutes: number;
   notes?: string;
 }
 
 export interface UpdateRouteInput {
   id: string;
+  routeCode?: string;
+  customerId?: string;
   status?: RouteStatus;
   actualStartTime?: string;
   actualEndTime?: string;

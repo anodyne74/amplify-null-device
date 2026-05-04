@@ -51,17 +51,18 @@ export function RouteStopsMap({ stops }: RouteStopsMapProps) {
       map.setView(center, 12);
       mapRef.current = map;
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        maxZoom: 20,
       }).addTo(map);
 
       const positions = mappedStops.map((s): [number, number] => [s.latitude, s.longitude]);
-      L.polyline(positions, { color: '#00e5ff', weight: 4 }).addTo(map);
+      L.polyline(positions, { color: '#1a73e8', weight: 5, opacity: 0.9, }).addTo(map);
 
       mappedStops.forEach((stop) => {
         const circle = L.circleMarker([stop.latitude, stop.longitude], {
-          radius: 10,
-          color: '#10131a',
+          radius: 20,
+          color: '#1a73e8',
           weight: 1,
           fillColor: markerColor(stop.serviceType),
           fillOpacity: 0.95,

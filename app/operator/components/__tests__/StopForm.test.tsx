@@ -10,12 +10,11 @@ describe('StopForm', () => {
     jest.clearAllMocks();
   });
 
-  it('renders all fields (address, service type, estimated arrival, notes, submit/cancel)', () => {
+  it('renders all fields (address, service type, notes, submit/cancel)', () => {
     render(<StopForm onSubmit={noop} onCancel={noop} />);
 
     expect(screen.getByLabelText(/address/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/service type/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/estimated arrival time/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/notes/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /add stop/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();

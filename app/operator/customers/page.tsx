@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { Fragment, FormEvent, useCallback, useEffect, useState } from 'react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import {
   createCustomer,
@@ -228,8 +228,8 @@ export default function CustomersAdminPage() {
               </thead>
               <tbody>
                 {customers.map((customer) => (
-                  <>
-                    <tr key={customer.id}>
+                  <Fragment key={customer.id}>
+                    <tr>
                       <td>{customer.name}</td>
                       <td>{customer.email}</td>
                       <td>{customer.billingRatePerHour}</td>
@@ -312,7 +312,7 @@ export default function CustomersAdminPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

@@ -16,13 +16,12 @@ describe('RouteForm', () => {
     jest.clearAllMocks();
   });
 
-  it('renders all fields (customer dropdown, estimated duration, notes, submit/cancel buttons)', () => {
+  it('renders all fields (customer dropdown, notes, submit/cancel buttons)', () => {
     render(
       <RouteForm customers={mockCustomers} onSubmit={noop} onCancel={noop} />
     );
 
     expect(screen.getByLabelText(/customer/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/estimated duration/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/notes/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create route/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
@@ -56,18 +55,25 @@ describe('RouteForm', () => {
 
     // Select customer
     fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
-    // Set duration
-    fireEvent.change(screen.getByLabelText(/estimated duration/i), { target: { value: '90' } });
     // Set notes
     fireEvent.change(screen.getByLabelText(/notes/i), { target: { value: 'Test note' } });
+
+    // Add one stop via mocked StopForm
+    fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
+    fireEvent.click(screen.getByRole('button', { name: /add stop to route/i }));
 
     fireEvent.click(screen.getByRole('button', { name: /create route/i }));
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith({
         customerId: 'cust-1',
-        estimatedDurationMinutes: 90,
         notes: 'Test note',
+        stops: [
+          expect.objectContaining({
+            address: expect.any(String),
+            serviceType: expect.any(String),
+          }),
+        ],
       });
     });
   });

@@ -176,15 +176,15 @@ describe('queries', () => {
       });
 
       const result = await createRoute({
+        routeCode: 'W19-26-001',
         customerId: 'c1',
         status: 'planned',
-        estimatedDurationMinutes: 120,
       });
 
       expect(mockRouteCreate).toHaveBeenCalledWith({
+        routeCode: 'W19-26-001',
         customerId: 'c1',
         status: 'planned',
-        estimatedDurationMinutes: 120,
       });
       expect(result.data).toEqual(mockRoute);
     });

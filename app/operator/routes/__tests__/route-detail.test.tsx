@@ -41,6 +41,7 @@ jest.mock('@/app/components/OperatorRoute', () => ({
 jest.mock('@/lib/queries/GetRouteDetail');
 jest.mock('@/lib/queries/DeleteStop');
 jest.mock('@/lib/queries', () => ({
+  getCustomer: jest.fn().mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined }),
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
 }));
 jest.mock('@/lib/queries/UpdateStop', () => ({
@@ -71,9 +72,9 @@ jest.mock('aws-amplify/data', () => {
 
 const mockRoute: Route = {
   id: 'route-test-id-1234',
+  routeCode: 'W19-26-001',
   customerId: 'cust-abcd-5678',
   status: 'planned',
-  estimatedDurationMinutes: 120,
   createdAt: '2024-03-01T10:00:00Z',
   notes: 'Test route notes',
 };
@@ -132,12 +133,12 @@ describe('Operator Route Detail Page', () => {
       expect(screen.queryByText(/loading route/i)).not.toBeInTheDocument();
     });
 
-    // Check route heading contains the ID prefix
-    expect(screen.getByRole('heading', { name: /route-te/i })).toBeInTheDocument();
+    // Check route heading contains route code
+    expect(screen.getByRole('heading', { name: /w19-26-001/i })).toBeInTheDocument();
     // Status badge span has exactly 'planned' as text content
     expect(screen.getByText('planned')).toBeInTheDocument();
-    // Customer ID is rendered in its own element (first 8 chars of 'cust-abcd-5678')
-    expect(screen.getByText('cust-abc')).toBeInTheDocument();
+    // Customer name is displayed
+    expect(screen.getByText('Acme Corp')).toBeInTheDocument();
   });
 
   it('renders stops list', async () => {

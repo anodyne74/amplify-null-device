@@ -18,7 +18,6 @@ const RouteStopsMap = dynamic(
 export interface RouteDraftStop {
   address: string;
   serviceType: 'delivery' | 'pickup' | 'inspection';
-  estimatedArrivalTime?: string;
   numberOfSigns?: number;
   agent?: string;
   isAuction?: boolean;
@@ -32,7 +31,6 @@ interface RouteFormProps {
   customers: Array<{ id: string; name: string; email: string }>;
   onSubmit: (values: {
     customerId: string;
-    estimatedDurationMinutes: number;
     notes: string;
     stops: RouteDraftStop[];
   }) => Promise<void>;
@@ -43,7 +41,6 @@ interface RouteFormProps {
 
 export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }: RouteFormProps) {
   const [customerId, setCustomerId] = useState('');
-  const [estimatedDurationMinutes, setEstimatedDurationMinutes] = useState('');
   const [notes, setNotes] = useState('');
   const [stops, setStops] = useState<RouteDraftStop[]>([]);
   const [showAddStop, setShowAddStop] = useState(false);
@@ -60,7 +57,6 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
     latitude: stop.latitude,
     longitude: stop.longitude,
     serviceType: stop.serviceType,
-    estimatedArrivalTime: stop.estimatedArrivalTime,
     numberOfSigns: stop.numberOfSigns,
     agent: stop.agent,
     isAuction: stop.isAuction,
@@ -70,7 +66,6 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
   const handleAddStop = async (values: {
     address: string;
     serviceType: 'delivery' | 'pickup' | 'inspection';
-    estimatedArrivalTime?: string;
     numberOfSigns?: number;
     agent?: string;
     isAuction?: boolean;
@@ -128,18 +123,12 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
       return;
     }
 
-    const duration = parseInt(estimatedDurationMinutes, 10);
-    if (!estimatedDurationMinutes || isNaN(duration) || duration < 1) {
-      setValidationError('Estimated duration must be at least 1 minute.');
-      return;
-    }
-
     if (stops.length === 0) {
       setValidationError('Add at least one stop before creating a route.');
       return;
     }
 
-    await onSubmit({ customerId, estimatedDurationMinutes: duration, notes, stops });
+    await onSubmit({ customerId, notes, stops });
   };
 
   return (
@@ -168,22 +157,6 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
             </option>
           ))}
         </select>
-      </div>
-
-      <div className={styles.field}>
-        <label htmlFor="estimatedDurationMinutes" className={styles.label}>
-          Estimated Duration (minutes) <span className={styles.required}>*</span>
-        </label>
-        <input
-          id="estimatedDurationMinutes"
-          type="number"
-          min={1}
-          value={estimatedDurationMinutes}
-          onChange={(e) => setEstimatedDurationMinutes(e.target.value)}
-          className={styles.input}
-          disabled={isSubmitting}
-          placeholder="e.g. 120"
-        />
       </div>
 
       <div className={styles.field}>

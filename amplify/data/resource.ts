@@ -80,6 +80,7 @@ const schema = a.schema({
    */
   Route: a
     .model({
+      routeCode: a.string(), // Human-readable route identifier (e.g. W19-26-001)
       customerId: a.id().required(), // Foreign key to Customer
       viewerSubs: a.string().array(), // Cognito subs of all customer users — grants read access
       status: a.enum(['planned', 'active', 'completed', 'archived']),

@@ -11,4 +11,8 @@ export default {
     unoptimized: true,
   },
   assetPrefix: process.env.NEXT_PUBLIC_ASSET_PREFIX || '',
+  // Allow dev server to accept requests from local IP addresses (e.g., testing on local network)
+  experimental: {
+    allowedDevOrigins: ['192.168.10.130', 'localhost', '127.0.0.1'],
+  },
 };

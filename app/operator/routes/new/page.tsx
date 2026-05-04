@@ -6,8 +6,42 @@ import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { RouteForm, type RouteDraftStop } from '@/app/operator/components/RouteForm';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
+import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { createRoute, createStop } from '@/lib/queries';
 import styles from './page.module.css';
+
+function getExcelStyleWeekPrefix(date = new Date()) {
+  const shifted = new Date(date);
+  shifted.setDate(shifted.getDate() - 2);
+
+  const yearStart = new Date(shifted.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((shifted.getTime() - yearStart.getTime()) / 86400000) + 1;
+  const weekNum = Math.floor((dayOfYear - 1) / 7) + 1;
+  const yy = String(shifted.getFullYear()).slice(-2);
+
+  return `W${String(weekNum).padStart(2, '0')}-${yy}`;
+}
+
+async function generateNextRouteCode() {
+  const prefix = getExcelStyleWeekPrefix();
+  const result = await listAllRoutes({ limit: 500 });
+  if (result.errors && result.errors.length > 0) {
+    return `${prefix}-001`;
+  }
+
+  const used = new Set<number>();
+  (result.data as Array<{ routeCode?: string | null }>).forEach((route) => {
+    const code = route.routeCode;
+    if (!code || !code.startsWith(`${prefix}-`)) return;
+    const match = code.match(/-(\d{3})$/);
+    if (!match) return;
+    used.add(Number(match[1]));
+  });
+
+  let next = 1;
+  while (used.has(next)) next += 1;
+  return `${prefix}-${String(next).padStart(3, '0')}`;
+}
 
 export default function NewRoutePage() {
   const router = useRouter();
@@ -32,22 +66,25 @@ export default function NewRoutePage() {
 
   const handleSubmit = async (values: {
     customerId: string;
-    estimatedDurationMinutes: number;
     notes: string;
     stops: RouteDraftStop[];
   }) => {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
+      const routeCode = await generateNextRouteCode();
       const result = await createRoute({
+        routeCode,
         customerId: values.customerId,
         status: 'planned',
-        estimatedDurationMinutes: values.estimatedDurationMinutes,
         notes: values.notes || undefined,
       });
 
       if (result.errors && result.errors.length > 0) {
-        setSubmitError('Failed to create route. Please try again.');
+        const msg = (result.errors as Array<{ message?: string }>)
+          .map((e) => e.message ?? String(e))
+          .join('; ');
+        setSubmitError(`Failed to create route: ${msg}`);
         setIsSubmitting(false);
         return;
       }
@@ -61,7 +98,6 @@ export default function NewRoutePage() {
             sequence: index + 1,
             address: stop.address,
             serviceType: stop.serviceType,
-            estimatedArrivalTime: stop.estimatedArrivalTime,
             numberOfSigns: stop.numberOfSigns,
             agent: stop.agent,
             isAuction: stop.isAuction,

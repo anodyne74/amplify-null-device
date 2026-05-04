@@ -5,6 +5,7 @@ import Link from 'next/link';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
+import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import type { Route, RouteStatus } from '@/amplify/types';
 import styles from './page.module.css';
 
@@ -26,8 +27,25 @@ function formatDate(dateString?: string) {
   });
 }
 
+function formatDuration(route: Route) {
+  if (typeof route.actualDurationMinutes === 'number') {
+    return `${route.actualDurationMinutes} min`;
+  }
+
+  if (route.status === 'active' && route.actualStartTime) {
+    const minutes = Math.max(
+      1,
+      Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000)
+    );
+    return `${minutes} min (in progress)`;
+  }
+
+  return '—';
+}
+
 export default function OperatorRoutesPage() {
   const [routes, setRoutes] = useState<Route[]>([]);
+  const [customersById, setCustomersById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -36,12 +54,28 @@ export default function OperatorRoutesPage() {
     async function fetchRoutes() {
       setLoading(true);
       setError(null);
-      const result = await listAllRoutes({ limit: 100 });
-      if (result.errors && result.errors.length > 0) {
+      const [routesResult, customersResult] = await Promise.all([
+        listAllRoutes({ limit: 500 }),
+        listAllCustomers({ limit: 200 }),
+      ]);
+
+      if (routesResult.errors && routesResult.errors.length > 0) {
         setError('Failed to load routes.');
       } else {
-        setRoutes(result.data as unknown as Route[]);
+        setRoutes(routesResult.data as unknown as Route[]);
       }
+
+      if (!customersResult.errors || customersResult.errors.length === 0) {
+        const mapped = (customersResult.data as Array<{ id: string; name: string }>).reduce(
+          (acc, customer) => {
+            acc[customer.id] = customer.name;
+            return acc;
+          },
+          {} as Record<string, string>
+        );
+        setCustomersById(mapped);
+      }
+
       setLoading(false);
     }
     fetchRoutes();
@@ -101,11 +135,11 @@ export default function OperatorRoutesPage() {
                   <div key={route.id} className={styles.routeRow}>
                     <div>
                       <div className={styles.cellLabel}>Route ID</div>
-                      <div className={styles.cellValueMono}>{route.id.slice(0, 8)}</div>
+                      <div className={styles.cellValueMono}>{route.routeCode || route.id.slice(0, 8)}</div>
                     </div>
                     <div>
-                      <div className={styles.cellLabel}>Customer ID</div>
-                      <div className={styles.cellValueMonoNormal}>{route.customerId.slice(0, 8)}</div>
+                      <div className={styles.cellLabel}>Customer</div>
+                      <div className={styles.cellValueMonoNormal}>{customersById[route.customerId] || 'Unknown customer'}</div>
                     </div>
                     <div>
                       <StatusBadge status={route.status} />
@@ -115,12 +149,8 @@ export default function OperatorRoutesPage() {
                       <div className={styles.cellValue}>{formatDate(route.createdAt)}</div>
                     </div>
                     <div>
-                      <div className={styles.cellLabel}>Est. Duration</div>
-                      <div className={styles.cellValue}>
-                        {route.estimatedDurationMinutes
-                          ? `${route.estimatedDurationMinutes} min`
-                          : '—'}
-                      </div>
+                      <div className={styles.cellLabel}>Duration</div>
+                      <div className={styles.cellValue}>{formatDuration(route)}</div>
                       {route.notes && (
                         <div className={styles.notesPreview}>
                           {route.notes.slice(0, 60)}
@@ -134,6 +164,12 @@ export default function OperatorRoutesPage() {
                         className={styles.viewLink}
                       >
                         View
+                      </Link>
+                      <Link
+                        href={`/operator/routes/edit?id=${route.id}`}
+                        className={styles.editLink}
+                      >
+                        Edit
                       </Link>
                     </div>
                   </div>

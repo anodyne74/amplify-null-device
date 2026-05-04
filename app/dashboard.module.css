@@ -95,7 +95,6 @@
   background-color: var(--nd-bg-elevated);
   border: 1px solid var(--nd-border-default);
   border-radius: var(--nd-radius-md);
-  border-width: var(--nd-space-sm);
   font-size: 0.9rem;
   color: var(--nd-text-primary);
 } 
@@ -106,7 +105,6 @@
   color: var(--nd-text-inverse);
   border: none;
   border-radius: var(--nd-radius-md);
-  border-width: var(--nd-space-sm);
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;

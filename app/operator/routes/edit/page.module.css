@@ -1,0 +1,281 @@
+.container {
+  padding: var(--nd-space-lg);
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.heading {
+  color: var(--nd-operator-accent);
+  margin-bottom: var(--nd-space-lg);
+}
+
+.card {
+  padding: var(--nd-space-lg);
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-lg);
+  background: var(--nd-bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-space-md);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  color: var(--nd-text-secondary);
+}
+
+.select,
+.textarea {
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg-elevated);
+  color: var(--nd-text-primary);
+  font-size: 14px;
+  padding: 10px 12px;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btnSave {
+  padding: 10px 18px;
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnCancel {
+  padding: 10px 18px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: transparent;
+  color: var(--nd-text-primary);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.error {
+  padding: var(--nd-space-sm);
+  border: 1px solid var(--nd-status-danger);
+  border-radius: var(--nd-radius-sm);
+  color: var(--nd-status-danger);
+  background: rgba(255, 71, 87, 0.12);
+}
+
+.routeCode {
+  font-family: var(--nd-font-mono);
+  color: var(--nd-text-muted);
+  font-size: 12px;
+}
+
+.internalId {
+  font-family: var(--nd-font-mono);
+  color: var(--nd-text-secondary);
+  font-size: 12px;
+}
+
+.stopsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stopsTitle {
+  margin: 0;
+  color: var(--nd-text-primary);
+  font-size: 18px;
+}
+
+.btnAddStop {
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mapWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mapTitle {
+  margin: 0;
+  color: var(--nd-text-primary);
+  font-size: 14px;
+}
+
+.mapLoading {
+  padding: 16px;
+  border: 1px dashed var(--nd-border-default);
+  border-radius: var(--nd-radius-md);
+  color: var(--nd-text-secondary);
+}
+
+.reordering {
+  color: var(--nd-text-muted);
+  font-size: 12px;
+}
+
+.stopFormWrap {
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-md);
+  background: var(--nd-bg-elevated);
+  padding: 12px;
+}
+
+.formTitle {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--nd-text-primary);
+}
+
+.emptyStops {
+  margin: 0;
+  color: var(--nd-text-secondary);
+  font-size: 14px;
+}
+
+.stopList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stopRow {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-md);
+  background: var(--nd-bg-elevated);
+  padding: 10px 12px;
+  cursor: grab;
+}
+
+.stopRowDragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+.dragHint {
+  font-size: 12px;
+  color: var(--nd-text-muted, #888);
+  margin: 0 0 8px;
+}
+
+.stopDetail {
+  font-size: 12px;
+  color: var(--nd-text-secondary);
+  margin-top: 2px;
+}
+
+.auctionBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  background-color: var(--nd-status-danger, #e53935);
+  color: #fff;
+  margin-top: 4px;
+}
+
+.stopSequence {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stopBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stopAddress {
+  color: var(--nd-text-primary);
+  font-size: 14px;
+}
+
+.stopMeta {
+  color: var(--nd-text-muted);
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.stopActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.btnMove,
+.btnEdit,
+.btnDelete {
+  padding: 6px 10px;
+  border-radius: var(--nd-radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btnMove {
+  border: 1px solid var(--nd-border-default);
+  background: transparent;
+  color: var(--nd-text-secondary);
+}
+
+.btnEdit {
+  border: 1px solid var(--nd-operator-accent);
+  background: transparent;
+  color: var(--nd-operator-accent);
+}
+
+.btnDelete {
+  border: 1px solid var(--nd-status-danger);
+  background: transparent;
+  color: var(--nd-status-danger);
+}
+
+@media (max-width: 760px) {
+  .stopRow {
+    grid-template-columns: 30px 1fr;
+  }
+
+  .stopActions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}

@@ -8,7 +8,6 @@ interface StopFormProps {
   initialValues?: {
     address?: string;
     serviceType?: 'delivery' | 'pickup' | 'inspection';
-    estimatedArrivalTime?: string;
     numberOfSigns?: number;
     agent?: string;
     isAuction?: boolean;
@@ -17,7 +16,6 @@ interface StopFormProps {
   onSubmit: (values: {
     address: string;
     serviceType: 'delivery' | 'pickup' | 'inspection';
-    estimatedArrivalTime?: string;
     numberOfSigns?: number;
     agent?: string;
     isAuction?: boolean;
@@ -43,9 +41,6 @@ export function StopForm({
   const [address, setAddress] = useState(initialValues?.address || '');
   const [serviceType, setServiceType] = useState<'delivery' | 'pickup' | 'inspection'>(
     initialValues?.serviceType || 'delivery'
-  );
-  const [estimatedArrivalTime, setEstimatedArrivalTime] = useState(
-    initialValues?.estimatedArrivalTime || ''
   );
   const [numberOfSigns, setNumberOfSigns] = useState(
     initialValues?.numberOfSigns?.toString() || ''
@@ -77,7 +72,6 @@ export function StopForm({
     await onSubmit({
       address: address.trim(),
       serviceType,
-      estimatedArrivalTime: estimatedArrivalTime || undefined,
       numberOfSigns: parsedSigns,
       agent: agent.trim() || undefined,
       isAuction,
@@ -129,20 +123,6 @@ export function StopForm({
           <option value="pickup">Pickup</option>
           <option value="inspection">Inspection</option>
         </select>
-      </div>
-
-      <div className={styles.field}>
-        <label htmlFor="estimatedArrivalTime" className={styles.label}>
-          Estimated Arrival Time
-        </label>
-        <input
-          id="estimatedArrivalTime"
-          type="datetime-local"
-          value={estimatedArrivalTime}
-          onChange={(e) => setEstimatedArrivalTime(e.target.value)}
-          className={styles.input}
-          disabled={isSubmitting}
-        />
       </div>
 
       <div className={styles.field}>

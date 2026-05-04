@@ -13,7 +13,7 @@ import { StopForm } from '@/app/operator/components/StopForm';
 import { isAdmin } from '@/lib/amplify-config';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import { createStop, updateRouteExecution, updateStopExecution } from '@/lib/queries';
+import { createStop, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import type { Route, Stop } from '@/amplify/types';
@@ -55,6 +55,22 @@ function formatDateTime(dateString?: string | null) {
   });
 }
 
+function formatRouteDuration(route: Route) {
+  if (typeof route.actualDurationMinutes === 'number') {
+    return `${route.actualDurationMinutes} min`;
+  }
+
+  if (route.status === 'active' && route.actualStartTime) {
+    const minutes = Math.max(
+      1,
+      Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000)
+    );
+    return `${minutes} min (in progress)`;
+  }
+
+  return '—';
+}
+
 function RouteDetailContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id') ?? '';
@@ -62,6 +78,7 @@ function RouteDetailContent() {
   const canManagePlanning = isAdmin(user);
 
   const [route, setRoute] = useState<Route | null>(null);
+  const [customerName, setCustomerName] = useState<string>('');
   const [stops, setStops] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -164,7 +181,14 @@ function RouteDetailContent() {
         setLoading(false);
         return;
       }
-      setRoute(routeResult.data as unknown as Route);
+      const loadedRoute = routeResult.data as unknown as Route;
+      setRoute(loadedRoute);
+
+      const customerResult = await getCustomer(loadedRoute.customerId);
+      if (!customerResult.errors || customerResult.errors.length === 0) {
+        setCustomerName((customerResult.data as { name?: string } | null)?.name || 'Unknown customer');
+      }
+
       await fetchStops();
       setLoading(false);
     }
@@ -228,7 +252,6 @@ function RouteDetailContent() {
   const handleAddStop = async (values: {
     address: string;
     serviceType: 'delivery' | 'pickup' | 'inspection';
-    estimatedArrivalTime?: string;
     numberOfSigns?: number;
     agent?: string;
     isAuction?: boolean;
@@ -266,7 +289,6 @@ function RouteDetailContent() {
         latitude: lat,
         longitude: lng,
         serviceType: values.serviceType,
-        estimatedArrivalTime: values.estimatedArrivalTime,
         numberOfSigns: values.numberOfSigns,
         agent: values.agent,
         isAuction: values.isAuction,
@@ -287,7 +309,6 @@ function RouteDetailContent() {
   const handleEditStop = async (values: {
     address: string;
     serviceType: 'delivery' | 'pickup' | 'inspection';
-    estimatedArrivalTime?: string;
     numberOfSigns?: number;
     agent?: string;
     isAuction?: boolean;
@@ -323,7 +344,6 @@ function RouteDetailContent() {
         latitude: lat,
         longitude: lng,
         serviceType: values.serviceType,
-        estimatedArrivalTime: values.estimatedArrivalTime,
         numberOfSigns: values.numberOfSigns,
         agent: values.agent,
         isAuction: values.isAuction,
@@ -428,41 +448,26 @@ function RouteDetailContent() {
           <div className={styles.routeCard}>
             <div className={styles.routeCardHeader}>
               <h1 className={styles.routeTitle}>
-                Route {route.id.slice(0, 8)}
+                Route {route.routeCode || route.id.slice(0, 8)}
               </h1>
               <StatusBadge status={route.status} />
+              <Link href={`/operator/routes/edit?id=${route.id}`} className={styles.btnRouteEdit}>
+                Edit Route
+              </Link>
             </div>
 
             <div className={styles.routeInfoGrid}>
               <div>
-                <div className={styles.infoLabel}>Customer ID</div>
-                <div className={styles.infoValueMono}>{route.customerId.slice(0, 8)}</div>
+                <div className={styles.infoLabel}>Customer</div>
+                <div className={styles.infoValue}>{customerName || 'Unknown customer'}</div>
               </div>
               <div>
                 <div className={styles.infoLabel}>Created</div>
                 <div className={styles.infoValue}>{formatDate(route.createdAt)}</div>
               </div>
               <div>
-                <div className={styles.infoLabel}>Est. Duration</div>
-                <div className={styles.infoValue}>
-                  {route.estimatedDurationMinutes
-                    ? `${route.estimatedDurationMinutes} min`
-                    : '—'}
-                </div>
-              </div>
-              <div>
-                <div className={styles.infoLabel}>Actual Duration</div>
-                <div className={styles.infoValue}>
-                  {route.actualDurationMinutes ? `${route.actualDurationMinutes} min` : '—'}
-                </div>
-              </div>
-              <div>
-                <div className={styles.infoLabel}>Start Time</div>
-                <div className={styles.infoValue}>{formatDateTime(route.actualStartTime)}</div>
-              </div>
-              <div>
-                <div className={styles.infoLabel}>End Time</div>
-                <div className={styles.infoValue}>{formatDateTime(route.actualEndTime)}</div>
+                <div className={styles.infoLabel}>Duration</div>
+                <div className={styles.infoValue}>{formatRouteDuration(route)}</div>
               </div>
             </div>
 
@@ -559,7 +564,6 @@ function RouteDetailContent() {
                         initialValues={{
                           address: stop.address,
                           serviceType: stop.serviceType as 'delivery' | 'pickup' | 'inspection' | undefined,
-                          estimatedArrivalTime: stop.estimatedArrivalTime ?? undefined,
                           numberOfSigns: stop.numberOfSigns ?? undefined,
                           agent: stop.agent ?? undefined,
                           isAuction: Boolean(stop.isAuction),
@@ -618,12 +622,7 @@ function RouteDetailContent() {
                         <div className={styles.stopEta}>Agent: {stop.agent}</div>
                       )}
                       {stop.isAuction && (
-                        <div className={styles.stopEta}>Auction: Yes</div>
-                      )}
-                      {stop.estimatedArrivalTime && (
-                        <div className={styles.stopEta}>
-                          ETA: {formatDateTime(stop.estimatedArrivalTime)}
-                        </div>
+                        <span className={styles.auctionBadge}>Auction</span>
                       )}
                       {stop.notes && (
                         <div className={styles.stopNotes}>

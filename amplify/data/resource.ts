@@ -84,12 +84,14 @@ const schema = a.schema({
       actualEndTime: a.datetime(),
       actualDurationMinutes: a.integer(),
       notes: a.string(),
+      scheduleS3Key: a.string(), // S3 key for the uploaded schedule file
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
       customer: a.belongsTo('Customer', 'customerId'),
       stops: a.hasMany('Stop', 'routeId'),
       lineItems: a.hasMany('LineItem', 'routeId'),
+      invoices: a.hasMany('Invoice', 'routeId'),
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
@@ -140,17 +142,19 @@ const schema = a.schema({
    */
   Invoice: a
     .model({
-      customerId: a.id().required(), // Foreign key to Customer
+      customerId: a.id().required(),
       invoiceNumber: a.string().required(),
       invoiceDate: a.date().required(),
       periodStartDate: a.date(),
       periodEndDate: a.date(),
       totalAmount: a.float().required(),
       status: a.enum(['draft', 'finalized', 'sent', 'paid']),
+      routeId: a.id(),        // linked route
+      pdfS3Key: a.string(),   // S3 key for uploaded PDF e.g. invoices/{id}.pdf
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
-      // Relationships
       customer: a.belongsTo('Customer', 'customerId'),
+      route: a.belongsTo('Route', 'routeId'),
       lineItems: a.hasMany('LineItem', 'invoiceId'),
       payment: a.hasOne('PaymentRecord', 'invoiceId'),
     })

@@ -28,6 +28,8 @@ export interface InvoiceDetail {
   periodEndDate?: string;
   totalAmount?: number;
   status?: string;
+  routeId?: string;
+  pdfS3Key?: string;
   lineItems?: Array<{
     id?: string;
     invoiceId?: string;
@@ -90,6 +92,8 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
       periodEndDate: invoice.periodEndDate || undefined,
       totalAmount: invoice.totalAmount || undefined,
       status: invoice.status || undefined,
+      routeId: invoice.routeId || undefined,
+      pdfS3Key: invoice.pdfS3Key || undefined,
       lineItems: (lineItems || []).map((item: any) => ({
         id: item.id,
         invoiceId: item.invoiceId,

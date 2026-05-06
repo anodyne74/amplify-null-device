@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
@@ -8,6 +8,7 @@ import { RouteForm, type RouteDraftStop } from '@/app/operator/components/RouteF
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { createRoute, createStop } from '@/lib/queries';
+import { parseScheduleText, type ParsedStop } from '@/lib/parseSchedule';
 import styles from './page.module.css';
 
 function getExcelStyleWeekPrefix(date = new Date()) {
@@ -50,6 +51,20 @@ export default function NewRoutePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'import' | 'manual'>('import');
+
+  // Import flow state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importCustomerId, setImportCustomerId] = useState('');
+  const [importNotes, setImportNotes] = useState('');
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importText, setImportText] = useState('');
+  const [parsedStops, setParsedStops] = useState<ParsedStop[] | null>(null);
+  const [parseWarnings, setParseWarnings] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
   useEffect(() => {
     async function fetchCustomers() {
       setLoadingCustomers(true);
@@ -63,6 +78,10 @@ export default function NewRoutePage() {
             addressLine1: c.addressLine1 ?? null,
           }))
         );
+        // Pre-select first customer for import tab
+        if ((result.data as any[]).length > 0) {
+          setImportCustomerId((result.data as any[])[0].id);
+        }
       }
       setLoadingCustomers(false);
     }
@@ -134,6 +153,111 @@ export default function NewRoutePage() {
     router.push('/operator/routes');
   };
 
+  // ── Import tab handlers ───────────────────────────────────────────────────
+
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setImportFile(file);
+    setImportText('');
+    setParsedStops(null);
+    setParseWarnings([]);
+    setImportError(null);
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const text = (ev.target?.result as string) ?? '';
+        setImportText(text);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleParse = () => {
+    const text = importText.trim();
+    if (!text) { setImportError('Paste the schedule text or upload a file first.'); return; }
+    const result = parseScheduleText(text);
+    setParsedStops(result.stops);
+    const warnings: string[] = [];
+    if (result.duplicatesRemoved.length) {
+      warnings.push(`Removed ${result.duplicatesRemoved.length} duplicate address(es): ${result.duplicatesRemoved.join(', ')}`);
+    }
+    if (result.unparsedLines.length) {
+      warnings.push(`${result.unparsedLines.length} line(s) could not be parsed and were skipped.`);
+    }
+    setParseWarnings(warnings);
+    setImportError(result.stops.length === 0 ? 'No stops could be extracted. Check the pasted text.' : null);
+  };
+
+  const handleImportSubmit = async () => {
+    if (!importCustomerId) { setImportError('Select a customer.'); return; }
+    if (!parsedStops || parsedStops.length === 0) { setImportError('Parse the schedule first.'); return; }
+
+    setIsUploading(true);
+    setImportError(null);
+
+    try {
+      // 1. Upload file to S3 if one was selected
+      let scheduleS3Key: string | undefined;
+      if (importFile) {
+        const { uploadData } = await import('aws-amplify/storage');
+        const tempKey = `schedules/${importCustomerId}/${Date.now()}-${importFile.name}`;
+        await uploadData({
+          path: tempKey,
+          data: importFile,
+          options: { contentType: importFile.type || 'text/plain' },
+        }).result;
+        scheduleS3Key = tempKey;
+      }
+
+      // 2. Create route
+      const routeCode = await generateNextRouteCode();
+      const routeResult = await createRoute({
+        routeCode,
+        customerId: importCustomerId,
+        status: 'planned',
+        notes: importNotes || undefined,
+        scheduleS3Key,
+      });
+
+      if (routeResult.errors && routeResult.errors.length > 0) {
+        const msg = (routeResult.errors as Array<{ message?: string }>)
+          .map((e) => e.message ?? String(e)).join('; ');
+        setImportError(`Failed to create route: ${msg}`);
+        setIsUploading(false);
+        return;
+      }
+
+      const routeId = routeResult.data?.id;
+      if (!routeId) { setImportError('Route created but ID not returned.'); setIsUploading(false); return; }
+
+      // 3. Create stops
+      for (let i = 0; i < parsedStops.length; i++) {
+        const stop = parsedStops[i];
+        const stopResult = await createStop({
+          routeId,
+          customerId: importCustomerId,
+          sequence: i + 1,
+          address: stop.address,
+          serviceType: 'delivery',
+          numberOfSigns: stop.numberOfSigns,
+          agent: stop.agent,
+          isAuction: stop.isAuction,
+        });
+        if (stopResult.errors && stopResult.errors.length > 0) {
+          setImportError('Route created but one or more stops failed to save.');
+          setIsUploading(false);
+          return;
+        }
+      }
+
+      router.push(`/operator/routes/detail?id=${routeId}`);
+    } catch (err) {
+      console.error('Import error:', err);
+      setImportError('An unexpected error occurred during import.');
+      setIsUploading(false);
+    }
+  };
+
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.container}>
@@ -142,13 +266,169 @@ export default function NewRoutePage() {
         {loadingCustomers ? (
           <LoadingSpinner message="Loading customers..." />
         ) : (
-          <RouteForm
-            customers={customers}
-            onSubmit={handleSubmit}
-            onCancel={handleCancel}
-            isSubmitting={isSubmitting}
-            error={submitError}
-          />
+          <>
+            {/* Tab switcher */}
+            <div className={styles.tabs}>
+              <button
+                className={`${styles.tab} ${activeTab === 'import' ? styles.tabActive : ''}`}
+                onClick={() => setActiveTab('import')}
+              >
+                Import from Schedule
+              </button>
+              <button
+                className={`${styles.tab} ${activeTab === 'manual' ? styles.tabActive : ''}`}
+                onClick={() => setActiveTab('manual')}
+              >
+                Manual Entry
+              </button>
+            </div>
+
+            {/* Import tab */}
+            {activeTab === 'import' && (
+              <div className={styles.importPanel}>
+                <p className={styles.importHint}>
+                  Upload the weekly schedule file or paste the table text copied from Excel/PDF.
+                  The parser will extract stops, remove duplicates, and pre-fill the route.
+                </p>
+
+                <label className={styles.fieldLabel}>Customer</label>
+                <select
+                  className={styles.select}
+                  value={importCustomerId}
+                  onChange={(e) => setImportCustomerId(e.target.value)}
+                >
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+
+                <label className={styles.fieldLabel}>Route Notes (optional)</label>
+                <input
+                  className={styles.input}
+                  value={importNotes}
+                  onChange={(e) => setImportNotes(e.target.value)}
+                  placeholder="e.g. Open houses 28 March 2026"
+                />
+
+                <label className={styles.fieldLabel}>
+                  Upload Schedule File
+                  <span className={styles.fieldHint}> (PDF, CSV, TXT — stored and linked to route)</span>
+                </label>
+                <div className={styles.fileRow}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.csv,.txt,.xlsx,.xls"
+                    style={{ display: 'none' }}
+                    onChange={handleFileSelected}
+                  />
+                  <button
+                    type="button"
+                    className={styles.btnSecondary}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {importFile ? importFile.name : 'Choose File'}
+                  </button>
+                  {importFile && (
+                    <button
+                      type="button"
+                      className={styles.btnClear}
+                      onClick={() => {
+                        setImportFile(null);
+                        setImportText('');
+                        setParsedStops(null);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                <label className={styles.fieldLabel}>
+                  Or paste schedule text
+                  <span className={styles.fieldHint}> (copy-paste from Excel)</span>
+                </label>
+                <textarea
+                  className={styles.textarea}
+                  rows={10}
+                  value={importText}
+                  onChange={(e) => { setImportText(e.target.value); setParsedStops(null); }}
+                  placeholder="TIME  KEY  PROPERTY  WED"
+                  spellCheck={false}
+                />
+
+                <button
+                  type="button"
+                  className={styles.btnParse}
+                  onClick={handleParse}
+                  disabled={!importText.trim()}
+                >
+                  Preview Stops
+                </button>
+
+                {parseWarnings.length > 0 && (
+                  <div className={styles.warnings}>
+                    {parseWarnings.map((w, i) => <p key={i}>{w}</p>)}
+                  </div>
+                )}
+
+                {importError && <div className={styles.error}>{importError}</div>}
+
+                {parsedStops && parsedStops.length > 0 && (
+                  <div>
+                    <p className={styles.previewHeader}>
+                      <strong>{parsedStops.length} stops extracted</strong>
+                      <span className={styles.fieldHint}> — review before creating route</span>
+                    </p>
+                    <div className={styles.previewTable}>
+                      <div className={styles.previewRowHeader}>
+                        <span>#</span>
+                        <span>Address</span>
+                        <span>Signs</span>
+                        <span>Agent</span>
+                        <span>Slot</span>
+                        <span>Flags</span>
+                      </div>
+                      {parsedStops.map((stop, i) => (
+                        <div key={i} className={styles.previewRow}>
+                          <span className={styles.previewSeq}>{i + 1}</span>
+                          <span className={styles.previewAddress}>{stop.address}</span>
+                          <span>{stop.numberOfSigns}</span>
+                          <span>{stop.agent}</span>
+                          <span className={styles.previewSlot}>{stop.timeSlot}</span>
+                          <span>
+                            {stop.isAuction && (
+                              <span className={styles.auctionBadge}>Auction</span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.btnCreate}
+                      onClick={handleImportSubmit}
+                      disabled={isUploading}
+                    >
+                      {isUploading ? 'Creating Route...' : `Create Route (${parsedStops.length} stops)`}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Manual entry tab */}
+            {activeTab === 'manual' && (
+              <RouteForm
+                customers={customers}
+                onSubmit={handleSubmit}
+                onCancel={handleCancel}
+                isSubmitting={isSubmitting}
+                error={submitError}
+              />
+            )}
+          </>
         )}
       </div>
     </OperatorRoute>

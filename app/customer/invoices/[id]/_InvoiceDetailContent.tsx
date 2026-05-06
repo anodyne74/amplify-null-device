@@ -67,30 +67,16 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
   }, [user?.userId, params.id]);
 
   const handleDownloadPDF = async () => {
-    if (!invoice?.id) return;
-
+    if (!invoice?.pdfS3Key) return;
     setDownloading(true);
-
     try {
-      const response = await fetch(`/api/invoices/${invoice.id}/download`);
-
-      if (!response.ok) {
-        throw new Error('Failed to download PDF');
-      }
-
-      // Get the blob and trigger download
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `invoice-${invoice.invoiceNumber || invoice.id}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      const { getUrl } = await import('aws-amplify/storage');
+      const { url } = await getUrl({ path: invoice.pdfS3Key });
+      // Open in new tab — browser will handle PDF viewer/download
+      window.open(url.toString(), '_blank', 'noopener,noreferrer');
     } catch (err) {
       console.error('Download error:', err);
-      setError('Failed to download PDF');
+      setError('Failed to generate download link');
     } finally {
       setDownloading(false);
     }
@@ -192,13 +178,11 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
         </div>
 
         {/* Download Button */}
-        <button
-          onClick={handleDownloadPDF}
-          disabled={downloading}
-          className={styles.downloadBtn}
-        >
-          {downloading ? 'Downloading...' : '📥 Download PDF'}
-        </button>
+        {invoice.pdfS3Key && (
+          <button onClick={handleDownloadPDF} disabled={downloading} className={styles.downloadBtn}>
+            {downloading ? 'Loading...' : '📥 Download PDF'}
+          </button>
+        )}
       </div>
 
       {/* Line Items */}

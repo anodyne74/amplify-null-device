@@ -64,6 +64,7 @@ export interface Route {
   actualEndTime?: string | null;
   actualDurationMinutes?: number | null;
   notes?: string;
+  scheduleS3Key?: string | null;
   createdAt?: string;
   updatedAt?: string;
   customer?: Customer;
@@ -103,9 +104,12 @@ export interface Invoice {
   periodEndDate: string;
   totalAmount: number;
   status: InvoiceStatus;
+  routeId?: string;
+  pdfS3Key?: string;
   createdAt?: string;
   updatedAt?: string;
   customer?: Customer;
+  route?: Route;
   lineItems?: LineItem[];
 }
 

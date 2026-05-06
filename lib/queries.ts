@@ -316,6 +316,7 @@ export async function createRoute(input: {
   viewerSubs?: string[];
   status: 'planned' | 'active' | 'completed' | 'archived';
   notes?: string;
+  scheduleS3Key?: string;
 }) {
   try {
     const { data, errors } = await getClient().models.Route.create(input);
@@ -344,6 +345,7 @@ export async function updateRoute(
     actualEndTime: string;
     actualDurationMinutes: number;
     notes: string;
+    scheduleS3Key: string;
   }>
 ) {
   try {
@@ -479,6 +481,8 @@ export async function createInvoice(input: {
   periodEndDate?: string;
   totalAmount: number;
   status: 'draft' | 'finalized' | 'sent' | 'paid';
+  routeId?: string;
+  pdfS3Key?: string;
 }) {
   try {
     const { data, errors } = await getClient().models.Invoice.create(input);
@@ -506,6 +510,8 @@ export async function updateInvoice(
     periodEndDate: string;
     totalAmount: number;
     status: 'draft' | 'finalized' | 'sent' | 'paid';
+    routeId: string;
+    pdfS3Key: string;
   }>
 ) {
   try {
@@ -523,6 +529,13 @@ export async function updateInvoice(
     console.error('Error updating invoice:', error);
     return { data: null, errors: [error] };
   }
+}
+
+/**
+ * Convenience helper — saves the S3 key of an uploaded PDF to the invoice record.
+ */
+export async function updateInvoicePdfKey(invoiceId: string, pdfS3Key: string) {
+  return updateInvoice(invoiceId, { pdfS3Key });
 }
 
 /**

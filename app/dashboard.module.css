@@ -128,4 +128,69 @@
   border-radius: var(--nd-radius-md);
   font-size: 0.9rem;
   color: var(--nd-text-primary);
-} 
+}
+
+.mobileRouteList {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.mobileRouteCard {
+  display: block;
+  text-decoration: none;
+  color: var(--nd-text-primary);
+  background: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-md);
+  padding: 12px;
+}
+
+.mobileRouteTopRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mobileRouteMeta {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: var(--nd-text-muted);
+}
+
+.mobileRouteAction {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--nd-operator-accent);
+}
+
+.routeStatusActive,
+.routeStatusPlanned {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.routeStatusActive {
+  background: rgba(80, 220, 120, 0.2);
+  color: var(--nd-accent-primary);
+}
+
+.routeStatusPlanned {
+  background: rgba(45, 178, 255, 0.2);
+  color: var(--nd-customer-accent);
+}
+
+@media (max-width: 760px) {
+  .mobileRouteCard {
+    padding: 14px;
+  }
+
+  .mobileRouteAction {
+    font-size: 0.95rem;
+  }
+}

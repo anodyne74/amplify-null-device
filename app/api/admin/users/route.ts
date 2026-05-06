@@ -15,13 +15,44 @@ const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.
 const graphqlEndpoint = process.env.AMPLIFY_DATA_URL || outputs.data?.url;
 const ALLOWED_GROUPS = ['customer', 'operator', 'administrator'] as const;
 
-type AdminUserAction = 'listUsers' | 'listGroupsForUser' | 'addUserToGroup' | 'removeUserFromGroup';
+type AdminUserAction =
+  | 'listUsers'
+  | 'listGroupsForUser'
+  | 'addUserToGroup'
+  | 'removeUserFromGroup'
+  | 'getUserByEmail';
 
 type AdminUserRequest = {
   action: AdminUserAction;
   username?: string;
+  email?: string;
   groupName?: (typeof ALLOWED_GROUPS)[number];
 };
+
+type ListedUser = {
+  username?: string;
+  enabled?: boolean;
+  status?: string;
+  firstName?: string;
+  email?: string;
+  sub?: string;
+};
+
+function mapListedUser(user: {
+  Username?: string;
+  Enabled?: boolean;
+  UserStatus?: string;
+  Attributes?: { Name?: string; Value?: string }[];
+}): ListedUser {
+  return {
+    username: user.Username,
+    enabled: user.Enabled,
+    status: user.UserStatus,
+    firstName: getAttributeValue(user.Attributes, 'given_name'),
+    email: getAttributeValue(user.Attributes, 'email'),
+    sub: getAttributeValue(user.Attributes, 'sub'),
+  };
+}
 
 function getAttributeValue(
   attributes: { Name?: string; Value?: string }[] | undefined,
@@ -173,13 +204,7 @@ export async function POST(request: NextRequest) {
         })
       );
 
-      const users = (response.Users || []).map((user) => ({
-        username: user.Username,
-        enabled: user.Enabled,
-        status: user.UserStatus,
-        firstName: getAttributeValue(user.Attributes, 'given_name'),
-        email: getAttributeValue(user.Attributes, 'email'),
-      }));
+      const users = (response.Users || []).map((user) => mapListedUser(user));
 
       await writeAuditLog(authResult.token, {
         operatorId: authResult.claims.sub,
@@ -221,6 +246,40 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json({ groups });
+    }
+
+    if (body.action === 'getUserByEmail') {
+      if (!body.email) {
+        return NextResponse.json({ error: 'email is required.' }, { status: 400 });
+      }
+
+      const email = body.email.trim().toLowerCase();
+      const response = await cognitoClient.send(
+        new ListUsersCommand({
+          UserPoolId: userPoolId,
+          Limit: 60,
+        })
+      );
+
+      const matched = (response.Users || []).find(
+        (user) => getAttributeValue(user.Attributes, 'email')?.toLowerCase() === email
+      );
+      if (!matched) {
+        return NextResponse.json({ error: `No user found for email ${email}.` }, { status: 404 });
+      }
+
+      await writeAuditLog(authResult.token, {
+        operatorId: authResult.claims.sub,
+        eventType: 'data_access',
+        resourceType: 'operator',
+        resourceId: matched.Username || email,
+        action: 'get_user_by_email',
+        status: 'success',
+        ipAddress: request.headers.get('x-forwarded-for') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+      });
+
+      return NextResponse.json({ user: mapListedUser(matched) });
     }
 
     if (body.action === 'addUserToGroup') {

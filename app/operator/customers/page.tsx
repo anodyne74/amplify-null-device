@@ -2,6 +2,8 @@
 
 import { Fragment, FormEvent, useCallback, useEffect, useState } from 'react';
 import OperatorRoute from '@/app/components/OperatorRoute';
+import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
+import { geocodeAddress } from '@/lib/googleMaps';
 import {
   createCustomer,
   createCustomerUser,
@@ -18,6 +20,7 @@ type Customer = {
   email: string;
   billingRatePerHour: number;
   status?: 'active' | 'inactive' | 'suspended' | null;
+  addressLine1?: string | null;
 };
 
 type CustomerUser = {
@@ -30,6 +33,25 @@ type CustomerUser = {
   role?: 'account_owner' | 'read_only' | null;
 };
 
+const usdFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function parseCurrency(value: string): number {
+  const normalized = value.replace(/[^0-9.-]/g, '');
+  if (!normalized) return Number.NaN;
+  return Number(normalized);
+}
+
+function formatCurrency(value: string): string {
+  const parsed = parseCurrency(value);
+  if (Number.isNaN(parsed)) return value;
+  return usdFormatter.format(parsed);
+}
+
 export default function CustomersAdminPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,13 +61,21 @@ export default function CustomersAdminPage() {
   // Create customer form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [billingRatePerHour, setBillingRatePerHour] = useState('0');
+  const [billingRatePerHour, setBillingRatePerHour] = useState('$0.00');
   const [addressLine1, setAddressLine1] = useState('');
-  const [addressLine2, setAddressLine2] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [postcode, setPostcode] = useState('');
-  const [country, setCountry] = useState('');
+  const [createResolvedAddress, setCreateResolvedAddress] = useState<ResolvedAddress | null>(null);
+
+  // Edit customer panel state
+  const [expandedEditPanel, setExpandedEditPanel] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editBillingRatePerHour, setEditBillingRatePerHour] = useState('$0.00');
+  const [editStatus, setEditStatus] = useState<'active' | 'inactive' | 'suspended'>('active');
+  const [editAddressLine1, setEditAddressLine1] = useState('');
+  const [editResolvedAddress, setEditResolvedAddress] = useState<ResolvedAddress | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSuccess, setEditSuccess] = useState<string | null>(null);
 
   // Owner assignment panel state (keyed by customerId)
   const [expandedOwnerPanel, setExpandedOwnerPanel] = useState<string | null>(null);
@@ -82,35 +112,44 @@ export default function CustomersAdminPage() {
 
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();
+
+    const createRate = parseCurrency(billingRatePerHour);
+    if (Number.isNaN(createRate) || createRate < 0) {
+      setError('Billing rate must be 0 or greater.');
+      return;
+    }
+
+    if (!addressLine1.trim()) {
+      setError('Address is required.');
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
-    const result = await createCustomer({
-      name,
-      email,
-      billingRatePerHour: Number(billingRatePerHour),
-      status: 'active',
-      addressLine1: addressLine1 || undefined,
-      addressLine2: addressLine2 || undefined,
-      city: city || undefined,
-      state: state || undefined,
-      postcode: postcode || undefined,
-      country: country || undefined,
-    });
+    try {
+      const resolved = createResolvedAddress ?? (await geocodeAddress(addressLine1.trim()));
 
-    if (result.errors && result.errors.length > 0) {
-      setError('Failed to create customer.');
-    } else {
-      setName('');
-      setEmail('');
-      setBillingRatePerHour('0');
-      setAddressLine1('');
-      setAddressLine2('');
-      setCity('');
-      setState('');
-      setPostcode('');
-      setCountry('');
-      await fetchCustomers();
+      const result = await createCustomer({
+        name,
+        email,
+        billingRatePerHour: createRate,
+        status: 'active',
+        addressLine1: resolved.formattedAddress,
+      });
+
+      if (result.errors && result.errors.length > 0) {
+        setError('Failed to create customer.');
+      } else {
+        setName('');
+        setEmail('');
+        setBillingRatePerHour('$0.00');
+        setAddressLine1('');
+        setCreateResolvedAddress(null);
+        await fetchCustomers();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Address could not be validated.');
     }
 
     setSaving(false);
@@ -126,6 +165,7 @@ export default function CustomersAdminPage() {
   };
 
   const toggleOwnerPanel = async (customerId: string) => {
+    setExpandedEditPanel(null);
     if (expandedOwnerPanel === customerId) {
       setExpandedOwnerPanel(null);
       return;
@@ -137,6 +177,79 @@ export default function CustomersAdminPage() {
     setOwnerName('');
     setOwnerEmail('');
     await fetchCustomerUsers(customerId);
+  };
+
+  const toggleEditPanel = (customer: Customer) => {
+    setExpandedOwnerPanel(null);
+    if (expandedEditPanel === customer.id) {
+      setExpandedEditPanel(null);
+      setEditError(null);
+      setEditSuccess(null);
+      setEditResolvedAddress(null);
+      return;
+    }
+
+    setExpandedEditPanel(customer.id);
+    setEditError(null);
+    setEditSuccess(null);
+    setEditResolvedAddress(null);
+
+    setEditName(customer.name);
+    setEditEmail(customer.email);
+    setEditBillingRatePerHour(usdFormatter.format(customer.billingRatePerHour ?? 0));
+    setEditStatus(customer.status ?? 'active');
+    setEditAddressLine1(customer.addressLine1 ?? '');
+  };
+
+  const handleUpdateCustomer = async (customerId: string) => {
+    if (!editName.trim()) {
+      setEditError('Name is required.');
+      return;
+    }
+    if (!editEmail.trim()) {
+      setEditError('Email is required.');
+      return;
+    }
+
+    const rate = parseCurrency(editBillingRatePerHour);
+    if (Number.isNaN(rate) || rate < 0) {
+      setEditError('Billing rate must be 0 or greater.');
+      return;
+    }
+
+    setEditSaving(true);
+    setEditError(null);
+    setEditSuccess(null);
+
+    try {
+      if (!editAddressLine1.trim()) {
+        setEditError('Address is required.');
+        setEditSaving(false);
+        return;
+      }
+
+      const resolved = editResolvedAddress ?? (await geocodeAddress(editAddressLine1.trim()));
+
+      const result = await updateCustomer(customerId, {
+        name: editName.trim(),
+        email: editEmail.trim(),
+        billingRatePerHour: rate,
+        status: editStatus,
+        addressLine1: resolved.formattedAddress,
+      });
+
+      if (result.errors && result.errors.length > 0) {
+        setEditError('Failed to update customer.');
+      } else {
+        setEditSuccess('Customer updated.');
+        await fetchCustomers();
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Address could not be validated.';
+      setEditError(message);
+    }
+
+    setEditSaving(false);
   };
 
   const handleAssignOwner = async (customerId: string) => {
@@ -192,18 +305,28 @@ export default function CustomersAdminPage() {
           <input
             value={billingRatePerHour}
             onChange={(e) => setBillingRatePerHour(e.target.value)}
+            onBlur={(e) => setBillingRatePerHour(formatCurrency(e.target.value))}
             placeholder="Billing rate per hour"
-            type="number"
-            min="0"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
             required
           />
-          <input value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} placeholder="Address line 1" />
-          <input value={addressLine2} onChange={(e) => setAddressLine2(e.target.value)} placeholder="Address line 2" />
-          <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" />
-          <input value={state} onChange={(e) => setState(e.target.value)} placeholder="State / Province" />
-          <input value={postcode} onChange={(e) => setPostcode(e.target.value)} placeholder="Postcode / ZIP" />
-          <input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country" />
+          <AddressAutocompleteInput
+            id="create-customer-address"
+            value={addressLine1}
+            onChange={(value) => {
+              setAddressLine1(value);
+            }}
+            onResolved={(resolved) => {
+              setCreateResolvedAddress(resolved);
+              if (resolved) {
+                setAddressLine1(resolved.formattedAddress);
+              }
+            }}
+            disabled={saving}
+            placeholder="Address"
+            className={styles.input}
+          />
           <button type="submit" disabled={saving}>{saving ? 'Creating...' : 'Create Customer'}</button>
         </form>
 
@@ -223,7 +346,7 @@ export default function CustomersAdminPage() {
                   <th>Email</th>
                   <th>Rate/hr</th>
                   <th>Status</th>
-                  <th>Owner</th>
+                  <th>Manage</th>
                 </tr>
               </thead>
               <tbody>
@@ -232,7 +355,7 @@ export default function CustomersAdminPage() {
                     <tr>
                       <td>{customer.name}</td>
                       <td>{customer.email}</td>
-                      <td>{customer.billingRatePerHour}</td>
+                      <td>{usdFormatter.format(customer.billingRatePerHour ?? 0)}</td>
                       <td>
                         <select
                           value={customer.status ?? 'active'}
@@ -246,14 +369,106 @@ export default function CustomersAdminPage() {
                         </select>
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          onClick={() => void toggleOwnerPanel(customer.id)}
-                        >
-                          {expandedOwnerPanel === customer.id ? 'Close' : 'Manage Owner'}
-                        </button>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => toggleEditPanel(customer)}
+                          >
+                            {expandedEditPanel === customer.id ? 'Close Edit' : 'Edit'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void toggleOwnerPanel(customer.id)}
+                          >
+                            {expandedOwnerPanel === customer.id ? 'Close Owner' : 'Manage Owner'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
+                    {expandedEditPanel === customer.id && (
+                      <tr key={`${customer.id}-edit-panel`}>
+                        <td colSpan={5}>
+                          <div className={styles.infoPanel}>
+                            <h4>Edit Customer — {customer.name}</h4>
+                            {editError && <p>{editError}</p>}
+                            {editSuccess && <p>{editSuccess}</p>}
+                            <p className={styles.welcome}>
+                              Address is validated via Google address lookup before saving.
+                            </p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                              <input
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                placeholder="Name"
+                                disabled={editSaving}
+                                required
+                              />
+                              <input
+                                value={editEmail}
+                                onChange={(e) => setEditEmail(e.target.value)}
+                                placeholder="Email"
+                                type="email"
+                                disabled={editSaving}
+                                required
+                              />
+                              <input
+                                value={editBillingRatePerHour}
+                                onChange={(e) => setEditBillingRatePerHour(e.target.value)}
+                                onBlur={(e) => setEditBillingRatePerHour(formatCurrency(e.target.value))}
+                                placeholder="Billing rate per hour"
+                                type="text"
+                                inputMode="decimal"
+                                disabled={editSaving}
+                                required
+                              />
+                              <select
+                                value={editStatus}
+                                onChange={(e) => setEditStatus(e.target.value as 'active' | 'inactive' | 'suspended')}
+                                disabled={editSaving}
+                              >
+                                <option value="active">active</option>
+                                <option value="inactive">inactive</option>
+                                <option value="suspended">suspended</option>
+                              </select>
+                              <div style={{ gridColumn: '1 / -1' }}>
+                                <AddressAutocompleteInput
+                                  id={`customer-address-${customer.id}`}
+                                  value={editAddressLine1}
+                                  onChange={(value) => {
+                                    setEditAddressLine1(value);
+                                  }}
+                                  onResolved={(resolved) => {
+                                    setEditResolvedAddress(resolved);
+                                    if (resolved) {
+                                      setEditAddressLine1(resolved.formattedAddress);
+                                    }
+                                  }}
+                                  disabled={editSaving}
+                                  placeholder="Address"
+                                  className={styles.input}
+                                />
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                              <button
+                                type="button"
+                                onClick={() => void handleUpdateCustomer(customer.id)}
+                                disabled={editSaving}
+                              >
+                                {editSaving ? 'Saving...' : 'Save Customer'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleEditPanel(customer)}
+                                disabled={editSaving}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                     {expandedOwnerPanel === customer.id && (
                       <tr key={`${customer.id}-owner-panel`}>
                         <td colSpan={5}>

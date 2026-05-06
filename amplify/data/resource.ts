@@ -30,13 +30,8 @@ const schema = a.schema({
       name: a.string().required(),
       email: a.email().required(),
       contactPhone: a.phone(),
-      // Address
+      // Address (single formatted value, same style as stop.formattedAddress)
       addressLine1: a.string(),
-      addressLine2: a.string(),
-      city: a.string(),
-      state: a.string(),
-      postcode: a.string(),
-      country: a.string(),
       status: a.enum(['active', 'inactive', 'suspended']),
       billingRatePerHour: a.float().required(), // Configurable hourly rate for invoicing
       createdAt: a.datetime(),

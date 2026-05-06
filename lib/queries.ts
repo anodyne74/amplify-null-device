@@ -12,6 +12,27 @@ function getClient() {
   return _client;
 }
 
+function getCustomerUserModel() {
+  const model = (getClient().models as unknown as Record<string, unknown>).CustomerUser as
+    | {
+        list: (args: unknown) => Promise<{ data?: unknown[]; errors?: unknown[] }>;
+        create: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
+        delete: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
+      }
+    | undefined;
+
+  if (!model) {
+    return {
+      model: null,
+      error: new Error(
+        'CustomerUser model is not available in the current backend schema. Deploy backend changes and refresh amplify outputs.'
+      ),
+    };
+  }
+
+  return { model, error: null };
+}
+
 /**
  * Fetch all customers
  * Used by operators to view all customers in the system
@@ -57,11 +78,6 @@ export async function createCustomer(input: {
   email: string;
   contactPhone?: string;
   addressLine1?: string;
-  addressLine2?: string;
-  city?: string;
-  state?: string;
-  postcode?: string;
-  country?: string;
   status?: 'active' | 'inactive' | 'suspended';
   billingRatePerHour: number;
 }) {
@@ -89,11 +105,6 @@ export async function updateCustomer(
     email: string;
     contactPhone: string;
     addressLine1: string;
-    addressLine2: string;
-    city: string;
-    state: string;
-    postcode: string;
-    country: string;
     status: 'active' | 'inactive' | 'suspended';
     billingRatePerHour: number;
   }>
@@ -369,6 +380,7 @@ export async function updateRouteExecution(routeId: string, updates: RouteExecut
 export interface StopExecutionUpdateInput {
   actualArrivalTime?: string;
   actualDepartureTime?: string;
+  notes?: string;
 }
 
 /**
@@ -594,7 +606,12 @@ export function subscribeToRoute(routeId: string, onUpdate: (route: any) => void
  */
 export async function listCustomerUsers(customerId: string) {
   try {
-    const { data, errors } = await getClient().models.CustomerUser.list({
+    const { model, error: modelError } = getCustomerUserModel();
+    if (!model) {
+      return { data: [], errors: [modelError] };
+    }
+
+    const { data, errors } = await model.list({
       filter: { customerId: { eq: customerId } },
     });
     if (errors) {
@@ -604,6 +621,57 @@ export async function listCustomerUsers(customerId: string) {
   } catch (error) {
     console.error('Error listing customer users:', error);
     return { data: [], errors: [error] };
+  }
+}
+
+/**
+ * Resolve customer portal context for a user sub.
+ * Fallback behavior preserves legacy owner access where customerId === userSub.
+ */
+export async function getCustomerPortalContext(userSub: string): Promise<{
+  role: 'account_owner' | 'read_only';
+  customerId: string;
+  errors?: unknown[];
+}> {
+  try {
+    const { model, error: modelError } = getCustomerUserModel();
+    if (!model) {
+      return {
+        role: 'account_owner',
+        customerId: userSub,
+        errors: [modelError],
+      };
+    }
+
+    const { data, errors } = await model.list({
+      filter: { userSub: { eq: userSub } },
+      limit: 100,
+    });
+
+    const rows = (data as Array<{
+      role?: 'account_owner' | 'read_only' | null;
+      customerId?: string | null;
+    }> | undefined) || [];
+
+    const ownerRow = rows.find((row) => row.role === 'account_owner' && row.customerId);
+    if (ownerRow?.customerId) {
+      return { role: 'account_owner', customerId: ownerRow.customerId, errors };
+    }
+
+    const reviewerRow = rows.find((row) => row.role === 'read_only' && row.customerId);
+    if (reviewerRow?.customerId) {
+      return { role: 'read_only', customerId: reviewerRow.customerId, errors };
+    }
+
+    // Legacy fallback: older records may still use sub as customerId.
+    return { role: 'account_owner', customerId: userSub, errors };
+  } catch (error) {
+    console.error('Error resolving customer portal context:', error);
+    return {
+      role: 'account_owner',
+      customerId: userSub,
+      errors: [error],
+    };
   }
 }
 
@@ -621,7 +689,12 @@ export async function createCustomerUser(input: {
   email?: string;
 }) {
   try {
-    const { data, errors } = await getClient().models.CustomerUser.create(input);
+    const { model, error: modelError } = getCustomerUserModel();
+    if (!model) {
+      return { data: null, errors: [modelError] };
+    }
+
+    const { data, errors } = await model.create(input);
     if (errors) {
       console.error('Errors creating customer user:', errors);
     }
@@ -638,7 +711,12 @@ export async function createCustomerUser(input: {
  */
 export async function deleteCustomerUser(customerUserId: string) {
   try {
-    const { data, errors } = await getClient().models.CustomerUser.delete({ id: customerUserId });
+    const { model, error: modelError } = getCustomerUserModel();
+    if (!model) {
+      return { data: null, errors: [modelError] };
+    }
+
+    const { data, errors } = await model.delete({ id: customerUserId });
     if (errors) {
       console.error('Errors deleting customer user:', errors);
     }

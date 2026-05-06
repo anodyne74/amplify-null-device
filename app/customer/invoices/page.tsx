@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useRouter } from 'next/navigation';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
+import { getCustomerPortalContext } from '@/lib/queries';
 import InvoiceListItem from '../components/InvoiceListItem';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import styles from './page.module.css';
@@ -13,11 +15,22 @@ import styles from './page.module.css';
  */
 export default function InvoicesPage() {
   const { user } = useAuthenticator();
+  const router = useRouter();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  // Guard: redirect reviewers away from invoice pages
+  useEffect(() => {
+    if (!user?.userId) return;
+    getCustomerPortalContext(user.userId).then(({ role }) => {
+      if (role === 'read_only') {
+        router.replace('/customer/dashboard');
+      }
+    });
+  }, [user?.userId, router]);
 
   // Fetch invoices on mount or when filters change
   useEffect(() => {
@@ -29,13 +42,15 @@ export default function InvoicesPage() {
 
       const result = await listMyInvoices({
         customerId: user.userId,
+        userSub: user.userId,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         limit: 50,
       });
 
       if (result.errors && result.errors.length > 0) {
-        setError('Failed to load invoices');
+        const message = (result.errors[0] as Error | undefined)?.message;
+        setError(message?.includes('reviewer users cannot view invoices') ? 'Access denied' : 'Failed to load invoices');
         console.error('Error fetching invoices:', result.errors);
       } else {
         setInvoices(result.data || []);

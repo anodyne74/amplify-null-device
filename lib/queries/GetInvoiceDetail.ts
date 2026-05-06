@@ -5,6 +5,7 @@
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import type { Invoice, LineItem } from '@/amplify/types';
+import { getCustomerPortalContext } from '@/lib/queries';
 
 let _client: ReturnType<typeof generateClient<Schema>> | null = null;
 function getClient() {
@@ -15,6 +16,7 @@ function getClient() {
 export interface GetInvoiceDetailParams {
   invoiceId: string;
   customerId: string; // For authorization verification
+  userSub?: string;
 }
 
 export interface InvoiceDetail {
@@ -38,6 +40,13 @@ export interface InvoiceDetail {
 
 export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
   try {
+    if (params.userSub) {
+      const portalContext = await getCustomerPortalContext(params.userSub);
+      if (portalContext.role === 'read_only') {
+        return { data: null, errors: ['Access denied'] };
+      }
+    }
+
     // Fetch the invoice
     const invoiceResponse = await getClient().models.Invoice.get({
       id: params.invoiceId,

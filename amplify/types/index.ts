@@ -34,11 +34,6 @@ export interface Customer {
   email: string;
   contactPhone?: string;
   addressLine1?: string;
-  addressLine2?: string;
-  city?: string;
-  state?: string;
-  postcode?: string;
-  country?: string;
   status: CustomerStatus;
   billingRatePerHour: number;
   createdAt?: string;
@@ -197,11 +192,6 @@ export interface CreateCustomerInput {
   email: string;
   contactPhone?: string;
   addressLine1?: string;
-  addressLine2?: string;
-  city?: string;
-  state?: string;
-  postcode?: string;
-  country?: string;
   status: CustomerStatus;
   billingRatePerHour: number;
 }
@@ -212,11 +202,6 @@ export interface UpdateCustomerInput {
   email?: string;
   contactPhone?: string;
   addressLine1?: string;
-  addressLine2?: string;
-  city?: string;
-  state?: string;
-  postcode?: string;
-  country?: string;
   status?: CustomerStatus;
   billingRatePerHour?: number;
 }

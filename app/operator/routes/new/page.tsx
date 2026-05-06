@@ -45,7 +45,7 @@ async function generateNextRouteCode() {
 
 export default function NewRoutePage() {
   const router = useRouter();
-  const [customers, setCustomers] = useState<Array<{ id: string; name: string; email: string }>>([]);
+  const [customers, setCustomers] = useState<Array<{ id: string; name: string; email: string; addressLine1?: string | null }>>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -56,7 +56,12 @@ export default function NewRoutePage() {
       const result = await listAllCustomers({ limit: 100 });
       if (!result.errors || result.errors.length === 0) {
         setCustomers(
-          (result.data as any[]).map((c) => ({ id: c.id, name: c.name, email: c.email }))
+          (result.data as any[]).map((c) => ({
+            id: c.id,
+            name: c.name,
+            email: c.email,
+            addressLine1: c.addressLine1 ?? null,
+          }))
         );
       }
       setLoadingCustomers(false);

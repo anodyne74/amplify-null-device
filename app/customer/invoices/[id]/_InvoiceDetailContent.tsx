@@ -26,6 +26,18 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
+  // Guard: redirect reviewers away from invoice pages
+  useEffect(() => {
+    if (!user?.userId) return;
+    import('@/lib/queries').then(({ getCustomerPortalContext }) => {
+      getCustomerPortalContext(user.userId).then(({ role }) => {
+        if (role === 'read_only') {
+          router.replace('/customer/dashboard');
+        }
+      });
+    });
+  }, [user?.userId, router]);
+
   useEffect(() => {
     if (!user?.userId) return;
 
@@ -36,6 +48,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
       const result = await getInvoiceDetail({
         invoiceId: params.id,
         customerId: user.userId,
+        userSub: user.userId,
       });
 
       if (result.errors && result.errors.length > 0) {

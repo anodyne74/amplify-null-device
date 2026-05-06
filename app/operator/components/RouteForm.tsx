@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StopForm } from '@/app/operator/components/StopForm';
 import { geocodeAddress } from '@/lib/googleMaps';
 import type { Stop } from '@/amplify/types';
@@ -28,7 +28,7 @@ export interface RouteDraftStop {
 }
 
 interface RouteFormProps {
-  customers: Array<{ id: string; name: string; email: string }>;
+  customers: Array<{ id: string; name: string; email: string; addressLine1?: string | null }>;
   onSubmit: (values: {
     customerId: string;
     notes: string;
@@ -47,6 +47,32 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
   const [addingStop, setAddingStop] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  useEffect(() => {
+    const selected = customers.find((c) => c.id === customerId);
+    if (!selected?.addressLine1) {
+      setCustomerAddressOrigin(null);
+      return;
+    }
+
+    let cancelled = false;
+    void geocodeAddress(selected.addressLine1)
+      .then((resolved) => {
+        if (!cancelled) {
+          setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCustomerAddressOrigin(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId, customers]);
 
   const mapStops: Stop[] = stops.map((stop, index) => ({
     id: `draft-${index + 1}`,
@@ -191,6 +217,7 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
             <StopForm
               onSubmit={handleAddStop}
               onCancel={() => setShowAddStop(false)}
+              addressSearchOrigin={customerAddressOrigin}
               isSubmitting={addingStop}
               submitLabel="Add Stop to Route"
             />

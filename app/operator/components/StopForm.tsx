@@ -25,6 +25,8 @@ interface StopFormProps {
     formattedAddress?: string;
   }) => Promise<void>;
   onCancel: () => void;
+  addressSearchOrigin?: { latitude: number; longitude: number } | null;
+  addressSearchRadiusMeters?: number;
   isSubmitting?: boolean;
   error?: string | null;
   submitLabel?: string;
@@ -34,6 +36,8 @@ export function StopForm({
   initialValues,
   onSubmit,
   onCancel,
+  addressSearchOrigin,
+  addressSearchRadiusMeters,
   isSubmitting,
   error,
   submitLabel = 'Add Stop',
@@ -102,6 +106,8 @@ export function StopForm({
             setResolvedAddress(resolved);
             if (resolved) setAddress(resolved.formattedAddress);
           }}
+          searchOrigin={addressSearchOrigin}
+          searchRadiusMeters={addressSearchRadiusMeters}
           className={styles.input}
           disabled={isSubmitting}
           placeholder="Start typing an address…"

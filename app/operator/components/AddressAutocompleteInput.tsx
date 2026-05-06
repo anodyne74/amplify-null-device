@@ -19,6 +19,8 @@ interface AddressAutocompleteInputProps {
   value: string;
   onChange: (value: string) => void;
   onResolved: (resolved: ResolvedAddress | null) => void;
+  searchOrigin?: { latitude: number; longitude: number } | null;
+  searchRadiusMeters?: number;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
@@ -29,6 +31,8 @@ export function AddressAutocompleteInput({
   value,
   onChange,
   onResolved,
+  searchOrigin,
+  searchRadiusMeters = 50000,
   disabled,
   placeholder,
   className,
@@ -84,6 +88,19 @@ export function AddressAutocompleteInput({
     const controller = new AbortController();
     requestAbortRef.current = controller;
 
+    const requestBody: Record<string, unknown> = { input: input.trim() };
+    if (searchOrigin) {
+      requestBody.locationBias = {
+        circle: {
+          center: {
+            latitude: searchOrigin.latitude,
+            longitude: searchOrigin.longitude,
+          },
+          radius: searchRadiusMeters,
+        },
+      };
+    }
+
     fetch('https://places.googleapis.com/v1/places:autocomplete', {
       method: 'POST',
       signal: controller.signal,
@@ -92,7 +109,7 @@ export function AddressAutocompleteInput({
         'X-Goog-Api-Key': apiKey,
         'X-Goog-FieldMask': 'suggestions.placePrediction.placeId,suggestions.placePrediction.text.text',
       },
-      body: JSON.stringify({ input: input.trim() }),
+      body: JSON.stringify(requestBody),
     })
       .then(async (response) => {
         if (!response.ok) {

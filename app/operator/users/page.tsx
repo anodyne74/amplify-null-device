@@ -14,6 +14,7 @@ import styles from '@/app/dashboard.module.css';
 
 type CognitoUser = {
   username?: string;
+  sub?: string;
   enabled?: boolean;
   status?: string;
   firstName?: string;
@@ -45,18 +46,20 @@ export default function UsersAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [selectedUsername, setSelectedUsername] = useState<string>('');
+  const [selectedEmailInput, setSelectedEmailInput] = useState<string>('');
   const [groups, setGroups] = useState<string[]>([]);
 
   // Customer Access section state
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [selectedCustomerRole, setSelectedCustomerRole] = useState<'account_owner' | 'read_only'>('read_only');
   const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>([]);
   const [accessPending, setAccessPending] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [accessSuccess, setAccessSuccess] = useState<string | null>(null);
-  const [newUserSub, setNewUserSub] = useState('');
-  const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserRole, setNewUserRole] = useState<'account_owner' | 'read_only'>('read_only');
+  const [newUserName, setNewUserName] = useState('');
 
   const callAdminApi = useCallback(async (body: Record<string, unknown>) => {
     const session = await fetchAuthSession();
@@ -81,6 +84,11 @@ export default function UsersAdminPage() {
     return payload;
   }, []);
 
+  const resolveUserByEmail = useCallback(async (email: string): Promise<CognitoUser> => {
+    const payload = await callAdminApi({ action: 'getUserByEmail', email });
+    return payload.user as CognitoUser;
+  }, [callAdminApi]);
+
   const loadUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -93,6 +101,7 @@ export default function UsersAdminPage() {
 
       if (fetchedUsers.length > 0 && !selectedUsername && fetchedUsers[0].username) {
         setSelectedUsername(fetchedUsers[0].username);
+        setSelectedEmailInput(fetchedUsers[0].email || fetchedUsers[0].username || '');
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to load users.';
@@ -151,6 +160,15 @@ export default function UsersAdminPage() {
     const result = await listCustomerUsers(customerId);
     if (!result.errors || result.errors.length === 0) {
       setCustomerUsers(result.data as CustomerUser[]);
+      return;
+    }
+
+    setCustomerUsers([]);
+    const message = (result.errors[0] as Error | undefined)?.message;
+    if (message?.includes('CustomerUser model is not available')) {
+      setAccessError('Customer access management is unavailable until backend schema changes are deployed.');
+    } else {
+      setAccessError('Failed to load customer users.');
     }
   }, []);
 
@@ -167,43 +185,89 @@ export default function UsersAdminPage() {
     }
   }, [selectedCustomerId, loadCustomerUsers]);
 
-  const handleAddReadOnlyUser = async () => {
-    if (!newUserSub.trim()) {
-      setAccessError('Cognito user sub is required.');
+  const handleAddCustomerUser = async () => {
+    if (!newUserEmail.trim()) {
+      setAccessError('User email is required.');
       return;
     }
+
+    const resolvedUser = await resolveUserByEmail(newUserEmail.trim()).catch(() => null);
+    if (!resolvedUser?.username || !resolvedUser.sub) {
+      setAccessError('Could not find a Cognito user for that email.');
+      return;
+    }
+
     const owner = customerUsers.find((u) => u.role === 'account_owner');
-    if (!owner) {
-      setAccessError('No account owner assigned for this customer yet. Assign an account owner first via the Customers page.');
+    if (newUserRole === 'read_only' && !owner) {
+      setAccessError('No account owner assigned for this customer yet. Assign a primary contact first.');
       return;
     }
+    if (newUserRole === 'account_owner' && owner && owner.userSub !== resolvedUser.sub) {
+      setAccessError('This customer already has a primary contact. Remove the current owner before assigning a new one.');
+      return;
+    }
+
     setAccessPending(true);
     setAccessError(null);
     setAccessSuccess(null);
 
-    const result = await createCustomerUser({
-      customerId: selectedCustomerId,
-      userSub: newUserSub.trim(),
-      accountOwnerSub: owner.userSub,
-      role: 'read_only',
-      name: newUserName || undefined,
-      email: newUserEmail || undefined,
-    });
+    try {
+      // Ensure customer users belong to customer group.
+      const userGroupsPayload = await callAdminApi({
+        action: 'listGroupsForUser',
+        username: resolvedUser.username,
+      });
+      const userGroups = (userGroupsPayload.groups as string[]) || [];
+      if (!userGroups.includes('customer')) {
+        await callAdminApi({
+          action: 'addUserToGroup',
+          username: resolvedUser.username,
+          groupName: 'customer',
+        });
+      }
 
-    if (result.errors && result.errors.length > 0) {
-      setAccessError('Failed to add user.');
-    } else {
+      const existing = customerUsers.find((u) => u.userSub === resolvedUser.sub);
+      if (!existing) {
+        const result = await createCustomerUser({
+          customerId: selectedCustomerId,
+          userSub: resolvedUser.sub,
+          accountOwnerSub: newUserRole === 'account_owner' ? resolvedUser.sub : (owner?.userSub || resolvedUser.sub),
+          role: newUserRole,
+          name: newUserName || resolvedUser.firstName || undefined,
+          email: newUserEmail.trim().toLowerCase(),
+        });
+
+        if (result.errors && result.errors.length > 0) {
+          setAccessError('Failed to add user to customer.');
+          setAccessPending(false);
+          return;
+        }
+      }
+
       const updated = [...customerUsers];
-      if (result.data) updated.push(result.data as CustomerUser);
+      if (!existing) {
+        updated.push({
+          id: 'temp',
+          customerId: selectedCustomerId,
+          userSub: resolvedUser.sub,
+          accountOwnerSub: newUserRole === 'account_owner' ? resolvedUser.sub : (owner?.userSub || resolvedUser.sub),
+          role: newUserRole,
+          name: newUserName || resolvedUser.firstName || undefined,
+          email: newUserEmail.trim().toLowerCase(),
+        });
+      }
       const viewerSubs = [...new Set(updated.map((u) => u.userSub))];
       await syncViewerSubsForCustomer(selectedCustomerId, viewerSubs);
 
-      setAccessSuccess('User added and access synced to all routes and stops.');
-      setNewUserSub('');
-      setNewUserName('');
+      setAccessSuccess('User assigned to customer and access synced to all routes and stops.');
       setNewUserEmail('');
+      setNewUserRole('read_only');
+      setNewUserName('');
       await loadCustomerUsers(selectedCustomerId);
+    } catch (e) {
+      setAccessError(e instanceof Error ? e.message : 'Failed to assign customer access.');
     }
+
     setAccessPending(false);
   };
 
@@ -232,10 +296,94 @@ export default function UsersAdminPage() {
     setError(null);
     setSuccessMessage(null);
     try {
+      const selectedUser =
+        users.find((u) => u.username === selectedUsername) ||
+        (selectedEmailInput ? await resolveUserByEmail(selectedEmailInput).catch(() => undefined) : undefined);
+
+      if (groupName === 'customer') {
+        if (!selectedUser?.sub) {
+          setError('Unable to resolve selected user details. Refresh users and try again.');
+          setPending(false);
+          return;
+        }
+        if (!selectedCustomerId) {
+          setError('Select a customer before assigning the customer group.');
+          setPending(false);
+          return;
+        }
+
+        const owner = customerUsers.find((u) => u.role === 'account_owner');
+        if (selectedCustomerRole === 'read_only' && !owner) {
+          setError('Select primary contact role first, or assign an account owner for this customer.');
+          setPending(false);
+          return;
+        }
+        if (selectedCustomerRole === 'account_owner' && owner && owner.userSub !== selectedUser.sub) {
+          setError('This customer already has a primary contact. Remove the current owner first.');
+          setPending(false);
+          return;
+        }
+      }
+
       await callAdminApi({ action: 'addUserToGroup', username: selectedUsername, groupName });
+
+      if (groupName === 'customer') {
+        const owner = customerUsers.find((u) => u.role === 'account_owner');
+        if (selectedUser?.sub) {
+          const existing = customerUsers.find((u) => u.userSub === selectedUser.sub);
+          if (!existing) {
+            const customerUserResult = await createCustomerUser({
+              customerId: selectedCustomerId,
+              userSub: selectedUser.sub,
+              accountOwnerSub:
+                selectedCustomerRole === 'account_owner'
+                  ? selectedUser.sub
+                  : (owner?.userSub || selectedUser.sub),
+              role: selectedCustomerRole,
+              name: selectedUser.firstName || undefined,
+              email: selectedUser.email || undefined,
+            });
+
+            if (customerUserResult.errors && customerUserResult.errors.length > 0) {
+              await callAdminApi({
+                action: 'removeUserFromGroup',
+                username: selectedUsername,
+                groupName: 'customer',
+              });
+              setError('Failed to assign customer access. Customer group assignment was rolled back.');
+              setPending(false);
+              return;
+            }
+          }
+
+          const updatedUsers = existing
+            ? customerUsers
+            : [
+                ...customerUsers,
+                {
+                  id: 'temp',
+                  customerId: selectedCustomerId,
+                  userSub: selectedUser.sub,
+                  accountOwnerSub:
+                    selectedCustomerRole === 'account_owner'
+                      ? selectedUser.sub
+                      : (owner?.userSub || selectedUser.sub),
+                  role: selectedCustomerRole,
+                  name: selectedUser.firstName || undefined,
+                  email: selectedUser.email || undefined,
+                },
+              ];
+          await syncViewerSubsForCustomer(
+            selectedCustomerId,
+            [...new Set(updatedUsers.map((u) => u.userSub))]
+          );
+          await loadCustomerUsers(selectedCustomerId);
+        }
+      }
+
       await loadGroups(selectedUsername);
       setSuccessMessage(
-        `Assigned ${groupName} to ${selectedUsername}. The user should sign out and sign back in to refresh permissions.`
+        `Assigned ${groupName} to ${selectedEmailInput || selectedUsername}. The user should sign out and sign back in to refresh permissions.`
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to assign group.');
@@ -252,7 +400,7 @@ export default function UsersAdminPage() {
       await callAdminApi({ action: 'removeUserFromGroup', username: selectedUsername, groupName });
       await loadGroups(selectedUsername);
       setSuccessMessage(
-        `Removed ${groupName} from ${selectedUsername}. The user should sign out and sign back in to refresh permissions.`
+        `Removed ${groupName} from ${selectedEmailInput || selectedUsername}. The user should sign out and sign back in to refresh permissions.`
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to remove group.');
@@ -266,7 +414,8 @@ export default function UsersAdminPage() {
         <h1 className={styles.heading}>Users</h1>
         <div className={styles.infoPanel}>
           <h3>Manage User Groups</h3>
-          <p className={styles.welcome}>Assign and revoke customer, operator, and administrator groups.</p>
+          <p className={styles.welcome}>Assign and revoke customer, operator, and administrator groups by user email.</p>
+          <p className={styles.welcome}>Users must sign up via Request Access and set their own password during sign-up.</p>
 
           {error && <p className={styles.welcome}>{error}</p>}
           {successMessage && <p className={styles.welcome}>{successMessage}</p>}
@@ -279,19 +428,28 @@ export default function UsersAdminPage() {
                 <input
                   id="userSelect"
                   type="text"
-                  value={selectedUsername}
-                  onChange={(event) => setSelectedUsername(event.target.value.trim())}
-                  placeholder="Enter Cognito username"
+                  value={selectedEmailInput}
+                  onChange={(event) => setSelectedEmailInput(event.target.value.trim())}
+                  placeholder="Enter user email"
                   disabled={pending}
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    if (selectedUsername) {
-                      void loadGroups(selectedUsername);
+                  onClick={async () => {
+                    if (!selectedEmailInput) return;
+                    try {
+                      const resolved = await resolveUserByEmail(selectedEmailInput);
+                      if (!resolved.username) {
+                        setError('Unable to resolve username for this email.');
+                        return;
+                      }
+                      setSelectedUsername(resolved.username);
+                      await loadGroups(resolved.username);
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : 'Failed to resolve user by email.');
                     }
                   }}
-                  disabled={pending || !selectedUsername}
+                  disabled={pending || !selectedEmailInput}
                 >
                   Load Groups
                 </button>
@@ -301,13 +459,18 @@ export default function UsersAdminPage() {
                 <select
                   id="userSelect"
                   value={selectedUsername}
-                  onChange={(event) => setSelectedUsername(event.target.value)}
+                  onChange={(event) => {
+                    const username = event.target.value;
+                    setSelectedUsername(username);
+                    const selected = users.find((u) => u.username === username);
+                    setSelectedEmailInput(selected?.email || selected?.username || '');
+                  }}
                   disabled={loading || pending}
                 >
                   {users.map((user) => (
                     <option key={user.username} value={user.username}>
                       {user.firstName ? `${user.firstName} - ` : ''}
-                      {user.username}
+                      {user.email || user.username}
                       {user.status ? ` (${user.status})` : ''}
                     </option>
                   ))}
@@ -326,6 +489,23 @@ export default function UsersAdminPage() {
                   Email: {users.find((u) => u.username === selectedUsername)?.email}
                 </p>
               )}
+
+              {selectedCustomerId && (
+                <div>
+                  <label htmlFor="customerRoleForGroup">Customer role when assigning customer group</label>
+                  <br />
+                  <select
+                    id="customerRoleForGroup"
+                    value={selectedCustomerRole}
+                    onChange={(e) => setSelectedCustomerRole(e.target.value as 'account_owner' | 'read_only')}
+                    disabled={pending}
+                  >
+                    <option value="account_owner">Primary contact (account owner)</option>
+                    <option value="read_only">Read-only</option>
+                  </select>
+                </div>
+              )}
+
               <h4>Current Groups</h4>
               {groups.length === 0 ? (
                 <p className={styles.welcome}>No groups assigned.</p>
@@ -377,8 +557,8 @@ export default function UsersAdminPage() {
         <div className={styles.infoPanel}>
           <h3>Customer Access</h3>
           <p className={styles.welcome}>
-            Assign read-only users to a customer. Read-only users can view routes and stops but cannot
-            access invoices. The account owner is assigned via the Customers page.
+            Customer-group users must be assigned to a customer. Assign each user by email as either
+            primary contact (account owner) or read-only.
           </p>
 
           {accessError && <p className={styles.welcome}>{accessError}</p>}
@@ -409,10 +589,8 @@ export default function UsersAdminPage() {
                   {customerUsers.map((cu) => (
                     <li key={cu.id}>
                       <strong>{cu.role === 'account_owner' ? 'Owner' : 'Read-only'}:</strong>{' '}
-                      {cu.name ?? cu.userSub}
+                      {cu.name ?? cu.email ?? 'Unnamed user'}
                       {cu.email ? ` (${cu.email})` : ''}
-                      {' — '}
-                      <code>{cu.userSub}</code>
                       {cu.role !== 'account_owner' && (
                         <>
                           {' '}
@@ -430,15 +608,24 @@ export default function UsersAdminPage() {
                 </ul>
               )}
 
-              <h4>Add read-only user</h4>
+              <h4>Add customer user</h4>
               <p className={styles.welcome}>
-                Enter the user&apos;s Cognito sub (UUID). An account owner must already be assigned before adding read-only users.
+                Enter the user email. Users in the customer group must be assigned to a customer.
               </p>
-              <input
-                value={newUserSub}
-                onChange={(e) => setNewUserSub(e.target.value)}
-                placeholder="Cognito user sub (UUID)"
+              <select
+                value={newUserRole}
+                onChange={(e) => setNewUserRole(e.target.value as 'account_owner' | 'read_only')}
                 disabled={accessPending}
+              >
+                <option value="account_owner">Primary contact (account owner)</option>
+                <option value="read_only">Read-only</option>
+              </select>
+              <input
+                value={newUserEmail}
+                onChange={(e) => setNewUserEmail(e.target.value)}
+                placeholder="User email"
+                disabled={accessPending}
+                type="email"
               />
               <input
                 value={newUserName}
@@ -446,19 +633,12 @@ export default function UsersAdminPage() {
                 placeholder="Display name (optional)"
                 disabled={accessPending}
               />
-              <input
-                value={newUserEmail}
-                onChange={(e) => setNewUserEmail(e.target.value)}
-                placeholder="Email (optional)"
-                type="email"
-                disabled={accessPending}
-              />
               <button
                 type="button"
-                onClick={() => void handleAddReadOnlyUser()}
-                disabled={accessPending || !newUserSub.trim()}
+                onClick={() => void handleAddCustomerUser()}
+                disabled={accessPending || !newUserEmail.trim()}
               >
-                {accessPending ? 'Saving...' : 'Add Read-Only User'}
+                {accessPending ? 'Saving...' : 'Add Customer User'}
               </button>
             </div>
           )}

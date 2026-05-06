@@ -3,7 +3,7 @@
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PortalLayout from '@/app/components/PortalLayout';
-import { getUserEmail } from '@/lib/amplify-config';
+import { getUserDisplayName } from '@/lib/amplify-config';
 import { useUserGroups } from '@/lib/use-user-groups';
 
 const OPERATOR_NAV = [
@@ -26,7 +26,7 @@ const ADMIN_NAV = [
 export default function OperatorLayout({ children }: { children: React.ReactNode }) {
   const { signOut, user } = useAuthenticator();
   const { isAdmin } = useUserGroups();
-  const userEmail = user ? getUserEmail(user) ?? '' : '';
+  const userDisplayName = user ? getUserDisplayName(user) ?? '' : '';
   const navItems = isAdmin ? [...OPERATOR_NAV, ...ADMIN_NAV] : OPERATOR_NAV;
 
   return (
@@ -35,7 +35,7 @@ export default function OperatorLayout({ children }: { children: React.ReactNode
         variant="operator"
         portalTitle="Operator Portal"
         navItems={navItems}
-        userEmail={userEmail}
+        userEmail={userDisplayName}
         onLogout={signOut}
       >
         {children}

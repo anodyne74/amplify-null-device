@@ -79,6 +79,7 @@ function RouteDetailContent() {
 
   const [route, setRoute] = useState<Route | null>(null);
   const [customerName, setCustomerName] = useState<string>('');
+  const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +98,10 @@ function RouteDetailContent() {
   const [transitioning, setTransitioning] = useState(false);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [transitionError, setTransitionError] = useState<string | null>(null);
+
+  // Mobile execution: per-stop completion notes
+  const [stopCompletionNotes, setStopCompletionNotes] = useState<Record<string, string>>({});
+  const [stopCompletionPhoto, setStopCompletionPhoto] = useState<Record<string, File | null>>({});
 
   const fetchStops = useCallback(async () => {
     const client = generateClient<Schema>();
@@ -127,13 +132,45 @@ function RouteDetailContent() {
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
     try {
       const completedAt = new Date().toISOString();
-      const { errors } = await updateStopExecution(stopId, { actualDepartureTime: completedAt });
+      const notes = stopCompletionNotes[stopId];
+      const updatePayload: { actualDepartureTime: string; notes?: string } = { actualDepartureTime: completedAt };
+      if (notes?.trim()) {
+        updatePayload.notes = notes.trim();
+      }
+      const { errors } = await updateStopExecution(stopId, updatePayload);
       if (!errors || errors.length === 0) {
-        setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, actualDepartureTime: completedAt } : s)));
+        setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, actualDepartureTime: completedAt, ...(notes?.trim() ? { notes: notes.trim() } : {}) } : s)));
+        setStopCompletionNotes((prev) => { const n = { ...prev }; delete n[stopId]; return n; });
+        setStopCompletionPhoto((prev) => { const n = { ...prev }; delete n[stopId]; return n; });
       }
     } catch { /* ignore */ }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, []);
+  }, [stopCompletionNotes]);
+
+  const handleSkipStop = useCallback(async (stopId: string) => {
+    setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
+    try {
+      const now = new Date().toISOString();
+      const existingStop = stops.find((s) => s.id === stopId);
+      const existingNotes = existingStop?.notes ?? '';
+      const skippedNotes = existingNotes ? `[SKIPPED] ${existingNotes}` : '[SKIPPED]';
+      const { errors } = await updateStopExecution(stopId, {
+        actualArrivalTime: now,
+        actualDepartureTime: now,
+        notes: skippedNotes,
+      });
+      if (!errors || errors.length === 0) {
+        setStops((prev) =>
+          prev.map((s) =>
+            s.id === stopId
+              ? { ...s, actualArrivalTime: now, actualDepartureTime: now, notes: skippedNotes }
+              : s
+          )
+        );
+      }
+    } catch { /* ignore */ }
+    setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
+  }, [stops]);
 
   const persistStopOrder = useCallback(
     async (orderedStops: Stop[]) => {
@@ -186,7 +223,19 @@ function RouteDetailContent() {
 
       const customerResult = await getCustomer(loadedRoute.customerId);
       if (!customerResult.errors || customerResult.errors.length === 0) {
-        setCustomerName((customerResult.data as { name?: string } | null)?.name || 'Unknown customer');
+        const customer = customerResult.data as { name?: string; addressLine1?: string | null } | null;
+        setCustomerName(customer?.name || 'Unknown customer');
+
+        if (customer?.addressLine1) {
+          try {
+            const resolved = await geocodeAddress(customer.addressLine1);
+            setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
+          } catch {
+            setCustomerAddressOrigin(null);
+          }
+        } else {
+          setCustomerAddressOrigin(null);
+        }
       }
 
       await fetchStops();
@@ -541,6 +590,7 @@ function RouteDetailContent() {
                     setShowAddStop(false);
                     setAddStopError(null);
                   }}
+                  addressSearchOrigin={customerAddressOrigin}
                   isSubmitting={addingStop}
                   error={addStopError}
                   submitLabel="Add Stop"
@@ -574,6 +624,7 @@ function RouteDetailContent() {
                           setEditingStopId(null);
                           setEditStopError(null);
                         }}
+                        addressSearchOrigin={customerAddressOrigin}
                         isSubmitting={editingStop}
                         error={editStopError}
                         submitLabel="Save Changes"
@@ -673,19 +724,52 @@ function RouteDetailContent() {
                     {route?.status === 'active' && (
                       <div className={styles.stopExecution}>
                         {!stop.actualArrivalTime && (
-                          <button
-                            onClick={() => { void handleStopArrived(stop.id); }}
-                            className={styles.btnArrived}
-                            disabled={!!stopExecuting[stop.id]}
-                          >
-                            {stopExecuting[stop.id] ? 'Saving…' : 'Arrived'}
-                          </button>
+                          <div className={styles.execActionRow}>
+                            <button
+                              onClick={() => { void handleStopArrived(stop.id); }}
+                              className={styles.btnArrived}
+                              disabled={!!stopExecuting[stop.id]}
+                            >
+                              {stopExecuting[stop.id] ? 'Saving…' : '📍 Arrived'}
+                            </button>
+                            <button
+                              onClick={() => { void handleSkipStop(stop.id); }}
+                              className={styles.btnSkip}
+                              disabled={!!stopExecuting[stop.id]}
+                            >
+                              Skip Stop
+                            </button>
+                          </div>
                         )}
                         {stop.actualArrivalTime && !stop.actualDepartureTime && (
-                          <>
+                          <div className={styles.execCompletionPanel}>
                             <span className={styles.execTimestamp}>
-                              Arrived: {formatDateTime(stop.actualArrivalTime)}
+                              ✓ Arrived: {formatDateTime(stop.actualArrivalTime)}
                             </span>
+                            <textarea
+                              className={styles.execNotesInput}
+                              placeholder="Add completion notes (optional)…"
+                              rows={2}
+                              value={stopCompletionNotes[stop.id] ?? ''}
+                              onChange={(e) =>
+                                setStopCompletionNotes((prev) => ({ ...prev, [stop.id]: e.target.value }))
+                              }
+                            />
+                            <label className={styles.execPhotoLabel}>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className={styles.execPhotoInput}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] ?? null;
+                                  setStopCompletionPhoto((prev) => ({ ...prev, [stop.id]: file }));
+                                }}
+                              />
+                              {stopCompletionPhoto[stop.id]
+                                ? `📷 ${stopCompletionPhoto[stop.id]!.name}`
+                                : '📷 Attach Photo (optional)'}
+                            </label>
                             <button
                               onClick={() => { void handleStopCompleted(stop.id); }}
                               className={styles.btnExecComplete}
@@ -694,18 +778,24 @@ function RouteDetailContent() {
                               {stopExecuting[stop.id]
                                 ? 'Saving…'
                                 : stop.serviceType === 'pickup'
-                                ? 'Collected Signs'
-                                : 'Placed Signs'}
+                                ? '✓ Collected Signs'
+                                : '✓ Placed Signs'}
                             </button>
-                          </>
+                          </div>
                         )}
                         {stop.actualArrivalTime && stop.actualDepartureTime && (
                           <div className={styles.execDone}>
-                            <span>Arrived: {formatDateTime(stop.actualArrivalTime)}</span>
-                            <span>
-                              {stop.serviceType === 'pickup' ? 'Collected' : 'Placed'}:{' '}
-                              {formatDateTime(stop.actualDepartureTime)}
-                            </span>
+                            {stop.notes?.startsWith('[SKIPPED]') ? (
+                              <span className={styles.execSkippedBadge}>⏭ Skipped</span>
+                            ) : (
+                              <>
+                                <span>✓ Arrived: {formatDateTime(stop.actualArrivalTime)}</span>
+                                <span>
+                                  ✓ {stop.serviceType === 'pickup' ? 'Collected' : 'Placed'}:{' '}
+                                  {formatDateTime(stop.actualDepartureTime)}
+                                </span>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>

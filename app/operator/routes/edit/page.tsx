@@ -17,7 +17,7 @@ import type { Schema } from '@/amplify/data/resource';
 import type { Route, Stop } from '@/amplify/types';
 import styles from './page.module.css';
 
-type CustomerOption = { id: string; name: string; email: string };
+type CustomerOption = { id: string; name: string; email: string; addressLine1?: string | null };
 
 const RouteStopsMap = dynamic(
   () => import('@/app/operator/components/RouteStopsMap').then((mod) => mod.RouteStopsMap),
@@ -47,6 +47,7 @@ function RouteEditContent() {
   const [routeCode, setRouteCode] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [notes, setNotes] = useState('');
+  const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
 
   const fetchStops = useCallback(async () => {
     if (!routeId) return;
@@ -123,6 +124,7 @@ function RouteEditContent() {
             id: c.id,
             name: c.name,
             email: c.email,
+            addressLine1: c.addressLine1 ?? null,
           }))
         );
       }
@@ -134,6 +136,31 @@ function RouteEditContent() {
 
     void load();
   }, [routeId, fetchStops]);
+
+  useEffect(() => {
+    const selected = customers.find((c) => c.id === customerId);
+    if (!selected?.addressLine1) {
+      setCustomerAddressOrigin(null);
+      return;
+    }
+
+    let cancelled = false;
+    void geocodeAddress(selected.addressLine1)
+      .then((resolved) => {
+        if (!cancelled) {
+          setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCustomerAddressOrigin(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId, customers]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -401,6 +428,7 @@ function RouteEditContent() {
             <StopForm
               onSubmit={handleAddStop}
               onCancel={() => setShowAddStop(false)}
+              addressSearchOrigin={customerAddressOrigin}
               isSubmitting={stopSaving}
               submitLabel="Add Stop"
             />
@@ -427,6 +455,7 @@ function RouteEditContent() {
                       }}
                       onSubmit={handleEditStop}
                       onCancel={() => setEditingStopId(null)}
+                      addressSearchOrigin={customerAddressOrigin}
                       isSubmitting={stopSaving}
                       submitLabel="Save Stop"
                     />

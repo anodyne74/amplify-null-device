@@ -472,15 +472,16 @@
 }
 
 .btnArrived {
-  padding: 8px 18px;
+  padding: 12px 20px;
   background-color: var(--nd-status-planned);
   color: var(--nd-text-inverse);
   border: none;
   border-radius: var(--nd-radius-sm);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: opacity var(--nd-transition-fast);
+  min-height: 48px;
 }
 
 .btnArrived:hover {
@@ -498,15 +499,16 @@
 }
 
 .btnExecComplete {
-  padding: 8px 18px;
+  padding: 12px 20px;
   background-color: var(--nd-status-active);
   color: var(--nd-text-inverse);
   border: none;
   border-radius: var(--nd-radius-sm);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: opacity var(--nd-transition-fast);
+  min-height: 48px;
 }
 
 .btnExecComplete:hover {
@@ -525,4 +527,120 @@
   font-size: 12px;
   color: var(--nd-status-active);
   font-weight: 500;
+}
+
+/* Mobile-first execution action rows */
+.execActionRow {
+  display: flex;
+  gap: var(--nd-space-sm);
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.btnSkip {
+  padding: 12px 20px;
+  background-color: transparent;
+  color: var(--nd-text-secondary);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+  min-height: 48px;
+}
+
+.btnSkip:hover {
+  opacity: 0.8;
+}
+
+.btnSkip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Completion panel shown after arrival */
+.execCompletionPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-space-sm);
+  width: 100%;
+}
+
+.execNotesInput {
+  width: 100%;
+  padding: 10px 12px;
+  background-color: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  color: var(--nd-text-primary);
+  font-size: 14px;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.execNotesInput::placeholder {
+  color: var(--nd-text-muted);
+}
+
+.execPhotoLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px dashed var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  color: var(--nd-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color var(--nd-transition-fast);
+}
+
+.execPhotoLabel:hover {
+  border-color: var(--nd-operator-accent);
+  color: var(--nd-operator-accent);
+}
+
+.execPhotoInput {
+  display: none;
+}
+
+.execSkippedBadge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nd-text-muted);
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--nd-border-default);
+}
+
+@media (max-width: 600px) {
+  .stopCard {
+    grid-template-columns: 40px 1fr;
+  }
+
+  .stopActions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .btnArrived,
+  .btnExecComplete,
+  .btnSkip {
+    flex: 1;
+    min-height: 52px;
+    font-size: 15px;
+  }
+
+  .transitionRow .btnStart,
+  .transitionRow .btnComplete {
+    width: 100%;
+    min-height: 52px;
+    font-size: 16px;
+  }
+
+  .transitionRow {
+    flex-direction: column;
+  }
 }

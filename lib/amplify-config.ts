@@ -74,7 +74,7 @@ export function isAdmin(user: any): boolean {
  */
 export function getUserEmail(user: any): string | undefined {
   if (!user) return undefined;
-  return user.signInUserSession?.idToken?.payload?.email;
+  return user.signInDetails?.loginId || user.signInUserSession?.idToken?.payload?.email;
 }
 
 /**
@@ -82,7 +82,23 @@ export function getUserEmail(user: any): string | undefined {
  */
 export function getUsername(user: any): string | undefined {
   if (!user) return undefined;
-  return user.username || user.signInUserSession?.idToken?.payload?.sub;
+  return user.username || user.userId || user.signInUserSession?.idToken?.payload?.sub;
+}
+
+/**
+ * Get a display-friendly user name, preferring Cognito first name claim.
+ */
+export function getUserDisplayName(user: any): string | undefined {
+  if (!user) return undefined;
+
+  const firstName =
+    user.attributes?.given_name ||
+    user.signInUserSession?.idToken?.payload?.given_name;
+  if (typeof firstName === 'string' && firstName.trim()) {
+    return firstName.trim();
+  }
+
+  return getUserEmail(user) || getUsername(user);
 }
 
 /**

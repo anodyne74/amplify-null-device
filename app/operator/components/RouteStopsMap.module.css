@@ -27,39 +27,10 @@
   font-weight: 700;
 }
 
-.addressRail {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.addressItem {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  background: var(--nd-bg-surface);
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-sm);
-}
-
-.sequenceChip {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.addressText {
+.deviceLabel {
   color: var(--nd-text-primary);
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {

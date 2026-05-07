@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { RouteForm, type RouteDraftStop } from '@/app/operator/components/RouteForm';
+import { extractScheduleText } from '@/lib/extractScheduleText';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { createRoute, createStop } from '@/lib/queries';
@@ -50,6 +51,9 @@ export default function NewRoutePage() {
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [manualRouteCode, setManualRouteCode] = useState('');
+  const [importRouteCode, setImportRouteCode] = useState('');
+  const [routeCodeInitialized, setRouteCodeInitialized] = useState(false);
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'import' | 'manual'>('import');
@@ -64,6 +68,22 @@ export default function NewRoutePage() {
   const [parseWarnings, setParseWarnings] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (routeCodeInitialized) return;
+
+    let cancelled = false;
+    void generateNextRouteCode().then((code) => {
+      if (cancelled) return;
+      setManualRouteCode(code);
+      setImportRouteCode(code);
+      setRouteCodeInitialized(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [routeCodeInitialized]);
 
   useEffect(() => {
     async function fetchCustomers() {
@@ -89,6 +109,7 @@ export default function NewRoutePage() {
   }, []);
 
   const handleSubmit = async (values: {
+    routeCode: string;
     customerId: string;
     notes: string;
     stops: RouteDraftStop[];
@@ -96,9 +117,8 @@ export default function NewRoutePage() {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      const routeCode = await generateNextRouteCode();
       const result = await createRoute({
-        routeCode,
+        routeCode: values.routeCode.trim(),
         customerId: values.customerId,
         status: 'planned',
         notes: values.notes || undefined,
@@ -163,12 +183,14 @@ export default function NewRoutePage() {
     setParseWarnings([]);
     setImportError(null);
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const text = (ev.target?.result as string) ?? '';
-        setImportText(text);
-      };
-      reader.readAsText(file);
+      void extractScheduleText(file)
+        .then((text) => {
+          setImportText(text);
+        })
+        .catch((error) => {
+          console.error('Failed to extract schedule text:', error);
+          setImportError('Could not read the uploaded file. PDFs must contain selectable text.');
+        });
     }
   };
 
@@ -190,6 +212,7 @@ export default function NewRoutePage() {
 
   const handleImportSubmit = async () => {
     if (!importCustomerId) { setImportError('Select a customer.'); return; }
+    if (!importRouteCode.trim()) { setImportError('Enter a route ID.'); return; }
     if (!parsedStops || parsedStops.length === 0) { setImportError('Parse the schedule first.'); return; }
 
     setIsUploading(true);
@@ -210,9 +233,8 @@ export default function NewRoutePage() {
       }
 
       // 2. Create route
-      const routeCode = await generateNextRouteCode();
       const routeResult = await createRoute({
-        routeCode,
+        routeCode: importRouteCode.trim(),
         customerId: importCustomerId,
         status: 'planned',
         notes: importNotes || undefined,
@@ -310,6 +332,14 @@ export default function NewRoutePage() {
                   placeholder="e.g. Open houses 28 March 2026"
                 />
 
+                <label className={styles.fieldLabel}>Route ID</label>
+                <input
+                  className={styles.input}
+                  value={importRouteCode}
+                  onChange={(e) => setImportRouteCode(e.target.value)}
+                  placeholder="e.g. W18-26-001"
+                />
+
                 <label className={styles.fieldLabel}>
                   Upload Schedule File
                   <span className={styles.fieldHint}> (PDF, CSV, TXT — stored and linked to route)</span>
@@ -318,7 +348,7 @@ export default function NewRoutePage() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.csv,.txt,.xlsx,.xls"
+                    accept=".pdf,.csv,.txt"
                     style={{ display: 'none' }}
                     onChange={handleFileSelected}
                   />
@@ -422,6 +452,7 @@ export default function NewRoutePage() {
             {activeTab === 'manual' && (
               <RouteForm
                 customers={customers}
+                initialRouteCode={manualRouteCode}
                 onSubmit={handleSubmit}
                 onCancel={handleCancel}
                 isSubmitting={isSubmitting}

@@ -142,6 +142,7 @@ export default function InvoicesPage() {
             {/* Table Header */}
             <div className={styles.tableHeader}>
               <div className={styles.colInvoiceNum}>Invoice #</div>
+              <div className={styles.colRoute}>Route</div>
               <div className={styles.colDate}>Date</div>
               <div className={styles.colPeriod}>Period</div>
               <div className={styles.colAmount}>Amount</div>

@@ -4,6 +4,17 @@
   margin: 0 auto;
 }
 
+.routeLink {
+  color: var(--nd-accent-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.routeLink:hover {
+  text-decoration: underline;
+}
+
 .errorWrapper {
   padding: var(--nd-space-lg);
   max-width: 1200px;

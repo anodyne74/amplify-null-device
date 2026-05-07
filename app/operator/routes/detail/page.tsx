@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useAuthenticator } from '@aws-amplify/ui-react';
@@ -13,7 +13,7 @@ import { StopForm } from '@/app/operator/components/StopForm';
 import { isAdmin } from '@/lib/amplify-config';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import { createStop, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
+import { createStop, deleteRoute, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import type { Route, Stop } from '@/amplify/types';
@@ -71,7 +71,21 @@ function formatRouteDuration(route: Route) {
   return '—';
 }
 
+function isStopCompleted(stop: Stop) {
+  return Boolean(stop.actualDepartureTime);
+}
+
+function getStopStatusLabel(stop: Stop) {
+  if (stop.notes?.startsWith('[SKIPPED]')) return 'Signs skipped';
+  if (stop.actualDepartureTime) {
+    return stop.serviceType === 'pickup' ? 'Signs collected' : 'Signs placed';
+  }
+  if (stop.actualArrivalTime) return 'At stop';
+  return 'Signs pending';
+}
+
 function RouteDetailContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get('id') ?? '';
   const { user } = useAuthenticator();
@@ -96,6 +110,7 @@ function RouteDetailContent() {
   const [reorderError, setReorderError] = useState<string | null>(null);
 
   const [transitioning, setTransitioning] = useState(false);
+  const [deletingRoute, setDeletingRoute] = useState(false);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [transitionError, setTransitionError] = useState<string | null>(null);
 
@@ -476,6 +491,31 @@ function RouteDetailContent() {
     await reorderStops(reordered);
   };
 
+  const handleDeleteRoute = async () => {
+    if (!route || !canManagePlanning || deletingRoute) return;
+
+    const confirmed = window.confirm(
+      `Delete route ${route.routeCode || route.id.slice(0, 8)}? This will also delete all stops on the route.`
+    );
+    if (!confirmed) return;
+
+    setDeletingRoute(true);
+    setError(null);
+
+    const result = await deleteRoute(route.id);
+    if (result.errors && result.errors.length > 0) {
+      setError('Failed to delete route.');
+      setDeletingRoute(false);
+      return;
+    }
+
+    router.push('/operator/routes');
+  };
+
+  const planningLocked = route?.status !== 'planned';
+  const visibleStops = route?.status === 'active' ? stops.filter((stop) => !isStopCompleted(stop)) : stops;
+  const topVisibleStopId = visibleStops[0]?.id ?? null;
+
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
   return (
@@ -503,6 +543,17 @@ function RouteDetailContent() {
               <Link href={`/operator/routes/edit?id=${route.id}`} className={styles.btnRouteEdit}>
                 Edit Route
               </Link>
+              {canManagePlanning && (
+                <button
+                  onClick={() => {
+                    void handleDeleteRoute();
+                  }}
+                  className={styles.btnRouteDelete}
+                  disabled={deletingRoute}
+                >
+                  {deletingRoute ? 'Deleting...' : 'Delete Route'}
+                </button>
+              )}
             </div>
 
             <div className={styles.routeInfoGrid}>
@@ -557,9 +608,9 @@ function RouteDetailContent() {
           <div className={styles.stopsSection}>
             <div className={styles.stopsHeader}>
               <h2 className={styles.stopsHeading}>
-                Stops ({stops.length})
+                Stops ({visibleStops.length})
               </h2>
-              {canManagePlanning && !showAddStop && (
+              {canManagePlanning && !planningLocked && !showAddStop && (
                 <button
                   onClick={() => setShowAddStop(true)}
                   className={styles.btnAddStop}
@@ -570,18 +621,18 @@ function RouteDetailContent() {
             </div>
 
             <div className={styles.mapSection}>
-              <h3 className={styles.mapHeading}>Route Map and Ordered Addresses</h3>
-              <RouteStopsMap stops={stops} />
+              <h3 className={styles.mapHeading}>Route Map</h3>
+              <RouteStopsMap stops={stops} activeStopId={topVisibleStopId} />
             </div>
 
-            {canManagePlanning && (
+            {canManagePlanning && !planningLocked && (
               <div className={styles.reorderHint}>Drag and drop stop cards to change sequence.</div>
             )}
             {reordering && <div className={styles.reorderStatus}>Saving updated stop order...</div>}
             {reorderError && <div className={styles.errorBanner}>{reorderError}</div>}
 
             {/* Add Stop Form */}
-            {showAddStop && (
+            {showAddStop && !planningLocked && (
               <div className={styles.formContainer}>
                 <h3 className={styles.formHeading}>Add Stop</h3>
                 <StopForm
@@ -598,6 +649,12 @@ function RouteDetailContent() {
               </div>
             )}
 
+            {visibleStops.length === 0 && !showAddStop && route?.status === 'active' && (
+              <div className={styles.emptyState}>
+                All stops are complete. You can now complete the route.
+              </div>
+            )}
+
             {stops.length === 0 && !showAddStop && (
               <div className={styles.emptyState}>
                 No stops yet. Click &quot;Add Stop&quot; to add the first one.
@@ -605,7 +662,7 @@ function RouteDetailContent() {
             )}
 
             <div className={styles.stopsList}>
-              {stops.map((stop, index) => {
+              {visibleStops.map((stop, index) => {
                 if (editingStopId === stop.id) {
                   return (
                     <div key={stop.id} className={styles.formContainer}>
@@ -636,15 +693,16 @@ function RouteDetailContent() {
                 const svcKey = (stop.serviceType as string) || 'delivery';
                 const stopCardClass = { delivery: styles.cardDelivery, pickup: styles.cardPickup, inspection: styles.cardInspection }[svcKey] ?? '';
                 const stopCircleClass = { delivery: styles.circleDelivery, pickup: styles.circlePickup, inspection: styles.circleInspection }[svcKey] ?? '';
-                const stopSvcBadgeClass = { delivery: styles.svcBadgeDelivery, pickup: styles.svcBadgePickup, inspection: styles.svcBadgeInspection }[svcKey] ?? '';
+                const isTopVisibleStop = stop.id === topVisibleStopId;
+                const completedStop = isStopCompleted(stop);
                 return (
                   <div
                     key={stop.id}
-                    className={`${styles.stopCard} ${stopCardClass} ${draggingStopId === stop.id ? styles.stopCardDragging : ''}`}
-                    draggable={canManagePlanning && !reordering}
+                    className={`${styles.stopCard} ${stopCardClass} ${isTopVisibleStop ? styles.stopCardTop : ''} ${completedStop ? styles.stopCardCompleted : ''} ${draggingStopId === stop.id ? styles.stopCardDragging : ''}`}
+                    draggable={canManagePlanning && !planningLocked && !reordering}
                     onDragStart={() => setDraggingStopId(stop.id)}
                     onDragOver={(event) => {
-                      if (canManagePlanning) {
+                      if (canManagePlanning && !planningLocked) {
                         event.preventDefault();
                       }
                     }}
@@ -663,27 +721,11 @@ function RouteDetailContent() {
                       <div className={styles.stopAddress}>
                         {stop.formattedAddress || stop.address}
                       </div>
-                      <span className={`${styles.svcBadge} ${stopSvcBadgeClass}`}>
-                        {stop.serviceType || 'delivery'}
-                      </span>
-                      {typeof stop.numberOfSigns === 'number' && (
-                        <div className={styles.stopEta}>Signs: {stop.numberOfSigns}</div>
-                      )}
-                      {stop.agent && (
-                        <div className={styles.stopEta}>Agent: {stop.agent}</div>
-                      )}
-                      {stop.isAuction && (
-                        <span className={styles.auctionBadge}>Auction</span>
-                      )}
-                      {stop.notes && (
-                        <div className={styles.stopNotes}>
-                          {stop.notes}
-                        </div>
-                      )}
+                      <div className={styles.stopStatus}>{getStopStatusLabel(stop)}</div>
                     </div>
 
                     {/* Actions */}
-                    {canManagePlanning && (
+                    {canManagePlanning && !planningLocked && (
                       <div className={styles.stopActions}>
                         <button
                           onClick={() => {
@@ -699,7 +741,7 @@ function RouteDetailContent() {
                             void handleMoveStop(stop.id, 'down');
                           }}
                           className={styles.btnReorder}
-                          disabled={index === stops.length - 1 || reordering}
+                          disabled={index === visibleStops.length - 1 || reordering}
                         >
                           Move Down
                         </button>

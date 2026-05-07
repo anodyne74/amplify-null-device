@@ -16,13 +16,14 @@
     "generate:config": "node scripts/generate-amplify-outputs-from-backend.js"
   },
   "dependencies": {
-    "@aws-sdk/client-cognito-identity-provider": "^3.540.0",
-    "aws-jwt-verify": "^5.1.1",
     "@aws-amplify/ui-react": "^6.13.2",
+    "@aws-sdk/client-cognito-identity-provider": "^3.540.0",
     "@types/leaflet": "^1.9.12",
     "aws-amplify": "^6.15.9",
+    "aws-jwt-verify": "^5.1.1",
     "leaflet": "^1.9.4",
     "next": "^15.5.9",
+    "pdfjs-dist": "^4.10.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-leaflet": "^4.2.1"

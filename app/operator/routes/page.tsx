@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import { isAdmin } from '@/lib/amplify-config';
+import { deleteRoute } from '@/lib/queries';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import type { Route, RouteStatus } from '@/amplify/types';
@@ -44,11 +47,15 @@ function formatDuration(route: Route) {
 }
 
 export default function OperatorRoutesPage() {
+  const { user } = useAuthenticator();
+  const canDeleteRoutes = isAdmin(user);
+
   const [routes, setRoutes] = useState<Route[]>([]);
   const [customersById, setCustomersById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [deletingRouteId, setDeletingRouteId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchRoutes() {
@@ -83,6 +90,29 @@ export default function OperatorRoutesPage() {
 
   const filtered =
     statusFilter === 'all' ? routes : routes.filter((r) => r.status === statusFilter);
+
+  const handleDeleteRoute = async (route: Route) => {
+    if (!canDeleteRoutes || deletingRouteId) return;
+
+    const routeLabel = route.routeCode || route.id.slice(0, 8);
+    const confirmed = window.confirm(
+      `Delete route ${routeLabel}? This will also delete all stops on the route.`
+    );
+    if (!confirmed) return;
+
+    setDeletingRouteId(route.id);
+    setError(null);
+
+    const result = await deleteRoute(route.id);
+    if (result.errors && result.errors.length > 0) {
+      setError('Failed to delete route.');
+      setDeletingRouteId(null);
+      return;
+    }
+
+    setRoutes((prev) => prev.filter((r) => r.id !== route.id));
+    setDeletingRouteId(null);
+  };
 
   return (
     <OperatorRoute>
@@ -171,6 +201,18 @@ export default function OperatorRoutesPage() {
                       >
                         Edit
                       </Link>
+                      {canDeleteRoutes && (
+                        <button
+                          type="button"
+                          className={styles.deleteBtn}
+                          onClick={() => {
+                            void handleDeleteRoute(route);
+                          }}
+                          disabled={deletingRouteId === route.id}
+                        >
+                          {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

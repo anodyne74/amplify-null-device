@@ -107,7 +107,7 @@
   border: 1px solid var(--nd-border-subtle);
   border-radius: var(--nd-radius-lg);
   display: grid;
-  grid-template-columns: 130px 180px 120px 120px 1fr 100px;
+  grid-template-columns: 130px 180px 120px 120px 1fr 120px;
   gap: var(--nd-space-md);
   align-items: center;
 }
@@ -173,6 +173,26 @@
 
 .editLink:hover {
   text-decoration: underline;
+}
+
+.deleteBtn {
+  border: 1px solid var(--nd-status-danger);
+  border-radius: var(--nd-radius-sm);
+  background: transparent;
+  color: var(--nd-status-danger);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.deleteBtn:hover {
+  opacity: 0.85;
+}
+
+.deleteBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Badge pattern */

@@ -175,6 +175,19 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
               {invoice.status?.charAt(0).toUpperCase() + (invoice.status?.slice(1) || '')}
             </p>
           </div>
+
+          {/* Linked Route */}
+          {invoice.routeId && (
+            <div>
+              <p className={styles.infoLabel}>Route</p>
+              <a
+                href={`/customer/routes/${invoice.routeId}`}
+                className={styles.routeLink}
+              >
+                View Route →
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Download Button */}

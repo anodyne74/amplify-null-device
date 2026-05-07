@@ -60,6 +60,26 @@
   opacity: 0.85;
 }
 
+.btnRouteDelete {
+  padding: 6px 12px;
+  border: 1px solid var(--nd-status-danger);
+  border-radius: var(--nd-radius-sm);
+  background: transparent;
+  color: var(--nd-status-danger);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnRouteDelete:hover {
+  opacity: 0.85;
+}
+
+.btnRouteDelete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .routeTitle {
   margin: 0;
   font-size: 22px;
@@ -249,10 +269,21 @@
   grid-template-columns: 48px 1fr auto;
   gap: var(--nd-space-md);
   align-items: start;
+  transition: opacity var(--nd-transition-fast), transform var(--nd-transition-fast), box-shadow var(--nd-transition-fast), border-color var(--nd-transition-fast);
 }
 
 .stopCardDragging {
   opacity: 0.72;
+}
+
+.stopCardTop {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.8), 0 12px 24px rgba(0, 0, 0, 0.18);
+}
+
+.stopCardCompleted {
+  opacity: 0.48;
+  filter: saturate(0.6);
 }
 
 .cardDelivery {
@@ -304,55 +335,10 @@
   color: var(--nd-text-primary);
 }
 
-.svcBadge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: bold;
-  text-transform: uppercase;
-  margin-bottom: 4px;
-  background-color: var(--nd-border-default);
-  color: var(--nd-text-inverse);
-}
-
-.svcBadgeDelivery {
-  background-color: var(--nd-status-active);
-  color: var(--nd-text-inverse);
-}
-
-.svcBadgePickup {
-  background-color: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-}
-
-.svcBadgeInspection {
-  background-color: var(--nd-customer-accent);
-  color: var(--nd-text-inverse);
-}
-
-.stopEta {
+.stopStatus {
   font-size: 12px;
+  font-weight: 600;
   color: var(--nd-text-secondary);
-}
-
-.stopNotes {
-  font-size: 12px;
-  color: var(--nd-text-muted);
-  font-style: italic;
-  margin-top: 4px;
-}
-
-.auctionBadge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: bold;
-  text-transform: uppercase;
-  background-color: var(--nd-status-danger, #e53935);
-  color: #fff;
-  margin-top: 4px;
 }
 
 /* Stop action buttons */

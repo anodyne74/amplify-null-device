@@ -119,12 +119,16 @@
   flex: 0.8;
 }
 
-.colDate {
+.colRoute {
   flex: 0.9;
 }
 
+.colDate {
+  flex: 0.8;
+}
+
 .colPeriod {
-  flex: 1.2;
+  flex: 1.1;
 }
 
 .colAmount {

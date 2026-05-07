@@ -14,14 +14,18 @@
   color: var(--nd-text-primary);
 }
 
-.colDate {
+.colRoute {
   flex: 0.9;
+}
+
+.colDate {
+  flex: 0.8;
   font-size: 14px;
   color: var(--nd-text-secondary);
 }
 
 .colPeriod {
-  flex: 1.2;
+  flex: 1.1;
   font-size: 13px;
   color: var(--nd-text-secondary);
 }
@@ -94,4 +98,20 @@
 
 .viewLink:hover {
   opacity: 0.85;
+}
+
+.routeLink {
+  color: var(--nd-operator-accent);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.routeLink:hover {
+  text-decoration: underline;
+}
+
+.routeMuted {
+  color: var(--nd-text-muted);
+  font-size: 13px;
 }

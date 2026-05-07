@@ -173,6 +173,7 @@ function RouteEditContent() {
     setError(null);
 
     const result = await updateRoute(routeId, {
+      routeCode: routeCode.trim(),
       customerId,
       notes: notes || '',
     });

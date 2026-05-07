@@ -30,16 +30,19 @@ export interface RouteDraftStop {
 interface RouteFormProps {
   customers: Array<{ id: string; name: string; email: string; addressLine1?: string | null }>;
   onSubmit: (values: {
+    routeCode: string;
     customerId: string;
     notes: string;
     stops: RouteDraftStop[];
   }) => Promise<void>;
+  initialRouteCode?: string;
   onCancel: () => void;
   isSubmitting?: boolean;
   error?: string | null;
 }
 
-export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }: RouteFormProps) {
+export function RouteForm({ customers, onSubmit, initialRouteCode = '', onCancel, isSubmitting, error }: RouteFormProps) {
+  const [routeCode, setRouteCode] = useState(initialRouteCode);
   const [customerId, setCustomerId] = useState('');
   const [notes, setNotes] = useState('');
   const [stops, setStops] = useState<RouteDraftStop[]>([]);
@@ -48,6 +51,10 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
   const [stopError, setStopError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  useEffect(() => {
+    setRouteCode(initialRouteCode);
+  }, [initialRouteCode]);
 
   useEffect(() => {
     const selected = customers.find((c) => c.id === customerId);
@@ -149,12 +156,17 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
       return;
     }
 
+    if (!routeCode.trim()) {
+      setValidationError('Please enter a route ID.');
+      return;
+    }
+
     if (stops.length === 0) {
       setValidationError('Add at least one stop before creating a route.');
       return;
     }
 
-    await onSubmit({ customerId, notes, stops });
+    await onSubmit({ routeCode: routeCode.trim(), customerId, notes, stops });
   };
 
   return (
@@ -164,6 +176,20 @@ export function RouteForm({ customers, onSubmit, onCancel, isSubmitting, error }
           {validationError || error || stopError}
         </div>
       )}
+
+      <div className={styles.field}>
+        <label htmlFor="routeCode" className={styles.label}>
+          Route ID <span className={styles.required}>*</span>
+        </label>
+        <input
+          id="routeCode"
+          value={routeCode}
+          onChange={(e) => setRouteCode(e.target.value)}
+          className={styles.input}
+          disabled={isSubmitting}
+          placeholder="e.g. W18-26-001"
+        />
+      </div>
 
       <div className={styles.field}>
         <label htmlFor="customerId" className={styles.label}>

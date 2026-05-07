@@ -379,6 +379,41 @@ export async function updateRouteExecution(routeId: string, updates: RouteExecut
   return updateRoute(routeId, updates);
 }
 
+export async function deleteRoute(routeId: string) {
+  try {
+    const client = getClient();
+    const { data: stops, errors: stopListErrors } = await client.models.Stop.list({
+      filter: { routeId: { eq: routeId } },
+    });
+
+    if (stopListErrors && stopListErrors.length > 0) {
+      console.error('Errors fetching route stops for deletion:', stopListErrors);
+      return { data: null, errors: stopListErrors };
+    }
+
+    const stopDeletes = await Promise.all(
+      ((stops as Array<{ id: string }>) || []).map((stop) => client.models.Stop.delete({ id: stop.id }))
+    );
+
+    const childErrors = stopDeletes.flatMap((result) => result.errors || []);
+    if (childErrors.length > 0) {
+      console.error('Errors deleting route stops:', childErrors);
+      return { data: null, errors: childErrors };
+    }
+
+    const { data, errors } = await client.models.Route.delete({ id: routeId });
+
+    if (errors) {
+      console.error('Errors deleting route:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error deleting route:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
 export interface StopExecutionUpdateInput {
   actualArrivalTime?: string;
   actualDepartureTime?: string;
@@ -510,7 +545,7 @@ export async function updateInvoice(
     periodEndDate: string;
     totalAmount: number;
     status: 'draft' | 'finalized' | 'sent' | 'paid';
-    routeId: string;
+    routeId: string | null;
     pdfS3Key: string;
   }>
 ) {

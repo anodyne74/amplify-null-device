@@ -43,6 +43,17 @@ export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
         {invoice.invoiceNumber || invoice.id}
       </div>
 
+      {/* Route Link */}
+      <div className={styles.colRoute}>
+        {invoice.routeId ? (
+          <a href={`/customer/routes/${invoice.routeId}`} className={styles.routeLink}>
+            View Route
+          </a>
+        ) : (
+          <span className={styles.routeMuted}>—</span>
+        )}
+      </div>
+
       {/* Invoice Date */}
       <div className={styles.colDate}>
         {formatDate(invoice.invoiceDate)}

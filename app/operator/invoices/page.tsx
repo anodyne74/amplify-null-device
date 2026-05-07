@@ -3,6 +3,8 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { uploadData } from 'aws-amplify/storage';
 import OperatorRoute from '@/app/components/OperatorRoute';
+import { extractScheduleText } from '@/lib/extractScheduleText';
+import { parseInvoiceText } from '@/lib/parseInvoice';
 import { createInvoice, listCustomers, listInvoices, updateInvoice, updateInvoicePdfKey } from '@/lib/queries';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import type { Route } from '@/amplify/types';
@@ -37,6 +39,7 @@ export default function InvoicesAdminPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingUploadInvoiceId, setPendingUploadInvoiceId] = useState<string | null>(null);
+  const pendingUploadInvoiceIdRef = useRef<string | null>(null);
 
   // Routes filtered by selected customer
   const customerRoutes = routes.filter((r) => r.customerId === customerId);
@@ -106,34 +109,70 @@ export default function InvoicesAdminPage() {
   };
 
   const handleUploadClick = (invoiceId: string) => {
+    pendingUploadInvoiceIdRef.current = invoiceId;
     setPendingUploadInvoiceId(invoiceId);
     setUploadError(null);
     fileInputRef.current?.click();
   };
 
+  const handleRouteLink = async (invoiceId: string, newRouteId: string) => {
+    const result = await updateInvoice(invoiceId, { routeId: newRouteId || null });
+    if (result.errors && result.errors.length > 0) {
+      setError('Failed to update linked route.');
+      return;
+    }
+
+    setInvoices((prev) =>
+      prev.map((invoice) => (invoice.id === invoiceId ? { ...invoice, routeId: newRouteId || null } : invoice))
+    );
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !pendingUploadInvoiceId) return;
+    const invoiceId = pendingUploadInvoiceIdRef.current;
+    if (!file || !invoiceId) return;
     if (file.type !== 'application/pdf') {
       setUploadError('Only PDF files are accepted.');
       return;
     }
 
-    setUploadingId(pendingUploadInvoiceId);
+    setUploadingId(invoiceId);
     setUploadError(null);
 
     try {
-      const s3Key = `invoices/${pendingUploadInvoiceId}.pdf`;
+      const s3Key = `invoices/${invoiceId}.pdf`;
       await uploadData({
         path: s3Key,
         data: file,
         options: { contentType: 'application/pdf' },
       }).result;
 
-      const result = await updateInvoicePdfKey(pendingUploadInvoiceId, s3Key);
-      if (result.errors && result.errors.length > 0) {
+      const keyResult = await updateInvoicePdfKey(invoiceId, s3Key);
+      if (keyResult.errors && keyResult.errors.length > 0) {
         setUploadError('Uploaded to S3 but failed to save key on invoice.');
       } else {
+        const parsedText = await extractScheduleText(file);
+        const parsed = parseInvoiceText(parsedText);
+        const existingInvoice = invoices.find((inv) => inv.id === invoiceId);
+
+        const parsedRouteId = parsed.routeCode
+          ? routes.find(
+              (route) =>
+                route.routeCode?.toUpperCase() === parsed.routeCode &&
+                (!existingInvoice?.customerId || route.customerId === existingInvoice.customerId)
+            )?.id
+          : undefined;
+
+        const parsedUpdates: Parameters<typeof updateInvoice>[1] = {
+          pdfS3Key: s3Key,
+        };
+
+        if (parsed.invoiceNumber) parsedUpdates.invoiceNumber = parsed.invoiceNumber;
+        if (parsed.invoiceDate) parsedUpdates.invoiceDate = parsed.invoiceDate;
+        if (typeof parsed.totalAmount === 'number') parsedUpdates.totalAmount = parsed.totalAmount;
+        if (parsedRouteId) parsedUpdates.routeId = parsedRouteId;
+
+        await updateInvoice(invoiceId, parsedUpdates);
         await fetchData();
       }
     } catch (err) {
@@ -142,6 +181,7 @@ export default function InvoicesAdminPage() {
     } finally {
       setUploadingId(null);
       setPendingUploadInvoiceId(null);
+      pendingUploadInvoiceIdRef.current = null;
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -219,7 +259,24 @@ export default function InvoicesAdminPage() {
                   <tr key={invoice.id} style={{ borderTop: '1px solid var(--nd-border-subtle)' }}>
                     <td style={{ padding: '6px 8px' }}>{invoice.invoiceNumber}</td>
                     <td style={{ padding: '6px 8px' }}>{customerName(invoice.customerId)}</td>
-                    <td style={{ padding: '6px 8px' }}>{routeCode(invoice.routeId)}</td>
+                    <td style={{ padding: '6px 8px' }}>
+                      <select
+                        value={invoice.routeId ?? ''}
+                        onChange={(e) => {
+                          void handleRouteLink(invoice.id, e.target.value);
+                        }}
+                        style={{ fontSize: 12, minWidth: 140 }}
+                      >
+                        <option value="">— None —</option>
+                        {routes
+                          .filter((route) => route.customerId === invoice.customerId)
+                          .map((route) => (
+                            <option key={route.id} value={route.id}>
+                              {routeCode(route.id)}
+                            </option>
+                          ))}
+                      </select>
+                    </td>
                     <td style={{ padding: '6px 8px' }}>${invoice.totalAmount.toFixed(2)}</td>
                     <td style={{ padding: '6px 8px' }}>
                       <select

@@ -21,6 +21,7 @@ describe('Home Redirect', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    localStorage.clear();
     (useRouter as jest.Mock).mockReturnValue({ push });
   });
 
@@ -161,5 +162,71 @@ describe('Home Redirect', () => {
       'Operator Portal',
       'Customer Portal',
     ]);
+  });
+
+  it('stores selected operator role in localStorage when clicking Operator Portal', async () => {
+    (useAuthenticator as jest.Mock).mockReturnValue({
+      authStatus: 'authenticated',
+    });
+    (useUserGroups as jest.Mock).mockReturnValue({
+      groups: ['administrator', 'operator'],
+      loading: false,
+      isAdmin: true,
+      isOperator: true,
+      isCustomer: false,
+    });
+
+    render(<Home />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Operator Portal' }));
+
+    await waitFor(() => {
+      expect(localStorage.getItem('selectedOperatorRole')).toBe('operator');
+      expect(push).toHaveBeenCalledWith('/operator/dashboard');
+    });
+  });
+
+  it('stores selected administrator role in localStorage when clicking Administrator Portal', async () => {
+    (useAuthenticator as jest.Mock).mockReturnValue({
+      authStatus: 'authenticated',
+    });
+    (useUserGroups as jest.Mock).mockReturnValue({
+      groups: ['administrator', 'operator'],
+      loading: false,
+      isAdmin: true,
+      isOperator: true,
+      isCustomer: false,
+    });
+
+    render(<Home />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Administrator Portal' }));
+
+    await waitFor(() => {
+      expect(localStorage.getItem('selectedOperatorRole')).toBe('administrator');
+      expect(push).toHaveBeenCalledWith('/operator/admin');
+    });
+  });
+
+  it('does not store localStorage for customer role selection', async () => {
+    (useAuthenticator as jest.Mock).mockReturnValue({
+      authStatus: 'authenticated',
+    });
+    (useUserGroups as jest.Mock).mockReturnValue({
+      groups: ['administrator', 'operator', 'customer'],
+      loading: false,
+      isAdmin: true,
+      isOperator: true,
+      isCustomer: true,
+    });
+
+    render(<Home />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Customer Portal' }));
+
+    await waitFor(() => {
+      expect(localStorage.getItem('selectedOperatorRole')).toBeNull();
+      expect(push).toHaveBeenCalledWith('/customer/dashboard');
+    });
   });
 });

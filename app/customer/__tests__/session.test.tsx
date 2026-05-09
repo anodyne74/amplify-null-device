@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import CustomerLayout from '../layout';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
+import { getCustomerPortalContext } from '@/lib/queries';
 
 // Mock the router
 jest.mock('next/navigation', () => ({
@@ -27,7 +28,12 @@ jest.mock('@/app/components/ProtectedRoute', () => {
 // Mock utilities
 jest.mock('@/lib/amplify-config', () => ({
   getUserEmail: jest.fn(() => 'test@example.com'),
+  getUserDisplayName: jest.fn(() => 'test@example.com'),
   getUserGroups: jest.fn(() => ['customer']),
+}));
+
+jest.mock('@/lib/queries', () => ({
+  getCustomerPortalContext: jest.fn(),
 }));
 
 describe('Customer Session Management Integration', () => {
@@ -57,6 +63,21 @@ describe('Customer Session Management Integration', () => {
         },
       },
     });
+
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'account_owner',
+      customerId: 'customer-1',
+    });
+  });
+
+  it('shows Customer Portal in the sidebar title', () => {
+    render(
+      <CustomerLayout>
+        <div>Test Content</div>
+      </CustomerLayout>
+    );
+
+    expect(screen.getByText('Customer Portal')).toBeInTheDocument();
   });
 
   it('displays logout button in sidebar', () => {

@@ -5,7 +5,7 @@ import { useAuthenticator } from '@aws-amplify/ui-react';
 import type { Customer } from '@/amplify/types';
 import { getUserEmail } from '@/lib/amplify-config';
 import { parseAgentOptionsInput, stringifyAgentOptions } from '@/lib/customerDefaults';
-import { getCustomer, getCustomerPortalContext, updateCustomerDefaultsForUser } from '@/lib/queries';
+import { getCustomer, getCustomerPortalContext, updateCustomer } from '@/lib/queries';
 import styles from '@/app/dashboard.module.css';
 
 /**
@@ -16,6 +16,7 @@ export default function CustomerDashboard() {
   const { user } = useAuthenticator();
   const userEmail = user ? getUserEmail(user) : '';
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [standingInstructions, setStandingInstructions] = useState('');
   const [defaultNumberOfSigns, setDefaultNumberOfSigns] = useState('');
@@ -33,10 +34,22 @@ export default function CustomerDashboard() {
       .then(async (context) => {
         if (!cancelled) {
           setCustomerRole(context.role);
+          setCustomerId(context.customerId);
+        }
+
+        if (!context.customerId) {
+          if (!cancelled) {
+            setSettingsError('Could not resolve your customer account.');
+          }
+          return;
         }
 
         const customerResult = await getCustomer(context.customerId);
         if (cancelled || (customerResult.errors && customerResult.errors.length > 0)) {
+          if (!cancelled) {
+            const firstError = customerResult.errors?.[0] as { message?: string } | undefined;
+            setSettingsError(firstError?.message ?? 'Could not load customer defaults.');
+          }
           return;
         }
 
@@ -70,6 +83,16 @@ export default function CustomerDashboard() {
       return;
     }
 
+    if (customerRole !== 'account_owner') {
+      setSettingsError('Only the account owner can edit these defaults.');
+      return;
+    }
+
+    if (!customerId) {
+      setSettingsError('Customer account could not be resolved.');
+      return;
+    }
+
     const parsedDefaultNumberOfSigns = defaultNumberOfSigns.trim()
       ? Number(defaultNumberOfSigns)
       : undefined;
@@ -85,7 +108,7 @@ export default function CustomerDashboard() {
     setSettingsError(null);
     setSettingsSuccess(null);
 
-    const result = await updateCustomerDefaultsForUser(user.userId, {
+    const result = await updateCustomer(customerId, {
       standingInstructions,
       defaultNumberOfSigns: parsedDefaultNumberOfSigns,
       defaultAgentName,
@@ -93,7 +116,8 @@ export default function CustomerDashboard() {
     });
 
     if (result.errors && result.errors.length > 0) {
-      setSettingsError('Could not save standing instructions.');
+      const firstError = result.errors[0] as { message?: string } | undefined;
+      setSettingsError(firstError?.message ?? 'Could not save standing instructions.');
       setSavingSettings(false);
       return;
     }
@@ -206,7 +230,7 @@ export default function CustomerDashboard() {
                 ? `Current default initials: ${customer.defaultAgentInitials}`
                 : 'Initials are generated automatically from the default agent name.'}
             </p>
-            <button type="button" onClick={() => void handleSaveSettings()} disabled={savingSettings}>
+            <button type="button" onClick={() => void handleSaveSettings()} disabled={savingSettings || !customerId}>
               {savingSettings ? 'Saving...' : 'Save Standing Instructions'}
             </button>
           </div>

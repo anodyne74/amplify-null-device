@@ -4,12 +4,14 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
+import { useActiveOperatorRole } from '@/lib/useActiveOperatorRole';
 import LoadingSpinner from './LoadingSpinner';
 
 /**
  * OperatorRoute Component
  * Restricts access to authenticated operators only
- * Redirects non-operators to customer portal
+ * For admin-only routes (requireAdmin=true), checks user's selected role preference
+ * Redirects non-operators to customer portal, operator-mode users to operator dashboard
  */
 export default function OperatorRoute({
   children,
@@ -20,7 +22,8 @@ export default function OperatorRoute({
 }) {
   const router = useRouter();
   const { authStatus } = useAuthenticator();
-  const { loading, isAdmin, isOperator } = useUserGroups();
+  const { loading, isOperator } = useUserGroups();
+  const { activeRole } = useActiveOperatorRole();
 
   useEffect(() => {
     if (authStatus === 'unauthenticated') {
@@ -29,19 +32,40 @@ export default function OperatorRoute({
     }
 
     if (authStatus === 'authenticated' && !loading) {
-      const canAccess = requireAdmin ? isAdmin : isOperator;
-      if (!canAccess) {
+      // If no role determined yet, user is not in operator/admin groups
+      if (activeRole === null) {
         router.push('/customer/dashboard');
+        return;
+      }
+
+      // Check if user can access this route
+      if (requireAdmin) {
+        // Admin-only route: require administrator role selection
+        if (activeRole !== 'administrator') {
+          router.push('/operator/dashboard');
+        }
+      } else {
+        // Operator route: require operator or administrator role
+        if (!isOperator) {
+          router.push('/customer/dashboard');
+        }
       }
     }
-  }, [authStatus, loading, isAdmin, isOperator, router, requireAdmin]);
+  }, [authStatus, loading, isOperator, activeRole, router, requireAdmin]);
 
+  // Show loading while authenticating or waiting for role determination
   if (authStatus === 'configuring' || loading) {
     return <LoadingSpinner message={requireAdmin ? 'Verifying administrator access...' : 'Verifying operator access...'} />;
   }
 
   if (authStatus === 'authenticated') {
-    const canAccess = requireAdmin ? isAdmin : isOperator;
+    // Only proceed to access check if we have role information
+    if (activeRole === null) {
+      // User has no operator/admin role, redirect to customer portal
+      return <LoadingSpinner message="Redirecting to authorized portal..." />;
+    }
+
+    const canAccess = requireAdmin ? activeRole === 'administrator' : isOperator;
     if (canAccess) {
       return <>{children}</>;
     }

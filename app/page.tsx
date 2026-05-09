@@ -20,6 +20,14 @@ export default function Home() {
   const { authStatus } = useAuthenticator();
   const { groups, loading } = useUserGroups();
 
+  const handleRoleSelect = (key: string, path: string) => {
+    // Store role selection for operator/administrator choices
+    if (key === 'operator' || key === 'administrator') {
+      localStorage.setItem('selectedOperatorRole', key);
+    }
+    router.push(path);
+  };
+
   const roleOptions = useMemo(() => {
     const options: Array<{ key: string; title: string; path: string }> = [];
 
@@ -73,7 +81,7 @@ export default function Home() {
                   key={option.key}
                   type="button"
                   className={styles.roleButton}
-                  onClick={() => router.push(option.path)}
+                  onClick={() => handleRoleSelect(option.key, option.path)}
                 >
                   {option.title}
                 </button>

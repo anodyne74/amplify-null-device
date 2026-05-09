@@ -151,33 +151,40 @@ export default function InvoicesAdminPage() {
       if (keyResult.errors && keyResult.errors.length > 0) {
         setUploadError('Uploaded to S3 but failed to save key on invoice.');
       } else {
-        const parsedText = await extractScheduleText(file);
-        const parsed = parseInvoiceText(parsedText);
-        const existingInvoice = invoices.find((inv) => inv.id === invoiceId);
+        try {
+          const parsedText = await extractScheduleText(file);
+          const parsed = parseInvoiceText(parsedText);
+          const existingInvoice = invoices.find((inv) => inv.id === invoiceId);
 
-        const parsedRouteId = parsed.routeCode
-          ? routes.find(
-              (route) =>
-                route.routeCode?.toUpperCase() === parsed.routeCode &&
-                (!existingInvoice?.customerId || route.customerId === existingInvoice.customerId)
-            )?.id
-          : undefined;
+          const parsedRouteId = parsed.routeCode
+            ? routes.find(
+                (route) =>
+                  route.routeCode?.toUpperCase() === parsed.routeCode &&
+                  (!existingInvoice?.customerId || route.customerId === existingInvoice.customerId)
+              )?.id
+            : undefined;
 
-        const parsedUpdates: Parameters<typeof updateInvoice>[1] = {
-          pdfS3Key: s3Key,
-        };
+          const parsedUpdates: Parameters<typeof updateInvoice>[1] = {
+            pdfS3Key: s3Key,
+          };
 
-        if (parsed.invoiceNumber) parsedUpdates.invoiceNumber = parsed.invoiceNumber;
-        if (parsed.invoiceDate) parsedUpdates.invoiceDate = parsed.invoiceDate;
-        if (typeof parsed.totalAmount === 'number') parsedUpdates.totalAmount = parsed.totalAmount;
-        if (parsedRouteId) parsedUpdates.routeId = parsedRouteId;
+          if (parsed.invoiceNumber) parsedUpdates.invoiceNumber = parsed.invoiceNumber;
+          if (parsed.invoiceDate) parsedUpdates.invoiceDate = parsed.invoiceDate;
+          if (typeof parsed.totalAmount === 'number') parsedUpdates.totalAmount = parsed.totalAmount;
+          if (parsedRouteId) parsedUpdates.routeId = parsedRouteId;
 
-        await updateInvoice(invoiceId, parsedUpdates);
+          await updateInvoice(invoiceId, parsedUpdates);
+        } catch (parseError) {
+          console.warn('PDF uploaded but auto-parse failed:', parseError);
+          setUploadError('PDF uploaded, but automatic invoice parsing failed. You can still use the uploaded PDF.');
+        }
+
         await fetchData();
       }
     } catch (err) {
       console.error('Upload error:', err);
-      setUploadError('PDF upload failed.');
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setUploadError(`PDF upload failed. ${message}`);
     } finally {
       setUploadingId(null);
       setPendingUploadInvoiceId(null);

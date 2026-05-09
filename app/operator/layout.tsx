@@ -4,7 +4,7 @@ import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PortalLayout from '@/app/components/PortalLayout';
 import { getUserDisplayName } from '@/lib/amplify-config';
-import { useUserGroups } from '@/lib/use-user-groups';
+import { useActiveOperatorRole } from '@/lib/useActiveOperatorRole';
 
 const OPERATOR_NAV = [
   { href: '/operator/dashboard', label: 'Dashboard', icon: '◈' },
@@ -21,19 +21,23 @@ const ADMIN_NAV = [
 /**
  * Operator Portal Layout
  * Provides navigation, admin menu, and logout for authenticated operators.
+ * Navigation items are determined by the user's selected role:
+ * - Operator mode: Dashboard and Routes only
+ * - Administrator mode: Full navigation including admin functions
  * Responsive design: collapsible sidebar on mobile, fixed on desktop.
  */
 export default function OperatorLayout({ children }: { children: React.ReactNode }) {
   const { signOut, user } = useAuthenticator();
-  const { isAdmin } = useUserGroups();
+  const { activeRole } = useActiveOperatorRole();
   const userDisplayName = user ? getUserDisplayName(user) ?? '' : '';
-  const navItems = isAdmin ? [...OPERATOR_NAV, ...ADMIN_NAV] : OPERATOR_NAV;
+  const navItems = activeRole === 'administrator' ? [...OPERATOR_NAV, ...ADMIN_NAV] : OPERATOR_NAV;
+  const portalTitle = activeRole === 'administrator' ? 'Administrator Portal' : 'Operator Portal';
 
   return (
     <OperatorRoute>
       <PortalLayout
         variant="operator"
-        portalTitle="Operator Portal"
+        portalTitle={portalTitle}
         navItems={navItems}
         userEmail={userDisplayName}
         onLogout={signOut}

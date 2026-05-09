@@ -747,7 +747,17 @@ export async function getCustomerPortalContext(userSub: string): Promise<{
     }
 
     // Legacy fallback: older records may still use sub as customerId.
-    return { role: 'account_owner', customerId: userSub, errors };
+    const legacyCustomer = await getCustomer(userSub);
+    if (legacyCustomer.data) {
+      return { role: 'account_owner', customerId: userSub, errors };
+    }
+
+    const fallbackError = new Error('No customer mapping found for the current user.');
+    return {
+      role: 'account_owner',
+      customerId: '',
+      errors: [...(errors ?? []), fallbackError],
+    };
   } catch (error) {
     console.error('Error resolving customer portal context:', error);
     return {

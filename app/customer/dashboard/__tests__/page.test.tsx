@@ -5,7 +5,7 @@ import CustomerDashboard from '../page';
 import {
   getCustomer,
   getCustomerPortalContext,
-  updateCustomerDefaultsForUser,
+  updateCustomer,
 } from '@/lib/queries';
 
 jest.mock('@/app/dashboard.module.css', () => ({}));
@@ -23,7 +23,7 @@ jest.mock('@/lib/amplify-config', () => ({
 jest.mock('@/lib/queries', () => ({
   getCustomer: jest.fn(),
   getCustomerPortalContext: jest.fn(),
-  updateCustomerDefaultsForUser: jest.fn(),
+  updateCustomer: jest.fn(),
 }));
 
 describe('Customer Dashboard standing instructions', () => {
@@ -40,7 +40,7 @@ describe('Customer Dashboard standing instructions', () => {
       },
       errors: undefined,
     });
-    (updateCustomerDefaultsForUser as jest.Mock).mockResolvedValue({
+    (updateCustomer as jest.Mock).mockResolvedValue({
       data: { id: 'cust-1' },
       errors: undefined,
     });
@@ -76,8 +76,8 @@ describe('Customer Dashboard standing instructions', () => {
     fireEvent.click(screen.getByRole('button', { name: /save standing instructions/i }));
 
     await waitFor(() => {
-      expect(updateCustomerDefaultsForUser).toHaveBeenCalledWith(
-        'user-sub-1',
+      expect(updateCustomer).toHaveBeenCalledWith(
+        'cust-1',
         {
           standingInstructions: 'Leave signs at side gate',
           defaultNumberOfSigns: 5,
@@ -122,6 +122,6 @@ describe('Customer Dashboard standing instructions', () => {
     fireEvent.click(screen.getByRole('button', { name: /save standing instructions/i }));
 
     expect(await screen.findByText(/default number of signs must be 0 or greater/i)).toBeInTheDocument();
-    expect(updateCustomerDefaultsForUser).not.toHaveBeenCalled();
+    expect(updateCustomer).not.toHaveBeenCalled();
   });
 });

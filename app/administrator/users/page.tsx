@@ -532,22 +532,29 @@ export default function UsersAdminPage() {
               {availableGroups.length === 0 ? (
                 <p className={styles.welcome}>All supported groups already assigned.</p>
               ) : (
-                <ul>
-                  {availableGroups.map((group) => (
-                    <li key={group}>
-                      {group}{' '}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void assignGroup(group);
-                        }}
-                        disabled={pending}
-                      >
-                        Assign
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  {availableGroups.includes('customer') && !selectedCustomerId && (
+                    <p className={styles.welcome} style={{ color: 'var(--nd-text-muted)', fontSize: '0.9rem' }}>
+                      ℹ️ To assign the customer group, select a customer in the "Customer Access" section below first.
+                    </p>
+                  )}
+                  <ul>
+                    {availableGroups.map((group) => (
+                      <li key={group}>
+                        {group}{' '}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void assignGroup(group);
+                          }}
+                          disabled={pending || (group === 'customer' && !selectedCustomerId)}
+                        >
+                          Assign
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </div>
           )}

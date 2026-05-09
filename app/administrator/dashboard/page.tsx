@@ -54,52 +54,63 @@ export default function AdminHomePage() {
           <p className={styles.welcome}>Manage customers, invoices, users, and route operations.</p>
         </div>
 
-        {/* Live stat cards */}
+        {/* Dashboard cards grid */}
         <div className={styles.statsGrid}>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Active Routes</p>
-            <p className={`${styles.statValue} ${styles.green}`}>
-              {statsLoading ? '…' : activeRoutes.length}
-            </p>
+          {/* Active Routes + All Routes */}
+          <div className={styles.cardColumn}>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Active Routes</p>
+              <p className={`${styles.statValue} ${styles.green}`}>
+                {statsLoading ? '…' : activeRoutes.length}
+              </p>
+            </div>
+            <Link href="/administrator/routes" className={styles.statCard}>
+              <p className={styles.statLabel}>All Routes</p>
+              <p className={`${styles.statValue} ${styles.amber}`}>Open →</p>
+            </Link>
           </div>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Planned Routes</p>
-            <p className={`${styles.statValue} ${styles.cyan}`}>
-              {statsLoading ? '…' : plannedRoutes.length}
-            </p>
-          </div>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Completed Today</p>
-            <p className={`${styles.statValue} ${styles.amber}`}>
-              {statsLoading ? '…' : completedToday.length}
-            </p>
-          </div>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Customers</p>
-            <p className={`${styles.statValue} ${styles.cyan}`}>
-              {statsLoading ? '…' : customerCount ?? '—'}
-            </p>
-          </div>
-        </div>
 
-        {/* Quick-access links */}
-        <div className={styles.statsGrid}>
-          <Link href="/administrator/customers" className={styles.statCard}>
-            <p className={styles.statLabel}>Define Customers</p>
-            <p className={`${styles.statValue} ${styles.cyan}`}>Open →</p>
-          </Link>
-          <Link href="/administrator/invoices" className={styles.statCard}>
-            <p className={styles.statLabel}>Generate Invoices</p>
-            <p className={`${styles.statValue} ${styles.green}`}>Open →</p>
-          </Link>
-          <Link href="/administrator/users" className={styles.statCard}>
-            <p className={styles.statLabel}>Manage Users</p>
-            <p className={`${styles.statValue} ${styles.danger}`}>Open →</p>
-          </Link>
-          <Link href="/administrator/routes" className={styles.statCard}>
-            <p className={styles.statLabel}>All Routes</p>
-            <p className={`${styles.statValue} ${styles.amber}`}>Open →</p>
-          </Link>
+          {/* Planned Routes + Generate Invoices */}
+          <div className={styles.cardColumn}>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Planned Routes</p>
+              <p className={`${styles.statValue} ${styles.cyan}`}>
+                {statsLoading ? '…' : plannedRoutes.length}
+              </p>
+            </div>
+            <Link href="/administrator/invoices" className={styles.statCard}>
+              <p className={styles.statLabel}>Generate Invoices</p>
+              <p className={`${styles.statValue} ${styles.green}`}>Open →</p>
+            </Link>
+          </div>
+
+          {/* Completed Today + Manage Users */}
+          <div className={styles.cardColumn}>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Completed Today</p>
+              <p className={`${styles.statValue} ${styles.amber}`}>
+                {statsLoading ? '…' : completedToday.length}
+              </p>
+            </div>
+            <Link href="/administrator/users" className={styles.statCard}>
+              <p className={styles.statLabel}>Manage Users</p>
+              <p className={`${styles.statValue} ${styles.danger}`}>Open →</p>
+            </Link>
+          </div>
+
+          {/* Customers + Define Customers */}
+          <div className={styles.cardColumn}>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Customers</p>
+              <p className={`${styles.statValue} ${styles.cyan}`}>
+                {statsLoading ? '…' : customerCount ?? '—'}
+              </p>
+            </div>
+            <Link href="/administrator/customers" className={styles.statCard}>
+              <p className={styles.statLabel}>Define Customers</p>
+              <p className={`${styles.statValue} ${styles.cyan}`}>Open →</p>
+            </Link>
+          </div>
         </div>
       </div>
     </OperatorRoute>

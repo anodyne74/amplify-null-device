@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useAuthenticator, Authenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import styles from './page.module.css';
@@ -91,10 +91,34 @@ export default function Home() {
   }
 
   return (
-    <div className={styles.wrapper}>
-      <div className={styles.card}>
-        <h1 className={styles.heading}>NullDevice</h1>
-        <p className={styles.subtitle}>Delivery Management System</p>
+    <div className={styles.loginPage}>
+      <div className={styles.loginContainer}>
+        {/* Branding Section */}
+        <div className={styles.brandingSection}>
+          <div className={styles.logo}>◆</div>
+          <h1 className={styles.brandTitle}>NullDevice</h1>
+          <p className={styles.brandSubtitle}>Route Planning & Delivery Management</p>
+        </div>
+
+        {/* Welcome Section */}
+        <div className={styles.welcomeSection}>
+          <h2 className={styles.welcomeTitle}>Welcome Back</h2>
+          <p className={styles.welcomeText}>
+            Sign in to your account to access routes, customers, and delivery operations.
+          </p>
+        </div>
+
+        {/* Authenticator Card */}
+        <div className={styles.authCard}>
+          <Authenticator />
+        </div>
+
+        {/* Footer Section */}
+        <div className={styles.footerSection}>
+          <p className={styles.footerText}>
+            Need help? Contact support at <strong>support@nulldevice.local</strong>
+          </p>
+        </div>
       </div>
     </div>
   );

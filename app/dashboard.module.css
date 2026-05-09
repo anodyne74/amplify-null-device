@@ -23,6 +23,12 @@
   gap: var(--nd-space-md);
 }
 
+.cardColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-space-sm);
+}
+
 .statCard {
   padding: var(--nd-space-md);
   background-color: var(--nd-bg-surface);

@@ -1,0 +1,658 @@
+.container {
+  padding: var(--nd-space-lg);
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.backLink {
+  color: var(--nd-operator-accent);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.backLink:hover {
+  text-decoration: underline;
+}
+
+.errorBanner {
+  padding: var(--nd-space-md);
+  background-color: rgba(255,71,87,0.12);
+  color: var(--nd-status-danger);
+  border-radius: var(--nd-radius-md);
+  margin-top: var(--nd-space-md);
+  font-size: 14px;
+  border: 1px solid var(--nd-status-danger);
+}
+
+.transitionError {
+  color: var(--nd-status-danger);
+  font-size: 14px;
+}
+
+/* Route header card */
+.routeCard {
+  margin-top: 20px;
+  padding: 20px;
+  background-color: var(--nd-bg-surface);
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-lg);
+}
+
+.routeCardHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--nd-space-md);
+  margin-bottom: var(--nd-space-md);
+}
+
+.btnRouteEdit {
+  margin-left: auto;
+  padding: 6px 12px;
+  border: 1px solid var(--nd-operator-accent);
+  border-radius: var(--nd-radius-sm);
+  color: var(--nd-operator-accent);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.btnRouteEdit:hover {
+  opacity: 0.85;
+}
+
+.btnRouteDelete {
+  padding: 6px 12px;
+  border: 1px solid var(--nd-status-danger);
+  border-radius: var(--nd-radius-sm);
+  background: transparent;
+  color: var(--nd-status-danger);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnRouteDelete:hover {
+  opacity: 0.85;
+}
+
+.btnRouteDelete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.routeTitle {
+  margin: 0;
+  font-size: 22px;
+  color: var(--nd-operator-accent);
+}
+
+.routeInfoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--nd-space-md);
+  font-size: 14px;
+}
+
+.infoLabel {
+  color: var(--nd-text-muted);
+  font-size: 12px;
+}
+
+.infoValueMono {
+  font-family: var(--nd-font-mono);
+  color: var(--nd-text-primary);
+}
+
+.infoValue {
+  color: var(--nd-text-primary);
+}
+
+.routeNotes {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--nd-text-secondary);
+}
+
+.routeNotesBold {
+  font-weight: 600;
+  color: var(--nd-text-primary);
+}
+
+/* Status transition buttons */
+.transitionRow {
+  margin-top: var(--nd-space-md);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.btnStart {
+  padding: 10px 20px;
+  background-color: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.btnStart:hover {
+  opacity: 0.9;
+}
+
+.btnStart:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btnComplete {
+  padding: 10px 20px;
+  background-color: var(--nd-status-active);
+  color: var(--nd-text-inverse);
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.btnComplete:hover {
+  opacity: 0.9;
+}
+
+.btnComplete:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Stops section */
+.stopsSection {
+  margin-top: var(--nd-space-lg);
+}
+
+.mapSection {
+  margin-bottom: var(--nd-space-md);
+}
+
+.mapHeading {
+  margin: 0 0 var(--nd-space-sm) 0;
+  font-size: 15px;
+  color: var(--nd-text-primary);
+}
+
+.mapLoading {
+  padding: var(--nd-space-lg);
+  border: 1px dashed var(--nd-border-default);
+  border-radius: var(--nd-radius-lg);
+  color: var(--nd-text-secondary);
+}
+
+.reorderHint {
+  margin-bottom: var(--nd-space-sm);
+  color: var(--nd-text-muted);
+  font-size: 12px;
+}
+
+.reorderStatus {
+  margin-bottom: var(--nd-space-sm);
+  color: var(--nd-operator-accent);
+  font-size: 12px;
+}
+
+.stopsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--nd-space-md);
+}
+
+.stopsHeading {
+  margin: 0;
+  font-size: 18px;
+  color: var(--nd-operator-accent);
+}
+
+.btnAddStop {
+  padding: 8px 16px;
+  background-color: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.btnAddStop:hover {
+  opacity: 0.9;
+}
+
+.formContainer {
+  padding: 20px;
+  background-color: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-lg);
+  margin-bottom: var(--nd-space-md);
+}
+
+.formHeading {
+  margin: 0 0 var(--nd-space-md) 0;
+  font-size: 16px;
+  color: var(--nd-text-primary);
+}
+
+.emptyState {
+  padding: var(--nd-space-xl);
+  text-align: center;
+  color: var(--nd-text-secondary);
+  border: 1px dashed var(--nd-border-default);
+  border-radius: var(--nd-radius-lg);
+}
+
+.stopsList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Stop cards with service type variants */
+.stopCard {
+  padding: var(--nd-space-md);
+  background-color: var(--nd-bg-surface);
+  border: 2px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-lg);
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: var(--nd-space-md);
+  align-items: start;
+  transition: opacity var(--nd-transition-fast), transform var(--nd-transition-fast), box-shadow var(--nd-transition-fast), border-color var(--nd-transition-fast);
+}
+
+.stopCardDragging {
+  opacity: 0.72;
+}
+
+.stopCardTop {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.8), 0 12px 24px rgba(0, 0, 0, 0.18);
+}
+
+.stopCardCompleted {
+  opacity: 0.48;
+  filter: saturate(0.6);
+}
+
+.cardDelivery {
+  border-color: var(--nd-status-active);
+}
+
+.cardPickup {
+  border-color: var(--nd-operator-accent);
+}
+
+.cardInspection {
+  border-color: var(--nd-customer-accent);
+}
+
+/* Sequence circle */
+.circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--nd-border-default);
+  color: var(--nd-text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.circleDelivery {
+  background-color: var(--nd-status-active);
+  color: var(--nd-text-inverse);
+}
+
+.circlePickup {
+  background-color: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+}
+
+.circleInspection {
+  background-color: var(--nd-customer-accent);
+  color: var(--nd-text-inverse);
+}
+
+/* Stop details */
+.stopAddress {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--nd-text-primary);
+}
+
+.stopStatus {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nd-text-secondary);
+}
+
+.stopAgentBadge {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-default);
+  color: var(--nd-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stopAgentInitials {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  font-size: 11px;
+}
+
+/* Stop action buttons */
+.stopActions {
+  display: flex;
+  gap: var(--nd-space-sm);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.btnReorder {
+  padding: 6px 10px;
+  background-color: transparent;
+  color: var(--nd-text-secondary);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.btnReorder:hover {
+  opacity: 0.8;
+}
+
+.btnReorder:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btnEdit {
+  padding: 6px 12px;
+  background-color: transparent;
+  color: var(--nd-operator-accent);
+  border: 1px solid var(--nd-operator-accent);
+  border-radius: var(--nd-radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.btnEdit:hover {
+  opacity: 0.8;
+}
+
+.btnEdit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btnDelete {
+  padding: 6px 12px;
+  background-color: transparent;
+  color: var(--nd-status-danger);
+  border: 1px solid var(--nd-status-danger);
+  border-radius: var(--nd-radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.btnDelete:hover {
+  opacity: 0.8;
+}
+
+.btnDelete:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Badge pattern */
+.badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+  text-transform: uppercase;
+  border: 1px solid;
+}
+
+.badgePlanned {
+  color: var(--nd-status-planned);
+  border-color: var(--nd-status-planned);
+  background-color: var(--nd-operator-accent-dim);
+}
+
+.badgeActive {
+  color: var(--nd-status-active);
+  border-color: var(--nd-status-active);
+  background-color: var(--nd-accent-primary-dim);
+}
+
+.badgeCompleted {
+  color: var(--nd-status-completed);
+  border-color: var(--nd-status-completed);
+  background-color: var(--nd-customer-accent-dim);
+}
+
+.badgeArchived {
+  color: var(--nd-status-archived);
+  border-color: var(--nd-status-archived);
+  background-color: transparent;
+}
+
+/* Stop execution actions — spans full card width */
+.stopExecution {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--nd-border-subtle);
+  padding-top: var(--nd-space-sm);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: var(--nd-space-md);
+  flex-wrap: wrap;
+}
+
+.btnArrived {
+  padding: 12px 20px;
+  background-color: var(--nd-status-planned);
+  color: var(--nd-text-inverse);
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+  min-height: 48px;
+}
+
+.btnArrived:hover {
+  opacity: 0.9;
+}
+
+.btnArrived:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.execTimestamp {
+  font-size: 12px;
+  color: var(--nd-text-muted);
+}
+
+.btnExecComplete {
+  padding: 12px 20px;
+  background-color: var(--nd-status-active);
+  color: var(--nd-text-inverse);
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+  min-height: 48px;
+}
+
+.btnExecComplete:hover {
+  opacity: 0.9;
+}
+
+.btnExecComplete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.execDone {
+  display: flex;
+  gap: var(--nd-space-md);
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--nd-status-active);
+  font-weight: 500;
+}
+
+/* Mobile-first execution action rows */
+.execActionRow {
+  display: flex;
+  gap: var(--nd-space-sm);
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.btnSkip {
+  padding: 12px 20px;
+  background-color: transparent;
+  color: var(--nd-text-secondary);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+  min-height: 48px;
+}
+
+.btnSkip:hover {
+  opacity: 0.8;
+}
+
+.btnSkip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Completion panel shown after arrival */
+.execCompletionPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-space-sm);
+  width: 100%;
+}
+
+.execNotesInput {
+  width: 100%;
+  padding: 10px 12px;
+  background-color: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  color: var(--nd-text-primary);
+  font-size: 14px;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.execNotesInput::placeholder {
+  color: var(--nd-text-muted);
+}
+
+.execPhotoLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px dashed var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  color: var(--nd-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color var(--nd-transition-fast);
+}
+
+.execPhotoLabel:hover {
+  border-color: var(--nd-operator-accent);
+  color: var(--nd-operator-accent);
+}
+
+.execPhotoInput {
+  display: none;
+}
+
+.execSkippedBadge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nd-text-muted);
+  padding: 2px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--nd-border-default);
+}
+
+@media (max-width: 600px) {
+  .stopCard {
+    grid-template-columns: 40px 1fr;
+  }
+
+  .stopActions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .btnArrived,
+  .btnExecComplete,
+  .btnSkip {
+    flex: 1;
+    min-height: 52px;
+    font-size: 15px;
+  }
+
+  .transitionRow .btnStart,
+  .transitionRow .btnComplete {
+    width: 100%;
+    min-height: 52px;
+    font-size: 16px;
+  }
+
+  .transitionRow {
+    flex-direction: column;
+  }
+}

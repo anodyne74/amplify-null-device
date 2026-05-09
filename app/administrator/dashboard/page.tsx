@@ -84,19 +84,19 @@ export default function AdminHomePage() {
 
         {/* Quick-access links */}
         <div className={styles.statsGrid}>
-          <Link href="/operator/customers" className={styles.statCard}>
+          <Link href="/administrator/customers" className={styles.statCard}>
             <p className={styles.statLabel}>Define Customers</p>
             <p className={`${styles.statValue} ${styles.cyan}`}>Open →</p>
           </Link>
-          <Link href="/operator/invoices" className={styles.statCard}>
+          <Link href="/administrator/invoices" className={styles.statCard}>
             <p className={styles.statLabel}>Generate Invoices</p>
             <p className={`${styles.statValue} ${styles.green}`}>Open →</p>
           </Link>
-          <Link href="/operator/users" className={styles.statCard}>
+          <Link href="/administrator/users" className={styles.statCard}>
             <p className={styles.statLabel}>Manage Users</p>
             <p className={`${styles.statValue} ${styles.danger}`}>Open →</p>
           </Link>
-          <Link href="/operator/routes" className={styles.statCard}>
+          <Link href="/administrator/routes" className={styles.statCard}>
             <p className={styles.statLabel}>All Routes</p>
             <p className={`${styles.statValue} ${styles.amber}`}>Open →</p>
           </Link>

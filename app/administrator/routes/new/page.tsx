@@ -213,7 +213,7 @@ export default function NewRoutePage() {
           }
         }
 
-        router.push(`/operator/routes/detail?id=${result.data.id}`);
+        router.push(`/administrator/routes/detail?id=${result.data.id}`);
       } else {
         setSubmitError('Route created but ID not returned.');
         setIsSubmitting(false);
@@ -225,7 +225,7 @@ export default function NewRoutePage() {
   };
 
   const handleCancel = () => {
-    router.push('/operator/routes');
+    router.push('/administrator/routes');
   };
 
   const handleCopyStopsFromRoute = async (sourceRouteId: string): Promise<RouteDraftStop[]> => {
@@ -395,7 +395,7 @@ export default function NewRoutePage() {
         }
       }
 
-      router.push(`/operator/routes/detail?id=${routeId}`);
+      router.push(`/administrator/routes/detail?id=${routeId}`);
     } catch (err) {
       console.error('Import error:', err);
       setImportError('An unexpected error occurred during import.');

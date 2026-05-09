@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import styles from './PortalLayout.module.css';
 
@@ -85,14 +86,14 @@ export default function PortalLayout({
           <ul className={styles.navList}>
             {navItems.map((item) => (
               <li key={item.href}>
-                <a
+                <Link
                   href={item.href}
                   className={styles.navLink}
                   onClick={() => setSidebarOpen(false)}
                 >
                   <span aria-hidden="true">{item.icon}</span>
                   {item.label}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>

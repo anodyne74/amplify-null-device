@@ -25,7 +25,7 @@ describe('Home Redirect', () => {
     (useRouter as jest.Mock).mockReturnValue({ push });
   });
 
-  it('redirects administrators to /operator/admin', async () => {
+  it('redirects administrators to /administrator', async () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',
     });
@@ -33,14 +33,14 @@ describe('Home Redirect', () => {
       groups: ['administrator'],
       loading: false,
       isAdmin: true,
-      isOperator: true,
+      isOperator: false,
       isCustomer: false,
     });
 
     render(<Home />);
 
     await waitFor(() => {
-      expect(push).toHaveBeenCalledWith('/operator/admin');
+      expect(push).toHaveBeenCalledWith('/administrator');
     });
   });
 
@@ -101,22 +101,22 @@ describe('Home Redirect', () => {
     });
   });
 
-  it('shows role selector when user has multiple roles', async () => {
+  it('shows role selector when user has administrator and customer roles', async () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',
     });
     (useUserGroups as jest.Mock).mockReturnValue({
-      groups: ['operator', 'customer'],
+      groups: ['administrator', 'customer'],
       loading: false,
-      isAdmin: false,
-      isOperator: true,
+      isAdmin: true,
+      isOperator: false,
       isCustomer: true,
     });
 
     render(<Home />);
 
     expect(screen.getByText(/choose portal role/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Operator Portal' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Administrator Portal' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Customer Portal' })).toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
   });
@@ -129,7 +129,7 @@ describe('Home Redirect', () => {
       groups: ['administrator', 'customer'],
       loading: false,
       isAdmin: true,
-      isOperator: true,
+      isOperator: false,
       isCustomer: true,
     });
 
@@ -138,7 +138,7 @@ describe('Home Redirect', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Administrator Portal' }));
 
     await waitFor(() => {
-      expect(push).toHaveBeenCalledWith('/operator/admin');
+      expect(push).toHaveBeenCalledWith('/administrator');
     });
   });
 
@@ -159,21 +159,20 @@ describe('Home Redirect', () => {
     const roleButtons = screen.getAllByRole('button');
     expect(roleButtons.map((button) => button.textContent)).toEqual([
       'Administrator Portal',
-      'Operator Portal',
       'Customer Portal',
     ]);
   });
 
-  it('stores selected operator role in localStorage when clicking Operator Portal', async () => {
+  it('still allows operator-only users to choose operator portal', async () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',
     });
     (useUserGroups as jest.Mock).mockReturnValue({
-      groups: ['administrator', 'operator'],
+      groups: ['operator', 'customer'],
       loading: false,
-      isAdmin: true,
+      isAdmin: false,
       isOperator: true,
-      isCustomer: false,
+      isCustomer: true,
     });
 
     render(<Home />);
@@ -181,21 +180,20 @@ describe('Home Redirect', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Operator Portal' }));
 
     await waitFor(() => {
-      expect(localStorage.getItem('selectedOperatorRole')).toBe('operator');
       expect(push).toHaveBeenCalledWith('/operator/dashboard');
     });
   });
 
-  it('stores selected administrator role in localStorage when clicking Administrator Portal', async () => {
+  it('navigates to administrator root when clicking Administrator Portal', async () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',
     });
     (useUserGroups as jest.Mock).mockReturnValue({
-      groups: ['administrator', 'operator'],
+      groups: ['administrator', 'customer'],
       loading: false,
       isAdmin: true,
-      isOperator: true,
-      isCustomer: false,
+      isOperator: false,
+      isCustomer: true,
     });
 
     render(<Home />);
@@ -203,12 +201,11 @@ describe('Home Redirect', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Administrator Portal' }));
 
     await waitFor(() => {
-      expect(localStorage.getItem('selectedOperatorRole')).toBe('administrator');
-      expect(push).toHaveBeenCalledWith('/operator/admin');
+      expect(push).toHaveBeenCalledWith('/administrator');
     });
   });
 
-  it('does not store localStorage for customer role selection', async () => {
+  it('does not show operator portal when administrator is also present', () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',
     });
@@ -222,11 +219,6 @@ describe('Home Redirect', () => {
 
     render(<Home />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Customer Portal' }));
-
-    await waitFor(() => {
-      expect(localStorage.getItem('selectedOperatorRole')).toBeNull();
-      expect(push).toHaveBeenCalledWith('/customer/dashboard');
-    });
+    expect(screen.queryByRole('button', { name: 'Operator Portal' })).not.toBeInTheDocument();
   });
 });

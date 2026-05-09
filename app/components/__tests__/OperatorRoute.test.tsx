@@ -2,7 +2,6 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
-import { useActiveOperatorRole } from '@/lib/useActiveOperatorRole';
 import OperatorRoute from '@/app/components/OperatorRoute';
 
 jest.mock('next/navigation', () => ({
@@ -15,10 +14,6 @@ jest.mock('@aws-amplify/ui-react', () => ({
 
 jest.mock('@/lib/use-user-groups', () => ({
   useUserGroups: jest.fn(),
-}));
-
-jest.mock('@/lib/useActiveOperatorRole', () => ({
-  useActiveOperatorRole: jest.fn(),
 }));
 
 describe('OperatorRoute', () => {
@@ -39,35 +34,6 @@ describe('OperatorRoute', () => {
       isOperator: true,
       isCustomer: false,
     });
-    (useActiveOperatorRole as jest.Mock).mockReturnValue({
-      activeRole: 'operator',
-      isOperatorMode: true,
-    });
-
-    const { container } = render(
-      <OperatorRoute>
-        <div>Protected content</div>
-      </OperatorRoute>
-    );
-
-    expect(screen.getByText('Protected content')).toBeInTheDocument();
-    expect(push).not.toHaveBeenCalled();
-  });
-
-  it('allows administrator role users to access non-admin routes', () => {
-    (useAuthenticator as jest.Mock).mockReturnValue({
-      authStatus: 'authenticated',
-    });
-    (useUserGroups as jest.Mock).mockReturnValue({
-      loading: false,
-      isAdmin: true,
-      isOperator: true,
-      isCustomer: false,
-    });
-    (useActiveOperatorRole as jest.Mock).mockReturnValue({
-      activeRole: 'administrator',
-      isOperatorMode: false,
-    });
 
     render(
       <OperatorRoute>
@@ -79,19 +45,37 @@ describe('OperatorRoute', () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it('allows administrator role users to access admin-only routes', () => {
+  it('redirects administrators away from operator routes', async () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',
     });
     (useUserGroups as jest.Mock).mockReturnValue({
       loading: false,
       isAdmin: true,
-      isOperator: true,
+      isOperator: false,
       isCustomer: false,
     });
-    (useActiveOperatorRole as jest.Mock).mockReturnValue({
-      activeRole: 'administrator',
-      isOperatorMode: false,
+
+    render(
+      <OperatorRoute>
+        <div>Protected content</div>
+      </OperatorRoute>
+    );
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith('/administrator');
+    });
+  });
+
+  it('allows administrators to access admin-only routes', () => {
+    (useAuthenticator as jest.Mock).mockReturnValue({
+      authStatus: 'authenticated',
+    });
+    (useUserGroups as jest.Mock).mockReturnValue({
+      loading: false,
+      isAdmin: true,
+      isOperator: false,
+      isCustomer: false,
     });
 
     render(
@@ -110,13 +94,9 @@ describe('OperatorRoute', () => {
     });
     (useUserGroups as jest.Mock).mockReturnValue({
       loading: false,
-      isAdmin: true,
+      isAdmin: false,
       isOperator: true,
       isCustomer: false,
-    });
-    (useActiveOperatorRole as jest.Mock).mockReturnValue({
-      activeRole: 'operator',
-      isOperatorMode: true,
     });
 
     render(
@@ -140,10 +120,6 @@ describe('OperatorRoute', () => {
       isOperator: false,
       isCustomer: true,
     });
-    (useActiveOperatorRole as jest.Mock).mockReturnValue({
-      activeRole: null,
-      isOperatorMode: false,
-    });
 
     render(
       <OperatorRoute>
@@ -165,10 +141,6 @@ describe('OperatorRoute', () => {
       isAdmin: false,
       isOperator: false,
       isCustomer: false,
-    });
-    (useActiveOperatorRole as jest.Mock).mockReturnValue({
-      activeRole: null,
-      isOperatorMode: false,
     });
 
     render(
@@ -192,10 +164,6 @@ describe('OperatorRoute', () => {
       isOperator: false,
       isCustomer: false,
     });
-    (useActiveOperatorRole as jest.Mock).mockReturnValue({
-      activeRole: null,
-      isOperatorMode: false,
-    });
 
     render(
       <OperatorRoute>
@@ -215,10 +183,6 @@ describe('OperatorRoute', () => {
       isAdmin: false,
       isOperator: false,
       isCustomer: false,
-    });
-    (useActiveOperatorRole as jest.Mock).mockReturnValue({
-      activeRole: null,
-      isOperatorMode: false,
     });
 
     render(

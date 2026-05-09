@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import OperatorLayout from '@/app/operator/layout';
+import AdministratorLayout from '@/app/administrator/layout';
 
 jest.mock('@aws-amplify/ui-react', () => ({
   useAuthenticator: jest.fn(),
@@ -42,7 +42,7 @@ jest.mock('@/app/components/PortalLayout', () => {
   };
 });
 
-describe('OperatorLayout', () => {
+describe('AdministratorLayout', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (useAuthenticator as jest.Mock).mockReturnValue({
@@ -51,28 +51,27 @@ describe('OperatorLayout', () => {
     });
   });
 
-  it('renders operator portal title', () => {
+  it('renders administrator portal title', () => {
     render(
-      <OperatorLayout>
+      <AdministratorLayout>
         <div>Test content</div>
-      </OperatorLayout>
+      </AdministratorLayout>
     );
 
-    expect(screen.getByTestId('portal-title')).toHaveTextContent('Operator Portal');
+    expect(screen.getByTestId('portal-title')).toHaveTextContent('Administrator Portal');
   });
 
-  it('shows only Dashboard and Routes nav when in operator mode', () => {
+  it('shows administrator navigation only', () => {
     render(
-      <OperatorLayout>
+      <AdministratorLayout>
         <div>Test content</div>
-      </OperatorLayout>
+      </AdministratorLayout>
     );
 
-    expect(screen.getByTestId('nav-item-Dashboard')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-item-Admin Home')).toBeInTheDocument();
     expect(screen.getByTestId('nav-item-Routes')).toBeInTheDocument();
-    expect(screen.queryByTestId('nav-item-Admin Home')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('nav-item-Customers')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('nav-item-Invoices')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('nav-item-Users')).not.toBeInTheDocument();
+    expect(screen.getByTestId('nav-item-Customers')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-item-Invoices')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-item-Users')).toBeInTheDocument();
   });
 });

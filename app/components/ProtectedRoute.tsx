@@ -20,7 +20,7 @@ export default function ProtectedRoute({
 }) {
   const router = useRouter();
   const { authStatus } = useAuthenticator();
-  const { loading, isOperator, isCustomer } = useUserGroups();
+  const { loading, isAdmin, isOperator, isCustomer } = useUserGroups();
 
   useEffect(() => {
     if (authStatus === 'unauthenticated') {
@@ -29,24 +29,27 @@ export default function ProtectedRoute({
     }
 
     if (authStatus === 'authenticated' && !loading) {
-      // If this is a customer-only route and user is an operator, redirect to operator portal
       if (requireCustomer && isOperator && !isCustomer) {
         router.push('/operator/dashboard');
         return;
       }
 
-      // If this is a customer-only route and user has no approved role yet, redirect to pending approval
+      if (requireCustomer && isAdmin && !isCustomer) {
+        router.push('/administrator');
+        return;
+      }
+
       if (requireCustomer && !isCustomer) {
         router.push('/pending-approval');
       }
     }
-  }, [authStatus, loading, isOperator, isCustomer, router, requireCustomer]);
+  }, [authStatus, isAdmin, isCustomer, isOperator, loading, requireCustomer, router]);
 
   if (authStatus === 'configuring' || (authStatus === 'authenticated' && loading)) {
     return <LoadingSpinner message="Loading..." />;
   }
 
-  if (authStatus === 'authenticated' && (!requireCustomer || isCustomer || isOperator)) {
+  if (authStatus === 'authenticated' && (!requireCustomer || isCustomer)) {
     return <>{children}</>;
   }
 

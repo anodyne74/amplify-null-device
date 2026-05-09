@@ -36,7 +36,8 @@ describe('OperatorRoute requireAdmin', () => {
     (useUserGroups as jest.Mock).mockReturnValue({
       loading: false,
       isAdmin: true,
-      isOperator: true,
+      isOperator: false,
+      isCustomer: false,
     });
 
     render(
@@ -48,7 +49,7 @@ describe('OperatorRoute requireAdmin', () => {
     expect(screen.getByText('Admin content')).toBeInTheDocument();
   });
 
-  it('redirects non-admin operator to customer dashboard', async () => {
+  it('redirects non-admin operator to operator dashboard', async () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',
     });
@@ -56,6 +57,7 @@ describe('OperatorRoute requireAdmin', () => {
       loading: false,
       isAdmin: false,
       isOperator: true,
+      isCustomer: false,
     });
 
     render(
@@ -65,7 +67,7 @@ describe('OperatorRoute requireAdmin', () => {
     );
 
     await waitFor(() => {
-      expect(push).toHaveBeenCalledWith('/customer/dashboard');
+      expect(push).toHaveBeenCalledWith('/operator/dashboard');
     });
   });
 });

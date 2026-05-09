@@ -46,7 +46,7 @@ export function useUserGroups(): UserGroupState {
     loading,
     isPending: groups.length === 0,
     isAdmin: groups.includes('administrator'),
-    isOperator: groups.includes('operator') || groups.includes('administrator'),
+    isOperator: groups.includes('operator'),
     isCustomer: groups.includes('customer'),
   };
 }

@@ -184,7 +184,7 @@ function RouteEditContent() {
       return;
     }
 
-    router.push(`/operator/routes/detail?id=${routeId}`);
+    router.push(`/administrator/routes/detail?id=${routeId}`);
   };
 
   const handleAddStop = async (values: {
@@ -388,7 +388,7 @@ function RouteEditContent() {
           <button
             type="button"
             className={styles.btnCancel}
-            onClick={() => router.push(`/operator/routes/detail?id=${routeId}`)}
+            onClick={() => router.push(`/administrator/routes/detail?id=${routeId}`)}
             disabled={saving}
           >
             Cancel

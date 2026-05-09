@@ -10,7 +10,7 @@ import styles from './page.module.css';
 /**
  * Home Page
  * Redirects authenticated users to their appropriate portal:
- * - Administrators → /operator/admin
+ * - Administrators → /administrator
  * - Operators → /operator/dashboard
  * - Customers → /customer/dashboard
  * Unauthenticated users see the login form (from Authenticator)
@@ -20,11 +20,7 @@ export default function Home() {
   const { authStatus } = useAuthenticator();
   const { groups, loading } = useUserGroups();
 
-  const handleRoleSelect = (key: string, path: string) => {
-    // Store role selection for operator/administrator choices
-    if (key === 'operator' || key === 'administrator') {
-      localStorage.setItem('selectedOperatorRole', key);
-    }
+  const handleRoleSelect = (_key: string, path: string) => {
     router.push(path);
   };
 
@@ -35,11 +31,11 @@ export default function Home() {
       options.push({
         key: 'administrator',
         title: 'Administrator Portal',
-        path: '/operator/admin',
+        path: '/administrator',
       });
     }
 
-    if (groups.includes('operator')) {
+    if (!groups.includes('administrator') && groups.includes('operator')) {
       options.push({
         key: 'operator',
         title: 'Operator Portal',

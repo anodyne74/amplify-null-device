@@ -17,6 +17,7 @@ jest.mock('next/navigation', () => ({
 jest.mock('@/lib/amplify-config', () => ({
   isCustomer: () => true,
   isOperator: () => false,
+  fetchUserGroups: jest.fn().mockResolvedValue(['customer']),
 }));
 
 // Mock the authentication with proper authStatus

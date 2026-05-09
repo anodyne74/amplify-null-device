@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useUserGroups } from './use-user-groups';
 
 export type OperatorRole = 'operator' | 'administrator';
@@ -24,42 +24,51 @@ export function useActiveOperatorRole(): {
   activeRole: OperatorRole | null;
   isOperatorMode: boolean;
 } {
-  const { isAdmin, isOperator, loading } = useUserGroups();
-  const [activeRole, setActiveRole] = useState<OperatorRole | null>(null);
+  const { groups, loading } = useUserGroups();
+  const [storedRole, setStoredRole] = useState<OperatorRole | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
+  const hasAdminGroup = groups.includes('administrator');
+  const hasOperatorGroup = groups.includes('operator');
+
   useEffect(() => {
-    // Read localStorage preference on client mount
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('selectedOperatorRole') as OperatorRole | null;
-
-      if (stored === 'operator' || stored === 'administrator') {
-        // Stored preference exists; use it
-        setActiveRole(stored);
-      } else if (!loading) {
-        // No stored preference; fall back to Cognito groups
-        if (isAdmin && isOperator) {
-          // Both roles; require explicit selection (shouldn't reach here if home page
-          // selector working correctly, but default to operator as fallback)
-          setActiveRole('operator');
-        } else if (isAdmin) {
-          // Admin only
-          setActiveRole('administrator');
-        } else if (isOperator) {
-          // Operator only
-          setActiveRole('operator');
-        } else {
-          // Neither role
-          setActiveRole(null);
-        }
-      }
-
-      setIsHydrated(true);
+    if (typeof window === 'undefined') {
+      return;
     }
-  }, [isAdmin, isOperator, loading]);
+
+    // Read persisted role preference once on client mount.
+    const stored = localStorage.getItem('selectedOperatorRole') as OperatorRole | null;
+    if (stored === 'operator' || stored === 'administrator') {
+      setStoredRole(stored);
+    }
+
+    setIsHydrated(true);
+  }, []);
+
+  const activeRole = useMemo<OperatorRole | null>(() => {
+    if (!isHydrated || loading) {
+      return null;
+    }
+
+    // Only dual-group users can choose between operator/admin experiences.
+    if (hasAdminGroup && hasOperatorGroup) {
+      return storedRole ?? 'operator';
+    }
+
+    // Admin-only users must always see the administrator portal.
+    if (hasAdminGroup) {
+      return 'administrator';
+    }
+
+    if (hasOperatorGroup) {
+      return 'operator';
+    }
+
+    return null;
+  }, [hasAdminGroup, hasOperatorGroup, isHydrated, loading, storedRole]);
 
   return {
-    activeRole: isHydrated ? activeRole : null,
+    activeRole,
     isOperatorMode: activeRole === 'operator',
   };
 }

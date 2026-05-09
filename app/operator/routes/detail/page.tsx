@@ -11,6 +11,7 @@ import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { StopForm } from '@/app/operator/components/StopForm';
 import { isAdmin } from '@/lib/amplify-config';
+import { generateAgentInitials } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
 import { createStop, deleteRoute, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
@@ -28,10 +29,25 @@ const RouteStopsMap = dynamic(
 );
 
 function StatusBadge({ status }: { status?: string | null }) {
-  const badgeClass = { planned: styles.badgePlanned, active: styles.badgeActive, completed: styles.badgeCompleted, archived: styles.badgeArchived }[(status ?? 'planned') as string] ?? styles.badgePlanned;
+  const badgeClass = {
+    planned: styles.badgePlanned,
+    signs_placed: styles.badgeActive,
+    signs_picked_up: styles.badgeActive,
+    completed: styles.badgeCompleted,
+    archived: styles.badgeArchived,
+  }[(status ?? 'planned') as string] ?? styles.badgePlanned;
+
+  const statusLabel = {
+    planned: 'planned',
+    signs_placed: 'signs placed',
+    signs_picked_up: 'signs picked up',
+    completed: 'completed',
+    archived: 'archived',
+  }[(status ?? 'planned') as string] ?? (status || 'unknown');
+
   return (
     <span className={`${styles.badge} ${badgeClass}`}>
-      {status || 'unknown'}
+      {statusLabel}
     </span>
   );
 }
@@ -60,7 +76,7 @@ function formatRouteDuration(route: Route) {
     return `${route.actualDurationMinutes} min`;
   }
 
-  if (route.status === 'active' && route.actualStartTime) {
+  if ((route.status === 'signs_placed' || route.status === 'signs_picked_up') && route.actualStartTime) {
     const minutes = Math.max(
       1,
       Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000)
@@ -84,6 +100,14 @@ function getStopStatusLabel(stop: Stop) {
   return 'Signs pending';
 }
 
+function isPlacementPhase(status?: string | null) {
+  return status === 'signs_placed';
+}
+
+function isPickupPhase(status?: string | null) {
+  return status === 'signs_picked_up';
+}
+
 function RouteDetailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -94,6 +118,12 @@ function RouteDetailContent() {
   const [route, setRoute] = useState<Route | null>(null);
   const [customerName, setCustomerName] = useState<string>('');
   const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [customerDefaults, setCustomerDefaults] = useState<{
+    standingInstructions?: string | null;
+    defaultNumberOfSigns?: number | null;
+    defaultAgentName?: string | null;
+    agentOptions?: string[] | null;
+  } | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +147,36 @@ function RouteDetailContent() {
   // Mobile execution: per-stop completion notes
   const [stopCompletionNotes, setStopCompletionNotes] = useState<Record<string, string>>({});
   const [stopCompletionPhoto, setStopCompletionPhoto] = useState<Record<string, File | null>>({});
+
+  const completeRouteNow = useCallback(async (routeToComplete: Route) => {
+    const now = new Date();
+    const start = routeToComplete.actualStartTime ? new Date(routeToComplete.actualStartTime) : now;
+    const actualDurationMinutes = Math.round((now.getTime() - start.getTime()) / 60000);
+    const completedAt = now.toISOString();
+
+    const { errors } = await updateRouteExecution(routeToComplete.id, {
+      status: 'completed',
+      actualEndTime: completedAt,
+      actualDurationMinutes,
+    });
+
+    if (errors && errors.length > 0) {
+      setTransitionError('Failed to complete route.');
+      return false;
+    }
+
+    setRoute((r) =>
+      r
+        ? {
+            ...r,
+            status: 'completed',
+            actualEndTime: completedAt,
+            actualDurationMinutes,
+          }
+        : r
+    );
+    return true;
+  }, []);
 
   const fetchStops = useCallback(async () => {
     const client = generateClient<Schema>();
@@ -144,6 +204,8 @@ function RouteDetailContent() {
   }, []);
 
   const handleStopCompleted = useCallback(async (stopId: string) => {
+    if (!route) return;
+
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
     try {
       const completedAt = new Date().toISOString();
@@ -154,13 +216,26 @@ function RouteDetailContent() {
       }
       const { errors } = await updateStopExecution(stopId, updatePayload);
       if (!errors || errors.length === 0) {
-        setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, actualDepartureTime: completedAt, ...(notes?.trim() ? { notes: notes.trim() } : {}) } : s)));
+        const updatedStops = stops.map((s) =>
+          s.id === stopId
+            ? { ...s, actualDepartureTime: completedAt, ...(notes?.trim() ? { notes: notes.trim() } : {}) }
+            : s
+        );
+        setStops(updatedStops);
         setStopCompletionNotes((prev) => { const n = { ...prev }; delete n[stopId]; return n; });
         setStopCompletionPhoto((prev) => { const n = { ...prev }; delete n[stopId]; return n; });
+
+        if (isPickupPhase(route.status)) {
+          const pickupStops = updatedStops.filter((s) => s.serviceType === 'pickup');
+          const allPickedUp = pickupStops.every((s) => isStopCompleted(s));
+          if (allPickedUp) {
+            await completeRouteNow(route);
+          }
+        }
       }
     } catch { /* ignore */ }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [stopCompletionNotes]);
+  }, [completeRouteNow, route, stopCompletionNotes, stops]);
 
   const handleSkipStop = useCallback(async (stopId: string) => {
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
@@ -238,8 +313,21 @@ function RouteDetailContent() {
 
       const customerResult = await getCustomer(loadedRoute.customerId);
       if (!customerResult.errors || customerResult.errors.length === 0) {
-        const customer = customerResult.data as { name?: string; addressLine1?: string | null } | null;
+        const customer = customerResult.data as {
+          name?: string;
+          addressLine1?: string | null;
+          standingInstructions?: string | null;
+          defaultNumberOfSigns?: number | null;
+          defaultAgentName?: string | null;
+          agentOptions?: string[] | null;
+        } | null;
         setCustomerName(customer?.name || 'Unknown customer');
+        setCustomerDefaults({
+          standingInstructions: customer?.standingInstructions ?? null,
+          defaultNumberOfSigns: customer?.defaultNumberOfSigns ?? null,
+          defaultAgentName: customer?.defaultAgentName ?? null,
+          agentOptions: customer?.agentOptions ?? null,
+        });
 
         if (customer?.addressLine1) {
           try {
@@ -266,17 +354,46 @@ function RouteDetailContent() {
     try {
       const startedAt = new Date().toISOString();
       const { errors } = await updateRouteExecution(route.id, {
-        status: 'active',
+        status: 'signs_placed',
         actualStartTime: startedAt,
       });
       if (errors && errors.length > 0) {
         setTransitionError('Failed to start route.');
       } else {
-        setRoute((r) => (r ? { ...r, status: 'active', actualStartTime: startedAt } : r));
+        setRoute((r) => (r ? { ...r, status: 'signs_placed', actualStartTime: startedAt } : r));
       }
     } catch {
       setTransitionError('Failed to start route.');
     }
+    setTransitioning(false);
+  };
+
+  const handleStartPickupPhase = async () => {
+    if (!route) return;
+    setTransitioning(true);
+    setTransitionError(null);
+
+    try {
+      const { errors } = await updateRouteExecution(route.id, {
+        status: 'signs_picked_up',
+      });
+
+      if (errors && errors.length > 0) {
+        setTransitionError('Failed to start pickup phase.');
+      } else {
+        const nextRoute = { ...route, status: 'signs_picked_up' as const };
+        setRoute(nextRoute);
+
+        const pickupStops = stops.filter((stop) => stop.serviceType === 'pickup');
+        const allPickedUp = pickupStops.every((stop) => isStopCompleted(stop));
+        if (allPickedUp) {
+          await completeRouteNow(nextRoute);
+        }
+      }
+    } catch {
+      setTransitionError('Failed to start pickup phase.');
+    }
+
     setTransitioning(false);
   };
 
@@ -285,28 +402,7 @@ function RouteDetailContent() {
     setTransitioning(true);
     setTransitionError(null);
     try {
-      const now = new Date();
-      const start = route.actualStartTime ? new Date(route.actualStartTime) : now;
-      const actualDurationMinutes = Math.round((now.getTime() - start.getTime()) / 60000);
-      const { errors } = await updateRouteExecution(route.id, {
-        status: 'completed',
-        actualEndTime: now.toISOString(),
-        actualDurationMinutes,
-      });
-      if (errors && errors.length > 0) {
-        setTransitionError('Failed to complete route.');
-      } else {
-        setRoute((r) =>
-          r
-            ? {
-                ...r,
-                status: 'completed',
-                actualEndTime: now.toISOString(),
-                actualDurationMinutes,
-              }
-            : r
-        );
-      }
+      await completeRouteNow(route);
     } catch {
       setTransitionError('Failed to complete route.');
     }
@@ -513,8 +609,22 @@ function RouteDetailContent() {
   };
 
   const planningLocked = route?.status !== 'planned';
-  const visibleStops = route?.status === 'active' ? stops.filter((stop) => !isStopCompleted(stop)) : stops;
+  const visibleStops = (() => {
+    if (!route) return stops;
+
+    if (isPlacementPhase(route.status)) {
+      return stops.filter((stop) => stop.serviceType !== 'pickup' && !isStopCompleted(stop));
+    }
+
+    if (isPickupPhase(route.status)) {
+      return stops.filter((stop) => stop.serviceType === 'pickup' && !isStopCompleted(stop));
+    }
+
+    return stops;
+  })();
   const topVisibleStopId = visibleStops[0]?.id ?? null;
+  const pickupStops = stops.filter((stop) => stop.serviceType === 'pickup');
+  const allPickupStopsCompleted = pickupStops.every((stop) => isStopCompleted(stop));
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
@@ -589,13 +699,22 @@ function RouteDetailContent() {
                   {transitioning ? 'Starting…' : 'Start Route'}
                 </button>
               )}
-              {route.status === 'active' && (
+              {isPlacementPhase(route.status) && (
                 <button
-                  onClick={handleCompleteRoute}
+                  onClick={handleStartPickupPhase}
                   disabled={transitioning}
                   className={styles.btnComplete}
                 >
-                  {transitioning ? 'Completing…' : 'Complete Route'}
+                  {transitioning ? 'Updating…' : 'Start Pickup Phase'}
+                </button>
+              )}
+              {isPickupPhase(route.status) && (
+                <button
+                  onClick={handleCompleteRoute}
+                  disabled={transitioning || !allPickupStopsCompleted}
+                  className={styles.btnComplete}
+                >
+                  {transitioning ? 'Completing…' : allPickupStopsCompleted ? 'Complete Route' : 'Awaiting Pickups'}
                 </button>
               )}
               {transitionError && (
@@ -642,6 +761,10 @@ function RouteDetailContent() {
                     setAddStopError(null);
                   }}
                   addressSearchOrigin={customerAddressOrigin}
+                  standingInstructions={customerDefaults?.standingInstructions ?? undefined}
+                  defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
+                  defaultAgentName={customerDefaults?.defaultAgentName ?? undefined}
+                  availableAgents={customerDefaults?.agentOptions ?? undefined}
                   isSubmitting={addingStop}
                   error={addStopError}
                   submitLabel="Add Stop"
@@ -649,9 +772,11 @@ function RouteDetailContent() {
               </div>
             )}
 
-            {visibleStops.length === 0 && !showAddStop && route?.status === 'active' && (
+            {visibleStops.length === 0 && !showAddStop && (isPlacementPhase(route?.status) || isPickupPhase(route?.status)) && (
               <div className={styles.emptyState}>
-                All stops are complete. You can now complete the route.
+                {isPlacementPhase(route?.status)
+                  ? 'All signs are placed. Start the pickup phase to continue.'
+                  : 'All pickup stops are complete. Route will auto-complete after final pickup.'}
               </div>
             )}
 
@@ -682,6 +807,10 @@ function RouteDetailContent() {
                           setEditStopError(null);
                         }}
                         addressSearchOrigin={customerAddressOrigin}
+                        standingInstructions={customerDefaults?.standingInstructions ?? undefined}
+                        defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
+                        defaultAgentName={customerDefaults?.defaultAgentName ?? undefined}
+                        availableAgents={customerDefaults?.agentOptions ?? undefined}
                         isSubmitting={editingStop}
                         error={editStopError}
                         submitLabel="Save Changes"
@@ -722,6 +851,14 @@ function RouteDetailContent() {
                         {stop.formattedAddress || stop.address}
                       </div>
                       <div className={styles.stopStatus}>{getStopStatusLabel(stop)}</div>
+                      {stop.agent && (
+                        <div className={styles.stopAgentBadge}>
+                          <span className={styles.stopAgentInitials}>
+                            {generateAgentInitials(stop.agent) ?? stop.agent.slice(0, 2).toUpperCase()}
+                          </span>
+                          <span>{stop.agent}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Actions */}
@@ -763,7 +900,7 @@ function RouteDetailContent() {
                     )}
 
                     {/* Execution actions — visible to all operators when route is active */}
-                    {route?.status === 'active' && (
+                    {(isPlacementPhase(route?.status) || isPickupPhase(route?.status)) && (
                       <div className={styles.stopExecution}>
                         {!stop.actualArrivalTime && (
                           <div className={styles.execActionRow}>

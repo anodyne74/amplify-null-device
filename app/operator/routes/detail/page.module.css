@@ -341,6 +341,32 @@
   color: var(--nd-text-secondary);
 }
 
+.stopAgentBadge {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-default);
+  color: var(--nd-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stopAgentInitials {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  font-size: 11px;
+}
+
 /* Stop action buttons */
 .stopActions {
   display: flex;

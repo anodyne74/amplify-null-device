@@ -32,6 +32,11 @@ const schema = a.schema({
       contactPhone: a.phone(),
       // Address (single formatted value, same style as stop.formattedAddress)
       addressLine1: a.string(),
+      standingInstructions: a.string(),
+      defaultNumberOfSigns: a.integer(),
+      defaultAgentName: a.string(),
+      defaultAgentInitials: a.string(),
+      agentOptions: a.string().array(),
       status: a.enum(['active', 'inactive', 'suspended']),
       billingRatePerHour: a.float().required(), // Configurable hourly rate for invoicing
       createdAt: a.datetime(),
@@ -78,7 +83,7 @@ const schema = a.schema({
       routeCode: a.string(), // Human-readable route identifier (e.g. W19-26-001)
       customerId: a.id().required(), // Foreign key to Customer
       viewerSubs: a.string().array(), // Cognito subs of all customer users — grants read access
-      status: a.enum(['planned', 'active', 'completed', 'archived']),
+      status: a.enum(['planned', 'signs_placed', 'signs_picked_up', 'completed', 'archived']),
       estimatedDurationMinutes: a.integer(),
       actualStartTime: a.datetime(),
       actualEndTime: a.datetime(),

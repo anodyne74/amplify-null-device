@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { generateAgentInitials } from '@/lib/customerDefaults';
 import styles from './StopForm.module.css';
 import { AddressAutocompleteInput, type ResolvedAddress } from './AddressAutocompleteInput';
 
@@ -27,6 +28,10 @@ interface StopFormProps {
   onCancel: () => void;
   addressSearchOrigin?: { latitude: number; longitude: number } | null;
   addressSearchRadiusMeters?: number;
+  standingInstructions?: string;
+  defaultNumberOfSigns?: number | null;
+  availableAgents?: string[] | null;
+  defaultAgentName?: string;
   isSubmitting?: boolean;
   error?: string | null;
   submitLabel?: string;
@@ -38,6 +43,10 @@ export function StopForm({
   onCancel,
   addressSearchOrigin,
   addressSearchRadiusMeters,
+  standingInstructions,
+  defaultNumberOfSigns,
+  availableAgents,
+  defaultAgentName,
   isSubmitting,
   error,
   submitLabel = 'Add Stop',
@@ -47,13 +56,14 @@ export function StopForm({
     initialValues?.serviceType || 'delivery'
   );
   const [numberOfSigns, setNumberOfSigns] = useState(
-    initialValues?.numberOfSigns?.toString() || ''
+    initialValues?.numberOfSigns?.toString() || defaultNumberOfSigns?.toString() || ''
   );
-  const [agent, setAgent] = useState(initialValues?.agent || '');
+  const [agent, setAgent] = useState(initialValues?.agent || defaultAgentName || '');
   const [isAuction, setIsAuction] = useState(Boolean(initialValues?.isAuction));
   const [resolvedAddress, setResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [notes, setNotes] = useState(initialValues?.notes || '');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const agentOptions = (availableAgents ?? []).filter(Boolean);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -114,6 +124,13 @@ export function StopForm({
         />
       </div>
 
+      {standingInstructions && (
+        <div className={styles.instructionsBox}>
+          <div className={styles.instructionsLabel}>Standing Instructions</div>
+          <p className={styles.instructionsText}>{standingInstructions}</p>
+        </div>
+      )}
+
       <div className={styles.field}>
         <label htmlFor="serviceType" className={styles.label}>
           Service Type
@@ -148,18 +165,31 @@ export function StopForm({
       </div>
 
       <div className={styles.field}>
-        <label htmlFor="agent" className={styles.label}>
+        <label className={styles.label}>
           Listing Agent
         </label>
-        <input
-          id="agent"
-          type="text"
-          value={agent}
-          onChange={(e) => setAgent(e.target.value)}
-          className={styles.input}
-          disabled={isSubmitting}
-          placeholder="e.g. Jamie Lee"
-        />
+        {agentOptions.length > 0 ? (
+          <div className={styles.agentBadgeGroup} role="radiogroup" aria-label="Listing Agent">
+            {agentOptions.map((option) => {
+              const selected = agent === option;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  className={`${styles.agentBadge} ${selected ? styles.agentBadgeSelected : ''}`}
+                  onClick={() => setAgent(selected ? '' : option)}
+                  disabled={isSubmitting}
+                  aria-pressed={selected}
+                >
+                  <span className={styles.agentInitials}>{generateAgentInitials(option) ?? option.slice(0, 2).toUpperCase()}</span>
+                  <span className={styles.agentName}>{option}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className={styles.agentHint}>No agent options configured for this customer yet.</p>
+        )}
       </div>
 
       <div className={styles.field}>

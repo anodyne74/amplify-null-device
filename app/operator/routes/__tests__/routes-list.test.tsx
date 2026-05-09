@@ -26,6 +26,7 @@ jest.mock('@aws-amplify/ui-react', () => ({
 jest.mock('@/lib/amplify-config', () => ({
   isOperator: () => true,
   isCustomer: () => false,
+  isAdmin: () => true,
 }));
 
 jest.mock('@/app/components/OperatorRoute', () => ({
@@ -48,7 +49,7 @@ const mockRoutes: Route[] = [
     id: 'route-cccc-3333',
     routeCode: 'W19-26-002',
     customerId: 'cust-dddd-4444',
-    status: 'active',
+    status: 'signs_placed',
     createdAt: '2024-03-02T11:00:00Z',
   },
 ];

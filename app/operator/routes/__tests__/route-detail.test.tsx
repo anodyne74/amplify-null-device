@@ -29,6 +29,7 @@ jest.mock('@aws-amplify/ui-react', () => ({
 jest.mock('@/lib/amplify-config', () => ({
   isOperator: () => true,
   isCustomer: () => false,
+  isAdmin: () => true,
 }));
 
 // Mock OperatorRoute to render children
@@ -43,6 +44,7 @@ jest.mock('@/lib/queries/DeleteStop');
 jest.mock('@/lib/queries', () => ({
   getCustomer: jest.fn().mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined }),
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
+  deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));
 jest.mock('@/lib/queries/UpdateStop', () => ({
   updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
@@ -170,8 +172,8 @@ describe('Operator Route Detail Page', () => {
       expect(screen.getAllByRole('button', { name: /delete/i }).length).toBeGreaterThan(0);
     });
 
-    const deleteButtons = screen.getAllByRole('button', { name: /delete/i });
-    fireEvent.click(deleteButtons[0]);
+    const stopDeleteButtons = screen.getAllByRole('button', { name: /^delete$/i });
+    fireEvent.click(stopDeleteButtons[0]);
 
     await waitFor(() => {
       expect(deleteStopModule.deleteStop).toHaveBeenCalledWith('stop-1');

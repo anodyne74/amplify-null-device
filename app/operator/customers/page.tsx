@@ -3,6 +3,7 @@
 import { Fragment, FormEvent, useCallback, useEffect, useState } from 'react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
+import { parseAgentOptionsInput, stringifyAgentOptions } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import {
   createCustomer,
@@ -21,6 +22,11 @@ type Customer = {
   billingRatePerHour: number;
   status?: 'active' | 'inactive' | 'suspended' | null;
   addressLine1?: string | null;
+  standingInstructions?: string | null;
+  defaultNumberOfSigns?: number | null;
+  defaultAgentName?: string | null;
+  defaultAgentInitials?: string | null;
+  agentOptions?: string[] | null;
 };
 
 type CustomerUser = {
@@ -63,6 +69,10 @@ export default function CustomersAdminPage() {
   const [email, setEmail] = useState('');
   const [billingRatePerHour, setBillingRatePerHour] = useState('$0.00');
   const [addressLine1, setAddressLine1] = useState('');
+  const [standingInstructions, setStandingInstructions] = useState('');
+  const [defaultNumberOfSigns, setDefaultNumberOfSigns] = useState('');
+  const [defaultAgentName, setDefaultAgentName] = useState('');
+  const [agentOptionsText, setAgentOptionsText] = useState('');
   const [createResolvedAddress, setCreateResolvedAddress] = useState<ResolvedAddress | null>(null);
 
   // Edit customer panel state
@@ -72,6 +82,10 @@ export default function CustomersAdminPage() {
   const [editBillingRatePerHour, setEditBillingRatePerHour] = useState('$0.00');
   const [editStatus, setEditStatus] = useState<'active' | 'inactive' | 'suspended'>('active');
   const [editAddressLine1, setEditAddressLine1] = useState('');
+  const [editStandingInstructions, setEditStandingInstructions] = useState('');
+  const [editDefaultNumberOfSigns, setEditDefaultNumberOfSigns] = useState('');
+  const [editDefaultAgentName, setEditDefaultAgentName] = useState('');
+  const [editAgentOptionsText, setEditAgentOptionsText] = useState('');
   const [editResolvedAddress, setEditResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -114,8 +128,14 @@ export default function CustomersAdminPage() {
     event.preventDefault();
 
     const createRate = parseCurrency(billingRatePerHour);
+    const createSigns = defaultNumberOfSigns.trim() ? Number(defaultNumberOfSigns) : undefined;
     if (Number.isNaN(createRate) || createRate < 0) {
       setError('Billing rate must be 0 or greater.');
+      return;
+    }
+
+    if (defaultNumberOfSigns.trim() && (Number.isNaN(createSigns) || createSigns! < 0)) {
+      setError('Default number of signs must be 0 or greater.');
       return;
     }
 
@@ -136,6 +156,10 @@ export default function CustomersAdminPage() {
         billingRatePerHour: createRate,
         status: 'active',
         addressLine1: resolved.formattedAddress,
+        standingInstructions,
+        defaultNumberOfSigns: createSigns,
+        defaultAgentName,
+        agentOptions: parseAgentOptionsInput(agentOptionsText),
       });
 
       if (result.errors && result.errors.length > 0) {
@@ -145,6 +169,10 @@ export default function CustomersAdminPage() {
         setEmail('');
         setBillingRatePerHour('$0.00');
         setAddressLine1('');
+        setStandingInstructions('');
+        setDefaultNumberOfSigns('');
+        setDefaultAgentName('');
+        setAgentOptionsText('');
         setCreateResolvedAddress(null);
         await fetchCustomers();
       }
@@ -199,6 +227,12 @@ export default function CustomersAdminPage() {
     setEditBillingRatePerHour(usdFormatter.format(customer.billingRatePerHour ?? 0));
     setEditStatus(customer.status ?? 'active');
     setEditAddressLine1(customer.addressLine1 ?? '');
+    setEditStandingInstructions(customer.standingInstructions ?? '');
+    setEditDefaultNumberOfSigns(
+      typeof customer.defaultNumberOfSigns === 'number' ? String(customer.defaultNumberOfSigns) : ''
+    );
+    setEditDefaultAgentName(customer.defaultAgentName ?? '');
+    setEditAgentOptionsText(stringifyAgentOptions(customer.agentOptions));
   };
 
   const handleUpdateCustomer = async (customerId: string) => {
@@ -212,8 +246,14 @@ export default function CustomersAdminPage() {
     }
 
     const rate = parseCurrency(editBillingRatePerHour);
+    const editSigns = editDefaultNumberOfSigns.trim() ? Number(editDefaultNumberOfSigns) : undefined;
     if (Number.isNaN(rate) || rate < 0) {
       setEditError('Billing rate must be 0 or greater.');
+      return;
+    }
+
+    if (editDefaultNumberOfSigns.trim() && (Number.isNaN(editSigns) || editSigns! < 0)) {
+      setEditError('Default number of signs must be 0 or greater.');
       return;
     }
 
@@ -236,6 +276,10 @@ export default function CustomersAdminPage() {
         billingRatePerHour: rate,
         status: editStatus,
         addressLine1: resolved.formattedAddress,
+        standingInstructions: editStandingInstructions,
+        defaultNumberOfSigns: editSigns,
+        defaultAgentName: editDefaultAgentName,
+        agentOptions: parseAgentOptionsInput(editAgentOptionsText),
       });
 
       if (result.errors && result.errors.length > 0) {
@@ -311,6 +355,18 @@ export default function CustomersAdminPage() {
             inputMode="decimal"
             required
           />
+          <input
+            value={defaultNumberOfSigns}
+            onChange={(e) => setDefaultNumberOfSigns(e.target.value)}
+            placeholder="Default number of signs"
+            type="number"
+            min={0}
+          />
+          <input
+            value={defaultAgentName}
+            onChange={(e) => setDefaultAgentName(e.target.value)}
+            placeholder="Default agent name"
+          />
           <AddressAutocompleteInput
             id="create-customer-address"
             value={addressLine1}
@@ -326,6 +382,16 @@ export default function CustomersAdminPage() {
             disabled={saving}
             placeholder="Address"
             className={styles.input}
+          />
+          <textarea
+            value={agentOptionsText}
+            onChange={(e) => setAgentOptionsText(e.target.value)}
+            placeholder="Agent options, one per line"
+          />
+          <textarea
+            value={standingInstructions}
+            onChange={(e) => setStandingInstructions(e.target.value)}
+            placeholder="Standing instructions for operators"
           />
           <button type="submit" disabled={saving}>{saving ? 'Creating...' : 'Create Customer'}</button>
         </form>
@@ -430,6 +496,20 @@ export default function CustomersAdminPage() {
                                 <option value="inactive">inactive</option>
                                 <option value="suspended">suspended</option>
                               </select>
+                              <input
+                                value={editDefaultNumberOfSigns}
+                                onChange={(e) => setEditDefaultNumberOfSigns(e.target.value)}
+                                placeholder="Default number of signs"
+                                type="number"
+                                min={0}
+                                disabled={editSaving}
+                              />
+                              <input
+                                value={editDefaultAgentName}
+                                onChange={(e) => setEditDefaultAgentName(e.target.value)}
+                                placeholder="Default agent name"
+                                disabled={editSaving}
+                              />
                               <div style={{ gridColumn: '1 / -1' }}>
                                 <AddressAutocompleteInput
                                   id={`customer-address-${customer.id}`}
@@ -448,6 +528,25 @@ export default function CustomersAdminPage() {
                                   className={styles.input}
                                 />
                               </div>
+                              <textarea
+                                value={editAgentOptionsText}
+                                onChange={(e) => setEditAgentOptionsText(e.target.value)}
+                                placeholder="Agent options, one per line"
+                                disabled={editSaving}
+                                style={{ gridColumn: '1 / -1' }}
+                              />
+                              <textarea
+                                value={editStandingInstructions}
+                                onChange={(e) => setEditStandingInstructions(e.target.value)}
+                                placeholder="Standing instructions for operators"
+                                disabled={editSaving}
+                                style={{ gridColumn: '1 / -1' }}
+                              />
+                              {customer.defaultAgentInitials && (
+                                <p style={{ gridColumn: '1 / -1', margin: 0 }} className={styles.welcome}>
+                                  Current default initials: {customer.defaultAgentInitials}
+                                </p>
+                              )}
                             </div>
                             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                               <button

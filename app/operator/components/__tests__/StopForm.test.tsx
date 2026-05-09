@@ -11,11 +11,12 @@ describe('StopForm', () => {
   });
 
   it('renders all fields (address, service type, notes, submit/cancel)', () => {
-    render(<StopForm onSubmit={noop} onCancel={noop} />);
+    render(<StopForm onSubmit={noop} onCancel={noop} availableAgents={['Jamie Lee']} />);
 
     expect(screen.getByLabelText(/address/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/service type/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/notes/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /jamie lee/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /add stop/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
   });
@@ -88,6 +89,49 @@ describe('StopForm', () => {
     expect(screen.getByLabelText(/address/i)).toHaveValue('456 Elm Ave');
     expect(screen.getByLabelText(/service type/i)).toHaveValue('inspection');
     expect(screen.getByLabelText(/notes/i)).toHaveValue('Pre-filled note');
+  });
+
+  it('preselects the configured default agent and signs', () => {
+    render(
+      <StopForm
+        onSubmit={noop}
+        onCancel={noop}
+        defaultNumberOfSigns={3}
+        defaultAgentName="Jamie Lee"
+        availableAgents={['Jamie Lee', 'Pat Doe']}
+        standingInstructions="Call before arriving."
+      />
+    );
+
+    expect(screen.getByText(/call before arriving/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/number of signs/i)).toHaveValue(3);
+    expect(screen.getByRole('button', { name: /jamie lee/i })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('submits the selected agent badge', async () => {
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+
+    render(
+      <StopForm
+        onSubmit={onSubmit}
+        onCancel={noop}
+        availableAgents={['Jamie Lee', 'Pat Doe']}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/address/i), {
+      target: { value: '123 Main St' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /pat doe/i }));
+    fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent: 'Pat Doe',
+        })
+      );
+    });
   });
 
   it('shows external error prop when provided', () => {

@@ -57,6 +57,38 @@
   border-top: 1px solid var(--nd-border-default);
 }
 
+.copyStopsRow {
+  margin-bottom: var(--nd-space-md);
+}
+
+.copyStopsLabel {
+  display: block;
+  margin-bottom: var(--nd-space-xs);
+  color: var(--nd-text-secondary);
+  font-size: 13px;
+}
+
+.copyStopsControls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.btnCopyStops {
+  padding: 8px 14px;
+  background-color: transparent;
+  color: var(--nd-accent-primary);
+  border: 1px solid var(--nd-accent-primary);
+  border-radius: var(--nd-radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btnCopyStops:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .stopsHeaderRow {
   display: flex;
   align-items: center;
@@ -168,6 +200,12 @@
 .actions {
   display: flex;
   gap: 12px;
+}
+
+@media (max-width: 520px) {
+  .copyStopsControls {
+    grid-template-columns: 1fr;
+  }
 }
 
 .btnSubmit {

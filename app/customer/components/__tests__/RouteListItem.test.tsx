@@ -6,7 +6,7 @@ describe('RouteListItem', () => {
   const mockRoute: Route = {
     id: 'route-1',
     customerId: 'customer-1',
-    status: 'active',
+    status: 'signs_placed',
     estimatedDurationMinutes: 120,
     createdAt: '2024-01-15T10:00:00Z',
   };
@@ -24,7 +24,7 @@ describe('RouteListItem', () => {
       <RouteListItem route={mockRoute} />
     );
 
-    expect(screen.getByText(/In Progress|active|Planned|Completed|Archived/i)).toBeInTheDocument();
+    expect(screen.getByText(/Signs placed|Planned|Completed|Archived/i)).toBeInTheDocument();
   });
 
   it('handles routes with no duration', () => {

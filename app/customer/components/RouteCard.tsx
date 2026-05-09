@@ -16,8 +16,10 @@ export default function RouteCard({ route }: RouteCardProps) {
     switch (status) {
       case 'completed':
         return 'Completed';
-      case 'active':
-        return 'In Progress';
+      case 'signs_picked_up':
+        return 'Signs Picked Up';
+      case 'signs_placed':
+        return 'Signs Placed';
       case 'planned':
         return 'Planned';
       case 'archived':
@@ -30,7 +32,13 @@ export default function RouteCard({ route }: RouteCardProps) {
   const stopCount = route.stops?.length || 0;
 
   const statusClass =
-    { planned: styles.badgePlanned, active: styles.badgeActive, completed: styles.badgeCompleted, archived: styles.badgeArchived }[route.status ?? 'planned'] ?? styles.badgePlanned;
+    {
+      planned: styles.badgePlanned,
+      signs_placed: styles.badgeActive,
+      signs_picked_up: styles.badgeActive,
+      completed: styles.badgeCompleted,
+      archived: styles.badgeArchived,
+    }[route.status ?? 'planned'] ?? styles.badgePlanned;
 
   return (
     <div className={styles.card}>

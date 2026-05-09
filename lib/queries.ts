@@ -5,6 +5,7 @@
 
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../amplify/data/resource';
+import { normalizeCustomerDefaults } from '@/lib/customerDefaults';
 
 let _client: ReturnType<typeof generateClient<Schema>> | null = null;
 function getClient() {
@@ -78,11 +79,16 @@ export async function createCustomer(input: {
   email: string;
   contactPhone?: string;
   addressLine1?: string;
+  standingInstructions?: string;
+  defaultNumberOfSigns?: number;
+  defaultAgentName?: string;
+  defaultAgentInitials?: string;
+  agentOptions?: string[];
   status?: 'active' | 'inactive' | 'suspended';
   billingRatePerHour: number;
 }) {
   try {
-    const { data, errors } = await getClient().models.Customer.create(input);
+    const { data, errors } = await getClient().models.Customer.create(normalizeCustomerDefaults(input));
 
     if (errors) {
       console.error('Errors creating customer:', errors);
@@ -105,6 +111,11 @@ export async function updateCustomer(
     email: string;
     contactPhone: string;
     addressLine1: string;
+    standingInstructions: string;
+    defaultNumberOfSigns: number;
+    defaultAgentName: string;
+    defaultAgentInitials: string;
+    agentOptions: string[];
     status: 'active' | 'inactive' | 'suspended';
     billingRatePerHour: number;
   }>
@@ -112,7 +123,7 @@ export async function updateCustomer(
   try {
     const { data, errors } = await getClient().models.Customer.update({
       id: customerId,
-      ...updates,
+      ...normalizeCustomerDefaults(updates),
     });
 
     if (errors) {
@@ -124,6 +135,30 @@ export async function updateCustomer(
     console.error('Error updating customer:', error);
     return { data: null, errors: [error] };
   }
+}
+
+/**
+ * Allow a customer account owner to update only standing instructions and stop defaults.
+ */
+export async function updateCustomerDefaultsForUser(
+  userSub: string,
+  updates: Partial<{
+    standingInstructions: string;
+    defaultNumberOfSigns: number;
+    defaultAgentName: string;
+    defaultAgentInitials: string;
+    agentOptions: string[];
+  }>
+) {
+  const context = await getCustomerPortalContext(userSub);
+  if (context.role !== 'account_owner') {
+    return {
+      data: null,
+      errors: [new Error('Only the customer account owner can update standing instructions.')],
+    };
+  }
+
+  return updateCustomer(context.customerId, updates);
 }
 
 /**
@@ -314,7 +349,7 @@ export async function createRoute(input: {
   routeCode?: string;
   customerId: string;
   viewerSubs?: string[];
-  status: 'planned' | 'active' | 'completed' | 'archived';
+  status: 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
   notes?: string;
   scheduleS3Key?: string;
 }) {
@@ -340,7 +375,7 @@ export async function updateRoute(
   updates: Partial<{
     routeCode: string;
     customerId: string;
-    status: 'planned' | 'active' | 'completed' | 'archived';
+    status: 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
     actualStartTime: string;
     actualEndTime: string;
     actualDurationMinutes: number;
@@ -366,7 +401,7 @@ export async function updateRoute(
 }
 
 export interface RouteExecutionUpdateInput {
-  status?: 'planned' | 'active' | 'completed' | 'archived';
+  status?: 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
   actualStartTime?: string;
   actualEndTime?: string;
   actualDurationMinutes?: number;

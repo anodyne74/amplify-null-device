@@ -27,8 +27,19 @@ export interface RouteDraftStop {
   formattedAddress?: string;
 }
 
+interface RouteFormCustomer {
+  id: string;
+  name: string;
+  email: string;
+  addressLine1?: string | null;
+  standingInstructions?: string | null;
+  defaultNumberOfSigns?: number | null;
+  defaultAgentName?: string | null;
+  agentOptions?: string[] | null;
+}
+
 interface RouteFormProps {
-  customers: Array<{ id: string; name: string; email: string; addressLine1?: string | null }>;
+  customers: RouteFormCustomer[];
   onSubmit: (values: {
     routeCode: string;
     customerId: string;
@@ -39,9 +50,24 @@ interface RouteFormProps {
   onCancel: () => void;
   isSubmitting?: boolean;
   error?: string | null;
+  copyStopSources?: Array<{
+    id: string;
+    customerId: string;
+    label: string;
+  }>;
+  onCopyStopsFromSource?: (sourceRouteId: string) => Promise<RouteDraftStop[]>;
 }
 
-export function RouteForm({ customers, onSubmit, initialRouteCode = '', onCancel, isSubmitting, error }: RouteFormProps) {
+export function RouteForm({
+  customers,
+  onSubmit,
+  initialRouteCode = '',
+  onCancel,
+  isSubmitting,
+  error,
+  copyStopSources,
+  onCopyStopsFromSource,
+}: RouteFormProps) {
   const [routeCode, setRouteCode] = useState(initialRouteCode);
   const [customerId, setCustomerId] = useState('');
   const [notes, setNotes] = useState('');
@@ -49,12 +75,24 @@ export function RouteForm({ customers, onSubmit, initialRouteCode = '', onCancel
   const [showAddStop, setShowAddStop] = useState(false);
   const [addingStop, setAddingStop] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);
+  const [selectedCopySourceId, setSelectedCopySourceId] = useState('');
+  const [copyingStops, setCopyingStops] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  const canCopyStops = Boolean(copyStopSources && onCopyStopsFromSource);
+  const selectedCustomer = customers.find((customer) => customer.id === customerId);
+  const copySourcesForCustomer = (copyStopSources ?? []).filter((route) => route.customerId === customerId);
 
   useEffect(() => {
     setRouteCode(initialRouteCode);
   }, [initialRouteCode]);
+
+  useEffect(() => {
+    setSelectedCopySourceId('');
+    setCopyError(null);
+  }, [customerId]);
 
   useEffect(() => {
     const selected = customers.find((c) => c.id === customerId);
@@ -169,11 +207,36 @@ export function RouteForm({ customers, onSubmit, initialRouteCode = '', onCancel
     await onSubmit({ routeCode: routeCode.trim(), customerId, notes, stops });
   };
 
+  const handleCopyStops = async () => {
+    if (!onCopyStopsFromSource) return;
+    if (!selectedCopySourceId) {
+      setCopyError('Select a previous route to copy from.');
+      return;
+    }
+
+    setCopyError(null);
+    setCopyingStops(true);
+    try {
+      const copiedStops = await onCopyStopsFromSource(selectedCopySourceId);
+      if (copiedStops.length === 0) {
+        setCopyError('The selected route has no stops to copy.');
+        return;
+      }
+
+      setStops(copiedStops);
+      setShowAddStop(false);
+    } catch {
+      setCopyError('Could not copy stops from the selected route.');
+    } finally {
+      setCopyingStops(false);
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} noValidate>
-      {(validationError || error || stopError) && (
+      {(validationError || error || stopError || copyError) && (
         <div className={styles.errorBanner}>
-          {validationError || error || stopError}
+          {validationError || error || stopError || copyError}
         </div>
       )}
 
@@ -238,12 +301,57 @@ export function RouteForm({ customers, onSubmit, initialRouteCode = '', onCancel
           </button>
         </div>
 
+        {canCopyStops && (
+          <div className={styles.copyStopsRow}>
+            <label htmlFor="copyRouteId" className={styles.copyStopsLabel}>
+              Copy stops from previous route
+            </label>
+            <div className={styles.copyStopsControls}>
+              <select
+                id="copyRouteId"
+                value={selectedCopySourceId}
+                onChange={(e) => {
+                  setSelectedCopySourceId(e.target.value);
+                  setCopyError(null);
+                }}
+                className={styles.select}
+                disabled={!customerId || isSubmitting || copyingStops || copySourcesForCustomer.length === 0}
+              >
+                <option value="">
+                  {!customerId
+                    ? 'Select a customer first...'
+                    : copySourcesForCustomer.length === 0
+                      ? 'No previous routes available'
+                      : 'Choose a route...'}
+                </option>
+                {copySourcesForCustomer.map((route) => (
+                  <option key={route.id} value={route.id}>
+                    {route.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className={styles.btnCopyStops}
+                onClick={handleCopyStops}
+                disabled={isSubmitting || copyingStops || !customerId || !selectedCopySourceId}
+              >
+                {copyingStops ? 'Copying...' : 'Copy Stops'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {showAddStop && (
           <div className={styles.stopFormCard}>
             <StopForm
               onSubmit={handleAddStop}
               onCancel={() => setShowAddStop(false)}
               addressSearchOrigin={customerAddressOrigin}
+              standingInstructions={selectedCustomer?.standingInstructions ?? undefined}
+              defaultNumberOfSigns={selectedCustomer?.defaultNumberOfSigns ?? undefined}
+              defaultAgentName={selectedCustomer?.defaultAgentName ?? undefined}
+              availableAgents={selectedCustomer?.agentOptions ?? undefined}
               isSubmitting={addingStop}
               submitLabel="Add Stop to Route"
             />

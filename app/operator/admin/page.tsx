@@ -34,7 +34,10 @@ export default function AdminHomePage() {
     void loadStats();
   }, []);
 
-  const activeRoutes = useMemo(() => routes.filter((r) => r.status === 'active'), [routes]);
+  const activeRoutes = useMemo(
+    () => routes.filter((r) => r.status === 'signs_placed' || r.status === 'signs_picked_up'),
+    [routes]
+  );
   const plannedRoutes = useMemo(() => routes.filter((r) => r.status === 'planned'), [routes]);
   const completedToday = useMemo(() => {
     const today = new Date().toDateString();

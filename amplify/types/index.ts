@@ -34,6 +34,11 @@ export interface Customer {
   email: string;
   contactPhone?: string;
   addressLine1?: string;
+  standingInstructions?: string;
+  defaultNumberOfSigns?: number | null;
+  defaultAgentName?: string;
+  defaultAgentInitials?: string;
+  agentOptions?: string[] | null;
   status: CustomerStatus;
   billingRatePerHour: number;
   createdAt?: string;
@@ -178,7 +183,7 @@ export interface CustomerUser {
 export type CustomerStatus = 'active' | 'inactive' | 'suspended';
 export type CustomerUserRole = 'account_owner' | 'read_only';
 export type OperatorRole = 'admin' | 'manager' | 'staff';
-export type RouteStatus = 'planned' | 'active' | 'completed' | 'archived';
+export type RouteStatus = 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
 export type ServiceType = 'delivery' | 'pickup' | 'inspection';
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled';
 export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'check' | 'cash' | 'other';
@@ -196,6 +201,11 @@ export interface CreateCustomerInput {
   email: string;
   contactPhone?: string;
   addressLine1?: string;
+  standingInstructions?: string;
+  defaultNumberOfSigns?: number;
+  defaultAgentName?: string;
+  defaultAgentInitials?: string;
+  agentOptions?: string[];
   status: CustomerStatus;
   billingRatePerHour: number;
 }
@@ -206,6 +216,11 @@ export interface UpdateCustomerInput {
   email?: string;
   contactPhone?: string;
   addressLine1?: string;
+  standingInstructions?: string;
+  defaultNumberOfSigns?: number;
+  defaultAgentName?: string;
+  defaultAgentInitials?: string;
+  agentOptions?: string[];
   status?: CustomerStatus;
   billingRatePerHour?: number;
 }

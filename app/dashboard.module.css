@@ -99,6 +99,17 @@
   color: var(--nd-text-primary);
 } 
 
+.infoPanel textarea {
+  padding: 8px 12px;
+  background-color: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-md);
+  font-size: 0.9rem;
+  color: var(--nd-text-primary);
+  min-height: 96px;
+  resize: vertical;
+}
+
 .infoPanel button {
   padding: 10px 16px;
   background-color: var(--nd-operator-accent);

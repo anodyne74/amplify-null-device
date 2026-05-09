@@ -14,19 +14,20 @@ describe('RouteTimeline', () => {
   it('displays planned status timeline', () => {
     render(<RouteTimeline route={mockRoute} />);
     expect(screen.getByText(/Planned/i)).toBeInTheDocument();
-    expect(screen.getByText(/Active/i)).toBeInTheDocument();
+    expect(screen.getByText(/Signs Placed/i)).toBeInTheDocument();
+    expect(screen.getByText(/Signs Picked Up/i)).toBeInTheDocument();
     expect(screen.getByText(/Completed/i)).toBeInTheDocument();
   });
 
-  it('shows active status as current for active routes', () => {
+  it('shows signs placed status as current for in-progress routes', () => {
     const activeRoute: Route = {
       ...mockRoute,
-      status: 'active',
+      status: 'signs_placed',
       actualStartTime: '2024-01-15T09:00:00Z',
     };
 
     render(<RouteTimeline route={activeRoute} />);
-    expect(screen.getByText(/Active/i)).toBeInTheDocument();
+    expect(screen.getByText(/Signs Placed/i)).toBeInTheDocument();
   });
 
   it('shows completed status as current for completed routes', () => {

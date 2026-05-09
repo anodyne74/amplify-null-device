@@ -106,7 +106,7 @@ describe('queries', () => {
     it('should fetch routes for a specific customer', async () => {
       const mockRoutes = [
         { id: 'r1', customerId: 'c1', status: 'planned', name: 'Route 1' },
-        { id: 'r2', customerId: 'c1', status: 'active', name: 'Route 2' },
+        { id: 'r2', customerId: 'c1', status: 'signs_placed', name: 'Route 2' },
       ];
 
       mockRouteList.mockResolvedValue({
@@ -127,7 +127,7 @@ describe('queries', () => {
     it('should filter routes by status on client side', async () => {
       const mockRoutes = [
         { id: 'r1', customerId: 'c1', status: 'planned' },
-        { id: 'r2', customerId: 'c1', status: 'active' },
+        { id: 'r2', customerId: 'c1', status: 'signs_placed' },
       ];
 
       mockRouteList.mockResolvedValue({
@@ -135,16 +135,16 @@ describe('queries', () => {
         errors: undefined,
       });
 
-      const result = await listCustomerRoutes('c1', { status: 'active' });
+      const result = await listCustomerRoutes('c1', { status: 'signs_placed' });
 
       expect(result.data).toHaveLength(1);
-      expect(result.data[0].status).toBe('active');
+      expect(result.data[0].status).toBe('signs_placed');
     });
   });
 
   describe('getRouteWithStops', () => {
     it('should fetch route and its associated stops', async () => {
-      const mockRoute = { id: 'r1', customerId: 'c1', status: 'active' };
+      const mockRoute = { id: 'r1', customerId: 'c1', status: 'signs_placed' };
       const mockStops = [
         { id: 's1', routeId: 'r1', sequence: 1, address: '123 Main St' },
         { id: 's2', routeId: 'r1', sequence: 2, address: '456 Oak Ave' },

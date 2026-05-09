@@ -15,9 +15,24 @@ import styles from './page.module.css';
 type StatusFilter = RouteStatus | 'all';
 
 function StatusBadge({ status }: { status?: string | null }) {
-  const badgeClass = { planned: styles.badgePlanned, active: styles.badgeActive, completed: styles.badgeCompleted, archived: styles.badgeArchived }[(status ?? 'planned') as string] ?? styles.badgePlanned;
+  const badgeClass = {
+    planned: styles.badgePlanned,
+    signs_placed: styles.badgeActive,
+    signs_picked_up: styles.badgeActive,
+    completed: styles.badgeCompleted,
+    archived: styles.badgeArchived,
+  }[(status ?? 'planned') as string] ?? styles.badgePlanned;
+
+  const label = {
+    planned: 'planned',
+    signs_placed: 'signs placed',
+    signs_picked_up: 'signs picked up',
+    completed: 'completed',
+    archived: 'archived',
+  }[(status ?? 'planned') as string] ?? (status || 'unknown');
+
   return (
-    <span className={`${styles.badge} ${badgeClass}`}>{status || 'unknown'}</span>
+    <span className={`${styles.badge} ${badgeClass}`}>{label}</span>
   );
 }
 
@@ -35,7 +50,7 @@ function formatDuration(route: Route) {
     return `${route.actualDurationMinutes} min`;
   }
 
-  if (route.status === 'active' && route.actualStartTime) {
+  if ((route.status === 'signs_placed' || route.status === 'signs_picked_up') && route.actualStartTime) {
     const minutes = Math.max(
       1,
       Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000)
@@ -142,14 +157,14 @@ export default function OperatorRoutesPage() {
               <label className={styles.filterLabel}>
                 Status:
               </label>
-              {(['all', 'planned', 'active', 'completed', 'archived'] as StatusFilter[]).map(
+              {(['all', 'planned', 'signs_placed', 'signs_picked_up', 'completed', 'archived'] as StatusFilter[]).map(
                 (s) => (
                   <button
                     key={s}
                     onClick={() => setStatusFilter(s)}
                     className={`${styles.filterBtn} ${statusFilter === s ? styles.filterBtnActive : ''}`}
                   >
-                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                    {s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ')}
                   </button>
                 )
               )}

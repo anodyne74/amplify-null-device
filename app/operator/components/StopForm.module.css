@@ -51,6 +51,81 @@
   resize: vertical;
 }
 
+.instructionsBox {
+  margin-bottom: var(--nd-space-md);
+  padding: 12px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-md);
+  background: color-mix(in srgb, var(--nd-bg-elevated) 85%, var(--nd-customer-accent) 15%);
+}
+
+.instructionsLabel {
+  margin-bottom: 6px;
+  font-family: var(--nd-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nd-text-muted);
+}
+
+.instructionsText {
+  margin: 0;
+  color: var(--nd-text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.agentBadgeGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.agentBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: 999px;
+  background: var(--nd-bg-elevated);
+  color: var(--nd-text-secondary);
+  cursor: pointer;
+  transition: border-color var(--nd-transition-fast), transform var(--nd-transition-fast), color var(--nd-transition-fast);
+}
+
+.agentBadgeSelected {
+  border-color: var(--nd-accent-primary);
+  color: var(--nd-text-primary);
+  transform: translateY(-1px);
+  box-shadow: var(--nd-accent-primary-glow);
+}
+
+.agentInitials {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.agentName {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.agentHint {
+  margin: 0;
+  color: var(--nd-text-muted);
+  font-size: 13px;
+}
+
 .actions {
   display: flex;
   gap: 12px;

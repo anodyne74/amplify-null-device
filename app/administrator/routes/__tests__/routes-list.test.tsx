@@ -29,9 +29,11 @@ jest.mock('@/lib/amplify-config', () => ({
   isAdmin: () => true,
 }));
 
+const operatorRouteMock = jest.fn(({ children }: { children: React.ReactNode }) => <>{children}</>);
+
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
-  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  default: (props: { children: React.ReactNode; requireAdmin?: boolean }) => operatorRouteMock(props),
 }));
 
 jest.mock('@/lib/queries/ListAllRoutes');
@@ -57,6 +59,7 @@ const mockRoutes: Route[] = [
 describe('Operator Routes List Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    operatorRouteMock.mockImplementation(({ children }: { children: React.ReactNode }) => <>{children}</>);
     (listAllCustomersModule.listAllCustomers as jest.Mock).mockResolvedValue({
       data: [
         { id: 'cust-bbbb-2222', name: 'Acme Corp', email: 'acme@example.com' },
@@ -133,5 +136,21 @@ describe('Operator Routes List Page', () => {
     await waitFor(() => {
       expect(screen.getByText(/failed to load routes/i)).toBeInTheDocument();
     });
+  });
+
+  it('uses the admin-only guard on the routes page', () => {
+    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
+      data: [],
+      errors: undefined,
+    });
+
+    render(<RoutesPage />);
+
+    expect(operatorRouteMock).toHaveBeenCalled();
+    expect(operatorRouteMock.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        requireAdmin: true,
+      })
+    );
   });
 });

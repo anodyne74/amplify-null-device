@@ -58,6 +58,49 @@ export async function geocodeAddress(address: string): Promise<GeocodedAddress> 
     throw new Error('Address is required.');
   }
 
+  if (typeof window !== 'undefined') {
+    await loadGoogleMapsScript();
+
+    const googleMaps = (window as Window & { google?: any }).google;
+    const geocoder = new googleMaps.maps.Geocoder();
+    const result = await new Promise<GeocodeResponse>((resolve, reject) => {
+      geocoder.geocode({ address: trimmedAddress }, (results: any[], status: string) => {
+        if (status === googleMaps.maps.GeocoderStatus.OK && results) {
+          resolve({
+            status: 'OK',
+            results: results.map((item: any) => ({
+              formatted_address: item.formatted_address,
+              geometry: {
+                location: {
+                  lat: item.geometry?.location?.lat(),
+                  lng: item.geometry?.location?.lng(),
+                },
+              },
+            })),
+          });
+          return;
+        }
+
+        reject(new Error(`Address could not be validated.${status ? ` ${status}` : ''}`.trim()));
+      });
+    });
+
+    const topResult = result.results?.[0];
+    const lat = topResult?.geometry?.location?.lat;
+    const lng = topResult?.geometry?.location?.lng;
+    const formattedAddress = topResult?.formatted_address;
+
+    if (typeof lat !== 'number' || typeof lng !== 'number' || !formattedAddress) {
+      throw new Error('Address validation returned incomplete location data.');
+    }
+
+    return {
+      formattedAddress,
+      latitude: lat,
+      longitude: lng,
+    };
+  }
+
   const params = new URLSearchParams({
     address: trimmedAddress,
     key: apiKey,

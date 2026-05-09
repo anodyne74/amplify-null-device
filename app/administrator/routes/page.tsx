@@ -130,7 +130,7 @@ export default function OperatorRoutesPage() {
   };
 
   return (
-    <OperatorRoute>
+    <OperatorRoute requireAdmin>
       <div className={styles.container}>
         {/* Header */}
         <div className={styles.pageHeader}>

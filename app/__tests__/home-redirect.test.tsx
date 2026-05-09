@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Home from '@/app/page';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
@@ -29,6 +29,7 @@ describe('Home Redirect', () => {
       authStatus: 'authenticated',
     });
     (useUserGroups as jest.Mock).mockReturnValue({
+      groups: ['administrator'],
       loading: false,
       isAdmin: true,
       isOperator: true,
@@ -47,6 +48,7 @@ describe('Home Redirect', () => {
       authStatus: 'authenticated',
     });
     (useUserGroups as jest.Mock).mockReturnValue({
+      groups: ['operator'],
       loading: false,
       isAdmin: false,
       isOperator: true,
@@ -65,6 +67,7 @@ describe('Home Redirect', () => {
       authStatus: 'authenticated',
     });
     (useUserGroups as jest.Mock).mockReturnValue({
+      groups: ['customer'],
       loading: false,
       isAdmin: false,
       isOperator: false,
@@ -83,6 +86,7 @@ describe('Home Redirect', () => {
       authStatus: 'authenticated',
     });
     (useUserGroups as jest.Mock).mockReturnValue({
+      groups: [],
       loading: false,
       isAdmin: false,
       isOperator: false,
@@ -94,5 +98,68 @@ describe('Home Redirect', () => {
     await waitFor(() => {
       expect(push).toHaveBeenCalledWith('/pending-approval');
     });
+  });
+
+  it('shows role selector when user has multiple roles', async () => {
+    (useAuthenticator as jest.Mock).mockReturnValue({
+      authStatus: 'authenticated',
+    });
+    (useUserGroups as jest.Mock).mockReturnValue({
+      groups: ['operator', 'customer'],
+      loading: false,
+      isAdmin: false,
+      isOperator: true,
+      isCustomer: true,
+    });
+
+    render(<Home />);
+
+    expect(screen.getByText(/choose portal role/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Operator Portal' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Customer Portal' })).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('navigates to selected role from selector', async () => {
+    (useAuthenticator as jest.Mock).mockReturnValue({
+      authStatus: 'authenticated',
+    });
+    (useUserGroups as jest.Mock).mockReturnValue({
+      groups: ['administrator', 'customer'],
+      loading: false,
+      isAdmin: true,
+      isOperator: true,
+      isCustomer: true,
+    });
+
+    render(<Home />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Administrator Portal' }));
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith('/operator/admin');
+    });
+  });
+
+  it('shows all portal role options in expected order when user has all roles', () => {
+    (useAuthenticator as jest.Mock).mockReturnValue({
+      authStatus: 'authenticated',
+    });
+    (useUserGroups as jest.Mock).mockReturnValue({
+      groups: ['administrator', 'operator', 'customer'],
+      loading: false,
+      isAdmin: true,
+      isOperator: true,
+      isCustomer: true,
+    });
+
+    render(<Home />);
+
+    const roleButtons = screen.getAllByRole('button');
+    expect(roleButtons.map((button) => button.textContent)).toEqual([
+      'Administrator Portal',
+      'Operator Portal',
+      'Customer Portal',
+    ]);
   });
 });

@@ -167,4 +167,32 @@ describe('RouteForm', () => {
       });
     });
   });
+
+  it('threads customer standing instructions and defaults into stop form', async () => {
+    render(
+      <RouteForm
+        customers={[
+          {
+            id: 'cust-1',
+            name: 'Acme Corp',
+            email: 'acme@example.com',
+            standingInstructions: 'Call before arriving.',
+            defaultNumberOfSigns: 3,
+            defaultAgentName: 'Jamie Lee',
+            agentOptions: ['Jamie Lee', 'Pat Doe'],
+          },
+        ]}
+        initialRouteCode="W20-26-001"
+        onSubmit={noop}
+        onCancel={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+    fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
+
+    expect(await screen.findByText(/call before arriving/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/number of signs/i)).toHaveValue(3);
+    expect(screen.getByRole('button', { name: /jamie lee/i })).toHaveAttribute('aria-pressed', 'true');
+  });
 });

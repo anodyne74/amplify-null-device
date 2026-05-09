@@ -50,7 +50,7 @@ export default function AdminHomePage() {
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
         <div>
-          <h1 className={styles.heading}>Administrator Functions</h1>
+          <h1 className={styles.heading}>Administrator Portal</h1>
           <p className={styles.welcome}>Manage customers, invoices, users, and route operations.</p>
         </div>
 

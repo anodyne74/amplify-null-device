@@ -54,7 +54,7 @@ export default function OperatorDashboard() {
   return (
     <div className={styles.page}>
       <div>
-        <h1 className={styles.heading}>Operator Dashboard</h1>
+        <h1 className={styles.heading}>Operator Portal</h1>
         <p className={styles.welcome}>Welcome, {userDisplayName}</p>
       </div>
 

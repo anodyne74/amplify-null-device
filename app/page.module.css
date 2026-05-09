@@ -34,3 +34,28 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+
+.roleButtons {
+  display: grid;
+  gap: var(--nd-space-sm);
+}
+
+.roleButton {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-md);
+  background: var(--nd-bg-elevated);
+  color: var(--nd-text-primary);
+  font-family: var(--nd-font-mono);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color var(--nd-transition-fast), transform var(--nd-transition-fast);
+}
+
+.roleButton:hover {
+  border-color: var(--nd-accent-primary);
+  transform: translateY(-1px);
+}

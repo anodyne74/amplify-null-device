@@ -147,6 +147,32 @@ describe('Authentication Components', () => {
       expect(screen.getByText('Protected Content')).toBeInTheDocument();
     });
 
+    it('does not redirect dual-role operator+customer users away from customer route', async () => {
+      mockUseAuthenticator.mockReturnValue({
+        authStatus: 'authenticated',
+        user: createMockUser('dual@example.com', ['operator', 'customer']),
+      } as any);
+      mockUseUserGroups.mockReturnValue({
+        groups: ['operator', 'customer'],
+        loading: false,
+        isPending: false,
+        isAdmin: false,
+        isOperator: true,
+        isCustomer: true,
+      });
+
+      render(
+        <ProtectedRoute>
+          <div>Protected Content</div>
+        </ProtectedRoute>
+      );
+
+      expect(screen.getByText('Protected Content')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(mockPush).not.toHaveBeenCalled();
+      });
+    });
+
     it('shows redirect message when unauthenticated', () => {
       mockUseAuthenticator.mockReturnValue({
         authStatus: 'unauthenticated',

@@ -58,6 +58,8 @@ describe('Customer Dashboard standing instructions', () => {
       expect(screen.getByDisplayValue('Call before arrival')).toBeInTheDocument();
     });
 
+    expect(screen.getByRole('heading', { name: /customer portal/i })).toBeInTheDocument();
+
     fireEvent.change(screen.getByPlaceholderText('Instructions operators should see by default'), {
       target: { value: 'Leave signs at side gate' },
     });
@@ -97,6 +99,7 @@ describe('Customer Dashboard standing instructions', () => {
     render(<CustomerDashboard />);
 
     expect(await screen.findByText(/only the account owner can edit these defaults/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /customer portal/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /save standing instructions/i })).not.toBeInTheDocument();
     expect(screen.getByText(/call before arrival/i)).toBeInTheDocument();
   });

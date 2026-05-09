@@ -119,7 +119,7 @@ export default function CustomerDashboard() {
   return (
     <div className={styles.page}>
       <div>
-        <h1 className={styles.heading}>Dashboard</h1>
+        <h1 className={styles.heading}>Customer Portal</h1>
         <p className={styles.welcome}>
           Welcome, {userEmail} · {customerRole === 'account_owner' ? 'Owner' : 'Reviewer'}
         </p>

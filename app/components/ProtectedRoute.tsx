@@ -30,7 +30,7 @@ export default function ProtectedRoute({
 
     if (authStatus === 'authenticated' && !loading) {
       // If this is a customer-only route and user is an operator, redirect to operator portal
-      if (requireCustomer && isOperator) {
+      if (requireCustomer && isOperator && !isCustomer) {
         router.push('/operator/dashboard');
         return;
       }

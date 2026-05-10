@@ -156,6 +156,7 @@ const schema = a.schema({
       status: a.enum(['draft', 'finalized', 'sent', 'paid']),
       routeId: a.id(),        // linked route
       pdfS3Key: a.string(),   // S3 key for uploaded PDF e.g. invoices/{id}.pdf
+      emailSentAt: a.datetime(), // timestamp of last SES email send
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       customer: a.belongsTo('Customer', 'customerId'),

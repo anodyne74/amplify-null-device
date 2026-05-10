@@ -87,6 +87,80 @@ function formatRouteDuration(route: Route) {
   return '—';
 }
 
+function getRouteDurationMinutes(route: Route) {
+  if (typeof route.actualDurationMinutes === 'number') {
+    return Math.max(0, route.actualDurationMinutes);
+  }
+
+  if (route.actualStartTime && route.actualEndTime) {
+    return Math.max(
+      0,
+      Math.round((new Date(route.actualEndTime).getTime() - new Date(route.actualStartTime).getTime()) / 60000)
+    );
+  }
+
+  if ((route.status === 'signs_placed' || route.status === 'signs_picked_up') && route.actualStartTime) {
+    return Math.max(1, Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000));
+  }
+
+  return null;
+}
+
+function formatMinutesAsElapsed(minutes: number | null) {
+  if (minutes === null) return '—';
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (hours === 0) return `${remainingMinutes} min`;
+  if (remainingMinutes === 0) return `${hours}h`;
+  return `${hours}h ${remainingMinutes}m`;
+}
+
+function haversineDistanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(b.lat - a.lat);
+  const dLng = toRadians(b.lng - a.lng);
+  const lat1 = toRadians(a.lat);
+  const lat2 = toRadians(b.lat);
+
+  const h =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return 2 * earthRadiusKm * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function calculateRouteDistanceKm(stops: Stop[]) {
+  const orderedCoordinates = [...stops]
+    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+    .filter(
+      (stop) => typeof stop.latitude === 'number' && typeof stop.longitude === 'number'
+    )
+    .map((stop) => ({ lat: stop.latitude as number, lng: stop.longitude as number }));
+
+  if (orderedCoordinates.length < 2) {
+    return 0;
+  }
+
+  let total = 0;
+  for (let i = 1; i < orderedCoordinates.length; i += 1) {
+    total += haversineDistanceKm(orderedCoordinates[i - 1], orderedCoordinates[i]);
+  }
+
+  return Number(total.toFixed(2));
+}
+
+function formatCurrency(amount: number | null) {
+  if (amount === null) return '—';
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
 function isStopCompleted(stop: Stop) {
   return Boolean(stop.actualDepartureTime);
 }
@@ -117,6 +191,7 @@ function RouteDetailContent() {
 
   const [route, setRoute] = useState<Route | null>(null);
   const [customerName, setCustomerName] = useState<string>('');
+  const [customerRatePerHour, setCustomerRatePerHour] = useState<number | null>(null);
   const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
   const [customerDefaults, setCustomerDefaults] = useState<{
     standingInstructions?: string | null;
@@ -316,12 +391,14 @@ function RouteDetailContent() {
         const customer = customerResult.data as {
           name?: string;
           addressLine1?: string | null;
+          billingRatePerHour?: number | null;
           standingInstructions?: string | null;
           defaultNumberOfSigns?: number | null;
           defaultAgentName?: string | null;
           agentOptions?: string[] | null;
         } | null;
         setCustomerName(customer?.name || 'Unknown customer');
+        setCustomerRatePerHour(typeof customer?.billingRatePerHour === 'number' ? customer.billingRatePerHour : null);
         setCustomerDefaults({
           standingInstructions: customer?.standingInstructions ?? null,
           defaultNumberOfSigns: customer?.defaultNumberOfSigns ?? null,
@@ -405,6 +482,23 @@ function RouteDetailContent() {
       await completeRouteNow(route);
     } catch {
       setTransitionError('Failed to complete route.');
+    }
+    setTransitioning(false);
+  };
+
+  const handleConfirmCompletion = async () => {
+    if (!route) return;
+    setTransitioning(true);
+    setTransitionError(null);
+    try {
+      const { errors } = await updateRouteExecution(route.id, { status: 'archived' });
+      if (errors && errors.length > 0) {
+        setTransitionError('Failed to confirm route completion.');
+      } else {
+        setRoute((r) => (r ? { ...r, status: 'archived' } : r));
+      }
+    } catch {
+      setTransitionError('Failed to confirm route completion.');
     }
     setTransitioning(false);
   };
@@ -625,6 +719,23 @@ function RouteDetailContent() {
   const topVisibleStopId = visibleStops[0]?.id ?? null;
   const pickupStops = stops.filter((stop) => stop.serviceType === 'pickup');
   const allPickupStopsCompleted = pickupStops.every((stop) => isStopCompleted(stop));
+  const completedStops = stops.filter((stop) => isStopCompleted(stop));
+  const summaryStops = route?.status === 'completed' || route?.status === 'archived'
+    ? completedStops.length > 0
+      ? completedStops
+      : stops
+    : stops;
+  const routeDurationMinutes = route ? getRouteDurationMinutes(route) : null;
+  const kilometersTravelled = calculateRouteDistanceKm(summaryStops);
+  const totalStops = summaryStops.length;
+  const totalSigns = summaryStops.reduce(
+    (sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0),
+    0
+  );
+  const completionAmount =
+    routeDurationMinutes !== null && customerRatePerHour !== null
+      ? Number(((routeDurationMinutes / 60) * customerRatePerHour).toFixed(2))
+      : null;
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
@@ -676,8 +787,12 @@ function RouteDetailContent() {
                 <div className={styles.infoValue}>{formatDate(route.createdAt)}</div>
               </div>
               <div>
-                <div className={styles.infoLabel}>Duration</div>
-                <div className={styles.infoValue}>{formatRouteDuration(route)}</div>
+                <div className={styles.infoLabel}>Time Taken</div>
+                <div className={styles.infoValue}>{formatMinutesAsElapsed(routeDurationMinutes)}</div>
+              </div>
+              <div>
+                <div className={styles.infoLabel}>Kilometers</div>
+                <div className={styles.infoValue}>{`${kilometersTravelled.toFixed(2)} km`}</div>
               </div>
             </div>
 
@@ -717,10 +832,53 @@ function RouteDetailContent() {
                   {transitioning ? 'Completing…' : allPickupStopsCompleted ? 'Complete Route' : 'Awaiting Pickups'}
                 </button>
               )}
+              {canManagePlanning && route.status === 'completed' && (
+                <button
+                  onClick={handleConfirmCompletion}
+                  disabled={transitioning}
+                  className={styles.btnComplete}
+                >
+                  {transitioning ? 'Confirming…' : 'Confirm Completion'}
+                </button>
+              )}
               {transitionError && (
                 <span className={styles.transitionError}>{transitionError}</span>
               )}
             </div>
+
+            {(route.status === 'completed' || route.status === 'archived') && (
+              <div className={styles.summaryCard}>
+                <h3 className={styles.summaryHeading}>Final Route Summary</h3>
+                <div className={styles.summaryGrid}>
+                  <div>
+                    <div className={styles.infoLabel}>Kilometers Travelled</div>
+                    <div className={styles.infoValue}>{`${kilometersTravelled.toFixed(2)} km`}</div>
+                  </div>
+                  <div>
+                    <div className={styles.infoLabel}>Time Taken</div>
+                    <div className={styles.infoValue}>{formatMinutesAsElapsed(routeDurationMinutes)}</div>
+                  </div>
+                  <div>
+                    <div className={styles.infoLabel}>Stops</div>
+                    <div className={styles.infoValue}>{totalStops}</div>
+                  </div>
+                  <div>
+                    <div className={styles.infoLabel}>Total Number of Signs</div>
+                    <div className={styles.infoValue}>{totalSigns}</div>
+                  </div>
+                  <div>
+                    <div className={styles.infoLabel}>Customer Rate</div>
+                    <div className={styles.infoValue}>
+                      {customerRatePerHour === null ? '—' : formatCurrency(customerRatePerHour)} / hr
+                    </div>
+                  </div>
+                  <div>
+                    <div className={styles.infoLabel}>Amount</div>
+                    <div className={styles.infoValue}>{formatCurrency(completionAmount)}</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Stops Section */}

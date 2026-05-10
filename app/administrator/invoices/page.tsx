@@ -1,16 +1,17 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { uploadData } from 'aws-amplify/storage';
+import { getUrl, uploadData } from 'aws-amplify/storage';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseInvoiceText } from '@/lib/parseInvoice';
-import { createInvoice, listCustomers, listInvoices, updateInvoice, updateInvoicePdfKey } from '@/lib/queries';
+import { createInvoice, listCustomerUsers, listCustomers, listInvoices, updateInvoice, updateInvoicePdfKey } from '@/lib/queries';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import type { Route } from '@/amplify/types';
 import styles from '@/app/dashboard.module.css';
 
-type CustomerOption = { id: string; name: string };
+type CustomerOption = { id: string; name: string; email?: string; primaryEmail?: string };
 type Invoice = {
   id: string;
   invoiceNumber: string;
@@ -19,6 +20,7 @@ type Invoice = {
   pdfS3Key?: string | null;
   totalAmount: number;
   status?: 'draft' | 'finalized' | 'sent' | 'paid' | null;
+  emailSentAt?: string | null;
 };
 
 export default function InvoicesAdminPage() {
@@ -37,6 +39,8 @@ export default function InvoicesAdminPage() {
   // PDF upload state (per invoice)
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pdfActionLoadingId, setPdfActionLoadingId] = useState<string | null>(null);
+  const [emailingInvoiceId, setEmailingInvoiceId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingUploadInvoiceId, setPendingUploadInvoiceId] = useState<string | null>(null);
   const pendingUploadInvoiceIdRef = useRef<string | null>(null);
@@ -57,9 +61,26 @@ export default function InvoicesAdminPage() {
     if (customersResult.errors && customersResult.errors.length > 0) {
       setError('Failed to load customers.');
     } else {
-      const mapped = ((customersResult.data as Array<{ id: string; name: string }>) || []).map((c) => ({ id: c.id, name: c.name }));
-      setCustomers(mapped);
-      if (!customerId && mapped.length > 0) setCustomerId(mapped[0].id);
+      const mapped = ((customersResult.data as Array<{ id: string; name: string; email?: string }>) || []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        email: c.email,
+      }));
+
+      const customersWithPrimary = await Promise.all(
+        mapped.map(async (customer) => {
+          const usersResult = await listCustomerUsers(customer.id);
+          const customerUsers = (usersResult.data as Array<{ role?: string | null; email?: string | null }> | undefined) || [];
+          const owner = customerUsers.find((row) => row.role === 'account_owner' && row.email);
+          return {
+            ...customer,
+            primaryEmail: owner?.email ?? customer.email,
+          };
+        })
+      );
+
+      setCustomers(customersWithPrimary);
+      if (!customerId && customersWithPrimary.length > 0) setCustomerId(customersWithPrimary[0].id);
     }
 
     if (!routesResult.errors || routesResult.errors.length === 0) {
@@ -193,6 +214,108 @@ export default function InvoicesAdminPage() {
     }
   };
 
+  const handlePdfAction = async (invoice: Invoice, action: 'view' | 'download') => {
+    if (!invoice.pdfS3Key) return;
+
+    setPdfActionLoadingId(invoice.id);
+    setUploadError(null);
+
+    try {
+      const { url } = await getUrl({ path: invoice.pdfS3Key });
+      const urlString = url.toString();
+
+      if (action === 'view') {
+        window.open(urlString, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      const link = document.createElement('a');
+      link.href = urlString;
+      link.download = `${invoice.invoiceNumber || invoice.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Invoice PDF action failed:', err);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setUploadError(`Unable to open invoice PDF. ${message}`);
+    } finally {
+      setPdfActionLoadingId(null);
+    }
+  };
+
+  const handleMarkPaid = async (invoiceId: string) => {
+    await setStatus(invoiceId, 'paid');
+  };
+
+  const handleEmailInvoiceToPrimary = async (invoice: Invoice) => {
+    const customer = customers.find((entry) => entry.id === invoice.customerId);
+    const primaryEmail = customer?.primaryEmail;
+
+    if (!primaryEmail) {
+      setError('Primary customer email is not available for this invoice.');
+      return;
+    }
+
+    if (!invoice.pdfS3Key) {
+      setError('Upload an invoice PDF before emailing the customer.');
+      return;
+    }
+
+    setEmailingInvoiceId(invoice.id);
+    setError(null);
+
+    try {
+      // Get auth token
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.toString();
+      
+      if (!idToken) {
+        setError('Authentication required. Please log in again.');
+        return;
+      }
+
+      // Call backend API to send email via SES
+      const response = await fetch('/api/admin/send-invoice-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          invoiceId: invoice.id,
+          recipientEmail: primaryEmail,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || `Failed to send email (status ${response.status})`;
+        setError(errorMessage);
+        return;
+      }
+
+      const result = await response.json();
+      setError(null);
+      
+      // Show success message with email details
+      const message = `Invoice ${invoice.invoiceNumber} emailed to ${result.sentTo}`;
+      setError(null);
+      
+      // Show a temporary success message (using alert or by updating state)
+      alert(`✓ ${message}`);
+      
+      // Refresh invoice data to pick up emailSentAt timestamp
+      await fetchData();
+    } catch (err) {
+      console.error('Email invoice action failed:', err);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Unable to send invoice email. ${message}`);
+    } finally {
+      setEmailingInvoiceId(null);
+    }
+  };
+
   // Customer name lookup
   const customerName = (id: string) => customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
   const routeCode = (id?: string | null) => {
@@ -259,6 +382,7 @@ export default function InvoicesAdminPage() {
                   <th style={{ textAlign: 'left', padding: '6px 8px' }}>Total</th>
                   <th style={{ textAlign: 'left', padding: '6px 8px' }}>Status</th>
                   <th style={{ textAlign: 'left', padding: '6px 8px' }}>PDF</th>
+                  <th style={{ textAlign: 'left', padding: '6px 8px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -302,8 +426,26 @@ export default function InvoicesAdminPage() {
                         <span style={{ color: 'var(--nd-status-active)', fontSize: 12 }}>
                           ✓ Uploaded{' '}
                           <button
+                            onClick={() => {
+                              void handlePdfAction(invoice, 'view');
+                            }}
+                            disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
+                            style={{ fontSize: 11, marginLeft: 4, cursor: 'pointer' }}
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={() => {
+                              void handlePdfAction(invoice, 'download');
+                            }}
+                            disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
+                            style={{ fontSize: 11, marginLeft: 4, cursor: 'pointer' }}
+                          >
+                            Download
+                          </button>
+                          <button
                             onClick={() => handleUploadClick(invoice.id)}
-                            disabled={uploadingId === invoice.id}
+                            disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
                             style={{ fontSize: 11, marginLeft: 4, cursor: 'pointer' }}
                           >
                             Replace
@@ -318,6 +460,28 @@ export default function InvoicesAdminPage() {
                           {uploadingId === invoice.id ? 'Uploading...' : '📎 Upload PDF'}
                         </button>
                       )}
+                    </td>
+                    <td style={{ padding: '6px 8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleMarkPaid(invoice.id);
+                        }}
+                        disabled={invoice.status === 'paid'}
+                        style={{ fontSize: 11, marginRight: 6, cursor: invoice.status === 'paid' ? 'not-allowed' : 'pointer' }}
+                      >
+                        {invoice.status === 'paid' ? 'Paid' : 'Mark Paid'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleEmailInvoiceToPrimary(invoice);
+                        }}
+                        disabled={emailingInvoiceId === invoice.id}
+                        style={{ fontSize: 11, cursor: 'pointer' }}
+                      >
+                        {emailingInvoiceId === invoice.id ? 'Preparing...' : 'Email Primary'}
+                      </button>
                     </td>
                   </tr>
                 ))}

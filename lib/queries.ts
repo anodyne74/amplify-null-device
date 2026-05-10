@@ -582,6 +582,7 @@ export async function updateInvoice(
     status: 'draft' | 'finalized' | 'sent' | 'paid';
     routeId: string | null;
     pdfS3Key: string;
+    emailSentAt: string;
   }>
 ) {
   try {

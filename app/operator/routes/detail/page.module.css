@@ -118,6 +118,26 @@
   color: var(--nd-text-primary);
 }
 
+.summaryCard {
+  margin-top: var(--nd-space-md);
+  padding: var(--nd-space-md);
+  background: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-lg);
+}
+
+.summaryHeading {
+  margin: 0 0 var(--nd-space-md) 0;
+  font-size: 16px;
+  color: var(--nd-text-primary);
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--nd-space-md);
+}
+
 /* Status transition buttons */
 .transitionRow {
   margin-top: var(--nd-space-md);

@@ -83,6 +83,12 @@
   flex: 0.6;
 }
 
+.actionGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .viewLink {
   padding: 8px 12px;
   background-color: var(--nd-accent-primary);
@@ -98,6 +104,27 @@
 
 .viewLink:hover {
   opacity: 0.85;
+}
+
+.secondaryAction {
+  padding: 6px 10px;
+  border-radius: var(--nd-radius-sm);
+  border: 1px solid var(--nd-border-default);
+  background: transparent;
+  color: var(--nd-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.secondaryAction:hover {
+  border-color: var(--nd-accent-primary);
+  color: var(--nd-accent-primary);
+}
+
+.secondaryAction:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .routeLink {

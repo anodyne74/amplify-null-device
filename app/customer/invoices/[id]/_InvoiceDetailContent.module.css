@@ -128,6 +128,12 @@
   color: var(--nd-status-planned);
 }
 
+.pdfActions {
+  display: flex;
+  gap: var(--nd-space-sm);
+  flex-wrap: wrap;
+}
+
 .downloadBtn {
   padding: 12px 24px;
   background-color: var(--nd-accent-primary);

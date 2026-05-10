@@ -62,10 +62,28 @@ export async function geocodeAddress(address: string): Promise<GeocodedAddress> 
     await loadGoogleMapsScript();
 
     const googleMaps = (window as Window & { google?: any }).google;
-    const geocoder = new googleMaps.maps.Geocoder();
+    const mapsApi = googleMaps?.maps;
+    if (!mapsApi) {
+      throw new Error('Google Maps library is unavailable in the browser context.');
+    }
+
+    let geocoder: { geocode: (request: { address: string }, callback: (results: any[], status: string) => void) => void };
+    if (typeof mapsApi.Geocoder === 'function') {
+      geocoder = new mapsApi.Geocoder();
+    } else if (typeof mapsApi.importLibrary === 'function') {
+      const geocodingLib = await mapsApi.importLibrary('geocoding');
+      const GeocoderCtor = (geocodingLib as { Geocoder?: new () => any })?.Geocoder;
+      if (typeof GeocoderCtor !== 'function') {
+        throw new Error('Google Maps geocoding library failed to initialize.');
+      }
+      geocoder = new GeocoderCtor();
+    } else {
+      throw new Error('Google Maps geocoder is unavailable.');
+    }
+
     const result = await new Promise<GeocodeResponse>((resolve, reject) => {
       geocoder.geocode({ address: trimmedAddress }, (results: any[], status: string) => {
-        if (status === googleMaps.maps.GeocoderStatus.OK && results) {
+        if (status === mapsApi.GeocoderStatus.OK && results) {
           resolve({
             status: 'OK',
             results: results.map((item: any) => ({

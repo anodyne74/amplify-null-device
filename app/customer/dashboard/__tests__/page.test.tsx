@@ -7,6 +7,8 @@ import {
   getCustomerPortalContext,
   updateCustomer,
 } from '@/lib/queries';
+import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
+import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 
 jest.mock('@/app/dashboard.module.css', () => ({}));
 
@@ -26,6 +28,25 @@ jest.mock('@/lib/queries', () => ({
   updateCustomer: jest.fn(),
 }));
 
+jest.mock('@/lib/queries/ListMyRoutes', () => ({
+  listMyRoutes: jest.fn(),
+}));
+
+jest.mock('@/lib/queries/ListMyInvoices', () => ({
+  listMyInvoices: jest.fn(),
+}));
+
+const mockStopList = jest.fn();
+jest.mock('aws-amplify/data', () => ({
+  generateClient: () => ({
+    models: {
+      Stop: {
+        list: mockStopList,
+      },
+    },
+  }),
+}));
+
 describe('Customer Dashboard standing instructions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -42,6 +63,41 @@ describe('Customer Dashboard standing instructions', () => {
     });
     (updateCustomer as jest.Mock).mockResolvedValue({
       data: { id: 'cust-1' },
+      errors: undefined,
+    });
+    (listMyRoutes as jest.Mock).mockResolvedValue({
+      data: [
+        { id: 'route-1', status: 'signs_placed' },
+        { id: 'route-2', status: 'completed' },
+      ],
+      errors: undefined,
+    });
+    (listMyInvoices as jest.Mock).mockResolvedValue({
+      data: [
+        { id: 'inv-1', totalAmount: 1200, status: 'paid' },
+        { id: 'inv-2', totalAmount: 800, status: 'sent' },
+      ],
+      errors: undefined,
+    });
+    mockStopList.mockResolvedValue({
+      data: [
+        {
+          id: 'stop-1',
+          routeId: 'route-1',
+          sequence: 1,
+          numberOfSigns: 3,
+          latitude: -37.8136,
+          longitude: 144.9631,
+        },
+        {
+          id: 'stop-2',
+          routeId: 'route-1',
+          sequence: 2,
+          numberOfSigns: 2,
+          latitude: -37.814,
+          longitude: 144.9731,
+        },
+      ],
       errors: undefined,
     });
   });
@@ -88,6 +144,9 @@ describe('Customer Dashboard standing instructions', () => {
     });
 
     expect(await screen.findByText(/standing instructions updated/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /customer totals/i })).toBeInTheDocument();
+    expect(screen.getByText(/total invoiced amount/i)).toBeInTheDocument();
+    expect(screen.getByText(/outstanding amount/i)).toBeInTheDocument();
   });
 
   it('shows read-only standing instructions for reviewer role', async () => {
@@ -102,6 +161,7 @@ describe('Customer Dashboard standing instructions', () => {
     expect(screen.getByRole('heading', { name: /customer portal/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /save standing instructions/i })).not.toBeInTheDocument();
     expect(screen.getByText(/call before arrival/i)).toBeInTheDocument();
+    expect(screen.getAllByText('Restricted').length).toBeGreaterThan(0);
   });
 
   it('validates non-negative default signs before save', async () => {

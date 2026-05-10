@@ -24,7 +24,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [pdfActionLoading, setPdfActionLoading] = useState(false);
 
   // Guard: redirect reviewers away from invoice pages
   useEffect(() => {
@@ -66,19 +66,30 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
     fetchInvoice();
   }, [user?.userId, params.id]);
 
-  const handleDownloadPDF = async () => {
+  const handlePdfAction = async (action: 'view' | 'download') => {
     if (!invoice?.pdfS3Key) return;
-    setDownloading(true);
+    setPdfActionLoading(true);
     try {
       const { getUrl } = await import('aws-amplify/storage');
       const { url } = await getUrl({ path: invoice.pdfS3Key });
-      // Open in new tab — browser will handle PDF viewer/download
-      window.open(url.toString(), '_blank', 'noopener,noreferrer');
+      const urlString = url.toString();
+
+      if (action === 'view') {
+        window.open(urlString, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      const link = document.createElement('a');
+      link.href = urlString;
+      link.download = `${invoice.invoiceNumber || invoice.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (err) {
       console.error('Download error:', err);
-      setError('Failed to generate download link');
+      setError('Failed to generate invoice PDF link');
     } finally {
-      setDownloading(false);
+      setPdfActionLoading(false);
     }
   };
 
@@ -190,11 +201,28 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
           )}
         </div>
 
-        {/* Download Button */}
+        {/* PDF Actions */}
         {invoice.pdfS3Key && (
-          <button onClick={handleDownloadPDF} disabled={downloading} className={styles.downloadBtn}>
-            {downloading ? 'Loading...' : '📥 Download PDF'}
-          </button>
+          <div className={styles.pdfActions}>
+            <button
+              onClick={() => {
+                void handlePdfAction('view');
+              }}
+              disabled={pdfActionLoading}
+              className={styles.downloadBtn}
+            >
+              {pdfActionLoading ? 'Loading...' : 'View PDF'}
+            </button>
+            <button
+              onClick={() => {
+                void handlePdfAction('download');
+              }}
+              disabled={pdfActionLoading}
+              className={styles.downloadBtn}
+            >
+              {pdfActionLoading ? 'Loading...' : 'Download PDF'}
+            </button>
+          </div>
         )}
       </div>
 

@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { getUrl } from 'aws-amplify/storage';
 import type { Invoice } from '@/amplify/types';
 import styles from './InvoiceListItem.module.css';
 
@@ -12,6 +14,8 @@ interface InvoiceListItemProps {
  * Displays individual invoice in list format
  */
 export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
+  const [pdfLoading, setPdfLoading] = useState(false);
+
   // Format currency
   const formatCurrency = (amount?: number | null) => {
     if (amount === null || amount === undefined) return '$0.00';
@@ -35,6 +39,30 @@ export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
 
   const statusClass =
     (({ paid: styles.badgeCompleted, pending: styles.badgePlanned, overdue: styles.badgeDanger, cancelled: styles.badgeDanger, draft: styles.badgeArchived, sent: styles.badgePlanned, viewed: styles.badgePlanned } as Record<string, string>)[invoice.status ?? '']) ?? styles.badgeArchived;
+
+  const handlePdfAction = async (action: 'view' | 'download') => {
+    if (!invoice.pdfS3Key) return;
+
+    setPdfLoading(true);
+    try {
+      const { url } = await getUrl({ path: invoice.pdfS3Key });
+      const urlString = url.toString();
+
+      if (action === 'view') {
+        window.open(urlString, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      const link = document.createElement('a');
+      link.href = urlString;
+      link.download = `${invoice.invoiceNumber || invoice.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   return (
     <div className={styles.row}>
@@ -78,12 +106,37 @@ export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
 
       {/* View Button */}
       <div className={styles.colAction}>
-        <a
-          href={`/customer/invoices/${invoice.id}`}
-          className={styles.viewLink}
-        >
-          View
-        </a>
+        {invoice.pdfS3Key ? (
+          <div className={styles.actionGroup}>
+            <button
+              type="button"
+              className={styles.secondaryAction}
+              onClick={() => {
+                void handlePdfAction('view');
+              }}
+              disabled={pdfLoading}
+            >
+              View PDF
+            </button>
+            <button
+              type="button"
+              className={styles.secondaryAction}
+              onClick={() => {
+                void handlePdfAction('download');
+              }}
+              disabled={pdfLoading}
+            >
+              Download
+            </button>
+          </div>
+        ) : (
+          <a
+            href={`/customer/invoices/${invoice.id}`}
+            className={styles.viewLink}
+          >
+            View
+          </a>
+        )}
       </div>
     </div>
   );

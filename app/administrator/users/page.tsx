@@ -313,11 +313,6 @@ export default function UsersAdminPage() {
         }
 
         const owner = customerUsers.find((u) => u.role === 'account_owner');
-        if (selectedCustomerRole === 'read_only' && !owner) {
-          setError('Select primary contact role first, or assign an account owner for this customer.');
-          setPending(false);
-          return;
-        }
         if (selectedCustomerRole === 'account_owner' && owner && owner.userSub !== selectedUser.sub) {
           setError('This customer already has a primary contact. Remove the current owner first.');
           setPending(false);

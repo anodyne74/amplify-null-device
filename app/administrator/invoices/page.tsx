@@ -10,6 +10,7 @@ import { createInvoice, listCustomerUsers, listCustomers, listInvoices, updateIn
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import type { Route } from '@/amplify/types';
 import styles from '@/app/dashboard.module.css';
+import invoiceStyles from '@/app/administrator/invoices/page.module.css';
 
 type CustomerOption = { id: string; name: string; email?: string; primaryEmail?: string };
 type Invoice = {
@@ -338,65 +339,110 @@ export default function InvoicesAdminPage() {
           onChange={handleFileChange}
         />
 
-        <form className={styles.infoPanel} onSubmit={handleCreate}>
-          <h3>Create Invoice</h3>
+        <form className={`${styles.infoPanel} ${invoiceStyles.createForm}`} onSubmit={handleCreate}>
+          <h3 className={invoiceStyles.panelHeading}>Create Invoice</h3>
 
-          <label>Customer</label>
-          <select value={customerId} onChange={(e) => { setCustomerId(e.target.value); setRouteId(''); }} required>
-            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <div className={invoiceStyles.createGrid}>
+            <div className={invoiceStyles.fieldGroup}>
+              <label htmlFor="invoice-customer">Customer</label>
+              <select
+                id="invoice-customer"
+                value={customerId}
+                onChange={(e) => {
+                  setCustomerId(e.target.value);
+                  setRouteId('');
+                }}
+                required
+              >
+                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
 
-          <label>Linked Route (optional)</label>
-          <select value={routeId} onChange={(e) => setRouteId(e.target.value)}>
-            <option value="">— None —</option>
-            {customerRoutes.map((r) => (
-              <option key={r.id} value={r.id}>{r.routeCode ?? r.id.slice(0, 8)}</option>
-            ))}
-          </select>
+            <div className={invoiceStyles.fieldGroup}>
+              <label htmlFor="invoice-route">Linked Route</label>
+              <select id="invoice-route" value={routeId} onChange={(e) => setRouteId(e.target.value)}>
+                <option value="">— None —</option>
+                {customerRoutes.map((r) => (
+                  <option key={r.id} value={r.id}>{r.routeCode ?? r.id.slice(0, 8)}</option>
+                ))}
+              </select>
+            </div>
 
-          <label>Invoice Number</label>
-          <input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="INV-001" required />
+            <div className={invoiceStyles.fieldGroup}>
+              <label htmlFor="invoice-number">Invoice Number</label>
+              <input
+                id="invoice-number"
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                placeholder="INV-001"
+                required
+              />
+            </div>
 
-          <label>Total Amount</label>
-          <input value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} type="number" min="0" step="0.01" required />
+            <div className={invoiceStyles.fieldGroup}>
+              <label htmlFor="invoice-total">Total Amount</label>
+              <input
+                id="invoice-total"
+                value={totalAmount}
+                onChange={(e) => setTotalAmount(e.target.value)}
+                type="number"
+                min="0"
+                step="0.01"
+                required
+              />
+            </div>
 
-          <button type="submit" disabled={saving}>{saving ? 'Creating...' : 'Create Invoice'}</button>
+            <div className={`${invoiceStyles.fieldGroup} ${invoiceStyles.submitGroup}`}>
+              <button type="submit" className={invoiceStyles.primaryButton} disabled={saving}>
+                {saving ? 'Creating...' : 'Create Invoice'}
+              </button>
+            </div>
+          </div>
         </form>
 
-        {error && <div className={styles.infoPanel}><p>{error}</p></div>}
-        {uploadError && <div className={styles.infoPanel}><p>{uploadError}</p></div>}
+        {error && (
+          <div className={`${styles.infoPanel} ${invoiceStyles.alertPanel}`}>
+            <p className={invoiceStyles.errorText}>{error}</p>
+          </div>
+        )}
+        {uploadError && (
+          <div className={`${styles.infoPanel} ${invoiceStyles.alertPanel}`}>
+            <p className={invoiceStyles.warningText}>{uploadError}</p>
+          </div>
+        )}
 
-        <div className={styles.infoPanel}>
-          <h3>Invoice List</h3>
+        <div className={`${styles.infoPanel} ${invoiceStyles.listPanel}`}>
+          <h3 className={invoiceStyles.panelHeading}>Invoice List</h3>
           {loading ? (
             <p className={styles.welcome}>Loading invoices...</p>
           ) : invoices.length === 0 ? (
             <p className={styles.welcome}>No invoices yet.</p>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left', padding: '6px 8px' }}>Invoice #</th>
-                  <th style={{ textAlign: 'left', padding: '6px 8px' }}>Customer</th>
-                  <th style={{ textAlign: 'left', padding: '6px 8px' }}>Route</th>
-                  <th style={{ textAlign: 'left', padding: '6px 8px' }}>Total</th>
-                  <th style={{ textAlign: 'left', padding: '6px 8px' }}>Status</th>
-                  <th style={{ textAlign: 'left', padding: '6px 8px' }}>PDF</th>
-                  <th style={{ textAlign: 'left', padding: '6px 8px' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.map((invoice) => (
-                  <tr key={invoice.id} style={{ borderTop: '1px solid var(--nd-border-subtle)' }}>
-                    <td style={{ padding: '6px 8px' }}>{invoice.invoiceNumber}</td>
-                    <td style={{ padding: '6px 8px' }}>{customerName(invoice.customerId)}</td>
-                    <td style={{ padding: '6px 8px' }}>
+            <div className={invoiceStyles.tableWrap}>
+              <table className={invoiceStyles.invoiceTable}>
+                <thead>
+                  <tr>
+                    <th>Invoice #</th>
+                    <th>Customer</th>
+                    <th>Route</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                    <th>PDF</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((invoice) => (
+                    <tr key={invoice.id}>
+                      <td>{invoice.invoiceNumber}</td>
+                      <td>{customerName(invoice.customerId)}</td>
+                      <td>
                       <select
                         value={invoice.routeId ?? ''}
                         onChange={(e) => {
                           void handleRouteLink(invoice.id, e.target.value);
                         }}
-                        style={{ fontSize: 12, minWidth: 140 }}
+                        className={invoiceStyles.cellSelect}
                       >
                         <option value="">— None —</option>
                         {routes
@@ -407,86 +453,95 @@ export default function InvoicesAdminPage() {
                             </option>
                           ))}
                       </select>
-                    </td>
-                    <td style={{ padding: '6px 8px' }}>${invoice.totalAmount.toFixed(2)}</td>
-                    <td style={{ padding: '6px 8px' }}>
+                      </td>
+                      <td className={invoiceStyles.cellNumeric}>${invoice.totalAmount.toFixed(2)}</td>
+                      <td>
                       <select
                         value={invoice.status ?? 'draft'}
                         onChange={(e) => { void setStatus(invoice.id, e.target.value as 'draft' | 'finalized' | 'sent' | 'paid'); }}
-                        style={{ fontSize: 12 }}
+                        className={invoiceStyles.cellSelect}
                       >
                         <option value="draft">draft</option>
                         <option value="finalized">finalized</option>
                         <option value="sent">sent</option>
                         <option value="paid">paid</option>
                       </select>
-                    </td>
-                    <td style={{ padding: '6px 8px' }}>
+                      </td>
+                      <td className={invoiceStyles.pdfCell}>
                       {invoice.pdfS3Key ? (
-                        <span style={{ color: 'var(--nd-status-active)', fontSize: 12 }}>
-                          ✓ Uploaded{' '}
-                          <button
-                            onClick={() => {
-                              void handlePdfAction(invoice, 'view');
-                            }}
-                            disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
-                            style={{ fontSize: 11, marginLeft: 4, cursor: 'pointer' }}
-                          >
-                            View
-                          </button>
-                          <button
-                            onClick={() => {
-                              void handlePdfAction(invoice, 'download');
-                            }}
-                            disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
-                            style={{ fontSize: 11, marginLeft: 4, cursor: 'pointer' }}
-                          >
-                            Download
-                          </button>
-                          <button
-                            onClick={() => handleUploadClick(invoice.id)}
-                            disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
-                            style={{ fontSize: 11, marginLeft: 4, cursor: 'pointer' }}
-                          >
-                            Replace
-                          </button>
-                        </span>
+                        <div className={invoiceStyles.uploadedState}>
+                          <span className={invoiceStyles.uploadTag}>Uploaded</span>
+                          <div className={invoiceStyles.pdfButtons}>
+                            <button
+                              type="button"
+                              className={invoiceStyles.inlineButton}
+                              onClick={() => {
+                                void handlePdfAction(invoice, 'view');
+                              }}
+                              disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
+                            >
+                              View
+                            </button>
+                            <button
+                              type="button"
+                              className={invoiceStyles.inlineButton}
+                              onClick={() => {
+                                void handlePdfAction(invoice, 'download');
+                              }}
+                              disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
+                            >
+                              Download
+                            </button>
+                            <button
+                              type="button"
+                              className={invoiceStyles.inlineButton}
+                              onClick={() => handleUploadClick(invoice.id)}
+                              disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
+                            >
+                              Replace
+                            </button>
+                          </div>
+                        </div>
                       ) : (
                         <button
+                          type="button"
+                          className={invoiceStyles.uploadButton}
                           onClick={() => handleUploadClick(invoice.id)}
                           disabled={uploadingId === invoice.id}
-                          style={{ fontSize: 12, cursor: 'pointer' }}
                         >
-                          {uploadingId === invoice.id ? 'Uploading...' : '📎 Upload PDF'}
+                          {uploadingId === invoice.id ? 'Uploading...' : 'Upload PDF'}
                         </button>
                       )}
-                    </td>
-                    <td style={{ padding: '6px 8px' }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleMarkPaid(invoice.id);
-                        }}
-                        disabled={invoice.status === 'paid'}
-                        style={{ fontSize: 11, marginRight: 6, cursor: invoice.status === 'paid' ? 'not-allowed' : 'pointer' }}
-                      >
-                        {invoice.status === 'paid' ? 'Paid' : 'Mark Paid'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleEmailInvoiceToPrimary(invoice);
-                        }}
-                        disabled={emailingInvoiceId === invoice.id}
-                        style={{ fontSize: 11, cursor: 'pointer' }}
-                      >
-                        {emailingInvoiceId === invoice.id ? 'Preparing...' : 'Email Primary'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                      <td>
+                        <div className={invoiceStyles.actionButtons}>
+                          <button
+                            type="button"
+                            className={invoiceStyles.markPaidButton}
+                            onClick={() => {
+                              void handleMarkPaid(invoice.id);
+                            }}
+                            disabled={invoice.status === 'paid'}
+                          >
+                            {invoice.status === 'paid' ? 'Paid' : 'Mark Paid'}
+                          </button>
+                          <button
+                            type="button"
+                            className={invoiceStyles.emailButton}
+                            onClick={() => {
+                              void handleEmailInvoiceToPrimary(invoice);
+                            }}
+                            disabled={emailingInvoiceId === invoice.id}
+                          >
+                            {emailingInvoiceId === invoice.id ? 'Preparing...' : 'Email Primary'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

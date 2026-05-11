@@ -1,13 +1,14 @@
 'use client';
 
 import { useAuthenticator } from '@aws-amplify/ui-react';
+import { faChartLine, faRoad } from '@fortawesome/free-solid-svg-icons';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PortalLayout from '@/app/components/PortalLayout';
 import { getUserDisplayName } from '@/lib/amplify-config';
 
 const NAV_ITEMS = [
-  { href: '/operator/dashboard', label: 'Dashboard', icon: '◈' },
-  { href: '/operator/routes', label: 'Routes', icon: '⟶' },
+  { href: '/operator/dashboard', label: 'Dashboard', icon: faChartLine },
+  { href: '/operator/routes', label: 'Routes', icon: faRoad },
 ];
 
 /**

@@ -1,0 +1,234 @@
+.createForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-space-md);
+}
+
+.panelHeading {
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+.createGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--nd-space-md);
+  align-items: end;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fieldGroup label {
+  color: var(--nd-text-secondary);
+  font-size: 0.78rem;
+  font-family: var(--nd-font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.submitGroup {
+  justify-content: flex-end;
+}
+
+.submitGroup button,
+.primaryButton {
+  width: 100%;
+  min-height: 42px;
+}
+
+.primaryButton {
+  background: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  border-color: var(--nd-operator-accent);
+  box-shadow: 0 8px 18px rgba(255, 179, 0, 0.22);
+}
+
+.primaryButton:hover:not(:disabled) {
+  border-color: #ffc133;
+  background: #ffc133;
+  box-shadow: 0 10px 22px rgba(255, 179, 0, 0.28);
+}
+
+.alertPanel {
+  padding: var(--nd-space-md) var(--nd-space-lg);
+}
+
+.errorText {
+  margin: 0;
+  color: var(--nd-status-danger);
+}
+
+.warningText {
+  margin: 0;
+  color: var(--nd-operator-accent);
+}
+
+.listPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-space-lg);
+}
+
+.tableWrap {
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-md);
+  overflow: auto;
+  background: var(--nd-bg-elevated);
+}
+
+.invoiceTable {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.invoiceTable thead tr {
+  background: rgba(255, 179, 0, 0.06);
+}
+
+.invoiceTable th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #171717;
+  text-align: left;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nd-text-muted);
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--nd-border-subtle);
+}
+
+.invoiceTable td {
+  padding: 12px 14px;
+  border-top: 1px solid var(--nd-border-subtle);
+  vertical-align: middle;
+}
+
+.invoiceTable tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.invoiceTable tbody tr:hover {
+  background: rgba(255, 179, 0, 0.05);
+}
+
+.cellNumeric {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.cellSelect {
+  min-width: 130px;
+  width: 100%;
+}
+
+.pdfCell {
+  min-width: 230px;
+}
+
+.uploadedState {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.uploadTag {
+  color: var(--nd-accent-primary);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.pdfButtons,
+.actionButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inlineButton {
+  padding: 6px 10px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: transparent;
+  color: var(--nd-text-primary);
+  font-size: 0.74rem;
+  line-height: 1;
+}
+
+.inlineButton:hover:not(:disabled) {
+  border-color: var(--nd-operator-accent);
+  color: var(--nd-operator-accent);
+}
+
+.inlineButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.uploadButton {
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.markPaidButton,
+.emailButton {
+  padding: 8px 12px;
+  font-size: 0.76rem;
+  line-height: 1.2;
+}
+
+.markPaidButton {
+  border-color: rgba(0, 255, 136, 0.38);
+  background: rgba(0, 255, 136, 0.16);
+}
+
+.markPaidButton:hover:not(:disabled) {
+  border-color: var(--nd-accent-primary);
+  background: rgba(0, 255, 136, 0.24);
+}
+
+.emailButton {
+  border-color: rgba(255, 179, 0, 0.4);
+  background: rgba(255, 179, 0, 0.14);
+}
+
+.emailButton:hover:not(:disabled) {
+  border-color: var(--nd-operator-accent);
+  background: rgba(255, 179, 0, 0.24);
+}
+
+.markPaidButton[disabled] {
+  opacity: 0.8;
+}
+
+@media (max-width: 980px) {
+  .createGrid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+
+  .submitGroup {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .createGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .invoiceTable {
+    min-width: 760px;
+  }
+}

@@ -25,13 +25,13 @@ export default function OperatorPage() {
       return;
     }
 
-    if (groups.includes('administrator')) {
-      router.push('/administrator');
+    if (groups.includes('operator')) {
+      router.push('/operator/dashboard');
       return;
     }
 
-    if (groups.includes('operator')) {
-      router.push('/operator/dashboard');
+    if (groups.includes('administrator')) {
+      router.push('/administrator');
       return;
     }
 

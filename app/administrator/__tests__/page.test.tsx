@@ -56,7 +56,7 @@ describe('Home Administrator Redirect', () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it('does not offer operator portal when administrator group is present', () => {
+  it('offers operator portal when administrator group is present', () => {
     (useAuthenticator as jest.Mock).mockReturnValue({ authStatus: 'authenticated' });
     (useUserGroups as jest.Mock).mockReturnValue({
       groups: ['administrator', 'operator', 'customer'],
@@ -68,6 +68,6 @@ describe('Home Administrator Redirect', () => {
 
     const { queryByRole } = render(<Home />);
 
-    expect(queryByRole('button', { name: 'Operator Portal' })).not.toBeInTheDocument();
+    expect(queryByRole('button', { name: 'Operator Portal' })).toBeInTheDocument();
   });
 });

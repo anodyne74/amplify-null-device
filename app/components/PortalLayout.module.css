@@ -16,11 +16,16 @@
   background: var(--nd-bg-elevated);
   color: var(--nd-text-primary);
   border: 1px solid var(--nd-border-default);
-  padding: 6px 12px;
+  padding: var(--nd-space-sm) var(--nd-space-md);
   border-radius: var(--nd-radius-sm);
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: 1.5rem;
   line-height: 1;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .overlay {
@@ -106,8 +111,9 @@
 .navLink {
   display: flex;
   align-items: center;
-  gap: var(--nd-space-sm);
-  padding: 9px var(--nd-space-sm);
+  justify-content: center;
+  gap: var(--nd-space-md);
+  padding: 12px var(--nd-space-md);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-text-secondary);
   text-decoration: none;
@@ -115,6 +121,12 @@
   font-size: 0.8rem;
   letter-spacing: 0.04em;
   transition: color var(--nd-transition-fast), background-color var(--nd-transition-fast);
+  min-height: 44px;
+}
+
+.navIcon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
 }
 .navLink:hover {
   color: var(--nd-text-primary);
@@ -135,6 +147,10 @@
   margin-top: var(--nd-space-lg);
   padding-top: var(--nd-space-md);
   border-top: 1px solid var(--nd-border-subtle);
+}
+
+.themeControls {
+  margin-bottom: var(--nd-space-md);
 }
 
 .userLabel {

@@ -57,6 +57,23 @@ describe('OperatorPage', () => {
     });
   });
 
+  it('redirects dual-role users to operator dashboard', async () => {
+    (useAuthenticator as jest.Mock).mockReturnValue({ authStatus: 'authenticated' });
+    (useUserGroups as jest.Mock).mockReturnValue({
+      groups: ['administrator', 'operator'],
+      loading: false,
+      isAdmin: true,
+      isOperator: true,
+      isCustomer: false,
+    });
+
+    render(<OperatorPage />);
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith('/operator/dashboard');
+    });
+  });
+
   it('redirects customers to customer dashboard', async () => {
     (useAuthenticator as jest.Mock).mockReturnValue({ authStatus: 'authenticated' });
     (useUserGroups as jest.Mock).mockReturnValue({

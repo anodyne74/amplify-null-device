@@ -45,7 +45,9 @@ export default function OperatorRoute({
           router.push('/pending-approval');
         }
       } else {
-        if (isAdmin) {
+        // Admin-only users should be sent to the admin portal, but dual-role users
+        // are allowed to stay in operator mode when they explicitly choose it.
+        if (isAdmin && !isOperator) {
           router.push('/administrator');
           return;
         }

@@ -85,6 +85,7 @@ export default function CustomersAdminPage() {
   const [editStandingInstructions, setEditStandingInstructions] = useState('');
   const [editDefaultNumberOfSigns, setEditDefaultNumberOfSigns] = useState('');
   const [editDefaultAgentName, setEditDefaultAgentName] = useState('');
+  const [editDefaultAgentInitials, setEditDefaultAgentInitials] = useState('');
   const [editAgentOptionsText, setEditAgentOptionsText] = useState('');
   const [editResolvedAddress, setEditResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -232,6 +233,7 @@ export default function CustomersAdminPage() {
       typeof customer.defaultNumberOfSigns === 'number' ? String(customer.defaultNumberOfSigns) : ''
     );
     setEditDefaultAgentName(customer.defaultAgentName ?? '');
+    setEditDefaultAgentInitials(customer.defaultAgentInitials ?? '');
     setEditAgentOptionsText(stringifyAgentOptions(customer.agentOptions));
   };
 
@@ -279,6 +281,7 @@ export default function CustomersAdminPage() {
         standingInstructions: editStandingInstructions,
         defaultNumberOfSigns: editSigns,
         defaultAgentName: editDefaultAgentName,
+        defaultAgentInitials: editDefaultAgentInitials,
         agentOptions: parseAgentOptionsInput(editAgentOptionsText),
       });
 
@@ -287,6 +290,10 @@ export default function CustomersAdminPage() {
       } else {
         setEditSuccess('Customer updated.');
         await fetchCustomers();
+        // Close the edit panel after successful save
+        setTimeout(() => {
+          setExpandedEditPanel(null);
+        }, 500);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Address could not be validated.';
@@ -344,56 +351,58 @@ export default function CustomersAdminPage() {
         <form className={styles.infoPanel} onSubmit={handleCreate}>
           <h3>Define Customer</h3>
           <p className={styles.welcome}>Create a new customer record for route and billing workflows.</p>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" required />
-          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" required />
-          <input
-            value={billingRatePerHour}
-            onChange={(e) => setBillingRatePerHour(e.target.value)}
-            onBlur={(e) => setBillingRatePerHour(formatCurrency(e.target.value))}
-            placeholder="Billing rate per hour"
-            type="text"
-            inputMode="decimal"
-            required
-          />
-          <input
-            value={defaultNumberOfSigns}
-            onChange={(e) => setDefaultNumberOfSigns(e.target.value)}
-            placeholder="Default number of signs"
-            type="number"
-            min={0}
-          />
-          <input
-            value={defaultAgentName}
-            onChange={(e) => setDefaultAgentName(e.target.value)}
-            placeholder="Default agent name"
-          />
-          <AddressAutocompleteInput
-            id="create-customer-address"
-            value={addressLine1}
-            onChange={(value) => {
-              setAddressLine1(value);
-            }}
-            onResolved={(resolved) => {
-              setCreateResolvedAddress(resolved);
-              if (resolved) {
-                setAddressLine1(resolved.formattedAddress);
-              }
-            }}
-            disabled={saving}
-            placeholder="Address"
-            className={styles.input}
-          />
-          <textarea
-            value={agentOptionsText}
-            onChange={(e) => setAgentOptionsText(e.target.value)}
-            placeholder="Agent options, one per line"
-          />
-          <textarea
-            value={standingInstructions}
-            onChange={(e) => setStandingInstructions(e.target.value)}
-            placeholder="Standing instructions for operators"
-          />
-          <button type="submit" disabled={saving}>{saving ? 'Creating...' : 'Create Customer'}</button>
+          <div className={styles.stackedFields}>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" required />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" required />
+            <input
+              value={billingRatePerHour}
+              onChange={(e) => setBillingRatePerHour(e.target.value)}
+              onBlur={(e) => setBillingRatePerHour(formatCurrency(e.target.value))}
+              placeholder="Billing rate per hour"
+              type="text"
+              inputMode="decimal"
+              required
+            />
+            <input
+              value={defaultNumberOfSigns}
+              onChange={(e) => setDefaultNumberOfSigns(e.target.value)}
+              placeholder="Default number of signs"
+              type="number"
+              min={0}
+            />
+            <input
+              value={defaultAgentName}
+              onChange={(e) => setDefaultAgentName(e.target.value)}
+              placeholder="Default agent name"
+            />
+            <AddressAutocompleteInput
+              id="create-customer-address"
+              value={addressLine1}
+              onChange={(value) => {
+                setAddressLine1(value);
+              }}
+              onResolved={(resolved) => {
+                setCreateResolvedAddress(resolved);
+                if (resolved) {
+                  setAddressLine1(resolved.formattedAddress);
+                }
+              }}
+              disabled={saving}
+              placeholder="Address"
+              className={styles.input}
+            />
+            <textarea
+              value={agentOptionsText}
+              onChange={(e) => setAgentOptionsText(e.target.value)}
+              placeholder="Agent options, one per line"
+            />
+            <textarea
+              value={standingInstructions}
+              onChange={(e) => setStandingInstructions(e.target.value)}
+              placeholder="Standing instructions for operators"
+            />
+            <button type="submit" disabled={saving}>{saving ? 'Creating...' : 'Create Customer'}</button>
+          </div>
         </form>
 
         {error && <div className={styles.infoPanel}><p>{error}</p></div>}
@@ -508,6 +517,13 @@ export default function CustomersAdminPage() {
                                 value={editDefaultAgentName}
                                 onChange={(e) => setEditDefaultAgentName(e.target.value)}
                                 placeholder="Default agent name"
+                                disabled={editSaving}
+                              />
+                              <input
+                                value={editDefaultAgentInitials}
+                                onChange={(e) => setEditDefaultAgentInitials(e.target.value)}
+                                placeholder="Default agent initials (e.g., BO)"
+                                maxLength={4}
                                 disabled={editSaving}
                               />
                               <div style={{ gridColumn: '1 / -1' }}>

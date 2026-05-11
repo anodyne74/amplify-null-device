@@ -76,6 +76,12 @@
   border: 1px solid var(--nd-border-subtle);
 }
 
+.stackedFields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-space-sm);
+}
+
 .infoPanel h3 {
   color: var(--nd-text-primary);
   font-size: 0.9rem;

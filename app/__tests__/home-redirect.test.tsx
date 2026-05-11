@@ -159,6 +159,7 @@ describe('Home Redirect', () => {
     const roleButtons = screen.getAllByRole('button');
     expect(roleButtons.map((button) => button.textContent)).toEqual([
       'Administrator Portal',
+      'Operator Portal',
       'Customer Portal',
     ]);
   });
@@ -205,7 +206,7 @@ describe('Home Redirect', () => {
     });
   });
 
-  it('does not show operator portal when administrator is also present', () => {
+  it('shows operator portal when administrator is also present', () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',
     });
@@ -219,6 +220,6 @@ describe('Home Redirect', () => {
 
     render(<Home />);
 
-    expect(screen.queryByRole('button', { name: 'Operator Portal' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Operator Portal' })).toBeInTheDocument();
   });
 });

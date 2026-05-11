@@ -23,7 +23,7 @@ jest.mock('@/app/components/PortalLayout', () => {
     children,
   }: {
     portalTitle: string;
-    navItems: Array<{ href: string; label: string; icon: string }>;
+    navItems: Array<{ href: string; label: string; icon: any }>;
     children: React.ReactNode;
   }) {
     return (

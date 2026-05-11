@@ -36,6 +36,12 @@ jest.mock('@/lib/queries', () => ({
   getCustomerPortalContext: jest.fn(),
 }));
 
+jest.mock('@/app/components/ThemeModeSelect', () => {
+  return function MockThemeModeSelect() {
+    return null;
+  };
+});
+
 describe('Customer Session Management Integration', () => {
   let mockPush: jest.Mock;
   let mockSignOut: jest.Mock;
@@ -180,9 +186,9 @@ describe('Customer Session Management Integration', () => {
       </CustomerLayout>
     );
 
-    expect(screen.getByText(/Dashboard/)).toBeInTheDocument();
-    expect(screen.getByText(/Routes/)).toBeInTheDocument();
-    expect(screen.getByText(/Invoices/)).toBeInTheDocument();
+    expect(screen.getByTitle(/Dashboard/)).toBeInTheDocument();
+    expect(screen.getByTitle(/Routes/)).toBeInTheDocument();
+    expect(screen.getByTitle(/Invoices/)).toBeInTheDocument();
   });
 
   it('renders children content', () => {

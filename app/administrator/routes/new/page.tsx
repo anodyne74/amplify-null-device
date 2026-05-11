@@ -75,6 +75,7 @@ export default function NewRoutePage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importText, setImportText] = useState('');
   const [importDraftStops, setImportDraftStops] = useState<RouteDraftStop[] | null>(null);
+  const [importDraftSource, setImportDraftSource] = useState<'copy' | 'upload' | null>(null);
   const [importCopySourceRouteId, setImportCopySourceRouteId] = useState('');
   const [copyingImportStops, setCopyingImportStops] = useState(false);
   const [parseWarnings, setParseWarnings] = useState<string[]>([]);
@@ -251,6 +252,7 @@ export default function NewRoutePage() {
     setImportCustomerId(customerId);
     setImportCopySourceRouteId('');
     setImportDraftStops(null);
+    setImportDraftSource(null);
     setParseWarnings([]);
     setImportError(null);
   };
@@ -261,8 +263,6 @@ export default function NewRoutePage() {
     const file = e.target.files?.[0] ?? null;
     setImportFile(file);
     setImportText('');
-    setImportDraftStops(null);
-    setImportCopySourceRouteId('');
     setParseWarnings([]);
     setImportError(null);
     if (file) {
@@ -278,18 +278,29 @@ export default function NewRoutePage() {
   };
 
   const handleParse = () => {
+    if (importDraftSource === 'copy') {
+      setImportError('Stops are currently sourced from a copied route. Clear copied stops first to use uploaded file stops.');
+      return;
+    }
+
     const text = importText.trim();
-    if (!text) { setImportError('Paste the schedule text or upload a file first.'); return; }
+    if (!text) { setImportError('Upload a schedule file first.'); return; }
     const result = parseScheduleText(text);
-    setImportDraftStops(
-      result.stops.map((stop) => ({
-        address: stop.address,
-        serviceType: 'delivery',
-        numberOfSigns: stop.numberOfSigns,
-        agent: stop.agent,
-        isAuction: stop.isAuction,
-      }))
-    );
+    if (result.stops.length > 0) {
+      setImportDraftStops(
+        result.stops.map((stop) => ({
+          address: stop.address,
+          serviceType: 'delivery',
+          numberOfSigns: stop.numberOfSigns,
+          agent: stop.agent,
+          isAuction: stop.isAuction,
+        }))
+      );
+      setImportDraftSource('upload');
+    } else {
+      setImportDraftStops(null);
+      setImportDraftSource(null);
+    }
     const warnings: string[] = [];
     if (result.duplicatesRemoved.length) {
       warnings.push(`Removed ${result.duplicatesRemoved.length} duplicate address(es): ${result.duplicatesRemoved.join(', ')}`);
@@ -298,8 +309,7 @@ export default function NewRoutePage() {
       warnings.push(`${result.unparsedLines.length} line(s) could not be parsed and were skipped.`);
     }
     setParseWarnings(warnings);
-    setImportCopySourceRouteId('');
-    setImportError(result.stops.length === 0 ? 'No stops could be extracted. Check the pasted text.' : null);
+    setImportError(result.stops.length === 0 ? 'No stops could be extracted from the uploaded file.' : null);
   };
 
   const handleCopyStopsToImport = async () => {
@@ -318,6 +328,7 @@ export default function NewRoutePage() {
       }
 
       setImportDraftStops(copiedStops);
+      setImportDraftSource('copy');
       setParseWarnings([]);
     } catch {
       setImportError('Could not copy stops from the selected route.');
@@ -330,7 +341,7 @@ export default function NewRoutePage() {
     if (!importCustomerId) { setImportError('Select a customer.'); return; }
     if (!importRouteCode.trim()) { setImportError('Enter a route ID.'); return; }
     if (!importDraftStops || importDraftStops.length === 0) {
-      setImportError('Parse schedule text or copy stops from a previous route first.');
+      setImportError('Copy stops from a previous route or parse an uploaded schedule file first.');
       return;
     }
 
@@ -432,8 +443,7 @@ export default function NewRoutePage() {
             {activeTab === 'import' && (
               <div className={styles.importPanel}>
                 <p className={styles.importHint}>
-                  Upload the weekly schedule file or paste the table text copied from Excel/PDF.
-                  The parser will extract stops, remove duplicates, and pre-fill the route.
+                  Copy stops from a previous route first. Uploading a schedule file is optional and will only be used when copied stops are not active.
                 </p>
 
                 <label className={styles.fieldLabel}>Customer</label>
@@ -453,7 +463,12 @@ export default function NewRoutePage() {
                     className={styles.select}
                     value={importCopySourceRouteId}
                     onChange={(e) => {
-                      setImportCopySourceRouteId(e.target.value);
+                      const nextRouteId = e.target.value;
+                      setImportCopySourceRouteId(nextRouteId);
+                      if (!nextRouteId && importDraftSource === 'copy') {
+                        setImportDraftStops(null);
+                        setImportDraftSource(null);
+                      }
                       setImportError(null);
                     }}
                     disabled={!importCustomerId || importCopySourcesForCustomer.length === 0 || isUploading || copyingImportStops}
@@ -517,7 +532,10 @@ export default function NewRoutePage() {
                       onClick={() => {
                         setImportFile(null);
                         setImportText('');
-                        setImportDraftStops(null);
+                        if (importDraftSource === 'upload') {
+                          setImportDraftStops(null);
+                          setImportDraftSource(null);
+                        }
                         if (fileInputRef.current) fileInputRef.current.value = '';
                       }}
                     >
@@ -526,28 +544,15 @@ export default function NewRoutePage() {
                   )}
                 </div>
 
-                <label className={styles.fieldLabel}>
-                  Or paste schedule text
-                  <span className={styles.fieldHint}> (copy-paste from Excel)</span>
-                </label>
-                <textarea
-                  className={styles.textarea}
-                  rows={10}
-                  value={importText}
-                  onChange={(e) => {
-                    setImportText(e.target.value);
-                    setImportDraftStops(null);
-                    setImportCopySourceRouteId('');
-                  }}
-                  placeholder="TIME  KEY  PROPERTY  WED"
-                  spellCheck={false}
-                />
+                {importFile && importText.trim() && (
+                  <p className={styles.fieldHint}>File text extracted. Preview stops to parse and review.</p>
+                )}
 
                 <button
                   type="button"
                   className={styles.btnParse}
                   onClick={handleParse}
-                  disabled={!importText.trim()}
+                  disabled={!importText.trim() || isUploading || copyingImportStops || importDraftSource === 'copy'}
                 >
                   Preview Stops
                 </button>

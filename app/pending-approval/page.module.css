@@ -1,0 +1,11 @@
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--nd-space-md);
+  flex-wrap: wrap;
+}
+
+.themeToggle {
+  width: min(180px, 100%);
+}

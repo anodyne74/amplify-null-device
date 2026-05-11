@@ -2,12 +2,15 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import styles from './PortalLayout.module.css';
+import ThemeModeSelect from '@/app/components/ThemeModeSelect';
 
 export interface NavItem {
   href: string;
   label: string;
-  icon: string;
+  icon: IconDefinition;
 }
 
 interface PortalLayoutProps {
@@ -90,9 +93,9 @@ export default function PortalLayout({
                   href={item.href}
                   className={styles.navLink}
                   onClick={() => setSidebarOpen(false)}
+                  title={item.label}
                 >
-                  <span aria-hidden="true">{item.icon}</span>
-                  {item.label}
+                  <FontAwesomeIcon icon={item.icon} className={styles.navIcon} />
                 </Link>
               </li>
             ))}
@@ -100,6 +103,8 @@ export default function PortalLayout({
         </nav>
 
         <div className={styles.userSection}>
+          <ThemeModeSelect className={styles.themeControls} />
+
           <p className={styles.userLabel}>Signed in as</p>
           <p className={styles.userEmail}>{userEmail}</p>
 

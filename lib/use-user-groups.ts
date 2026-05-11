@@ -35,7 +35,7 @@ export function useUserGroups(): UserGroupState {
       });
     } else if (authStatus === 'unauthenticated') {
       setGroups([]);
-      setFetched(true);
+      setFetched(false);
     }
   }, [authStatus]);
 

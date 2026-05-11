@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthenticator, Authenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import ThemeModeSelect from '@/app/components/ThemeModeSelect';
 import styles from './page.module.css';
 
 /**
@@ -35,7 +36,7 @@ export default function Home() {
       });
     }
 
-    if (!groups.includes('administrator') && groups.includes('operator')) {
+    if (groups.includes('operator')) {
       options.push({
         key: 'operator',
         title: 'Operator Portal',
@@ -70,7 +71,7 @@ export default function Home() {
         <div className={styles.wrapper}>
           <div className={styles.card}>
             <h1 className={styles.heading}>Choose Portal Role</h1>
-            <p className={styles.subtitle}>You have access to multiple roles. Select where you want to continue.</p>
+            <p className={styles.subtitle}>Choose Administrator for desktop management or Operator for on-route mobile use.</p>
             <div className={styles.roleButtons}>
               {roleOptions.map((option) => (
                 <button
@@ -90,9 +91,12 @@ export default function Home() {
     return <LoadingSpinner message="Redirecting to dashboard..." />;
   }
 
+  // Unauthenticated - show login page with branding and custom themed Authenticator
   return (
     <div className={styles.loginPage}>
       <div className={styles.loginContainer}>
+        <ThemeModeSelect className={styles.publicThemeToggle} label="Appearance" />
+
         {/* Branding Section */}
         <div className={styles.brandingSection}>
           <div className={styles.logo}>◆</div>
@@ -108,9 +112,44 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Authenticator Card */}
+        {/* Authenticator Card - Uses styling from page.module.css */}
         <div className={styles.authCard}>
-          <Authenticator />
+          <Authenticator 
+            hideSignUp={false}
+            formFields={{
+              signUp: {
+                given_name: {
+                  order: 1,
+                  label: 'First Name',
+                  placeholder: 'Enter your first name',
+                  isRequired: true,
+                },
+                email: {
+                  order: 2,
+                },
+                password: {
+                  order: 3,
+                },
+                confirm_password: {
+                  order: 4,
+                },
+              },
+            }}
+            components={{
+              SignUp: {
+                Header() {
+                  return (
+                    <div className={styles.signupHeader}>
+                      <h2 className={styles.signupHeaderTitle}>Request Access</h2>
+                      <p className={styles.signupHeaderText}>
+                        New accounts require administrator approval before portal access is granted.
+                      </p>
+                    </div>
+                  );
+                },
+              },
+            }}
+          />
         </div>
 
         {/* Footer Section */}

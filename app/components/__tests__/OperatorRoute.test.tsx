@@ -67,6 +67,27 @@ describe('OperatorRoute', () => {
     });
   });
 
+  it('allows dual-role users to access operator routes', () => {
+    (useAuthenticator as jest.Mock).mockReturnValue({
+      authStatus: 'authenticated',
+    });
+    (useUserGroups as jest.Mock).mockReturnValue({
+      loading: false,
+      isAdmin: true,
+      isOperator: true,
+      isCustomer: false,
+    });
+
+    render(
+      <OperatorRoute>
+        <div>Operator content</div>
+      </OperatorRoute>
+    );
+
+    expect(screen.getByText('Operator content')).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it('allows administrators to access admin-only routes', () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',

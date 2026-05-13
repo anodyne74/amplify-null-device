@@ -8,6 +8,7 @@ import styles from './RouteStopsMap.module.css';
 interface RouteStopsMapProps {
   stops: Stop[];
   activeStopId?: string | null;
+  currentPosition?: { latitude: number; longitude: number } | null;
 }
 
 type StopWithCoords = Stop & { latitude: number; longitude: number };
@@ -46,17 +47,23 @@ function markerColor(serviceType?: string | null) {
   return '#00e5ff';
 }
 
-export function RouteStopsMap({ stops, activeStopId }: RouteStopsMapProps) {
+export function RouteStopsMap({ stops, activeStopId, currentPosition }: RouteStopsMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const leafletRef = useRef<typeof import('leaflet') | null>(null);
   const [devicePosition, setDevicePosition] = useState<DevicePosition | null>(null);
 
+  // Use provided currentPosition, or fallback to device geolocation if not provided
+  const displayPosition = currentPosition 
+    ? { latitude: currentPosition.latitude, longitude: currentPosition.longitude, accuracy: undefined } 
+    : devicePosition;
+
   const orderedStops = [...stops].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
   const mappedStops = orderedStops.filter(hasCoordinates);
 
+  // Only set up independent geolocation if currentPosition is not provided
   useEffect(() => {
-    if (!('geolocation' in navigator)) return;
+    if (currentPosition || !('geolocation' in navigator)) return;
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
@@ -77,7 +84,7 @@ export function RouteStopsMap({ stops, activeStopId }: RouteStopsMapProps) {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
+  }, [currentPosition]);
 
   useEffect(() => {
     if (!containerRef.current || mappedStops.length === 0) return;
@@ -161,16 +168,16 @@ export function RouteStopsMap({ stops, activeStopId }: RouteStopsMapProps) {
         });
       });
 
-      if (devicePosition) {
-        L.circle([devicePosition.latitude, devicePosition.longitude], {
-          radius: Math.max(devicePosition.accuracy ?? 20, 20),
+      if (displayPosition) {
+        L.circle([displayPosition.latitude, displayPosition.longitude], {
+          radius: Math.max(displayPosition.accuracy ?? 20, 20),
           color: '#2563eb',
           weight: 1,
           fillColor: '#60a5fa',
           fillOpacity: 0.12,
         }).addTo(map);
 
-        L.circleMarker([devicePosition.latitude, devicePosition.longitude], {
+        L.circleMarker([displayPosition.latitude, displayPosition.longitude], {
           radius: 8,
           color: '#ffffff',
           weight: 2,
@@ -185,7 +192,7 @@ export function RouteStopsMap({ stops, activeStopId }: RouteStopsMapProps) {
           });
       }
 
-      updateViewport(map, activeStop, devicePosition, L);
+      updateViewport(map, activeStop, displayPosition, L);
       map.invalidateSize();
     });
 
@@ -197,14 +204,14 @@ export function RouteStopsMap({ stops, activeStopId }: RouteStopsMapProps) {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStopId, stops]);
+  }, [activeStopId, stops, currentPosition]);
 
   useEffect(() => {
     if (!mapRef.current || !leafletRef.current || mappedStops.length === 0) return;
 
     const activeStop = mappedStops.find((stop) => stop.id === activeStopId) ?? mappedStops.find((stop) => !stop.actualDepartureTime) ?? mappedStops[0];
-    updateViewport(mapRef.current, activeStop, devicePosition, leafletRef.current);
-  }, [activeStopId, devicePosition, mappedStops]);
+    updateViewport(mapRef.current, activeStop, displayPosition, leafletRef.current);
+  }, [activeStopId, currentPosition, devicePosition, mappedStops]);
 
   if (orderedStops.length === 0) {
     return (

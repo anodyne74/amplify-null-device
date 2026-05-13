@@ -1,20 +1,14 @@
 'use client';
 
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { faChartLine, faRoad } from '@fortawesome/free-solid-svg-icons';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import PortalLayout from '@/app/components/PortalLayout';
+import OperatorMUILayout from '@/app/operator/mui-layout';
 import { getUserDisplayName } from '@/lib/amplify-config';
-
-const NAV_ITEMS = [
-  { href: '/operator/dashboard', label: 'Dashboard', icon: faChartLine },
-  { href: '/operator/routes', label: 'Routes', icon: faRoad },
-];
 
 /**
  * Operator Portal Layout
- * Provides navigation and logout for authenticated operators.
- * Responsive design: collapsible sidebar on mobile, fixed on desktop.
+ * Uses Material UI components with NullDevice dark theme
+ * Optimized for mobile-first field use
  */
 export default function OperatorLayout({ children }: { children: React.ReactNode }) {
   const { signOut, user } = useAuthenticator();
@@ -22,15 +16,9 @@ export default function OperatorLayout({ children }: { children: React.ReactNode
 
   return (
     <OperatorRoute>
-      <PortalLayout
-        variant="operator"
-        portalTitle="Operator Portal"
-        navItems={NAV_ITEMS}
-        userEmail={userDisplayName}
-        onLogout={signOut}
-      >
+      <OperatorMUILayout userEmail={userDisplayName} onLogout={signOut}>
         {children}
-      </PortalLayout>
+      </OperatorMUILayout>
     </OperatorRoute>
   );
 }

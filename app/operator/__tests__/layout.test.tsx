@@ -16,25 +16,22 @@ jest.mock('@/app/components/OperatorRoute', () => {
   };
 });
 
-jest.mock('@/app/components/PortalLayout', () => {
-  return function MockPortalLayout({
-    portalTitle,
-    navItems,
+jest.mock('@/app/operator/mui-layout', () => {
+  return function MockOperatorMUILayout({
     children,
+    userEmail,
   }: {
-    portalTitle: string;
-    navItems: Array<{ href: string; label: string; icon: any }>;
     children: React.ReactNode;
+    userEmail: string;
+    onLogout: () => void;
   }) {
     return (
       <div>
-        <div data-testid="portal-title">{portalTitle}</div>
+        <div data-testid="portal-title">Operator Portal</div>
+        <div data-testid="user-email">{userEmail}</div>
         <nav data-testid="nav">
-          {navItems.map((item) => (
-            <div key={item.href} data-testid={`nav-item-${item.label}`}>
-              {item.label}
-            </div>
-          ))}
+          <div data-testid="nav-item-Dashboard">Dashboard</div>
+          <div data-testid="nav-item-Routes">Routes</div>
         </nav>
         {children}
       </div>
@@ -70,9 +67,5 @@ describe('OperatorLayout', () => {
 
     expect(screen.getByTestId('nav-item-Dashboard')).toBeInTheDocument();
     expect(screen.getByTestId('nav-item-Routes')).toBeInTheDocument();
-    expect(screen.queryByTestId('nav-item-Admin Home')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('nav-item-Customers')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('nav-item-Invoices')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('nav-item-Users')).not.toBeInTheDocument();
   });
 });

@@ -68,6 +68,8 @@ export interface Route {
   actualStartTime?: string | null;
   actualEndTime?: string | null;
   actualDurationMinutes?: number | null;
+  signsPlacedDistanceKm?: number | null;
+  signsPickedUpDistanceKm?: number | null;
   notes?: string;
   scheduleS3Key?: string | null;
   createdAt?: string;
@@ -176,6 +178,14 @@ export interface CustomerUser {
   customer?: Customer;
 }
 
+export interface Administrator {
+  id: string;
+  name: string;
+  email: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 /**
  * Enums and union types from schema
  */
@@ -241,6 +251,8 @@ export interface UpdateRouteInput {
   actualStartTime?: string;
   actualEndTime?: string;
   actualDurationMinutes?: number;
+  signsPlacedDistanceKm?: number;
+  signsPickedUpDistanceKm?: number;
   notes?: string;
 }
 

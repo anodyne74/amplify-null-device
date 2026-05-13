@@ -30,11 +30,14 @@ type AdminUserRequest = {
 };
 
 type ListedUser = {
+  id?: string;
   username?: string;
   enabled?: boolean;
   status?: string;
-  firstName?: string;
+  name?: string;
   email?: string;
+  createdAt?: string;
+  updatedAt?: string;
   sub?: string;
 };
 
@@ -42,14 +45,27 @@ function mapListedUser(user: {
   Username?: string;
   Enabled?: boolean;
   UserStatus?: string;
+  UserCreateDate?: Date;
+  UserLastModifiedDate?: Date;
   Attributes?: { Name?: string; Value?: string }[];
 }): ListedUser {
+  const id = getAttributeValue(user.Attributes, 'sub') || user.Username;
+  const name =
+    getAttributeValue(user.Attributes, 'name') ||
+    getAttributeValue(user.Attributes, 'given_name') ||
+    user.Username ||
+    getAttributeValue(user.Attributes, 'email') ||
+    'Unknown user';
+
   return {
+    id,
     username: user.Username,
     enabled: user.Enabled,
     status: user.UserStatus,
-    firstName: getAttributeValue(user.Attributes, 'given_name'),
-    email: getAttributeValue(user.Attributes, 'email'),
+    name,
+    email: getAttributeValue(user.Attributes, 'email') || undefined,
+    createdAt: user.UserCreateDate?.toISOString(),
+    updatedAt: user.UserLastModifiedDate?.toISOString(),
     sub: getAttributeValue(user.Attributes, 'sub'),
   };
 }
@@ -131,6 +147,67 @@ async function writeAuditLog(authToken: string, input: {
   }
 }
 
+async function syncAdministratorRecords(authToken: string, users: ListedUser[]) {
+  if (!graphqlEndpoint || users.length === 0) {
+    return;
+  }
+
+  const createMutation = `
+    mutation CreateAdministrator($input: CreateAdministratorInput!) {
+      createAdministrator(input: $input) {
+        id
+      }
+    }
+  `;
+
+  const updateMutation = `
+    mutation UpdateAdministrator($input: UpdateAdministratorInput!) {
+      updateAdministrator(input: $input) {
+        id
+      }
+    }
+  `;
+
+  await Promise.allSettled(
+    users.map(async (user) => {
+      if (!user.id || !user.name || !user.email) {
+        return;
+      }
+
+      const input = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt || new Date().toISOString(),
+        updatedAt: user.updatedAt || new Date().toISOString(),
+      };
+
+      const createResponse = await fetch(graphqlEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authToken,
+        },
+        body: JSON.stringify({ query: createMutation, variables: { input } }),
+        cache: 'no-store',
+      });
+
+      const createPayload = await createResponse.json().catch(() => null);
+      if (createResponse.ok && createPayload?.errors?.length && !createPayload?.data?.createAdministrator) {
+        await fetch(graphqlEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: authToken,
+          },
+          body: JSON.stringify({ query: updateMutation, variables: { input } }),
+          cache: 'no-store',
+        });
+      }
+    })
+  );
+}
+
 async function verifyToken(token: string): Promise<VerifiedClaims | null> {
   if (!verifier) {
     return null;
@@ -205,6 +282,7 @@ export async function POST(request: NextRequest) {
       );
 
       const users = (response.Users || []).map((user) => mapListedUser(user));
+      await syncAdministratorRecords(authResult.token, users);
 
       await writeAuditLog(authResult.token, {
         operatorId: authResult.claims.sub,
@@ -268,6 +346,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `No user found for email ${email}.` }, { status: 404 });
       }
 
+      const user = mapListedUser(matched);
+      await syncAdministratorRecords(authResult.token, [user]);
+
       await writeAuditLog(authResult.token, {
         operatorId: authResult.claims.sub,
         eventType: 'data_access',
@@ -279,7 +360,7 @@ export async function POST(request: NextRequest) {
         userAgent: request.headers.get('user-agent') || undefined,
       });
 
-      return NextResponse.json({ user: mapListedUser(matched) });
+      return NextResponse.json({ user });
     }
 
     if (body.action === 'addUserToGroup') {

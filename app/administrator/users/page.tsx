@@ -13,12 +13,16 @@ import {
 import styles from '@/app/dashboard.module.css';
 
 type CognitoUser = {
+  id?: string;
   username?: string;
   sub?: string;
   enabled?: boolean;
   status?: string;
+  name?: string;
   firstName?: string;
   email?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type CustomerSummary = {
@@ -233,7 +237,7 @@ export default function UsersAdminPage() {
           userSub: resolvedUser.sub,
           accountOwnerSub: newUserRole === 'account_owner' ? resolvedUser.sub : (owner?.userSub || resolvedUser.sub),
           role: newUserRole,
-          name: newUserName || resolvedUser.firstName || undefined,
+          name: newUserName || resolvedUser.name || resolvedUser.firstName || undefined,
           email: newUserEmail.trim().toLowerCase(),
         });
 
@@ -252,7 +256,7 @@ export default function UsersAdminPage() {
           userSub: resolvedUser.sub,
           accountOwnerSub: newUserRole === 'account_owner' ? resolvedUser.sub : (owner?.userSub || resolvedUser.sub),
           role: newUserRole,
-          name: newUserName || resolvedUser.firstName || undefined,
+            name: newUserName || resolvedUser.name || resolvedUser.firstName || undefined,
           email: newUserEmail.trim().toLowerCase(),
         });
       }
@@ -335,7 +339,7 @@ export default function UsersAdminPage() {
                   ? selectedUser.sub
                   : (owner?.userSub || selectedUser.sub),
               role: selectedCustomerRole,
-              name: selectedUser.firstName || undefined,
+              name: selectedUser.name || selectedUser.firstName || undefined,
               email: selectedUser.email || undefined,
             });
 
@@ -364,7 +368,7 @@ export default function UsersAdminPage() {
                       ? selectedUser.sub
                       : (owner?.userSub || selectedUser.sub),
                   role: selectedCustomerRole,
-                  name: selectedUser.firstName || undefined,
+                  name: selectedUser.name || selectedUser.firstName || undefined,
                   email: selectedUser.email || undefined,
                 },
               ];
@@ -464,8 +468,8 @@ export default function UsersAdminPage() {
                 >
                   {users.map((user) => (
                     <option key={user.username} value={user.username}>
-                      {user.firstName ? `${user.firstName} - ` : ''}
-                      {user.email || user.username}
+                      {user.name || user.username || 'Unnamed user'}
+                      {user.email ? ` (${user.email})` : ''}
                       {user.status ? ` (${user.status})` : ''}
                     </option>
                   ))}
@@ -479,6 +483,12 @@ export default function UsersAdminPage() {
 
           {selectedUsername && (
             <div>
+              {users.find((u) => u.username === selectedUsername)?.name && (
+                <p className={styles.welcome}>
+                  Name: {users.find((u) => u.username === selectedUsername)?.name}
+                </p>
+              )}
+
               {users.find((u) => u.username === selectedUsername)?.email && (
                 <p className={styles.welcome}>
                   Email: {users.find((u) => u.username === selectedUsername)?.email}

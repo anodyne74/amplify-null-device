@@ -88,6 +88,8 @@ const schema = a.schema({
       actualStartTime: a.datetime(),
       actualEndTime: a.datetime(),
       actualDurationMinutes: a.integer(),
+      signsPlacedDistanceKm: a.float(),
+      signsPickedUpDistanceKm: a.float(),
       notes: a.string(),
       scheduleS3Key: a.string(), // S3 key for the uploaded schedule file
       createdAt: a.datetime(),
@@ -277,12 +279,32 @@ const schema = a.schema({
       allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read']),   // account owner reads all for their customer
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),  // only admins manage users
     ]),
+
+  /**
+   * Administrator - Stores administrator profile details synced from Cognito.
+   * Used by the admin management UI to display the user's name and email.
+   */
+  Administrator: a
+    .model({
+      name: a.string().required(),
+      email: a.email().required(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+    ]),
 });
 
 export type Schema = ClientSchema<typeof schema>;
 
 export const data = defineData({
   schema,
+  logging: {
+    retention: '1 month',
+    fieldLogLevel: 'error',
+    excludeVerboseContent: true,
+  },
   authorizationModes: {
     defaultAuthorizationMode: 'userPool',
   },

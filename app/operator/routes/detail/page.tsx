@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -222,17 +222,26 @@ function RouteDetailContent() {
   // Mobile execution: per-stop completion notes
   const [stopCompletionNotes, setStopCompletionNotes] = useState<Record<string, string>>({});
   const [stopCompletionPhoto, setStopCompletionPhoto] = useState<Record<string, File | null>>({});
+  const [phaseDistanceKm, setPhaseDistanceKm] = useState({
+    signs_placed: 0,
+    signs_picked_up: 0,
+  });
+  const [currentPosition, setCurrentPosition] = useState<{ latitude: number; longitude: number } | null>(null);
+  const gpsWatchIdRef = useRef<number | null>(null);
+  const lastGpsPointRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const completeRouteNow = useCallback(async (routeToComplete: Route) => {
     const now = new Date();
     const start = routeToComplete.actualStartTime ? new Date(routeToComplete.actualStartTime) : now;
     const actualDurationMinutes = Math.round((now.getTime() - start.getTime()) / 60000);
     const completedAt = now.toISOString();
+    const pickupDistanceKm = Number(phaseDistanceKm.signs_picked_up.toFixed(2));
 
     const { errors } = await updateRouteExecution(routeToComplete.id, {
       status: 'completed',
       actualEndTime: completedAt,
       actualDurationMinutes,
+      signsPickedUpDistanceKm: pickupDistanceKm,
     });
 
     if (errors && errors.length > 0) {
@@ -247,11 +256,12 @@ function RouteDetailContent() {
             status: 'completed',
             actualEndTime: completedAt,
             actualDurationMinutes,
+            signsPickedUpDistanceKm: pickupDistanceKm,
           }
         : r
     );
     return true;
-  }, []);
+  }, [phaseDistanceKm.signs_picked_up]);
 
   const fetchStops = useCallback(async () => {
     const client = generateClient<Schema>();
@@ -385,6 +395,10 @@ function RouteDetailContent() {
       }
       const loadedRoute = routeResult.data as unknown as Route;
       setRoute(loadedRoute);
+      setPhaseDistanceKm({
+        signs_placed: loadedRoute.signsPlacedDistanceKm ?? 0,
+        signs_picked_up: loadedRoute.signsPickedUpDistanceKm ?? 0,
+      });
 
       const customerResult = await getCustomer(loadedRoute.customerId);
       if (!customerResult.errors || customerResult.errors.length === 0) {
@@ -424,6 +438,73 @@ function RouteDetailContent() {
     if (id) fetchAll();
   }, [id, fetchStops]);
 
+  useEffect(() => {
+    if (!route || (route.status !== 'signs_placed' && route.status !== 'signs_picked_up')) {
+      if (gpsWatchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+      }
+      gpsWatchIdRef.current = null;
+      lastGpsPointRef.current = null;
+      return;
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      return;
+    }
+
+    lastGpsPointRef.current = null;
+    const activePhase = route.status;
+
+    gpsWatchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const nextPoint = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+
+        const previousPoint = lastGpsPointRef.current;
+        lastGpsPointRef.current = nextPoint;
+
+        // Update current position for map display
+        setCurrentPosition({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+
+        if (!previousPoint) {
+          return;
+        }
+
+        const deltaKm = haversineDistanceKm(previousPoint, nextPoint);
+        if (!Number.isFinite(deltaKm) || deltaKm <= 0 || deltaKm > 1) {
+          return;
+        }
+
+        setPhaseDistanceKm((prev) => ({
+          ...prev,
+          [activePhase]: Number((prev[activePhase] + deltaKm).toFixed(3)),
+        }));
+      },
+      () => {
+        // Ignore GPS errors and keep execution flow manual-safe.
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 15000,
+      }
+    );
+
+      setCurrentPosition(null);
+    return () => {
+      if (gpsWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+      }
+      gpsWatchIdRef.current = null;
+      lastGpsPointRef.current = null;
+    };
+  }, [route]);
+
   const handleStartRoute = async () => {
     if (!route) return;
     setTransitioning(true);
@@ -433,11 +514,24 @@ function RouteDetailContent() {
       const { errors } = await updateRouteExecution(route.id, {
         status: 'signs_placed',
         actualStartTime: startedAt,
+        signsPlacedDistanceKm: 0,
+        signsPickedUpDistanceKm: 0,
       });
       if (errors && errors.length > 0) {
         setTransitionError('Failed to start route.');
       } else {
-        setRoute((r) => (r ? { ...r, status: 'signs_placed', actualStartTime: startedAt } : r));
+        setPhaseDistanceKm({ signs_placed: 0, signs_picked_up: 0 });
+        setRoute((r) =>
+          r
+            ? {
+                ...r,
+                status: 'signs_placed',
+                actualStartTime: startedAt,
+                signsPlacedDistanceKm: 0,
+                signsPickedUpDistanceKm: 0,
+              }
+            : r
+        );
       }
     } catch {
       setTransitionError('Failed to start route.');
@@ -451,21 +545,24 @@ function RouteDetailContent() {
     setTransitionError(null);
 
     try {
+      const placementDistanceKm = Number(phaseDistanceKm.signs_placed.toFixed(2));
       const { errors } = await updateRouteExecution(route.id, {
         status: 'signs_picked_up',
+        signsPlacedDistanceKm: placementDistanceKm,
       });
 
       if (errors && errors.length > 0) {
         setTransitionError('Failed to start pickup phase.');
       } else {
-        const nextRoute = { ...route, status: 'signs_picked_up' as const };
-        setRoute(nextRoute);
-
-        const pickupStops = stops.filter((stop) => stop.serviceType === 'pickup');
-        const allPickedUp = pickupStops.every((stop) => isStopCompleted(stop));
-        if (allPickedUp) {
-          await completeRouteNow(nextRoute);
-        }
+        setRoute((r) =>
+          r
+            ? {
+                ...r,
+                status: 'signs_picked_up',
+                signsPlacedDistanceKm: placementDistanceKm,
+              }
+            : r
+        );
       }
     } catch {
       setTransitionError('Failed to start pickup phase.');
@@ -736,6 +833,8 @@ function RouteDetailContent() {
     routeDurationMinutes !== null && customerRatePerHour !== null
       ? Number(((routeDurationMinutes / 60) * customerRatePerHour).toFixed(2))
       : null;
+  const placementDistance = phaseDistanceKm.signs_placed;
+  const pickupDistance = phaseDistanceKm.signs_picked_up;
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
@@ -793,6 +892,14 @@ function RouteDetailContent() {
               <div>
                 <div className={styles.infoLabel}>Kilometers</div>
                 <div className={styles.infoValue}>{`${kilometersTravelled.toFixed(2)} km`}</div>
+              </div>
+              <div>
+                <div className={styles.infoLabel}>Placement Distance</div>
+                <div className={styles.infoValue}>{`${placementDistance.toFixed(2)} km`}</div>
+              </div>
+              <div>
+                <div className={styles.infoLabel}>Pickup Distance</div>
+                <div className={styles.infoValue}>{`${pickupDistance.toFixed(2)} km`}</div>
               </div>
             </div>
 
@@ -855,6 +962,14 @@ function RouteDetailContent() {
                     <div className={styles.infoValue}>{`${kilometersTravelled.toFixed(2)} km`}</div>
                   </div>
                   <div>
+                    <div className={styles.infoLabel}>Placement Distance</div>
+                    <div className={styles.infoValue}>{`${placementDistance.toFixed(2)} km`}</div>
+                  </div>
+                  <div>
+                    <div className={styles.infoLabel}>Pickup Distance</div>
+                    <div className={styles.infoValue}>{`${pickupDistance.toFixed(2)} km`}</div>
+                  </div>
+                  <div>
                     <div className={styles.infoLabel}>Time Taken</div>
                     <div className={styles.infoValue}>{formatMinutesAsElapsed(routeDurationMinutes)}</div>
                   </div>
@@ -899,7 +1014,7 @@ function RouteDetailContent() {
 
             <div className={styles.mapSection}>
               <h3 className={styles.mapHeading}>Route Map</h3>
-              <RouteStopsMap stops={stops} activeStopId={topVisibleStopId} />
+              <RouteStopsMap stops={stops} activeStopId={topVisibleStopId} currentPosition={currentPosition} />
             </div>
 
             {canManagePlanning && !planningLocked && (

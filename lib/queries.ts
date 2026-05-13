@@ -379,6 +379,8 @@ export async function updateRoute(
     actualStartTime: string;
     actualEndTime: string;
     actualDurationMinutes: number;
+    signsPlacedDistanceKm: number;
+    signsPickedUpDistanceKm: number;
     notes: string;
     scheduleS3Key: string;
   }>
@@ -405,6 +407,8 @@ export interface RouteExecutionUpdateInput {
   actualStartTime?: string;
   actualEndTime?: string;
   actualDurationMinutes?: number;
+  signsPlacedDistanceKm?: number;
+  signsPickedUpDistanceKm?: number;
 }
 
 /**

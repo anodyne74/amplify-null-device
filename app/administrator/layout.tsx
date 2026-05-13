@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { faGauge, faRoad, faUsers, faFileInvoice, faUser, faGear } from '@fortawesome/free-solid-svg-icons';
 import OperatorRoute from '@/app/components/OperatorRoute';
@@ -24,7 +24,8 @@ const ADMIN_NAV = [
  */
 export default function AdministratorLayout({ children }: { children: React.ReactNode }) {
   const { signOut, user } = useAuthenticator();
-  const userDisplayName = user ? getUserDisplayName(user) ?? '' : '';
+  const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
+  const [userDisplayName, setUserDisplayName] = useState(fallbackDisplayName);
 
   const applyThemeMode = (theme: 'system' | 'light' | 'dark') => {
     if (typeof window === 'undefined') return;
@@ -40,12 +41,21 @@ export default function AdministratorLayout({ children }: { children: React.Reac
   };
 
   useEffect(() => {
+    setUserDisplayName(fallbackDisplayName);
+  }, [fallbackDisplayName]);
+
+  useEffect(() => {
     if (!user?.userId) return;
     if (typeof getUserSettings !== 'function') return;
     let cancelled = false;
 
     void getUserSettings(user.userId)
       .then((result) => {
+        const configuredName = result.data?.name?.trim();
+        if (!cancelled) {
+          setUserDisplayName(configuredName || fallbackDisplayName);
+        }
+
         const defaultTheme = result.data?.defaultTheme;
         if (cancelled || !defaultTheme) return;
         applyThemeMode(defaultTheme);
@@ -57,7 +67,7 @@ export default function AdministratorLayout({ children }: { children: React.Reac
     return () => {
       cancelled = true;
     };
-  }, [user?.userId]);
+  }, [fallbackDisplayName, user?.userId]);
 
   return (
     <OperatorRoute requireAdmin>

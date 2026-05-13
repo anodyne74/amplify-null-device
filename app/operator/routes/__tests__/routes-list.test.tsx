@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import RoutesPage from '../page';
 import * as listAllRoutesModule from '@/lib/queries/ListAllRoutes';
 import * as listAllCustomersModule from '@/lib/queries/ListAllCustomers';
+import * as amplifyConfigModule from '@/lib/amplify-config';
 import type { Route } from '@/amplify/types';
 
 jest.mock('next/navigation', () => ({
@@ -24,9 +25,9 @@ jest.mock('@aws-amplify/ui-react', () => ({
 }));
 
 jest.mock('@/lib/amplify-config', () => ({
-  isOperator: () => true,
-  isCustomer: () => false,
-  isAdmin: () => true,
+  isOperator: jest.fn(() => true),
+  isCustomer: jest.fn(() => false),
+  isAdmin: jest.fn(() => true),
 }));
 
 jest.mock('@/app/components/OperatorRoute', () => ({
@@ -57,6 +58,7 @@ const mockRoutes: Route[] = [
 describe('Operator Routes List Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (amplifyConfigModule.isAdmin as jest.Mock).mockReturnValue(true);
     (listAllCustomersModule.listAllCustomers as jest.Mock).mockResolvedValue({
       data: [
         { id: 'cust-bbbb-2222', name: 'Acme Corp', email: 'acme@example.com' },
@@ -107,6 +109,22 @@ describe('Operator Routes List Page', () => {
     });
 
     expect(screen.getByText(/create new route/i)).toBeInTheDocument();
+  });
+
+  it('hides "Create New Route" link for non-admin operators', async () => {
+    (amplifyConfigModule.isAdmin as jest.Mock).mockReturnValue(false);
+    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
+      data: [],
+      errors: undefined,
+    });
+
+    render(<RoutesPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/loading routes/i)).not.toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/create new route/i)).not.toBeInTheDocument();
   });
 
   it('shows empty state when no routes', async () => {

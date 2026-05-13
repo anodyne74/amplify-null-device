@@ -5,9 +5,9 @@ import { useAuthenticator } from '@aws-amplify/ui-react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import type { Customer, Stop } from '@/amplify/types';
-import { getUserEmail } from '@/lib/amplify-config';
+import { getUserDisplayName, getUserEmail } from '@/lib/amplify-config';
 import { parseAgentOptionsInput, stringifyAgentOptions } from '@/lib/customerDefaults';
-import { getCustomer, getCustomerPortalContext, updateCustomer } from '@/lib/queries';
+import { getCustomer, getCustomerPortalContext, getUserSettings, updateCustomer } from '@/lib/queries';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import styles from '@/app/dashboard.module.css';
@@ -70,6 +70,8 @@ function formatCurrency(amount: number) {
 export default function CustomerDashboard() {
   const { user } = useAuthenticator();
   const userEmail = user ? getUserEmail(user) : '';
+  const fallbackDisplayName = user ? getUserDisplayName(user) ?? getUserEmail(user) ?? '' : '';
+  const [displayName, setDisplayName] = useState(fallbackDisplayName);
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -88,6 +90,30 @@ export default function CustomerDashboard() {
   const [totalSigns, setTotalSigns] = useState(0);
   const [totalKilometers, setTotalKilometers] = useState(0);
   const [totalInvoicedAmount, setTotalInvoicedAmount] = useState(0);
+
+  useEffect(() => {
+    setDisplayName(fallbackDisplayName);
+  }, [fallbackDisplayName]);
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    if (typeof getUserSettings !== 'function') return;
+    let cancelled = false;
+
+    void getUserSettings(user.userId)
+      .then((result) => {
+        if (cancelled) return;
+        const configuredName = result.data?.name?.trim();
+        setDisplayName(configuredName || fallbackDisplayName);
+      })
+      .catch(() => {
+        if (!cancelled) setDisplayName(fallbackDisplayName);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fallbackDisplayName, user?.userId]);
 
   useEffect(() => {
     if (!user?.userId) return;
@@ -271,7 +297,7 @@ export default function CustomerDashboard() {
       <div>
         <h1 className={styles.heading}>Customer Portal</h1>
         <p className={styles.welcome}>
-          Welcome, {userEmail} · {customerRole === 'account_owner' ? 'Owner' : 'Reviewer'}
+          Welcome, {displayName || userEmail} · {customerRole === 'account_owner' ? 'Owner' : 'Reviewer'}
         </p>
       </div>
 

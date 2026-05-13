@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
+import { getUserDisplayName } from '@/lib/amplify-config';
 import {
   getUserSettings,
   upsertUserSettings,
@@ -22,6 +23,7 @@ interface UserSettingsPageProps {
 export default function UserSettingsPage({ title, roleVariant }: UserSettingsPageProps) {
   const { user } = useAuthenticator();
   const { mode, setMode } = useThemeMode();
+  const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
 
   const [name, setName] = useState('');
   const [defaultTheme, setDefaultTheme] = useState<ThemeModeSetting>('system');
@@ -33,11 +35,18 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
     if (!user?.userId) return;
     let cancelled = false;
 
+    setName(fallbackDisplayName);
+
     void getUserSettings(user.userId)
       .then((result) => {
-        if (cancelled || !result.data) return;
+        if (cancelled) return;
 
-        setName(result.data.name || '');
+        if (!result.data) {
+          setName(fallbackDisplayName);
+          return;
+        }
+
+        setName(result.data.name?.trim() || fallbackDisplayName);
         setDefaultTheme((result.data.defaultTheme as ThemeModeSetting | null) || 'system');
         setMapTheme((result.data.mapTheme as MapThemeSetting | null) || 'light');
       })
@@ -48,7 +57,7 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
     return () => {
       cancelled = true;
     };
-  }, [user?.userId]);
+  }, [fallbackDisplayName, user?.userId]);
 
   const handleSave = async () => {
     if (!user?.userId) {

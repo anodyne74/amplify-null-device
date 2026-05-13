@@ -135,11 +135,13 @@ export default function OperatorRoutesPage() {
         {/* Header */}
         <div className={styles.pageHeader}>
           <h1 className={styles.heading}>Routes</h1>
-          <Link href="/operator/routes/new">
-            <button className={styles.btnCreateRoute}>
-              Create New Route
-            </button>
-          </Link>
+          {canDeleteRoutes && (
+            <Link href="/administrator/routes/new">
+              <button className={styles.btnCreateRoute}>
+                Create New Route
+              </button>
+            </Link>
+          )}
         </div>
 
         {loading && <LoadingSpinner message="Loading routes..." />}
@@ -210,12 +212,14 @@ export default function OperatorRoutesPage() {
                       >
                         View
                       </Link>
-                      <Link
-                        href={`/operator/routes/edit?id=${route.id}`}
-                        className={styles.editLink}
-                      >
-                        Edit
-                      </Link>
+                      {canDeleteRoutes && (
+                        <Link
+                          href={`/administrator/routes/edit?id=${route.id}`}
+                          className={styles.editLink}
+                        >
+                          Edit
+                        </Link>
+                      )}
                       {canDeleteRoutes && (
                         <button
                           type="button"

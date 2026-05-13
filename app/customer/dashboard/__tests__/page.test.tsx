@@ -19,6 +19,7 @@ jest.mock('@aws-amplify/ui-react', () => ({
 }));
 
 jest.mock('@/lib/amplify-config', () => ({
+  getUserDisplayName: () => 'Owner Name',
   getUserEmail: () => 'owner@example.com',
 }));
 
@@ -109,6 +110,8 @@ describe('Customer Dashboard standing instructions', () => {
     });
 
     render(<CustomerDashboard />);
+
+    expect(await screen.findByText(/welcome, owner name · owner/i)).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('Call before arrival')).toBeInTheDocument();

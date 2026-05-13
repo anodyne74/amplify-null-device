@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import { GetTemplateCommand, SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { generateClient } from 'aws-amplify/data';
 import { getUrl } from 'aws-amplify/storage';
@@ -8,6 +8,7 @@ import outputs from '@/amplify_outputs.json';
 import { listCustomerUsers, getCustomer, updateInvoice } from '@/lib/queries';
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
+const invoiceTemplateName = process.env.SES_INVOICE_TEMPLATE_NAME || 'NullDeviceInvoiceTemplate';
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
 const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
 
@@ -40,126 +41,36 @@ function getBearerToken(request: NextRequest): string | null {
 }
 
 function renderEmailTemplate(
-  invoiceNumber: string,
-  customerName: string,
-  invoiceDate: string,
-  totalAmount: number,
-  pdfUrl: string
+  template: string,
+  values: Record<string, string>
 ): string {
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      color: #333;
-      line-height: 1.6;
-    }
-    .container {
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
-      background-color: #f9f9f9;
-    }
-    .header {
-      background-color: #1a1a1a;
-      color: white;
-      padding: 20px;
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    .header h1 {
-      margin: 0;
-      font-size: 24px;
-      font-weight: 600;
-    }
-    .content {
-      background-color: white;
-      padding: 20px;
-      border-radius: 4px;
-      margin-bottom: 20px;
-    }
-    .invoice-details {
-      margin-bottom: 20px;
-      border-bottom: 1px solid #e0e0e0;
-      padding-bottom: 15px;
-    }
-    .detail-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-    .detail-label {
-      font-weight: 600;
-      color: #555;
-    }
-    .detail-value {
-      color: #333;
-    }
-    .amount {
-      font-size: 20px;
-      font-weight: 600;
-      color: #2d7f2d;
-    }
-    .cta-button {
-      display: inline-block;
-      background-color: #1a1a1a;
-      color: white;
-      padding: 12px 24px;
-      text-decoration: none;
-      border-radius: 4px;
-      font-weight: 600;
-      margin-top: 15px;
-    }
-    .footer {
-      text-align: center;
-      color: #999;
-      font-size: 12px;
-      padding: 15px;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>NullDevice Invoice</h1>
-    </div>
-    <div class="content">
-      <p>Hi ${customerName},</p>
-      <p>Your invoice is ready for review and payment.</p>
-      
-      <div class="invoice-details">
-        <div class="detail-row">
-          <span class="detail-label">Invoice #</span>
-          <span class="detail-value">${invoiceNumber}</span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Date</span>
-          <span class="detail-value">${invoiceDate}</span>
-        </div>
-        <div class="detail-row">
-          <span class="detail-label">Amount Due</span>
-          <span class="detail-value amount">$${totalAmount.toFixed(2)}</span>
-        </div>
-      </div>
-      
-      <p>Please click the button below to view or download your invoice:</p>
-      <a href="${pdfUrl}" class="cta-button" target="_blank" rel="noopener noreferrer">View Invoice</a>
-      
-      <p style="margin-top: 20px; font-size: 14px; color: #666;">
-        If you have any questions about this invoice or our services, please don't hesitate to reach out.
-      </p>
-    </div>
-    <div class="footer">
-      <p>© 2026 NullDevice. All rights reserved.</p>
-      <p>This is an automated message. Please do not reply to this email.</p>
-    </div>
-  </div>
-</body>
-</html>
-  `.trim();
+  return template.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_match, key) => values[key] ?? '');
+}
+
+function wrapBase64(base64: string): string {
+  const width = 76;
+  const lines: string[] = [];
+  for (let i = 0; i < base64.length; i += width) {
+    lines.push(base64.slice(i, i + width));
+  }
+  return lines.join('\r\n');
+}
+
+async function getTemplateParts() {
+  const result = await sesClient.send(
+    new GetTemplateCommand({ TemplateName: invoiceTemplateName })
+  );
+
+  const template = result.Template;
+  if (!template?.HtmlPart || !template.TextPart || !template.SubjectPart) {
+    throw new Error(`SES template ${invoiceTemplateName} is missing required parts.`);
+  }
+
+  return {
+    htmlPart: template.HtmlPart,
+    textPart: template.TextPart,
+    subjectPart: template.SubjectPart,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -240,49 +151,78 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to generate PDF link' }, { status: 500 });
     }
 
-    // Render HTML email
+    // Build template values and render body from deployed SES template.
     const invoiceDateString = invoice.invoiceDate || new Date().toISOString().split('T')[0];
-    const htmlBody = renderEmailTemplate(
-      invoice.invoiceNumber,
-      customer.name,
-      invoiceDateString,
-      invoice.totalAmount,
-      pdfUrl
-    );
+    const invoiceAmount = `$${invoice.totalAmount.toFixed(2)}`;
+    const templateValues = {
+      invoiceNumber: invoice.invoiceNumber,
+      customerName: customer.name || 'Customer',
+      invoiceDate: invoiceDateString,
+      totalAmount: invoiceAmount,
+      pdfUrl,
+      year: `${new Date().getUTCFullYear()}`,
+    };
 
-    const plainTextBody = `
-Hello ${customer.name},
+    const templateParts = await getTemplateParts();
+    const htmlBody = renderEmailTemplate(templateParts.htmlPart, templateValues);
+    const plainTextBody = renderEmailTemplate(templateParts.textPart, templateValues);
+    const subject = renderEmailTemplate(templateParts.subjectPart, templateValues);
 
-Your invoice is ready for review and payment.
+    // Fetch PDF bytes from the signed URL so it can be attached to the message.
+    const pdfResponse = await fetch(pdfUrl);
+    if (!pdfResponse.ok) {
+      return NextResponse.json({ error: 'Failed to fetch invoice PDF for attachment' }, { status: 500 });
+    }
+    const pdfBytes = new Uint8Array(await pdfResponse.arrayBuffer());
+    const pdfFileName = `invoice-${invoice.invoiceNumber || invoice.id}.pdf`;
+    const encodedPdf = wrapBase64(Buffer.from(pdfBytes).toString('base64'));
 
-Invoice #: ${invoice.invoiceNumber}
-Date: ${invoiceDateString}
-Amount Due: $${invoice.totalAmount.toFixed(2)}
-
-Please visit this link to view or download your invoice:
-${pdfUrl}
-
-If you have any questions about this invoice or our services, please don't hesitate to reach out.
-
-Regards,
-NullDevice Administration
-
-This is an automated message. Please do not reply to this email.
-    `.trim();
-
-    // Send email via SES
+    // Send email via SES as a raw MIME message to include the PDF attachment.
     const senderEmail = process.env.SES_SENDER_EMAIL || 'no-reply.nulldevice.dev';
-    
-    const command = new SendEmailCommand({
-      Source: senderEmail,
-      Destination: { ToAddresses: [toEmail] },
-      Message: {
-        Subject: { Data: `Invoice ${invoice.invoiceNumber}` },
-        Body: {
-          Html: { Data: htmlBody },
-          Text: { Data: plainTextBody },
-        },
+    const mixedBoundary = `mixed_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const altBoundary = `alt_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+    const rawMessage = [
+      `From: ${senderEmail}`,
+      `To: ${toEmail}`,
+      `Subject: ${subject}`,
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
+      '',
+      `--${mixedBoundary}`,
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+      '',
+      `--${altBoundary}`,
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      plainTextBody,
+      '',
+      `--${altBoundary}`,
+      'Content-Type: text/html; charset=UTF-8',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      htmlBody,
+      '',
+      `--${altBoundary}--`,
+      '',
+      `--${mixedBoundary}`,
+      `Content-Type: application/pdf; name="${pdfFileName}"`,
+      `Content-Disposition: attachment; filename="${pdfFileName}"`,
+      'Content-Transfer-Encoding: base64',
+      '',
+      encodedPdf,
+      '',
+      `--${mixedBoundary}--`,
+      '',
+    ].join('\r\n');
+
+    const command = new SendRawEmailCommand({
+      RawMessage: {
+        Data: new TextEncoder().encode(rawMessage),
       },
+      Source: senderEmail,
+      Destinations: [toEmail],
     });
 
     let messageId: string;

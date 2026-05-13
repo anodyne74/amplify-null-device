@@ -23,7 +23,7 @@ A serverless delivery management platform built with Next.js 15, AWS Amplify Gen
 	- Preview gating that only activates when stops were copied or successfully parsed.
 - Invoice management with:
 	- PDF upload and auto-parse support.
-	- SES-backed email delivery through API route `/api/admin/send-invoice-email`.
+	- SES-backed email delivery through API route `/api/admin/send-invoice-email` using a deployed SES template and PDF attachment.
 	- `emailSentAt` tracking on invoices.
 - Administrator dashboard cards for route stats and invoice email metrics (including Emails Sent Today and Unsent Invoices).
 - Customer-user assignment model (`account_owner` / `read_only`) with first-user assignment support.
@@ -114,11 +114,14 @@ Set these in Amplify Console for builds/runtime:
 | `AMPLIFY_IDENTITY_POOL_ID` | Cognito Identity Pool ID |
 | `AWS_REGION` | AWS region (for example `ap-southeast-2`) |
 | `SES_SENDER_EMAIL` | Sender used by SES invoice email API |
+| `SES_INVOICE_TEMPLATE_NAME` | SES template name for invoice emails (default: `NullDeviceInvoiceTemplate`) |
 
 Notes:
 
 - If `SES_SENDER_EMAIL` is not set, API falls back to `no-reply.nulldevice.dev`.
+- If `SES_INVOICE_TEMPLATE_NAME` is not set, API uses `NullDeviceInvoiceTemplate`.
 - Verify sender identity/domain in SES for the configured region.
+- The SES template is provisioned by Amplify backend deployment in `amplify/backend.ts`.
 
 ## Deployment
 

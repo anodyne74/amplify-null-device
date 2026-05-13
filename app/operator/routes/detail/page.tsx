@@ -14,7 +14,15 @@ import { isAdmin } from '@/lib/amplify-config';
 import { generateAgentInitials } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import { createStop, deleteRoute, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
+import {
+  createStop,
+  deleteRoute,
+  getCustomer,
+  getUserSettings,
+  updateRouteExecution,
+  updateStopExecution,
+} from '@/lib/queries';
+import type { MapTheme } from '@/lib/mapThemes';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import type { Route, Stop } from '@/amplify/types';
@@ -227,6 +235,7 @@ function RouteDetailContent() {
     signs_picked_up: 0,
   });
   const [currentPosition, setCurrentPosition] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [mapTheme, setMapTheme] = useState<MapTheme>('light');
   const gpsWatchIdRef = useRef<number | null>(null);
   const lastGpsPointRef = useRef<{ lat: number; lng: number } | null>(null);
 
@@ -437,6 +446,25 @@ function RouteDetailContent() {
     }
     if (id) fetchAll();
   }, [id, fetchStops]);
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    if (typeof getUserSettings !== 'function') return;
+    let cancelled = false;
+
+    void getUserSettings(user.userId)
+      .then((result) => {
+        if (cancelled || !result.data?.mapTheme) return;
+        setMapTheme(result.data.mapTheme as MapTheme);
+      })
+      .catch(() => {
+        // Non-blocking: map defaults to light.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
 
   useEffect(() => {
     if (!route || (route.status !== 'signs_placed' && route.status !== 'signs_picked_up')) {
@@ -1014,7 +1042,12 @@ function RouteDetailContent() {
 
             <div className={styles.mapSection}>
               <h3 className={styles.mapHeading}>Route Map</h3>
-              <RouteStopsMap stops={stops} activeStopId={topVisibleStopId} currentPosition={currentPosition} />
+              <RouteStopsMap
+                stops={stops}
+                activeStopId={topVisibleStopId}
+                currentPosition={currentPosition}
+                mapTheme={mapTheme}
+              />
             </div>
 
             {canManagePlanning && !planningLocked && (

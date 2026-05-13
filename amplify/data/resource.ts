@@ -294,6 +294,24 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
     ]),
+
+  /**
+   * UserSettings - Per-user UI preferences and profile label.
+   * userSub maps to Cognito subject for owner-scoped access.
+   */
+  UserSettings: a
+    .model({
+      userSub: a.string().required(),
+      name: a.string(),
+      defaultTheme: a.enum(['system', 'light', 'dark']),
+      mapTheme: a.enum(['light', 'dark', 'satellite', 'streets']),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [
+      allow.ownerDefinedIn('userSub').identityClaim('sub').to(['read', 'create', 'update', 'delete']),
+      allow.groups(['administrator']).to(['read']),
+    ]),
 });
 
 export type Schema = ClientSchema<typeof schema>;

@@ -186,6 +186,16 @@ export interface Administrator {
   updatedAt?: string;
 }
 
+export interface UserSettings {
+  id: string;
+  userSub: string;
+  name?: string;
+  defaultTheme?: ThemeMode;
+  mapTheme?: MapTheme;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 /**
  * Enums and union types from schema
  */
@@ -201,6 +211,8 @@ export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'cancelled';
 export type AuditEventType = 'login' | 'logout' | 'access_denied' | 'data_access' | 'data_modification' | 'data_deletion';
 export type AuditResourceType = 'customer' | 'route' | 'invoice' | 'payment' | 'operator';
 export type AuditStatus = 'success' | 'failure';
+export type ThemeMode = 'system' | 'light' | 'dark';
+export type MapTheme = 'light' | 'dark' | 'satellite' | 'streets';
 
 /**
  * Request/Response types for common operations

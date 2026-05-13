@@ -29,6 +29,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import MapIcon from '@mui/icons-material/Map';
+import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { operatorTheme } from '@/app/operator/mui-theme';
 import ThemeModeSelect from '@/app/components/ThemeModeSelect';
@@ -42,6 +43,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/operator/dashboard', icon: <DashboardIcon /> },
   { label: 'Routes', href: '/operator/routes', icon: <MapIcon /> },
+  { label: 'Settings', href: '/operator/settings', icon: <SettingsIcon /> },
 ];
 
 const DRAWER_WIDTH = 280;

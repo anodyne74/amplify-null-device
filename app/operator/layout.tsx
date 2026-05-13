@@ -1,9 +1,11 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import OperatorMUILayout from '@/app/operator/mui-layout';
 import { getUserDisplayName } from '@/lib/amplify-config';
+import { getUserSettings } from '@/lib/queries';
 
 /**
  * Operator Portal Layout
@@ -13,6 +15,39 @@ import { getUserDisplayName } from '@/lib/amplify-config';
 export default function OperatorLayout({ children }: { children: React.ReactNode }) {
   const { signOut, user } = useAuthenticator();
   const userDisplayName = user ? getUserDisplayName(user) ?? '' : '';
+
+  const applyThemeMode = (theme: 'system' | 'light' | 'dark') => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('nd-theme-mode', theme);
+    const resolved =
+      theme === 'system'
+        ? window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
+          ? 'light'
+          : 'dark'
+        : theme;
+    document.documentElement.setAttribute('data-theme', resolved);
+    document.documentElement.style.colorScheme = resolved;
+  };
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    if (typeof getUserSettings !== 'function') return;
+    let cancelled = false;
+
+    void getUserSettings(user.userId)
+      .then((result) => {
+        const defaultTheme = result.data?.defaultTheme;
+        if (cancelled || !defaultTheme) return;
+        applyThemeMode(defaultTheme);
+      })
+      .catch(() => {
+        // Non-blocking: keep current theme if settings cannot be loaded.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
 
   return (
     <OperatorRoute>

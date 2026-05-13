@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Map as LeafletMap } from 'leaflet';
 import type { Stop } from '@/amplify/types';
+import { getMapTheme, type MapTheme } from '@/lib/mapThemes';
 import styles from './RouteStopsMap.module.css';
 
 interface RouteStopsMapProps {
   stops: Stop[];
   activeStopId?: string | null;
   currentPosition?: { latitude: number; longitude: number } | null;
+  mapTheme?: MapTheme;
 }
 
 type StopWithCoords = Stop & { latitude: number; longitude: number };
@@ -47,7 +49,7 @@ function markerColor(serviceType?: string | null) {
   return '#00e5ff';
 }
 
-export function RouteStopsMap({ stops, activeStopId, currentPosition }: RouteStopsMapProps) {
+export function RouteStopsMap({ stops, activeStopId, currentPosition, mapTheme = 'light' }: RouteStopsMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const leafletRef = useRef<typeof import('leaflet') | null>(null);
@@ -60,6 +62,7 @@ export function RouteStopsMap({ stops, activeStopId, currentPosition }: RouteSto
 
   const orderedStops = [...stops].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
   const mappedStops = orderedStops.filter(hasCoordinates);
+  const selectedMapTheme = getMapTheme(mapTheme);
 
   // Only set up independent geolocation if currentPosition is not provided
   useEffect(() => {
@@ -109,8 +112,8 @@ export function RouteStopsMap({ stops, activeStopId, currentPosition }: RouteSto
       const map = L.map(containerRef.current, { scrollWheelZoom: true });
       mapRef.current = map;
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+      L.tileLayer(selectedMapTheme.tileUrl, {
+        attribution: selectedMapTheme.attribution,
         maxZoom: 20,
       }).addTo(map);
 
@@ -204,7 +207,7 @@ export function RouteStopsMap({ stops, activeStopId, currentPosition }: RouteSto
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStopId, stops, currentPosition]);
+  }, [activeStopId, stops, currentPosition, mapTheme]);
 
   useEffect(() => {
     if (!mapRef.current || !leafletRef.current || mappedStops.length === 0) return;

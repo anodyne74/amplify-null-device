@@ -6,6 +6,7 @@ backend:
         - npm ci --cache .npm --prefer-offline
         - npm run preflight:ampx
         - npx ampx pipeline-deploy --app-id "$AWS_APP_ID" --branch "$AWS_BRANCH"
+        - node scripts/ensure-cognito-groups.js
 frontend:
   phases:
     preBuild:
@@ -18,8 +19,8 @@ frontend:
         # Build frontend (quality checks already passed in GitHub Actions)
         - npm run build
   artifacts:
-    # Next static export outputs to `out/` by default when using `next export`
-    baseDirectory: out
+    # Next Web Compute output is served from `.next`
+    baseDirectory: .next
     files:
       - '**/*'
   cache:

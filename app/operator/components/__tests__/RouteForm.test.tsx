@@ -16,13 +16,12 @@ describe('RouteForm', () => {
     jest.clearAllMocks();
   });
 
-  it('renders all fields (customer dropdown, estimated duration, notes, submit/cancel buttons)', () => {
+  it('renders all fields (customer dropdown, notes, submit/cancel buttons)', () => {
     render(
       <RouteForm customers={mockCustomers} onSubmit={noop} onCancel={noop} />
     );
 
     expect(screen.getByLabelText(/customer/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/estimated duration/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/notes/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create route/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
@@ -51,23 +50,41 @@ describe('RouteForm', () => {
   it('calls onSubmit with correct values when form is valid', async () => {
     const onSubmit = jest.fn().mockResolvedValue(undefined);
     render(
-      <RouteForm customers={mockCustomers} onSubmit={onSubmit} onCancel={noop} />
+      <RouteForm
+        customers={mockCustomers}
+        initialRouteCode="W20-26-001"
+        onSubmit={onSubmit}
+        onCancel={noop}
+      />
     );
 
     // Select customer
     fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
-    // Set duration
-    fireEvent.change(screen.getByLabelText(/estimated duration/i), { target: { value: '90' } });
     // Set notes
     fireEvent.change(screen.getByLabelText(/notes/i), { target: { value: 'Test note' } });
+
+    // Add one stop via mocked StopForm
+    fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
+    fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: '123 Main St' } });
+    fireEvent.click(screen.getByRole('button', { name: /add stop to route/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('123 Main St')).toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByRole('button', { name: /create route/i }));
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith({
+        routeCode: 'W20-26-001',
         customerId: 'cust-1',
-        estimatedDurationMinutes: 90,
         notes: 'Test note',
+        stops: [
+          expect.objectContaining({
+            address: expect.any(String),
+            serviceType: expect.any(String),
+          }),
+        ],
       });
     });
   });
@@ -100,5 +117,82 @@ describe('RouteForm', () => {
     );
     expect(screen.getByText(/Acme Corp/)).toBeInTheDocument();
     expect(screen.getByText(/Globex Inc/)).toBeInTheDocument();
+  });
+
+  it('copies stops from a previous route and submits them', async () => {
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    const onCopyStopsFromSource = jest.fn().mockResolvedValue([
+      {
+        address: '123 Sample St',
+        serviceType: 'delivery',
+        numberOfSigns: 2,
+      },
+    ]);
+
+    render(
+      <RouteForm
+        customers={mockCustomers}
+        initialRouteCode="W20-26-001"
+        onSubmit={onSubmit}
+        onCancel={noop}
+        copyStopSources={[
+          { id: 'route-1', customerId: 'cust-1', label: 'W19-26-003' },
+        ]}
+        onCopyStopsFromSource={onCopyStopsFromSource}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+    fireEvent.change(screen.getByLabelText(/copy stops from previous route/i), { target: { value: 'route-1' } });
+    fireEvent.click(screen.getByRole('button', { name: /copy stops/i }));
+
+    await waitFor(() => {
+      expect(onCopyStopsFromSource).toHaveBeenCalledWith('route-1');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /create route/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        routeCode: 'W20-26-001',
+        customerId: 'cust-1',
+        notes: '',
+        stops: [
+          expect.objectContaining({
+            address: '123 Sample St',
+            serviceType: 'delivery',
+            numberOfSigns: 2,
+          }),
+        ],
+      });
+    });
+  });
+
+  it('threads customer standing instructions and defaults into stop form', async () => {
+    render(
+      <RouteForm
+        customers={[
+          {
+            id: 'cust-1',
+            name: 'Acme Corp',
+            email: 'acme@example.com',
+            standingInstructions: 'Call before arriving.',
+            defaultNumberOfSigns: 3,
+            defaultAgentName: 'Jamie Lee',
+            agentOptions: ['Jamie Lee', 'Pat Doe'],
+          },
+        ]}
+        initialRouteCode="W20-26-001"
+        onSubmit={noop}
+        onCancel={noop}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+    fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
+
+    expect(await screen.findByText(/call before arriving/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/number of signs/i)).toHaveValue(3);
+    expect(screen.getByRole('button', { name: /jamie lee/i })).toHaveAttribute('aria-pressed', 'true');
   });
 });

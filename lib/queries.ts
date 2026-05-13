@@ -5,8 +5,152 @@
 
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../amplify/data/resource';
+import { normalizeCustomerDefaults } from '@/lib/customerDefaults';
 
-const client = generateClient<Schema>();
+let _client: ReturnType<typeof generateClient<Schema>> | null = null;
+function getClient() {
+  if (!_client) _client = generateClient<Schema>();
+  return _client;
+}
+
+function getCustomerUserModel() {
+  const model = (getClient().models as unknown as Record<string, unknown>).CustomerUser as
+    | {
+        list: (args: unknown) => Promise<{ data?: unknown[]; errors?: unknown[] }>;
+        create: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
+        delete: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
+      }
+    | undefined;
+
+  if (!model) {
+    return {
+      model: null,
+      error: new Error(
+        'CustomerUser model is not available in the current backend schema. Deploy backend changes and refresh amplify outputs.'
+      ),
+    };
+  }
+
+  return { model, error: null };
+}
+
+function getUserSettingsModel() {
+  const model = (getClient().models as unknown as Record<string, unknown>).UserSettings as
+    | {
+        list: (args: unknown) => Promise<{ data?: unknown[]; errors?: unknown[] }>;
+        create: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
+        update: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
+      }
+    | undefined;
+
+  if (!model) {
+    return {
+      model: null,
+      error: new Error(
+        'UserSettings model is not available in the current backend schema. Deploy backend changes and refresh amplify outputs.'
+      ),
+    };
+  }
+
+  return { model, error: null };
+}
+
+export type ThemeModeSetting = 'system' | 'light' | 'dark';
+export type MapThemeSetting = 'light' | 'dark' | 'satellite' | 'streets';
+
+export interface UserSettingsRecord {
+  id: string;
+  userSub: string;
+  name?: string | null;
+  defaultTheme?: ThemeModeSetting | null;
+  mapTheme?: MapThemeSetting | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+/**
+ * Get current user's settings record, if it exists.
+ */
+export async function getUserSettings(userSub: string) {
+  try {
+    const { model, error: modelError } = getUserSettingsModel();
+    if (!model) {
+      return { data: null, errors: [modelError] };
+    }
+
+    const { data, errors } = await model.list({
+      filter: { userSub: { eq: userSub } },
+      limit: 1,
+    });
+
+    if (errors) {
+      console.error('Errors getting user settings:', errors);
+      return { data: null, errors };
+    }
+
+    const row = ((data as UserSettingsRecord[] | undefined) || [])[0] || null;
+    return { data: row, errors };
+  } catch (error) {
+    console.error('Error getting user settings:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Create or update settings for the provided userSub.
+ */
+export async function upsertUserSettings(
+  userSub: string,
+  updates: Partial<{
+    name: string;
+    defaultTheme: ThemeModeSetting;
+    mapTheme: MapThemeSetting;
+  }>
+) {
+  try {
+    const { model, error: modelError } = getUserSettingsModel();
+    if (!model) {
+      return { data: null, errors: [modelError] };
+    }
+
+    const current = await getUserSettings(userSub);
+    if (current.errors && current.errors.length > 0) {
+      return { data: null, errors: current.errors };
+    }
+
+    const nowIso = new Date().toISOString();
+
+    if (current.data?.id) {
+      const { data, errors } = await model.update({
+        id: current.data.id,
+        ...updates,
+        updatedAt: nowIso,
+      });
+
+      if (errors) {
+        console.error('Errors updating user settings:', errors);
+      }
+      return { data, errors };
+    }
+
+    const { data, errors } = await model.create({
+      userSub,
+      name: updates.name,
+      defaultTheme: updates.defaultTheme ?? 'system',
+      mapTheme: updates.mapTheme ?? 'light',
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    });
+
+    if (errors) {
+      console.error('Errors creating user settings:', errors);
+    }
+    return { data, errors };
+  } catch (error) {
+    console.error('Error upserting user settings:', error);
+    return { data: null, errors: [error] };
+  }
+}
 
 /**
  * Fetch all customers
@@ -14,7 +158,7 @@ const client = generateClient<Schema>();
  */
 export async function listCustomers(options?: { limit?: number; nextToken?: string }) {
   try {
-    const { data, errors } = await client.models.Customer.list({
+    const { data, errors } = await getClient().models.Customer.list({
       limit: options?.limit || 20,
       nextToken: options?.nextToken,
     });
@@ -34,13 +178,121 @@ export async function listCustomers(options?: { limit?: number; nextToken?: stri
  */
 export async function getCustomer(customerId: string) {
   try {
-    const { data, errors } = await client.models.Customer.get({ id: customerId });
+    const { data, errors } = await getClient().models.Customer.get({ id: customerId });
     if (errors) {
       console.error('Errors fetching customer:', errors);
     }
     return { data, errors };
   } catch (error) {
     console.error('Error getting customer:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Create a customer record.
+ */
+export async function createCustomer(input: {
+  name: string;
+  email: string;
+  contactPhone?: string;
+  addressLine1?: string;
+  standingInstructions?: string;
+  defaultNumberOfSigns?: number;
+  defaultAgentName?: string;
+  defaultAgentInitials?: string;
+  agentOptions?: string[];
+  status?: 'active' | 'inactive' | 'suspended';
+  billingRatePerHour: number;
+}) {
+  try {
+    const { data, errors } = await getClient().models.Customer.create(normalizeCustomerDefaults(input));
+
+    if (errors) {
+      console.error('Errors creating customer:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error creating customer:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Update an existing customer.
+ */
+export async function updateCustomer(
+  customerId: string,
+  updates: Partial<{
+    name: string;
+    email: string;
+    contactPhone: string;
+    addressLine1: string;
+    standingInstructions: string;
+    defaultNumberOfSigns: number;
+    defaultAgentName: string;
+    defaultAgentInitials: string;
+    agentOptions: string[];
+    status: 'active' | 'inactive' | 'suspended';
+    billingRatePerHour: number;
+  }>
+) {
+  try {
+    const { data, errors } = await getClient().models.Customer.update({
+      id: customerId,
+      ...normalizeCustomerDefaults(updates),
+    });
+
+    if (errors) {
+      console.error('Errors updating customer:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error updating customer:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Allow a customer account owner to update only standing instructions and stop defaults.
+ */
+export async function updateCustomerDefaultsForUser(
+  userSub: string,
+  updates: Partial<{
+    standingInstructions: string;
+    defaultNumberOfSigns: number;
+    defaultAgentName: string;
+    defaultAgentInitials: string;
+    agentOptions: string[];
+  }>
+) {
+  const context = await getCustomerPortalContext(userSub);
+  if (context.role !== 'account_owner') {
+    return {
+      data: null,
+      errors: [new Error('Only the customer account owner can update standing instructions.')],
+    };
+  }
+
+  return updateCustomer(context.customerId, updates);
+}
+
+/**
+ * Delete a customer record.
+ */
+export async function deleteCustomer(customerId: string) {
+  try {
+    const { data, errors } = await getClient().models.Customer.delete({ id: customerId });
+
+    if (errors) {
+      console.error('Errors deleting customer:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error deleting customer:', error);
     return { data: null, errors: [error] };
   }
 }
@@ -57,7 +309,7 @@ export async function listCustomerRoutes(
     let nextToken: string | undefined = options?.nextToken;
 
     // Fetch routes with pagination
-    const { data, errors } = await client.models.Route.list({
+    const { data, errors } = await getClient().models.Route.list({
       filter: { customerId: { eq: customerId } },
       limit: options?.limit || 20,
       nextToken,
@@ -87,7 +339,7 @@ export async function listCustomerRoutes(
  */
 export async function getRouteWithStops(routeId: string) {
   try {
-    const { data: route, errors: routeErrors } = await client.models.Route.get({ id: routeId });
+    const { data: route, errors: routeErrors } = await getClient().models.Route.get({ id: routeId });
 
     if (routeErrors) {
       console.error('Errors fetching route:', routeErrors);
@@ -99,7 +351,7 @@ export async function getRouteWithStops(routeId: string) {
     }
 
     // Fetch stops for this route
-    const { data: stops, errors: stopsErrors } = await client.models.Stop.list({
+    const { data: stops, errors: stopsErrors } = await getClient().models.Stop.list({
       filter: { routeId: { eq: routeId } },
     });
 
@@ -107,7 +359,11 @@ export async function getRouteWithStops(routeId: string) {
       console.error('Errors fetching stops:', stopsErrors);
     }
 
-    return { route, stops: stops || [], errors: stopsErrors || [] };
+    const sortedStops = [...(stops || [])].sort(
+      (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
+    );
+
+    return { route, stops: sortedStops, errors: stopsErrors || [] };
   } catch (error) {
     console.error('Error getting route with stops:', error);
     return { route: null, stops: [], errors: [error] };
@@ -122,7 +378,7 @@ export async function listCustomerInvoices(
   options?: { limit?: number; nextToken?: string }
 ) {
   try {
-    const { data, errors } = await client.models.Invoice.list({
+    const { data, errors } = await getClient().models.Invoice.list({
       filter: { customerId: { eq: customerId } },
       limit: options?.limit || 20,
       nextToken: options?.nextToken,
@@ -141,11 +397,41 @@ export async function listCustomerInvoices(
 }
 
 /**
+ * Fetch all invoices for administrators/operators.
+ */
+export async function listInvoices(options?: {
+  limit?: number;
+  nextToken?: string;
+  status?: 'draft' | 'finalized' | 'sent' | 'paid';
+}) {
+  try {
+    const { data, errors } = await getClient().models.Invoice.list({
+      limit: options?.limit || 20,
+      nextToken: options?.nextToken,
+    });
+
+    if (errors) {
+      console.error('Errors fetching invoices:', errors);
+      return { data: [], errors };
+    }
+
+    const filtered = options?.status
+      ? (data || []).filter((invoice) => invoice.status === options.status)
+      : (data || []);
+
+    return { data: filtered, errors };
+  } catch (error) {
+    console.error('Error listing invoices:', error);
+    return { data: [], errors: [error] };
+  }
+}
+
+/**
  * Fetch a specific invoice with its line items
  */
 export async function getInvoiceWithLineItems(invoiceId: string) {
   try {
-    const { data: invoice, errors: invoiceErrors } = await client.models.Invoice.get({
+    const { data: invoice, errors: invoiceErrors } = await getClient().models.Invoice.get({
       id: invoiceId,
     });
 
@@ -159,7 +445,7 @@ export async function getInvoiceWithLineItems(invoiceId: string) {
     }
 
     // Fetch line items for this invoice
-    const { data: lineItems, errors: lineItemsErrors } = await client.models.LineItem.list({
+    const { data: lineItems, errors: lineItemsErrors } = await getClient().models.LineItem.list({
       filter: { invoiceId: { eq: invoiceId } },
     });
 
@@ -178,13 +464,15 @@ export async function getInvoiceWithLineItems(invoiceId: string) {
  * Create a new route for a customer
  */
 export async function createRoute(input: {
+  routeCode?: string;
   customerId: string;
-  status: 'planned' | 'active' | 'completed' | 'archived';
-  estimatedDurationMinutes?: number;
+  viewerSubs?: string[];
+  status: 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
   notes?: string;
+  scheduleS3Key?: string;
 }) {
   try {
-    const { data, errors } = await client.models.Route.create(input);
+    const { data, errors } = await getClient().models.Route.create(input);
 
     if (errors) {
       console.error('Errors creating route:', errors);
@@ -203,15 +491,20 @@ export async function createRoute(input: {
 export async function updateRoute(
   routeId: string,
   updates: Partial<{
-    status: 'planned' | 'active' | 'completed' | 'archived';
+    routeCode: string;
+    customerId: string;
+    status: 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
     actualStartTime: string;
     actualEndTime: string;
     actualDurationMinutes: number;
+    signsPlacedDistanceKm: number;
+    signsPickedUpDistanceKm: number;
     notes: string;
+    scheduleS3Key: string;
   }>
 ) {
   try {
-    const { data, errors } = await client.models.Route.update({
+    const { data, errors } = await getClient().models.Route.update({
       id: routeId,
       ...updates,
     });
@@ -227,6 +520,84 @@ export async function updateRoute(
   }
 }
 
+export interface RouteExecutionUpdateInput {
+  status?: 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+  actualStartTime?: string;
+  actualEndTime?: string;
+  actualDurationMinutes?: number;
+  signsPlacedDistanceKm?: number;
+  signsPickedUpDistanceKm?: number;
+}
+
+/**
+ * Execution-only route updates for operators (status and timing fields only).
+ */
+export async function updateRouteExecution(routeId: string, updates: RouteExecutionUpdateInput) {
+  return updateRoute(routeId, updates);
+}
+
+export async function deleteRoute(routeId: string) {
+  try {
+    const client = getClient();
+    const { data: stops, errors: stopListErrors } = await client.models.Stop.list({
+      filter: { routeId: { eq: routeId } },
+    });
+
+    if (stopListErrors && stopListErrors.length > 0) {
+      console.error('Errors fetching route stops for deletion:', stopListErrors);
+      return { data: null, errors: stopListErrors };
+    }
+
+    const stopDeletes = await Promise.all(
+      ((stops as Array<{ id: string }>) || []).map((stop) => client.models.Stop.delete({ id: stop.id }))
+    );
+
+    const childErrors = stopDeletes.flatMap((result) => result.errors || []);
+    if (childErrors.length > 0) {
+      console.error('Errors deleting route stops:', childErrors);
+      return { data: null, errors: childErrors };
+    }
+
+    const { data, errors } = await client.models.Route.delete({ id: routeId });
+
+    if (errors) {
+      console.error('Errors deleting route:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error deleting route:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+export interface StopExecutionUpdateInput {
+  actualArrivalTime?: string;
+  actualDepartureTime?: string;
+  notes?: string;
+}
+
+/**
+ * Execution-only stop updates for operators (actual timing fields only).
+ */
+export async function updateStopExecution(stopId: string, updates: StopExecutionUpdateInput) {
+  try {
+    const { data, errors } = await getClient().models.Stop.update({
+      id: stopId,
+      ...updates,
+    });
+
+    if (errors) {
+      console.error('Errors updating stop execution fields:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error updating stop execution fields:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
 /**
  * Create a stop within a route.
  * customerId MUST be the owning customer's identity (sub) so the tenant-based
@@ -235,14 +606,21 @@ export async function updateRoute(
 export async function createStop(input: {
   routeId: string;
   customerId: string;
+  viewerSubs?: string[];
   sequence: number;
   address: string;
   serviceType: 'delivery' | 'pickup' | 'inspection';
   estimatedArrivalTime?: string;
+  numberOfSigns?: number;
+  agent?: string;
+  isAuction?: boolean;
+  latitude?: number;
+  longitude?: number;
+  formattedAddress?: string;
   notes?: string;
 }) {
   try {
-    const { data, errors } = await client.models.Stop.create(input);
+    const { data, errors } = await getClient().models.Stop.create(input);
 
     if (errors) {
       console.error('Errors creating stop:', errors);
@@ -256,6 +634,35 @@ export async function createStop(input: {
 }
 
 /**
+ * Fetch operator-visible routes.
+ */
+export async function listOperatorRoutes(options?: { limit?: number; nextToken?: string }) {
+  try {
+    const { data, errors } = await getClient().models.Route.list({
+      limit: options?.limit || 20,
+      nextToken: options?.nextToken,
+    });
+
+    if (errors) {
+      console.error('Errors fetching operator routes:', errors);
+      return { data: [], errors };
+    }
+
+    return { data: data || [], errors };
+  } catch (error) {
+    console.error('Error listing operator routes:', error);
+    return { data: [], errors: [error] };
+  }
+}
+
+/**
+ * Fetch one route and all ordered stops for operator consumption.
+ */
+export async function getOperatorRouteDetail(routeId: string) {
+  return getRouteWithStops(routeId);
+}
+
+/**
  * Create an invoice for a customer.
  */
 export async function createInvoice(input: {
@@ -266,9 +673,11 @@ export async function createInvoice(input: {
   periodEndDate?: string;
   totalAmount: number;
   status: 'draft' | 'finalized' | 'sent' | 'paid';
+  routeId?: string;
+  pdfS3Key?: string;
 }) {
   try {
-    const { data, errors } = await client.models.Invoice.create(input);
+    const { data, errors } = await getClient().models.Invoice.create(input);
 
     if (errors) {
       console.error('Errors creating invoice:', errors);
@@ -279,6 +688,47 @@ export async function createInvoice(input: {
     console.error('Error creating invoice:', error);
     return { data: null, errors: [error] };
   }
+}
+
+/**
+ * Update invoice lifecycle and totals.
+ */
+export async function updateInvoice(
+  invoiceId: string,
+  updates: Partial<{
+    invoiceNumber: string;
+    invoiceDate: string;
+    periodStartDate: string;
+    periodEndDate: string;
+    totalAmount: number;
+    status: 'draft' | 'finalized' | 'sent' | 'paid';
+    routeId: string | null;
+    pdfS3Key: string;
+    emailSentAt: string;
+  }>
+) {
+  try {
+    const { data, errors } = await getClient().models.Invoice.update({
+      id: invoiceId,
+      ...updates,
+    });
+
+    if (errors) {
+      console.error('Errors updating invoice:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error updating invoice:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Convenience helper — saves the S3 key of an uploaded PDF to the invoice record.
+ */
+export async function updateInvoicePdfKey(invoiceId: string, pdfS3Key: string) {
+  return updateInvoice(invoiceId, { pdfS3Key });
 }
 
 /**
@@ -296,7 +746,7 @@ export async function createLineItem(input: {
   amount: number;
 }) {
   try {
-    const { data, errors } = await client.models.LineItem.create(input);
+    const { data, errors } = await getClient().models.LineItem.create(input);
 
     if (errors) {
       console.error('Errors creating line item:', errors);
@@ -323,7 +773,7 @@ export async function createPaymentRecord(input: {
   notes?: string;
 }) {
   try {
-    const { data, errors } = await client.models.PaymentRecord.create(input);
+    const { data, errors } = await getClient().models.PaymentRecord.create(input);
 
     if (errors) {
       console.error('Errors creating payment record:', errors);
@@ -340,7 +790,7 @@ export async function createPaymentRecord(input: {
  * Subscribe to route updates in real-time
  */
 export function subscribeToRoute(routeId: string, onUpdate: (route: any) => void) {
-  const subscription = client.models.Route.observeQuery({
+  const subscription = getClient().models.Route.observeQuery({
     filter: { id: { eq: routeId } },
   }).subscribe({
     next: (data) => {
@@ -354,4 +804,202 @@ export function subscribeToRoute(routeId: string, onUpdate: (route: any) => void
   });
 
   return () => subscription.unsubscribe();
+}
+
+/**
+ * List all CustomerUser records for a given customer.
+ * Only accessible by administrators.
+ */
+export async function listCustomerUsers(customerId: string) {
+  try {
+    const { model, error: modelError } = getCustomerUserModel();
+    if (!model) {
+      return { data: [], errors: [modelError] };
+    }
+
+    const { data, errors } = await model.list({
+      filter: { customerId: { eq: customerId } },
+    });
+    if (errors) {
+      console.error('Errors listing customer users:', errors);
+    }
+    return { data: data || [], errors };
+  } catch (error) {
+    console.error('Error listing customer users:', error);
+    return { data: [], errors: [error] };
+  }
+}
+
+/**
+ * Resolve customer portal context for a user sub.
+ * Fallback behavior preserves legacy owner access where customerId === userSub.
+ */
+export async function getCustomerPortalContext(userSub: string): Promise<{
+  role: 'account_owner' | 'read_only';
+  customerId: string;
+  errors?: unknown[];
+}> {
+  try {
+    const { model, error: modelError } = getCustomerUserModel();
+    if (!model) {
+      return {
+        role: 'account_owner',
+        customerId: userSub,
+        errors: [modelError],
+      };
+    }
+
+    const { data, errors } = await model.list({
+      filter: { userSub: { eq: userSub } },
+      limit: 100,
+    });
+
+    const rows = (data as Array<{
+      role?: 'account_owner' | 'read_only' | null;
+      customerId?: string | null;
+    }> | undefined) || [];
+
+    const ownerRow = rows.find((row) => row.role === 'account_owner' && row.customerId);
+    if (ownerRow?.customerId) {
+      return { role: 'account_owner', customerId: ownerRow.customerId, errors };
+    }
+
+    const reviewerRow = rows.find((row) => row.role === 'read_only' && row.customerId);
+    if (reviewerRow?.customerId) {
+      return { role: 'read_only', customerId: reviewerRow.customerId, errors };
+    }
+
+    // Legacy fallback: older records may still use sub as customerId.
+    const legacyCustomer = await getCustomer(userSub);
+    if (legacyCustomer.data) {
+      return { role: 'account_owner', customerId: userSub, errors };
+    }
+
+    const fallbackError = new Error('No customer mapping found for the current user.');
+    return {
+      role: 'account_owner',
+      customerId: '',
+      errors: [...(errors ?? []), fallbackError],
+    };
+  } catch (error) {
+    console.error('Error resolving customer portal context:', error);
+    return {
+      role: 'account_owner',
+      customerId: userSub,
+      errors: [error],
+    };
+  }
+}
+
+/**
+ * Create a CustomerUser record linking a Cognito user to a customer.
+ * Only accessible by administrators.
+ * accountOwnerSub must be the account owner's Cognito sub (same for all rows per customer).
+ */
+export async function createCustomerUser(input: {
+  customerId: string;
+  userSub: string;
+  accountOwnerSub: string;
+  role: 'account_owner' | 'read_only';
+  name?: string;
+  email?: string;
+}) {
+  try {
+    const { model, error: modelError } = getCustomerUserModel();
+    if (!model) {
+      return { data: null, errors: [modelError] };
+    }
+
+    const { data, errors } = await model.create(input);
+    if (errors) {
+      console.error('Errors creating customer user:', errors);
+    }
+    return { data, errors };
+  } catch (error) {
+    console.error('Error creating customer user:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Delete a CustomerUser record by ID.
+ * Only accessible by administrators.
+ */
+export async function deleteCustomerUser(customerUserId: string) {
+  try {
+    const { model, error: modelError } = getCustomerUserModel();
+    if (!model) {
+      return { data: null, errors: [modelError] };
+    }
+
+    const { data, errors } = await model.delete({ id: customerUserId });
+    if (errors) {
+      console.error('Errors deleting customer user:', errors);
+    }
+    return { data, errors };
+  } catch (error) {
+    console.error('Error deleting customer user:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Sync the viewerSubs array on every Route and Stop belonging to a customer.
+ * Must be called after adding or removing a CustomerUser so read-only users
+ * gain / lose access to existing records.
+ *
+ * viewerSubs should contain the Cognito subs of ALL CustomerUsers for the customer
+ * (both account_owner and read_only) so every user can read every route/stop.
+ */
+export async function syncViewerSubsForCustomer(
+  customerId: string,
+  viewerSubs: string[]
+): Promise<{ updatedRoutes: number; updatedStops: number; errors: unknown[] }> {
+  const allErrors: unknown[] = [];
+  let updatedRoutes = 0;
+  let updatedStops = 0;
+
+  try {
+    // Fetch all routes for this customer
+    const { data: routes, errors: routeErrors } = await getClient().models.Route.list({
+      filter: { customerId: { eq: customerId } },
+      limit: 1000,
+    });
+    if (routeErrors) allErrors.push(...routeErrors);
+
+    for (const route of routes || []) {
+      // Update route viewerSubs
+      const { errors: routeUpdateErrors } = await getClient().models.Route.update({
+        id: route.id,
+        viewerSubs,
+      });
+      if (routeUpdateErrors) allErrors.push(...routeUpdateErrors);
+      else updatedRoutes++;
+
+      // Fetch and update all stops for this route
+      const { data: stops, errors: stopListErrors } = await getClient().models.Stop.list({
+        filter: { routeId: { eq: route.id } },
+        limit: 1000,
+      });
+      if (stopListErrors) allErrors.push(...stopListErrors);
+
+      for (const stop of stops || []) {
+        const { errors: stopUpdateErrors } = await getClient().models.Stop.update({
+          id: stop.id,
+          viewerSubs,
+        });
+        if (stopUpdateErrors) allErrors.push(...stopUpdateErrors);
+        else updatedStops++;
+      }
+    }
+  } catch (error) {
+    console.error('Error syncing viewer subs:', error);
+    allErrors.push(error);
+  }
+
+  if (allErrors.length > 0) {
+    console.error(`syncViewerSubsForCustomer completed with ${allErrors.length} error(s):`, allErrors);
+  }
+
+  return { updatedRoutes, updatedStops, errors: allErrors };
 }

@@ -7,10 +7,12 @@
 
 export default {
   reactStrictMode: true,
-  output: 'export',
   images: {
     unoptimized: true,
   },
-  // If you host behind CloudFront / asset prefix, set NEXT_PUBLIC_ASSET_PREFIX
   assetPrefix: process.env.NEXT_PUBLIC_ASSET_PREFIX || '',
+  // Allow dev server to accept requests from local IP addresses (e.g., testing on local network)
+  experimental: {
+    allowedDevOrigins: ['192.168.10.130', 'localhost', '127.0.0.1'],
+  },
 };

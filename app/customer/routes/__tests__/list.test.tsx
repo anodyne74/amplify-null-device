@@ -17,6 +17,7 @@ jest.mock('next/navigation', () => ({
 jest.mock('@/lib/amplify-config', () => ({
   isCustomer: () => true,
   isOperator: () => false,
+  fetchUserGroups: jest.fn().mockResolvedValue(['customer']),
 }));
 
 // Mock the authentication with proper authStatus
@@ -64,7 +65,7 @@ describe('Customer Routes List Page', () => {
     {
       id: 'route-3',
       customerId: 'test-customer-1',
-      status: 'active',
+      status: 'signs_placed',
       estimatedDurationMinutes: 150,
       createdAt: '2024-01-16T11:00:00Z',
     },

@@ -1,6 +1,9 @@
 'use client';
 
+import { useState } from 'react';
+import { getUrl } from 'aws-amplify/storage';
 import type { Invoice } from '@/amplify/types';
+import styles from './InvoiceListItem.module.css';
 
 interface InvoiceListItemProps {
   invoice: Invoice;
@@ -11,6 +14,8 @@ interface InvoiceListItemProps {
  * Displays individual invoice in list format
  */
 export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
+  const [pdfLoading, setPdfLoading] = useState(false);
+
   // Format currency
   const formatCurrency = (amount?: number | null) => {
     if (amount === null || amount === undefined) return '$0.00';
@@ -27,90 +32,111 @@ export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
-  // Get status color
-  const getStatusColor = (status?: string | null) => {
-    switch (status) {
-      case 'paid':
-        return '#4caf50'; // Green
-      case 'pending':
-        return '#ff9800'; // Orange
-      case 'overdue':
-        return '#f44336'; // Red
-      default:
-        return '#999'; // Gray
-    }
-  };
-
   // Get status label
   const getStatusLabel = (status?: string | null) => {
     return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
   };
 
+  const statusClass =
+    (({ paid: styles.badgeCompleted, pending: styles.badgePlanned, overdue: styles.badgeDanger, cancelled: styles.badgeDanger, draft: styles.badgeArchived, sent: styles.badgePlanned, viewed: styles.badgePlanned } as Record<string, string>)[invoice.status ?? '']) ?? styles.badgeArchived;
+
+  const handlePdfAction = async (action: 'view' | 'download') => {
+    if (!invoice.pdfS3Key) return;
+
+    setPdfLoading(true);
+    try {
+      const { url } = await getUrl({ path: invoice.pdfS3Key });
+      const urlString = url.toString();
+
+      if (action === 'view') {
+        window.open(urlString, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      const link = document.createElement('a');
+      link.href = urlString;
+      link.download = `${invoice.invoiceNumber || invoice.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '12px 16px',
-        borderBottom: '1px solid #e0e0e0',
-        backgroundColor: '#fff',
-        gap: '16px',
-      }}
-    >
+    <div className={styles.row}>
       {/* Invoice Number */}
-      <div style={{ flex: 0.8, fontWeight: '600', fontSize: '14px' }}>
+      <div className={styles.colId}>
         {invoice.invoiceNumber || invoice.id}
       </div>
 
+      {/* Route Link */}
+      <div className={styles.colRoute}>
+        {invoice.routeId ? (
+          <a href={`/customer/routes/${invoice.routeId}`} className={styles.routeLink}>
+            View Route
+          </a>
+        ) : (
+          <span className={styles.routeMuted}>—</span>
+        )}
+      </div>
+
       {/* Invoice Date */}
-      <div style={{ flex: 0.9, fontSize: '14px', color: '#666' }}>
+      <div className={styles.colDate}>
         {formatDate(invoice.invoiceDate)}
       </div>
 
       {/* Period */}
-      <div style={{ flex: 1.2, fontSize: '13px', color: '#666' }}>
+      <div className={styles.colPeriod}>
         {formatDate(invoice.periodStartDate)} to {formatDate(invoice.periodEndDate)}
       </div>
 
       {/* Total Amount */}
-      <div style={{ flex: 0.8, fontWeight: '600', fontSize: '14px', textAlign: 'right' }}>
+      <div className={styles.colAmount}>
         {formatCurrency(invoice.totalAmount)}
       </div>
 
       {/* Status Badge */}
-      <div
-        style={{
-          flex: 0.6,
-          padding: '4px 8px',
-          borderRadius: '4px',
-          backgroundColor: getStatusColor(invoice.status),
-          color: '#fff',
-          fontSize: '12px',
-          fontWeight: '600',
-          textAlign: 'center',
-        }}
-      >
-        {getStatusLabel(invoice.status)}
+      <div className={styles.colStatus}>
+        <span className={`${styles.badge} ${statusClass}`}>
+          {getStatusLabel(invoice.status)}
+        </span>
       </div>
 
-      {/* Download Button */}
-      <div style={{ flex: 0.6 }}>
-        <a
-          href={`/customer/invoices/${invoice.id}`}
-          style={{
-            padding: '8px 12px',
-            backgroundColor: '#1976d2',
-            color: '#fff',
-            textDecoration: 'none',
-            borderRadius: '4px',
-            fontSize: '13px',
-            fontWeight: '600',
-            display: 'inline-block',
-            textAlign: 'center',
-          }}
-        >
-          View
-        </a>
+      {/* View Button */}
+      <div className={styles.colAction}>
+        {invoice.pdfS3Key ? (
+          <div className={styles.actionGroup}>
+            <button
+              type="button"
+              className={styles.secondaryAction}
+              onClick={() => {
+                void handlePdfAction('view');
+              }}
+              disabled={pdfLoading}
+            >
+              View PDF
+            </button>
+            <button
+              type="button"
+              className={styles.secondaryAction}
+              onClick={() => {
+                void handlePdfAction('download');
+              }}
+              disabled={pdfLoading}
+            >
+              Download
+            </button>
+          </div>
+        ) : (
+          <a
+            href={`/customer/invoices/${invoice.id}`}
+            className={styles.viewLink}
+          >
+            View
+          </a>
+        )}
       </div>
     </div>
   );

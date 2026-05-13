@@ -1,0 +1,231 @@
+.container {
+  padding: var(--nd-space-lg);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--nd-space-lg);
+}
+
+.heading {
+  margin: 0;
+  color: var(--nd-operator-accent);
+}
+
+.btnCreateRoute {
+  padding: 10px 20px;
+  background-color: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.btnCreateRoute:hover {
+  opacity: 0.9;
+}
+
+.errorBanner {
+  padding: var(--nd-space-md);
+  background-color: rgba(255,71,87,0.12);
+  color: var(--nd-status-danger);
+  border-radius: var(--nd-radius-md);
+  margin-bottom: var(--nd-space-md);
+  font-size: 14px;
+  border: 1px solid var(--nd-status-danger);
+}
+
+.filterRow {
+  margin-bottom: 20px;
+}
+
+.filterLabel {
+  margin-right: var(--nd-space-sm);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--nd-text-primary);
+}
+
+.filterBtn {
+  margin-right: var(--nd-space-sm);
+  padding: 6px 14px;
+  border-radius: var(--nd-radius-sm);
+  border: 1px solid var(--nd-border-default);
+  background-color: transparent;
+  color: var(--nd-text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  transition: border-color var(--nd-transition-fast), color var(--nd-transition-fast);
+}
+
+.filterBtn:hover {
+  border-color: var(--nd-border-strong);
+  color: var(--nd-text-primary);
+}
+
+.filterBtnActive {
+  background-color: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  border-color: var(--nd-operator-accent);
+  font-weight: 600;
+}
+
+.filterBtnActive:hover {
+  border-color: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  opacity: 0.9;
+}
+
+.emptyState {
+  padding: 48px;
+  text-align: center;
+  color: var(--nd-text-secondary);
+  border: 1px dashed var(--nd-border-default);
+  border-radius: var(--nd-radius-lg);
+}
+
+.emptyStateText {
+  margin: 0;
+}
+
+.routesList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.routeRow {
+  padding: var(--nd-space-md);
+  background-color: var(--nd-bg-surface);
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-lg);
+  display: grid;
+  grid-template-columns: 130px 180px 120px 120px 1fr 120px;
+  gap: var(--nd-space-md);
+  align-items: center;
+}
+
+.cellLabel {
+  font-size: 11px;
+  color: var(--nd-text-muted);
+  margin-bottom: 2px;
+}
+
+.cellValueMono {
+  font-weight: 600;
+  font-family: var(--nd-font-mono);
+  font-size: 13px;
+  color: var(--nd-text-primary);
+}
+
+.cellValueMonoNormal {
+  font-family: var(--nd-font-mono);
+  font-size: 13px;
+  color: var(--nd-text-primary);
+}
+
+.cellValue {
+  font-size: 13px;
+  color: var(--nd-text-primary);
+}
+
+.notesPreview {
+  font-size: 12px;
+  color: var(--nd-text-secondary);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellRight {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.viewLink {
+  color: var(--nd-operator-accent);
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.viewLink:hover {
+  text-decoration: underline;
+}
+
+.editLink {
+  color: var(--nd-operator-accent);
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.editLink:hover {
+  text-decoration: underline;
+}
+
+.deleteBtn {
+  border: 1px solid var(--nd-status-danger);
+  border-radius: var(--nd-radius-sm);
+  background: transparent;
+  color: var(--nd-status-danger);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.deleteBtn:hover {
+  opacity: 0.85;
+}
+
+.deleteBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Badge pattern */
+.badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+  text-transform: uppercase;
+  border: 1px solid;
+}
+
+.badgePlanned {
+  color: var(--nd-status-planned);
+  border-color: var(--nd-status-planned);
+  background-color: var(--nd-operator-accent-dim);
+}
+
+.badgeActive {
+  color: var(--nd-status-active);
+  border-color: var(--nd-status-active);
+  background-color: var(--nd-accent-primary-dim);
+}
+
+.badgeCompleted {
+  color: var(--nd-status-completed);
+  border-color: var(--nd-status-completed);
+  background-color: var(--nd-customer-accent-dim);
+}
+
+.badgeArchived {
+  color: var(--nd-status-archived);
+  border-color: var(--nd-status-archived);
+  background-color: transparent;
+}

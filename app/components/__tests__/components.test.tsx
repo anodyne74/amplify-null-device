@@ -3,6 +3,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useRouter } from 'next/navigation';
+import { useUserGroups } from '@/lib/use-user-groups';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import ErrorBoundary from '@/app/components/ErrorBoundary';
@@ -11,9 +12,11 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 // Mock dependencies
 jest.mock('@aws-amplify/ui-react');
 jest.mock('next/navigation');
+jest.mock('@/lib/use-user-groups');
 
 const mockUseAuthenticator = useAuthenticator as jest.MockedFunction<typeof useAuthenticator>;
 const mockUseRouter = useRouter as jest.MockedFunction<typeof useRouter>;
+const mockUseUserGroups = useUserGroups as jest.MockedFunction<typeof useUserGroups>;
 
 // Helper function to create a mock user with groups
 const createMockUser = (email: string, groups: string[] = []) => ({
@@ -43,6 +46,14 @@ describe('Authentication Components', () => {
     mockUseRouter.mockReturnValue({
       push: mockPush,
     } as any);
+    mockUseUserGroups.mockReturnValue({
+      groups: [],
+      loading: false,
+      isPending: false,
+      isAdmin: false,
+      isOperator: false,
+      isCustomer: true,
+    });
   });
 
   describe('LoadingSpinner', () => {
@@ -118,7 +129,7 @@ describe('Authentication Components', () => {
         </ProtectedRoute>
       );
 
-      expect(screen.getByText('Configuring authentication...')).toBeInTheDocument();
+      expect(screen.getByText('Loading...')).toBeInTheDocument();
     });
 
     it('renders children when authenticated as customer', () => {
@@ -136,6 +147,32 @@ describe('Authentication Components', () => {
       expect(screen.getByText('Protected Content')).toBeInTheDocument();
     });
 
+    it('does not redirect dual-role operator+customer users away from customer route', async () => {
+      mockUseAuthenticator.mockReturnValue({
+        authStatus: 'authenticated',
+        user: createMockUser('dual@example.com', ['operator', 'customer']),
+      } as any);
+      mockUseUserGroups.mockReturnValue({
+        groups: ['operator', 'customer'],
+        loading: false,
+        isPending: false,
+        isAdmin: false,
+        isOperator: true,
+        isCustomer: true,
+      });
+
+      render(
+        <ProtectedRoute>
+          <div>Protected Content</div>
+        </ProtectedRoute>
+      );
+
+      expect(screen.getByText('Protected Content')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(mockPush).not.toHaveBeenCalled();
+      });
+    });
+
     it('shows redirect message when unauthenticated', () => {
       mockUseAuthenticator.mockReturnValue({
         authStatus: 'unauthenticated',
@@ -148,7 +185,7 @@ describe('Authentication Components', () => {
         </ProtectedRoute>
       );
 
-      expect(screen.getByText('Redirecting to login...')).toBeInTheDocument();
+      expect(screen.getByText('Redirecting...')).toBeInTheDocument();
     });
   });
 
@@ -165,7 +202,7 @@ describe('Authentication Components', () => {
         </OperatorRoute>
       );
 
-      expect(screen.getByText('Configuring authentication...')).toBeInTheDocument();
+      expect(screen.getByText('Verifying operator access...')).toBeInTheDocument();
     });
 
     it('renders children when authenticated as operator', () => {
@@ -173,6 +210,14 @@ describe('Authentication Components', () => {
         authStatus: 'authenticated',
         user: createMockUser('operator@example.com', ['operator']),
       } as any);
+      mockUseUserGroups.mockReturnValue({
+        groups: ['operator'],
+        loading: false,
+        isPending: false,
+        isAdmin: false,
+        isOperator: true,
+        isCustomer: false,
+      });
 
       render(
         <OperatorRoute>
@@ -188,6 +233,14 @@ describe('Authentication Components', () => {
         authStatus: 'authenticated',
         user: createMockUser('customer@example.com', ['customer']),
       } as any);
+      mockUseUserGroups.mockReturnValue({
+        groups: ['customer'],
+        loading: false,
+        isPending: false,
+        isAdmin: false,
+        isOperator: false,
+        isCustomer: true,
+      });
 
       render(
         <OperatorRoute>
@@ -195,7 +248,7 @@ describe('Authentication Components', () => {
         </OperatorRoute>
       );
 
-      expect(screen.getByText('Verifying operator access...')).toBeInTheDocument();
+      expect(screen.getByText('Redirecting to authorized portal...')).toBeInTheDocument();
     });
 
     it('shows redirect message when unauthenticated', () => {
@@ -210,7 +263,7 @@ describe('Authentication Components', () => {
         </OperatorRoute>
       );
 
-      expect(screen.getByText('Verifying operator access...')).toBeInTheDocument();
+      expect(screen.getByText('Redirecting to login...')).toBeInTheDocument();
     });
   });
 });

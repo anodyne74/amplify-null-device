@@ -3,47 +3,80 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { isOperator } from '@/lib/amplify-config';
+import { useUserGroups } from '@/lib/use-user-groups';
 import LoadingSpinner from './LoadingSpinner';
 
 /**
  * OperatorRoute Component
  * Restricts access to authenticated operators only
- * Redirects non-operators to customer portal
+ * For admin-only routes (requireAdmin=true), checks user's selected role preference
+ * Redirects non-operators to customer portal, operator-mode users to operator dashboard
  */
 export default function OperatorRoute({
   children,
+  requireAdmin = false,
 }: {
   children: React.ReactNode;
+  requireAdmin?: boolean;
 }) {
   const router = useRouter();
-  const { authStatus, user } = useAuthenticator();
+  const { authStatus } = useAuthenticator();
+  const { loading, isAdmin, isOperator, isCustomer } = useUserGroups();
 
   useEffect(() => {
-    if (authStatus === 'authenticated' && user) {
-      // Check if user is an operator
-      if (isOperator(user)) {
-        return;
-      }
-
-      // If not an operator, redirect to customer portal
-      router.push('/customer/dashboard');
+    if (authStatus === 'unauthenticated') {
+      router.push('/');
       return;
     }
 
-    // If not authenticated, redirect to login
-    if (authStatus === 'unauthenticated') {
-      router.push('/');
+    if (authStatus === 'authenticated' && !loading) {
+      if (requireAdmin) {
+        if (!isAdmin) {
+          if (isOperator) {
+            router.push('/operator/dashboard');
+            return;
+          }
+
+          if (isCustomer) {
+            router.push('/customer/dashboard');
+            return;
+          }
+
+          router.push('/pending-approval');
+        }
+      } else {
+        // Admin-only users should be sent to the admin portal, but dual-role users
+        // are allowed to stay in operator mode when they explicitly choose it.
+        if (isAdmin && !isOperator) {
+          router.push('/administrator');
+          return;
+        }
+
+        if (!isOperator) {
+          if (isCustomer) {
+            router.push('/customer/dashboard');
+            return;
+          }
+
+          router.push('/pending-approval');
+          return;
+        }
+      }
     }
-  }, [authStatus, user, router]);
+  }, [authStatus, isAdmin, isCustomer, isOperator, loading, requireAdmin, router]);
 
-  if (authStatus === 'configuring') {
-    return <LoadingSpinner message="Configuring authentication..." />;
+  if (authStatus === 'configuring' || loading) {
+    return <LoadingSpinner message={requireAdmin ? 'Verifying administrator access...' : 'Verifying operator access...'} />;
   }
 
-  if (authStatus === 'authenticated' && user && isOperator(user)) {
-    return <>{children}</>;
+  if (authStatus === 'authenticated') {
+    const canAccess = requireAdmin ? isAdmin : isOperator;
+    if (canAccess) {
+      return <>{children}</>;
+    }
+
+    return <LoadingSpinner message="Redirecting to authorized portal..." />;
   }
 
-  return <LoadingSpinner message="Verifying operator access..." />;
+  return <LoadingSpinner message="Redirecting to login..." />;
 }

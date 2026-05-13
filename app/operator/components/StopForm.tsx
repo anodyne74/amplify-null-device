@@ -1,21 +1,37 @@
 'use client';
 
 import { useState } from 'react';
+import { generateAgentInitials } from '@/lib/customerDefaults';
+import styles from './StopForm.module.css';
+import { AddressAutocompleteInput, type ResolvedAddress } from './AddressAutocompleteInput';
 
 interface StopFormProps {
   initialValues?: {
     address?: string;
     serviceType?: 'delivery' | 'pickup' | 'inspection';
-    estimatedArrivalTime?: string;
+    numberOfSigns?: number;
+    agent?: string;
+    isAuction?: boolean;
     notes?: string;
   };
   onSubmit: (values: {
     address: string;
     serviceType: 'delivery' | 'pickup' | 'inspection';
-    estimatedArrivalTime?: string;
+    numberOfSigns?: number;
+    agent?: string;
+    isAuction?: boolean;
     notes?: string;
+    latitude?: number;
+    longitude?: number;
+    formattedAddress?: string;
   }) => Promise<void>;
   onCancel: () => void;
+  addressSearchOrigin?: { latitude: number; longitude: number } | null;
+  addressSearchRadiusMeters?: number;
+  standingInstructions?: string;
+  defaultNumberOfSigns?: number | null;
+  availableAgents?: string[] | null;
+  defaultAgentName?: string;
   isSubmitting?: boolean;
   error?: string | null;
   submitLabel?: string;
@@ -25,6 +41,12 @@ export function StopForm({
   initialValues,
   onSubmit,
   onCancel,
+  addressSearchOrigin,
+  addressSearchRadiusMeters,
+  standingInstructions,
+  defaultNumberOfSigns,
+  availableAgents,
+  defaultAgentName,
   isSubmitting,
   error,
   submitLabel = 'Add Stop',
@@ -33,14 +55,18 @@ export function StopForm({
   const [serviceType, setServiceType] = useState<'delivery' | 'pickup' | 'inspection'>(
     initialValues?.serviceType || 'delivery'
   );
-  const [estimatedArrivalTime, setEstimatedArrivalTime] = useState(
-    initialValues?.estimatedArrivalTime || ''
+  const [numberOfSigns, setNumberOfSigns] = useState(
+    initialValues?.numberOfSigns?.toString() || defaultNumberOfSigns?.toString() || ''
   );
+  const [agent, setAgent] = useState(initialValues?.agent || defaultAgentName || '');
+  const [isAuction, setIsAuction] = useState(Boolean(initialValues?.isAuction));
+  const [resolvedAddress, setResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [notes, setNotes] = useState(initialValues?.notes || '');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const agentOptions = (availableAgents ?? []).filter(Boolean);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setValidationError(null);
 
     if (!address.trim()) {
@@ -48,75 +74,72 @@ export function StopForm({
       return;
     }
 
+    let parsedSigns: number | undefined;
+    if (numberOfSigns.trim()) {
+      parsedSigns = parseInt(numberOfSigns, 10);
+      if (Number.isNaN(parsedSigns) || parsedSigns < 0) {
+        setValidationError('Number of signs must be 0 or greater.');
+        return;
+      }
+    }
+
     await onSubmit({
       address: address.trim(),
       serviceType,
-      estimatedArrivalTime: estimatedArrivalTime || undefined,
+      numberOfSigns: parsedSigns,
+      agent: agent.trim() || undefined,
+      isAuction,
       notes: notes || undefined,
+      latitude: resolvedAddress?.latitude,
+      longitude: resolvedAddress?.longitude,
+      formattedAddress: resolvedAddress?.formattedAddress,
     });
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '8px 12px',
-    border: '1px solid #ccc',
-    borderRadius: '4px',
-    fontSize: '14px',
-    boxSizing: 'border-box',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    marginBottom: '4px',
-    fontWeight: '600',
-    fontSize: '14px',
-  };
-
-  const fieldStyle: React.CSSProperties = {
-    marginBottom: '16px',
-  };
-
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <div>
       {(validationError || error) && (
-        <div
-          style={{
-            padding: '12px',
-            backgroundColor: '#ffebee',
-            color: '#c62828',
-            borderRadius: '4px',
-            marginBottom: '16px',
-            fontSize: '14px',
-          }}
-        >
+        <div className={styles.errorBanner}>
           {validationError || error}
         </div>
       )}
 
-      <div style={fieldStyle}>
-        <label htmlFor="address" style={labelStyle}>
-          Address <span style={{ color: '#c62828' }}>*</span>
+      <div className={styles.field}>
+        <label htmlFor="address" className={styles.label}>
+          Address <span className={styles.required}>*</span>
         </label>
-        <input
+        <AddressAutocompleteInput
           id="address"
-          type="text"
           value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          style={inputStyle}
+          onChange={(val) => setAddress(val)}
+          onResolved={(resolved) => {
+            setResolvedAddress(resolved);
+            if (resolved) setAddress(resolved.formattedAddress);
+          }}
+          searchOrigin={addressSearchOrigin}
+          searchRadiusMeters={addressSearchRadiusMeters}
+          className={styles.input}
           disabled={isSubmitting}
-          placeholder="e.g. 123 Main St, Springfield"
+          placeholder="Start typing an address…"
         />
       </div>
 
-      <div style={fieldStyle}>
-        <label htmlFor="serviceType" style={labelStyle}>
+      {standingInstructions && (
+        <div className={styles.instructionsBox}>
+          <div className={styles.instructionsLabel}>Standing Instructions</div>
+          <p className={styles.instructionsText}>{standingInstructions}</p>
+        </div>
+      )}
+
+      <div className={styles.field}>
+        <label htmlFor="serviceType" className={styles.label}>
           Service Type
         </label>
         <select
           id="serviceType"
           value={serviceType}
           onChange={(e) => setServiceType(e.target.value as 'delivery' | 'pickup' | 'inspection')}
-          style={inputStyle}
+          className={styles.select}
           disabled={isSubmitting}
         >
           <option value="delivery">Delivery</option>
@@ -125,49 +148,83 @@ export function StopForm({
         </select>
       </div>
 
-      <div style={fieldStyle}>
-        <label htmlFor="estimatedArrivalTime" style={labelStyle}>
-          Estimated Arrival Time
+      <div className={styles.field}>
+        <label htmlFor="numberOfSigns" className={styles.label}>
+          Number of Signs
         </label>
         <input
-          id="estimatedArrivalTime"
-          type="datetime-local"
-          value={estimatedArrivalTime}
-          onChange={(e) => setEstimatedArrivalTime(e.target.value)}
-          style={inputStyle}
+          id="numberOfSigns"
+          type="number"
+          min={0}
+          value={numberOfSigns}
+          onChange={(e) => setNumberOfSigns(e.target.value)}
+          className={styles.input}
           disabled={isSubmitting}
+          placeholder="e.g. 4"
         />
       </div>
 
-      <div style={fieldStyle}>
-        <label htmlFor="stopNotes" style={labelStyle}>
+      <div className={styles.field}>
+        <label className={styles.label}>
+          Listing Agent
+        </label>
+        {agentOptions.length > 0 ? (
+          <div className={styles.agentBadgeGroup} role="radiogroup" aria-label="Listing Agent">
+            {agentOptions.map((option) => {
+              const selected = agent === option;
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  className={`${styles.agentBadge} ${selected ? styles.agentBadgeSelected : ''}`}
+                  onClick={() => setAgent(selected ? '' : option)}
+                  disabled={isSubmitting}
+                  aria-pressed={selected}
+                >
+                  <span className={styles.agentInitials}>{generateAgentInitials(option) ?? option.slice(0, 2).toUpperCase()}</span>
+                  <span className={styles.agentName}>{option}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className={styles.agentHint}>No agent options configured for this customer yet.</p>
+        )}
+      </div>
+
+      <div className={styles.field}>
+        <label htmlFor="isAuction" className={styles.label}>
+          <input
+            id="isAuction"
+            type="checkbox"
+            checked={isAuction}
+            onChange={(e) => setIsAuction(e.target.checked)}
+            disabled={isSubmitting}
+          />
+          Is Auction
+        </label>
+      </div>
+
+      <div className={styles.field}>
+        <label htmlFor="stopNotes" className={styles.label}>
           Notes
         </label>
         <textarea
           id="stopNotes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
+          className={styles.textarea}
           disabled={isSubmitting}
           placeholder="Optional notes…"
         />
       </div>
 
-      <div style={{ display: 'flex', gap: '12px' }}>
+      <div className={styles.actions}>
         <button
-          type="submit"
+          type="button"
+          onClick={() => handleSubmit()}
           disabled={isSubmitting}
-          style={{
-            padding: '10px 24px',
-            backgroundColor: '#1b5e20',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: isSubmitting ? 'not-allowed' : 'pointer',
-            opacity: isSubmitting ? 0.7 : 1,
-          }}
+          className={styles.btnSubmit}
         >
           {isSubmitting ? 'Saving…' : submitLabel}
         </button>
@@ -175,19 +232,11 @@ export function StopForm({
           type="button"
           onClick={onCancel}
           disabled={isSubmitting}
-          style={{
-            padding: '10px 24px',
-            backgroundColor: 'white',
-            color: '#333',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            fontSize: '14px',
-            cursor: isSubmitting ? 'not-allowed' : 'pointer',
-          }}
+          className={styles.btnCancel}
         >
           Cancel
         </button>
       </div>
-    </form>
+    </div>
   );
 }

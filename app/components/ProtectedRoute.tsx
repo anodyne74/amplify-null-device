@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { isCustomer, isOperator } from '@/lib/amplify-config';
+import { useUserGroups } from '@/lib/use-user-groups';
 import LoadingSpinner from './LoadingSpinner';
 
 /**
@@ -19,40 +19,39 @@ export default function ProtectedRoute({
   requireCustomer?: boolean;
 }) {
   const router = useRouter();
-  const { authStatus, user } = useAuthenticator();
+  const { authStatus } = useAuthenticator();
+  const { loading, isAdmin, isOperator, isCustomer } = useUserGroups();
 
   useEffect(() => {
-    if (authStatus === 'authenticated' && user) {
-      // If this is a customer-only route and user is an operator, redirect to operator portal
-      if (requireCustomer && isOperator(user)) {
+    if (authStatus === 'unauthenticated') {
+      router.push('/');
+      return;
+    }
+
+    if (authStatus === 'authenticated' && !loading) {
+      if (requireCustomer && isOperator && !isCustomer) {
         router.push('/operator/dashboard');
         return;
       }
 
-      // Customer access is allowed
-      if (requireCustomer && isCustomer(user)) {
+      if (requireCustomer && isAdmin && !isCustomer) {
+        router.push('/administrator');
         return;
       }
 
-      // If no specific requirement, just check authentication
-      if (!requireCustomer) {
-        return;
+      if (requireCustomer && !isCustomer) {
+        router.push('/pending-approval');
       }
     }
+  }, [authStatus, isAdmin, isCustomer, isOperator, loading, requireCustomer, router]);
 
-    // If not authenticated, redirect to login
-    if (authStatus === 'unauthenticated') {
-      router.push('/');
-    }
-  }, [authStatus, user, router, requireCustomer]);
-
-  if (authStatus === 'configuring') {
-    return <LoadingSpinner message="Configuring authentication..." />;
+  if (authStatus === 'configuring' || (authStatus === 'authenticated' && loading)) {
+    return <LoadingSpinner message="Loading..." />;
   }
 
-  if (authStatus === 'authenticated') {
+  if (authStatus === 'authenticated' && (!requireCustomer || isCustomer)) {
     return <>{children}</>;
   }
 
-  return <LoadingSpinner message="Redirecting to login..." />;
+  return <LoadingSpinner message="Redirecting..." />;
 }

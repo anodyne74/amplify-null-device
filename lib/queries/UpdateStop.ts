@@ -14,6 +14,14 @@ export interface UpdateStopInput {
   address?: string;
   serviceType?: string;
   estimatedArrivalTime?: string;
+  actualArrivalTime?: string;
+  actualDepartureTime?: string;
+  numberOfSigns?: number;
+  agent?: string;
+  isAuction?: boolean;
+  latitude?: number;
+  longitude?: number;
+  formattedAddress?: string;
   notes?: string;
 }
 

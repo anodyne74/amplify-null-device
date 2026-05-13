@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import RoutesPage from '../page';
 import * as listAllRoutesModule from '@/lib/queries/ListAllRoutes';
+import * as listAllCustomersModule from '@/lib/queries/ListAllCustomers';
 import type { Route } from '@/amplify/types';
 
 jest.mock('next/navigation', () => ({
@@ -25,6 +26,7 @@ jest.mock('@aws-amplify/ui-react', () => ({
 jest.mock('@/lib/amplify-config', () => ({
   isOperator: () => true,
   isCustomer: () => false,
+  isAdmin: () => true,
 }));
 
 jest.mock('@/app/components/OperatorRoute', () => ({
@@ -33,20 +35,21 @@ jest.mock('@/app/components/OperatorRoute', () => ({
 }));
 
 jest.mock('@/lib/queries/ListAllRoutes');
+jest.mock('@/lib/queries/ListAllCustomers');
 
 const mockRoutes: Route[] = [
   {
     id: 'route-aaaa-1111',
+    routeCode: 'W19-26-001',
     customerId: 'cust-bbbb-2222',
     status: 'planned',
-    estimatedDurationMinutes: 60,
     createdAt: '2024-03-01T10:00:00Z',
   },
   {
     id: 'route-cccc-3333',
+    routeCode: 'W19-26-002',
     customerId: 'cust-dddd-4444',
-    status: 'active',
-    estimatedDurationMinutes: 90,
+    status: 'signs_placed',
     createdAt: '2024-03-02T11:00:00Z',
   },
 ];
@@ -54,6 +57,13 @@ const mockRoutes: Route[] = [
 describe('Operator Routes List Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (listAllCustomersModule.listAllCustomers as jest.Mock).mockResolvedValue({
+      data: [
+        { id: 'cust-bbbb-2222', name: 'Acme Corp', email: 'acme@example.com' },
+        { id: 'cust-dddd-4444', name: 'Globex Inc', email: 'globex@example.com' },
+      ],
+      errors: undefined,
+    });
   });
 
   it('renders loading spinner initially', async () => {
@@ -75,9 +85,13 @@ describe('Operator Routes List Page', () => {
       expect(screen.queryByText(/loading routes/i)).not.toBeInTheDocument();
     });
 
-    // Route IDs (first 8 chars)
-    expect(screen.getByText('route-aa')).toBeInTheDocument();
-    expect(screen.getByText('route-cc')).toBeInTheDocument();
+    // Route codes
+    expect(screen.getByText('W19-26-001')).toBeInTheDocument();
+    expect(screen.getByText('W19-26-002')).toBeInTheDocument();
+
+    // Customer names
+    expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+    expect(screen.getByText('Globex Inc')).toBeInTheDocument();
   });
 
   it('shows "Create New Route" link', async () => {

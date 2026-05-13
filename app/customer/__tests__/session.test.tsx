@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import CustomerLayout from '../layout';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
+import { getCustomerPortalContext } from '@/lib/queries';
 
 // Mock the router
 jest.mock('next/navigation', () => ({
@@ -27,8 +28,19 @@ jest.mock('@/app/components/ProtectedRoute', () => {
 // Mock utilities
 jest.mock('@/lib/amplify-config', () => ({
   getUserEmail: jest.fn(() => 'test@example.com'),
+  getUserDisplayName: jest.fn(() => 'test@example.com'),
   getUserGroups: jest.fn(() => ['customer']),
 }));
+
+jest.mock('@/lib/queries', () => ({
+  getCustomerPortalContext: jest.fn(),
+}));
+
+jest.mock('@/app/components/ThemeModeSelect', () => {
+  return function MockThemeModeSelect() {
+    return null;
+  };
+});
 
 describe('Customer Session Management Integration', () => {
   let mockPush: jest.Mock;
@@ -57,6 +69,21 @@ describe('Customer Session Management Integration', () => {
         },
       },
     });
+
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'account_owner',
+      customerId: 'customer-1',
+    });
+  });
+
+  it('shows Customer Portal in the sidebar title', () => {
+    render(
+      <CustomerLayout>
+        <div>Test Content</div>
+      </CustomerLayout>
+    );
+
+    expect(screen.getByText('Customer Portal')).toBeInTheDocument();
   });
 
   it('displays logout button in sidebar', () => {
@@ -159,9 +186,9 @@ describe('Customer Session Management Integration', () => {
       </CustomerLayout>
     );
 
-    expect(screen.getByText(/Dashboard/)).toBeInTheDocument();
-    expect(screen.getByText(/Routes/)).toBeInTheDocument();
-    expect(screen.getByText(/Invoices/)).toBeInTheDocument();
+    expect(screen.getByTitle(/Dashboard/)).toBeInTheDocument();
+    expect(screen.getByTitle(/Routes/)).toBeInTheDocument();
+    expect(screen.getByTitle(/Invoices/)).toBeInTheDocument();
   });
 
   it('renders children content', () => {

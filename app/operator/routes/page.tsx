@@ -2,37 +2,37 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import { isAdmin } from '@/lib/amplify-config';
+import { deleteRoute } from '@/lib/queries';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
+import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import type { Route, RouteStatus } from '@/amplify/types';
+import styles from './page.module.css';
 
 type StatusFilter = RouteStatus | 'all';
 
-const STATUS_COLORS: Record<RouteStatus, string> = {
-  planned: '#1976d2',
-  active: '#f57c00',
-  completed: '#388e3c',
-  archived: '#757575',
-};
-
 function StatusBadge({ status }: { status?: string | null }) {
-  const color = STATUS_COLORS[(status as RouteStatus) || 'planned'] || '#757575';
+  const badgeClass = {
+    planned: styles.badgePlanned,
+    signs_placed: styles.badgeActive,
+    signs_picked_up: styles.badgeActive,
+    completed: styles.badgeCompleted,
+    archived: styles.badgeArchived,
+  }[(status ?? 'planned') as string] ?? styles.badgePlanned;
+
+  const label = {
+    planned: 'planned',
+    signs_placed: 'signs placed',
+    signs_picked_up: 'signs picked up',
+    completed: 'completed',
+    archived: 'archived',
+  }[(status ?? 'planned') as string] ?? (status || 'unknown');
+
   return (
-    <span
-      style={{
-        display: 'inline-block',
-        padding: '4px 10px',
-        backgroundColor: color,
-        color: 'white',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        textTransform: 'uppercase',
-      }}
-    >
-      {status || 'unknown'}
-    </span>
+    <span className={`${styles.badge} ${badgeClass}`}>{label}</span>
   );
 }
 
@@ -45,22 +45,59 @@ function formatDate(dateString?: string) {
   });
 }
 
+function formatDuration(route: Route) {
+  if (typeof route.actualDurationMinutes === 'number') {
+    return `${route.actualDurationMinutes} min`;
+  }
+
+  if ((route.status === 'signs_placed' || route.status === 'signs_picked_up') && route.actualStartTime) {
+    const minutes = Math.max(
+      1,
+      Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000)
+    );
+    return `${minutes} min (in progress)`;
+  }
+
+  return '—';
+}
+
 export default function OperatorRoutesPage() {
+  const { user } = useAuthenticator();
+  const canDeleteRoutes = isAdmin(user);
+
   const [routes, setRoutes] = useState<Route[]>([]);
+  const [customersById, setCustomersById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [deletingRouteId, setDeletingRouteId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchRoutes() {
       setLoading(true);
       setError(null);
-      const result = await listAllRoutes({ limit: 100 });
-      if (result.errors && result.errors.length > 0) {
+      const [routesResult, customersResult] = await Promise.all([
+        listAllRoutes({ limit: 500 }),
+        listAllCustomers({ limit: 200 }),
+      ]);
+
+      if (routesResult.errors && routesResult.errors.length > 0) {
         setError('Failed to load routes.');
       } else {
-        setRoutes(result.data as unknown as Route[]);
+        setRoutes(routesResult.data as unknown as Route[]);
       }
+
+      if (!customersResult.errors || customersResult.errors.length === 0) {
+        const mapped = (customersResult.data as Array<{ id: string; name: string }>).reduce(
+          (acc, customer) => {
+            acc[customer.id] = customer.name;
+            return acc;
+          },
+          {} as Record<string, string>
+        );
+        setCustomersById(mapped);
+      }
+
       setLoading(false);
     }
     fetchRoutes();
@@ -69,32 +106,37 @@ export default function OperatorRoutesPage() {
   const filtered =
     statusFilter === 'all' ? routes : routes.filter((r) => r.status === statusFilter);
 
+  const handleDeleteRoute = async (route: Route) => {
+    if (!canDeleteRoutes || deletingRouteId) return;
+
+    const routeLabel = route.routeCode || route.id.slice(0, 8);
+    const confirmed = window.confirm(
+      `Delete route ${routeLabel}? This will also delete all stops on the route.`
+    );
+    if (!confirmed) return;
+
+    setDeletingRouteId(route.id);
+    setError(null);
+
+    const result = await deleteRoute(route.id);
+    if (result.errors && result.errors.length > 0) {
+      setError('Failed to delete route.');
+      setDeletingRouteId(null);
+      return;
+    }
+
+    setRoutes((prev) => prev.filter((r) => r.id !== route.id));
+    setDeletingRouteId(null);
+  };
+
   return (
     <OperatorRoute>
-      <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
+      <div className={styles.container}>
         {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '24px',
-          }}
-        >
-          <h1 style={{ margin: 0, color: '#1b5e20' }}>Routes</h1>
+        <div className={styles.pageHeader}>
+          <h1 className={styles.heading}>Routes</h1>
           <Link href="/operator/routes/new">
-            <button
-              style={{
-                padding: '10px 20px',
-                backgroundColor: '#1b5e20',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: 'pointer',
-              }}
-            >
+            <button className={styles.btnCreateRoute}>
               Create New Route
             </button>
           </Link>
@@ -103,15 +145,7 @@ export default function OperatorRoutesPage() {
         {loading && <LoadingSpinner message="Loading routes..." />}
 
         {!loading && error && (
-          <div
-            style={{
-              padding: '16px',
-              backgroundColor: '#ffebee',
-              color: '#c62828',
-              borderRadius: '4px',
-              marginBottom: '16px',
-            }}
-          >
+          <div className={styles.errorBanner}>
             {error}
           </div>
         )}
@@ -119,123 +153,81 @@ export default function OperatorRoutesPage() {
         {!loading && !error && (
           <>
             {/* Status Filter */}
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ marginRight: '8px', fontWeight: '600', fontSize: '14px' }}>
+            <div className={styles.filterRow}>
+              <label className={styles.filterLabel}>
                 Status:
               </label>
-              {(['all', 'planned', 'active', 'completed', 'archived'] as StatusFilter[]).map(
+              {(['all', 'planned', 'signs_placed', 'signs_picked_up', 'completed', 'archived'] as StatusFilter[]).map(
                 (s) => (
                   <button
                     key={s}
                     onClick={() => setStatusFilter(s)}
-                    style={{
-                      marginRight: '8px',
-                      padding: '6px 14px',
-                      borderRadius: '4px',
-                      border: '1px solid #ccc',
-                      backgroundColor: statusFilter === s ? '#1b5e20' : 'white',
-                      color: statusFilter === s ? 'white' : '#333',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      fontWeight: statusFilter === s ? '600' : 'normal',
-                    }}
+                    className={`${styles.filterBtn} ${statusFilter === s ? styles.filterBtnActive : ''}`}
                   >
-                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                    {s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ')}
                   </button>
                 )
               )}
             </div>
 
             {filtered.length === 0 ? (
-              <div
-                style={{
-                  padding: '48px',
-                  textAlign: 'center',
-                  color: '#666',
-                  border: '1px dashed #ccc',
-                  borderRadius: '8px',
-                }}
-              >
-                <p style={{ margin: 0 }}>No routes found.</p>
+              <div className={styles.emptyState}>
+                <p className={styles.emptyStateText}>No routes found.</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className={styles.routesList}>
                 {filtered.map((route) => (
-                  <div
-                    key={route.id}
-                    style={{
-                      padding: '16px',
-                      backgroundColor: 'white',
-                      border: '1px solid #e0e0e0',
-                      borderRadius: '8px',
-                      display: 'grid',
-                      gridTemplateColumns: '130px 130px 120px 120px 1fr 80px',
-                      gap: '16px',
-                      alignItems: 'center',
-                    }}
-                  >
+                  <div key={route.id} className={styles.routeRow}>
                     <div>
-                      <div style={{ fontSize: '11px', color: '#999', marginBottom: '2px' }}>
-                        Route ID
-                      </div>
-                      <div style={{ fontWeight: '600', fontFamily: 'monospace', fontSize: '13px' }}>
-                        {route.id.slice(0, 8)}
-                      </div>
+                      <div className={styles.cellLabel}>Route ID</div>
+                      <div className={styles.cellValueMono}>{route.routeCode || route.id.slice(0, 8)}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '11px', color: '#999', marginBottom: '2px' }}>
-                        Customer ID
-                      </div>
-                      <div style={{ fontFamily: 'monospace', fontSize: '13px' }}>
-                        {route.customerId.slice(0, 8)}
-                      </div>
+                      <div className={styles.cellLabel}>Customer</div>
+                      <div className={styles.cellValueMonoNormal}>{customersById[route.customerId] || 'Unknown customer'}</div>
                     </div>
                     <div>
                       <StatusBadge status={route.status} />
                     </div>
                     <div>
-                      <div style={{ fontSize: '11px', color: '#999', marginBottom: '2px' }}>
-                        Created
-                      </div>
-                      <div style={{ fontSize: '13px' }}>{formatDate(route.createdAt)}</div>
+                      <div className={styles.cellLabel}>Created</div>
+                      <div className={styles.cellValue}>{formatDate(route.createdAt)}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '11px', color: '#999', marginBottom: '2px' }}>
-                        Est. Duration
-                      </div>
-                      <div style={{ fontSize: '13px' }}>
-                        {route.estimatedDurationMinutes
-                          ? `${route.estimatedDurationMinutes} min`
-                          : '—'}
-                      </div>
+                      <div className={styles.cellLabel}>Duration</div>
+                      <div className={styles.cellValue}>{formatDuration(route)}</div>
                       {route.notes && (
-                        <div
-                          style={{
-                            fontSize: '12px',
-                            color: '#666',
-                            marginTop: '4px',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
+                        <div className={styles.notesPreview}>
                           {route.notes.slice(0, 60)}
                           {route.notes.length > 60 ? '…' : ''}
                         </div>
                       )}
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div className={styles.cellRight}>
                       <Link
                         href={`/operator/routes/detail?id=${route.id}`}
-                        style={{
-                          color: '#1b5e20',
-                          fontWeight: '600',
-                          textDecoration: 'none',
-                          fontSize: '14px',
-                        }}
+                        className={styles.viewLink}
                       >
                         View
                       </Link>
+                      <Link
+                        href={`/operator/routes/edit?id=${route.id}`}
+                        className={styles.editLink}
+                      >
+                        Edit
+                      </Link>
+                      {canDeleteRoutes && (
+                        <button
+                          type="button"
+                          className={styles.deleteBtn}
+                          onClick={() => {
+                            void handleDeleteRoute(route);
+                          }}
+                          disabled={deletingRouteId === route.id}
+                        >
+                          {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

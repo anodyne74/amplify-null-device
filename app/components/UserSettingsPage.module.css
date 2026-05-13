@@ -1,0 +1,76 @@
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.heading {
+  margin: 0 0 8px;
+  font-size: 1.6rem;
+}
+
+.subtext {
+  margin: 0 0 18px;
+  color: var(--nd-text-secondary);
+}
+
+.panel {
+  background: var(--nd-bg-elevated, #1a1a1a);
+  border: 1px solid var(--nd-border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.input,
+.select {
+  border: 1px solid var(--nd-border-default, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  background: var(--nd-bg-surface, #111111);
+  color: var(--nd-text-primary, rgba(255, 255, 255, 0.92));
+  padding: 10px 12px;
+  font-size: 0.95rem;
+}
+
+.actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.button {
+  border: 1px solid var(--nd-operator-accent, #ffb300);
+  color: var(--nd-operator-accent, #ffb300);
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.message {
+  margin: 0;
+  font-size: 0.9rem;
+}

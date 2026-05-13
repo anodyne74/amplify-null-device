@@ -3,7 +3,7 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 /**
  * Delivery Management System Data Model
  * 
- * Schema includes 8 entities for a complete delivery management platform:
+ * Schema includes 9 entities for a complete delivery management platform:
  * - Customer: Business customers using the service
  * - Operator: Staff members managing routes and billing
  * - Route: Delivery routes assigned to customers
@@ -12,6 +12,7 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
  * - LineItem: Charges on invoices
  * - PaymentRecord: Payment history tracking
  * - AuditLog: Security audit trail for compliance
+ * - CustomerUser: Cognito users associated with a customer (account_owner or read_only)
  * 
  * Authorization Rules:
  * - Customers can only access their own data (routes, invoices, payments)
@@ -29,6 +30,13 @@ const schema = a.schema({
       name: a.string().required(),
       email: a.email().required(),
       contactPhone: a.phone(),
+      // Address (single formatted value, same style as stop.formattedAddress)
+      addressLine1: a.string(),
+      standingInstructions: a.string(),
+      defaultNumberOfSigns: a.integer(),
+      defaultAgentName: a.string(),
+      defaultAgentInitials: a.string(),
+      agentOptions: a.string().array(),
       status: a.enum(['active', 'inactive', 'suspended']),
       billingRatePerHour: a.float().required(), // Configurable hourly rate for invoicing
       createdAt: a.datetime(),
@@ -40,9 +48,11 @@ const schema = a.schema({
       lineItems: a.hasMany('LineItem', 'customerId'),
       payments: a.hasMany('PaymentRecord', 'customerId'),
       auditLogs: a.hasMany('AuditLog', 'customerId'),
+      users: a.hasMany('CustomerUser', 'customerId'),
     })
     .authorization((allow) => [
       allow.owner().identityClaim('sub').to(['create', 'read', 'update']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
@@ -60,6 +70,7 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.owner().identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
@@ -69,23 +80,31 @@ const schema = a.schema({
    */
   Route: a
     .model({
+      routeCode: a.string(), // Human-readable route identifier (e.g. W19-26-001)
       customerId: a.id().required(), // Foreign key to Customer
-      status: a.enum(['planned', 'active', 'completed', 'archived']),
+      viewerSubs: a.string().array(), // Cognito subs of all customer users — grants read access
+      status: a.enum(['planned', 'signs_placed', 'signs_picked_up', 'completed', 'archived']),
       estimatedDurationMinutes: a.integer(),
       actualStartTime: a.datetime(),
       actualEndTime: a.datetime(),
       actualDurationMinutes: a.integer(),
+      signsPlacedDistanceKm: a.float(),
+      signsPickedUpDistanceKm: a.float(),
       notes: a.string(),
+      scheduleS3Key: a.string(), // S3 key for the uploaded schedule file
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
       customer: a.belongsTo('Customer', 'customerId'),
       stops: a.hasMany('Stop', 'routeId'),
       lineItems: a.hasMany('LineItem', 'routeId'),
+      invoices: a.hasMany('Invoice', 'routeId'),
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
-      allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+      allow.groups(['operator']).to(['read', 'update']),
     ]),
 
   /**
@@ -96,12 +115,19 @@ const schema = a.schema({
     .model({
       routeId: a.id().required(), // Foreign key to Route
       customerId: a.id(), // Denormalized customer owner for tenant-safe read access
+      viewerSubs: a.string().array(), // Cognito subs of all customer users — grants read access
       sequence: a.integer().required(), // Order of stops in route
       address: a.string().required(),
       serviceType: a.enum(['delivery', 'pickup', 'inspection']),
       estimatedArrivalTime: a.datetime(),
       actualArrivalTime: a.datetime(),
       actualDepartureTime: a.datetime(),
+      numberOfSigns: a.integer(),
+      agent: a.string(),
+      isAuction: a.boolean(),
+      latitude: a.float(),
+      longitude: a.float(),
+      formattedAddress: a.string(),
       notes: a.string(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
@@ -111,7 +137,9 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
-      allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+      allow.groups(['operator']).to(['read', 'update']),
     ]),
 
   /**
@@ -121,22 +149,26 @@ const schema = a.schema({
    */
   Invoice: a
     .model({
-      customerId: a.id().required(), // Foreign key to Customer
+      customerId: a.id().required(),
       invoiceNumber: a.string().required(),
       invoiceDate: a.date().required(),
       periodStartDate: a.date(),
       periodEndDate: a.date(),
       totalAmount: a.float().required(),
       status: a.enum(['draft', 'finalized', 'sent', 'paid']),
+      routeId: a.id(),        // linked route
+      pdfS3Key: a.string(),   // S3 key for uploaded PDF e.g. invoices/{id}.pdf
+      emailSentAt: a.datetime(), // timestamp of last SES email send
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
-      // Relationships
       customer: a.belongsTo('Customer', 'customerId'),
+      route: a.belongsTo('Route', 'routeId'),
       lineItems: a.hasMany('LineItem', 'invoiceId'),
       payment: a.hasOne('PaymentRecord', 'invoiceId'),
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
@@ -163,6 +195,7 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
@@ -188,6 +221,7 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
@@ -215,7 +249,68 @@ const schema = a.schema({
       customer: a.belongsTo('Customer', 'customerId'),
     })
     .authorization((allow) => [
+      allow.groups(['administrator']).to(['read', 'create']),
       allow.groups(['operator']).to(['read', 'create']),
+    ]),
+
+  /**
+   * CustomerUser - Associates a Cognito user with a customer account
+   * role: account_owner can view invoices and the customer's user list
+   *       read_only can only view routes and stops
+   * accountOwnerSub is denormalized on every row so the account owner can read
+   * all CustomerUser records for their customer via ownerDefinedIn('accountOwnerSub').
+   * Only administrators may create, update, or delete CustomerUser records.
+   */
+  CustomerUser: a
+    .model({
+      customerId: a.id().required(), // FK to Customer
+      userSub: a.string().required(), // Cognito sub of the associated user
+      accountOwnerSub: a.string().required(), // Denormalized: account owner's sub (same for all rows per customer)
+      name: a.string(),
+      email: a.email(),
+      role: a.enum(['account_owner', 'read_only']),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+      // Relationships
+      customer: a.belongsTo('Customer', 'customerId'),
+    })
+    .authorization((allow) => [
+      allow.ownerDefinedIn('userSub').identityClaim('sub').to(['read']),           // each user reads own record
+      allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read']),   // account owner reads all for their customer
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),  // only admins manage users
+    ]),
+
+  /**
+   * Administrator - Stores administrator profile details synced from Cognito.
+   * Used by the admin management UI to display the user's name and email.
+   */
+  Administrator: a
+    .model({
+      name: a.string().required(),
+      email: a.email().required(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+    ]),
+
+  /**
+   * UserSettings - Per-user UI preferences and profile label.
+   * userSub maps to Cognito subject for owner-scoped access.
+   */
+  UserSettings: a
+    .model({
+      userSub: a.string().required(),
+      name: a.string(),
+      defaultTheme: a.enum(['system', 'light', 'dark']),
+      mapTheme: a.enum(['light', 'dark', 'satellite', 'streets']),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [
+      allow.ownerDefinedIn('userSub').identityClaim('sub').to(['read', 'create', 'update', 'delete']),
+      allow.groups(['administrator']).to(['read']),
     ]),
 });
 
@@ -223,6 +318,11 @@ export type Schema = ClientSchema<typeof schema>;
 
 export const data = defineData({
   schema,
+  logging: {
+    retention: '1 month',
+    fieldLogLevel: 'error',
+    excludeVerboseContent: true,
+  },
   authorizationModes: {
     defaultAuthorizationMode: 'userPool',
   },

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { getInvoiceDetail, type InvoiceDetail } from '@/lib/queries/GetInvoiceDetail';
 import InvoiceLineItems from '@/app/customer/components/InvoiceLineItems';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import styles from './_InvoiceDetailContent.module.css';
 
 interface InvoiceDetailContentProps {
   params: {
@@ -23,7 +24,19 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [pdfActionLoading, setPdfActionLoading] = useState(false);
+
+  // Guard: redirect reviewers away from invoice pages
+  useEffect(() => {
+    if (!user?.userId) return;
+    import('@/lib/queries').then(({ getCustomerPortalContext }) => {
+      getCustomerPortalContext(user.userId).then(({ role }) => {
+        if (role === 'read_only') {
+          router.replace('/customer/dashboard');
+        }
+      });
+    });
+  }, [user?.userId, router]);
 
   useEffect(() => {
     if (!user?.userId) return;
@@ -35,6 +48,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
       const result = await getInvoiceDetail({
         invoiceId: params.id,
         customerId: user.userId,
+        userSub: user.userId,
       });
 
       if (result.errors && result.errors.length > 0) {
@@ -52,33 +66,30 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
     fetchInvoice();
   }, [user?.userId, params.id]);
 
-  const handleDownloadPDF = async () => {
-    if (!invoice?.id) return;
-
-    setDownloading(true);
-
+  const handlePdfAction = async (action: 'view' | 'download') => {
+    if (!invoice?.pdfS3Key) return;
+    setPdfActionLoading(true);
     try {
-      const response = await fetch(`/api/invoices/${invoice.id}/download`);
+      const { getUrl } = await import('aws-amplify/storage');
+      const { url } = await getUrl({ path: invoice.pdfS3Key });
+      const urlString = url.toString();
 
-      if (!response.ok) {
-        throw new Error('Failed to download PDF');
+      if (action === 'view') {
+        window.open(urlString, '_blank', 'noopener,noreferrer');
+        return;
       }
 
-      // Get the blob and trigger download
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = url;
-      link.download = `invoice-${invoice.invoiceNumber || invoice.id}.pdf`;
+      link.href = urlString;
+      link.download = `${invoice.invoiceNumber || invoice.id}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Download error:', err);
-      setError('Failed to download PDF');
+      setError('Failed to generate invoice PDF link');
     } finally {
-      setDownloading(false);
+      setPdfActionLoading(false);
     }
   };
 
@@ -102,29 +113,12 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
 
   if (error || !invoice) {
     return (
-      <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-        <div
-          style={{
-            padding: '24px',
-            backgroundColor: '#ffebee',
-            color: '#c62828',
-            borderRadius: '8px',
-            fontSize: '14px',
-          }}
-        >
-          <p style={{ margin: '0 0 12px 0' }}>{error || 'Invoice not found'}</p>
+      <div className={styles.errorWrapper}>
+        <div className={styles.errorBox}>
+          <p className={styles.errorMessage}>{error || 'Invoice not found'}</p>
           <button
             onClick={() => router.back()}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#c62828',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-            }}
+            className={styles.goBackBtn}
           >
             Go Back
           </button>
@@ -133,156 +127,107 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
     );
   }
 
+  const statusClass = { paid: styles.statusPaid, overdue: styles.statusOverdue, pending: styles.statusPending }[invoice.status ?? 'pending'] ?? styles.statusPending;
+
   return (
-    <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className={styles.container}>
       {/* Header with Back Button */}
-      <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div className={styles.pageHeader}>
         <button
           onClick={() => router.back()}
-          style={{
-            padding: '8px 12px',
-            backgroundColor: '#f5f5f5',
-            border: '1px solid #ddd',
-            borderRadius: '4px',
-            fontSize: '14px',
-            cursor: 'pointer',
-            color: '#666',
-          }}
+          className={styles.backBtn}
         >
           ← Back
         </button>
-        <h1 style={{ margin: '0', fontSize: '28px', fontWeight: '700' }}>
+        <h1 className={styles.pageTitle}>
           Invoice {invoice.invoiceNumber || invoice.id}
         </h1>
       </div>
 
       {/* Invoice Info Card */}
-      <div
-        style={{
-          padding: '24px',
-          backgroundColor: '#fff',
-          borderRadius: '8px',
-          border: '1px solid #e0e0e0',
-          marginBottom: '24px',
-        }}
-      >
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-            gap: '24px',
-            marginBottom: '24px',
-          }}
-        >
+      <div className={styles.infoCard}>
+        <div className={styles.infoGrid}>
           {/* Invoice Number */}
           <div>
-            <p
-              style={{
-                margin: '0 0 4px 0',
-                fontSize: '12px',
-                fontWeight: '600',
-                color: '#999',
-                textTransform: 'uppercase',
-              }}
-            >
+            <p className={styles.infoLabel}>
               Invoice Number
             </p>
-            <p style={{ margin: '0', fontSize: '16px', fontWeight: '600' }}>
+            <p className={styles.infoValueBold}>
               {invoice.invoiceNumber || invoice.id}
             </p>
           </div>
 
           {/* Invoice Date */}
           <div>
-            <p
-              style={{
-                margin: '0 0 4px 0',
-                fontSize: '12px',
-                fontWeight: '600',
-                color: '#999',
-                textTransform: 'uppercase',
-              }}
-            >
+            <p className={styles.infoLabel}>
               Invoice Date
             </p>
-            <p style={{ margin: '0', fontSize: '16px' }}>
+            <p className={styles.infoValue}>
               {formatDate(invoice.invoiceDate)}
             </p>
           </div>
 
           {/* Period */}
           <div>
-            <p
-              style={{
-                margin: '0 0 4px 0',
-                fontSize: '12px',
-                fontWeight: '600',
-                color: '#999',
-                textTransform: 'uppercase',
-              }}
-            >
+            <p className={styles.infoLabel}>
               Period
             </p>
-            <p style={{ margin: '0', fontSize: '16px' }}>
+            <p className={styles.infoValue}>
               {formatDate(invoice.periodStartDate)} - {formatDate(invoice.periodEndDate)}
             </p>
           </div>
 
           {/* Status */}
           <div>
-            <p
-              style={{
-                margin: '0 0 4px 0',
-                fontSize: '12px',
-                fontWeight: '600',
-                color: '#999',
-                textTransform: 'uppercase',
-              }}
-            >
+            <p className={styles.infoLabel}>
               Status
             </p>
-            <p
-              style={{
-                margin: '0',
-                fontSize: '16px',
-                fontWeight: '600',
-                color: invoice.status === 'paid' ? '#4caf50' : invoice.status === 'overdue' ? '#f44336' : '#ff9800',
-              }}
-            >
+            <p className={`${styles.infoValueBold} ${statusClass}`}>
               {invoice.status?.charAt(0).toUpperCase() + (invoice.status?.slice(1) || '')}
             </p>
           </div>
+
+          {/* Linked Route */}
+          {invoice.routeId && (
+            <div>
+              <p className={styles.infoLabel}>Route</p>
+              <a
+                href={`/customer/routes/${invoice.routeId}`}
+                className={styles.routeLink}
+              >
+                View Route →
+              </a>
+            </div>
+          )}
         </div>
 
-        {/* Download Button */}
-        <button
-          onClick={handleDownloadPDF}
-          disabled={downloading}
-          style={{
-            padding: '12px 24px',
-            backgroundColor: '#1976d2',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: downloading ? 'not-allowed' : 'pointer',
-            opacity: downloading ? 0.6 : 1,
-          }}
-        >
-          {downloading ? 'Downloading...' : '📥 Download PDF'}
-        </button>
+        {/* PDF Actions */}
+        {invoice.pdfS3Key && (
+          <div className={styles.pdfActions}>
+            <button
+              onClick={() => {
+                void handlePdfAction('view');
+              }}
+              disabled={pdfActionLoading}
+              className={styles.downloadBtn}
+            >
+              {pdfActionLoading ? 'Loading...' : 'View PDF'}
+            </button>
+            <button
+              onClick={() => {
+                void handlePdfAction('download');
+              }}
+              disabled={pdfActionLoading}
+              className={styles.downloadBtn}
+            >
+              {pdfActionLoading ? 'Loading...' : 'Download PDF'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Line Items */}
-      <div
-        style={{
-          padding: '24px',
-          backgroundColor: '#fff',
-          borderRadius: '8px',
-          border: '1px solid #e0e0e0',
-        }}
-      >
+      <div className={styles.lineItemsCard}>
         <InvoiceLineItems
           lineItems={invoice.lineItems || []}
           totalAmount={invoice.totalAmount}

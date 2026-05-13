@@ -81,12 +81,12 @@ describe('amplify-config utilities', () => {
       expect(isCustomer(operatorUser)).toBe(false);
     });
 
-    it('should return true for user without groups (default)', () => {
-      expect(isCustomer(ungroupedUser)).toBe(true);
+    it('should return false for user without groups (pending approval)', () => {
+      expect(isCustomer(ungroupedUser)).toBe(false);
     });
 
     it('should return false for null user', () => {
-      expect(isCustomer(null)).toBe(true); // Default to customer for unauthenticated
+      expect(isCustomer(null)).toBe(false);
     });
   });
 
@@ -109,8 +109,8 @@ describe('amplify-config utilities', () => {
   });
 
   describe('isAdmin', () => {
-    it('should return true for operator user', () => {
-      expect(isAdmin(operatorUser)).toBe(true);
+    it('should return false for operator user (operator ≠ administrator)', () => {
+      expect(isAdmin(operatorUser)).toBe(false);
     });
 
     it('should return false for customer user', () => {

@@ -1,6 +1,7 @@
 'use client';
 
 import type { Route } from '@/amplify/types';
+import styles from './RouteTimeline.module.css';
 
 interface RouteTimelineProps {
   route: Route;
@@ -13,68 +14,48 @@ interface RouteTimelineProps {
 export default function RouteTimeline({ route }: RouteTimelineProps) {
   const statuses = [
     { id: 'planned', label: 'Planned', timestamp: route.createdAt },
-    { id: 'active', label: 'Active', timestamp: route.actualStartTime },
+    { id: 'signs_placed', label: 'Signs Placed', timestamp: route.actualStartTime },
+    { id: 'signs_picked_up', label: 'Signs Picked Up', timestamp: route.actualEndTime },
     { id: 'completed', label: 'Completed', timestamp: route.actualEndTime },
   ];
 
   const currentStatusIndex =
-    route.status === 'completed' ? 2 : route.status === 'active' ? 1 : 0;
+    route.status === 'completed'
+      ? 3
+      : route.status === 'signs_picked_up'
+        ? 2
+        : route.status === 'signs_placed'
+          ? 1
+          : 0;
 
   return (
-    <div style={{ padding: '16px', backgroundColor: '#f5f5f5', borderRadius: '8px', border: '1px solid #e0e0e0' }}>
-      <h3 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>
+    <div className={styles.container}>
+      <h3 className={styles.heading}>
         Route Status
       </h3>
 
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+      <div className={styles.steps}>
         {statuses.map((status, index) => {
           const isActive = index === currentStatusIndex;
           const isCompleted = index < currentStatusIndex;
 
           return (
-            <div key={status.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div key={status.id} className={styles.step}>
               {/* Status Circle */}
               <div
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '8px',
-                  backgroundColor: isActive ? '#1976d2' : isCompleted ? '#4caf50' : '#e0e0e0',
-                  color: isActive || isCompleted ? '#fff' : '#999',
-                  fontWeight: 'bold',
-                  fontSize: '14px',
-                }}
+                className={`${styles.circle} ${isActive ? styles.circleActive : ''} ${isCompleted ? styles.circleCompleted : ''}`}
               >
                 {isCompleted ? '✓' : isActive ? '●' : index + 1}
               </div>
 
               {/* Status Label */}
-              <p
-                style={{
-                  margin: '0 0 4px 0',
-                  fontSize: '12px',
-                  fontWeight: isActive ? 'bold' : '500',
-                  color: isActive ? '#1976d2' : '#333',
-                  textAlign: 'center',
-                }}
-              >
+              <p className={`${styles.stepLabel} ${isActive ? styles.stepLabelActive : ''}`}>
                 {status.label}
               </p>
 
               {/* Timestamp */}
               {status.timestamp && (
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: '10px',
-                    color: '#999',
-                    textAlign: 'center',
-                  }}
-                >
+                <p className={styles.stepTimestamp}>
                   {new Date(status.timestamp).toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',
@@ -86,17 +67,7 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
 
               {/* Connector Line */}
               {index < statuses.length - 1 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: '50%',
-                    marginLeft: '24px',
-                    marginTop: '32px',
-                    width: 'calc(100% - 48px)',
-                    height: '2px',
-                    backgroundColor: isCompleted ? '#4caf50' : '#e0e0e0',
-                  }}
-                />
+                <div className={`${styles.connector} ${isCompleted ? styles.connectorCompleted : ''}`} />
               )}
             </div>
           );

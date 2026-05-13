@@ -1,0 +1,144 @@
+.row {
+  display: flex;
+  align-items: center;
+  padding: 12px var(--nd-space-md);
+  border-bottom: 1px solid var(--nd-border-subtle);
+  background-color: var(--nd-bg-surface);
+  gap: var(--nd-space-md);
+}
+
+.colId {
+  flex: 0.8;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--nd-text-primary);
+}
+
+.colRoute {
+  flex: 0.9;
+}
+
+.colDate {
+  flex: 0.8;
+  font-size: 14px;
+  color: var(--nd-text-secondary);
+}
+
+.colPeriod {
+  flex: 1.1;
+  font-size: 13px;
+  color: var(--nd-text-secondary);
+}
+
+.colAmount {
+  flex: 0.8;
+  font-weight: 600;
+  font-size: 14px;
+  text-align: right;
+  color: var(--nd-text-primary);
+}
+
+.colStatus {
+  flex: 0.6;
+}
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+  text-transform: uppercase;
+  border: 1px solid;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.badgePlanned {
+  color: var(--nd-status-planned);
+  border-color: var(--nd-status-planned);
+  background-color: var(--nd-operator-accent-dim);
+}
+
+.badgeCompleted {
+  color: var(--nd-status-completed);
+  border-color: var(--nd-status-completed);
+  background-color: var(--nd-customer-accent-dim);
+}
+
+.badgeDanger {
+  color: var(--nd-status-danger);
+  border-color: var(--nd-status-danger);
+  background-color: rgba(255, 71, 87, 0.15);
+}
+
+.badgeArchived {
+  color: var(--nd-status-archived);
+  border-color: var(--nd-status-archived);
+  background-color: transparent;
+}
+
+.colAction {
+  flex: 0.6;
+}
+
+.actionGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.viewLink {
+  padding: 8px 12px;
+  background-color: var(--nd-accent-primary);
+  color: var(--nd-text-inverse);
+  text-decoration: none;
+  border-radius: var(--nd-radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-block;
+  text-align: center;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.viewLink:hover {
+  opacity: 0.85;
+}
+
+.secondaryAction {
+  padding: 6px 10px;
+  border-radius: var(--nd-radius-sm);
+  border: 1px solid var(--nd-border-default);
+  background: transparent;
+  color: var(--nd-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.secondaryAction:hover {
+  border-color: var(--nd-accent-primary);
+  color: var(--nd-accent-primary);
+}
+
+.secondaryAction:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.routeLink {
+  color: var(--nd-operator-accent);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.routeLink:hover {
+  text-decoration: underline;
+}
+
+.routeMuted {
+  color: var(--nd-text-muted);
+  font-size: 13px;
+}

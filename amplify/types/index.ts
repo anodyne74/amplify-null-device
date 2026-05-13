@@ -33,6 +33,12 @@ export interface Customer {
   name: string;
   email: string;
   contactPhone?: string;
+  addressLine1?: string;
+  standingInstructions?: string;
+  defaultNumberOfSigns?: number | null;
+  defaultAgentName?: string;
+  defaultAgentInitials?: string;
+  agentOptions?: string[] | null;
   status: CustomerStatus;
   billingRatePerHour: number;
   createdAt?: string;
@@ -40,6 +46,7 @@ export interface Customer {
   routes?: Route[];
   invoices?: Invoice[];
   paymentRecords?: PaymentRecord[];
+  users?: CustomerUser[];
 }
 
 export interface Operator {
@@ -53,13 +60,18 @@ export interface Operator {
 
 export interface Route {
   id: string;
+  routeCode?: string | null;
   customerId: string;
+  viewerSubs?: string[] | null;
   status?: RouteStatus | null;
   estimatedDurationMinutes?: number | null;
   actualStartTime?: string | null;
   actualEndTime?: string | null;
   actualDurationMinutes?: number | null;
+  signsPlacedDistanceKm?: number | null;
+  signsPickedUpDistanceKm?: number | null;
   notes?: string;
+  scheduleS3Key?: string | null;
   createdAt?: string;
   updatedAt?: string;
   customer?: Customer;
@@ -71,12 +83,19 @@ export interface Stop {
   id: string;
   routeId: string;
   customerId?: string; // Denormalized for tenant-safe customer reads
+  viewerSubs?: string[] | null;
   sequence?: number | null;
   address?: string;
   serviceType?: ServiceType | null;
   estimatedArrivalTime?: string | null;
   actualArrivalTime?: string | null;
   actualDepartureTime?: string | null;
+  numberOfSigns?: number | null;
+  agent?: string;
+  isAuction?: boolean | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  formattedAddress?: string;
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -92,9 +111,12 @@ export interface Invoice {
   periodEndDate: string;
   totalAmount: number;
   status: InvoiceStatus;
+  routeId?: string;
+  pdfS3Key?: string;
   createdAt?: string;
   updatedAt?: string;
   customer?: Customer;
+  route?: Route;
   lineItems?: LineItem[];
 }
 
@@ -143,13 +165,45 @@ export interface AuditLog {
   createdAt?: string;
 }
 
+export interface CustomerUser {
+  id: string;
+  customerId: string;
+  userSub: string;
+  accountOwnerSub: string;
+  name?: string;
+  email?: string;
+  role: CustomerUserRole;
+  createdAt?: string;
+  updatedAt?: string;
+  customer?: Customer;
+}
+
+export interface Administrator {
+  id: string;
+  name: string;
+  email: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UserSettings {
+  id: string;
+  userSub: string;
+  name?: string;
+  defaultTheme?: ThemeMode;
+  mapTheme?: MapTheme;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 /**
  * Enums and union types from schema
  */
 
 export type CustomerStatus = 'active' | 'inactive' | 'suspended';
+export type CustomerUserRole = 'account_owner' | 'read_only';
 export type OperatorRole = 'admin' | 'manager' | 'staff';
-export type RouteStatus = 'planned' | 'active' | 'completed' | 'archived';
+export type RouteStatus = 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
 export type ServiceType = 'delivery' | 'pickup' | 'inspection';
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled';
 export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'check' | 'cash' | 'other';
@@ -157,6 +211,8 @@ export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'cancelled';
 export type AuditEventType = 'login' | 'logout' | 'access_denied' | 'data_access' | 'data_modification' | 'data_deletion';
 export type AuditResourceType = 'customer' | 'route' | 'invoice' | 'payment' | 'operator';
 export type AuditStatus = 'success' | 'failure';
+export type ThemeMode = 'system' | 'light' | 'dark';
+export type MapTheme = 'light' | 'dark' | 'satellite' | 'streets';
 
 /**
  * Request/Response types for common operations
@@ -166,6 +222,12 @@ export interface CreateCustomerInput {
   name: string;
   email: string;
   contactPhone?: string;
+  addressLine1?: string;
+  standingInstructions?: string;
+  defaultNumberOfSigns?: number;
+  defaultAgentName?: string;
+  defaultAgentInitials?: string;
+  agentOptions?: string[];
   status: CustomerStatus;
   billingRatePerHour: number;
 }
@@ -175,33 +237,51 @@ export interface UpdateCustomerInput {
   name?: string;
   email?: string;
   contactPhone?: string;
+  addressLine1?: string;
+  standingInstructions?: string;
+  defaultNumberOfSigns?: number;
+  defaultAgentName?: string;
+  defaultAgentInitials?: string;
+  agentOptions?: string[];
   status?: CustomerStatus;
   billingRatePerHour?: number;
 }
 
 export interface CreateRouteInput {
+  routeCode?: string;
   customerId: string;
+  viewerSubs?: string[];
   status: RouteStatus;
-  estimatedDurationMinutes: number;
   notes?: string;
 }
 
 export interface UpdateRouteInput {
   id: string;
+  routeCode?: string;
+  customerId?: string;
   status?: RouteStatus;
   actualStartTime?: string;
   actualEndTime?: string;
   actualDurationMinutes?: number;
+  signsPlacedDistanceKm?: number;
+  signsPickedUpDistanceKm?: number;
   notes?: string;
 }
 
 export interface CreateStopInput {
   routeId: string;
   customerId: string; // Required: must be set to the owning customer's sub/id
+  viewerSubs?: string[];
   sequence: number;
   address: string;
   serviceType: ServiceType;
   estimatedArrivalTime?: string;
+  numberOfSigns?: number;
+  agent?: string;
+  isAuction?: boolean;
+  latitude?: number;
+  longitude?: number;
+  formattedAddress?: string;
   notes?: string;
 }
 
@@ -213,6 +293,12 @@ export interface UpdateStopInput {
   estimatedArrivalTime?: string;
   actualArrivalTime?: string;
   actualDepartureTime?: string;
+  numberOfSigns?: number;
+  agent?: string;
+  isAuction?: boolean;
+  latitude?: number;
+  longitude?: number;
+  formattedAddress?: string;
   notes?: string;
 }
 
@@ -264,6 +350,22 @@ export interface CreateAuditLogInput {
   reason?: string;
   ipAddress?: string;
   userAgent?: string;
+}
+
+export interface CreateCustomerUserInput {
+  customerId: string;
+  userSub: string;
+  accountOwnerSub: string;
+  role: CustomerUserRole;
+  name?: string;
+  email?: string;
+}
+
+export interface UpdateCustomerUserInput {
+  id: string;
+  name?: string;
+  email?: string;
+  role?: CustomerUserRole;
 }
 
 /**

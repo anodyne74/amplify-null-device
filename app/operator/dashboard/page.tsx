@@ -1,86 +1,101 @@
 'use client';
 
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { getUserEmail } from '@/lib/amplify-config';
+import { getUserDisplayName } from '@/lib/amplify-config';
+import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
+import type { Route } from '@/amplify/types';
+import styles from '@/app/dashboard.module.css';
+
+function formatDate(dateString?: string | null) {
+  if (!dateString) return '—';
+  return new Date(dateString).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
 
 /**
  * Operator Dashboard
- * Shows system overview, customer management, and routing stats
+ * Phone-optimized route execution entry point for planned + active routes.
  */
 export default function OperatorDashboard() {
   const { user } = useAuthenticator();
-  const userEmail = user ? getUserEmail(user) : '';
+  const userDisplayName = user ? getUserDisplayName(user) : '';
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadRoutes() {
+      setLoading(true);
+      const result = await listAllRoutes({ limit: 100 });
+      if (!result.errors || result.errors.length === 0) {
+        setRoutes((result.data as Route[]) || []);
+      }
+      setLoading(false);
+    }
+    void loadRoutes();
+  }, []);
+
+  const activeRoutes = useMemo(
+    () => routes.filter((route) => route.status === 'signs_placed' || route.status === 'signs_picked_up'),
+    [routes]
+  );
+  const plannedRoutes = useMemo(
+    () => routes.filter((route) => route.status === 'planned'),
+    [routes]
+  );
+  const priorityRoutes = useMemo(
+    () => [...activeRoutes, ...plannedRoutes].slice(0, 8),
+    [activeRoutes, plannedRoutes]
+  );
 
   return (
-    <div>
-      <h1>Operator Dashboard</h1>
-      <p>Welcome, {userEmail}! (Operator)</p>
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-          gap: '20px',
-          marginTop: '24px',
-        }}
-      >
-        <div
-          style={{
-            padding: '20px',
-            backgroundColor: '#f5f5f5',
-            borderRadius: '8px',
-            border: '1px solid #e0e0e0',
-          }}
-        >
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#666' }}>
-            Total Customers
-          </h3>
-          <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#1976d2' }}>
-            0
-          </p>
+    <div className={styles.page}>
+      <div className={styles.statsGrid}>
+        <div className={styles.statCard}>
+          <p className={styles.statLabel}>Active Routes</p>
+          <p className={`${styles.statValue} ${styles.green}`}>{activeRoutes.length}</p>
         </div>
-
-        <div
-          style={{
-            padding: '20px',
-            backgroundColor: '#f5f5f5',
-            borderRadius: '8px',
-            border: '1px solid #e0e0e0',
-          }}
-        >
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#666' }}>
-            Active Routes
-          </h3>
-          <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#388e3c' }}>
-            0
-          </p>
+        <div className={styles.statCard}>
+          <p className={styles.statLabel}>Planned Routes</p>
+          <p className={`${styles.statValue} ${styles.cyan}`}>{plannedRoutes.length}</p>
         </div>
-
-        <div
-          style={{
-            padding: '20px',
-            backgroundColor: '#f5f5f5',
-            borderRadius: '8px',
-            border: '1px solid #e0e0e0',
-          }}
-        >
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#666' }}>
-            Outstanding Invoices
-          </h3>
-          <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#d32f2f' }}>
-            0
-          </p>
+        <div className={styles.statCard}>
+          <p className={styles.statLabel}>Execution Queue</p>
+          <p className={`${styles.statValue} ${styles.amber}`}>{priorityRoutes.length}</p>
         </div>
       </div>
 
-      <div style={{ marginTop: '32px', padding: '20px', backgroundColor: '#f1f8e9', borderRadius: '8px' }}>
-        <h3>Admin Actions</h3>
-        <ul>
-          <li>Manage customer accounts in the Customers section</li>
-          <li>View all active routes in the Routes section</li>
-          <li>Monitor invoicing and payments in the Invoices section</li>
-          <li>Review audit logs for compliance and security</li>
-        </ul>
+      <div className={styles.infoPanel}>
+        <h3>Route Execution</h3>
+        <p className={styles.welcome}>Optimized for phone usage. Tap a route to continue stop progression.</p>
+
+        {loading ? (
+          <p className={styles.welcome}>Loading routes...</p>
+        ) : priorityRoutes.length === 0 ? (
+          <p className={styles.welcome}>No planned or active routes available.</p>
+        ) : (
+          <div className={styles.mobileRouteList}>
+            {priorityRoutes.map((route) => (
+              <Link
+                key={route.id}
+                href={`/operator/routes/detail?id=${route.id}`}
+                className={styles.mobileRouteCard}
+              >
+                <div className={styles.mobileRouteTopRow}>
+                  <strong>{route.routeCode || route.id.slice(0, 8)}</strong>
+                  <span className={route.status === 'signs_placed' || route.status === 'signs_picked_up' ? styles.routeStatusActive : styles.routeStatusPlanned}>
+                    {(route.status || 'planned').replace(/_/g, ' ')}
+                  </span>
+                </div>
+                <div className={styles.mobileRouteMeta}>Created: {formatDate(route.createdAt)}</div>
+                <div className={styles.mobileRouteAction}>Open Route</div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

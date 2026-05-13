@@ -1,24 +1,47 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { isOperator } from '@/lib/amplify-config';
+import { useUserGroups } from '@/lib/use-user-groups';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
-import { useEffect } from 'react';
 
 /**
  * Operator Page Redirect
- * Automatically redirects to operator dashboard
+ * Redirects authenticated users to the correct operator portal landing page.
  */
 export default function OperatorPage() {
   const router = useRouter();
-  const { authStatus, user } = useAuthenticator();
+  const { authStatus } = useAuthenticator();
+  const { groups, loading } = useUserGroups();
 
   useEffect(() => {
-    if (authStatus === 'authenticated' && user && isOperator(user)) {
-      router.push('/operator/dashboard');
+    if (authStatus === 'unauthenticated') {
+      router.push('/');
+      return;
     }
-  }, [authStatus, user, router]);
 
-  return <LoadingSpinner message="Redirecting to operator dashboard..." />;
+    if (authStatus !== 'authenticated' || loading) {
+      return;
+    }
+
+    if (groups.includes('operator')) {
+      router.push('/operator/dashboard');
+      return;
+    }
+
+    if (groups.includes('administrator')) {
+      router.push('/administrator');
+      return;
+    }
+
+    if (groups.includes('customer')) {
+      router.push('/customer/dashboard');
+      return;
+    }
+
+    router.push('/pending-approval');
+  }, [authStatus, groups, loading, router]);
+
+  return <LoadingSpinner message="Resolving portal access..." />;
 }

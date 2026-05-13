@@ -1,4 +1,5 @@
 import { Amplify } from 'aws-amplify';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import outputs from '../amplify_outputs.json';
 
 /**
@@ -12,6 +13,9 @@ export function configureAmplify() {
 /**
  * Get the current user's groups/roles from the authentication token
  * Returns an array of group names (e.g., ['customer'] or ['operator'])
+ *
+ * @deprecated For Amplify v6, use fetchUserGroups() or the useUserGroups() hook.
+ * This synchronous version only works when user has the v5 signInUserSession shape.
  */
 export function getUserGroups(user: any): string[] {
   if (!user) return [];
@@ -22,12 +26,28 @@ export function getUserGroups(user: any): string[] {
 }
 
 /**
+ * Fetch the current user's Cognito groups from the active session token.
+ * This is the Amplify v6-compatible version. Use this (or useUserGroups hook)
+ * instead of the synchronous getUserGroups(user) when using aws-amplify v6.
+ */
+export async function fetchUserGroups(): Promise<string[]> {
+  try {
+    const session = await fetchAuthSession();
+    const payload = session.tokens?.idToken?.payload;
+    const groups = payload?.['cognito:groups'];
+    return Array.isArray(groups) ? (groups as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Check if the current user is a customer (member of 'customer' group)
  * All authenticated users should be in at least the 'customer' group
  */
 export function isCustomer(user: any): boolean {
   const groups = getUserGroups(user);
-  return groups.includes('customer') || groups.length === 0; // Default to customer if no groups
+  return groups.includes('customer');
 }
 
 /**
@@ -36,7 +56,7 @@ export function isCustomer(user: any): boolean {
  */
 export function isOperator(user: any): boolean {
   const groups = getUserGroups(user);
-  return groups.includes('operator');
+  return groups.includes('operator') || groups.includes('administrator');
 }
 
 /**
@@ -45,9 +65,8 @@ export function isOperator(user: any): boolean {
  * or in a separate database table
  */
 export function isAdmin(user: any): boolean {
-  // For now, we check if user is in operator group
-  // More specific admin check would require additional user attributes
-  return isOperator(user);
+  const groups = getUserGroups(user);
+  return groups.includes('administrator');
 }
 
 /**
@@ -55,7 +74,7 @@ export function isAdmin(user: any): boolean {
  */
 export function getUserEmail(user: any): string | undefined {
   if (!user) return undefined;
-  return user.signInUserSession?.idToken?.payload?.email;
+  return user.signInDetails?.loginId || user.signInUserSession?.idToken?.payload?.email;
 }
 
 /**
@@ -63,7 +82,23 @@ export function getUserEmail(user: any): string | undefined {
  */
 export function getUsername(user: any): string | undefined {
   if (!user) return undefined;
-  return user.username || user.signInUserSession?.idToken?.payload?.sub;
+  return user.username || user.userId || user.signInUserSession?.idToken?.payload?.sub;
+}
+
+/**
+ * Get a display-friendly user name, preferring Cognito first name claim.
+ */
+export function getUserDisplayName(user: any): string | undefined {
+  if (!user) return undefined;
+
+  const firstName =
+    user.attributes?.given_name ||
+    user.signInUserSession?.idToken?.payload?.given_name;
+  if (typeof firstName === 'string' && firstName.trim()) {
+    return firstName.trim();
+  }
+
+  return getUserEmail(user) || getUsername(user);
 }
 
 /**

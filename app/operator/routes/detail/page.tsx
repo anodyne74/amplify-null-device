@@ -1,48 +1,61 @@
 'use client';
 
-import { useEffect, useState, useCallback, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { StopForm } from '@/app/operator/components/StopForm';
+import { isAdmin } from '@/lib/amplify-config';
+import { generateAgentInitials } from '@/lib/customerDefaults';
+import { geocodeAddress } from '@/lib/googleMaps';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import { createStop } from '@/lib/queries';
+import {
+  createStop,
+  deleteRoute,
+  getCustomer,
+  getUserSettings,
+  updateRouteExecution,
+  updateStopExecution,
+} from '@/lib/queries';
+import type { MapTheme } from '@/lib/mapThemes';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
-import type { Route, Stop, RouteStatus } from '@/amplify/types';
+import type { Route, Stop } from '@/amplify/types';
+import styles from './page.module.css';
 
-const STATUS_COLORS: Record<RouteStatus, string> = {
-  planned: '#1976d2',
-  active: '#f57c00',
-  completed: '#388e3c',
-  archived: '#757575',
-};
-
-const SERVICE_TYPE_COLORS: Record<string, string> = {
-  delivery: '#4caf50',
-  pickup: '#ff9800',
-  inspection: '#2196f3',
-};
+const RouteStopsMap = dynamic(
+  () => import('@/app/operator/components/RouteStopsMap').then((mod) => mod.RouteStopsMap),
+  {
+    ssr: false,
+    loading: () => <div className={styles.mapLoading}>Loading map preview...</div>,
+  }
+);
 
 function StatusBadge({ status }: { status?: string | null }) {
-  const color = STATUS_COLORS[(status as RouteStatus)] || '#757575';
+  const badgeClass = {
+    planned: styles.badgePlanned,
+    signs_placed: styles.badgeActive,
+    signs_picked_up: styles.badgeActive,
+    completed: styles.badgeCompleted,
+    archived: styles.badgeArchived,
+  }[(status ?? 'planned') as string] ?? styles.badgePlanned;
+
+  const statusLabel = {
+    planned: 'planned',
+    signs_placed: 'signs placed',
+    signs_picked_up: 'signs picked up',
+    completed: 'completed',
+    archived: 'archived',
+  }[(status ?? 'planned') as string] ?? (status || 'unknown');
+
   return (
-    <span
-      style={{
-        display: 'inline-block',
-        padding: '4px 12px',
-        backgroundColor: color,
-        color: 'white',
-        borderRadius: '12px',
-        fontSize: '12px',
-        fontWeight: 'bold',
-        textTransform: 'uppercase',
-      }}
-    >
-      {status || 'unknown'}
+    <span className={`${styles.badge} ${badgeClass}`}>
+      {statusLabel}
     </span>
   );
 }
@@ -66,11 +79,134 @@ function formatDateTime(dateString?: string | null) {
   });
 }
 
+function formatRouteDuration(route: Route) {
+  if (typeof route.actualDurationMinutes === 'number') {
+    return `${route.actualDurationMinutes} min`;
+  }
+
+  if ((route.status === 'signs_placed' || route.status === 'signs_picked_up') && route.actualStartTime) {
+    const minutes = Math.max(
+      1,
+      Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000)
+    );
+    return `${minutes} min (in progress)`;
+  }
+
+  return '—';
+}
+
+function getRouteDurationMinutes(route: Route) {
+  if (typeof route.actualDurationMinutes === 'number') {
+    return Math.max(0, route.actualDurationMinutes);
+  }
+
+  if (route.actualStartTime && route.actualEndTime) {
+    return Math.max(
+      0,
+      Math.round((new Date(route.actualEndTime).getTime() - new Date(route.actualStartTime).getTime()) / 60000)
+    );
+  }
+
+  if ((route.status === 'signs_placed' || route.status === 'signs_picked_up') && route.actualStartTime) {
+    return Math.max(1, Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000));
+  }
+
+  return null;
+}
+
+function formatMinutesAsElapsed(minutes: number | null) {
+  if (minutes === null) return '—';
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (hours === 0) return `${remainingMinutes} min`;
+  if (remainingMinutes === 0) return `${hours}h`;
+  return `${hours}h ${remainingMinutes}m`;
+}
+
+function haversineDistanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(b.lat - a.lat);
+  const dLng = toRadians(b.lng - a.lng);
+  const lat1 = toRadians(a.lat);
+  const lat2 = toRadians(b.lat);
+
+  const h =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return 2 * earthRadiusKm * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function calculateRouteDistanceKm(stops: Stop[]) {
+  const orderedCoordinates = [...stops]
+    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+    .filter(
+      (stop) => typeof stop.latitude === 'number' && typeof stop.longitude === 'number'
+    )
+    .map((stop) => ({ lat: stop.latitude as number, lng: stop.longitude as number }));
+
+  if (orderedCoordinates.length < 2) {
+    return 0;
+  }
+
+  let total = 0;
+  for (let i = 1; i < orderedCoordinates.length; i += 1) {
+    total += haversineDistanceKm(orderedCoordinates[i - 1], orderedCoordinates[i]);
+  }
+
+  return Number(total.toFixed(2));
+}
+
+function formatCurrency(amount: number | null) {
+  if (amount === null) return '—';
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function isStopCompleted(stop: Stop) {
+  return Boolean(stop.actualDepartureTime);
+}
+
+function getStopStatusLabel(stop: Stop) {
+  if (stop.notes?.startsWith('[SKIPPED]')) return 'Signs skipped';
+  if (stop.actualDepartureTime) {
+    return stop.serviceType === 'pickup' ? 'Signs collected' : 'Signs placed';
+  }
+  if (stop.actualArrivalTime) return 'At stop';
+  return 'Signs pending';
+}
+
+function isPlacementPhase(status?: string | null) {
+  return status === 'signs_placed';
+}
+
+function isPickupPhase(status?: string | null) {
+  return status === 'signs_picked_up';
+}
+
 function RouteDetailContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get('id') ?? '';
+  const { user } = useAuthenticator();
+  const canManagePlanning = isAdmin(user);
 
   const [route, setRoute] = useState<Route | null>(null);
+  const [customerName, setCustomerName] = useState<string>('');
+  const [customerRatePerHour, setCustomerRatePerHour] = useState<number | null>(null);
+  const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [customerDefaults, setCustomerDefaults] = useState<{
+    standingInstructions?: string | null;
+    defaultNumberOfSigns?: number | null;
+    defaultAgentName?: string | null;
+    agentOptions?: string[] | null;
+  } | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,9 +218,59 @@ function RouteDetailContent() {
   const [editingStopId, setEditingStopId] = useState<string | null>(null);
   const [editingStop, setEditingStop] = useState(false);
   const [editStopError, setEditStopError] = useState<string | null>(null);
+  const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
+  const [reordering, setReordering] = useState(false);
+  const [reorderError, setReorderError] = useState<string | null>(null);
 
   const [transitioning, setTransitioning] = useState(false);
+  const [deletingRoute, setDeletingRoute] = useState(false);
+  const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [transitionError, setTransitionError] = useState<string | null>(null);
+
+  // Mobile execution: per-stop completion notes
+  const [stopCompletionNotes, setStopCompletionNotes] = useState<Record<string, string>>({});
+  const [stopCompletionPhoto, setStopCompletionPhoto] = useState<Record<string, File | null>>({});
+  const [phaseDistanceKm, setPhaseDistanceKm] = useState({
+    signs_placed: 0,
+    signs_picked_up: 0,
+  });
+  const [currentPosition, setCurrentPosition] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [mapTheme, setMapTheme] = useState<MapTheme>('light');
+  const gpsWatchIdRef = useRef<number | null>(null);
+  const lastGpsPointRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  const completeRouteNow = useCallback(async (routeToComplete: Route) => {
+    const now = new Date();
+    const start = routeToComplete.actualStartTime ? new Date(routeToComplete.actualStartTime) : now;
+    const actualDurationMinutes = Math.round((now.getTime() - start.getTime()) / 60000);
+    const completedAt = now.toISOString();
+    const pickupDistanceKm = Number(phaseDistanceKm.signs_picked_up.toFixed(2));
+
+    const { errors } = await updateRouteExecution(routeToComplete.id, {
+      status: 'completed',
+      actualEndTime: completedAt,
+      actualDurationMinutes,
+      signsPickedUpDistanceKm: pickupDistanceKm,
+    });
+
+    if (errors && errors.length > 0) {
+      setTransitionError('Failed to complete route.');
+      return false;
+    }
+
+    setRoute((r) =>
+      r
+        ? {
+            ...r,
+            status: 'completed',
+            actualEndTime: completedAt,
+            actualDurationMinutes,
+            signsPickedUpDistanceKm: pickupDistanceKm,
+          }
+        : r
+    );
+    return true;
+  }, [phaseDistanceKm.signs_picked_up]);
 
   const fetchStops = useCallback(async () => {
     const client = generateClient<Schema>();
@@ -99,6 +285,112 @@ function RouteDetailContent() {
     }
   }, [id]);
 
+  const handleStopArrived = useCallback(async (stopId: string) => {
+    setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
+    try {
+      const arrivedAt = new Date().toISOString();
+      const { errors } = await updateStopExecution(stopId, { actualArrivalTime: arrivedAt });
+      if (!errors || errors.length === 0) {
+        setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, actualArrivalTime: arrivedAt } : s)));
+      }
+    } catch { /* ignore */ }
+    setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
+  }, []);
+
+  const handleStopCompleted = useCallback(async (stopId: string) => {
+    if (!route) return;
+
+    setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
+    try {
+      const completedAt = new Date().toISOString();
+      const notes = stopCompletionNotes[stopId];
+      const updatePayload: { actualDepartureTime: string; notes?: string } = { actualDepartureTime: completedAt };
+      if (notes?.trim()) {
+        updatePayload.notes = notes.trim();
+      }
+      const { errors } = await updateStopExecution(stopId, updatePayload);
+      if (!errors || errors.length === 0) {
+        const updatedStops = stops.map((s) =>
+          s.id === stopId
+            ? { ...s, actualDepartureTime: completedAt, ...(notes?.trim() ? { notes: notes.trim() } : {}) }
+            : s
+        );
+        setStops(updatedStops);
+        setStopCompletionNotes((prev) => { const n = { ...prev }; delete n[stopId]; return n; });
+        setStopCompletionPhoto((prev) => { const n = { ...prev }; delete n[stopId]; return n; });
+
+        if (isPickupPhase(route.status)) {
+          const pickupStops = updatedStops.filter((s) => s.serviceType === 'pickup');
+          const allPickedUp = pickupStops.every((s) => isStopCompleted(s));
+          if (allPickedUp) {
+            await completeRouteNow(route);
+          }
+        }
+      }
+    } catch { /* ignore */ }
+    setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
+  }, [completeRouteNow, route, stopCompletionNotes, stops]);
+
+  const handleSkipStop = useCallback(async (stopId: string) => {
+    setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
+    try {
+      const now = new Date().toISOString();
+      const existingStop = stops.find((s) => s.id === stopId);
+      const existingNotes = existingStop?.notes ?? '';
+      const skippedNotes = existingNotes ? `[SKIPPED] ${existingNotes}` : '[SKIPPED]';
+      const { errors } = await updateStopExecution(stopId, {
+        actualArrivalTime: now,
+        actualDepartureTime: now,
+        notes: skippedNotes,
+      });
+      if (!errors || errors.length === 0) {
+        setStops((prev) =>
+          prev.map((s) =>
+            s.id === stopId
+              ? { ...s, actualArrivalTime: now, actualDepartureTime: now, notes: skippedNotes }
+              : s
+          )
+        );
+      }
+    } catch { /* ignore */ }
+    setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
+  }, [stops]);
+
+  const persistStopOrder = useCallback(
+    async (orderedStops: Stop[]) => {
+      const client = generateClient<Schema>();
+      const updates = orderedStops.map((stop, index) =>
+        client.models.Stop.update({ id: stop.id, sequence: index + 1 })
+      );
+      await Promise.all(updates);
+      await fetchStops();
+    },
+    [fetchStops]
+  );
+
+  const reorderStops = useCallback(
+    async (reorderedStops: Stop[]) => {
+      const resequenced = reorderedStops.map((stop, index) => ({
+        ...stop,
+        sequence: index + 1,
+      }));
+
+      setStops(resequenced);
+      setReordering(true);
+      setReorderError(null);
+
+      try {
+        await persistStopOrder(resequenced);
+      } catch {
+        setReorderError('Failed to save stop order. Restoring latest server order...');
+        await fetchStops();
+      } finally {
+        setReordering(false);
+      }
+    },
+    [fetchStops, persistStopOrder]
+  );
+
   useEffect(() => {
     async function fetchAll() {
       setLoading(true);
@@ -110,32 +402,200 @@ function RouteDetailContent() {
         setLoading(false);
         return;
       }
-      setRoute(routeResult.data as unknown as Route);
+      const loadedRoute = routeResult.data as unknown as Route;
+      setRoute(loadedRoute);
+      setPhaseDistanceKm({
+        signs_placed: loadedRoute.signsPlacedDistanceKm ?? 0,
+        signs_picked_up: loadedRoute.signsPickedUpDistanceKm ?? 0,
+      });
+
+      const customerResult = await getCustomer(loadedRoute.customerId);
+      if (!customerResult.errors || customerResult.errors.length === 0) {
+        const customer = customerResult.data as {
+          name?: string;
+          addressLine1?: string | null;
+          billingRatePerHour?: number | null;
+          standingInstructions?: string | null;
+          defaultNumberOfSigns?: number | null;
+          defaultAgentName?: string | null;
+          agentOptions?: string[] | null;
+        } | null;
+        setCustomerName(customer?.name || 'Unknown customer');
+        setCustomerRatePerHour(typeof customer?.billingRatePerHour === 'number' ? customer.billingRatePerHour : null);
+        setCustomerDefaults({
+          standingInstructions: customer?.standingInstructions ?? null,
+          defaultNumberOfSigns: customer?.defaultNumberOfSigns ?? null,
+          defaultAgentName: customer?.defaultAgentName ?? null,
+          agentOptions: customer?.agentOptions ?? null,
+        });
+
+        if (customer?.addressLine1) {
+          try {
+            const resolved = await geocodeAddress(customer.addressLine1);
+            setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
+          } catch {
+            setCustomerAddressOrigin(null);
+          }
+        } else {
+          setCustomerAddressOrigin(null);
+        }
+      }
+
       await fetchStops();
       setLoading(false);
     }
     if (id) fetchAll();
   }, [id, fetchStops]);
 
+  useEffect(() => {
+    if (!user?.userId) return;
+    if (typeof getUserSettings !== 'function') return;
+    let cancelled = false;
+
+    void getUserSettings(user.userId)
+      .then((result) => {
+        if (cancelled || !result.data?.mapTheme) return;
+        setMapTheme(result.data.mapTheme as MapTheme);
+      })
+      .catch(() => {
+        // Non-blocking: map defaults to light.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
+
+  useEffect(() => {
+    if (!route || (route.status !== 'signs_placed' && route.status !== 'signs_picked_up')) {
+      if (gpsWatchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+      }
+      gpsWatchIdRef.current = null;
+      lastGpsPointRef.current = null;
+      return;
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      return;
+    }
+
+    lastGpsPointRef.current = null;
+    const activePhase = route.status;
+
+    gpsWatchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const nextPoint = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+
+        const previousPoint = lastGpsPointRef.current;
+        lastGpsPointRef.current = nextPoint;
+
+        // Update current position for map display
+        setCurrentPosition({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+
+        if (!previousPoint) {
+          return;
+        }
+
+        const deltaKm = haversineDistanceKm(previousPoint, nextPoint);
+        if (!Number.isFinite(deltaKm) || deltaKm <= 0 || deltaKm > 1) {
+          return;
+        }
+
+        setPhaseDistanceKm((prev) => ({
+          ...prev,
+          [activePhase]: Number((prev[activePhase] + deltaKm).toFixed(3)),
+        }));
+      },
+      () => {
+        // Ignore GPS errors and keep execution flow manual-safe.
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 15000,
+      }
+    );
+
+      setCurrentPosition(null);
+    return () => {
+      if (gpsWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+      }
+      gpsWatchIdRef.current = null;
+      lastGpsPointRef.current = null;
+    };
+  }, [route]);
+
   const handleStartRoute = async () => {
     if (!route) return;
     setTransitioning(true);
     setTransitionError(null);
     try {
-      const client = generateClient<Schema>();
-      const { errors } = await client.models.Route.update({
-        id: route.id,
-        status: 'active',
-        actualStartTime: new Date().toISOString(),
+      const startedAt = new Date().toISOString();
+      const { errors } = await updateRouteExecution(route.id, {
+        status: 'signs_placed',
+        actualStartTime: startedAt,
+        signsPlacedDistanceKm: 0,
+        signsPickedUpDistanceKm: 0,
       });
       if (errors && errors.length > 0) {
         setTransitionError('Failed to start route.');
       } else {
-        setRoute((r) => r ? { ...r, status: 'active', actualStartTime: new Date().toISOString() } : r);
+        setPhaseDistanceKm({ signs_placed: 0, signs_picked_up: 0 });
+        setRoute((r) =>
+          r
+            ? {
+                ...r,
+                status: 'signs_placed',
+                actualStartTime: startedAt,
+                signsPlacedDistanceKm: 0,
+                signsPickedUpDistanceKm: 0,
+              }
+            : r
+        );
       }
     } catch {
       setTransitionError('Failed to start route.');
     }
+    setTransitioning(false);
+  };
+
+  const handleStartPickupPhase = async () => {
+    if (!route) return;
+    setTransitioning(true);
+    setTransitionError(null);
+
+    try {
+      const placementDistanceKm = Number(phaseDistanceKm.signs_placed.toFixed(2));
+      const { errors } = await updateRouteExecution(route.id, {
+        status: 'signs_picked_up',
+        signsPlacedDistanceKm: placementDistanceKm,
+      });
+
+      if (errors && errors.length > 0) {
+        setTransitionError('Failed to start pickup phase.');
+      } else {
+        setRoute((r) =>
+          r
+            ? {
+                ...r,
+                status: 'signs_picked_up',
+                signsPlacedDistanceKm: placementDistanceKm,
+              }
+            : r
+        );
+      }
+    } catch {
+      setTransitionError('Failed to start pickup phase.');
+    }
+
     setTransitioning(false);
   };
 
@@ -144,32 +604,26 @@ function RouteDetailContent() {
     setTransitioning(true);
     setTransitionError(null);
     try {
-      const client = generateClient<Schema>();
-      const now = new Date();
-      const start = route.actualStartTime ? new Date(route.actualStartTime) : now;
-      const actualDurationMinutes = Math.round((now.getTime() - start.getTime()) / 60000);
-      const { errors } = await client.models.Route.update({
-        id: route.id,
-        status: 'completed',
-        actualEndTime: now.toISOString(),
-        actualDurationMinutes,
-      });
-      if (errors && errors.length > 0) {
-        setTransitionError('Failed to complete route.');
-      } else {
-        setRoute((r) =>
-          r
-            ? {
-                ...r,
-                status: 'completed',
-                actualEndTime: now.toISOString(),
-                actualDurationMinutes,
-              }
-            : r
-        );
-      }
+      await completeRouteNow(route);
     } catch {
       setTransitionError('Failed to complete route.');
+    }
+    setTransitioning(false);
+  };
+
+  const handleConfirmCompletion = async () => {
+    if (!route) return;
+    setTransitioning(true);
+    setTransitionError(null);
+    try {
+      const { errors } = await updateRouteExecution(route.id, { status: 'archived' });
+      if (errors && errors.length > 0) {
+        setTransitionError('Failed to confirm route completion.');
+      } else {
+        setRoute((r) => (r ? { ...r, status: 'archived' } : r));
+      }
+    } catch {
+      setTransitionError('Failed to confirm route completion.');
     }
     setTransitioning(false);
   };
@@ -177,20 +631,46 @@ function RouteDetailContent() {
   const handleAddStop = async (values: {
     address: string;
     serviceType: 'delivery' | 'pickup' | 'inspection';
-    estimatedArrivalTime?: string;
+    numberOfSigns?: number;
+    agent?: string;
+    isAuction?: boolean;
     notes?: string;
+    latitude?: number;
+    longitude?: number;
+    formattedAddress?: string;
   }) => {
     if (!route) return;
+    if (!canManagePlanning) {
+      setAddStopError('Only administrators can add planned stops.');
+      return;
+    }
+
     setAddingStop(true);
     setAddStopError(null);
     try {
+      let lat = values.latitude;
+      let lng = values.longitude;
+      let formatted = values.formattedAddress ?? values.address;
+
+      if (lat === undefined || lng === undefined) {
+        const geocoded = await geocodeAddress(values.address);
+        lat = geocoded.latitude;
+        lng = geocoded.longitude;
+        formatted = geocoded.formattedAddress;
+      }
+
       const result = await createStop({
         routeId: route.id,
         customerId: route.customerId,
         sequence: stops.length + 1,
         address: values.address,
+        formattedAddress: formatted,
+        latitude: lat,
+        longitude: lng,
         serviceType: values.serviceType,
-        estimatedArrivalTime: values.estimatedArrivalTime,
+        numberOfSigns: values.numberOfSigns,
+        agent: values.agent,
+        isAuction: values.isAuction,
         notes: values.notes,
       });
       if (result.errors && result.errors.length > 0) {
@@ -208,18 +688,44 @@ function RouteDetailContent() {
   const handleEditStop = async (values: {
     address: string;
     serviceType: 'delivery' | 'pickup' | 'inspection';
-    estimatedArrivalTime?: string;
+    numberOfSigns?: number;
+    agent?: string;
+    isAuction?: boolean;
     notes?: string;
+    latitude?: number;
+    longitude?: number;
+    formattedAddress?: string;
   }) => {
     if (!editingStopId) return;
+    if (!canManagePlanning) {
+      setEditStopError('Only administrators can edit planned stops.');
+      return;
+    }
+
     setEditingStop(true);
     setEditStopError(null);
     try {
+      let lat = values.latitude;
+      let lng = values.longitude;
+      let formatted = values.formattedAddress ?? values.address;
+
+      if (lat === undefined || lng === undefined) {
+        const geocoded = await geocodeAddress(values.address);
+        lat = geocoded.latitude;
+        lng = geocoded.longitude;
+        formatted = geocoded.formattedAddress;
+      }
+
       const result = await updateStop({
         id: editingStopId,
         address: values.address,
+        formattedAddress: formatted,
+        latitude: lat,
+        longitude: lng,
         serviceType: values.serviceType,
-        estimatedArrivalTime: values.estimatedArrivalTime,
+        numberOfSigns: values.numberOfSigns,
+        agent: values.agent,
+        isAuction: values.isAuction,
         notes: values.notes,
       });
       if (result.errors && result.errors.length > 0) {
@@ -235,6 +741,9 @@ function RouteDetailContent() {
   };
 
   const handleDeleteStop = async (stopId: string) => {
+    if (!canManagePlanning) {
+      return;
+    }
     if (!window.confirm('Delete this stop?')) return;
     await deleteStop(stopId);
     const remaining = stops.filter((s) => s.id !== stopId);
@@ -247,28 +756,125 @@ function RouteDetailContent() {
     await fetchStops();
   };
 
+  const handleDropStop = async (targetStopId: string) => {
+    if (!canManagePlanning || !draggingStopId || draggingStopId === targetStopId || reordering) {
+      setDraggingStopId(null);
+      return;
+    }
+
+    const fromIndex = stops.findIndex((stop) => stop.id === draggingStopId);
+    const toIndex = stops.findIndex((stop) => stop.id === targetStopId);
+
+    if (fromIndex === -1 || toIndex === -1) {
+      setDraggingStopId(null);
+      return;
+    }
+
+    const reordered = [...stops];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+
+    try {
+      await reorderStops(reordered);
+    } catch {
+      setReorderError('Failed to save stop order. Restoring latest server order...');
+      await fetchStops();
+    } finally {
+      setDraggingStopId(null);
+    }
+  };
+
+  const handleMoveStop = async (stopId: string, direction: 'up' | 'down') => {
+    if (!canManagePlanning || reordering) {
+      return;
+    }
+
+    const currentIndex = stops.findIndex((stop) => stop.id === stopId);
+    if (currentIndex === -1) {
+      return;
+    }
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= stops.length) {
+      return;
+    }
+
+    const reordered = [...stops];
+    const [moved] = reordered.splice(currentIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+
+    await reorderStops(reordered);
+  };
+
+  const handleDeleteRoute = async () => {
+    if (!route || !canManagePlanning || deletingRoute) return;
+
+    const confirmed = window.confirm(
+      `Delete route ${route.routeCode || route.id.slice(0, 8)}? This will also delete all stops on the route.`
+    );
+    if (!confirmed) return;
+
+    setDeletingRoute(true);
+    setError(null);
+
+    const result = await deleteRoute(route.id);
+    if (result.errors && result.errors.length > 0) {
+      setError('Failed to delete route.');
+      setDeletingRoute(false);
+      return;
+    }
+
+    router.push('/operator/routes');
+  };
+
+  const planningLocked = route?.status !== 'planned';
+  const visibleStops = (() => {
+    if (!route) return stops;
+
+    if (isPlacementPhase(route.status)) {
+      return stops.filter((stop) => stop.serviceType !== 'pickup' && !isStopCompleted(stop));
+    }
+
+    if (isPickupPhase(route.status)) {
+      return stops.filter((stop) => stop.serviceType === 'pickup' && !isStopCompleted(stop));
+    }
+
+    return stops;
+  })();
+  const topVisibleStopId = visibleStops[0]?.id ?? null;
+  const pickupStops = stops.filter((stop) => stop.serviceType === 'pickup');
+  const allPickupStopsCompleted = pickupStops.every((stop) => isStopCompleted(stop));
+  const completedStops = stops.filter((stop) => isStopCompleted(stop));
+  const summaryStops = route?.status === 'completed' || route?.status === 'archived'
+    ? completedStops.length > 0
+      ? completedStops
+      : stops
+    : stops;
+  const routeDurationMinutes = route ? getRouteDurationMinutes(route) : null;
+  const kilometersTravelled = calculateRouteDistanceKm(summaryStops);
+  const totalStops = summaryStops.length;
+  const totalSigns = summaryStops.reduce(
+    (sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0),
+    0
+  );
+  const completionAmount =
+    routeDurationMinutes !== null && customerRatePerHour !== null
+      ? Number(((routeDurationMinutes / 60) * customerRatePerHour).toFixed(2))
+      : null;
+  const placementDistance = phaseDistanceKm.signs_placed;
+  const pickupDistance = phaseDistanceKm.signs_picked_up;
+
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
   return (
-    <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
+    <div className={styles.container}>
       {/* Back link */}
-      <Link
-        href="/operator/routes"
-        style={{ color: '#1b5e20', textDecoration: 'none', fontSize: '14px' }}
-      >
+      <Link href="/operator/routes" className={styles.backLink}>
         ← Back to Routes
       </Link>
 
       {error && (
-        <div
-          style={{
-            padding: '16px',
-            backgroundColor: '#ffebee',
-            color: '#c62828',
-            borderRadius: '4px',
-            marginTop: '16px',
-          }}
-        >
+        <div className={styles.errorBanner}>
           {error}
         </div>
       )}
@@ -276,172 +882,195 @@ function RouteDetailContent() {
       {route && (
         <>
           {/* Route Header */}
-          <div
-            style={{
-              marginTop: '20px',
-              padding: '20px',
-              backgroundColor: 'white',
-              border: '1px solid #e0e0e0',
-              borderRadius: '8px',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-                marginBottom: '16px',
-              }}
-            >
-              <h1 style={{ margin: 0, fontSize: '22px', color: '#1b5e20' }}>
-                Route {route.id.slice(0, 8)}
+          <div className={styles.routeCard}>
+            <div className={styles.routeCardHeader}>
+              <h1 className={styles.routeTitle}>
+                Route {route.routeCode || route.id.slice(0, 8)}
               </h1>
               <StatusBadge status={route.status} />
+              <Link href={`/operator/routes/edit?id=${route.id}`} className={styles.btnRouteEdit}>
+                Edit Route
+              </Link>
+              {canManagePlanning && (
+                <button
+                  onClick={() => {
+                    void handleDeleteRoute();
+                  }}
+                  className={styles.btnRouteDelete}
+                  disabled={deletingRoute}
+                >
+                  {deletingRoute ? 'Deleting...' : 'Delete Route'}
+                </button>
+              )}
             </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '16px',
-                fontSize: '14px',
-              }}
-            >
+            <div className={styles.routeInfoGrid}>
               <div>
-                <div style={{ color: '#999', fontSize: '12px' }}>Customer ID</div>
-                <div style={{ fontFamily: 'monospace' }}>{route.customerId.slice(0, 8)}</div>
+                <div className={styles.infoLabel}>Customer</div>
+                <div className={styles.infoValue}>{customerName || 'Unknown customer'}</div>
               </div>
               <div>
-                <div style={{ color: '#999', fontSize: '12px' }}>Created</div>
-                <div>{formatDate(route.createdAt)}</div>
+                <div className={styles.infoLabel}>Created</div>
+                <div className={styles.infoValue}>{formatDate(route.createdAt)}</div>
               </div>
               <div>
-                <div style={{ color: '#999', fontSize: '12px' }}>Est. Duration</div>
-                <div>
-                  {route.estimatedDurationMinutes
-                    ? `${route.estimatedDurationMinutes} min`
-                    : '—'}
-                </div>
+                <div className={styles.infoLabel}>Time Taken</div>
+                <div className={styles.infoValue}>{formatMinutesAsElapsed(routeDurationMinutes)}</div>
               </div>
               <div>
-                <div style={{ color: '#999', fontSize: '12px' }}>Actual Duration</div>
-                <div>
-                  {route.actualDurationMinutes ? `${route.actualDurationMinutes} min` : '—'}
-                </div>
+                <div className={styles.infoLabel}>Kilometers</div>
+                <div className={styles.infoValue}>{`${kilometersTravelled.toFixed(2)} km`}</div>
               </div>
               <div>
-                <div style={{ color: '#999', fontSize: '12px' }}>Start Time</div>
-                <div>{formatDateTime(route.actualStartTime)}</div>
+                <div className={styles.infoLabel}>Placement Distance</div>
+                <div className={styles.infoValue}>{`${placementDistance.toFixed(2)} km`}</div>
               </div>
               <div>
-                <div style={{ color: '#999', fontSize: '12px' }}>End Time</div>
-                <div>{formatDateTime(route.actualEndTime)}</div>
+                <div className={styles.infoLabel}>Pickup Distance</div>
+                <div className={styles.infoValue}>{`${pickupDistance.toFixed(2)} km`}</div>
               </div>
             </div>
 
             {route.notes && (
-              <div style={{ marginTop: '12px', fontSize: '14px', color: '#555' }}>
-                <span style={{ fontWeight: '600' }}>Notes: </span>
+              <div className={styles.routeNotes}>
+                <span className={styles.routeNotesBold}>Notes: </span>
                 {route.notes}
               </div>
             )}
 
             {/* Status transitions */}
-            <div style={{ marginTop: '16px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div className={styles.transitionRow}>
               {route.status === 'planned' && (
                 <button
                   onClick={handleStartRoute}
                   disabled={transitioning}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#f57c00',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: transitioning ? 'not-allowed' : 'pointer',
-                    opacity: transitioning ? 0.7 : 1,
-                  }}
+                  className={styles.btnStart}
                 >
                   {transitioning ? 'Starting…' : 'Start Route'}
                 </button>
               )}
-              {route.status === 'active' && (
+              {isPlacementPhase(route.status) && (
+                <button
+                  onClick={handleStartPickupPhase}
+                  disabled={transitioning}
+                  className={styles.btnComplete}
+                >
+                  {transitioning ? 'Updating…' : 'Start Pickup Phase'}
+                </button>
+              )}
+              {isPickupPhase(route.status) && (
                 <button
                   onClick={handleCompleteRoute}
-                  disabled={transitioning}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#388e3c',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: transitioning ? 'not-allowed' : 'pointer',
-                    opacity: transitioning ? 0.7 : 1,
-                  }}
+                  disabled={transitioning || !allPickupStopsCompleted}
+                  className={styles.btnComplete}
                 >
-                  {transitioning ? 'Completing…' : 'Complete Route'}
+                  {transitioning ? 'Completing…' : allPickupStopsCompleted ? 'Complete Route' : 'Awaiting Pickups'}
+                </button>
+              )}
+              {canManagePlanning && route.status === 'completed' && (
+                <button
+                  onClick={handleConfirmCompletion}
+                  disabled={transitioning}
+                  className={styles.btnComplete}
+                >
+                  {transitioning ? 'Confirming…' : 'Confirm Completion'}
                 </button>
               )}
               {transitionError && (
-                <span style={{ color: '#c62828', fontSize: '14px' }}>{transitionError}</span>
+                <span className={styles.transitionError}>{transitionError}</span>
               )}
             </div>
+
+            {(route.status === 'completed' || route.status === 'archived') && (
+              <div className={styles.summaryCard}>
+                <h3 className={styles.summaryHeading}>Final Route Summary</h3>
+                <div className={styles.summaryGrid}>
+                  <div>
+                    <div className={styles.infoLabel}>Kilometers Travelled</div>
+                    <div className={styles.infoValue}>{`${kilometersTravelled.toFixed(2)} km`}</div>
+                  </div>
+                  <div>
+                    <div className={styles.infoLabel}>Placement Distance</div>
+                    <div className={styles.infoValue}>{`${placementDistance.toFixed(2)} km`}</div>
+                  </div>
+                  <div>
+                    <div className={styles.infoLabel}>Pickup Distance</div>
+                    <div className={styles.infoValue}>{`${pickupDistance.toFixed(2)} km`}</div>
+                  </div>
+                  <div>
+                    <div className={styles.infoLabel}>Time Taken</div>
+                    <div className={styles.infoValue}>{formatMinutesAsElapsed(routeDurationMinutes)}</div>
+                  </div>
+                  <div>
+                    <div className={styles.infoLabel}>Stops</div>
+                    <div className={styles.infoValue}>{totalStops}</div>
+                  </div>
+                  <div>
+                    <div className={styles.infoLabel}>Total Number of Signs</div>
+                    <div className={styles.infoValue}>{totalSigns}</div>
+                  </div>
+                  <div>
+                    <div className={styles.infoLabel}>Customer Rate</div>
+                    <div className={styles.infoValue}>
+                      {customerRatePerHour === null ? '—' : formatCurrency(customerRatePerHour)} / hr
+                    </div>
+                  </div>
+                  <div>
+                    <div className={styles.infoLabel}>Amount</div>
+                    <div className={styles.infoValue}>{formatCurrency(completionAmount)}</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Stops Section */}
-          <div style={{ marginTop: '24px' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '16px',
-              }}
-            >
-              <h2 style={{ margin: 0, fontSize: '18px', color: '#1b5e20' }}>
-                Stops ({stops.length})
+          <div className={styles.stopsSection}>
+            <div className={styles.stopsHeader}>
+              <h2 className={styles.stopsHeading}>
+                Stops ({visibleStops.length})
               </h2>
-              {!showAddStop && (
+              {canManagePlanning && !planningLocked && !showAddStop && (
                 <button
                   onClick={() => setShowAddStop(true)}
-                  style={{
-                    padding: '8px 16px',
-                    backgroundColor: '#1b5e20',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                  }}
+                  className={styles.btnAddStop}
                 >
                   Add Stop
                 </button>
               )}
             </div>
 
+            <div className={styles.mapSection}>
+              <h3 className={styles.mapHeading}>Route Map</h3>
+              <RouteStopsMap
+                stops={stops}
+                activeStopId={topVisibleStopId}
+                currentPosition={currentPosition}
+                mapTheme={mapTheme}
+              />
+            </div>
+
+            {canManagePlanning && !planningLocked && (
+              <div className={styles.reorderHint}>Drag and drop stop cards to change sequence.</div>
+            )}
+            {reordering && <div className={styles.reorderStatus}>Saving updated stop order...</div>}
+            {reorderError && <div className={styles.errorBanner}>{reorderError}</div>}
+
             {/* Add Stop Form */}
-            {showAddStop && (
-              <div
-                style={{
-                  padding: '20px',
-                  backgroundColor: '#f9f9f9',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '8px',
-                  marginBottom: '16px',
-                }}
-              >
-                <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Add Stop</h3>
+            {showAddStop && !planningLocked && (
+              <div className={styles.formContainer}>
+                <h3 className={styles.formHeading}>Add Stop</h3>
                 <StopForm
                   onSubmit={handleAddStop}
                   onCancel={() => {
                     setShowAddStop(false);
                     setAddStopError(null);
                   }}
+                  addressSearchOrigin={customerAddressOrigin}
+                  standingInstructions={customerDefaults?.standingInstructions ?? undefined}
+                  defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
+                  defaultAgentName={customerDefaults?.defaultAgentName ?? undefined}
+                  availableAgents={customerDefaults?.agentOptions ?? undefined}
                   isSubmitting={addingStop}
                   error={addStopError}
                   submitLabel="Add Stop"
@@ -449,39 +1078,33 @@ function RouteDetailContent() {
               </div>
             )}
 
+            {visibleStops.length === 0 && !showAddStop && (isPlacementPhase(route?.status) || isPickupPhase(route?.status)) && (
+              <div className={styles.emptyState}>
+                {isPlacementPhase(route?.status)
+                  ? 'All signs are placed. Start the pickup phase to continue.'
+                  : 'All pickup stops are complete. Route will auto-complete after final pickup.'}
+              </div>
+            )}
+
             {stops.length === 0 && !showAddStop && (
-              <div
-                style={{
-                  padding: '32px',
-                  textAlign: 'center',
-                  color: '#666',
-                  border: '1px dashed #ccc',
-                  borderRadius: '8px',
-                }}
-              >
+              <div className={styles.emptyState}>
                 No stops yet. Click &quot;Add Stop&quot; to add the first one.
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {stops.map((stop) => {
+            <div className={styles.stopsList}>
+              {visibleStops.map((stop, index) => {
                 if (editingStopId === stop.id) {
                   return (
-                    <div
-                      key={stop.id}
-                      style={{
-                        padding: '20px',
-                        backgroundColor: '#f9f9f9',
-                        border: '1px solid #e0e0e0',
-                        borderRadius: '8px',
-                      }}
-                    >
-                      <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>Edit Stop</h3>
+                    <div key={stop.id} className={styles.formContainer}>
+                      <h3 className={styles.formHeading}>Edit Stop</h3>
                       <StopForm
                         initialValues={{
                           address: stop.address,
                           serviceType: stop.serviceType as 'delivery' | 'pickup' | 'inspection' | undefined,
-                          estimatedArrivalTime: stop.estimatedArrivalTime ?? undefined,
+                          numberOfSigns: stop.numberOfSigns ?? undefined,
+                          agent: stop.agent ?? undefined,
+                          isAuction: Boolean(stop.isAuction),
                           notes: stop.notes,
                         }}
                         onSubmit={handleEditStop}
@@ -489,6 +1112,11 @@ function RouteDetailContent() {
                           setEditingStopId(null);
                           setEditStopError(null);
                         }}
+                        addressSearchOrigin={customerAddressOrigin}
+                        standingInstructions={customerDefaults?.standingInstructions ?? undefined}
+                        defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
+                        defaultAgentName={customerDefaults?.defaultAgentName ?? undefined}
+                        availableAgents={customerDefaults?.agentOptions ?? undefined}
                         isSubmitting={editingStop}
                         error={editStopError}
                         submitLabel="Save Changes"
@@ -497,105 +1125,166 @@ function RouteDetailContent() {
                   );
                 }
 
-                const color = SERVICE_TYPE_COLORS[stop.serviceType as string] || '#1976d2';
+                const svcKey = (stop.serviceType as string) || 'delivery';
+                const stopCardClass = { delivery: styles.cardDelivery, pickup: styles.cardPickup, inspection: styles.cardInspection }[svcKey] ?? '';
+                const stopCircleClass = { delivery: styles.circleDelivery, pickup: styles.circlePickup, inspection: styles.circleInspection }[svcKey] ?? '';
+                const isTopVisibleStop = stop.id === topVisibleStopId;
+                const completedStop = isStopCompleted(stop);
                 return (
                   <div
                     key={stop.id}
-                    style={{
-                      padding: '16px',
-                      backgroundColor: 'white',
-                      border: `2px solid ${color}`,
-                      borderRadius: '8px',
-                      display: 'grid',
-                      gridTemplateColumns: '48px 1fr auto',
-                      gap: '16px',
-                      alignItems: 'start',
+                    className={`${styles.stopCard} ${stopCardClass} ${isTopVisibleStop ? styles.stopCardTop : ''} ${completedStop ? styles.stopCardCompleted : ''} ${draggingStopId === stop.id ? styles.stopCardDragging : ''}`}
+                    draggable={canManagePlanning && !planningLocked && !reordering}
+                    onDragStart={() => setDraggingStopId(stop.id)}
+                    onDragOver={(event) => {
+                      if (canManagePlanning && !planningLocked) {
+                        event.preventDefault();
+                      }
                     }}
+                    onDrop={() => {
+                      void handleDropStop(stop.id);
+                    }}
+                    onDragEnd={() => setDraggingStopId(null)}
                   >
                     {/* Sequence circle */}
-                    <div
-                      style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '50%',
-                        backgroundColor: color,
-                        color: 'white',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 'bold',
-                        fontSize: '16px',
-                        flexShrink: 0,
-                      }}
-                    >
+                    <div className={`${styles.circle} ${stopCircleClass}`}>
                       {stop.sequence ?? '?'}
                     </div>
 
                     {/* Details */}
                     <div>
-                      <div style={{ fontWeight: '600', marginBottom: '4px' }}>
-                        {stop.address}
+                      <div className={styles.stopAddress}>
+                        {stop.formattedAddress || stop.address}
                       </div>
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          padding: '2px 8px',
-                          backgroundColor: color,
-                          color: 'white',
-                          borderRadius: '8px',
-                          fontSize: '11px',
-                          fontWeight: 'bold',
-                          textTransform: 'uppercase',
-                          marginBottom: '4px',
-                        }}
-                      >
-                        {stop.serviceType || 'delivery'}
-                      </span>
-                      {stop.estimatedArrivalTime && (
-                        <div style={{ fontSize: '12px', color: '#666' }}>
-                          ETA: {formatDateTime(stop.estimatedArrivalTime)}
-                        </div>
-                      )}
-                      {stop.notes && (
-                        <div style={{ fontSize: '12px', color: '#999', fontStyle: 'italic', marginTop: '4px' }}>
-                          {stop.notes}
+                      <div className={styles.stopStatus}>{getStopStatusLabel(stop)}</div>
+                      {stop.agent && (
+                        <div className={styles.stopAgentBadge}>
+                          <span className={styles.stopAgentInitials}>
+                            {generateAgentInitials(stop.agent) ?? stop.agent.slice(0, 2).toUpperCase()}
+                          </span>
+                          <span>{stop.agent}</span>
                         </div>
                       )}
                     </div>
 
                     {/* Actions */}
-                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                      <button
-                        onClick={() => setEditingStopId(stop.id)}
-                        style={{
-                          padding: '6px 12px',
-                          backgroundColor: 'white',
-                          color: '#1b5e20',
-                          border: '1px solid #1b5e20',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteStop(stop.id)}
-                        style={{
-                          padding: '6px 12px',
-                          backgroundColor: 'white',
-                          color: '#c62828',
-                          border: '1px solid #c62828',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                );
+                    {canManagePlanning && !planningLocked && (
+                      <div className={styles.stopActions}>
+                        <button
+                          onClick={() => {
+                            void handleMoveStop(stop.id, 'up');
+                          }}
+                          className={styles.btnReorder}
+                          disabled={index === 0 || reordering}
+                        >
+                          Move Up
+                        </button>
+                        <button
+                          onClick={() => {
+                            void handleMoveStop(stop.id, 'down');
+                          }}
+                          className={styles.btnReorder}
+                          disabled={index === visibleStops.length - 1 || reordering}
+                        >
+                          Move Down
+                        </button>
+                        <button
+                          onClick={() => setEditingStopId(stop.id)}
+                          className={styles.btnEdit}
+                          disabled={reordering}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteStop(stop.id)}
+                          className={styles.btnDelete}
+                          disabled={reordering}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Execution actions — visible to all operators when route is active */}
+                    {(isPlacementPhase(route?.status) || isPickupPhase(route?.status)) && (
+                      <div className={styles.stopExecution}>
+                        {!stop.actualArrivalTime && (
+                          <div className={styles.execActionRow}>
+                            <button
+                              onClick={() => { void handleStopArrived(stop.id); }}
+                              className={styles.btnArrived}
+                              disabled={!!stopExecuting[stop.id]}
+                            >
+                              {stopExecuting[stop.id] ? 'Saving…' : '📍 Arrived'}
+                            </button>
+                            <button
+                              onClick={() => { void handleSkipStop(stop.id); }}
+                              className={styles.btnSkip}
+                              disabled={!!stopExecuting[stop.id]}
+                            >
+                              Skip Stop
+                            </button>
+                          </div>
+                        )}
+                        {stop.actualArrivalTime && !stop.actualDepartureTime && (
+                          <div className={styles.execCompletionPanel}>
+                            <span className={styles.execTimestamp}>
+                              ✓ Arrived: {formatDateTime(stop.actualArrivalTime)}
+                            </span>
+                            <textarea
+                              className={styles.execNotesInput}
+                              placeholder="Add completion notes (optional)…"
+                              rows={2}
+                              value={stopCompletionNotes[stop.id] ?? ''}
+                              onChange={(e) =>
+                                setStopCompletionNotes((prev) => ({ ...prev, [stop.id]: e.target.value }))
+                              }
+                            />
+                            <label className={styles.execPhotoLabel}>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className={styles.execPhotoInput}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] ?? null;
+                                  setStopCompletionPhoto((prev) => ({ ...prev, [stop.id]: file }));
+                                }}
+                              />
+                              {stopCompletionPhoto[stop.id]
+                                ? `📷 ${stopCompletionPhoto[stop.id]!.name}`
+                                : '📷 Attach Photo (optional)'}
+                            </label>
+                            <button
+                              onClick={() => { void handleStopCompleted(stop.id); }}
+                              className={styles.btnExecComplete}
+                              disabled={!!stopExecuting[stop.id]}
+                            >
+                              {stopExecuting[stop.id]
+                                ? 'Saving…'
+                                : stop.serviceType === 'pickup'
+                                ? '✓ Collected Signs'
+                                : '✓ Placed Signs'}
+                            </button>
+                          </div>
+                        )}
+                        {stop.actualArrivalTime && stop.actualDepartureTime && (
+                          <div className={styles.execDone}>
+                            {stop.notes?.startsWith('[SKIPPED]') ? (
+                              <span className={styles.execSkippedBadge}>⏭ Skipped</span>
+                            ) : (
+                              <>
+                                <span>✓ Arrived: {formatDateTime(stop.actualArrivalTime)}</span>
+                                <span>
+                                  ✓ {stop.serviceType === 'pickup' ? 'Collected' : 'Placed'}:{' '}
+                                  {formatDateTime(stop.actualDepartureTime)}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}                  </div>                );
               })}
             </div>
           </div>

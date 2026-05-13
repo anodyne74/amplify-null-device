@@ -1,0 +1,40 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-space-md);
+}
+
+.map {
+  width: 100%;
+  height: 360px;
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-lg);
+  overflow: hidden;
+}
+
+.emptyState {
+  padding: var(--nd-space-xl);
+  border: 1px dashed var(--nd-border-default);
+  border-radius: var(--nd-radius-lg);
+  color: var(--nd-text-secondary);
+  text-align: center;
+  background: var(--nd-bg-surface);
+}
+
+.sequenceLabel {
+  color: #10131a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.deviceLabel {
+  color: var(--nd-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .map {
+    height: 280px;
+  }
+}

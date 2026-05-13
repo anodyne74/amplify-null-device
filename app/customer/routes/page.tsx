@@ -8,8 +8,9 @@ import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import RouteListItem from '@/app/customer/components/RouteListItem';
 import type { Route } from '@/amplify/types';
+import styles from './page.module.css';
 
-type RouteStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+type RouteStatus = 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
 
 /**
  * Customer Routes List Page
@@ -62,7 +63,7 @@ export default function CustomerRoutesPage() {
       });
     } else {
       filtered = filtered.sort((a, b) => {
-        const statusOrder = { scheduled: 0, in_progress: 1, completed: 2, cancelled: 3 };
+        const statusOrder = { planned: 0, signs_placed: 1, signs_picked_up: 2, completed: 3, archived: 4 };
         return (statusOrder[a.status as RouteStatus] || 0) - (statusOrder[b.status as RouteStatus] || 0);
       });
     }
@@ -80,44 +81,35 @@ export default function CustomerRoutesPage() {
         <h1>Your Routes</h1>
 
         {error && (
-          <div style={{ padding: '16px', backgroundColor: '#ffebee', color: '#c62828', borderRadius: '4px', marginBottom: '16px' }}>
+          <div className={styles.errorBanner}>
             {error}
           </div>
         )}
 
         {/* Filters */}
-        <div style={{ marginBottom: '24px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+        <div className={styles.filtersRow}>
           <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Status</label>
+            <label className={styles.filterLabel}>Status</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as RouteStatus | 'all')}
-              style={{
-                padding: '8px 12px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                fontSize: '14px',
-              }}
+              className={styles.select}
             >
               <option value="all">All Statuses</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="in_progress">In Progress</option>
+              <option value="planned">Planned</option>
+              <option value="signs_placed">Signs Placed</option>
+              <option value="signs_picked_up">Signs Picked Up</option>
               <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="archived">Archived</option>
             </select>
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Sort By</label>
+            <label className={styles.filterLabel}>Sort By</label>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'date' | 'status')}
-              style={{
-                padding: '8px 12px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                fontSize: '14px',
-              }}
+              className={styles.select}
             >
               <option value="date">Date (Newest First)</option>
               <option value="status">Status</option>
@@ -127,20 +119,20 @@ export default function CustomerRoutesPage() {
 
         {/* Routes List */}
         {filteredRoutes.length === 0 ? (
-          <div style={{ padding: '32px', textAlign: 'center', color: '#666' }}>
+          <div className={styles.emptyState}>
             <p>No routes found</p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div className={styles.routesList}>
             {filteredRoutes.map((route) => (
               <RouteListItem key={route.id} route={route} />
             ))}
           </div>
         )}
 
-        <div style={{ marginTop: '24px', padding: '16px', backgroundColor: '#e3f2fd', borderRadius: '4px' }}>
-          <p style={{ margin: '0 0 8px 0' }}>Showing {filteredRoutes.length} routes</p>
-          <p style={{ margin: 0, fontSize: '14px', color: '#666' }}>
+        <div className={styles.summary}>
+          <p className={styles.summaryText}>Showing {filteredRoutes.length} routes</p>
+          <p className={styles.summarySubtext}>
             Click on any route to view details and stops
           </p>
         </div>

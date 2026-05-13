@@ -5,12 +5,18 @@
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import type { Invoice, LineItem } from '@/amplify/types';
+import { getCustomerPortalContext } from '@/lib/queries';
 
-const client = generateClient<Schema>();
+let _client: ReturnType<typeof generateClient<Schema>> | null = null;
+function getClient() {
+  if (!_client) _client = generateClient<Schema>();
+  return _client;
+}
 
 export interface GetInvoiceDetailParams {
   invoiceId: string;
   customerId: string; // For authorization verification
+  userSub?: string;
 }
 
 export interface InvoiceDetail {
@@ -22,6 +28,8 @@ export interface InvoiceDetail {
   periodEndDate?: string;
   totalAmount?: number;
   status?: string;
+  routeId?: string;
+  pdfS3Key?: string;
   lineItems?: Array<{
     id?: string;
     invoiceId?: string;
@@ -34,8 +42,15 @@ export interface InvoiceDetail {
 
 export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
   try {
+    if (params.userSub) {
+      const portalContext = await getCustomerPortalContext(params.userSub);
+      if (portalContext.role === 'read_only') {
+        return { data: null, errors: ['Access denied'] };
+      }
+    }
+
     // Fetch the invoice
-    const invoiceResponse = await client.models.Invoice.get({
+    const invoiceResponse = await getClient().models.Invoice.get({
       id: params.invoiceId,
     });
 
@@ -51,7 +66,7 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
     }
 
     // Fetch line items for this invoice
-    const { data: lineItems, errors: lineItemsErrors } = await client.models.LineItem.list({
+    const { data: lineItems, errors: lineItemsErrors } = await getClient().models.LineItem.list({
       filter: {
         invoiceId: {
           eq: params.invoiceId,
@@ -77,6 +92,8 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
       periodEndDate: invoice.periodEndDate || undefined,
       totalAmount: invoice.totalAmount || undefined,
       status: invoice.status || undefined,
+      routeId: invoice.routeId || undefined,
+      pdfS3Key: invoice.pdfS3Key || undefined,
       lineItems: (lineItems || []).map((item: any) => ({
         id: item.id,
         invoiceId: item.invoiceId,

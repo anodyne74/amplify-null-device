@@ -1,8 +1,4 @@
-import { defineAuth, defineFunction } from '@aws-amplify/backend';
-
-const postConfirmation = defineFunction({
-  entry: './post-confirmation.ts',
-});
+import { defineAuth } from '@aws-amplify/backend';
 
 /**
  * Define and configure your auth resource
@@ -16,13 +12,10 @@ export const auth = defineAuth({
   },
   /**
    * Cognito User Groups:
-   * - customer: all new sign-ups are added here automatically via post-confirmation trigger
+   * - customer: assigned by an administrator when a signup request is approved
    * - operator: staff members; must be added manually by an admin
+   * - administrator: superusers with full access; must be added manually by an admin
    */
-  groups: ['customer', 'operator'],
-  triggers: {
-    postConfirmation,
-  },
-  access: (allow) => [allow.resource(postConfirmation).to(['addUserToGroup'])],
+  groups: ['customer', 'operator', 'administrator'],
 });
 

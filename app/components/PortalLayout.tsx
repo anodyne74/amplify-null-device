@@ -5,7 +5,6 @@ import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import styles from './PortalLayout.module.css';
-import ThemeModeSelect from '@/app/components/ThemeModeSelect';
 
 export interface NavItem {
   href: string;
@@ -103,8 +102,6 @@ export default function PortalLayout({
         </nav>
 
         <div className={styles.userSection}>
-          <ThemeModeSelect className={styles.themeControls} />
-
           <p className={styles.userLabel}>Signed in as</p>
           <p className={styles.userEmail}>{userEmail}</p>
 

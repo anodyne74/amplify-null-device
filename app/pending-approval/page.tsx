@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import { signOut } from 'aws-amplify/auth';
 import styles from '@/app/dashboard.module.css';
 import pageStyles from '@/app/pending-approval/page.module.css';
-import ThemeModeSelect from '@/app/components/ThemeModeSelect';
 
 export default function PendingApprovalPage() {
   const router = useRouter();
@@ -18,7 +17,6 @@ export default function PendingApprovalPage() {
     <div className={styles.page}>
       <div className={pageStyles.headerRow}>
         <h1 className={styles.heading}>Account Pending Approval</h1>
-        <ThemeModeSelect className={pageStyles.themeToggle} label="Appearance" />
       </div>
       <div className={styles.infoPanel}>
         <h3>Request Received</h3>

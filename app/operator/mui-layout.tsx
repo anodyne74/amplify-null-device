@@ -32,7 +32,6 @@ import MapIcon from '@mui/icons-material/Map';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { operatorTheme } from '@/app/operator/mui-theme';
-import ThemeModeSelect from '@/app/components/ThemeModeSelect';
 
 interface NavItem {
   label: string;
@@ -175,10 +174,6 @@ export default function OperatorMUILayout({
 
       {/* User Section - anchored to bottom */}
       <Box sx={{ mt: 'auto' }}>
-        <Box sx={{ mb: 2 }}>
-          <ThemeModeSelect />
-        </Box>
-
         <Typography
           sx={{
             fontFamily: 'var(--nd-font-mono, monospace)',

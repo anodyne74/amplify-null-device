@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuthenticator, Authenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
-import ThemeModeSelect from '@/app/components/ThemeModeSelect';
 import styles from './page.module.css';
 
 /**
@@ -95,8 +94,6 @@ export default function Home() {
   return (
     <div className={styles.loginPage}>
       <div className={styles.loginContainer}>
-        <ThemeModeSelect className={styles.publicThemeToggle} label="Appearance" />
-
         {/* Branding Section */}
         <div className={styles.brandingSection}>
           <div className={styles.logo}>◆</div>

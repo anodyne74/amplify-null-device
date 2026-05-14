@@ -199,4 +199,21 @@ describe('Operator Route Detail Page', () => {
 
     expect(screen.getByText(/← back to routes/i)).toBeInTheDocument();
   });
+
+  it('shows "Signs Placed" action label for active placement stops', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
+      data: {
+        ...mockRoute,
+        status: 'signs_placed',
+        actualStartTime: '2024-03-01T10:00:00Z',
+      },
+      errors: undefined,
+    });
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /signs placed/i })).toBeInTheDocument();
+    });
+  });
 });

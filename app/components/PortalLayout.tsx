@@ -95,6 +95,7 @@ export default function PortalLayout({
                   title={item.label}
                 >
                   <FontAwesomeIcon icon={item.icon} className={styles.navIcon} />
+                  <span className={styles.navLabel}>{item.label}</span>
                 </Link>
               </li>
             ))}

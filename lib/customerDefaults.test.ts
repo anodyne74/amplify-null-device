@@ -25,6 +25,19 @@ describe('customerDefaults', () => {
     });
   });
 
+  it('preserves provided default agent initials', () => {
+    expect(
+      normalizeCustomerDefaults({
+        defaultAgentName: 'Bo',
+        defaultAgentInitials: 'BO',
+      })
+    ).toEqual({
+      defaultAgentName: 'Bo',
+      defaultAgentInitials: 'BO',
+      agentOptions: ['Bo'],
+    });
+  });
+
   it('parses agent options from mixed line and comma input', () => {
     expect(parseAgentOptionsInput('Jamie Lee, Pat Doe\nAlex Roe')).toEqual([
       'Jamie Lee',

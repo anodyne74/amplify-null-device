@@ -14,10 +14,11 @@ import { isAdmin } from '@/lib/amplify-config';
 import { generateAgentInitials } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import { createStop, deleteRoute, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
+import { createStop, deleteRoute, getCustomer, getUserSettings, updateRouteExecution, updateStopExecution } from '@/lib/queries';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import type { Route, Stop } from '@/amplify/types';
+import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
 
 const RouteStopsMap = dynamic(
@@ -222,6 +223,7 @@ function RouteDetailContent() {
   // Mobile execution: per-stop completion notes
   const [stopCompletionNotes, setStopCompletionNotes] = useState<Record<string, string>>({});
   const [stopCompletionPhoto, setStopCompletionPhoto] = useState<Record<string, File | null>>({});
+  const [mapTheme, setMapTheme] = useState<MapTheme>('light');
 
   const completeRouteNow = useCallback(async (routeToComplete: Route) => {
     const now = new Date();
@@ -423,6 +425,25 @@ function RouteDetailContent() {
     }
     if (id) fetchAll();
   }, [id, fetchStops]);
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    if (typeof getUserSettings !== 'function') return;
+    let cancelled = false;
+
+    void getUserSettings(user.userId)
+      .then((result) => {
+        if (cancelled || !result.data?.mapTheme) return;
+        setMapTheme(result.data.mapTheme as MapTheme);
+      })
+      .catch(() => {
+        // Non-blocking: map defaults to light.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
 
   const handleStartRoute = async () => {
     if (!route) return;
@@ -899,7 +920,7 @@ function RouteDetailContent() {
 
             <div className={styles.mapSection}>
               <h3 className={styles.mapHeading}>Route Map</h3>
-              <RouteStopsMap stops={stops} activeStopId={topVisibleStopId} />
+              <RouteStopsMap stops={stops} activeStopId={topVisibleStopId} mapTheme={mapTheme} />
             </div>
 
             {canManagePlanning && !planningLocked && (

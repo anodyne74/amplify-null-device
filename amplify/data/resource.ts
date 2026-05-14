@@ -1,4 +1,5 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
+import { customerAccessActivation } from '../functions/customer-access-activation/resource';
 
 /**
  * Delivery Management System Data Model
@@ -312,7 +313,9 @@ const schema = a.schema({
       allow.ownerDefinedIn('userSub').identityClaim('sub').to(['read', 'create', 'update', 'delete']),
       allow.groups(['administrator']).to(['read']),
     ]),
-});
+}).authorization((allow) => [
+  allow.resource(customerAccessActivation).to(['query', 'mutate']),
+]);
 
 export type Schema = ClientSchema<typeof schema>;
 

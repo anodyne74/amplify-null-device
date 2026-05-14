@@ -41,6 +41,21 @@ type CustomerUser = {
 };
 
 const GROUPS = ['customer', 'operator', 'administrator'] as const;
+const PENDING_SUB_PREFIX = 'pending:';
+
+function toPendingSub(email: string) {
+  return `${PENDING_SUB_PREFIX}${email.trim().toLowerCase()}`;
+}
+
+function toViewerSubs(users: Array<{ userSub?: string | null }>) {
+  return [
+    ...new Set(
+      users
+        .map((user) => (user.userSub || '').trim())
+        .filter((userSub): userSub is string => Boolean(userSub) && !userSub.startsWith(PENDING_SUB_PREFIX))
+    ),
+  ];
+}
 
 export default function UsersAdminPage() {
   const [users, setUsers] = useState<CognitoUser[]>([]);
@@ -56,7 +71,6 @@ export default function UsersAdminPage() {
   // Customer Access section state
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-  const [selectedCustomerRole, setSelectedCustomerRole] = useState<'account_owner' | 'read_only'>('read_only');
   const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>([]);
   const [accessPending, setAccessPending] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
@@ -146,7 +160,10 @@ export default function UsersAdminPage() {
     }
   }, [selectedUsername, loadGroups]);
 
-  const availableGroups = useMemo(() => GROUPS.filter((g) => !groups.includes(g)), [groups]);
+  const hasAccountOwner = useMemo(
+    () => customerUsers.some((user) => user.role === 'account_owner'),
+    [customerUsers]
+  );
 
   // ── Customer Access ──────────────────────────────────────────────
   const loadCustomers = useCallback(async () => {
@@ -189,24 +206,33 @@ export default function UsersAdminPage() {
     }
   }, [selectedCustomerId, loadCustomerUsers]);
 
+  useEffect(() => {
+    if (!selectedCustomerId) {
+      return;
+    }
+
+    if (!hasAccountOwner && newUserRole !== 'account_owner') {
+      setNewUserRole('account_owner');
+    }
+  }, [hasAccountOwner, newUserRole, selectedCustomerId]);
+
   const handleAddCustomerUser = async () => {
     if (!newUserEmail.trim()) {
       setAccessError('User email is required.');
       return;
     }
 
-    const resolvedUser = await resolveUserByEmail(newUserEmail.trim()).catch(() => null);
-    if (!resolvedUser?.username || !resolvedUser.sub) {
-      setAccessError('Could not find a Cognito user for that email.');
-      return;
-    }
+    const normalizedEmail = newUserEmail.trim().toLowerCase();
+    const pendingUserSub = toPendingSub(normalizedEmail);
+    const resolvedUser = await resolveUserByEmail(normalizedEmail).catch(() => null);
+    const assignedUserSub = resolvedUser?.sub || pendingUserSub;
 
     const owner = customerUsers.find((u) => u.role === 'account_owner');
     if (newUserRole === 'read_only' && !owner) {
       setAccessError('No account owner assigned for this customer yet. Assign a primary contact first.');
       return;
     }
-    if (newUserRole === 'account_owner' && owner && owner.userSub !== resolvedUser.sub) {
+    if (newUserRole === 'account_owner' && owner && owner.userSub !== assignedUserSub) {
       setAccessError('This customer already has a primary contact. Remove the current owner before assigning a new one.');
       return;
     }
@@ -216,29 +242,37 @@ export default function UsersAdminPage() {
     setAccessSuccess(null);
 
     try {
-      // Ensure customer users belong to customer group.
-      const userGroupsPayload = await callAdminApi({
-        action: 'listGroupsForUser',
-        username: resolvedUser.username,
-      });
-      const userGroups = (userGroupsPayload.groups as string[]) || [];
-      if (!userGroups.includes('customer')) {
-        await callAdminApi({
-          action: 'addUserToGroup',
+      // If the Cognito user already exists, ensure they are in the customer group now.
+      // If they do not exist yet, the post-confirmation trigger will apply this automatically.
+      if (resolvedUser?.username) {
+        const userGroupsPayload = await callAdminApi({
+          action: 'listGroupsForUser',
           username: resolvedUser.username,
-          groupName: 'customer',
         });
+        const userGroups = (userGroupsPayload.groups as string[]) || [];
+        if (!userGroups.includes('customer')) {
+          await callAdminApi({
+            action: 'addUserToGroup',
+            username: resolvedUser.username,
+            groupName: 'customer',
+          });
+        }
       }
 
-      const existing = customerUsers.find((u) => u.userSub === resolvedUser.sub);
+      const existing =
+        customerUsers.find((u) => u.userSub === assignedUserSub) ||
+        customerUsers.find((u) => (u.email || '').toLowerCase() === normalizedEmail);
       if (!existing) {
         const result = await createCustomerUser({
           customerId: selectedCustomerId,
-          userSub: resolvedUser.sub,
-          accountOwnerSub: newUserRole === 'account_owner' ? resolvedUser.sub : (owner?.userSub || resolvedUser.sub),
+          userSub: assignedUserSub,
+          accountOwnerSub:
+            newUserRole === 'account_owner'
+              ? assignedUserSub
+              : (owner?.userSub || assignedUserSub),
           role: newUserRole,
-          name: newUserName || resolvedUser.name || resolvedUser.firstName || undefined,
-          email: newUserEmail.trim().toLowerCase(),
+          name: newUserName || resolvedUser?.name || resolvedUser?.firstName || undefined,
+          email: normalizedEmail,
         });
 
         if (result.errors && result.errors.length > 0) {
@@ -253,17 +287,24 @@ export default function UsersAdminPage() {
         updated.push({
           id: 'temp',
           customerId: selectedCustomerId,
-          userSub: resolvedUser.sub,
-          accountOwnerSub: newUserRole === 'account_owner' ? resolvedUser.sub : (owner?.userSub || resolvedUser.sub),
+          userSub: assignedUserSub,
+          accountOwnerSub:
+            newUserRole === 'account_owner'
+              ? assignedUserSub
+              : (owner?.userSub || assignedUserSub),
           role: newUserRole,
-            name: newUserName || resolvedUser.name || resolvedUser.firstName || undefined,
-          email: newUserEmail.trim().toLowerCase(),
+          name: newUserName || resolvedUser?.name || resolvedUser?.firstName || undefined,
+          email: normalizedEmail,
         });
       }
-      const viewerSubs = [...new Set(updated.map((u) => u.userSub))];
+      const viewerSubs = toViewerSubs(updated);
       await syncViewerSubsForCustomer(selectedCustomerId, viewerSubs);
 
-      setAccessSuccess('User assigned to customer and access synced to all routes and stops.');
+      setAccessSuccess(
+        resolvedUser?.sub
+          ? 'User assigned to customer and access synced to all routes and stops.'
+          : 'Customer access is pre-assigned. When this email registers, role access will activate automatically.'
+      );
       setNewUserEmail('');
       setNewUserRole('read_only');
       setNewUserName('');
@@ -285,7 +326,7 @@ export default function UsersAdminPage() {
       setAccessError('Failed to remove user.');
     } else {
       const updated = customerUsers.filter((u) => u.id !== customerUserId);
-      const viewerSubs = [...new Set(updated.map((u) => u.userSub))];
+      const viewerSubs = toViewerSubs(updated);
       await syncViewerSubsForCustomer(selectedCustomerId, viewerSubs);
 
       setAccessSuccess('User removed and access revoked from all routes and stops.');
@@ -315,13 +356,6 @@ export default function UsersAdminPage() {
           setPending(false);
           return;
         }
-
-        const owner = customerUsers.find((u) => u.role === 'account_owner');
-        if (selectedCustomerRole === 'account_owner' && owner && owner.userSub !== selectedUser.sub) {
-          setError('This customer already has a primary contact. Remove the current owner first.');
-          setPending(false);
-          return;
-        }
       }
 
       await callAdminApi({ action: 'addUserToGroup', username: selectedUsername, groupName });
@@ -330,15 +364,25 @@ export default function UsersAdminPage() {
         const owner = customerUsers.find((u) => u.role === 'account_owner');
         if (selectedUser?.sub) {
           const existing = customerUsers.find((u) => u.userSub === selectedUser.sub);
+          // Preserve existing role if present. If no record exists, first user becomes owner,
+          // and all subsequent users are read_only when an owner already exists.
+          const targetRole: 'account_owner' | 'read_only' = existing?.role === 'account_owner'
+            ? 'account_owner'
+            : existing?.role === 'read_only'
+              ? 'read_only'
+              : owner && owner.userSub !== selectedUser.sub
+                ? 'read_only'
+                : 'account_owner';
+          const accountOwnerSub = targetRole === 'account_owner'
+            ? selectedUser.sub
+            : (owner?.userSub || selectedUser.sub);
+
           if (!existing) {
             const customerUserResult = await createCustomerUser({
               customerId: selectedCustomerId,
               userSub: selectedUser.sub,
-              accountOwnerSub:
-                selectedCustomerRole === 'account_owner'
-                  ? selectedUser.sub
-                  : (owner?.userSub || selectedUser.sub),
-              role: selectedCustomerRole,
+              accountOwnerSub,
+              role: targetRole,
               name: selectedUser.name || selectedUser.firstName || undefined,
               email: selectedUser.email || undefined,
             });
@@ -363,18 +407,15 @@ export default function UsersAdminPage() {
                   id: 'temp',
                   customerId: selectedCustomerId,
                   userSub: selectedUser.sub,
-                  accountOwnerSub:
-                    selectedCustomerRole === 'account_owner'
-                      ? selectedUser.sub
-                      : (owner?.userSub || selectedUser.sub),
-                  role: selectedCustomerRole,
+                  accountOwnerSub,
+                  role: targetRole,
                   name: selectedUser.name || selectedUser.firstName || undefined,
                   email: selectedUser.email || undefined,
                 },
               ];
           await syncViewerSubsForCustomer(
             selectedCustomerId,
-            [...new Set(updatedUsers.map((u) => u.userSub))]
+            toViewerSubs(updatedUsers)
           );
           await loadCustomerUsers(selectedCustomerId);
         }
@@ -495,72 +536,44 @@ export default function UsersAdminPage() {
                 </p>
               )}
 
-              {selectedCustomerId && (
-                <div>
-                  <label htmlFor="customerRoleForGroup">Customer role when assigning customer group</label>
-                  <br />
-                  <select
-                    id="customerRoleForGroup"
-                    value={selectedCustomerRole}
-                    onChange={(e) => setSelectedCustomerRole(e.target.value as 'account_owner' | 'read_only')}
-                    disabled={pending}
-                  >
-                    <option value="account_owner">Primary contact (account owner)</option>
-                    <option value="read_only">Read-only</option>
-                  </select>
-                </div>
+              <h4>Group Membership</h4>
+              {!selectedCustomerId && (
+                <p className={styles.welcome} style={{ color: 'var(--nd-text-muted)', fontSize: '0.9rem' }}>
+                  To enable customer access, select a customer in the "Customer Access" section below first.
+                </p>
               )}
-
-              <h4>Current Groups</h4>
-              {groups.length === 0 ? (
-                <p className={styles.welcome}>No groups assigned.</p>
-              ) : (
-                <ul>
-                  {groups.map((group) => (
-                    <li key={group}>
-                      {group}{' '}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void removeGroup(group as (typeof GROUPS)[number]);
-                        }}
-                        disabled={pending}
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <h4>Available Groups</h4>
-              {availableGroups.length === 0 ? (
-                <p className={styles.welcome}>All supported groups already assigned.</p>
-              ) : (
-                <>
-                  {availableGroups.includes('customer') && !selectedCustomerId && (
-                    <p className={styles.welcome} style={{ color: 'var(--nd-text-muted)', fontSize: '0.9rem' }}>
-                      ℹ️ To assign the customer group, select a customer in the "Customer Access" section below first.
-                    </p>
-                  )}
-                  <ul>
-                    {availableGroups.map((group) => (
-                      <li key={group}>
-                        {group}{' '}
-                        <button
-                          type="button"
-                          onClick={() => {
+              <div style={{ display: 'grid', gap: 10 }}>
+                {GROUPS.map((group) => {
+                  const checked = groups.includes(group);
+                  const disabled = pending || (group === 'customer' && !selectedCustomerId);
+                  return (
+                    <label
+                      key={group}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        opacity: disabled ? 0.65 : 1,
+                        cursor: disabled ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={disabled}
+                        onChange={(event) => {
+                          if (event.target.checked) {
                             void assignGroup(group);
-                          }}
-                          disabled={pending || (group === 'customer' && !selectedCustomerId)}
-                        >
-                          Assign
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
+                            return;
+                          }
+                          void removeGroup(group);
+                        }}
+                      />
+                      <span style={{ textTransform: 'capitalize' }}>{group}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -624,13 +637,18 @@ export default function UsersAdminPage() {
               <p className={styles.welcome}>
                 Enter the user email. Users in the customer group must be assigned to a customer.
               </p>
+              {!hasAccountOwner && (
+                <p className={styles.welcome}>
+                  This customer has no primary contact yet. Assign a primary contact first before adding read-only users.
+                </p>
+              )}
               <select
                 value={newUserRole}
                 onChange={(e) => setNewUserRole(e.target.value as 'account_owner' | 'read_only')}
                 disabled={accessPending}
               >
                 <option value="account_owner">Primary contact (account owner)</option>
-                <option value="read_only">Read-only</option>
+                <option value="read_only" disabled={!hasAccountOwner}>Read-only</option>
               </select>
               <input
                 value={newUserEmail}

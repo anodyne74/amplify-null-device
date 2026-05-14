@@ -50,9 +50,12 @@ export function normalizeAgentOptions(agentOptions?: string[], defaultAgentName?
 export function normalizeCustomerDefaults<T extends CustomerDefaultsInput>(input: T): T {
   const standingInstructions = input.standingInstructions?.trim() || undefined;
   const defaultAgentName = input.defaultAgentName?.trim() || undefined;
-  const defaultAgentInitials = defaultAgentName
-    ? generateAgentInitials(defaultAgentName)
-    : undefined;
+  const providedInitials = input.defaultAgentInitials?.trim();
+  const defaultAgentInitials = providedInitials
+    ? providedInitials.toUpperCase()
+    : defaultAgentName
+      ? generateAgentInitials(defaultAgentName)
+      : undefined;
   const agentOptions = normalizeAgentOptions(input.agentOptions, defaultAgentName);
 
   return {

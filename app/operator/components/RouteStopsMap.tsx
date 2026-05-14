@@ -11,6 +11,7 @@ interface RouteStopsMapProps {
   activeStopId?: string | null;
   currentPosition?: { latitude: number; longitude: number } | null;
   mapTheme?: MapTheme;
+  onStopSelect?: (stopId: string) => void;
 }
 
 type StopWithCoords = Stop & { latitude: number; longitude: number };
@@ -49,7 +50,13 @@ function markerColor(serviceType?: string | null) {
   return '#00e5ff';
 }
 
-export function RouteStopsMap({ stops, activeStopId, currentPosition, mapTheme = 'light' }: RouteStopsMapProps) {
+export function RouteStopsMap({
+  stops,
+  activeStopId,
+  currentPosition,
+  mapTheme = 'light',
+  onStopSelect,
+}: RouteStopsMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const leafletRef = useRef<typeof import('leaflet') | null>(null);
@@ -117,9 +124,6 @@ export function RouteStopsMap({ stops, activeStopId, currentPosition, mapTheme =
         maxZoom: 20,
       }).addTo(map);
 
-      const positions = mappedStops.map((s): [number, number] => [s.latitude, s.longitude]);
-      L.polyline(positions, { color: '#1a73e8', weight: 5, opacity: 0.45 }).addTo(map);
-
       mappedStops.forEach((stop) => {
         const isCompleted = Boolean(stop.actualDepartureTime);
         const isActive = stop.id === activeStop.id;
@@ -169,6 +173,10 @@ export function RouteStopsMap({ stops, activeStopId, currentPosition, mapTheme =
             className: styles.sequenceLabel,
           });
         });
+
+        if (onStopSelect) {
+          circle.on('click', () => onStopSelect(stop.id));
+        }
       });
 
       if (displayPosition) {

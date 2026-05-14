@@ -99,4 +99,45 @@ describe('admin users API', () => {
     await expect(response.json()).resolves.toEqual({ success: true });
     expect(sendMock).toHaveBeenCalled();
   });
+
+  it('resolves user by email for customer access assignment', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock.mockResolvedValue({
+      Users: [
+        {
+          Username: 'customer-user',
+          Attributes: [
+            { Name: 'email', Value: 'ellisa.bannyan@mcgrath.com.au' },
+            { Name: 'sub', Value: 'sub-customer-1' },
+            { Name: 'name', Value: 'Ellisa' },
+          ],
+        },
+      ],
+      PaginationToken: undefined,
+    });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'getUserByEmail',
+        email: 'Ellisa.Bannyan@mcgrath.com.au',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      user: expect.objectContaining({
+        username: 'customer-user',
+        email: 'ellisa.bannyan@mcgrath.com.au',
+        sub: 'sub-customer-1',
+      }),
+    });
+    expect(sendMock).toHaveBeenCalled();
+  });
 });

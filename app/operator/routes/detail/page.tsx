@@ -238,6 +238,7 @@ function RouteDetailContent() {
   const [mapTheme, setMapTheme] = useState<MapTheme>('light');
   const gpsWatchIdRef = useRef<number | null>(null);
   const lastGpsPointRef = useRef<{ lat: number; lng: number } | null>(null);
+  const wakeLockRef = useRef<{ release: () => Promise<void>; addEventListener?: (type: string, listener: () => void) => void } | null>(null);
 
   const completeRouteNow = useCallback(async (routeToComplete: Route) => {
     const now = new Date();
@@ -532,6 +533,83 @@ function RouteDetailContent() {
       lastGpsPointRef.current = null;
     };
   }, [route]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof navigator === 'undefined') {
+      return;
+    }
+
+    const isExecutionActive = route?.status === 'signs_placed' || route?.status === 'signs_picked_up';
+    const wakeLockApi = (
+      navigator as Navigator & {
+        wakeLock?: {
+          request: (type: 'screen') => Promise<{
+            release: () => Promise<void>;
+            addEventListener?: (type: string, listener: () => void) => void;
+          }>;
+        };
+      }
+    ).wakeLock;
+
+    let cancelled = false;
+
+    const releaseWakeLock = async () => {
+      if (!wakeLockRef.current) return;
+      try {
+        await wakeLockRef.current.release();
+      } catch {
+        // Ignore release failures.
+      } finally {
+        wakeLockRef.current = null;
+      }
+    };
+
+    const requestWakeLock = async () => {
+      if (!wakeLockApi || !isExecutionActive || document.visibilityState !== 'visible') {
+        return;
+      }
+
+      try {
+        const sentinel = await wakeLockApi.request('screen');
+
+        if (cancelled) {
+          await sentinel.release();
+          return;
+        }
+
+        wakeLockRef.current = sentinel;
+        if (typeof sentinel.addEventListener === 'function') {
+          sentinel.addEventListener('release', () => {
+            if (wakeLockRef.current === sentinel) {
+              wakeLockRef.current = null;
+            }
+          });
+        }
+      } catch {
+        // Non-blocking fallback when wake lock is not supported or denied.
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isExecutionActive) {
+        void requestWakeLock();
+      }
+    };
+
+    if (isExecutionActive) {
+      void requestWakeLock();
+    } else {
+      void releaseWakeLock();
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      void releaseWakeLock();
+    };
+  }, [route?.status]);
 
   const handleStartRoute = async () => {
     if (!route) return;
@@ -828,6 +906,7 @@ function RouteDetailContent() {
   };
 
   const planningLocked = route?.status !== 'planned';
+  const isExecutionMode = isPlacementPhase(route?.status) || isPickupPhase(route?.status);
   const visibleStops = (() => {
     if (!route) return stops;
 
@@ -1040,7 +1119,7 @@ function RouteDetailContent() {
               )}
             </div>
 
-            <div className={styles.mapSection}>
+            <div className={`${styles.mapSection} ${isExecutionMode ? styles.mapSectionExecutionMobile : ''}`}>
               <h3 className={styles.mapHeading}>Route Map</h3>
               <RouteStopsMap
                 stops={stops}
@@ -1092,7 +1171,7 @@ function RouteDetailContent() {
               </div>
             )}
 
-            <div className={styles.stopsList}>
+            <div className={`${styles.stopsList} ${isExecutionMode ? styles.stopsListExecutionMobile : ''}`}>
               {visibleStops.map((stop, index) => {
                 if (editingStopId === stop.id) {
                   return (
@@ -1133,7 +1212,7 @@ function RouteDetailContent() {
                 return (
                   <div
                     key={stop.id}
-                    className={`${styles.stopCard} ${stopCardClass} ${isTopVisibleStop ? styles.stopCardTop : ''} ${completedStop ? styles.stopCardCompleted : ''} ${draggingStopId === stop.id ? styles.stopCardDragging : ''}`}
+                    className={`${styles.stopCard} ${stopCardClass} ${isTopVisibleStop ? styles.stopCardTop : ''} ${completedStop ? styles.stopCardCompleted : ''} ${draggingStopId === stop.id ? styles.stopCardDragging : ''} ${isExecutionMode ? styles.stopCardExecutionCompact : ''}`}
                     draggable={canManagePlanning && !planningLocked && !reordering}
                     onDragStart={() => setDraggingStopId(stop.id)}
                     onDragOver={(event) => {
@@ -1215,7 +1294,11 @@ function RouteDetailContent() {
                               className={styles.btnArrived}
                               disabled={!!stopExecuting[stop.id]}
                             >
-                              {stopExecuting[stop.id] ? 'Saving…' : '📍 Arrived'}
+                              {stopExecuting[stop.id]
+                                ? 'Saving…'
+                                : stop.serviceType === 'pickup'
+                                ? 'Signs Picked Up'
+                                : 'Signs Placed'}
                             </button>
                             <button
                               onClick={() => { void handleSkipStop(stop.id); }}

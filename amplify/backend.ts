@@ -3,8 +3,9 @@ import { CfnTemplate } from 'aws-cdk-lib/aws-ses';
 import { auth } from './auth/resource';
 import { data } from './data/resource';
 import { storage } from './storage/resource';
+import { customerAccessActivation } from './functions/customer-access-activation/resource';
 
-const backend = defineBackend({ auth, data, storage });
+const backend = defineBackend({ auth, data, storage, customerAccessActivation });
 
 const sesStack = backend.createStack('ses-invoice-template');
 

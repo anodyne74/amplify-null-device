@@ -139,10 +139,9 @@ describe('Operator Routes List Page', () => {
   });
 
   it('uses the admin-only guard on the routes page', () => {
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [],
-      errors: undefined,
-    });
+    // Keep data requests pending so this assertion-only test does not race async state updates.
+    (listAllRoutesModule.listAllRoutes as jest.Mock).mockReturnValue(new Promise(() => {}));
+    (listAllCustomersModule.listAllCustomers as jest.Mock).mockReturnValue(new Promise(() => {}));
 
     render(<RoutesPage />);
 

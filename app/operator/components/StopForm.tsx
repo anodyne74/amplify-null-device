@@ -63,7 +63,17 @@ export function StopForm({
   const [resolvedAddress, setResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [notes, setNotes] = useState(initialValues?.notes || '');
   const [validationError, setValidationError] = useState<string | null>(null);
-  const agentOptions = (availableAgents ?? []).filter(Boolean);
+  const agentOptions = Array.from(
+    new Set(
+      [
+        ...(availableAgents ?? []),
+        initialValues?.agent,
+        defaultAgentName,
+      ]
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value))
+    )
+  );
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();

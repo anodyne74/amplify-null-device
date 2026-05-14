@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 import { generateClient } from 'aws-amplify/data';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
@@ -10,11 +11,12 @@ import { StopForm } from '@/app/operator/components/StopForm';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { createStop, updateRoute } from '@/lib/queries';
+import { createStop, getUserSettings, updateRoute } from '@/lib/queries';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import type { Schema } from '@/amplify/data/resource';
 import type { Route, Stop } from '@/amplify/types';
+import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
 
 type CustomerOption = { id: string; name: string; email: string; addressLine1?: string | null };
@@ -31,6 +33,7 @@ function RouteEditContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const routeId = searchParams.get('id') ?? '';
+  const { user } = useAuthenticator();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -42,12 +45,14 @@ function RouteEditContent() {
   const [stopSaving, setStopSaving] = useState(false);
   const [reordering, setReordering] = useState(false);
   const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [stopError, setStopError] = useState<string | null>(null);
 
   const [routeCode, setRouteCode] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [notes, setNotes] = useState('');
   const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [mapTheme, setMapTheme] = useState<MapTheme>('light');
 
   const fetchStops = useCallback(async () => {
     if (!routeId) return;
@@ -161,6 +166,38 @@ function RouteEditContent() {
       cancelled = true;
     };
   }, [customerId, customers]);
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    if (typeof getUserSettings !== 'function') return;
+    let cancelled = false;
+
+    void getUserSettings(user.userId)
+      .then((result) => {
+        if (cancelled || !result.data?.mapTheme) return;
+        setMapTheme(result.data.mapTheme as MapTheme);
+      })
+      .catch(() => {
+        // Non-blocking: map defaults to light.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
+
+  useEffect(() => {
+    if (stops.length === 0) {
+      setSelectedStopId(null);
+      return;
+    }
+
+    if (selectedStopId && stops.some((stop) => stop.id === selectedStopId)) {
+      return;
+    }
+
+    setSelectedStopId(stops[0].id);
+  }, [selectedStopId, stops]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -418,29 +455,27 @@ function RouteEditContent() {
           <p className={styles.dragHint}>Drag cards to reorder stops</p>
         )}
 
-        <div className={styles.mapWrap}>
-          <h3 className={styles.mapTitle}>Route Map and Ordered Addresses</h3>
-          <RouteStopsMap stops={stops} />
-        </div>
+        <div className={styles.stopsLayout}>
+          <div className={styles.stopsPane}>
 
-        {showAddStop && (
-          <div className={styles.stopFormWrap}>
-            <h3 className={styles.formTitle}>Add Stop</h3>
-            <StopForm
-              onSubmit={handleAddStop}
-              onCancel={() => setShowAddStop(false)}
-              addressSearchOrigin={customerAddressOrigin}
-              isSubmitting={stopSaving}
-              submitLabel="Add Stop"
-            />
-          </div>
-        )}
+            {showAddStop && (
+              <div className={styles.stopFormWrap}>
+                <h3 className={styles.formTitle}>Add Stop</h3>
+                <StopForm
+                  onSubmit={handleAddStop}
+                  onCancel={() => setShowAddStop(false)}
+                  addressSearchOrigin={customerAddressOrigin}
+                  isSubmitting={stopSaving}
+                  submitLabel="Add Stop"
+                />
+              </div>
+            )}
 
-        {stops.length === 0 && !showAddStop ? (
-          <p className={styles.emptyStops}>No stops yet.</p>
-        ) : (
-          <div className={styles.stopList}>
-            {stops.map((stop, index) => {
+            {stops.length === 0 && !showAddStop ? (
+              <p className={styles.emptyStops}>No stops yet.</p>
+            ) : (
+              <div className={styles.stopList}>
+                {stops.map((stop, index) => {
               if (editingStopId === stop.id) {
                 return (
                   <div key={stop.id} className={styles.stopFormWrap}>
@@ -464,16 +499,17 @@ function RouteEditContent() {
                 );
               }
 
-              return (
-                <div
-                  key={stop.id}
-                  className={`${styles.stopRow}${draggingStopId === stop.id ? ` ${styles.stopRowDragging}` : ''}`}
-                  draggable={!reordering && !stopSaving}
-                  onDragStart={() => setDraggingStopId(stop.id)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => { void handleDropStop(stop.id); }}
-                  onDragEnd={() => setDraggingStopId(null)}
-                >
+                  return (
+                    <div
+                      key={stop.id}
+                      className={`${styles.stopRow}${draggingStopId === stop.id ? ` ${styles.stopRowDragging}` : ''}${selectedStopId === stop.id ? ` ${styles.stopRowSelected}` : ''}`}
+                      draggable={!reordering && !stopSaving}
+                      onClick={() => setSelectedStopId(stop.id)}
+                      onDragStart={() => setDraggingStopId(stop.id)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => { void handleDropStop(stop.id); }}
+                      onDragEnd={() => setDraggingStopId(null)}
+                    >
                   <div className={styles.stopSequence}>{stop.sequence ?? index + 1}</div>
                   <div className={styles.stopBody}>
                     <div className={styles.stopAddress}>{stop.formattedAddress || stop.address || 'Unknown address'}</div>
@@ -531,11 +567,25 @@ function RouteEditContent() {
                       Delete
                     </button>
                   </div>
-                </div>
-              );
-            })}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
+
+          <aside className={styles.mapPane}>
+            <div className={styles.mapWrap}>
+              <h3 className={styles.mapTitle}>Route Map</h3>
+              <RouteStopsMap
+                stops={stops}
+                mapTheme={mapTheme}
+                activeStopId={selectedStopId}
+                onStopSelect={(stopId) => setSelectedStopId(stopId)}
+              />
+            </div>
+          </aside>
+        </div>
       </section>
     </div>
   );

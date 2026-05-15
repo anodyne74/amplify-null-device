@@ -970,9 +970,11 @@ function RouteDetailContent() {
                 Route {route.routeCode || route.id.slice(0, 8)}
               </h1>
               <StatusBadge status={route.status} />
-              <Link href={`/operator/routes/edit?id=${route.id}`} className={styles.btnRouteEdit}>
-                Edit Route
-              </Link>
+              {canManagePlanning && (
+                <Link href={`/administrator/routes/edit?id=${route.id}`} className={styles.btnRouteEdit}>
+                  Edit Route
+                </Link>
+              )}
               {canManagePlanning && (
                 <button
                   onClick={() => {
@@ -1227,6 +1229,7 @@ function RouteDetailContent() {
                 const stopCircleClass = { delivery: styles.circleDelivery, pickup: styles.circlePickup, inspection: styles.circleInspection }[svcKey] ?? '';
                 const isTopVisibleStop = stop.id === topVisibleStopId;
                 const completedStop = isStopCompleted(stop);
+                const executionActive = isPlacementPhase(route?.status) || isPickupPhase(route?.status);
                 return (
                   <div
                     key={stop.id}
@@ -1243,16 +1246,19 @@ function RouteDetailContent() {
                     }}
                     onDragEnd={() => setDraggingStopId(null)}
                   >
-                    {/* Sequence circle */}
-                    <div className={`${styles.circle} ${stopCircleClass}`}>
-                      {stop.sequence ?? '?'}
+                    <div className={`${styles.stopSegment} ${styles.stopSegmentNumber}`}>
+                      <div className={`${styles.circle} ${stopCircleClass}`}>
+                        {stop.sequence ?? '?'}
+                      </div>
                     </div>
 
-                    {/* Details */}
-                    <div className={styles.stopDetails}>
+                    <div className={`${styles.stopSegment} ${styles.stopSegmentAddress}`}>
                       <div className={styles.stopAddress}>
                         {getPrimaryAddressLine(stop.formattedAddress || stop.address)}
                       </div>
+                    </div>
+
+                    <div className={`${styles.stopSegment} ${styles.stopSegmentMeta}`}>
                       <div className={styles.stopStatus}>{getStopStatusLabel(stop)}</div>
                       {stop.agent && (
                         <span
@@ -1266,101 +1272,103 @@ function RouteDetailContent() {
                       )}
                     </div>
 
-                    {/* Actions */}
-                    {canManagePlanning && !planningLocked && (
-                      <div className={styles.stopActions}>
-                        <button
-                          onClick={() => {
-                            void handleMoveStop(stop.id, 'up');
-                          }}
-                          className={styles.btnReorder}
-                          disabled={index === 0 || reordering}
-                        >
-                          Move Up
-                        </button>
-                        <button
-                          onClick={() => {
-                            void handleMoveStop(stop.id, 'down');
-                          }}
-                          className={styles.btnReorder}
-                          disabled={index === visibleStops.length - 1 || reordering}
-                        >
-                          Move Down
-                        </button>
-                        <button
-                          onClick={() => setEditingStopId(stop.id)}
-                          className={styles.btnEdit}
-                          disabled={reordering}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteStop(stop.id)}
-                          className={styles.btnDelete}
-                          disabled={reordering}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
+                    <div className={`${styles.stopSegment} ${styles.stopSegmentAction}`}>
+                      {canManagePlanning && !planningLocked && !executionActive && (
+                        <div className={styles.stopActions}>
+                          <button
+                            onClick={() => {
+                              void handleMoveStop(stop.id, 'up');
+                            }}
+                            className={styles.btnReorder}
+                            disabled={index === 0 || reordering}
+                          >
+                            Move Up
+                          </button>
+                          <button
+                            onClick={() => {
+                              void handleMoveStop(stop.id, 'down');
+                            }}
+                            className={styles.btnReorder}
+                            disabled={index === visibleStops.length - 1 || reordering}
+                          >
+                            Move Down
+                          </button>
+                          <button
+                            onClick={() => setEditingStopId(stop.id)}
+                            className={styles.btnEdit}
+                            disabled={reordering}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteStop(stop.id)}
+                            className={styles.btnDelete}
+                            disabled={reordering}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
 
-                    {/* Execution actions — visible to all operators when route is active */}
-                    {(isPlacementPhase(route?.status) || isPickupPhase(route?.status)) && (
-                      <div className={styles.stopExecution}>
-                        {!stop.actualArrivalTime && (
-                          <div className={styles.execActionRow}>
-                            <button
-                              onClick={() => { void handleStopCompleted(stop.id); }}
-                              className={styles.btnExecComplete}
-                              disabled={!!stopExecuting[stop.id]}
-                            >
-                              {stopExecuting[stop.id]
-                                ? 'Saving…'
-                                : stop.serviceType === 'pickup'
-                                ? 'Signs Picked Up'
-                                : 'Signs Placed'}
-                            </button>
-                            <button
-                              onClick={() => { void handleSkipStop(stop.id); }}
-                              className={styles.btnSkip}
-                              disabled={!!stopExecuting[stop.id]}
-                            >
-                              Skip Stop
-                            </button>
-                          </div>
-                        )}
-                        {stop.actualArrivalTime && !stop.actualDepartureTime && (
-                          <div className={styles.execActionRow}>
-                            <button
-                              onClick={() => { void handleStopCompleted(stop.id); }}
-                              className={styles.btnExecComplete}
-                              disabled={!!stopExecuting[stop.id]}
-                            >
-                              {stopExecuting[stop.id]
-                                ? 'Saving…'
-                                : stop.serviceType === 'pickup'
-                                ? 'Close Pickup Stop'
-                                : 'Close Placement Stop'}
-                            </button>
-                          </div>
-                        )}
-                        {stop.actualArrivalTime && stop.actualDepartureTime && (
-                          <div className={styles.execDone}>
-                            {stop.notes?.startsWith('[SKIPPED]') ? (
-                              <span className={styles.execSkippedBadge}>⏭ Skipped</span>
-                            ) : (
-                              <>
-                                <span>✓ Arrived: {formatDateTime(stop.actualArrivalTime)}</span>
-                                <span>
-                                  ✓ {stop.serviceType === 'pickup' ? 'Collected' : 'Placed'}:{' '}
-                                  {formatDateTime(stop.actualDepartureTime)}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}                  </div>                );
+                      {executionActive && (
+                        <>
+                          {!stop.actualArrivalTime && (
+                            <div className={styles.execActionRow}>
+                              <button
+                                onClick={() => { void handleStopCompleted(stop.id); }}
+                                className={styles.btnExecComplete}
+                                disabled={!!stopExecuting[stop.id]}
+                              >
+                                {stopExecuting[stop.id]
+                                  ? 'Saving…'
+                                  : stop.serviceType === 'pickup'
+                                  ? 'Signs Picked Up'
+                                  : 'Signs Placed'}
+                              </button>
+                              <button
+                                onClick={() => { void handleSkipStop(stop.id); }}
+                                className={styles.btnSkip}
+                                disabled={!!stopExecuting[stop.id]}
+                              >
+                                Skip Stop
+                              </button>
+                            </div>
+                          )}
+                          {stop.actualArrivalTime && !stop.actualDepartureTime && (
+                            <div className={styles.execActionRow}>
+                              <button
+                                onClick={() => { void handleStopCompleted(stop.id); }}
+                                className={styles.btnExecComplete}
+                                disabled={!!stopExecuting[stop.id]}
+                              >
+                                {stopExecuting[stop.id]
+                                  ? 'Saving…'
+                                  : stop.serviceType === 'pickup'
+                                  ? 'Close Pickup Stop'
+                                  : 'Close Placement Stop'}
+                              </button>
+                            </div>
+                          )}
+                          {stop.actualArrivalTime && stop.actualDepartureTime && (
+                            <div className={styles.execDone}>
+                              {stop.notes?.startsWith('[SKIPPED]') ? (
+                                <span className={styles.execSkippedBadge}>⏭ Skipped</span>
+                              ) : (
+                                <>
+                                  <span>✓ Arrived: {formatDateTime(stop.actualArrivalTime)}</span>
+                                  <span>
+                                    ✓ {stop.serviceType === 'pickup' ? 'Collected' : 'Placed'}:{' '}
+                                    {formatDateTime(stop.actualDepartureTime)}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
               })}
             </div>
           </div>

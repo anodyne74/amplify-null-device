@@ -89,12 +89,6 @@ function hasCoordinates(stop: Stop): stop is StopWithCoords {
   return typeof stop.latitude === 'number' && typeof stop.longitude === 'number';
 }
 
-function markerColor(serviceType?: string | null) {
-  if (serviceType === 'pickup') return '#52c0ff';
-  if (serviceType === 'inspection') return '#39d98a';
-  return '#00e5ff';
-}
-
 export function RouteStopsMap({
   stops,
   activeStopId,
@@ -185,54 +179,40 @@ export function RouteStopsMap({
         const isCompleted = Boolean(stop.actualDepartureTime);
         const isActive = stop.id === activeStop.id;
 
-        if (isActive) {
-          L.circleMarker([stop.latitude, stop.longitude], {
-            radius: 24,
-            color: '#fbbf24',
-            weight: 4,
-            fillOpacity: 0,
-            opacity: 1,
-          }).addTo(map);
-        }
+        const serviceClass =
+          stop.serviceType === 'pickup'
+            ? styles.stopMarkerPickup
+            : stop.serviceType === 'inspection'
+            ? styles.stopMarkerInspection
+            : styles.stopMarkerDelivery;
 
-        const circle = L.circleMarker([stop.latitude, stop.longitude], {
-          radius: isActive ? 21 : 18,
-          color: isActive ? '#fbbf24' : '#1a73e8',
-          weight: isActive ? 3 : 1,
-          fillColor: markerColor(stop.serviceType),
-          fillOpacity: isCompleted ? 0.22 : 0.95,
-          opacity: isCompleted ? 0.35 : 1,
+        const markerClasses = [
+          styles.stopMarker,
+          serviceClass,
+          isActive ? styles.stopMarkerActive : '',
+          isCompleted ? styles.stopMarkerCompleted : '',
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        const marker = L.marker([stop.latitude, stop.longitude], {
+          icon: L.divIcon({
+            className: styles.stopMarkerIcon,
+            html: `<span class="${markerClasses}">${String(stop.sequence ?? '?')}</span>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
+          }),
+          keyboard: true,
         }).addTo(map);
 
-        // Permanent centred sequence label
-        circle.bindTooltip(String(stop.sequence ?? '?'), {
-          permanent: true,
-          direction: 'center',
-          opacity: 1,
-          className: styles.sequenceLabel,
-        });
-
-        // Address shown on hover
-        circle.on('mouseover', () => {
-          circle.unbindTooltip();
-          circle.bindTooltip(stop.formattedAddress || stop.address || 'Unknown address', {
-            direction: 'top',
-            offset: [0, -12],
-            opacity: 0.95,
-          }).openTooltip();
-        });
-        circle.on('mouseout', () => {
-          circle.unbindTooltip();
-          circle.bindTooltip(String(stop.sequence ?? '?'), {
-            permanent: true,
-            direction: 'center',
-            opacity: 1,
-            className: styles.sequenceLabel,
-          });
+        marker.bindTooltip(stop.formattedAddress || stop.address || 'Unknown address', {
+          direction: 'top',
+          offset: [0, -14],
+          opacity: 0.95,
         });
 
         if (onStopSelect) {
-          circle.on('click', () => onStopSelect(stop.id));
+          marker.on('click', () => onStopSelect(stop.id));
         }
       });
 

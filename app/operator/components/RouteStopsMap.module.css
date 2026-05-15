@@ -27,6 +27,49 @@
   font-weight: 700;
 }
 
+.stopMarkerIcon {
+  background: transparent;
+  border: 0;
+}
+
+.stopMarker {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--nd-text-inverse);
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1;
+  box-sizing: border-box;
+  border: 2px solid rgba(0, 0, 0, 0.18);
+  transition: transform var(--nd-transition-fast), box-shadow var(--nd-transition-fast);
+}
+
+.stopMarkerDelivery {
+  background: var(--nd-status-active);
+}
+
+.stopMarkerPickup {
+  background: var(--nd-operator-accent);
+}
+
+.stopMarkerInspection {
+  background: var(--nd-customer-accent);
+}
+
+.stopMarkerActive {
+  transform: scale(1.18);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.95), 0 4px 10px rgba(0, 0, 0, 0.28);
+}
+
+.stopMarkerCompleted {
+  opacity: 0.45;
+  filter: saturate(0.6);
+}
+
 .deviceLabel {
   color: var(--nd-text-primary);
   font-size: 12px;

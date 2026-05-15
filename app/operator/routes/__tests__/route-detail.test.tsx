@@ -141,6 +141,10 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByText('planned')).toBeInTheDocument();
     // Customer name is displayed
     expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+
+    // Edit link should target the existing administrator route edit page
+    const editLink = screen.getByRole('link', { name: /edit route/i });
+    expect(editLink).toHaveAttribute('href', expect.stringContaining('/administrator/routes/edit?id=route-test-id-1234'));
   });
 
   it('renders stops list', async () => {

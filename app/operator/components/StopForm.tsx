@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { generateAgentInitials } from '@/lib/customerDefaults';
+import { generateAgentInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import styles from './StopForm.module.css';
 import { AddressAutocompleteInput, type ResolvedAddress } from './AddressAutocompleteInput';
 
@@ -190,9 +190,11 @@ export function StopForm({
                   onClick={() => setAgent(selected ? '' : option)}
                   disabled={isSubmitting}
                   aria-pressed={selected}
+                  aria-label={option}
+                  title={option}
+                  style={getAgentBadgeTone(option)}
                 >
-                  <span className={styles.agentInitials}>{generateAgentInitials(option) ?? option.slice(0, 2).toUpperCase()}</span>
-                  <span className={styles.agentName}>{option}</span>
+                  {generateAgentInitials(option) ?? option.slice(0, 2).toUpperCase()}
                 </button>
               );
             })}

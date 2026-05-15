@@ -6,6 +6,11 @@ export interface CustomerDefaultsInput {
   agentOptions?: string[];
 }
 
+export interface AgentBadgeTone {
+  backgroundColor: string;
+  color: string;
+}
+
 export function generateAgentInitials(agentName?: string) {
   const normalized = agentName?.trim();
   if (!normalized) return undefined;
@@ -21,6 +26,40 @@ export function generateAgentInitials(agentName?: string) {
 
   const initials = words.slice(0, 2).map((word) => word[0]?.toUpperCase() ?? '').join('');
   return initials || normalized.slice(0, 2).toUpperCase();
+}
+
+export function getAgentBadgeTone(agentName?: string): AgentBadgeTone {
+  const normalized = agentName?.trim().toUpperCase() ?? '';
+  const compact = normalized.replace(/[^A-Z0-9]/g, '');
+  const initials =
+    (compact.length > 0 && compact.length <= 2
+      ? compact
+      : generateAgentInitials(agentName) ?? compact.slice(0, 2)) || 'AG';
+  const fixedTones: Record<string, AgentBadgeTone> = {
+    BO: { backgroundColor: 'var(--nd-status-planned)', color: 'var(--nd-text-inverse)' },
+    DM: { backgroundColor: 'var(--nd-status-active)', color: 'var(--nd-text-inverse)' },
+    KP: { backgroundColor: 'var(--nd-operator-accent)', color: 'var(--nd-text-inverse)' },
+  };
+
+  const fixedTone = fixedTones[initials];
+  if (fixedTone) {
+    return fixedTone;
+  }
+
+  const tones: AgentBadgeTone[] = [
+    { backgroundColor: 'var(--nd-status-active)', color: 'var(--nd-text-inverse)' },
+    { backgroundColor: 'var(--nd-operator-accent)', color: 'var(--nd-text-inverse)' },
+    { backgroundColor: 'var(--nd-customer-accent)', color: 'var(--nd-bg-base)' },
+    { backgroundColor: 'var(--nd-status-planned)', color: 'var(--nd-text-inverse)' },
+    { backgroundColor: 'var(--nd-status-completed)', color: 'var(--nd-bg-base)' },
+    { backgroundColor: 'var(--nd-status-danger)', color: 'var(--nd-text-inverse)' },
+  ];
+
+  const hash = initials
+    .split('')
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+
+  return tones[hash % tones.length];
 }
 
 export function normalizeAgentOptions(agentOptions?: string[], defaultAgentName?: string) {

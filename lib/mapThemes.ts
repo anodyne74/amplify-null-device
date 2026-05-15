@@ -1,4 +1,4 @@
-export type MapTheme = 'light' | 'dark' | 'satellite' | 'streets';
+export type MapTheme = 'light' | 'dark' | 'satellite' | 'streets' | 'navigation' | 'outdoors' | 'toner' | 'osmfr';
 
 export interface MapThemeDefinition {
   key: MapTheme;
@@ -22,9 +22,33 @@ export const MAP_THEMES: MapThemeDefinition[] = [
   },
   {
     key: 'streets',
-    label: 'Streets',
+    label: 'OSM Standard',
     tileUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenStreetMap contributors',
+  },
+  {
+    key: 'navigation',
+    label: 'Navigation (MapTiler)',
+    tileUrl: 'https://api.maptiler.com/maps/navigation/{z}/{x}/{y}.png?key=GetYourOwnKey',
+    attribution: 'MapTiler &copy; OpenStreetMap contributors',
+  },
+  {
+    key: 'outdoors',
+    label: 'Outdoors',
+    tileUrl: 'https://tile.thunderforest.com/outdoors/{z}/{x}/{y}.png?apikey=GetYourOwnKey',
+    attribution: 'Thunderforest, OpenStreetMap contributors',
+  },
+  {
+    key: 'toner',
+    label: 'Toner (Stamen)',
+    tileUrl: 'https://stamen-tiles.a.ssl.fastly.net/toner/{z}/{x}/{y}.png',
+    attribution: 'Map tiles by Stamen Design, CC BY 3.0 — Map data &copy; OpenStreetMap contributors',
+  },
+  {
+    key: 'osmfr',
+    label: 'OSM France',
+    tileUrl: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap France contributors',
   },
   {
     key: 'satellite',

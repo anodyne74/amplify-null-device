@@ -1,5 +1,6 @@
 import {
   generateAgentInitials,
+  getAgentBadgeTone,
   normalizeCustomerDefaults,
   parseAgentOptionsInput,
 } from './customerDefaults';
@@ -44,5 +45,32 @@ describe('customerDefaults', () => {
       'Pat Doe',
       'Alex Roe',
     ]);
+  });
+
+  it('returns a deterministic badge tone for an agent name', () => {
+    expect(getAgentBadgeTone('Jamie Lee')).toEqual(getAgentBadgeTone('Jamie Lee'));
+    expect(getAgentBadgeTone('Jamie Lee')).not.toEqual(getAgentBadgeTone('Pat Doe'));
+  });
+
+  it('uses fixed tones for BO, DM, and KP initials', () => {
+    expect(getAgentBadgeTone('BO')).toEqual({
+      backgroundColor: 'var(--nd-status-planned)',
+      color: 'var(--nd-text-inverse)',
+    });
+    expect(getAgentBadgeTone('DM')).toEqual({
+      backgroundColor: 'var(--nd-status-active)',
+      color: 'var(--nd-text-inverse)',
+    });
+    expect(getAgentBadgeTone('KP')).toEqual({
+      backgroundColor: 'var(--nd-operator-accent)',
+      color: 'var(--nd-text-inverse)',
+    });
+  });
+
+  it('returns a safe fallback tone when no name is provided', () => {
+    expect(getAgentBadgeTone()).toEqual({
+      backgroundColor: 'var(--nd-status-completed)',
+      color: 'var(--nd-bg-base)',
+    });
   });
 });

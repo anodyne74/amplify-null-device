@@ -11,7 +11,7 @@ import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { StopForm } from '@/app/operator/components/StopForm';
 import { isAdmin } from '@/lib/amplify-config';
-import { generateAgentInitials } from '@/lib/customerDefaults';
+import { generateAgentInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
 import {
@@ -23,6 +23,7 @@ import {
   updateStopExecution,
 } from '@/lib/queries';
 import type { MapTheme } from '@/lib/mapThemes';
+import { MAP_THEMES } from '@/lib/mapThemes';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import type { Route, Stop } from '@/amplify/types';
@@ -182,6 +183,12 @@ function getStopStatusLabel(stop: Stop) {
   return 'Signs pending';
 }
 
+function getPrimaryAddressLine(address?: string | null) {
+  if (!address) return '';
+  const firstSegment = address.split(',')[0]?.trim();
+  return firstSegment || address;
+}
+
 function isPlacementPhase(status?: string | null) {
   return status === 'signs_placed';
 }
@@ -227,15 +234,25 @@ function RouteDetailContent() {
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [transitionError, setTransitionError] = useState<string | null>(null);
 
-  // Mobile execution: per-stop completion notes
-  const [stopCompletionNotes, setStopCompletionNotes] = useState<Record<string, string>>({});
-  const [stopCompletionPhoto, setStopCompletionPhoto] = useState<Record<string, File | null>>({});
   const [phaseDistanceKm, setPhaseDistanceKm] = useState({
     signs_placed: 0,
     signs_picked_up: 0,
   });
   const [currentPosition, setCurrentPosition] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapTheme, setMapTheme] = useState<MapTheme>('light');
+
+  // Persist theme selection in localStorage for user convenience
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('operatorMapTheme') : null;
+    if (stored && MAP_THEMES.some(t => t.key === stored)) {
+      setMapTheme(stored as MapTheme);
+    }
+  }, []);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('operatorMapTheme', mapTheme);
+    }
+  }, [mapTheme]);
   const gpsWatchIdRef = useRef<number | null>(null);
   const lastGpsPointRef = useRef<{ lat: number; lng: number } | null>(null);
   const wakeLockRef = useRef<{ release: () => Promise<void>; addEventListener?: (type: string, listener: () => void) => void } | null>(null);
@@ -286,39 +303,25 @@ function RouteDetailContent() {
     }
   }, [id]);
 
-  const handleStopArrived = useCallback(async (stopId: string) => {
-    setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-    try {
-      const arrivedAt = new Date().toISOString();
-      const { errors } = await updateStopExecution(stopId, { actualArrivalTime: arrivedAt });
-      if (!errors || errors.length === 0) {
-        setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, actualArrivalTime: arrivedAt } : s)));
-      }
-    } catch { /* ignore */ }
-    setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, []);
-
   const handleStopCompleted = useCallback(async (stopId: string) => {
     if (!route) return;
 
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
     try {
       const completedAt = new Date().toISOString();
-      const notes = stopCompletionNotes[stopId];
-      const updatePayload: { actualDepartureTime: string; notes?: string } = { actualDepartureTime: completedAt };
-      if (notes?.trim()) {
-        updatePayload.notes = notes.trim();
-      }
-      const { errors } = await updateStopExecution(stopId, updatePayload);
+      const existingStop = stops.find((s) => s.id === stopId);
+      const arrivedAt = existingStop?.actualArrivalTime ?? completedAt;
+      const { errors } = await updateStopExecution(stopId, {
+        actualArrivalTime: arrivedAt,
+        actualDepartureTime: completedAt,
+      });
       if (!errors || errors.length === 0) {
         const updatedStops = stops.map((s) =>
           s.id === stopId
-            ? { ...s, actualDepartureTime: completedAt, ...(notes?.trim() ? { notes: notes.trim() } : {}) }
+            ? { ...s, actualArrivalTime: arrivedAt, actualDepartureTime: completedAt }
             : s
         );
         setStops(updatedStops);
-        setStopCompletionNotes((prev) => { const n = { ...prev }; delete n[stopId]; return n; });
-        setStopCompletionPhoto((prev) => { const n = { ...prev }; delete n[stopId]; return n; });
 
         if (isPickupPhase(route.status)) {
           const pickupStops = updatedStops.filter((s) => s.serviceType === 'pickup');
@@ -330,7 +333,7 @@ function RouteDetailContent() {
       }
     } catch { /* ignore */ }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [completeRouteNow, route, stopCompletionNotes, stops]);
+  }, [completeRouteNow, route, stops]);
 
   const handleSkipStop = useCallback(async (stopId: string) => {
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
@@ -1120,7 +1123,22 @@ function RouteDetailContent() {
             </div>
 
             <div className={`${styles.mapSection} ${isExecutionMode ? styles.mapSectionExecutionMobile : ''}`}>
-              <h3 className={styles.mapHeading}>Route Map</h3>
+              <div className={styles.mapHeaderRow}>
+                <h3 className={styles.mapHeading}>Route Map</h3>
+                <div className={styles.mapThemeSelector}>
+                  <label htmlFor="map-theme-select" className={styles.mapThemeLabel}>Map Style:</label>
+                  <select
+                    id="map-theme-select"
+                    value={mapTheme}
+                    onChange={e => setMapTheme(e.target.value as MapTheme)}
+                    className={styles.mapThemeDropdown}
+                  >
+                    {MAP_THEMES.map(theme => (
+                      <option key={theme.key} value={theme.key}>{theme.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               <RouteStopsMap
                 stops={stops}
                 activeStopId={topVisibleStopId}
@@ -1231,18 +1249,20 @@ function RouteDetailContent() {
                     </div>
 
                     {/* Details */}
-                    <div>
+                    <div className={styles.stopDetails}>
                       <div className={styles.stopAddress}>
-                        {stop.formattedAddress || stop.address}
+                        {getPrimaryAddressLine(stop.formattedAddress || stop.address)}
                       </div>
                       <div className={styles.stopStatus}>{getStopStatusLabel(stop)}</div>
                       {stop.agent && (
-                        <div className={styles.stopAgentBadge}>
-                          <span className={styles.stopAgentInitials}>
-                            {generateAgentInitials(stop.agent) ?? stop.agent.slice(0, 2).toUpperCase()}
-                          </span>
-                          <span>{stop.agent}</span>
-                        </div>
+                        <span
+                          className={styles.stopAgentBadge}
+                          aria-label={stop.agent}
+                          title={stop.agent}
+                          style={getAgentBadgeTone(stop.agent)}
+                        >
+                          {generateAgentInitials(stop.agent) ?? stop.agent.slice(0, 2).toUpperCase()}
+                        </span>
                       )}
                     </div>
 
@@ -1290,8 +1310,8 @@ function RouteDetailContent() {
                         {!stop.actualArrivalTime && (
                           <div className={styles.execActionRow}>
                             <button
-                              onClick={() => { void handleStopArrived(stop.id); }}
-                              className={styles.btnArrived}
+                              onClick={() => { void handleStopCompleted(stop.id); }}
+                              className={styles.btnExecComplete}
                               disabled={!!stopExecuting[stop.id]}
                             >
                               {stopExecuting[stop.id]
@@ -1310,34 +1330,7 @@ function RouteDetailContent() {
                           </div>
                         )}
                         {stop.actualArrivalTime && !stop.actualDepartureTime && (
-                          <div className={styles.execCompletionPanel}>
-                            <span className={styles.execTimestamp}>
-                              ✓ Arrived: {formatDateTime(stop.actualArrivalTime)}
-                            </span>
-                            <textarea
-                              className={styles.execNotesInput}
-                              placeholder="Add completion notes (optional)…"
-                              rows={2}
-                              value={stopCompletionNotes[stop.id] ?? ''}
-                              onChange={(e) =>
-                                setStopCompletionNotes((prev) => ({ ...prev, [stop.id]: e.target.value }))
-                              }
-                            />
-                            <label className={styles.execPhotoLabel}>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                className={styles.execPhotoInput}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0] ?? null;
-                                  setStopCompletionPhoto((prev) => ({ ...prev, [stop.id]: file }));
-                                }}
-                              />
-                              {stopCompletionPhoto[stop.id]
-                                ? `📷 ${stopCompletionPhoto[stop.id]!.name}`
-                                : '📷 Attach Photo (optional)'}
-                            </label>
+                          <div className={styles.execActionRow}>
                             <button
                               onClick={() => { void handleStopCompleted(stop.id); }}
                               className={styles.btnExecComplete}
@@ -1346,8 +1339,8 @@ function RouteDetailContent() {
                               {stopExecuting[stop.id]
                                 ? 'Saving…'
                                 : stop.serviceType === 'pickup'
-                                ? '✓ Collected Signs'
-                                : '✓ Placed Signs'}
+                                ? 'Close Pickup Stop'
+                                : 'Close Placement Stop'}
                             </button>
                           </div>
                         )}

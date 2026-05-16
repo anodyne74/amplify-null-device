@@ -21,12 +21,25 @@ A serverless delivery management platform built with Next.js 15, AWS Amplify Gen
 	- Import flow that prioritizes Copy Stops From Previous Route.
 	- Optional schedule-file upload parsing (PDF/CSV/TXT).
 	- Preview gating that only activates when stops were copied or successfully parsed.
+- Operator route execution experience with:
+	- Four-segment stop cards: sequence, street-line address, status and agent badge, then action controls.
+	- Agent badges rendered as initials-only tokens with deterministic theme-tone colors.
+	- Street-focused stop display (primary address line) for faster in-field scanning.
+	- Execution controls for placement and pickup phases, including skip handling and automatic route completion after final pickup.
+	- GPS-aware route tracking for placement/pickup distance metrics and final completion summary values.
+	- Heading-up map orientation behavior with movement smoothing to reduce jitter.
+	- Map style selector with Light, Dark, OSM Standard, Navigation, Outdoors, Toner, OSM France, and Satellite options.
+- Route map markers use solid circular, sequence-numbered markers with theme-consistent service coloring and active/completed states.
 - Invoice management with:
 	- PDF upload and auto-parse support.
 	- SES-backed email delivery through API route `/api/admin/send-invoice-email` using a deployed SES template and PDF attachment.
 	- `emailSentAt` tracking on invoices.
 - Administrator dashboard cards for route stats and invoice email metrics (including Emails Sent Today and Unsent Invoices).
 - Customer-user assignment model (`account_owner` / `read_only`) with first-user assignment support.
+
+Notes:
+
+- Some third-party tile styles require provider API keys in their tile URL configuration for production use.
 
 ## User Groups
 

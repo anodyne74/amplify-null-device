@@ -467,7 +467,8 @@ export async function createRoute(input: {
   routeCode?: string;
   customerId: string;
   viewerSubs?: string[];
-  status: 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+  status: 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+  executionPhase?: 'placement' | 'pickup';
   notes?: string;
   scheduleS3Key?: string;
 }) {
@@ -493,9 +494,14 @@ export async function updateRoute(
   updates: Partial<{
     routeCode: string;
     customerId: string;
-    status: 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+    status: 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+    executionPhase: 'placement' | 'pickup';
     actualStartTime: string;
     actualEndTime: string;
+    placementStartTime: string;
+    placementEndTime: string;
+    pickupStartTime: string;
+    pickupEndTime: string;
     actualDurationMinutes: number;
     signsPlacedDistanceKm: number;
     signsPickedUpDistanceKm: number;
@@ -521,9 +527,14 @@ export async function updateRoute(
 }
 
 export interface RouteExecutionUpdateInput {
-  status?: 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+  status?: 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+  executionPhase?: 'placement' | 'pickup';
   actualStartTime?: string;
   actualEndTime?: string;
+  placementStartTime?: string;
+  placementEndTime?: string;
+  pickupStartTime?: string;
+  pickupEndTime?: string;
   actualDurationMinutes?: number;
   signsPlacedDistanceKm?: number;
   signsPickedUpDistanceKm?: number;

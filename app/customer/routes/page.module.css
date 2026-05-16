@@ -31,6 +31,12 @@
   color: var(--nd-text-primary);
 }
 
+.select option,
+.select optgroup {
+  background-color: var(--nd-bg-surface);
+  color: var(--nd-text-primary);
+}
+
 .emptyState {
   padding: var(--nd-space-xl);
   text-align: center;

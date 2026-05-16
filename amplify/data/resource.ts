@@ -84,10 +84,15 @@ const schema = a.schema({
       routeCode: a.string(), // Human-readable route identifier (e.g. W19-26-001)
       customerId: a.id().required(), // Foreign key to Customer
       viewerSubs: a.string().array(), // Cognito subs of all customer users — grants read access
-      status: a.enum(['planned', 'signs_placed', 'signs_picked_up', 'completed', 'archived']),
+      status: a.enum(['planned', 'in_progress', 'signs_placed', 'signs_picked_up', 'completed', 'archived']),
+      executionPhase: a.enum(['placement', 'pickup']),
       estimatedDurationMinutes: a.integer(),
       actualStartTime: a.datetime(),
       actualEndTime: a.datetime(),
+      placementStartTime: a.datetime(),
+      placementEndTime: a.datetime(),
+      pickupStartTime: a.datetime(),
+      pickupEndTime: a.datetime(),
       actualDurationMinutes: a.integer(),
       signsPlacedDistanceKm: a.float(),
       signsPickedUpDistanceKm: a.float(),

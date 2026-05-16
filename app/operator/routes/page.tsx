@@ -17,6 +17,7 @@ type StatusFilter = RouteStatus | 'all';
 function StatusBadge({ status }: { status?: string | null }) {
   const badgeClass = {
     planned: styles.badgePlanned,
+    in_progress: styles.badgeActive,
     signs_placed: styles.badgeActive,
     signs_picked_up: styles.badgeActive,
     completed: styles.badgeCompleted,
@@ -25,6 +26,7 @@ function StatusBadge({ status }: { status?: string | null }) {
 
   const label = {
     planned: 'planned',
+    in_progress: 'in progress',
     signs_placed: 'signs placed',
     signs_picked_up: 'signs picked up',
     completed: 'completed',
@@ -50,7 +52,7 @@ function formatDuration(route: Route) {
     return `${route.actualDurationMinutes} min`;
   }
 
-  if ((route.status === 'signs_placed' || route.status === 'signs_picked_up') && route.actualStartTime) {
+  if (route.status === 'in_progress' && route.actualStartTime) {
     const minutes = Math.max(
       1,
       Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000)
@@ -159,7 +161,7 @@ export default function OperatorRoutesPage() {
               <label className={styles.filterLabel}>
                 Status:
               </label>
-              {(['all', 'planned', 'signs_placed', 'signs_picked_up', 'completed', 'archived'] as StatusFilter[]).map(
+              {(['all', 'planned', 'in_progress', 'signs_placed', 'signs_picked_up', 'completed', 'archived'] as StatusFilter[]).map(
                 (s) => (
                   <button
                     key={s}

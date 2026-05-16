@@ -47,7 +47,7 @@ export default function AdminHomePage() {
   }, []);
 
   const activeRoutes = useMemo(
-    () => routes.filter((r) => r.status === 'signs_placed' || r.status === 'signs_picked_up'),
+    () => routes.filter((r) => r.status === 'in_progress' || r.status === 'signs_placed' || r.status === 'signs_picked_up'),
     [routes]
   );
   const plannedRoutes = useMemo(() => routes.filter((r) => r.status === 'planned'), [routes]);

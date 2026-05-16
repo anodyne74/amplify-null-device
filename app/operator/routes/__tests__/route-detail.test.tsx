@@ -167,9 +167,7 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByRole('button', { name: /add stop/i })).toBeInTheDocument();
   });
 
-  it('calls deleteStop when delete is confirmed', async () => {
-    window.confirm = jest.fn(() => true);
-
+  it('calls deleteStop when inline delete is confirmed', async () => {
     render(<RouteDetailPage />);
 
     await waitFor(() => {
@@ -178,6 +176,7 @@ describe('Operator Route Detail Page', () => {
 
     const stopDeleteButtons = screen.getAllByRole('button', { name: /^delete$/i });
     fireEvent.click(stopDeleteButtons[0]);
+    fireEvent.click(screen.getByRole('button', { name: /confirm delete/i }));
 
     await waitFor(() => {
       expect(deleteStopModule.deleteStop).toHaveBeenCalledWith('stop-1');
@@ -208,8 +207,10 @@ describe('Operator Route Detail Page', () => {
     (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
       data: {
         ...mockRoute,
-        status: 'signs_placed',
+        status: 'in_progress',
+        executionPhase: 'placement',
         actualStartTime: '2024-03-01T10:00:00Z',
+        placementStartTime: '2024-03-01T10:00:00Z',
       },
       errors: undefined,
     });

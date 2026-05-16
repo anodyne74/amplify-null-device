@@ -153,6 +153,12 @@
   color: var(--nd-text-primary);
 }
 
+.infoPanel select option,
+.infoPanel select optgroup {
+  background-color: var(--nd-bg-elevated);
+  color: var(--nd-text-primary);
+}
+
 .mobileRouteList {
   display: grid;
   gap: 10px;

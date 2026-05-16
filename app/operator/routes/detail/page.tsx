@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -40,6 +40,7 @@ const RouteStopsMap = dynamic(
 function StatusBadge({ status }: { status?: string | null }) {
   const badgeClass = {
     planned: styles.badgePlanned,
+    in_progress: styles.badgeActive,
     signs_placed: styles.badgeActive,
     signs_picked_up: styles.badgeActive,
     completed: styles.badgeCompleted,
@@ -48,6 +49,7 @@ function StatusBadge({ status }: { status?: string | null }) {
 
   const statusLabel = {
     planned: 'planned',
+    in_progress: 'in progress',
     signs_placed: 'signs placed',
     signs_picked_up: 'signs picked up',
     completed: 'completed',
@@ -85,7 +87,7 @@ function formatRouteDuration(route: Route) {
     return `${route.actualDurationMinutes} min`;
   }
 
-  if ((route.status === 'signs_placed' || route.status === 'signs_picked_up') && route.actualStartTime) {
+  if (route.status === 'in_progress' && route.actualStartTime) {
     const minutes = Math.max(
       1,
       Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000)
@@ -101,6 +103,13 @@ function getRouteDurationMinutes(route: Route) {
     return Math.max(0, route.actualDurationMinutes);
   }
 
+  if (route.placementStartTime && route.pickupEndTime) {
+    return Math.max(
+      0,
+      Math.round((new Date(route.pickupEndTime).getTime() - new Date(route.placementStartTime).getTime()) / 60000)
+    );
+  }
+
   if (route.actualStartTime && route.actualEndTime) {
     return Math.max(
       0,
@@ -108,8 +117,14 @@ function getRouteDurationMinutes(route: Route) {
     );
   }
 
-  if ((route.status === 'signs_placed' || route.status === 'signs_picked_up') && route.actualStartTime) {
-    return Math.max(1, Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000));
+  if (route.status === 'in_progress') {
+    const phaseStart =
+      route.executionPhase === 'pickup'
+        ? route.pickupStartTime ?? route.actualStartTime
+        : route.placementStartTime ?? route.actualStartTime;
+    if (phaseStart) {
+      return Math.max(1, Math.round((Date.now() - new Date(phaseStart).getTime()) / 60000));
+    }
   }
 
   return null;
@@ -189,12 +204,12 @@ function getPrimaryAddressLine(address?: string | null) {
   return firstSegment || address;
 }
 
-function isPlacementPhase(status?: string | null) {
-  return status === 'signs_placed';
+function isPlacementPhase(status?: string | null, executionPhase?: string | null) {
+  return status === 'in_progress' && executionPhase === 'placement';
 }
 
-function isPickupPhase(status?: string | null) {
-  return status === 'signs_picked_up';
+function isPickupPhase(status?: string | null, executionPhase?: string | null) {
+  return status === 'in_progress' && executionPhase === 'pickup';
 }
 
 function RouteDetailContent() {
@@ -226,6 +241,8 @@ function RouteDetailContent() {
   const [editingStop, setEditingStop] = useState(false);
   const [editStopError, setEditStopError] = useState<string | null>(null);
   const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
+  const [pendingDeleteStopId, setPendingDeleteStopId] = useState<string | null>(null);
+  const [deletingStopId, setDeletingStopId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
 
@@ -256,39 +273,6 @@ function RouteDetailContent() {
   const gpsWatchIdRef = useRef<number | null>(null);
   const lastGpsPointRef = useRef<{ lat: number; lng: number } | null>(null);
   const wakeLockRef = useRef<{ release: () => Promise<void>; addEventListener?: (type: string, listener: () => void) => void } | null>(null);
-
-  const completeRouteNow = useCallback(async (routeToComplete: Route) => {
-    const now = new Date();
-    const start = routeToComplete.actualStartTime ? new Date(routeToComplete.actualStartTime) : now;
-    const actualDurationMinutes = Math.round((now.getTime() - start.getTime()) / 60000);
-    const completedAt = now.toISOString();
-    const pickupDistanceKm = Number(phaseDistanceKm.signs_picked_up.toFixed(2));
-
-    const { errors } = await updateRouteExecution(routeToComplete.id, {
-      status: 'completed',
-      actualEndTime: completedAt,
-      actualDurationMinutes,
-      signsPickedUpDistanceKm: pickupDistanceKm,
-    });
-
-    if (errors && errors.length > 0) {
-      setTransitionError('Failed to complete route.');
-      return false;
-    }
-
-    setRoute((r) =>
-      r
-        ? {
-            ...r,
-            status: 'completed',
-            actualEndTime: completedAt,
-            actualDurationMinutes,
-            signsPickedUpDistanceKm: pickupDistanceKm,
-          }
-        : r
-    );
-    return true;
-  }, [phaseDistanceKm.signs_picked_up]);
 
   const fetchStops = useCallback(async () => {
     const client = generateClient<Schema>();
@@ -323,17 +307,10 @@ function RouteDetailContent() {
         );
         setStops(updatedStops);
 
-        if (isPickupPhase(route.status)) {
-          const pickupStops = updatedStops.filter((s) => s.serviceType === 'pickup');
-          const allPickedUp = pickupStops.every((s) => isStopCompleted(s));
-          if (allPickedUp) {
-            await completeRouteNow(route);
-          }
-        }
       }
     } catch { /* ignore */ }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [completeRouteNow, route, stops]);
+  }, [route, stops]);
 
   const handleSkipStop = useCallback(async (stopId: string) => {
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
@@ -471,7 +448,7 @@ function RouteDetailContent() {
   }, [user?.userId]);
 
   useEffect(() => {
-    if (!route || (route.status !== 'signs_placed' && route.status !== 'signs_picked_up')) {
+    if (!route || route.status !== 'in_progress' || !route.executionPhase) {
       if (gpsWatchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
         navigator.geolocation.clearWatch(gpsWatchIdRef.current);
       }
@@ -485,7 +462,7 @@ function RouteDetailContent() {
     }
 
     lastGpsPointRef.current = null;
-    const activePhase = route.status;
+    const activePhase = route.executionPhase === 'pickup' ? 'signs_picked_up' : 'signs_placed';
 
     gpsWatchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
@@ -542,7 +519,7 @@ function RouteDetailContent() {
       return;
     }
 
-    const isExecutionActive = route?.status === 'signs_placed' || route?.status === 'signs_picked_up';
+    const isExecutionActive = route?.status === 'in_progress';
     const wakeLockApi = (
       navigator as Navigator & {
         wakeLock?: {
@@ -620,24 +597,45 @@ function RouteDetailContent() {
     setTransitionError(null);
     try {
       const startedAt = new Date().toISOString();
-      const { errors } = await updateRouteExecution(route.id, {
-        status: 'signs_placed',
-        actualStartTime: startedAt,
-        signsPlacedDistanceKm: 0,
-        signsPickedUpDistanceKm: 0,
-      });
+      const isStartingPlacement = route.status === 'planned';
+      const isStartingPickup = route.status === 'signs_placed';
+
+      if (!isStartingPlacement && !isStartingPickup) {
+        setTransitioning(false);
+        return;
+      }
+
+      const { errors } = await updateRouteExecution(route.id, isStartingPlacement
+        ? {
+            status: 'in_progress',
+            executionPhase: 'placement',
+            actualStartTime: route.actualStartTime ?? startedAt,
+            placementStartTime: startedAt,
+            signsPlacedDistanceKm: route.signsPlacedDistanceKm ?? 0,
+            signsPickedUpDistanceKm: route.signsPickedUpDistanceKm ?? 0,
+          }
+        : {
+            status: 'in_progress',
+            executionPhase: 'pickup',
+            pickupStartTime: startedAt,
+          });
       if (errors && errors.length > 0) {
         setTransitionError('Failed to start route.');
       } else {
-        setPhaseDistanceKm({ signs_placed: 0, signs_picked_up: 0 });
+        if (isStartingPlacement) {
+          setPhaseDistanceKm({ signs_placed: 0, signs_picked_up: 0 });
+        }
         setRoute((r) =>
           r
             ? {
                 ...r,
-                status: 'signs_placed',
-                actualStartTime: startedAt,
-                signsPlacedDistanceKm: 0,
-                signsPickedUpDistanceKm: 0,
+                status: 'in_progress',
+                executionPhase: isStartingPlacement ? 'placement' : 'pickup',
+                actualStartTime: isStartingPlacement ? (r.actualStartTime ?? startedAt) : r.actualStartTime,
+                placementStartTime: isStartingPlacement ? startedAt : r.placementStartTime,
+                pickupStartTime: isStartingPickup ? startedAt : r.pickupStartTime,
+                signsPlacedDistanceKm: isStartingPlacement ? 0 : r.signsPlacedDistanceKm,
+                signsPickedUpDistanceKm: isStartingPlacement ? 0 : r.signsPickedUpDistanceKm,
               }
             : r
         );
@@ -648,44 +646,85 @@ function RouteDetailContent() {
     setTransitioning(false);
   };
 
-  const handleStartPickupPhase = async () => {
+  const handleEndRoute = async () => {
     if (!route) return;
     setTransitioning(true);
     setTransitionError(null);
 
     try {
+      if (route.status !== 'in_progress' || !route.executionPhase) {
+        setTransitioning(false);
+        return;
+      }
+
+      const now = new Date();
+      const endedAt = now.toISOString();
+      const isEndingPlacement = route.executionPhase === 'placement';
+      const pickupDistanceKm = Number(phaseDistanceKm.signs_picked_up.toFixed(2));
       const placementDistanceKm = Number(phaseDistanceKm.signs_placed.toFixed(2));
-      const { errors } = await updateRouteExecution(route.id, {
-        status: 'signs_picked_up',
-        signsPlacedDistanceKm: placementDistanceKm,
-      });
+
+      const startForDuration = route.actualStartTime
+        ?? route.placementStartTime
+        ?? route.pickupStartTime
+        ?? endedAt;
+      const actualDurationMinutes = Math.max(
+        0,
+        Math.round((now.getTime() - new Date(startForDuration).getTime()) / 60000)
+      );
+
+      const { errors } = await updateRouteExecution(route.id, isEndingPlacement
+        ? {
+            status: 'signs_placed',
+            executionPhase: 'placement',
+            placementEndTime: endedAt,
+            signsPlacedDistanceKm: placementDistanceKm,
+          }
+        : {
+            status: 'signs_picked_up',
+            executionPhase: 'pickup',
+            pickupEndTime: endedAt,
+            actualEndTime: endedAt,
+            actualDurationMinutes,
+            signsPickedUpDistanceKm: pickupDistanceKm,
+          });
 
       if (errors && errors.length > 0) {
-        setTransitionError('Failed to start pickup phase.');
+        setTransitionError('Failed to end route phase.');
       } else {
         setRoute((r) =>
           r
             ? {
                 ...r,
-                status: 'signs_picked_up',
-                signsPlacedDistanceKm: placementDistanceKm,
+                status: isEndingPlacement ? 'signs_placed' : 'signs_picked_up',
+                executionPhase: route.executionPhase,
+                placementEndTime: isEndingPlacement ? endedAt : r.placementEndTime,
+                pickupEndTime: isEndingPlacement ? r.pickupEndTime : endedAt,
+                actualEndTime: isEndingPlacement ? r.actualEndTime : endedAt,
+                actualDurationMinutes: isEndingPlacement ? r.actualDurationMinutes : actualDurationMinutes,
+                signsPlacedDistanceKm: isEndingPlacement ? placementDistanceKm : r.signsPlacedDistanceKm,
+                signsPickedUpDistanceKm: isEndingPlacement ? r.signsPickedUpDistanceKm : pickupDistanceKm,
               }
             : r
         );
       }
     } catch {
-      setTransitionError('Failed to start pickup phase.');
+      setTransitionError('Failed to end route phase.');
     }
 
     setTransitioning(false);
   };
 
   const handleCompleteRoute = async () => {
-    if (!route) return;
+    if (!route || route.status !== 'signs_picked_up' || !canManagePlanning) return;
     setTransitioning(true);
     setTransitionError(null);
     try {
-      await completeRouteNow(route);
+      const { errors } = await updateRouteExecution(route.id, { status: 'completed' });
+      if (errors && errors.length > 0) {
+        setTransitionError('Failed to complete route.');
+      } else {
+        setRoute((r) => (r ? { ...r, status: 'completed' } : r));
+      }
     } catch {
       setTransitionError('Failed to complete route.');
     }
@@ -822,19 +861,32 @@ function RouteDetailContent() {
   };
 
   const handleDeleteStop = async (stopId: string) => {
-    if (!canManagePlanning) {
+    if (!canManagePlanning || deletingStopId) {
       return;
     }
-    if (!window.confirm('Delete this stop?')) return;
-    await deleteStop(stopId);
-    const remaining = stops.filter((s) => s.id !== stopId);
-    const client = generateClient<Schema>();
-    await Promise.all(
-      remaining.map((s, idx) =>
-        client.models.Stop.update({ id: s.id, sequence: idx + 1 })
-      )
-    );
-    await fetchStops();
+    setDeletingStopId(stopId);
+    setReorderError(null);
+    try {
+      const result = await deleteStop(stopId);
+      if (result.errors && result.errors.length > 0) {
+        setReorderError('Failed to delete stop. Please try again.');
+        return;
+      }
+
+      const remaining = stops.filter((s) => s.id !== stopId);
+      const client = generateClient<Schema>();
+      await Promise.all(
+        remaining.map((s, idx) =>
+          client.models.Stop.update({ id: s.id, sequence: idx + 1 })
+        )
+      );
+      setPendingDeleteStopId(null);
+      await fetchStops();
+    } catch {
+      setReorderError('Failed to delete stop. Please try again.');
+    } finally {
+      setDeletingStopId(null);
+    }
   };
 
   const handleDropStop = async (targetStopId: string) => {
@@ -909,15 +961,15 @@ function RouteDetailContent() {
   };
 
   const planningLocked = route?.status !== 'planned';
-  const isExecutionMode = isPlacementPhase(route?.status) || isPickupPhase(route?.status);
+  const isExecutionMode = route?.status === 'in_progress';
   const visibleStops = (() => {
     if (!route) return stops;
 
-    if (isPlacementPhase(route.status)) {
+    if (isPlacementPhase(route.status, route.executionPhase)) {
       return stops.filter((stop) => stop.serviceType !== 'pickup' && !isStopCompleted(stop));
     }
 
-    if (isPickupPhase(route.status)) {
+    if (route.status === 'signs_placed' || isPickupPhase(route.status, route.executionPhase)) {
       return stops.filter((stop) => stop.serviceType === 'pickup' && !isStopCompleted(stop));
     }
 
@@ -943,6 +995,15 @@ function RouteDetailContent() {
     routeDurationMinutes !== null && customerRatePerHour !== null
       ? Number(((routeDurationMinutes / 60) * customerRatePerHour).toFixed(2))
       : null;
+  const availableAgentsForStops = useMemo(() => {
+    const customerAgents = customerDefaults?.agentOptions ?? [];
+    const routeAgents = stops
+      .map((stop) => stop.agent?.trim())
+      .filter((agent): agent is string => Boolean(agent));
+
+    return Array.from(new Set([...customerAgents, ...routeAgents]));
+  }, [customerDefaults?.agentOptions, stops]);
+  const defaultAgentForStops = customerDefaults?.defaultAgentName ?? availableAgentsForStops[0] ?? undefined;
   const placementDistance = phaseDistanceKm.signs_placed;
   const pickupDistance = phaseDistanceKm.signs_picked_up;
 
@@ -1033,22 +1094,35 @@ function RouteDetailContent() {
                   {transitioning ? 'Starting…' : 'Start Route'}
                 </button>
               )}
-              {isPlacementPhase(route.status) && (
+              {route.status === 'in_progress' && (
                 <button
-                  onClick={handleStartPickupPhase}
+                  onClick={handleEndRoute}
+                  disabled={transitioning || (route.executionPhase === 'pickup' && !allPickupStopsCompleted)}
+                  className={styles.btnComplete}
+                >
+                  {transitioning
+                    ? 'Updating…'
+                    : route.executionPhase === 'pickup' && !allPickupStopsCompleted
+                    ? 'Awaiting Pickups'
+                    : 'End Route'}
+                </button>
+              )}
+              {route.status === 'signs_placed' && (
+                <button
+                  onClick={handleStartRoute}
+                  disabled={transitioning}
+                  className={styles.btnStart}
+                >
+                  {transitioning ? 'Starting…' : 'Start Route'}
+                </button>
+              )}
+              {canManagePlanning && route.status === 'signs_picked_up' && (
+                <button
+                  onClick={handleCompleteRoute}
                   disabled={transitioning}
                   className={styles.btnComplete}
                 >
-                  {transitioning ? 'Updating…' : 'Start Pickup Phase'}
-                </button>
-              )}
-              {isPickupPhase(route.status) && (
-                <button
-                  onClick={handleCompleteRoute}
-                  disabled={transitioning || !allPickupStopsCompleted}
-                  className={styles.btnComplete}
-                >
-                  {transitioning ? 'Completing…' : allPickupStopsCompleted ? 'Complete Route' : 'Awaiting Pickups'}
+                  {transitioning ? 'Completing…' : 'Complete Route'}
                 </button>
               )}
               {canManagePlanning && route.status === 'completed' && (
@@ -1125,22 +1199,7 @@ function RouteDetailContent() {
             </div>
 
             <div className={`${styles.mapSection} ${isExecutionMode ? styles.mapSectionExecutionMobile : ''}`}>
-              <div className={styles.mapHeaderRow}>
-                <h3 className={styles.mapHeading}>Route Map</h3>
-                <div className={styles.mapThemeSelector}>
-                  <label htmlFor="map-theme-select" className={styles.mapThemeLabel}>Map Style:</label>
-                  <select
-                    id="map-theme-select"
-                    value={mapTheme}
-                    onChange={e => setMapTheme(e.target.value as MapTheme)}
-                    className={styles.mapThemeDropdown}
-                  >
-                    {MAP_THEMES.map(theme => (
-                      <option key={theme.key} value={theme.key}>{theme.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <h3 className={styles.mapHeading}>Route Map</h3>
               <RouteStopsMap
                 stops={stops}
                 activeStopId={topVisibleStopId}
@@ -1168,8 +1227,8 @@ function RouteDetailContent() {
                   addressSearchOrigin={customerAddressOrigin}
                   standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                   defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
-                  defaultAgentName={customerDefaults?.defaultAgentName ?? undefined}
-                  availableAgents={customerDefaults?.agentOptions ?? undefined}
+                  defaultAgentName={defaultAgentForStops}
+                  availableAgents={availableAgentsForStops}
                   isSubmitting={addingStop}
                   error={addStopError}
                   submitLabel="Add Stop"
@@ -1177,11 +1236,13 @@ function RouteDetailContent() {
               </div>
             )}
 
-            {visibleStops.length === 0 && !showAddStop && (isPlacementPhase(route?.status) || isPickupPhase(route?.status)) && (
+            {visibleStops.length === 0 && !showAddStop && (route?.status === 'in_progress' || route?.status === 'signs_placed') && (
               <div className={styles.emptyState}>
-                {isPlacementPhase(route?.status)
+                {isPlacementPhase(route?.status, route?.executionPhase)
                   ? 'All signs are placed. Start the pickup phase to continue.'
-                  : 'All pickup stops are complete. Route will auto-complete after final pickup.'}
+                  : route?.status === 'signs_placed'
+                  ? 'Ready for pickup phase. Click Start Route to begin pickup.'
+                  : 'All pickup stops are complete. Click End Route to finish pickup phase.'}
               </div>
             )}
 
@@ -1214,8 +1275,8 @@ function RouteDetailContent() {
                         addressSearchOrigin={customerAddressOrigin}
                         standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                         defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
-                        defaultAgentName={customerDefaults?.defaultAgentName ?? undefined}
-                        availableAgents={customerDefaults?.agentOptions ?? undefined}
+                        defaultAgentName={defaultAgentForStops}
+                        availableAgents={availableAgentsForStops}
                         isSubmitting={editingStop}
                         error={editStopError}
                         submitLabel="Save Changes"
@@ -1229,7 +1290,7 @@ function RouteDetailContent() {
                 const stopCircleClass = { delivery: styles.circleDelivery, pickup: styles.circlePickup, inspection: styles.circleInspection }[svcKey] ?? '';
                 const isTopVisibleStop = stop.id === topVisibleStopId;
                 const completedStop = isStopCompleted(stop);
-                const executionActive = isPlacementPhase(route?.status) || isPickupPhase(route?.status);
+                const executionActive = route?.status === 'in_progress';
                 return (
                   <div
                     key={stop.id}
@@ -1296,17 +1357,38 @@ function RouteDetailContent() {
                           <button
                             onClick={() => setEditingStopId(stop.id)}
                             className={styles.btnEdit}
-                            disabled={reordering}
+                            disabled={reordering || !!deletingStopId}
                           >
                             Edit
                           </button>
-                          <button
-                            onClick={() => handleDeleteStop(stop.id)}
-                            className={styles.btnDelete}
-                            disabled={reordering}
-                          >
-                            Delete
-                          </button>
+                          {pendingDeleteStopId === stop.id ? (
+                            <>
+                              <button
+                                onClick={() => {
+                                  void handleDeleteStop(stop.id);
+                                }}
+                                className={styles.btnDelete}
+                                disabled={reordering || !!deletingStopId}
+                              >
+                                {deletingStopId === stop.id ? 'Deleting...' : 'Confirm Delete'}
+                              </button>
+                              <button
+                                onClick={() => setPendingDeleteStopId(null)}
+                                className={styles.btnReorder}
+                                disabled={reordering || !!deletingStopId}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => setPendingDeleteStopId(stop.id)}
+                              className={styles.btnDelete}
+                              disabled={reordering || !!deletingStopId}
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       )}
 

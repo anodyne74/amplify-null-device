@@ -40,6 +40,12 @@
   padding: 10px 12px;
 }
 
+.select option,
+.select optgroup {
+  background: var(--nd-bg-elevated);
+  color: var(--nd-text-primary);
+}
+
 .textarea {
   resize: vertical;
   min-height: 96px;

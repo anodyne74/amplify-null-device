@@ -48,6 +48,12 @@
   font-size: 0.95rem;
 }
 
+.select option,
+.select optgroup {
+  background: var(--nd-bg-surface, #111111);
+  color: var(--nd-text-primary, rgba(255, 255, 255, 0.92));
+}
+
 .actions {
   margin-top: 14px;
   display: flex;

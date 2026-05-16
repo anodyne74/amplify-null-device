@@ -198,7 +198,10 @@
 }
 
 .mapSectionExecutionMobile {
-  position: static;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--nd-bg-surface);
 }
 
 .mapHeading {
@@ -639,12 +642,9 @@
   border: 1px solid var(--nd-border-default);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 1024px) {
   .mapSectionExecutionMobile {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: var(--nd-bg-base);
+    background: var(--nd-bg-surface);
     margin-inline: calc(-1 * var(--nd-space-lg));
     padding: 8px var(--nd-space-lg) 10px;
     border-bottom: 1px solid var(--nd-border-subtle);

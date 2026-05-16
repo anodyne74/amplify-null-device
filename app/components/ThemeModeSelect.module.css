@@ -24,3 +24,9 @@
   font-size: 0.75rem;
   letter-spacing: 0.03em;
 }
+
+.select option,
+.select optgroup {
+  background: var(--nd-bg-elevated);
+  color: var(--nd-text-primary);
+}

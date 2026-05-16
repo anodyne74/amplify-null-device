@@ -64,9 +64,14 @@ export interface Route {
   customerId: string;
   viewerSubs?: string[] | null;
   status?: RouteStatus | null;
+  executionPhase?: RouteExecutionPhase | null;
   estimatedDurationMinutes?: number | null;
   actualStartTime?: string | null;
   actualEndTime?: string | null;
+  placementStartTime?: string | null;
+  placementEndTime?: string | null;
+  pickupStartTime?: string | null;
+  pickupEndTime?: string | null;
   actualDurationMinutes?: number | null;
   signsPlacedDistanceKm?: number | null;
   signsPickedUpDistanceKm?: number | null;
@@ -203,7 +208,8 @@ export interface UserSettings {
 export type CustomerStatus = 'active' | 'inactive' | 'suspended';
 export type CustomerUserRole = 'account_owner' | 'read_only';
 export type OperatorRole = 'admin' | 'manager' | 'staff';
-export type RouteStatus = 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+export type RouteStatus = 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+export type RouteExecutionPhase = 'placement' | 'pickup';
 export type ServiceType = 'delivery' | 'pickup' | 'inspection';
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled';
 export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'check' | 'cash' | 'other';
@@ -252,6 +258,7 @@ export interface CreateRouteInput {
   customerId: string;
   viewerSubs?: string[];
   status: RouteStatus;
+  executionPhase?: RouteExecutionPhase;
   notes?: string;
 }
 
@@ -260,8 +267,13 @@ export interface UpdateRouteInput {
   routeCode?: string;
   customerId?: string;
   status?: RouteStatus;
+  executionPhase?: RouteExecutionPhase;
   actualStartTime?: string;
   actualEndTime?: string;
+  placementStartTime?: string;
+  placementEndTime?: string;
+  pickupStartTime?: string;
+  pickupEndTime?: string;
   actualDurationMinutes?: number;
   signsPlacedDistanceKm?: number;
   signsPickedUpDistanceKm?: number;

@@ -10,7 +10,7 @@ import RouteListItem from '@/app/customer/components/RouteListItem';
 import type { Route } from '@/amplify/types';
 import styles from './page.module.css';
 
-type RouteStatus = 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+type RouteStatus = 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
 
 /**
  * Customer Routes List Page
@@ -63,7 +63,7 @@ export default function CustomerRoutesPage() {
       });
     } else {
       filtered = filtered.sort((a, b) => {
-        const statusOrder = { planned: 0, signs_placed: 1, signs_picked_up: 2, completed: 3, archived: 4 };
+        const statusOrder = { planned: 0, in_progress: 1, signs_placed: 2, signs_picked_up: 3, completed: 4, archived: 5 };
         return (statusOrder[a.status as RouteStatus] || 0) - (statusOrder[b.status as RouteStatus] || 0);
       });
     }
@@ -97,6 +97,7 @@ export default function CustomerRoutesPage() {
             >
               <option value="all">All Statuses</option>
               <option value="planned">Planned</option>
+              <option value="in_progress">In Progress</option>
               <option value="signs_placed">Signs Placed</option>
               <option value="signs_picked_up">Signs Picked Up</option>
               <option value="completed">Completed</option>

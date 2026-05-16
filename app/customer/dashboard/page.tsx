@@ -161,7 +161,7 @@ export default function CustomerDashboard() {
 
         if (!cancelled) {
           setActiveRoutes(
-            routes.filter((route) => route.status === 'signs_placed' || route.status === 'signs_picked_up').length
+            routes.filter((route) => route.status === 'in_progress' || route.status === 'signs_placed' || route.status === 'signs_picked_up').length
           );
         }
 

@@ -23,6 +23,24 @@
   min-width: 0;
 }
 
+.fieldGroup select,
+.cellSelect {
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg-elevated);
+  color: var(--nd-text-primary);
+  font-size: 0.84rem;
+  padding: 8px 10px;
+}
+
+.fieldGroup select option,
+.fieldGroup select optgroup,
+.cellSelect option,
+.cellSelect optgroup {
+  background: var(--nd-bg-elevated);
+  color: var(--nd-text-primary);
+}
+
 .fieldGroup label {
   color: var(--nd-text-secondary);
   font-size: 0.78rem;

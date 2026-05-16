@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
-import type { Customer, Stop } from '@/amplify/types';
+import type { Customer, Stop, Route } from '@/amplify/types';
 import { getUserDisplayName, getUserEmail } from '@/lib/amplify-config';
 import { parseAgentOptionsInput, stringifyAgentOptions } from '@/lib/customerDefaults';
 import { getCustomer, getCustomerPortalContext, getUserSettings, updateCustomer } from '@/lib/queries';
@@ -63,6 +63,12 @@ function formatCurrency(amount: number) {
   }).format(amount);
 }
 
+function formatDuration(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}:${mins.toString().padStart(2, '0')}:00`;
+}
+
 /**
  * Customer Dashboard
  * Shows overview of routes, invoices, and statistics
@@ -88,8 +94,12 @@ export default function CustomerDashboard() {
   const [outstandingAmount, setOutstandingAmount] = useState(0);
   const [totalStops, setTotalStops] = useState(0);
   const [totalSigns, setTotalSigns] = useState(0);
-  const [totalKilometers, setTotalKilometers] = useState(0);
+
   const [totalInvoicedAmount, setTotalInvoicedAmount] = useState(0);
+  const [totalCompletedRoutes, setTotalCompletedRoutes] = useState(0);
+  const [totalHours, setTotalHours] = useState(0);
+  const [totalDistance, setTotalDistance] = useState(0);
+  const [totalKilometers, setTotalKilometers] = useState(0);
 
   useEffect(() => {
     setDisplayName(fallbackDisplayName);
@@ -157,12 +167,22 @@ export default function CustomerDashboard() {
 
         setStatsLoading(true);
         const routesResult = await listMyRoutes({ customerId: context.customerId, limit: 500 });
-        const routes = (routesResult.data as Array<{ status?: string | null }>) ?? [];
+        const routes = (routesResult.data as Route[]) ?? [];
 
         if (!cancelled) {
           setActiveRoutes(
             routes.filter((route) => route.status === 'in_progress' || route.status === 'signs_placed' || route.status === 'signs_picked_up').length
           );
+          const completed = routes.filter((r) => r.status === 'completed');
+          setTotalCompletedRoutes(completed.length);
+          const totalMinutes = completed.reduce((sum, r) => sum + (typeof r.actualDurationMinutes === 'number' ? r.actualDurationMinutes : 0), 0);
+          setTotalHours(totalMinutes);
+          const totalDist = completed.reduce(
+            (sum, r) => sum + (typeof r.signsPlacedDistanceKm === 'number' ? r.signsPlacedDistanceKm : 0) +
+                         (typeof r.signsPickedUpDistanceKm === 'number' ? r.signsPickedUpDistanceKm : 0),
+            0
+          );
+          setTotalDistance(totalDist);
         }
 
         const client = generateClient<Schema>();
@@ -326,25 +346,35 @@ export default function CustomerDashboard() {
       </div>
 
       <div className={styles.infoPanel}>
-        <h3>Customer Totals</h3>
+        <h3>Customer Statistics</h3>
         <div className={styles.statsGrid}>
           <div className={styles.statCard}>
-            <p className={styles.statLabel}>Total Signs</p>
-            <p className={`${styles.statValue} ${styles.green}`}>{statsLoading ? '…' : totalSigns}</p>
+            <p className={styles.statLabel}>Jobs Completed</p>
+            <p className={`${styles.statValue} ${styles.green}`}>{statsLoading ? '…' : totalCompletedRoutes}</p>
+          </div>
+          <div className={styles.statCard}>
+            <p className={styles.statLabel}>Total Distance</p>
+            <p className={`${styles.statValue} ${styles.amber}`}>
+              {statsLoading ? '…' : `${totalDistance.toFixed(1)} km`}
+            </p>
           </div>
           <div className={styles.statCard}>
             <p className={styles.statLabel}>Total Stops</p>
             <p className={`${styles.statValue} ${styles.cyan}`}>{statsLoading ? '…' : totalStops}</p>
           </div>
           <div className={styles.statCard}>
-            <p className={styles.statLabel}>Total Kilometers</p>
-            <p className={`${styles.statValue} ${styles.amber}`}>
-              {statsLoading ? '…' : `${totalKilometers.toFixed(2)} km`}
+            <p className={styles.statLabel}>Total Signs</p>
+            <p className={`${styles.statValue} ${styles.danger}`}>{statsLoading ? '…' : totalSigns}</p>
+          </div>
+          <div className={styles.statCard}>
+            <p className={styles.statLabel}>Total Hours</p>
+            <p className={`${styles.statValue} ${styles.green}`}>
+              {statsLoading ? '…' : formatDuration(totalHours)}
             </p>
           </div>
           <div className={styles.statCard}>
-            <p className={styles.statLabel}>Total Invoiced Amount</p>
-            <p className={`${styles.statValue} ${styles.danger}`}>
+            <p className={styles.statLabel}>Invoiced Amount</p>
+            <p className={`${styles.statValue} ${styles.cyan}`}>
               {customerRole === 'account_owner'
                 ? statsLoading
                   ? '…'
@@ -352,19 +382,63 @@ export default function CustomerDashboard() {
                 : 'Restricted'}
             </p>
           </div>
-        </div>
-      </div>
-
-      <div className={styles.infoPanel}>
-        <h3>Outstanding Amount</h3>
-        <div className={styles.statsGrid}>
           <div className={styles.statCard}>
-            <p className={styles.statLabel}>Current Outstanding</p>
+            <p className={styles.statLabel}>Outstanding Amount</p>
             <p className={`${styles.statValue} ${styles.danger}`}>
               {customerRole === 'account_owner'
                 ? statsLoading
                   ? '…'
                   : formatCurrency(outstandingAmount)
+                : 'Restricted'}
+            </p>
+          </div>
+          <div className={styles.statCard}>
+            <p className={styles.statLabel}>Average Per Job</p>
+            <p className={`${styles.statValue} ${styles.amber}`}>
+              {customerRole === 'account_owner'
+                ? statsLoading || totalCompletedRoutes === 0
+                  ? '…'
+                  : formatCurrency(totalInvoicedAmount / totalCompletedRoutes)
+                : 'Restricted'}
+            </p>
+          </div>
+          <div className={styles.statCard}>
+            <p className={styles.statLabel}>Average Per Stop</p>
+            <p className={`${styles.statValue} ${styles.cyan}`}>
+              {customerRole === 'account_owner'
+                ? statsLoading || totalStops === 0
+                  ? '…'
+                  : formatCurrency(totalInvoicedAmount / totalStops)
+                : 'Restricted'}
+            </p>
+          </div>
+          <div className={styles.statCard}>
+            <p className={styles.statLabel}>Average Per Sign</p>
+            <p className={`${styles.statValue} ${styles.green}`}>
+              {customerRole === 'account_owner'
+                ? statsLoading || totalSigns === 0
+                  ? '…'
+                  : formatCurrency(totalInvoicedAmount / totalSigns)
+                : 'Restricted'}
+            </p>
+          </div>
+          <div className={styles.statCard}>
+            <p className={styles.statLabel}>Average Per Kilometer</p>
+            <p className={`${styles.statValue} ${styles.amber}`}>
+              {customerRole === 'account_owner'
+                ? statsLoading || totalDistance === 0
+                  ? '…'
+                  : formatCurrency(totalInvoicedAmount / totalDistance)
+                : 'Restricted'}
+            </p>
+          </div>
+          <div className={styles.statCard}>
+            <p className={styles.statLabel}>Average Signs Per Hour</p>
+            <p className={`${styles.statValue} ${styles.danger}`}>
+              {customerRole === 'account_owner'
+                ? statsLoading || totalHours === 0
+                  ? '…'
+                  : (totalSigns / (totalHours / 60)).toFixed(2)
                 : 'Restricted'}
             </p>
           </div>

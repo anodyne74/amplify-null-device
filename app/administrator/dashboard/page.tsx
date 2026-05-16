@@ -12,23 +12,41 @@ import styles from '@/app/dashboard.module.css';
 
 type Invoice = {
   id: string;
+  totalAmount: number;
   status?: 'draft' | 'finalized' | 'sent' | 'paid' | null;
   emailSentAt?: string | null;
 };
+
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function formatDuration(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}:${mins.toString().padStart(2, '0')}:00`;
+}
 
 export default function AdminHomePage() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customerCount, setCustomerCount] = useState<number | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [totalStops, setTotalStops] = useState(0);
+  const [totalSigns, setTotalSigns] = useState(0);
 
   useEffect(() => {
     async function loadStats() {
       setStatsLoading(true);
       try {
         const [routeResult, invoiceResult, customerResult] = await Promise.all([
-          listAllRoutes({ limit: 200 }),
-          listInvoices({ limit: 200 }),
+          listAllRoutes({ limit: 500 }),
+          listInvoices({ limit: 500 }),
           generateClient<Schema>().models.Customer.list({ limit: 200 }),
         ]);
         if (!routeResult.errors || routeResult.errors.length === 0) {
@@ -40,6 +58,12 @@ export default function AdminHomePage() {
         if (!customerResult.errors || customerResult.errors.length === 0) {
           setCustomerCount(customerResult.data?.length ?? 0);
         }
+
+        const client = generateClient<Schema>();
+        const allStops = await client.models.Stop.list({ limit: 2000 });
+        const stopList = (allStops.data as unknown as Array<{ numberOfSigns?: number | null }>) ?? [];
+        setTotalStops(stopList.length);
+        setTotalSigns(stopList.reduce((sum, s) => sum + (typeof s.numberOfSigns === 'number' ? s.numberOfSigns : 0), 0));
       } catch { /* stats are best-effort */ }
       setStatsLoading(false);
     }
@@ -63,12 +87,34 @@ export default function AdminHomePage() {
     [invoices]
   );
 
-  const emailsSentToday = useMemo(() => {
-    const today = new Date().toDateString();
-    return invoices.filter(
-      (inv) => inv.emailSentAt && new Date(inv.emailSentAt).toDateString() === today
+
+
+  const completedRoutes = useMemo(() => routes.filter((r) => r.status === 'completed'), [routes]);
+  const totalCompletedHours = useMemo(
+    () =>
+      completedRoutes.reduce(
+        (sum, r) => sum + (typeof r.actualDurationMinutes === 'number' ? r.actualDurationMinutes : 0),
+        0
+      ),
+    [completedRoutes]
+  );
+  const totalCompletedDistance = useMemo(() => {
+    return completedRoutes.reduce(
+      (sum, r) => sum + (typeof r.signsPlacedDistanceKm === 'number' ? r.signsPlacedDistanceKm : 0) +
+                   (typeof r.signsPickedUpDistanceKm === 'number' ? r.signsPickedUpDistanceKm : 0),
+      0
     );
-  }, [invoices]);
+  }, [completedRoutes]);
+  const totalInvoicedAmount = useMemo(
+    () => invoices.reduce((sum, inv) => sum + (typeof inv.totalAmount === 'number' ? inv.totalAmount : 0), 0),
+    [invoices]
+  );
+  const totalOutstandingBalance = useMemo(
+    () => invoices
+      .filter((inv) => inv.status !== 'paid')
+      .reduce((sum, inv) => sum + (typeof inv.totalAmount === 'number' ? inv.totalAmount : 0), 0),
+    [invoices]
+  );
 
   return (
     <OperatorRoute requireAdmin>
@@ -88,10 +134,12 @@ export default function AdminHomePage() {
                 {statsLoading ? '…' : activeRoutes.length}
               </p>
             </div>
-            <Link href="/administrator/routes" className={styles.statCard}>
-              <p className={styles.statLabel}>All Routes</p>
-              <p className={`${styles.statValue} ${styles.amber}`}>Open →</p>
-            </Link>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Total Routes</p>
+              <p className={`${styles.statValue} ${styles.amber}`}>
+                {statsLoading ? '…' : routes.length}
+              </p>
+            </div>
           </div>
 
           {/* Planned Routes + Generate Invoices */}
@@ -102,10 +150,12 @@ export default function AdminHomePage() {
                 {statsLoading ? '…' : plannedRoutes.length}
               </p>
             </div>
-            <Link href="/administrator/invoices" className={styles.statCard}>
-              <p className={styles.statLabel}>Generate Invoices</p>
-              <p className={`${styles.statValue} ${styles.green}`}>Open →</p>
-            </Link>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Total Invoices</p>
+              <p className={`${styles.statValue} ${styles.green}`}>
+                {statsLoading ? '…' : invoices.length}
+              </p>
+            </div>
           </div>
 
           {/* Completed Today + Manage Users */}
@@ -116,10 +166,12 @@ export default function AdminHomePage() {
                 {statsLoading ? '…' : completedToday.length}
               </p>
             </div>
-            <Link href="/administrator/users" className={styles.statCard}>
-              <p className={styles.statLabel}>Manage Users</p>
-              <p className={`${styles.statValue} ${styles.danger}`}>Open →</p>
-            </Link>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Completed Routes</p>
+              <p className={`${styles.statValue} ${styles.danger}`}>
+                {statsLoading ? '…' : completedRoutes.length}
+              </p>
+            </div>
           </div>
 
           {/* Customers + Define Customers */}
@@ -130,10 +182,12 @@ export default function AdminHomePage() {
                 {statsLoading ? '…' : customerCount ?? '—'}
               </p>
             </div>
-            <Link href="/administrator/customers" className={styles.statCard}>
-              <p className={styles.statLabel}>Define Customers</p>
-              <p className={`${styles.statValue} ${styles.cyan}`}>Open →</p>
-            </Link>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Total Stops</p>
+              <p className={`${styles.statValue} ${styles.cyan}`}>
+                {statsLoading ? '…' : totalStops}
+              </p>
+            </div>
           </div>
 
           {/* Unsent Invoices + Send Invoice */}
@@ -144,23 +198,113 @@ export default function AdminHomePage() {
                 {statsLoading ? '…' : unsentInvoices.length}
               </p>
             </div>
-            <Link href="/administrator/invoices" className={styles.statCard}>
-              <p className={styles.statLabel}>Send via SES</p>
-              <p className={`${styles.statValue} ${styles.green}`}>Open →</p>
-            </Link>
-          </div>
-
-          {/* Emails Sent Today + Invoice History */}
-          <div className={styles.cardColumn}>
             <div className={styles.statCard}>
-              <p className={styles.statLabel}>Emails Sent Today</p>
+              <p className={styles.statLabel}>Total Signs</p>
               <p className={`${styles.statValue} ${styles.green}`}>
-                {statsLoading ? '…' : emailsSentToday.length}
+                {statsLoading ? '…' : totalSigns}
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* Total Statistics Section */}
+        <div className={styles.infoPanel}>
+          <h3>Total Statistics</h3>
+          <div className={styles.statsGrid}>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Jobs Completed</p>
+              <p className={`${styles.statValue} ${styles.green}`}>
+                {statsLoading ? '…' : completedRoutes.length}
+              </p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Total Distance</p>
+              <p className={`${styles.statValue} ${styles.amber}`}>
+                {statsLoading ? '…' : `${totalCompletedDistance.toFixed(1)} km`}
+              </p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Total Stops</p>
+              <p className={`${styles.statValue} ${styles.cyan}`}>
+                {statsLoading ? '…' : totalStops}
+              </p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Total Signs</p>
+              <p className={`${styles.statValue} ${styles.danger}`}>
+                {statsLoading ? '…' : totalSigns}
+              </p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Total Hours</p>
+              <p className={`${styles.statValue} ${styles.green}`}>
+                {statsLoading ? '…' : formatDuration(totalCompletedHours)}
+              </p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Invoiced Amount</p>
+              <p className={`${styles.statValue} ${styles.cyan}`}>
+                {statsLoading ? '…' : formatCurrency(totalInvoicedAmount)}
+              </p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Outstanding Amount</p>
+              <p className={`${styles.statValue} ${styles.danger}`}>
+                {statsLoading ? '…' : formatCurrency(totalOutstandingBalance)}
+              </p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Average Per Job</p>
+              <p className={`${styles.statValue} ${styles.amber}`}>
+                {statsLoading || completedRoutes.length === 0 ? '…' : formatCurrency(totalInvoicedAmount / completedRoutes.length)}
+              </p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Average Per Stop</p>
+              <p className={`${styles.statValue} ${styles.cyan}`}>
+                {statsLoading || totalStops === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalStops)}
+              </p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Average Per Sign</p>
+              <p className={`${styles.statValue} ${styles.green}`}>
+                {statsLoading || totalSigns === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalSigns)}
+              </p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Average Per Kilometer</p>
+              <p className={`${styles.statValue} ${styles.amber}`}>
+                {statsLoading || totalCompletedDistance === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalCompletedDistance)}
+              </p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Average Signs Per Hour</p>
+              <p className={`${styles.statValue} ${styles.danger}`}>
+                {statsLoading || totalCompletedHours === 0 ? '…' : (totalSigns / (totalCompletedHours / 60)).toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions Section */}
+        <div className={styles.infoPanel}>
+          <h3>Quick Actions</h3>
+          <div className={styles.statsGrid}>
+            <Link href="/administrator/routes" className={styles.statCard}>
+              <p className={styles.statLabel}>View All Routes</p>
+              <p className={`${styles.statValue} ${styles.cyan}`}>→</p>
+            </Link>
             <Link href="/administrator/invoices" className={styles.statCard}>
-              <p className={styles.statLabel}>Invoice History</p>
-              <p className={`${styles.statValue} ${styles.cyan}`}>Open →</p>
+              <p className={styles.statLabel}>Manage Invoices</p>
+              <p className={`${styles.statValue} ${styles.green}`}>→</p>
+            </Link>
+            <Link href="/administrator/customers" className={styles.statCard}>
+              <p className={styles.statLabel}>Manage Customers</p>
+              <p className={`${styles.statValue} ${styles.amber}`}>→</p>
+            </Link>
+            <Link href="/administrator/users" className={styles.statCard}>
+              <p className={styles.statLabel}>Manage Users</p>
+              <p className={`${styles.statValue} ${styles.danger}`}>→</p>
             </Link>
           </div>
         </div>

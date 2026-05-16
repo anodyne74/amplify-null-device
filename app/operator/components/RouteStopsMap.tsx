@@ -60,6 +60,15 @@ function applyMapOrientation(map: LeafletMap, headingDegrees: number) {
   const baseTransform = (mapPane.style.transform || '').replace(/\s*rotateZ\([^)]*\)/g, '');
   mapPane.style.transform = `${baseTransform} rotateZ(${-headingDegrees.toFixed(2)}deg)`;
   mapPane.style.transformOrigin = '50% 50%';
+
+  // Some Leaflet builds/plugins mount tooltip pane outside mapPane. Rotate it too so labels
+  // stay aligned with heading-up map orientation.
+  const tooltipPane = map.getPane('tooltipPane');
+  if (tooltipPane && !mapPane.contains(tooltipPane)) {
+    const tooltipBaseTransform = (tooltipPane.style.transform || '').replace(/\s*rotateZ\([^)]*\)/g, '');
+    tooltipPane.style.transform = `${tooltipBaseTransform} rotateZ(${-headingDegrees.toFixed(2)}deg)`;
+    tooltipPane.style.transformOrigin = '50% 50%';
+  }
 }
 
 function updateViewport(

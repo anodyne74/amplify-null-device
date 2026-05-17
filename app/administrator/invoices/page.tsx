@@ -6,7 +6,15 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseInvoiceText } from '@/lib/parseInvoice';
-import { createInvoice, listCustomerUsers, listCustomers, listInvoices, updateInvoice, updateInvoicePdfKey } from '@/lib/queries';
+import {
+  createInvoice,
+  getInvoiceWithLineItems,
+  listCustomerUsers,
+  listCustomers,
+  listInvoices,
+  updateInvoice,
+  updateInvoicePdfKey,
+} from '@/lib/queries';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import type { Route } from '@/amplify/types';
 import styles from '@/app/dashboard.module.css';
@@ -16,6 +24,7 @@ type CustomerOption = { id: string; name: string; email?: string; primaryEmail?:
 type Invoice = {
   id: string;
   invoiceNumber: string;
+  invoiceDate?: string | null;
   customerId: string;
   routeId?: string | null;
   pdfS3Key?: string | null;
@@ -31,6 +40,8 @@ export default function InvoicesAdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const successMessageTimeoutMs = 5000;
 
   const [customerId, setCustomerId] = useState('');
   const [routeId, setRouteId] = useState('');
@@ -43,7 +54,7 @@ export default function InvoicesAdminPage() {
   const [pdfActionLoadingId, setPdfActionLoadingId] = useState<string | null>(null);
   const [emailingInvoiceId, setEmailingInvoiceId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [pendingUploadInvoiceId, setPendingUploadInvoiceId] = useState<string | null>(null);
+  const [, setPendingUploadInvoiceId] = useState<string | null>(null);
   const pendingUploadInvoiceIdRef = useRef<string | null>(null);
 
   // Routes filtered by selected customer
@@ -100,6 +111,18 @@ export default function InvoicesAdminPage() {
 
   useEffect(() => { void fetchData(); }, [fetchData]);
 
+  useEffect(() => {
+    if (!successMessage) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setSuccessMessage(null);
+    }, successMessageTimeoutMs);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [successMessage]);
+
   // Auto-populate invoice amount from selected route's override values
   useEffect(() => {
     if (!routeId) {
@@ -128,6 +151,7 @@ export default function InvoicesAdminPage() {
     if (!customerId) { setError('Select a customer first.'); return; }
     setSaving(true);
     setError(null);
+    setSuccessMessage(null);
     const today = new Date().toISOString().slice(0, 10);
     const result = await createInvoice({
       customerId,
@@ -143,6 +167,7 @@ export default function InvoicesAdminPage() {
       setInvoiceNumber('');
       setTotalAmount('0');
       setRouteId('');
+      setSuccessMessage('Invoice created successfully.');
       await fetchData();
     }
     setSaving(false);
@@ -158,6 +183,7 @@ export default function InvoicesAdminPage() {
     pendingUploadInvoiceIdRef.current = invoiceId;
     setPendingUploadInvoiceId(invoiceId);
     setUploadError(null);
+    setSuccessMessage(null);
     fileInputRef.current?.click();
   };
 
@@ -184,6 +210,7 @@ export default function InvoicesAdminPage() {
 
     setUploadingId(invoiceId);
     setUploadError(null);
+    setSuccessMessage(null);
 
     try {
       const s3Key = `invoices/${invoiceId}.pdf`;
@@ -220,9 +247,11 @@ export default function InvoicesAdminPage() {
           if (parsedRouteId) parsedUpdates.routeId = parsedRouteId;
 
           await updateInvoice(invoiceId, parsedUpdates);
+          setSuccessMessage('Invoice PDF uploaded and invoice metadata updated.');
         } catch (parseError) {
           console.warn('PDF uploaded but auto-parse failed:', parseError);
           setUploadError('PDF uploaded, but automatic invoice parsing failed. You can still use the uploaded PDF.');
+          setSuccessMessage('Invoice PDF uploaded successfully.');
         }
 
         await fetchData();
@@ -269,6 +298,138 @@ export default function InvoicesAdminPage() {
     }
   };
 
+  const handleGeneratePdf = async (invoice: Invoice) => {
+    setUploadingId(invoice.id);
+    setUploadError(null);
+    setSuccessMessage(null);
+
+    try {
+      const customer = customers.find((entry) => entry.id === invoice.customerId);
+      const linkedRoute = routes.find((route) => route.id === invoice.routeId);
+      const detail = await getInvoiceWithLineItems(invoice.id);
+      const lineItems = (detail.lineItems as Array<{
+        description?: string | null;
+        quantity?: number | null;
+        ratePerUnit?: number | null;
+        amount?: number | null;
+      }>) ?? [];
+      const { jsPDF } = await import('jspdf');
+
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const left = 56;
+      let y = 64;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.text('NullDevice Invoice', left, y);
+
+      y += 24;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text(`Invoice #: ${invoice.invoiceNumber || invoice.id}`, left, y);
+      y += 18;
+      doc.text(`Invoice Date: ${invoice.invoiceDate || new Date().toISOString().slice(0, 10)}`, left, y);
+      y += 18;
+      doc.text(`Customer: ${customer?.name || invoice.customerId}`, left, y);
+      y += 18;
+      doc.text(`Customer Email: ${customer?.primaryEmail || customer?.email || '—'}`, left, y);
+      y += 18;
+      doc.text(`Linked Route: ${linkedRoute?.routeCode || invoice.routeId || '—'}`, left, y);
+      y += 18;
+      doc.text(`Status: ${invoice.status || 'draft'}`, left, y);
+
+      y += 34;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text('Invoice Summary', left, y);
+
+      y += 24;
+      doc.setLineWidth(0.6);
+      doc.line(left, y, 540, y);
+      y += 22;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('Total Amount Due', left, y);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`$${invoice.totalAmount.toFixed(2)}`, 540, y, { align: 'right' });
+
+      y += 22;
+      doc.setLineWidth(0.6);
+      doc.line(left, y, 540, y);
+
+      y += 34;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(
+        'This invoice was generated from the administrator portal. For questions, contact support@nulldevice.dev.',
+        left,
+        y,
+        { maxWidth: 484 }
+      );
+
+      if (lineItems.length > 0) {
+        y += 34;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(13);
+        doc.text('Line Items', left, y);
+
+        y += 18;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text('Description', left, y);
+        doc.text('Qty', 350, y);
+        doc.text('Rate', 420, y, { align: 'right' });
+        doc.text('Amount', 540, y, { align: 'right' });
+
+        y += 8;
+        doc.setLineWidth(0.6);
+        doc.line(left, y, 540, y);
+
+        for (const item of lineItems) {
+          if (y > 760) {
+            doc.addPage();
+            y = 64;
+          }
+
+          y += 18;
+          const quantity = typeof item.quantity === 'number' ? item.quantity : 1;
+          const rate = typeof item.ratePerUnit === 'number' ? item.ratePerUnit : 0;
+          const amount = typeof item.amount === 'number' ? item.amount : quantity * rate;
+
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          doc.text(item.description || 'Line Item', left, y, { maxWidth: 260 });
+          doc.text(`${quantity}`, 350, y);
+          doc.text(`$${rate.toFixed(2)}`, 420, y, { align: 'right' });
+          doc.text(`$${amount.toFixed(2)}`, 540, y, { align: 'right' });
+        }
+      }
+
+      const pdfBlob = doc.output('blob');
+      const s3Key = `invoices/${invoice.id}.pdf`;
+      await uploadData({
+        path: s3Key,
+        data: pdfBlob,
+        options: { contentType: 'application/pdf' },
+      }).result;
+
+      const keyResult = await updateInvoicePdfKey(invoice.id, s3Key);
+      if (keyResult.errors && keyResult.errors.length > 0) {
+        setUploadError('Generated PDF uploaded but failed to save key on invoice.');
+      } else {
+        setSuccessMessage(`Invoice ${invoice.invoiceNumber} PDF generated successfully.`);
+        await fetchData();
+      }
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setUploadError(`Unable to generate invoice PDF. ${message}`);
+    } finally {
+      setUploadingId(null);
+    }
+  };
+
   const handleMarkPaid = async (invoiceId: string) => {
     await setStatus(invoiceId, 'paid');
   };
@@ -289,6 +450,7 @@ export default function InvoicesAdminPage() {
 
     setEmailingInvoiceId(invoice.id);
     setError(null);
+    setSuccessMessage(null);
 
     try {
       // Get auth token
@@ -322,13 +484,7 @@ export default function InvoicesAdminPage() {
 
       const result = await response.json();
       setError(null);
-      
-      // Show success message with email details
-      const message = `Invoice ${invoice.invoiceNumber} emailed to ${result.sentTo}`;
-      setError(null);
-      
-      // Show a temporary success message (using alert or by updating state)
-      alert(`✓ ${message}`);
+      setSuccessMessage(`Invoice ${invoice.invoiceNumber} emailed to ${result.sentTo}.`);
       
       // Refresh invoice data to pick up emailSentAt timestamp
       await fetchData();
@@ -429,6 +585,21 @@ export default function InvoicesAdminPage() {
             <p className={invoiceStyles.errorText}>{error}</p>
           </div>
         )}
+        {successMessage && (
+          <div className={`${styles.infoPanel} ${invoiceStyles.alertPanel}`}>
+            <div className={invoiceStyles.successBanner}>
+              <p className={invoiceStyles.successText}>{successMessage}</p>
+              <button
+                type="button"
+                className={invoiceStyles.dismissSuccessButton}
+                onClick={() => setSuccessMessage(null)}
+                aria-label="Dismiss success message"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
         {uploadError && (
           <div className={`${styles.infoPanel} ${invoiceStyles.alertPanel}`}>
             <p className={invoiceStyles.warningText}>{uploadError}</p>
@@ -500,6 +671,16 @@ export default function InvoicesAdminPage() {
                               type="button"
                               className={invoiceStyles.inlineButton}
                               onClick={() => {
+                                void handleGeneratePdf(invoice);
+                              }}
+                              disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
+                            >
+                              {uploadingId === invoice.id ? 'Generating...' : 'Regenerate'}
+                            </button>
+                            <button
+                              type="button"
+                              className={invoiceStyles.inlineButton}
+                              onClick={() => {
                                 void handlePdfAction(invoice, 'view');
                               }}
                               disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
@@ -527,14 +708,26 @@ export default function InvoicesAdminPage() {
                           </div>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          className={invoiceStyles.uploadButton}
-                          onClick={() => handleUploadClick(invoice.id)}
-                          disabled={uploadingId === invoice.id}
-                        >
-                          {uploadingId === invoice.id ? 'Uploading...' : 'Upload PDF'}
-                        </button>
+                        <div className={invoiceStyles.pdfButtons}>
+                          <button
+                            type="button"
+                            className={invoiceStyles.uploadButton}
+                            onClick={() => {
+                              void handleGeneratePdf(invoice);
+                            }}
+                            disabled={uploadingId === invoice.id}
+                          >
+                            {uploadingId === invoice.id ? 'Generating...' : 'Generate PDF'}
+                          </button>
+                          <button
+                            type="button"
+                            className={invoiceStyles.uploadButton}
+                            onClick={() => handleUploadClick(invoice.id)}
+                            disabled={uploadingId === invoice.id}
+                          >
+                            {uploadingId === invoice.id ? 'Uploading...' : 'Upload PDF'}
+                          </button>
+                        </div>
                       )}
                       </td>
                       <td>

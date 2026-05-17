@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useRouter } from 'next/navigation';
 import { useUserGroups } from '@/lib/use-user-groups';
@@ -38,11 +38,9 @@ const createMockUser = (email: string, groups: string[] = []) => ({
 
 describe('Authentication Components', () => {
   let mockPush: jest.Mock;
-  let mockSignOut: jest.Mock;
 
   beforeEach(() => {
     mockPush = jest.fn();
-    mockSignOut = jest.fn();
     mockUseRouter.mockReturnValue({
       push: mockPush,
     } as any);

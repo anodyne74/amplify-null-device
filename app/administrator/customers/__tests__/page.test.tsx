@@ -63,6 +63,12 @@ describe('Operator Customers Page', () => {
 
     render(<CustomersAdminPage />);
 
+    fireEvent.click(screen.getByRole('button', { name: /new customer/i }));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Name')).toBeInTheDocument();
+    });
+
     fireEvent.change(screen.getByPlaceholderText('Name'), { target: { value: 'Acme Corp' } });
     fireEvent.change(screen.getByPlaceholderText('Email'), { target: { value: 'acme@example.com' } });
     fireEvent.change(screen.getByPlaceholderText('Billing rate per hour'), { target: { value: '120' } });

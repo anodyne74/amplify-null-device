@@ -25,7 +25,7 @@ export function generateAgentInitials(agentName?: string) {
   }
 
   if (words.length === 1) {
-    return words[0].slice(0, 2).toUpperCase();
+    return words[0][0]?.toUpperCase();
   }
 
   const initials = words.map((word) => word[0]?.toUpperCase() ?? '').join('');

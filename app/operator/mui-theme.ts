@@ -54,21 +54,25 @@ export const operatorTheme = createTheme({
     fontFamily:
       'var(--nd-font-body, Inter, system-ui, -apple-system, sans-serif)',
     h1: {
+      fontFamily: 'var(--nd-font-display, Comfortaa, sans-serif)',
       fontSize: '2rem',
       fontWeight: 600,
       lineHeight: 1.2,
     },
     h2: {
+      fontFamily: 'var(--nd-font-display, Comfortaa, sans-serif)',
       fontSize: '1.5rem',
       fontWeight: 600,
       lineHeight: 1.3,
     },
     h3: {
+      fontFamily: 'var(--nd-font-display, Comfortaa, sans-serif)',
       fontSize: '1.25rem',
       fontWeight: 600,
       lineHeight: 1.4,
     },
     h4: {
+      fontFamily: 'var(--nd-font-display, Comfortaa, sans-serif)',
       fontSize: '1.125rem',
       fontWeight: 600,
       lineHeight: 1.4,

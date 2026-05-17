@@ -43,8 +43,6 @@ import {
   getCustomer,
   listCustomerRoutes,
   getRouteWithStops,
-  listCustomerInvoices,
-  getInvoiceWithLineItems,
   createRoute,
   updateRoute,
 } from './queries';

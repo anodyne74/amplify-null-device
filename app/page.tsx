@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator, Authenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
+import { SUPPORT_EMAIL } from '@/lib/publicAppConfig';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import styles from './page.module.css';
 
@@ -96,7 +98,15 @@ export default function Home() {
       <div className={styles.loginContainer}>
         {/* Branding Section */}
         <div className={styles.brandingSection}>
-          <div className={styles.logo}>◆</div>
+          <Image
+            src="/icon.svg"
+            alt=""
+            aria-hidden="true"
+            className={styles.logo}
+            width={108}
+            height={108}
+            priority
+          />
           <h1 className={styles.brandTitle}>NullDevice</h1>
           <p className={styles.brandSubtitle}>Route Planning & Delivery Management</p>
         </div>
@@ -152,7 +162,7 @@ export default function Home() {
         {/* Footer Section */}
         <div className={styles.footerSection}>
           <p className={styles.footerText}>
-            Need help? Contact support at <strong>support@nulldevice.local</strong>
+            Need help? Contact support at <strong><a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a></strong>
           </p>
         </div>
       </div>

@@ -82,22 +82,6 @@ function formatDateTime(dateString?: string | null) {
   });
 }
 
-function formatRouteDuration(route: Route) {
-  if (typeof route.actualDurationMinutes === 'number') {
-    return `${route.actualDurationMinutes} min`;
-  }
-
-  if (route.status === 'in_progress' && route.actualStartTime) {
-    const minutes = Math.max(
-      1,
-      Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000)
-    );
-    return `${minutes} min (in progress)`;
-  }
-
-  return '—';
-}
-
 function getRouteDurationMinutes(route: Route) {
   if (typeof route.actualDurationMinutes === 'number') {
     return Math.max(0, route.actualDurationMinutes);

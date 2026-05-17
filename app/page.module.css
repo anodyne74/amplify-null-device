@@ -92,25 +92,17 @@
 }
 
 .logo {
-  font-size: 48px;
-  color: var(--nd-accent-primary);
+  width: clamp(72px, 18vw, 108px);
+  height: clamp(72px, 18vw, 108px);
   margin-bottom: var(--nd-space-md);
-  animation: logoFloat 3s ease-in-out infinite;
   display: inline-block;
-}
-
-@keyframes logoFloat {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
+  object-fit: contain;
 }
 
 .brandTitle {
   margin: 0 0 var(--nd-space-xs) 0;
   font-size: 32px;
+  font-family: var(--nd-font-display);
   font-weight: 700;
   color: var(--nd-text-primary);
   letter-spacing: -0.5px;
@@ -133,6 +125,7 @@
   margin: 0 0 var(--nd-space-sm) 0;
   font-size: 24px;
   font-weight: 600;
+  font-family: var(--nd-font-display);
   color: var(--nd-text-primary);
 }
 
@@ -286,7 +279,8 @@
   }
 
   .logo {
-    font-size: 40px;
+    width: 88px;
+    height: 88px;
   }
 
   .brandTitle {

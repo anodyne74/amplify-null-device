@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Circle as LeafletCircle, CircleMarker as LeafletCircleMarker, Map as LeafletMap } from 'leaflet';
 import type { Stop } from '@/amplify/types';
 import { getMapTheme, type MapTheme } from '@/lib/mapThemes';
@@ -115,9 +115,13 @@ export function RouteStopsMap({
   const [devicePosition, setDevicePosition] = useState<DevicePosition | null>(null);
 
   // Use provided currentPosition, or fallback to device geolocation if not provided
-  const displayPosition = currentPosition 
-    ? { latitude: currentPosition.latitude, longitude: currentPosition.longitude, accuracy: undefined } 
-    : devicePosition;
+  const displayPosition = useMemo(
+    () =>
+      currentPosition
+        ? { latitude: currentPosition.latitude, longitude: currentPosition.longitude, accuracy: undefined }
+        : devicePosition,
+    [currentPosition, devicePosition]
+  );
 
   const orderedStops = [...stops].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
   const mappedStops = orderedStops.filter(hasCoordinates);
@@ -366,7 +370,7 @@ export function RouteStopsMap({
 
     const activeStop = mappedStops.find((stop) => stop.id === activeStopId) ?? mappedStops.find((stop) => !stop.actualDepartureTime) ?? mappedStops[0];
     updateViewport(mapRef.current, activeStop, displayPosition, leafletRef.current);
-  }, [activeStopId, mappedStops, stops]);
+  }, [activeStopId, mappedStops, displayPosition]);
 
   if (orderedStops.length === 0) {
     return (

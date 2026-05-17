@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
@@ -80,7 +81,17 @@ export default function PortalLayout({
       {/* Sidebar */}
       <aside className={sidebarClass} style={sidebarStyle}>
         <div className={styles.brand}>
-          <h2 className={styles.brandTitle}>NullDevice</h2>
+          <div className={styles.brandRow}>
+            <Image
+              src="/icon.svg"
+              alt=""
+              aria-hidden="true"
+              className={styles.brandIcon}
+              width={40}
+              height={40}
+            />
+            <h2 className={styles.brandTitle}>NullDevice</h2>
+          </div>
           <p className={styles.brandSubtitle}>{portalTitle}</p>
         </div>
 

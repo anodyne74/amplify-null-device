@@ -4,7 +4,6 @@
  */
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
-import type { Invoice, LineItem } from '@/amplify/types';
 import { getCustomerPortalContext } from '@/lib/queries';
 
 let _client: ReturnType<typeof generateClient<Schema>> | null = null;

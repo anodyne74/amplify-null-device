@@ -1,7 +1,6 @@
 'use client';
 
-import { render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, waitFor } from '@testing-library/react';
 import RoutesPage from '../page';
 import * as listMyRoutesModule from '@/lib/queries/ListMyRoutes';
 import type { Route } from '@/amplify/types';
@@ -43,7 +42,7 @@ jest.mock('@/lib/queries/ListMyRoutes');
 
 // Mock the session utilities
 jest.mock('@/app/auth/session', () => ({
-  getCurrentCustomerId: (user: any) => 'test-customer-1',
+  getCurrentCustomerId: (_user: any) => 'test-customer-1',
 }));
 
 describe('Customer Routes List Page', () => {

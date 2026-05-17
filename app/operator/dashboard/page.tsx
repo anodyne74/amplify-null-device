@@ -57,6 +57,13 @@ export default function OperatorDashboard() {
 
   return (
     <div className={styles.page}>
+      <div>
+        <h1 className={styles.heading}>Operator Portal</h1>
+        <p className={styles.welcome}>
+          Welcome, {userDisplayName || 'operator'}. Review active work and pick up the next route.
+        </p>
+      </div>
+
       <div className={styles.statsGrid}>
         <div className={styles.statCard}>
           <p className={styles.statLabel}>Active Routes</p>

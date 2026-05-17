@@ -3,7 +3,7 @@
 import './globals.css';
 import '@aws-amplify/ui-react/styles.css';
 import 'leaflet/dist/leaflet.css';
-import { JetBrains_Mono, Inter } from 'next/font/google';
+import { JetBrains_Mono, Inter, Comfortaa } from 'next/font/google';
 import { Authenticator } from '@aws-amplify/ui-react';
 import { configureAmplify } from '@/lib/amplify-config';
 import ErrorBoundary from '@/app/components/ErrorBoundary';
@@ -21,12 +21,19 @@ const inter = Inter({
   display: 'swap',
 });
 
+const comfortaa = Comfortaa({
+  subsets: ['latin'],
+  variable: '--font-comfortaa',
+  weight: ['400', '700'],
+  display: 'swap',
+});
+
 // Configure Amplify on client mount
 configureAmplify();
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${jetbrainsMono.variable} ${inter.variable}`}>
+    <html lang="en" className={`${jetbrainsMono.variable} ${inter.variable} ${comfortaa.variable}`}>
       <body>
         <ErrorBoundary>
           <AmplifyThemeProvider>

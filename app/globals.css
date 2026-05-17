@@ -61,6 +61,7 @@
   --nd-transition-base: 0.25s ease;
 
   /* Typography */
+  --nd-font-display: var(--font-comfortaa, Comfortaa, sans-serif);
   --nd-font-mono: var(--font-jetbrains-mono, 'JetBrains Mono', 'Fira Code', monospace);
   --nd-font-body: var(--font-inter, Inter, system-ui, sans-serif);
 
@@ -150,7 +151,7 @@ body {
 h1,
 h2,
 h3 {
-  font-family: var(--nd-font-mono);
+  font-family: var(--nd-font-display);
   letter-spacing: -0.02em;
   margin: 0;
 }

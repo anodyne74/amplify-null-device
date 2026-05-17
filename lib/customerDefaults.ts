@@ -24,7 +24,11 @@ export function generateAgentInitials(agentName?: string) {
     return undefined;
   }
 
-  const initials = words.slice(0, 2).map((word) => word[0]?.toUpperCase() ?? '').join('');
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+
+  const initials = words.map((word) => word[0]?.toUpperCase() ?? '').join('');
   return initials || normalized.slice(0, 2).toUpperCase();
 }
 

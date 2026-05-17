@@ -505,6 +505,12 @@ export async function updateRoute(
     actualDurationMinutes: number;
     signsPlacedDistanceKm: number;
     signsPickedUpDistanceKm: number;
+    overrideSigns: number;
+    overrideStops: number;
+    overrideDistanceKm: number;
+    overrideDurationMinutes: number;
+    overrideRate: number;
+    overrideAmount: number;
     notes: string;
     scheduleS3Key: string;
   }>

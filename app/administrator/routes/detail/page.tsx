@@ -14,7 +14,7 @@ import { isAdmin } from '@/lib/amplify-config';
 import { generateAgentInitials } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import { createStop, deleteRoute, getCustomer, getUserSettings, updateRouteExecution, updateStopExecution } from '@/lib/queries';
+import { createStop, deleteRoute, getCustomer, getUserSettings, updateRoute, updateRouteExecution, updateStopExecution } from '@/lib/queries';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import type { Route, Stop } from '@/amplify/types';
@@ -72,22 +72,6 @@ function formatDateTime(dateString?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   });
-}
-
-function formatRouteDuration(route: Route) {
-  if (typeof route.actualDurationMinutes === 'number') {
-    return `${route.actualDurationMinutes} min`;
-  }
-
-  if (route.status === 'in_progress' && route.actualStartTime) {
-    const minutes = Math.max(
-      1,
-      Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000)
-    );
-    return `${minutes} min (in progress)`;
-  }
-
-  return '—';
 }
 
 function getRouteDurationMinutes(route: Route) {
@@ -236,6 +220,17 @@ function RouteDetailContent() {
   const [deletingRoute, setDeletingRoute] = useState(false);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [transitionError, setTransitionError] = useState<string | null>(null);
+  const [savingBillingOverrides, setSavingBillingOverrides] = useState(false);
+  const [billingOverrideError, setBillingOverrideError] = useState<string | null>(null);
+  const [billingOverrideSuccess, setBillingOverrideSuccess] = useState<string | null>(null);
+  const [billingOverrides, setBillingOverrides] = useState({
+    signs: 0,
+    stops: 0,
+    distanceKm: 0,
+    durationMinutes: 0,
+    ratePerHour: 0,
+    amount: 0,
+  });
 
   // Mobile execution: per-stop completion notes
   const [stopCompletionNotes, setStopCompletionNotes] = useState<Record<string, string>>({});
@@ -568,6 +563,48 @@ function RouteDetailContent() {
     setTransitioning(false);
   };
 
+  const handleSaveBillingOverrides = async () => {
+    if (!route || !canManagePlanning) return;
+
+    setSavingBillingOverrides(true);
+    setBillingOverrideError(null);
+    setBillingOverrideSuccess(null);
+
+    try {
+      const { errors } = await updateRoute(route.id, {
+        overrideSigns: billingOverrides.signs,
+        overrideStops: billingOverrides.stops,
+        overrideDistanceKm: billingOverrides.distanceKm,
+        overrideDurationMinutes: billingOverrides.durationMinutes,
+        overrideRate: billingOverrides.ratePerHour,
+        overrideAmount: billingOverrides.amount,
+      });
+
+      if (errors && errors.length > 0) {
+        setBillingOverrideError('Failed to save invoice values.');
+      } else {
+        setRoute((current) =>
+          current
+            ? {
+                ...current,
+                overrideSigns: billingOverrides.signs,
+                overrideStops: billingOverrides.stops,
+                overrideDistanceKm: billingOverrides.distanceKm,
+                overrideDurationMinutes: billingOverrides.durationMinutes,
+                overrideRate: billingOverrides.ratePerHour,
+                overrideAmount: billingOverrides.amount,
+              }
+            : current
+        );
+        setBillingOverrideSuccess('Invoice values saved.');
+      }
+    } catch {
+      setBillingOverrideError('Failed to save invoice values.');
+    }
+
+    setSavingBillingOverrides(false);
+  };
+
   const handleAddStop = async (values: {
     address: string;
     serviceType: 'delivery' | 'pickup' | 'inspection';
@@ -810,10 +847,44 @@ function RouteDetailContent() {
     (sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0),
     0
   );
-  const completionAmount =
-    routeDurationMinutes !== null && customerRatePerHour !== null
-      ? Number(((routeDurationMinutes / 60) * customerRatePerHour).toFixed(2))
-      : null;
+  const billingDefaults = useMemo(() => {
+    const durationMinutes = route?.overrideDurationMinutes ?? routeDurationMinutes;
+    const ratePerHour = route?.overrideRate ?? customerRatePerHour;
+    const amount =
+      route?.overrideAmount ??
+      (durationMinutes !== null && ratePerHour !== null
+        ? Number(((durationMinutes / 60) * ratePerHour).toFixed(2))
+        : 0);
+
+    return {
+      signs: route?.overrideSigns ?? totalSigns,
+      stops: route?.overrideStops ?? totalStops,
+      distanceKm: route?.overrideDistanceKm ?? kilometersTravelled,
+      durationMinutes: durationMinutes ?? 0,
+      ratePerHour: ratePerHour ?? 0,
+      amount,
+    };
+  }, [
+    customerRatePerHour,
+    kilometersTravelled,
+    route?.overrideAmount,
+    route?.overrideDistanceKm,
+    route?.overrideDurationMinutes,
+    route?.overrideRate,
+    route?.overrideSigns,
+    route?.overrideStops,
+    routeDurationMinutes,
+    totalSigns,
+    totalStops,
+  ]);
+
+  useEffect(() => {
+    if (!route) return;
+    setBillingOverrides(billingDefaults);
+    setBillingOverrideError(null);
+    setBillingOverrideSuccess(null);
+  }, [billingDefaults, route]);
+
   const availableAgentsForStops = useMemo(() => {
     const customerAgents = customerDefaults?.agentOptions ?? [];
     const routeAgents = stops
@@ -952,31 +1023,158 @@ function RouteDetailContent() {
                 <div className={styles.summaryGrid}>
                   <div>
                     <div className={styles.infoLabel}>Kilometers Travelled</div>
-                    <div className={styles.infoValue}>{`${kilometersTravelled.toFixed(2)} km`}</div>
+                    <div className={styles.infoValue}>{`${billingDefaults.distanceKm.toFixed(2)} km`}</div>
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Time Taken</div>
-                    <div className={styles.infoValue}>{formatMinutesAsElapsed(routeDurationMinutes)}</div>
+                    <div className={styles.infoValue}>{formatMinutesAsElapsed(billingDefaults.durationMinutes)}</div>
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Stops</div>
-                    <div className={styles.infoValue}>{totalStops}</div>
+                    <div className={styles.infoValue}>{billingDefaults.stops}</div>
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Total Number of Signs</div>
-                    <div className={styles.infoValue}>{totalSigns}</div>
+                    <div className={styles.infoValue}>{billingDefaults.signs}</div>
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Customer Rate</div>
                     <div className={styles.infoValue}>
-                      {customerRatePerHour === null ? '—' : formatCurrency(customerRatePerHour)} / hr
+                      {billingDefaults.ratePerHour === 0 ? '—' : formatCurrency(billingDefaults.ratePerHour)} / hr
                     </div>
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Amount</div>
-                    <div className={styles.infoValue}>{formatCurrency(completionAmount)}</div>
+                    <div className={styles.infoValue}>{formatCurrency(billingDefaults.amount)}</div>
                   </div>
                 </div>
+
+                {canManagePlanning && (
+                  <div className={styles.billingSection}>
+                    <h4 className={styles.billingHeading}>Invoice Values</h4>
+                    <div className={styles.billingGrid}>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Signs</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={billingOverrides.signs}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => ({
+                              ...current,
+                              signs: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Stops</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={billingOverrides.stops}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => ({
+                              ...current,
+                              stops: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Distance (km)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className={styles.billingInput}
+                          value={billingOverrides.distanceKm}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => ({
+                              ...current,
+                              distanceKm: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Total Duration (minutes)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={billingOverrides.durationMinutes}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => {
+                              const durationMinutes = Number(event.target.value);
+                              const amount = Number(((durationMinutes / 60) * current.ratePerHour).toFixed(2));
+                              return {
+                                ...current,
+                                durationMinutes,
+                                amount,
+                              };
+                            })
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Rate per Hour</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className={styles.billingInput}
+                          value={billingOverrides.ratePerHour}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => {
+                              const ratePerHour = Number(event.target.value);
+                              const amount = Number(((current.durationMinutes / 60) * ratePerHour).toFixed(2));
+                              return {
+                                ...current,
+                                ratePerHour,
+                                amount,
+                              };
+                            })
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Amount</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className={styles.billingInput}
+                          value={billingOverrides.amount}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => ({
+                              ...current,
+                              amount: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <div className={styles.billingActions}>
+                      <button
+                        type="button"
+                        className={styles.btnSaveBilling}
+                        onClick={handleSaveBillingOverrides}
+                        disabled={savingBillingOverrides}
+                      >
+                        {savingBillingOverrides ? 'Saving…' : 'Save Invoice Values'}
+                      </button>
+                      <div className={styles.billingMeta}>
+                        Default amount from duration and rate: {formatCurrency(billingDefaults.amount)}
+                      </div>
+                    </div>
+                    {billingOverrideError && <div className={styles.errorBanner}>{billingOverrideError}</div>}
+                    {billingOverrideSuccess && <div className={styles.billingSuccess}>{billingOverrideSuccess}</div>}
+                  </div>
+                )}
               </div>
             )}
           </div>

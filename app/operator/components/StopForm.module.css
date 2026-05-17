@@ -86,8 +86,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
+  min-width: 34px;
   height: 34px;
+  padding: 0 10px;
   border: 1px solid var(--nd-border-default);
   border-radius: 999px;
   font-size: 13px;
@@ -95,6 +96,14 @@
   letter-spacing: 0.04em;
   cursor: pointer;
   transition: border-color var(--nd-transition-fast), transform var(--nd-transition-fast), color var(--nd-transition-fast);
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.agentBadgeCircle {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
 }
 
 .agentBadgeSelected {

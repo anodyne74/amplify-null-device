@@ -182,11 +182,12 @@ export function StopForm({
           <div className={styles.agentBadgeGroup} role="radiogroup" aria-label="Listing Agent">
             {agentOptions.map((option) => {
               const selected = agent === option;
+              const agentInitials = generateAgentInitials(option) ?? option.slice(0, 2).toUpperCase();
               return (
                 <button
                   key={option}
                   type="button"
-                  className={`${styles.agentBadge} ${selected ? styles.agentBadgeSelected : ''}`}
+                  className={`${styles.agentBadge} ${agentInitials.length <= 2 ? styles.agentBadgeCircle : ''} ${selected ? styles.agentBadgeSelected : ''}`}
                   onClick={() => setAgent(selected ? '' : option)}
                   disabled={isSubmitting}
                   aria-pressed={selected}
@@ -194,7 +195,7 @@ export function StopForm({
                   title={option}
                   style={getAgentBadgeTone(option)}
                 >
-                  {generateAgentInitials(option) ?? option.slice(0, 2).toUpperCase()}
+                  {agentInitials}
                 </button>
               );
             })}

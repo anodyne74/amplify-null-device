@@ -1322,14 +1322,19 @@ function RouteDetailContent() {
                     <div className={`${styles.stopSegment} ${styles.stopSegmentMeta}`}>
                       <div className={styles.stopStatus}>{getStopStatusLabel(stop)}</div>
                       {stop.agent && (
+                        (() => {
+                          const agentInitials = generateAgentInitials(stop.agent) ?? stop.agent.slice(0, 2).toUpperCase();
+                          return (
                         <span
-                          className={styles.stopAgentBadge}
-                          aria-label={stop.agent}
-                          title={stop.agent}
-                          style={getAgentBadgeTone(stop.agent)}
-                        >
-                          {generateAgentInitials(stop.agent) ?? stop.agent.slice(0, 2).toUpperCase()}
-                        </span>
+                            className={`${styles.stopAgentBadge} ${agentInitials.length <= 2 ? styles.stopAgentBadgeCircle : ''}`}
+                            aria-label={stop.agent}
+                            title={stop.agent}
+                            style={getAgentBadgeTone(stop.agent)}
+                          >
+                            {agentInitials}
+                          </span>
+                          );
+                        })()
                       )}
                     </div>
 

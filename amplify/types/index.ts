@@ -75,6 +75,12 @@ export interface Route {
   actualDurationMinutes?: number | null;
   signsPlacedDistanceKm?: number | null;
   signsPickedUpDistanceKm?: number | null;
+  overrideSigns?: number | null;
+  overrideStops?: number | null;
+  overrideDistanceKm?: number | null;
+  overrideDurationMinutes?: number | null;
+  overrideRate?: number | null;
+  overrideAmount?: number | null;
   notes?: string;
   scheduleS3Key?: string | null;
   createdAt?: string;

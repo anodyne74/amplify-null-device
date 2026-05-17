@@ -96,6 +96,12 @@ const schema = a.schema({
       actualDurationMinutes: a.integer(),
       signsPlacedDistanceKm: a.float(),
       signsPickedUpDistanceKm: a.float(),
+      overrideSigns: a.integer(),
+      overrideStops: a.integer(),
+      overrideDistanceKm: a.float(),
+      overrideDurationMinutes: a.integer(),
+      overrideRate: a.float(),
+      overrideAmount: a.float(),
       notes: a.string(),
       scheduleS3Key: a.string(), // S3 key for the uploaded schedule file
       createdAt: a.datetime(),

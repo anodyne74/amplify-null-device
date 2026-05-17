@@ -1017,9 +1017,9 @@ function RouteDetailContent() {
               )}
             </div>
 
-            {(route.status === 'completed' || route.status === 'archived') && (
+            {(route.status === 'signs_picked_up' || route.status === 'completed' || route.status === 'archived') && (
               <div className={styles.summaryCard}>
-                <h3 className={styles.summaryHeading}>Final Route Summary</h3>
+                <h3 className={styles.summaryHeading}>Route Summary</h3>
                 <div className={styles.summaryGrid}>
                   <div>
                     <div className={styles.infoLabel}>Kilometers Travelled</div>

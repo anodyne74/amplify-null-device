@@ -977,7 +977,7 @@ function RouteDetailContent() {
   })();
   const topVisibleStopId = visibleStops[0]?.id ?? null;
   const pickupStops = stops.filter((stop) => stop.serviceType === 'pickup');
-  const allPickupStopsCompleted = pickupStops.every((stop) => isStopCompleted(stop));
+  const allPickupStopsCompleted = pickupStops.length > 0 && pickupStops.every((stop) => isStopCompleted(stop));
   const completedStops = stops.filter((stop) => isStopCompleted(stop));
   const summaryStops = route?.status === 'completed' || route?.status === 'archived'
     ? completedStops.length > 0
@@ -1242,6 +1242,8 @@ function RouteDetailContent() {
                   ? 'All signs are placed. Start the pickup phase to continue.'
                   : route?.status === 'signs_placed'
                   ? 'Ready for pickup phase. Click Start Route to begin pickup.'
+                  : pickupStops.length === 0
+                  ? 'No pickup stops on this route. The route can be completed when all placement stops are done.'
                   : 'All pickup stops are complete. Click End Route to finish pickup phase.'}
               </div>
             )}

@@ -307,6 +307,29 @@
   transition: opacity var(--nd-transition-fast), transform var(--nd-transition-fast), box-shadow var(--nd-transition-fast), border-color var(--nd-transition-fast);
 }
 
+@media (max-width: 700px) {
+  .stopCard {
+    display: block;
+    padding-bottom: 10px;
+  }
+  .stopSegment {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .stopSegmentAddress {
+    margin-bottom: 6px;
+  }
+  .stopActions {
+    width: 100%;
+    justify-content: flex-start;
+    margin-top: 8px;
+    gap: 8px;
+  }
+}
+
 .stopCardExecutionCompact {
   grid-template-columns: 70px minmax(210px, 1.15fr) minmax(170px, 0.75fr) minmax(235px, 1fr);
 }

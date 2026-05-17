@@ -12,7 +12,7 @@ import type { Route } from '@/amplify/types';
 import styles from '@/app/dashboard.module.css';
 import invoiceStyles from '@/app/administrator/invoices/page.module.css';
 
-type CustomerOption = { id: string; name: string; email?: string; primaryEmail?: string };
+type CustomerOption = { id: string; name: string; email?: string; primaryEmail?: string; billingRatePerHour?: number };
 type Invoice = {
   id: string;
   invoiceNumber: string;
@@ -62,10 +62,11 @@ export default function InvoicesAdminPage() {
     if (customersResult.errors && customersResult.errors.length > 0) {
       setError('Failed to load customers.');
     } else {
-      const mapped = ((customersResult.data as Array<{ id: string; name: string; email?: string }>) || []).map((c) => ({
+      const mapped = ((customersResult.data as Array<{ id: string; name: string; email?: string; billingRatePerHour?: number }>) || []).map((c) => ({
         id: c.id,
         name: c.name,
         email: c.email,
+        billingRatePerHour: c.billingRatePerHour,
       }));
 
       const customersWithPrimary = await Promise.all(
@@ -98,6 +99,29 @@ export default function InvoicesAdminPage() {
   }, [customerId]);
 
   useEffect(() => { void fetchData(); }, [fetchData]);
+
+  // Auto-populate invoice amount from selected route's override values
+  useEffect(() => {
+    if (!routeId) {
+      setTotalAmount('0');
+      return;
+    }
+
+    const selectedRoute = routes.find((r) => r.id === routeId);
+    if (!selectedRoute) return;
+
+    // Use override amount if available, otherwise calculate from actual duration and customer's billing rate
+    if (selectedRoute.overrideAmount) {
+      setTotalAmount(Number(selectedRoute.overrideAmount).toFixed(2));
+      return;
+    }
+
+    const customer = customers.find((c) => c.id === selectedRoute.customerId);
+    if (!customer) return;
+
+    const amount = ((selectedRoute.actualDurationMinutes ?? 0) / 60) * (customer.billingRatePerHour ?? 0);
+    setTotalAmount(Number(amount).toFixed(2));
+  }, [routeId, routes, customers]);
 
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();

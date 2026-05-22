@@ -95,7 +95,7 @@ export default function OperatorMUILayout({
       <Box sx={{ mb: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
         <Box
           component="img"
-          src="/logo.svg"
+          src="/icon.svg"
           alt=""
           aria-hidden="true"
           sx={{ width: 44, height: 44, display: 'block' }}
@@ -241,7 +241,7 @@ export default function OperatorMUILayout({
             </IconButton>
             <Box
               component="img"
-              src="/logo.svg"
+              src="/icon.svg"
               alt=""
               aria-hidden="true"
               sx={{ width: 30, height: 30, display: 'block', mr: 1.5, flexShrink: 0 }}

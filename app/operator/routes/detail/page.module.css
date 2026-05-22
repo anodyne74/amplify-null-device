@@ -311,7 +311,13 @@
   .stopCard {
     display: block;
     padding-bottom: 10px;
+    overflow: visible;
   }
+
+  .stopCardExecutionCompact {
+    min-height: auto;
+  }
+
   .stopSegment {
     display: block;
     width: 100%;
@@ -327,6 +333,11 @@
     justify-content: flex-start;
     margin-top: 8px;
     gap: 8px;
+  }
+
+  .execActionRow {
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 }
 
@@ -362,7 +373,7 @@
 
 .stopSegmentAction {
   justify-content: flex-end;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .stopCardDragging {
@@ -689,7 +700,7 @@
   }
 
   .stopsListExecutionMobile {
-    max-height: calc((var(--nd-exec-stop-card-height) * var(--nd-exec-visible-stops)) + 10px);
+    max-height: none;
     overflow-y: auto;
     overscroll-behavior: contain;
     padding-right: 4px;
@@ -834,7 +845,7 @@
 
   .stopsListExecutionMobile {
     --nd-exec-stop-card-height: 122px;
-    max-height: calc((var(--nd-exec-stop-card-height) * 2) + 10px);
+    max-height: none;
   }
 
   .stopCard {

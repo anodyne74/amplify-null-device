@@ -92,8 +92,8 @@
 }
 
 .logo {
-  width: clamp(554px, 20vw, 554px);
-  height: clamp(248px, 20vw, 248px);
+  width: min(100%, 554px);
+  height: auto;
   display: inline-block;
   object-fit: contain;
 }
@@ -282,8 +282,8 @@
   }
 
   .logo {
-    width: 120px;
-    height: 120px;
+    width: min(78vw, 360px);
+    height: auto;
   }
 
   .brandTitle {

@@ -83,7 +83,7 @@ export default function PortalLayout({
         <div className={styles.brand}>
           <div className={styles.brandRow}>
             <Image
-              src="/logo.svg"
+              src="/icon.svg"
               alt=""
               aria-hidden="true"
               className={styles.brandIcon}

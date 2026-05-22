@@ -433,13 +433,13 @@
   margin-bottom: 0;
   color: var(--nd-text-primary);
   overflow-wrap: anywhere;
-  font-size: 16px;
-  line-height: 1.35;
+  font-size: 18px;
+  line-height: 1.4;
 }
 
 .stopCardExecutionCompact .stopAddress {
-  font-size: 17px;
-  line-height: 1.35;
+  font-size: 18px;
+  line-height: 1.4;
 }
 
 .stopStatus {
@@ -732,8 +732,8 @@
   }
 
   .stopCardExecutionCompact .stopAddress {
-    font-size: 15px;
-    line-height: 1.25;
+    font-size: 17px;
+    line-height: 1.35;
   }
 
   .stopCardExecutionCompact .stopStatus {
@@ -846,8 +846,8 @@
   }
 
   .stopCardExecutionCompact .stopAddress {
-    font-size: 15px;
-    line-height: 1.25;
+    font-size: 17px;
+    line-height: 1.35;
   }
 
   .stopCardExecutionCompact .stopStatus {

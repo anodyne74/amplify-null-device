@@ -1274,6 +1274,9 @@ function RouteDetailContent() {
                 const svcKey = (stop.serviceType as string) || 'delivery';
                 const stopCardClass = { delivery: styles.cardDelivery, pickup: styles.cardPickup, inspection: styles.cardInspection }[svcKey] ?? '';
                 const stopCircleClass = { delivery: styles.circleDelivery, pickup: styles.circlePickup, inspection: styles.circleInspection }[svcKey] ?? '';
+                const agentName = stop.agent?.trim() || 'Unassigned';
+                const agentInitials =
+                  generateAgentInitials(agentName) ?? agentName.slice(0, 2).toUpperCase();
                 const isTopVisibleStop = stop.id === topVisibleStopId;
                 const completedStop = isStopCompleted(stop);
                 const executionActive = route?.status === 'in_progress';
@@ -1307,21 +1310,14 @@ function RouteDetailContent() {
 
                     <div className={`${styles.stopSegment} ${styles.stopSegmentMeta}`}>
                       <div className={styles.stopStatus}>{getStopStatusLabel(stop)}</div>
-                      {stop.agent && (
-                        (() => {
-                          const agentInitials = generateAgentInitials(stop.agent) ?? stop.agent.slice(0, 2).toUpperCase();
-                          return (
-                        <span
-                            className={`${styles.stopAgentBadge} ${agentInitials.length <= 2 ? styles.stopAgentBadgeCircle : ''}`}
-                            aria-label={stop.agent}
-                            title={stop.agent}
-                            style={getAgentBadgeTone(stop.agent)}
-                          >
-                            {agentInitials}
-                          </span>
-                          );
-                        })()
-                      )}
+                      <span
+                        className={`${styles.stopAgentBadge} ${agentInitials.length <= 2 ? styles.stopAgentBadgeCircle : ''}`}
+                        aria-label={agentName}
+                        title={agentName}
+                        style={getAgentBadgeTone(agentName)}
+                      >
+                        {agentInitials}
+                      </span>
                     </div>
 
                     <div className={`${styles.stopSegment} ${styles.stopSegmentAction}`}>

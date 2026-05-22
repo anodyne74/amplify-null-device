@@ -57,6 +57,8 @@ function applyMapOrientation(map: LeafletMap, headingDegrees: number) {
   const mapPane = map.getPane('mapPane');
   if (!mapPane) return;
 
+  map.getContainer().style.setProperty('--nd-marker-counter-rotation', `${headingDegrees.toFixed(2)}deg`);
+
   const baseTransform = (mapPane.style.transform || '').replace(/\s*rotateZ\([^)]*\)/g, '');
   mapPane.style.transform = `${baseTransform} rotateZ(${-headingDegrees.toFixed(2)}deg)`;
   mapPane.style.transformOrigin = '50% 50%';
@@ -211,7 +213,7 @@ export function RouteStopsMap({
         const marker = L.marker([stop.latitude, stop.longitude], {
           icon: L.divIcon({
             className: styles.stopMarkerIcon,
-            html: `<span class="${markerClasses}">${String(stop.sequence ?? '?')}</span>`,
+            html: `<span class="${markerClasses}"><span class="${styles.stopMarkerLabel}">${String(stop.sequence ?? '?')}</span></span>`,
             iconSize: [36, 36],
             iconAnchor: [18, 18],
           }),

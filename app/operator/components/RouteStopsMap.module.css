@@ -48,6 +48,11 @@
   transition: transform var(--nd-transition-fast), box-shadow var(--nd-transition-fast);
 }
 
+.stopMarkerLabel {
+  display: inline-block;
+  transform: rotate(var(--nd-marker-counter-rotation, 0deg));
+}
+
 .stopMarkerDelivery {
   background: var(--nd-status-active);
 }

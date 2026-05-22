@@ -95,23 +95,11 @@ export default function OperatorMUILayout({
       <Box sx={{ mb: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
         <Box
           component="img"
-          src="/icon.svg"
+          src="/icon.png"
           alt=""
           aria-hidden="true"
-          sx={{ width: 44, height: 44, display: 'block', mb: 1 }}
+          sx={{ width: 44, height: 44, display: 'block' }}
         />
-        <Typography
-          sx={{
-            fontWeight: 700,
-            letterSpacing: '0.06em',
-            color: '#ffb300',
-            fontFamily: 'var(--nd-font-display, Comfortaa, sans-serif)',
-            fontSize: '0.9rem',
-            mb: 0.5,
-          }}
-        >
-          NullDevice
-        </Typography>
         <Typography
           sx={{
             fontFamily: 'var(--nd-font-mono, monospace)',

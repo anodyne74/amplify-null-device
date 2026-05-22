@@ -83,14 +83,13 @@ export default function PortalLayout({
         <div className={styles.brand}>
           <div className={styles.brandRow}>
             <Image
-              src="/icon.svg"
+              src="/icon.png"
               alt=""
               aria-hidden="true"
               className={styles.brandIcon}
               width={40}
               height={40}
             />
-            <h2 className={styles.brandTitle}>NullDevice</h2>
           </div>
           <p className={styles.brandSubtitle}>{portalTitle}</p>
         </div>

@@ -74,10 +74,10 @@
 
 .loginContainer {
   width: 100%;
-  max-width: 480px;
+  max-width: 554px;
   display: flex;
   flex-direction: column;
-  gap: var(--nd-space-xl);
+  gap: var(--nd-space-md);
 }
 
 .publicThemeToggle {
@@ -88,13 +88,12 @@
 /* Branding Section */
 .brandingSection {
   text-align: center;
-  padding: var(--nd-space-lg) 0;
+  padding: var(--nd-space-sm) 0;
 }
 
 .logo {
-  width: clamp(72px, 18vw, 108px);
-  height: clamp(72px, 18vw, 108px);
-  margin-bottom: var(--nd-space-md);
+  width: clamp(554px, 20vw, 554px);
+  height: clamp(248px, 20vw, 248px);
   display: inline-block;
   object-fit: contain;
 }
@@ -203,6 +202,10 @@
   color: var(--nd-text-primary);
 }
 
+.authCard :global(.amplify-button:hover) {
+  background-color: var(--nd-logo-secondary);
+}
+
 .authCard :global(.amplify-alert) {
   background: rgba(255, 183, 0, 0.12);
   border-left: 4px solid var(--nd-operator-accent);
@@ -242,7 +245,7 @@
 }
 
 .footerText strong {
-  color: var(--nd-text-primary);
+  color: var(--nd-logo-secondary);
   font-weight: 600;
 }
 
@@ -279,8 +282,8 @@
   }
 
   .logo {
-    width: 88px;
-    height: 88px;
+    width: 120px;
+    height: 120px;
   }
 
   .brandTitle {

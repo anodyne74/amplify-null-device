@@ -99,23 +99,21 @@ export default function Home() {
         {/* Branding Section */}
         <div className={styles.brandingSection}>
           <Image
-            src="/icon.svg"
+            src="/logo.svg"
             alt=""
             aria-hidden="true"
             className={styles.logo}
-            width={108}
-            height={108}
+            width={554}
+            height={248}
             priority
           />
-          <h1 className={styles.brandTitle}>NullDevice</h1>
-          <p className={styles.brandSubtitle}>Route Planning & Delivery Management</p>
         </div>
 
         {/* Welcome Section */}
         <div className={styles.welcomeSection}>
           <h2 className={styles.welcomeTitle}>Welcome Back</h2>
           <p className={styles.welcomeText}>
-            Sign in to your account to access routes, customers, and delivery operations.
+            Sign in to your account to access routes and delivery operations.
           </p>
         </div>
 

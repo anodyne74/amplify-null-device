@@ -69,18 +69,21 @@ const generateAmplifyOutputs = () => {
 
   // Extract values from environment variables or backend outputs
   const userPoolId =
+    process.env.NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID ||
     process.env.AMPLIFY_COGNITO_USER_POOL_ID ||
     readPath(backendOutputs, ['auth.userPoolId', 'auth.user_pool_id']) ||
     readPath(existingOutputs, ['auth.user_pool_id']);
   const userPoolClientId =
+    process.env.NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID ||
     process.env.AMPLIFY_COGNITO_CLIENT_ID ||
     readPath(backendOutputs, ['auth.userPoolClientId', 'auth.user_pool_client_id']) ||
     readPath(existingOutputs, ['auth.user_pool_client_id']);
   const identityPoolId =
+    process.env.NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID ||
     process.env.AMPLIFY_IDENTITY_POOL_ID ||
     readPath(backendOutputs, ['auth.identityPoolId', 'auth.identity_pool_id']) ||
     readPath(existingOutputs, ['auth.identity_pool_id']);
-  const region = process.env.AWS_REGION || 'ap-southeast-2';
+  const region = process.env.NEXT_PUBLIC_AWS_REGION || process.env.AWS_REGION || 'ap-southeast-2';
   const graphqlUrl =
     process.env.AMPLIFY_GRAPHQL_ENDPOINT ||
     readPath(backendOutputs, ['data.url']) ||

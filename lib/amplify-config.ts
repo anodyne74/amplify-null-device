@@ -2,12 +2,59 @@ import { Amplify } from 'aws-amplify';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import outputs from '../amplify_outputs.json';
 
+type AuthOutput = {
+  user_pool_id?: string;
+  user_pool_client_id?: string;
+  identity_pool_id?: string;
+  aws_region?: string;
+};
+
+type AmplifyOutputsShape = {
+  auth?: AuthOutput;
+  [key: string]: unknown;
+};
+
+function readPublicAuthEnv() {
+  const fromProcess = typeof process !== 'undefined' ? process.env : undefined;
+
+  return {
+    user_pool_id: fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID,
+    user_pool_client_id: fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID,
+    identity_pool_id: fromProcess?.NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID,
+    aws_region: fromProcess?.NEXT_PUBLIC_AWS_REGION,
+  };
+}
+
+function withAuthOverrides(baseOutputs: AmplifyOutputsShape): AmplifyOutputsShape {
+  const overrides = readPublicAuthEnv();
+  const hasOverride = Object.values(overrides).some((value) => Boolean(value));
+
+  if (!hasOverride) {
+    return baseOutputs;
+  }
+
+  return {
+    ...baseOutputs,
+    auth: {
+      ...(baseOutputs.auth ?? {}),
+      ...(overrides.user_pool_id ? { user_pool_id: overrides.user_pool_id } : {}),
+      ...(overrides.user_pool_client_id ? { user_pool_client_id: overrides.user_pool_client_id } : {}),
+      ...(overrides.identity_pool_id ? { identity_pool_id: overrides.identity_pool_id } : {}),
+      ...(overrides.aws_region ? { aws_region: overrides.aws_region } : {}),
+    },
+  };
+}
+
+export function getAmplifyConfig(): AmplifyOutputsShape {
+  return withAuthOverrides(outputs as AmplifyOutputsShape);
+}
+
 /**
  * Configure Amplify with the backend outputs
  * Should be called once in the app's root (e.g., layout.tsx or _app.tsx)
  */
 export function configureAmplify() {
-  Amplify.configure(outputs);
+  Amplify.configure(getAmplifyConfig());
 }
 
 /**

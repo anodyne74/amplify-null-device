@@ -71,6 +71,8 @@ function applyMapOrientation(map: LeafletMap, headingDegrees: number) {
     tooltipPane.style.transform = `${tooltipBaseTransform} rotateZ(${-headingDegrees.toFixed(2)}deg)`;
     tooltipPane.style.transformOrigin = '50% 50%';
   }
+
+  map.invalidateSize({ pan: false });
 }
 
 function updateViewport(
@@ -346,6 +348,7 @@ export function RouteStopsMap({
           headingRef.current = (previousHeading + shortestDelta * 0.35 + 360) % 360;
           if (mapRef.current) {
             applyMapOrientation(mapRef.current, headingRef.current);
+            mapRef.current.invalidateSize({ pan: false });
           }
         }
 
@@ -372,6 +375,7 @@ export function RouteStopsMap({
 
     const activeStop = mappedStops.find((stop) => stop.id === activeStopId) ?? mappedStops.find((stop) => !stop.actualDepartureTime) ?? mappedStops[0];
     updateViewport(mapRef.current, activeStop, displayPosition, leafletRef.current);
+    mapRef.current.invalidateSize({ pan: false });
   }, [activeStopId, mappedStops, displayPosition]);
 
   if (orderedStops.length === 0) {

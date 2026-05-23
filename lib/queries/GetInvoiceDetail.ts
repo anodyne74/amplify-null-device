@@ -2,15 +2,8 @@
  * Get invoice detail with line items
  * Used to display invoice detail page with itemized charges
  */
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
 import { getCustomerPortalContext } from '@/lib/queries';
-
-let _client: ReturnType<typeof generateClient<Schema>> | null = null;
-function getClient() {
-  if (!_client) _client = generateClient<Schema>();
-  return _client;
-}
+import { getDataClient } from '@/lib/data-client';
 
 export interface GetInvoiceDetailParams {
   invoiceId: string;
@@ -49,7 +42,7 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
     }
 
     // Fetch the invoice
-    const invoiceResponse = await getClient().models.Invoice.get({
+    const invoiceResponse = await getDataClient().models.Invoice.get({
       id: params.invoiceId,
     });
 
@@ -65,7 +58,7 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
     }
 
     // Fetch line items for this invoice
-    const { data: lineItems, errors: lineItemsErrors } = await getClient().models.LineItem.list({
+    const { data: lineItems, errors: lineItemsErrors } = await getDataClient().models.LineItem.list({
       filter: {
         invoiceId: {
           eq: params.invoiceId,

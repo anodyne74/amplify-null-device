@@ -54,7 +54,19 @@ export function getAmplifyConfig(): AmplifyOutputsShape {
  * Should be called once in the app's root (e.g., layout.tsx or _app.tsx)
  */
 export function configureAmplify() {
-  Amplify.configure(getAmplifyConfig());
+  const config = getAmplifyConfig();
+  const auth = config.auth ?? {};
+
+  if (!auth.user_pool_id || !auth.user_pool_client_id) {
+    console.error('Amplify auth config is missing user pool values.', {
+      hasUserPoolId: Boolean(auth.user_pool_id),
+      hasUserPoolClientId: Boolean(auth.user_pool_client_id),
+      hasIdentityPoolId: Boolean(auth.identity_pool_id),
+      region: auth.aws_region,
+    });
+  }
+
+  Amplify.configure(config);
 }
 
 /**

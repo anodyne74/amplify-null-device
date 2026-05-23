@@ -2,12 +2,7 @@
  * List customer's routes with pagination
  * Used to display route list in customer portal
  */
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
-
-function getClient() {
-  return generateClient<Schema>();
-}
+import { getDataClient } from '@/lib/data-client';
 
 export interface ListMyRoutesParams {
   limit?: number;
@@ -17,7 +12,7 @@ export interface ListMyRoutesParams {
 
 export async function listMyRoutes(params: ListMyRoutesParams) {
   try {
-    const { data, errors, nextToken } = await getClient().models.Route.list({
+    const { data, errors, nextToken } = await getDataClient().models.Route.list({
       filter: {
         customerId: {
           eq: params.customerId,

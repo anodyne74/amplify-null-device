@@ -1,12 +1,7 @@
 /**
  * Update a stop by ID
  */
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
-
-function getClient() {
-  return generateClient<Schema>();
-}
+import { getDataClient } from '@/lib/data-client';
 
 export interface UpdateStopInput {
   id: string;
@@ -27,7 +22,7 @@ export interface UpdateStopInput {
 
 export async function updateStop(input: UpdateStopInput) {
   try {
-    const { data, errors } = await getClient().models.Stop.update(input as any);
+    const { data, errors } = await getDataClient().models.Stop.update(input as any);
 
     if (errors) {
       console.error('Errors updating stop:', errors);

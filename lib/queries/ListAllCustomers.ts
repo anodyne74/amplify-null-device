@@ -1,12 +1,7 @@
 /**
  * List all customers (for operator customer dropdown)
  */
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
-
-function getClient() {
-  return generateClient<Schema>();
-}
+import { getDataClient } from '@/lib/data-client';
 
 export interface ListAllCustomersParams {
   limit?: number;
@@ -15,7 +10,7 @@ export interface ListAllCustomersParams {
 
 export async function listAllCustomers(params?: ListAllCustomersParams) {
   try {
-    const { data, errors, nextToken } = await getClient().models.Customer.list({
+    const { data, errors, nextToken } = await getDataClient().models.Customer.list({
       limit: params?.limit || 100,
       nextToken: params?.nextToken,
     });

@@ -1,11 +1,4 @@
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
-
-let _client: ReturnType<typeof generateClient<Schema>> | null = null;
-function getClient() {
-  if (!_client) _client = generateClient<Schema>();
-  return _client;
-}
+import { getDataClient } from '@/lib/data-client';
 
 /**
  * Get all routes for a customer
@@ -13,7 +6,7 @@ function getClient() {
  */
 export async function getCustomerRoutes(customerId: string) {
   try {
-    const { data, errors } = await getClient().models.Route.list({
+    const { data, errors } = await getDataClient().models.Route.list({
       filter: {
         customerId: {
           eq: customerId,

@@ -289,8 +289,11 @@
 .stopsListExecutionMobile {
   --nd-exec-visible-stops: 2;
   --nd-exec-stop-card-height: 132px;
-  max-height: none;
-  overflow: visible;
+  max-height: 44dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-right: 4px;
 }
 
 /* Stop cards with service type variants */
@@ -310,7 +313,7 @@
 @media (max-width: 700px) {
   .stopCard {
     display: block;
-    padding-bottom: 10px;
+    padding-bottom: 8px;
     overflow: visible;
   }
 
@@ -322,17 +325,19 @@
     display: block;
     width: 100%;
     min-width: 0;
-    padding-left: 0;
-    padding-right: 0;
+    padding: 6px 8px;
   }
   .stopSegmentAddress {
     margin-bottom: 6px;
   }
+  .stopSegmentMeta {
+    gap: 4px;
+  }
   .stopActions {
     width: 100%;
     justify-content: flex-start;
-    margin-top: 8px;
-    gap: 8px;
+    margin-top: 6px;
+    gap: 6px;
   }
 
   .execActionRow {
@@ -444,17 +449,17 @@
   margin-bottom: 0;
   color: var(--nd-text-primary);
   overflow-wrap: anywhere;
-  font-size: 18px;
-  line-height: 1.4;
+  font-size: 19px;
+  line-height: 1.35;
 }
 
 .stopCardExecutionCompact .stopAddress {
-  font-size: 18px;
-  line-height: 1.4;
+  font-size: 19px;
+  line-height: 1.35;
 }
 
 .stopStatus {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--nd-text-secondary);
 }
@@ -654,6 +659,10 @@
   align-items: center;
 }
 
+.execActionRowSingle {
+  justify-content: flex-start;
+}
+
 .btnSkip {
   padding: 12px 20px;
   background-color: transparent;
@@ -691,6 +700,9 @@
     margin-inline: calc(-1 * var(--nd-space-lg));
     padding: 8px var(--nd-space-lg) 10px;
     border-bottom: 1px solid var(--nd-border-subtle);
+    position: static;
+    top: auto;
+    z-index: auto;
   }
 
   .mapSectionExecutionMobile > div > div {
@@ -701,9 +713,9 @@
 
   .stopsListExecutionMobile {
     max-height: none;
-    overflow-y: auto;
+    overflow-y: visible;
     overscroll-behavior: contain;
-    padding-right: 4px;
+    padding-right: 0;
   }
 
   .stopsListExecutionMobile::-webkit-scrollbar {
@@ -743,7 +755,7 @@
   }
 
   .stopCardExecutionCompact .stopAddress {
-    font-size: 17px;
+    font-size: 18px;
     line-height: 1.35;
   }
 
@@ -788,14 +800,23 @@
   .btnExecComplete,
   .btnSkip {
     flex: 0 1 auto;
-    min-height: 38px;
-    font-size: 11px;
-    padding: 8px 10px;
+    min-height: 42px;
+    font-size: 12px;
+    padding: 8px 12px;
     white-space: nowrap;
   }
 
   .execActionRow {
     gap: 6px;
+  }
+
+  .execActionRowSingle {
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+
+  .execActionRowSingle .btnExecComplete {
+    width: 100%;
   }
 
   .transitionRow .btnStart,
@@ -808,9 +829,109 @@
   .transitionRow {
     flex-direction: column;
   }
+
+  .routeCardHeader {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .routeTitle {
+    width: 100%;
+    font-size: 20px;
+  }
+
+  .btnRouteEdit,
+  .btnRouteDelete {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .stopsHeader {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .btnAddStop {
+    width: 100%;
+  }
+
+  .formContainer {
+    padding: 16px;
+  }
 }
 
 @media (max-width: 640px) {
+  .stopCardExecutionCompact {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    min-height: auto;
+  }
+
+  .stopSegmentNumber {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    align-items: flex-start;
+    padding-top: 12px;
+  }
+
+  .stopSegmentAddress {
+    grid-column: 2;
+    grid-row: 1;
+    padding-top: 10px;
+  }
+
+  .stopSegmentMeta {
+    grid-column: 2;
+    grid-row: 2;
+    align-items: flex-start;
+  }
+
+  .stopSegmentAction {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    align-items: stretch;
+    padding-top: 4px;
+  }
+
+  .stopCardExecutionCompact .stopAddress {
+    font-size: 16px;
+    line-height: 1.3;
+  }
+
+  .stopCardExecutionCompact .stopStatus {
+    font-size: 12px;
+    line-height: 1.2;
+  }
+
+  .stopAgentBadge {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    font-size: 12px;
+  }
+
+  .stopCardExecutionCompact .circle {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
+
+  .stopCardExecutionCompact .stopActions,
+  .stopCardExecutionCompact .execActionRow {
+    width: 100%;
+    justify-content: stretch;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .stopCardExecutionCompact .stopActions > button,
+  .stopCardExecutionCompact .stopActions > a,
+  .stopCardExecutionCompact .execActionRow > button {
+    width: 100%;
+    min-width: 0;
+  }
+
   .stopCardExecutionCompact .stopSegmentAction {
     align-items: stretch;
   }
@@ -831,6 +952,23 @@
   .stopCardExecutionCompact .btnReorder,
   .stopCardExecutionCompact .btnEdit,
   .stopCardExecutionCompact .btnDelete {
+    width: 100%;
+  }
+
+  .routeCard,
+  .summaryCard,
+  .formContainer {
+    padding: 16px;
+  }
+
+  .routeInfoGrid,
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .transitionRow .btnStart,
+  .transitionRow .btnComplete,
+  .btnAddStop {
     width: 100%;
   }
 }
@@ -857,7 +995,7 @@
   }
 
   .stopCardExecutionCompact .stopAddress {
-    font-size: 17px;
+    font-size: 18px;
     line-height: 1.35;
   }
 
@@ -867,12 +1005,16 @@
 
   .btnExecComplete,
   .btnSkip {
-    min-height: 46px;
+    min-height: 44px;
     font-size: 12px;
-    padding: 10px 12px;
+    padding: 9px 12px;
   }
 
   .execActionRow {
+    gap: 8px;
+  }
+
+  .execActionRowSingle {
     gap: 8px;
   }
 

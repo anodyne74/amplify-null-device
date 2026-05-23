@@ -3,14 +3,11 @@
  * These utilities encapsulate the data fetching patterns and enable type-safe operations
  */
 
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '../amplify/data/resource';
 import { normalizeCustomerDefaults } from '@/lib/customerDefaults';
+import { getDataClient } from '@/lib/data-client';
 
-let _client: ReturnType<typeof generateClient<Schema>> | null = null;
 function getClient() {
-  if (!_client) _client = generateClient<Schema>();
-  return _client;
+  return getDataClient();
 }
 
 function getCustomerUserModel() {

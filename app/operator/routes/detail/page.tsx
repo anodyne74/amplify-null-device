@@ -1404,7 +1404,7 @@ function RouteDetailContent() {
                             </div>
                           )}
                           {stop.actualArrivalTime && !stop.actualDepartureTime && (
-                            <div className={styles.execActionRow}>
+                            <div className={`${styles.execActionRow} ${styles.execActionRowSingle}`}>
                               <button
                                 onClick={() => { void handleStopCompleted(stop.id); }}
                                 className={styles.btnExecComplete}

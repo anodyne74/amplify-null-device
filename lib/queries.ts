@@ -347,20 +347,35 @@ export async function getRouteWithStops(routeId: string) {
       return { route: null, stops: [], errors: [] };
     }
 
-    // Fetch stops for this route
-    const { data: stops, errors: stopsErrors } = await getClient().models.Stop.list({
-      filter: { routeId: { eq: routeId } },
-    });
+    // Fetch all stops for this route with pagination.
+    const allStops: any[] = [];
+    const allStopErrors: unknown[] = [];
+    let nextToken: string | undefined;
 
-    if (stopsErrors) {
-      console.error('Errors fetching stops:', stopsErrors);
-    }
+    do {
+      const { data: stopsPage, errors: stopsErrors, nextToken: pageNextToken } = await getClient().models.Stop.list({
+        filter: { routeId: { eq: routeId } },
+        nextToken,
+        limit: 200,
+      });
 
-    const sortedStops = [...(stops || [])].sort(
+      if (stopsErrors && stopsErrors.length > 0) {
+        console.error('Errors fetching stops:', stopsErrors);
+        allStopErrors.push(...stopsErrors);
+      }
+
+      if (stopsPage && stopsPage.length > 0) {
+        allStops.push(...stopsPage);
+      }
+
+      nextToken = pageNextToken ?? undefined;
+    } while (nextToken);
+
+    const sortedStops = [...allStops].sort(
       (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
     );
 
-    return { route, stops: sortedStops, errors: stopsErrors || [] };
+    return { route, stops: sortedStops, errors: allStopErrors };
   } catch (error) {
     console.error('Error getting route with stops:', error);
     return { route: null, stops: [], errors: [error] };

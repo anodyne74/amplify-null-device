@@ -63,7 +63,12 @@ export default function NewRoutePage() {
   const [manualRouteCode, setManualRouteCode] = useState('');
   const [importRouteCode, setImportRouteCode] = useState('');
   const [routeCodeInitialized, setRouteCodeInitialized] = useState(false);
-  const [copyStopSources, setCopyStopSources] = useState<Array<{ id: string; customerId: string; label: string }>>([]);
+  const [copyStopSources, setCopyStopSources] = useState<Array<{
+    id: string;
+    customerId: string;
+    label: string;
+    createdAt?: string | null;
+  }>>([]);
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'import' | 'manual'>('import');
@@ -82,7 +87,13 @@ export default function NewRoutePage() {
   const [isUploading, setIsUploading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
-  const importCopySourcesForCustomer = copyStopSources.filter((route) => route.customerId === importCustomerId);
+  const importCopySourcesForCustomer = copyStopSources
+    .filter((route) => route.customerId === importCustomerId)
+    .sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
 
   useEffect(() => {
     if (routeCodeInitialized) return;
@@ -151,6 +162,7 @@ export default function NewRoutePage() {
           id: route.id,
           customerId: route.customerId,
           label: dateLabel ? `${baseLabel} (${dateLabel})` : baseLabel,
+          createdAt: route.createdAt ?? null,
         };
       });
 
@@ -460,7 +472,7 @@ export default function NewRoutePage() {
                 <label className={styles.fieldLabel}>Copy Stops From Previous Route</label>
                 <div className={styles.fileRow}>
                   <select
-                    className={styles.select}
+                    className={`${styles.select} ${styles.copyRouteSelect}`}
                     value={importCopySourceRouteId}
                     onChange={(e) => {
                       const nextRouteId = e.target.value;

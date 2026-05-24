@@ -138,12 +138,97 @@
   gap: var(--nd-space-md);
 }
 
+.distanceOverrideSection {
+  margin-top: var(--nd-space-md);
+  padding-top: var(--nd-space-md);
+  border-top: 1px solid var(--nd-border-subtle);
+}
+
+.distanceOverrideHeading {
+  margin: 0 0 var(--nd-space-sm) 0;
+  font-size: 15px;
+  color: var(--nd-text-primary);
+}
+
+.distanceOverrideRow {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(120px, 180px) auto;
+  gap: var(--nd-space-sm);
+  align-items: center;
+}
+
+.distanceOverrideLabel {
+  color: var(--nd-text-secondary);
+  font-size: 13px;
+}
+
+.distanceOverrideInput {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg-surface);
+  color: var(--nd-text-primary);
+  padding: 8px 10px;
+  box-sizing: border-box;
+}
+
+.btnSaveDistanceOverride {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnSaveDistanceOverride:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.distanceOverrideSuccess {
+  margin-top: var(--nd-space-sm);
+  color: var(--nd-status-active);
+  font-size: 13px;
+}
+
 /* Status transition buttons */
 .transitionRow {
   margin-top: var(--nd-space-md);
   display: flex;
   gap: 12px;
   align-items: center;
+}
+
+.phaseCompletionControls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(170px, 220px));
+  gap: var(--nd-space-sm);
+  align-items: end;
+}
+
+.phaseCompletionField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.phaseCompletionLabel {
+  color: var(--nd-text-secondary);
+  font-size: 12px;
+}
+
+.phaseCompletionInput {
+  min-height: 36px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg-surface);
+  color: var(--nd-text-primary);
+  padding: 6px 8px;
 }
 
 .btnStart {
@@ -830,6 +915,11 @@
     flex-direction: column;
   }
 
+  .phaseCompletionControls {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
   .routeCardHeader {
     flex-wrap: wrap;
     align-items: flex-start;
@@ -969,6 +1059,18 @@
   .transitionRow .btnStart,
   .transitionRow .btnComplete,
   .btnAddStop {
+    width: 100%;
+  }
+
+  .distanceOverrideRow {
+    grid-template-columns: 1fr;
+  }
+
+  .phaseCompletionControls {
+    grid-template-columns: 1fr;
+  }
+
+  .btnSaveDistanceOverride {
     width: 100%;
   }
 }

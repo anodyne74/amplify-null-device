@@ -71,8 +71,6 @@ function applyMapOrientation(map: LeafletMap, headingDegrees: number) {
     tooltipPane.style.transform = `${tooltipBaseTransform} rotateZ(${-headingDegrees.toFixed(2)}deg)`;
     tooltipPane.style.transformOrigin = '50% 50%';
   }
-
-  map.invalidateSize({ pan: false });
 }
 
 function updateViewport(
@@ -82,7 +80,7 @@ function updateViewport(
   L: typeof import('leaflet')
 ) {
   if (!devicePosition) {
-    map.setView([activeStop.latitude, activeStop.longitude], 13, { animate: true });
+    map.setView([activeStop.latitude, activeStop.longitude], 13, { animate: false });
     return;
   }
 
@@ -94,7 +92,7 @@ function updateViewport(
   map.fitBounds(bounds, {
     padding: [48, 48],
     maxZoom: 16,
-    animate: true,
+    animate: false,
   });
 }
 
@@ -171,6 +169,8 @@ export function RouteStopsMap({
       // Destroy any existing instance before creating a new one.
       // This handles both React StrictMode double-mount and stops changing.
       if (mapRef.current) {
+        mapRef.current.off();
+        mapRef.current.stop();
         mapRef.current.remove();
         mapRef.current = null;
       }
@@ -185,7 +185,7 @@ export function RouteStopsMap({
       const syncOrientation = () => {
         applyMapOrientation(map, headingRef.current);
       };
-      map.on('move zoom zoomanim resize', syncOrientation);
+      map.on('move zoom resize', syncOrientation);
 
       L.tileLayer(selectedMapTheme.tileUrl, {
         attribution: selectedMapTheme.attribution,
@@ -273,6 +273,8 @@ export function RouteStopsMap({
     return () => {
       cancelled = true;
       if (mapRef.current) {
+        mapRef.current.off();
+        mapRef.current.stop();
         mapRef.current.remove();
         mapRef.current = null;
       }
@@ -348,7 +350,6 @@ export function RouteStopsMap({
           headingRef.current = (previousHeading + shortestDelta * 0.35 + 360) % 360;
           if (mapRef.current) {
             applyMapOrientation(mapRef.current, headingRef.current);
-            mapRef.current.invalidateSize({ pan: false });
           }
         }
 

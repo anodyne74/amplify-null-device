@@ -161,6 +161,55 @@ function formatCurrency(amount: number | null) {
   }).format(amount);
 }
 
+const DEFAULT_SIGNS_COLLECTED_MINUTES = 15;
+const DEFAULT_SIGNS_RETURNED_MINUTES = 15;
+
+function phaseMinutes(start?: string | null, end?: string | null) {
+  if (!start || !end) return null;
+  return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000));
+}
+
+function deriveDurationBuckets(route: Route | null, durationTotalMinutes: number) {
+  const signsCollectedMinutes = DEFAULT_SIGNS_COLLECTED_MINUTES;
+  const signsReturnedMinutes = DEFAULT_SIGNS_RETURNED_MINUTES;
+  const distributable = Math.max(0, durationTotalMinutes - signsCollectedMinutes - signsReturnedMinutes);
+
+  const signsPlacedFromRoute = phaseMinutes(route?.placementStartTime, route?.placementEndTime);
+  const signsPickedUpFromRoute = phaseMinutes(route?.pickupStartTime, route?.pickupEndTime);
+
+  let signsPlacedMinutes: number;
+  let signsPickedUpMinutes: number;
+
+  if (signsPlacedFromRoute !== null || signsPickedUpFromRoute !== null) {
+    signsPlacedMinutes = signsPlacedFromRoute ?? Math.max(0, distributable - (signsPickedUpFromRoute ?? 0));
+    signsPickedUpMinutes = signsPickedUpFromRoute ?? Math.max(0, distributable - signsPlacedMinutes);
+  } else {
+    signsPlacedMinutes = Math.ceil(distributable / 2);
+    signsPickedUpMinutes = Math.max(0, distributable - signsPlacedMinutes);
+  }
+
+  return {
+    signsCollectedMinutes,
+    signsPlacedMinutes,
+    signsPickedUpMinutes,
+    signsReturnedMinutes,
+  };
+}
+
+function getDurationTotalMinutes(values: {
+  signsCollectedMinutes: number;
+  signsPlacedMinutes: number;
+  signsPickedUpMinutes: number;
+  signsReturnedMinutes: number;
+}) {
+  return (
+    Math.max(0, values.signsCollectedMinutes) +
+    Math.max(0, values.signsPlacedMinutes) +
+    Math.max(0, values.signsPickedUpMinutes) +
+    Math.max(0, values.signsReturnedMinutes)
+  );
+}
+
 function isStopCompleted(stop: Stop) {
   return Boolean(stop.actualDepartureTime);
 }
@@ -227,7 +276,10 @@ function RouteDetailContent() {
     signs: 0,
     stops: 0,
     distanceKm: 0,
-    durationMinutes: 0,
+    signsCollectedMinutes: DEFAULT_SIGNS_COLLECTED_MINUTES,
+    signsPlacedMinutes: 0,
+    signsPickedUpMinutes: 0,
+    signsReturnedMinutes: DEFAULT_SIGNS_RETURNED_MINUTES,
     ratePerHour: 0,
     amount: 0,
   });
@@ -571,11 +623,12 @@ function RouteDetailContent() {
     setBillingOverrideSuccess(null);
 
     try {
+      const overrideDurationMinutes = getDurationTotalMinutes(billingOverrides);
       const { errors } = await updateRoute(route.id, {
         overrideSigns: billingOverrides.signs,
         overrideStops: billingOverrides.stops,
         overrideDistanceKm: billingOverrides.distanceKm,
-        overrideDurationMinutes: billingOverrides.durationMinutes,
+        overrideDurationMinutes,
         overrideRate: billingOverrides.ratePerHour,
         overrideAmount: billingOverrides.amount,
       });
@@ -590,7 +643,7 @@ function RouteDetailContent() {
                 overrideSigns: billingOverrides.signs,
                 overrideStops: billingOverrides.stops,
                 overrideDistanceKm: billingOverrides.distanceKm,
-                overrideDurationMinutes: billingOverrides.durationMinutes,
+                overrideDurationMinutes,
                 overrideRate: billingOverrides.ratePerHour,
                 overrideAmount: billingOverrides.amount,
               }
@@ -848,31 +901,29 @@ function RouteDetailContent() {
     0
   );
   const billingDefaults = useMemo(() => {
-    const durationMinutes = route?.overrideDurationMinutes ?? routeDurationMinutes;
+    const durationMinutes = route?.overrideDurationMinutes ?? routeDurationMinutes ?? 0;
+    const durationBuckets = deriveDurationBuckets(route, durationMinutes);
+    const totalDurationMinutes = getDurationTotalMinutes(durationBuckets);
     const ratePerHour = route?.overrideRate ?? customerRatePerHour;
     const amount =
       route?.overrideAmount ??
-      (durationMinutes !== null && ratePerHour !== null
-        ? Number(((durationMinutes / 60) * ratePerHour).toFixed(2))
+      (ratePerHour !== null
+        ? Number(((totalDurationMinutes / 60) * ratePerHour).toFixed(2))
         : 0);
 
     return {
       signs: route?.overrideSigns ?? totalSigns,
       stops: route?.overrideStops ?? totalStops,
       distanceKm: route?.overrideDistanceKm ?? kilometersTravelled,
-      durationMinutes: durationMinutes ?? 0,
+      ...durationBuckets,
+      durationMinutes: totalDurationMinutes,
       ratePerHour: ratePerHour ?? 0,
       amount,
     };
   }, [
     customerRatePerHour,
     kilometersTravelled,
-    route?.overrideAmount,
-    route?.overrideDistanceKm,
-    route?.overrideDurationMinutes,
-    route?.overrideRate,
-    route?.overrideSigns,
-    route?.overrideStops,
+    route,
     routeDurationMinutes,
     totalSigns,
     totalStops,
@@ -1100,23 +1151,121 @@ function RouteDetailContent() {
                         />
                       </label>
                       <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Signs Collected (minutes)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={billingOverrides.signsCollectedMinutes}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => {
+                              const signsCollectedMinutes = Number(event.target.value);
+                              const amount = Number(
+                                ((
+                                  getDurationTotalMinutes({
+                                    ...current,
+                                    signsCollectedMinutes,
+                                  }) / 60
+                                ) * current.ratePerHour).toFixed(2)
+                              );
+                              return {
+                                ...current,
+                                signsCollectedMinutes,
+                                amount,
+                              };
+                            })
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Signs Placed (minutes)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={billingOverrides.signsPlacedMinutes}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => {
+                              const signsPlacedMinutes = Number(event.target.value);
+                              const amount = Number(
+                                ((
+                                  getDurationTotalMinutes({
+                                    ...current,
+                                    signsPlacedMinutes,
+                                  }) / 60
+                                ) * current.ratePerHour).toFixed(2)
+                              );
+                              return {
+                                ...current,
+                                signsPlacedMinutes,
+                                amount,
+                              };
+                            })
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Signs Picked Up (minutes)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={billingOverrides.signsPickedUpMinutes}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => {
+                              const signsPickedUpMinutes = Number(event.target.value);
+                              const amount = Number(
+                                ((
+                                  getDurationTotalMinutes({
+                                    ...current,
+                                    signsPickedUpMinutes,
+                                  }) / 60
+                                ) * current.ratePerHour).toFixed(2)
+                              );
+                              return {
+                                ...current,
+                                signsPickedUpMinutes,
+                                amount,
+                              };
+                            })
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Signs Returned (minutes)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={billingOverrides.signsReturnedMinutes}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => {
+                              const signsReturnedMinutes = Number(event.target.value);
+                              const amount = Number(
+                                ((
+                                  getDurationTotalMinutes({
+                                    ...current,
+                                    signsReturnedMinutes,
+                                  }) / 60
+                                ) * current.ratePerHour).toFixed(2)
+                              );
+                              return {
+                                ...current,
+                                signsReturnedMinutes,
+                                amount,
+                              };
+                            })
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
                         <span className={styles.billingLabel}>Total Duration (minutes)</span>
                         <input
                           type="number"
                           min="0"
                           className={styles.billingInput}
-                          value={billingOverrides.durationMinutes}
-                          onChange={(event) =>
-                            setBillingOverrides((current) => {
-                              const durationMinutes = Number(event.target.value);
-                              const amount = Number(((durationMinutes / 60) * current.ratePerHour).toFixed(2));
-                              return {
-                                ...current,
-                                durationMinutes,
-                                amount,
-                              };
-                            })
-                          }
+                          value={getDurationTotalMinutes(billingOverrides)}
+                          readOnly
                         />
                       </label>
                       <label className={styles.billingField}>
@@ -1130,7 +1279,7 @@ function RouteDetailContent() {
                           onChange={(event) =>
                             setBillingOverrides((current) => {
                               const ratePerHour = Number(event.target.value);
-                              const amount = Number(((current.durationMinutes / 60) * ratePerHour).toFixed(2));
+                              const amount = Number(((getDurationTotalMinutes(current) / 60) * ratePerHour).toFixed(2));
                               return {
                                 ...current,
                                 ratePerHour,
@@ -1183,7 +1332,8 @@ function RouteDetailContent() {
           <div className={styles.stopsSection}>
             <div className={styles.stopsHeader}>
               <h2 className={styles.stopsHeading}>
-                Stops ({visibleStops.length})
+                Stops ({stops.length})
+                {visibleStops.length !== stops.length ? ` - In Current Phase: ${visibleStops.length}` : ''}
               </h2>
               {canManagePlanning && !planningLocked && !showAddStop && (
                 <button

@@ -154,12 +154,18 @@ export async function POST(request: NextRequest) {
     // Build template values and render body from deployed SES template.
     const invoiceDateString = invoice.invoiceDate || new Date().toISOString().split('T')[0];
     const invoiceAmount = `$${invoice.totalAmount.toFixed(2)}`;
+    const configuredLogoUrl = process.env.SES_EMAIL_LOGO_URL?.trim();
+    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+    const logoUrl = configuredLogoUrl
+      ? configuredLogoUrl
+      : `${(appBaseUrl || 'https://nulldevice.dev').replace(/\/$/, '')}/logo.svg`;
     const templateValues = {
       invoiceNumber: invoice.invoiceNumber,
       customerName: customer.name || 'Customer',
       invoiceDate: invoiceDateString,
       totalAmount: invoiceAmount,
       pdfUrl,
+      logoUrl,
       year: `${new Date().getUTCFullYear()}`,
     };
 

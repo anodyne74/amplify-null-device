@@ -317,6 +317,13 @@ const schema = a.schema({
       name: a.string(),
       defaultTheme: a.enum(['system', 'light', 'dark']),
       mapTheme: a.enum(['light', 'dark', 'satellite', 'streets']),
+      billingCompanyName: a.string(),
+      billingAbn: a.string(),
+      billingPhone: a.string(),
+      billingCompanyAddress: a.string(),
+      billingPaymentAccountName: a.string(),
+      billingBsb: a.string(),
+      billingAccountNumber: a.string(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })

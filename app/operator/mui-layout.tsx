@@ -95,24 +95,24 @@ export default function OperatorMUILayout({
       {/* Brand */}
       <Box sx={{ mb: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
         <Box
-          component="img"
-          src="/icon.svg"
-          alt=""
-          aria-hidden="true"
-          sx={{ width: 44, height: 44, display: 'block' }}
-        />
-        <Typography
           sx={{
-            fontFamily: 'var(--nd-font-mono, monospace)',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'rgba(255, 255, 255, 0.38)',
-            fontSize: '0.65rem',
-            display: 'block',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 1,
+            borderRadius: 2,
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
           }}
         >
-          Operator Portal
-        </Typography>
+          <Box
+            component="img"
+            src="/icon.svg"
+            alt=""
+            aria-hidden="true"
+            sx={{ width: 44, height: 44, display: 'block' }}
+          />
+        </Box>
       </Box>
 
       {/* Navigation - grows to fill space */}
@@ -266,22 +266,10 @@ export default function OperatorMUILayout({
                 sx={{
                   flexGrow: 1,
                   fontFamily: 'var(--nd-font-display, Comfortaa, sans-serif)',
-                  fontSize: { xs: '1.125rem', sm: '1.75rem' },
+                  fontSize: { xs: '0.875rem', sm: '0.95rem' },
                   fontWeight: 500,
                   letterSpacing: '0.015em',
-                  color: 'var(--nd-primary-accent)',
-                }}
-              >
-                Operator Portal
-              </Typography>
-              <Typography
-                sx={{
-                  flexGrow: 1,
-                  fontFamily: 'var(--nd-font-mono, monospace)',
-                  fontSize: '0.75rem',
-                  fontWeight: 500,
-                  letterSpacing: '0.015em',
-                  display: { xs: 'none', sm: 'block' },
+                  color: 'rgba(255, 255, 255, 0.72)',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',

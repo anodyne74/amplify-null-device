@@ -3,11 +3,13 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { getUrl, uploadData } from 'aws-amplify/storage';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseInvoiceText } from '@/lib/parseInvoice';
 import {
   createInvoice,
+  getUserSettings,
   getInvoiceWithLineItems,
   getRouteWithStops,
   listCustomerUsers,
@@ -18,7 +20,8 @@ import {
 } from '@/lib/queries';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import type { Route } from '@/amplify/types';
-import { SUPPORT_EMAIL } from '@/lib/publicAppConfig';
+import { BILLING_EMAIL } from '@/lib/publicAppConfig';
+import { DEFAULT_COMPANY_BILLING_DETAILS } from '@/lib/companyBilling';
 import styles from '@/app/dashboard.module.css';
 import invoiceStyles from '@/app/administrator/invoices/page.module.css';
 
@@ -42,13 +45,37 @@ type Invoice = {
   emailSentAt?: string | null;
 };
 
-const DEFAULT_COMPANY_NAME = 'Null Device';
-const DEFAULT_COMPANY_ABN = 'ABN 93 374 916 783';
-const DEFAULT_COMPANY_PHONE = '+61 406 199 785';
-const DEFAULT_COMPANY_ADDRESS = '31 Chester Street, Epping NSW 2121';
-const DEFAULT_PAYMENT_BSB = '000-000';
-const DEFAULT_PAYMENT_ACCOUNT_NUMBER = '00000000';
-const BILLING_DETAILS_STORAGE_KEY = 'invoiceBillingDetails';
+function getNextInvoiceNumber(invoices: Invoice[]) {
+  const matches = invoices
+    .map((invoice) => {
+      const number = invoice.invoiceNumber?.trim();
+      if (!number) return null;
+      const numericMatch = number.match(/(\d+)(?!.*\d)/);
+      if (!numericMatch) return null;
+      return {
+        raw: number,
+        prefix: number.slice(0, number.length - numericMatch[1].length),
+        numeric: Number(numericMatch[1]),
+        width: numericMatch[1].length,
+      };
+    })
+    .filter((value): value is { raw: string; prefix: string; numeric: number; width: number } => Boolean(value));
+
+  if (matches.length === 0) {
+    return 'INV-001';
+  }
+
+  const maxNumeric = Math.max(...matches.map((entry) => entry.numeric));
+  const widest = Math.max(3, ...matches.map((entry) => entry.width));
+  const preferredPrefix = matches.find((entry) => entry.prefix)?.prefix ?? 'INV-';
+  return `${preferredPrefix}${String(maxNumeric + 1).padStart(widest, '0')}`;
+}
+
+function getRouteDurationHours(route?: Route | null) {
+  if (!route) return 0;
+  const minutes = route.overrideDurationMinutes ?? route.actualDurationMinutes ?? 0;
+  return Number((minutes / 60).toFixed(2));
+}
 
 function formatStopProperty(stop: {
   formattedAddress?: string | null;
@@ -56,8 +83,22 @@ function formatStopProperty(stop: {
   sequence?: number | null;
 }) {
   const baseAddress = (stop.formattedAddress || stop.address || 'Unknown property').trim();
-  const sequence = typeof stop.sequence === 'number' ? `#${stop.sequence}` : null;
-  return sequence ? `${sequence} ${baseAddress}` : baseAddress;
+  const parts = baseAddress
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) =>
+      part
+        .replace(/\b(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\b\s*\d{4}\b/gi, '')
+        .replace(/\bAustralia\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    )
+    .filter(Boolean);
+
+  if (parts.length === 0) return 'Unknown property';
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]}, ${parts[1]}`;
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {
@@ -141,6 +182,7 @@ async function fetchLogoDataUrl() {
 }
 
 export default function InvoicesAdminPage() {
+  const { user } = useAuthenticator();
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -153,14 +195,17 @@ export default function InvoicesAdminPage() {
   const [customerId, setCustomerId] = useState('');
   const [routeId, setRouteId] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [invoiceNumberOverridden, setInvoiceNumberOverridden] = useState(false);
+  const [totalHours, setTotalHours] = useState('0');
+  const [totalAmountOverridden, setTotalAmountOverridden] = useState(false);
   const [totalAmount, setTotalAmount] = useState('0');
-  const [billingCompanyName, setBillingCompanyName] = useState(DEFAULT_COMPANY_NAME);
-  const [billingAbn, setBillingAbn] = useState(DEFAULT_COMPANY_ABN);
-  const [billingPhone, setBillingPhone] = useState(DEFAULT_COMPANY_PHONE);
-  const [billingCompanyAddress, setBillingCompanyAddress] = useState(DEFAULT_COMPANY_ADDRESS);
-  const [billingPaymentAccountName, setBillingPaymentAccountName] = useState(DEFAULT_COMPANY_NAME);
-  const [billingBsb, setBillingBsb] = useState(DEFAULT_PAYMENT_BSB);
-  const [billingAccountNumber, setBillingAccountNumber] = useState(DEFAULT_PAYMENT_ACCOUNT_NUMBER);
+  const [billingCompanyName, setBillingCompanyName] = useState(DEFAULT_COMPANY_BILLING_DETAILS.companyName);
+  const [billingAbn, setBillingAbn] = useState(DEFAULT_COMPANY_BILLING_DETAILS.abn);
+  const [billingPhone, setBillingPhone] = useState(DEFAULT_COMPANY_BILLING_DETAILS.phone);
+  const [billingCompanyAddress, setBillingCompanyAddress] = useState(DEFAULT_COMPANY_BILLING_DETAILS.companyAddress);
+  const [billingPaymentAccountName, setBillingPaymentAccountName] = useState(DEFAULT_COMPANY_BILLING_DETAILS.paymentAccountName);
+  const [billingBsb, setBillingBsb] = useState(DEFAULT_COMPANY_BILLING_DETAILS.bsb);
+  const [billingAccountNumber, setBillingAccountNumber] = useState(DEFAULT_COMPANY_BILLING_DETAILS.accountNumber);
 
   // PDF upload state (per invoice)
   const [uploadingId, setUploadingId] = useState<string | null>(null);
@@ -233,56 +278,28 @@ export default function InvoicesAdminPage() {
   useEffect(() => { void fetchData(); }, [fetchData]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!user?.userId) return;
+    let cancelled = false;
 
-    try {
-      const raw = window.localStorage.getItem(BILLING_DETAILS_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Partial<{
-        companyName: string;
-        abn: string;
-        phone: string;
-        companyAddress: string;
-        paymentAccountName: string;
-        bsb: string;
-        accountNumber: string;
-      }>;
+    void getUserSettings(user.userId)
+      .then((result) => {
+        if (cancelled || !result.data) return;
+        setBillingCompanyName(result.data.billingCompanyName?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyName);
+        setBillingAbn(result.data.billingAbn?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.abn);
+        setBillingPhone(result.data.billingPhone?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.phone);
+        setBillingCompanyAddress(result.data.billingCompanyAddress?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyAddress);
+        setBillingPaymentAccountName(result.data.billingPaymentAccountName?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.paymentAccountName);
+        setBillingBsb(result.data.billingBsb?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.bsb);
+        setBillingAccountNumber(result.data.billingAccountNumber?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.accountNumber);
+      })
+      .catch(() => {
+        // Non-blocking fallback to defaults.
+      });
 
-      if (parsed.companyName) setBillingCompanyName(parsed.companyName);
-      if (parsed.abn) setBillingAbn(parsed.abn);
-      if (parsed.phone) setBillingPhone(parsed.phone);
-      if (parsed.companyAddress) setBillingCompanyAddress(parsed.companyAddress);
-      if (parsed.paymentAccountName) setBillingPaymentAccountName(parsed.paymentAccountName);
-      if (parsed.bsb) setBillingBsb(parsed.bsb);
-      if (parsed.accountNumber) setBillingAccountNumber(parsed.accountNumber);
-    } catch {
-      // Ignore malformed browser storage payloads.
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const payload = {
-      companyName: billingCompanyName,
-      abn: billingAbn,
-      phone: billingPhone,
-      companyAddress: billingCompanyAddress,
-      paymentAccountName: billingPaymentAccountName,
-      bsb: billingBsb,
-      accountNumber: billingAccountNumber,
+    return () => {
+      cancelled = true;
     };
-
-    window.localStorage.setItem(BILLING_DETAILS_STORAGE_KEY, JSON.stringify(payload));
-  }, [
-    billingCompanyName,
-    billingAbn,
-    billingPhone,
-    billingCompanyAddress,
-    billingPaymentAccountName,
-    billingBsb,
-    billingAccountNumber,
-  ]);
+  }, [user?.userId]);
 
   useEffect(() => {
     if (!successMessage) return;
@@ -296,9 +313,15 @@ export default function InvoicesAdminPage() {
     };
   }, [successMessage]);
 
-  // Auto-populate invoice amount from selected route's override values
+  useEffect(() => {
+    if (invoiceNumberOverridden) return;
+    setInvoiceNumber(getNextInvoiceNumber(invoices));
+  }, [invoices, invoiceNumberOverridden]);
+
+  // Auto-populate invoice hours and amount from selected route defaults.
   useEffect(() => {
     if (!routeId) {
+      setTotalHours('0');
       setTotalAmount('0');
       return;
     }
@@ -306,18 +329,32 @@ export default function InvoicesAdminPage() {
     const selectedRoute = routes.find((r) => r.id === routeId);
     if (!selectedRoute) return;
 
-    // Use override amount if available, otherwise calculate from actual duration and customer's billing rate
-    if (selectedRoute.overrideAmount) {
-      setTotalAmount(Number(selectedRoute.overrideAmount).toFixed(2));
+    const routeHours = getRouteDurationHours(selectedRoute);
+    setTotalHours(routeHours.toFixed(2));
+
+    if (totalAmountOverridden) {
       return;
     }
 
     const customer = customers.find((c) => c.id === selectedRoute.customerId);
-    if (!customer) return;
-
-    const amount = ((selectedRoute.actualDurationMinutes ?? 0) / 60) * (customer.billingRatePerHour ?? 0);
+    const rate = customer?.billingRatePerHour ?? 0;
+    const amount = routeHours * rate;
     setTotalAmount(Number(amount).toFixed(2));
-  }, [routeId, routes, customers]);
+  }, [routeId, routes, customers, totalAmountOverridden]);
+
+  useEffect(() => {
+    if (totalAmountOverridden) return;
+    const selectedRoute = routes.find((r) => r.id === routeId);
+    if (!selectedRoute) return;
+
+    const customer = customers.find((c) => c.id === selectedRoute.customerId);
+    const rate = customer?.billingRatePerHour ?? 0;
+    const parsedHours = Number(totalHours);
+    if (!Number.isFinite(parsedHours) || parsedHours < 0) return;
+
+    const amount = parsedHours * rate;
+    setTotalAmount(Number(amount).toFixed(2));
+  }, [totalHours, routeId, routes, customers, totalAmountOverridden]);
 
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();
@@ -329,7 +366,7 @@ export default function InvoicesAdminPage() {
     const result = await createInvoice({
       customerId,
       routeId: routeId || undefined,
-      invoiceNumber,
+      invoiceNumber: invoiceNumber.trim(),
       invoiceDate: today,
       totalAmount: Number(totalAmount),
       status: 'draft',
@@ -337,7 +374,10 @@ export default function InvoicesAdminPage() {
     if (result.errors && result.errors.length > 0) {
       setError('Failed to create invoice.');
     } else {
+      setInvoiceNumberOverridden(false);
+      setTotalAmountOverridden(false);
       setInvoiceNumber('');
+      setTotalHours('0');
       setTotalAmount('0');
       setRouteId('');
       setSuccessMessage('Invoice created successfully.');
@@ -498,14 +538,15 @@ export default function InvoicesAdminPage() {
           }>) ?? []
         : [];
       const { jsPDF } = await import('jspdf');
+      const { autoTable } = await import('jspdf-autotable');
       const logoDataUrl = await fetchLogoDataUrl();
-      const pdfCompanyName = billingCompanyName.trim() || DEFAULT_COMPANY_NAME;
-      const pdfCompanyAbn = billingAbn.trim() || DEFAULT_COMPANY_ABN;
-      const pdfCompanyPhone = billingPhone.trim() || DEFAULT_COMPANY_PHONE;
-      const pdfCompanyAddress = billingCompanyAddress.trim() || DEFAULT_COMPANY_ADDRESS;
+      const pdfCompanyName = billingCompanyName.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyName;
+      const pdfCompanyAbn = billingAbn.trim() || DEFAULT_COMPANY_BILLING_DETAILS.abn;
+      const pdfCompanyPhone = billingPhone.trim() || DEFAULT_COMPANY_BILLING_DETAILS.phone;
+      const pdfCompanyAddress = billingCompanyAddress.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyAddress;
       const pdfPaymentAccountName = billingPaymentAccountName.trim() || pdfCompanyName;
-      const pdfPaymentBsb = billingBsb.trim() || DEFAULT_PAYMENT_BSB;
-      const pdfPaymentAccountNumber = billingAccountNumber.trim() || DEFAULT_PAYMENT_ACCOUNT_NUMBER;
+      const pdfPaymentBsb = billingBsb.trim() || DEFAULT_COMPANY_BILLING_DETAILS.bsb;
+      const pdfPaymentAccountNumber = billingAccountNumber.trim() || DEFAULT_COMPANY_BILLING_DETAILS.accountNumber;
 
       const routeDurationHours = linkedRoute
         ? Number((((linkedRoute.overrideDurationMinutes ?? linkedRoute.actualDurationMinutes ?? 0) / 60)).toFixed(2))
@@ -552,71 +593,86 @@ export default function InvoicesAdminPage() {
       );
 
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-      const left = 56;
-      let y = 64;
+      type tupleRow = [number,number,number];
+
+      const config = {
+        margins: { top: 64, bottom: 64, left: 56, right: 540 },
+        colors: {
+          header: [15, 23, 42] as tupleRow,
+          secondary: [248, 250, 252] as tupleRow,
+          accent: [239, 246, 255] as tupleRow,
+        },
+        fonts: {
+          regular: 'helvetica',
+          bold: 'helvetica',
+          default: 11, small: 10, medium: 12, large: 18, xlarge: 22
+        },
+      };
+
+      let y = config.margins.top;
       const ensurePageSpace = (requiredHeight: number) => {
         if (y + requiredHeight <= 780) return;
         doc.addPage();
-        y = 64;
+        y = config.margins.top;
       };
 
-      doc.setFillColor(15, 23, 42);
+      doc.setFillColor(...config.colors.header);
       doc.rect(0, 0, 595, 112, 'F');
 
       if (logoDataUrl) {
-        doc.addImage(logoDataUrl, 'PNG', left, 24, 140, 64);
+        doc.addImage(logoDataUrl, 'PNG', 28, 0, 280, 128);
       }
 
       doc.setTextColor(241, 245, 249);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(22);
+      doc.setFontSize(config.fonts.xlarge);
       doc.text('INVOICE', 540, 52, { align: 'right' });
 
-      doc.setFontSize(10);
+      doc.setFontSize(config.fonts.small);
       doc.setFont('helvetica', 'normal');
       doc.text(pdfCompanyName, 540, 72, { align: 'right' });
       doc.text(pdfCompanyAbn, 540, 86, { align: 'right' });
+      doc.text(pdfCompanyPhone, 540, 100, { align: 'right' });
+      doc.text(pdfCompanyAddress, 540, 114, { align: 'right' });
 
       y = 150;
 
-      doc.setTextColor(15, 23, 42);
+      doc.setTextColor(...config.colors.header);
 
-      doc.setFillColor(248, 250, 252);
-      doc.roundedRect(left, y - 20, 484, 142, 8, 8, 'F');
+      doc.setFillColor(...config.colors.secondary);
+      doc.roundedRect(config.margins.left, y - 20, 484, 142, 8, 8, 'F');
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.text('Bill To', left + 12, y + 2);
+      doc.text('Bill To', config.margins.left + 12, y + 2);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      doc.text(`Company Name: ${customer?.name || invoice.customerId}`, left + 12, y + 20);
+      doc.text(`${customer?.name || invoice.customerId}`, config.margins.left + 12, y + 20);
+      
       const customerAddressLines = doc.splitTextToSize(
-        `Company Address: ${customer?.addressLine1 || '—'}`,
+        `${customer?.addressLine1 || '—'}`.split(',').map(line => line.trim()).join('\n'),
         320
       );
-      doc.text(customerAddressLines, left + 12, y + 38);
+      doc.text(customerAddressLines, config.margins.left + 12, y + 38);
       const customerAddressHeight = customerAddressLines.length * 13;
       const customerEmailY = y + 38 + customerAddressHeight + 4;
-      doc.text(`Customer Email: ${customer?.primaryEmail || customer?.email || '—'}`, left + 12, customerEmailY);
-      doc.text(`Linked Route: ${linkedRoute?.routeCode || invoice.routeId || '—'}`, left + 12, customerEmailY + 18);
+      doc.text(`Route: ${linkedRoute?.routeCode || invoice.routeId || '—'}`, config.margins.left + 12, customerEmailY + 18);
 
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Invoice #: ${invoice.invoiceNumber || invoice.id}`, 420, y + 2);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Invoice Date: ${invoice.invoiceDate || new Date().toISOString().slice(0, 10)}`, 420, y + 20);
-      doc.text(`Status: ${invoice.status || 'draft'}`, 420, y + 38);
-      doc.text(`Contact: ${SUPPORT_EMAIL}`, 420, y + 56);
+      doc.text(`Date: ${invoice.invoiceDate || new Date().toISOString().slice(0, 10)}`, 360, y + 2);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Invoice: ${invoice.invoiceNumber || invoice.id}`, 360, y + 20);
 
       y += 160;
 
-      doc.setFillColor(239, 246, 255);
-      doc.roundedRect(left, y - 16, 484, 54, 6, 6, 'F');
+      doc.setFillColor(...config.colors.accent);
+      doc.roundedRect(config.margins.left, y - 16, 484, 54, 6, 6, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
-      doc.text('Total Amount Due', left + 12, y + 6);
+      doc.text('Total Amount Due', config.margins.left + 12, y + 6);
       doc.setFontSize(19);
-      doc.text(`$${invoice.totalAmount.toFixed(2)}`, 540, y + 8, { align: 'right' });
+      doc.text(`$${invoice.totalAmount.toFixed(2)}`, 500, y + 8, { align: 'right' });
 
       y += 56;
 
@@ -624,33 +680,32 @@ export default function InvoicesAdminPage() {
       doc.setFontSize(10);
       doc.text(
         'Please quote the invoice number in all correspondence. Payment terms are due on receipt unless otherwise agreed.',
-        left,
+        config.margins.left,
         y,
         { maxWidth: 484 }
       );
 
       y += 20;
-      doc.setLineWidth(0.6);
-      doc.line(left, y, 540, y);
+      doc.line(config.margins.left, y, config.margins.right, y);
 
       y += 16;
 
       y += 34;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
-      doc.text('Invoice Lines', left, y);
+      doc.text('Invoice Lines', config.margins.left, y);
 
       y += 18;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
-      doc.text('Description', left, y);
+      doc.text('Description', config.margins.left, y);
       doc.text('Qty (Hours)', 340, y);
-      doc.text('Hourly Rate', 430, y, { align: 'right' });
+      doc.text('Rate', 430, y, { align: 'right' });
       doc.text('Total', 540, y, { align: 'right' });
 
       y += 8;
       doc.setLineWidth(0.6);
-      doc.line(left, y, 540, y);
+      doc.line(config.margins.left, y, 540, y);
 
       for (const row of invoiceRows) {
         ensurePageSpace(24);
@@ -658,7 +713,7 @@ export default function InvoicesAdminPage() {
         y += 18;
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
-        doc.text(row.description, left, y, { maxWidth: 260 });
+        doc.text(row.description, config.margins.left, y, { maxWidth: 260 });
         doc.text(`${row.quantityHours.toFixed(2)}`, 340, y);
         doc.text(`$${row.hourlyRate.toFixed(2)}`, 430, y, { align: 'right' });
         doc.text(`$${row.total.toFixed(2)}`, 540, y, { align: 'right' });
@@ -677,71 +732,66 @@ export default function InvoicesAdminPage() {
       y += 30;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
-      doc.text('Payment Details', left, y);
+      doc.text('Payment Details', config.margins.left, y);
 
       y += 18;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
-      doc.text(`Name: ${pdfPaymentAccountName}`, left, y);
+      doc.text(`Name:    ${pdfPaymentAccountName}`, config.margins.left, y);
       y += 14;
-      doc.text(`BSB: ${pdfPaymentBsb}`, left, y);
+      doc.text(`BSB:     ${pdfPaymentBsb}`, config.margins.left, y);
       y += 14;
-      doc.text(`Account: ${pdfPaymentAccountNumber}`, left, y);
-      y += 14;
-      doc.text(`Contact: ${pdfCompanyPhone} | ${SUPPORT_EMAIL}`, left, y);
-      y += 14;
-      doc.text(`${pdfCompanyAbn} | ${pdfCompanyAddress}`, left, y, { maxWidth: 484 });
+      doc.text(`Account: ${pdfPaymentAccountNumber}`, config.margins.left, y);
 
       if (routeStops.length > 0) {
         ensurePageSpace(84);
         y += 34;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(13);
-        doc.text('Route Stop Details', left, y);
+        doc.text('Route Stop Details', config.margins.left, y);
 
         y += 18;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.text('Property', left, y);
-        doc.text('Agent', 410, y);
-        doc.text('Signs', 540, y, { align: 'right' });
-
-        y += 8;
-        doc.setLineWidth(0.6);
-        doc.line(left, y, 540, y);
-
-        for (const stop of routeStops) {
-          ensurePageSpace(26);
-          y += 18;
-
-          const property = formatStopProperty(stop);
-          const agent = stop.agent?.trim() || '—';
-          const signs = typeof stop.numberOfSigns === 'number' ? String(stop.numberOfSigns) : '—';
-
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(10);
-          doc.text(property, left, y, { maxWidth: 320 });
-          doc.text(agent, 410, y, { maxWidth: 90 });
-          doc.text(signs, 540, y, { align: 'right' });
-        }
+        autoTable(doc, {
+          startY: y,
+          head: [['Property', 'Agent', 'Signs']],
+          body: routeStops.map((stop) => [
+            formatStopProperty(stop),
+            stop.agent?.trim() || '—',
+            typeof stop.numberOfSigns === 'number' ? String(stop.numberOfSigns) : '—',
+          ]),
+          theme: 'striped',
+          margin: { left: config.margins.left, right: config.margins.right },
+          styles: { font: 'helvetica', fontSize: 10, textColor: [15, 23, 42], fillColor: [248, 250, 252] },
+          headStyles: { fillColor: [239, 246, 255], textColor: [15, 23, 42], fontStyle: 'bold' },
+          columnStyles: {
+            0: { cellWidth: 350 },
+            1: { cellWidth: 84 },
+            2: { cellWidth: 50, halign: 'right' },
+          },
+          didParseCell: (data) => {
+            if (data.section === 'head' && data.column.index === 2) {
+              data.cell.styles.halign = 'right'; // header alignment
+            }
+          },
+        }); 
 
         ensurePageSpace(290);
         y += 34;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(13);
-        doc.text('Route Map (All Markers)', left, y);
+        doc.text('Route Map', config.margins.left, y);
 
         y += 12;
         const mapImageDataUrl = await fetchRouteMapDataUrl(routeStops);
         if (mapImageDataUrl) {
           y += 8;
-          doc.addImage(mapImageDataUrl, 'PNG', left, y, 484, 260);
+          doc.addImage(mapImageDataUrl, 'PNG', config.margins.left, y, 484, 260);
           y += 268;
         } else {
           y += 18;
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(10);
-          doc.text('Map image unavailable for this route.', left, y);
+          doc.text('Map image unavailable for this route.', config.margins.left, y);
         }
       }
 
@@ -749,11 +799,11 @@ export default function InvoicesAdminPage() {
       for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
         doc.setPage(pageNumber);
         doc.setDrawColor(203, 213, 225);
-        doc.line(left, 812, 540, 812);
+        doc.line(config.margins.left, 812, 540, 812);
         doc.setTextColor(71, 85, 105);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
-        doc.text(`${pdfCompanyName} | ${pdfCompanyAbn} | ${pdfCompanyPhone} | ${SUPPORT_EMAIL}`, left, 826);
+        doc.text(`${pdfCompanyName} | ${pdfCompanyAbn} | ${pdfCompanyPhone} | ${BILLING_EMAIL}`, config.margins.left, 826);
         doc.text(`Page ${pageNumber} of ${totalPages}`, 540, 826, { align: 'right' });
       }
 
@@ -882,6 +932,7 @@ export default function InvoicesAdminPage() {
                 onChange={(e) => {
                   setCustomerId(e.target.value);
                   setRouteId('');
+                  setTotalAmountOverridden(false);
                 }}
                 required
               >
@@ -891,7 +942,14 @@ export default function InvoicesAdminPage() {
 
             <div className={invoiceStyles.fieldGroup}>
               <label htmlFor="invoice-route">Linked Route</label>
-              <select id="invoice-route" value={routeId} onChange={(e) => setRouteId(e.target.value)}>
+              <select
+                id="invoice-route"
+                value={routeId}
+                onChange={(e) => {
+                  setRouteId(e.target.value);
+                  setTotalAmountOverridden(false);
+                }}
+              >
                 <option value="">— None —</option>
                 {customerRoutes.map((r) => (
                   <option key={r.id} value={r.id}>{r.routeCode ?? r.id.slice(0, 8)}</option>
@@ -904,8 +962,24 @@ export default function InvoicesAdminPage() {
               <input
                 id="invoice-number"
                 value={invoiceNumber}
-                onChange={(e) => setInvoiceNumber(e.target.value)}
+                onChange={(e) => {
+                  setInvoiceNumber(e.target.value);
+                  setInvoiceNumberOverridden(true);
+                }}
                 placeholder="INV-001"
+                required
+              />
+            </div>
+
+            <div className={invoiceStyles.fieldGroup}>
+              <label htmlFor="invoice-hours">Total Hours</label>
+              <input
+                id="invoice-hours"
+                value={totalHours}
+                onChange={(e) => setTotalHours(e.target.value)}
+                type="number"
+                min="0"
+                step="0.01"
                 required
               />
             </div>
@@ -915,7 +989,10 @@ export default function InvoicesAdminPage() {
               <input
                 id="invoice-total"
                 value={totalAmount}
-                onChange={(e) => setTotalAmount(e.target.value)}
+                onChange={(e) => {
+                  setTotalAmount(e.target.value);
+                  setTotalAmountOverridden(true);
+                }}
                 type="number"
                 min="0"
                 step="0.01"
@@ -930,75 +1007,6 @@ export default function InvoicesAdminPage() {
             </div>
           </div>
         </form>
-
-        <div className={`${styles.infoPanel} ${invoiceStyles.createForm}`}>
-          <h3 className={invoiceStyles.panelHeading}>Company Billing Details</h3>
-
-          <div className={invoiceStyles.createGrid}>
-            <div className={invoiceStyles.fieldGroup}>
-              <label htmlFor="billing-company-name">Company Name</label>
-              <input
-                id="billing-company-name"
-                value={billingCompanyName}
-                onChange={(e) => setBillingCompanyName(e.target.value)}
-              />
-            </div>
-
-            <div className={invoiceStyles.fieldGroup}>
-              <label htmlFor="billing-abn">ABN</label>
-              <input
-                id="billing-abn"
-                value={billingAbn}
-                onChange={(e) => setBillingAbn(e.target.value)}
-              />
-            </div>
-
-            <div className={invoiceStyles.fieldGroup}>
-              <label htmlFor="billing-phone">Phone</label>
-              <input
-                id="billing-phone"
-                value={billingPhone}
-                onChange={(e) => setBillingPhone(e.target.value)}
-              />
-            </div>
-
-            <div className={invoiceStyles.fieldGroup}>
-              <label htmlFor="billing-company-address">Company Address</label>
-              <input
-                id="billing-company-address"
-                value={billingCompanyAddress}
-                onChange={(e) => setBillingCompanyAddress(e.target.value)}
-              />
-            </div>
-
-            <div className={invoiceStyles.fieldGroup}>
-              <label htmlFor="billing-payment-name">Payment Account Name</label>
-              <input
-                id="billing-payment-name"
-                value={billingPaymentAccountName}
-                onChange={(e) => setBillingPaymentAccountName(e.target.value)}
-              />
-            </div>
-
-            <div className={invoiceStyles.fieldGroup}>
-              <label htmlFor="billing-bsb">BSB</label>
-              <input
-                id="billing-bsb"
-                value={billingBsb}
-                onChange={(e) => setBillingBsb(e.target.value)}
-              />
-            </div>
-
-            <div className={invoiceStyles.fieldGroup}>
-              <label htmlFor="billing-account-number">Account Number</label>
-              <input
-                id="billing-account-number"
-                value={billingAccountNumber}
-                onChange={(e) => setBillingAccountNumber(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
 
         {error && (
           <div className={`${styles.infoPanel} ${invoiceStyles.alertPanel}`}>

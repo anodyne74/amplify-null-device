@@ -4,17 +4,15 @@ import dynamic from 'next/dynamic';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { generateClient } from 'aws-amplify/data';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { StopForm } from '@/app/operator/components/StopForm';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { createStop, getUserSettings, updateRoute } from '@/lib/queries';
+import { createStop, getRouteWithStops, getUserSettings, updateRoute } from '@/lib/queries';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
-import type { Schema } from '@/amplify/data/resource';
 import type { Route, Stop } from '@/amplify/types';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
@@ -66,16 +64,10 @@ function RouteEditContent() {
 
   const fetchStops = useCallback(async () => {
     if (!routeId) return;
-    const client = generateClient<Schema>();
-    const { data, errors } = await client.models.Stop.list({
-      filter: { routeId: { eq: routeId } },
-    });
+    const { stops: allStops, errors } = await getRouteWithStops(routeId);
 
     if (!errors || errors.length === 0) {
-      const sorted = [...((data as unknown as Stop[]) || [])].sort(
-        (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
-      );
-      setStops(sorted);
+      setStops(allStops as Stop[]);
     }
   }, [routeId]);
 

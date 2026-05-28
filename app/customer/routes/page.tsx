@@ -25,7 +25,7 @@ export default function CustomerRoutesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<RouteStatus | 'all'>('all');
-  const [sortBy, setSortBy] = useState<'date' | 'status'>('date');
+  const [sortBy, setSortBy] = useState<'routeId' | 'status'>('routeId');
 
   useEffect(() => {
     if (!customerId) return;
@@ -55,11 +55,11 @@ export default function CustomerRoutesPage() {
     }
 
     // Apply sorting
-    if (sortBy === 'date') {
+    if (sortBy === 'routeId') {
       filtered = filtered.sort((a, b) => {
-        const dateA = new Date(a.createdAt || '').getTime();
-        const dateB = new Date(b.createdAt || '').getTime();
-        return dateB - dateA; // Newest first
+        const aId = (a.routeCode || a.id || '').trim();
+        const bId = (b.routeCode || b.id || '').trim();
+        return bId.localeCompare(aId, undefined, { numeric: true, sensitivity: 'base' });
       });
     } else {
       filtered = filtered.sort((a, b) => {
@@ -109,10 +109,10 @@ export default function CustomerRoutesPage() {
             <label className={styles.filterLabel}>Sort By</label>
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'date' | 'status')}
+              onChange={(e) => setSortBy(e.target.value as 'routeId' | 'status')}
               className={styles.select}
             >
-              <option value="date">Date (Newest First)</option>
+              <option value="routeId">Route ID (Desc)</option>
               <option value="status">Status</option>
             </select>
           </div>

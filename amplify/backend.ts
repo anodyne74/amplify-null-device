@@ -165,24 +165,38 @@ FORWARD_TO = os.environ['FORWARD_TO']
 def lambda_handler(event, context):
     record = event['Records'][0]
     message_id = record['ses']['mail']['messageId']
+	# SES gives you the exact address that matched the rule
+    inbound_address = record['ses']['receipt']['recipients'][0].lower()
 
+	# Fetch raw email from S3
     obj = s3.get_object(Bucket=BUCKET, Key=message_id)
     raw = obj['Body'].read()
 
+	# Parse message
     msg = email.message_from_bytes(raw)
 
-    original_to = msg.get('To', '')
-    if original_to and not msg.get('X-Original-To'):
-        msg['X-Original-To'] = original_to
+   	# Preserve original sender
+    original_from = msg.get('From')
+	
+   	# Rewrite From header to the inbound address (DMARC-safe)
+    if 'From' in msg:
+        msg.replace_header("From", inbound_address)
+    else:
+        msg['From'] = inbound_address
 
-    original_from = msg.get('From', '')
+	# Rewrite From header to the inbound address (DMARC-safe)
     if original_from and not msg.get('Reply-To'):
         msg['Reply-To'] = original_from
 
-    msg.replace_header('To', FORWARD_TO)
+    # Rewrite To header to your destination inbox
+    if 'To' in msg:
+        msg.replace_header("To", FORWARD_TO)
+    else:
+        msg['To'] = FORWARD_TO
 
+	# Send via SES (SES will DKIM-sign using your domain)
     ses.send_raw_email(
-        Source='noreply@nulldevice.dev',
+        Source=inbound_address,
         Destinations=[FORWARD_TO],
         RawMessage={'Data': msg.as_bytes()}
     )

@@ -83,6 +83,17 @@ function formatDateTime(dateString?: string | null) {
   });
 }
 
+function getAgentBadgeInitials(agentName: string) {
+  const compact = agentName.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  const generated = (generateAgentInitials(agentName) ?? '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+  if (generated.length >= 2) return generated.slice(0, 2);
+  if (generated.length === 1 && compact.length >= 2) return `${generated}${compact[1]}`;
+  if (compact.length >= 2) return compact.slice(0, 2);
+  if (compact.length === 1) return `${compact}G`;
+  return 'AG';
+}
+
 function getRouteDurationMinutes(route: Route) {
   if (typeof route.actualDurationMinutes === 'number') {
     return Math.max(0, route.actualDurationMinutes);
@@ -113,6 +124,38 @@ function getRouteDurationMinutes(route: Route) {
   }
 
   return null;
+}
+
+function getPhaseDurationMinutes(route: Route, phase: ExecutionPhase) {
+  const phaseStart =
+    phase === 'pickup'
+      ? route.pickupStartTime
+      : route.placementStartTime ?? route.actualStartTime;
+
+  const phaseEnd =
+    phase === 'pickup'
+      ? route.pickupEndTime
+      : route.placementEndTime;
+
+  if (phaseStart && phaseEnd) {
+    return Math.max(0, Math.round((new Date(phaseEnd).getTime() - new Date(phaseStart).getTime()) / 60000));
+  }
+
+  if (route.status === 'in_progress' && route.executionPhase === phase && phaseStart) {
+    return Math.max(1, Math.round((Date.now() - new Date(phaseStart).getTime()) / 60000));
+  }
+
+  return 0;
+}
+
+function parseNonNegativeInt(value: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.floor(parsed);
+}
+
+function roundToNearestFive(minutes: number) {
+  return Math.max(0, Math.round(minutes / 5) * 5);
 }
 
 function formatMinutesAsElapsed(minutes: number | null) {
@@ -304,8 +347,37 @@ function RouteDetailContent() {
   const [deletingRoute, setDeletingRoute] = useState(false);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [transitionError, setTransitionError] = useState<string | null>(null);
-  const [phaseCompletionDistanceKm, setPhaseCompletionDistanceKm] = useState('0.00');
-  const [phaseCompletionDurationMinutes, setPhaseCompletionDurationMinutes] = useState('0');
+  const [phaseMetricOverrides, setPhaseMetricOverrides] = useState({
+    placementDistanceKm: '0.00',
+    placementDurationMinutes: '0',
+    pickupDistanceKm: '0.00',
+    pickupDurationMinutes: '0',
+  });
+
+  const updatePhaseDurationFromSpinner = useCallback(
+    (field: 'placementDurationMinutes' | 'pickupDurationMinutes', unit: 'hours' | 'minutes', rawValue: string) => {
+      setPhaseMetricOverrides((prev) => {
+        const currentTotalMinutes = parseNonNegativeInt(prev[field]);
+        const currentHours = Math.floor(currentTotalMinutes / 60);
+        const currentMinutes = roundToNearestFive(currentTotalMinutes % 60);
+
+        if (unit === 'hours') {
+          const nextHours = parseNonNegativeInt(rawValue);
+          return {
+            ...prev,
+            [field]: String(nextHours * 60 + currentMinutes),
+          };
+        }
+
+        const nextMinutes = Math.min(55, roundToNearestFive(parseNonNegativeInt(rawValue)));
+        return {
+          ...prev,
+          [field]: String(currentHours * 60 + nextMinutes),
+        };
+      });
+    },
+    []
+  );
   const [distanceOverrideKm, setDistanceOverrideKm] = useState('');
   const [savingDistanceOverride, setSavingDistanceOverride] = useState(false);
   const [distanceOverrideError, setDistanceOverrideError] = useState<string | null>(null);
@@ -701,6 +773,18 @@ function RouteDetailContent() {
       } else {
         if (isStartingPlacement) {
           setPhaseDistanceKm({ signs_placed: 0, signs_picked_up: 0 });
+          setPhaseMetricOverrides({
+            placementDistanceKm: '0.00',
+            placementDurationMinutes: '0',
+            pickupDistanceKm: '0.00',
+            pickupDurationMinutes: '0',
+          });
+        } else if (isStartingPickup) {
+          setPhaseMetricOverrides((prev) => ({
+            ...prev,
+            pickupDistanceKm: (route.signsPickedUpDistanceKm ?? 0).toFixed(2),
+            pickupDurationMinutes: '0',
+          }));
         }
         setRoute((r) =>
           r
@@ -737,8 +821,13 @@ function RouteDetailContent() {
       const now = new Date();
       const endedAt = now.toISOString();
       const isEndingPlacement = route.executionPhase === 'placement';
-      const parsedDistanceKm = Number(phaseCompletionDistanceKm);
-      const parsedDurationMinutes = Number(phaseCompletionDurationMinutes);
+      const placementDistanceOverrideKm = Number(phaseMetricOverrides.placementDistanceKm);
+      const pickupDistanceOverrideKm = Number(phaseMetricOverrides.pickupDistanceKm);
+      const placementDurationOverrideMinutes = Number(phaseMetricOverrides.placementDurationMinutes);
+      const pickupDurationOverrideMinutes = Number(phaseMetricOverrides.pickupDurationMinutes);
+
+      const parsedDistanceKm = isEndingPlacement ? placementDistanceOverrideKm : pickupDistanceOverrideKm;
+      const parsedDurationMinutes = isEndingPlacement ? placementDurationOverrideMinutes : pickupDurationOverrideMinutes;
 
       if (!Number.isFinite(parsedDistanceKm) || parsedDistanceKm < 0) {
         setTransitionError('Distance must be a number greater than or equal to 0.');
@@ -753,24 +842,38 @@ function RouteDetailContent() {
       }
 
       const phaseDistanceOverrideKm = Number(parsedDistanceKm.toFixed(2));
-      const phaseDurationOverrideMinutes = Math.round(parsedDurationMinutes);
+      const roundedPlacementDistanceKm = Number((Number.isFinite(placementDistanceOverrideKm) ? placementDistanceOverrideKm : 0).toFixed(2));
+      const roundedPickupDistanceKm = Number((Number.isFinite(pickupDistanceOverrideKm) ? pickupDistanceOverrideKm : 0).toFixed(2));
+      const roundedPlacementDurationMinutes = Math.max(0, Math.round(Number.isFinite(placementDurationOverrideMinutes) ? placementDurationOverrideMinutes : 0));
+      const roundedPickupDurationMinutes = Math.max(0, Math.round(Number.isFinite(pickupDurationOverrideMinutes) ? pickupDurationOverrideMinutes : 0));
 
       const pickupDistanceKm = isEndingPlacement
-        ? Number(phaseDistanceKm.signs_picked_up.toFixed(2))
+        ? roundedPickupDistanceKm
         : phaseDistanceOverrideKm;
       const placementDistanceKm = isEndingPlacement
         ? phaseDistanceOverrideKm
-        : Number(phaseDistanceKm.signs_placed.toFixed(2));
+        : roundedPlacementDistanceKm;
 
       const startForDuration = route.actualStartTime
         ?? route.placementStartTime
         ?? route.pickupStartTime
         ?? endedAt;
-      const computedDurationMinutes = Math.max(
+      const computedRouteDurationMinutes = Math.max(
         0,
         Math.round((now.getTime() - new Date(startForDuration).getTime()) / 60000)
       );
-      const actualDurationMinutes = phaseDurationOverrideMinutes || computedDurationMinutes;
+      const placementStartForDuration = route.placementStartTime ?? route.actualStartTime ?? endedAt;
+      const computedPlacementDurationMinutes = Math.max(
+        0,
+        Math.round((now.getTime() - new Date(placementStartForDuration).getTime()) / 60000)
+      );
+      const totalOverrideDurationMinutes = roundedPlacementDurationMinutes + roundedPickupDurationMinutes;
+      const actualDurationMinutes = isEndingPlacement
+        ? (roundedPlacementDurationMinutes || computedPlacementDurationMinutes)
+        : (totalOverrideDurationMinutes || computedRouteDurationMinutes);
+      const persistedOverrideDurationMinutes = isEndingPlacement
+        ? roundedPlacementDurationMinutes
+        : totalOverrideDurationMinutes;
 
       const { errors } = await updateRouteExecution(route.id, isEndingPlacement
         ? {
@@ -778,6 +881,7 @@ function RouteDetailContent() {
             executionPhase: 'placement',
             placementEndTime: endedAt,
             signsPlacedDistanceKm: placementDistanceKm,
+            signsPickedUpDistanceKm: pickupDistanceKm,
             actualDurationMinutes,
           }
         : {
@@ -786,6 +890,7 @@ function RouteDetailContent() {
             pickupEndTime: endedAt,
             actualEndTime: endedAt,
             actualDurationMinutes,
+            signsPlacedDistanceKm: placementDistanceKm,
             signsPickedUpDistanceKm: pickupDistanceKm,
           });
 
@@ -793,7 +898,7 @@ function RouteDetailContent() {
         setTransitionError('Failed to end route phase.');
       } else {
         await updateRoute(route.id, {
-          overrideDurationMinutes: phaseDurationOverrideMinutes,
+          overrideDurationMinutes: persistedOverrideDurationMinutes,
         });
 
         setRoute((r) =>
@@ -806,16 +911,16 @@ function RouteDetailContent() {
                 pickupEndTime: isEndingPlacement ? r.pickupEndTime : endedAt,
                 actualEndTime: isEndingPlacement ? r.actualEndTime : endedAt,
                 actualDurationMinutes,
-                overrideDurationMinutes: phaseDurationOverrideMinutes,
-                signsPlacedDistanceKm: isEndingPlacement ? placementDistanceKm : r.signsPlacedDistanceKm,
-                signsPickedUpDistanceKm: isEndingPlacement ? r.signsPickedUpDistanceKm : pickupDistanceKm,
+                overrideDurationMinutes: persistedOverrideDurationMinutes,
+                signsPlacedDistanceKm: placementDistanceKm,
+                signsPickedUpDistanceKm: pickupDistanceKm,
               }
             : r
         );
-        setPhaseDistanceKm((prev) => ({
-          signs_placed: isEndingPlacement ? placementDistanceKm : prev.signs_placed,
-          signs_picked_up: isEndingPlacement ? prev.signs_picked_up : pickupDistanceKm,
-        }));
+        setPhaseDistanceKm({
+          signs_placed: placementDistanceKm,
+          signs_picked_up: pickupDistanceKm,
+        });
       }
     } catch {
       setTransitionError('Failed to end route phase.');
@@ -1174,19 +1279,12 @@ function RouteDetailContent() {
     }
     phaseInputSeedRef.current = phaseKey;
 
-    const isPickupExecution = route.executionPhase === 'pickup';
-    const distanceForPhase = isPickupExecution
-      ? phaseDistanceKm.signs_picked_up
-      : phaseDistanceKm.signs_placed;
-    const phaseStartTime = isPickupExecution
-      ? route.pickupStartTime ?? route.actualStartTime
-      : route.placementStartTime ?? route.actualStartTime;
-    const computedPhaseMinutes = phaseStartTime
-      ? Math.max(1, Math.round((Date.now() - new Date(phaseStartTime).getTime()) / 60000))
-      : 0;
-
-    setPhaseCompletionDistanceKm(distanceForPhase.toFixed(2));
-    setPhaseCompletionDurationMinutes(String(computedPhaseMinutes));
+    setPhaseMetricOverrides({
+      placementDistanceKm: phaseDistanceKm.signs_placed.toFixed(2),
+      placementDurationMinutes: String(getPhaseDurationMinutes(route, 'placement')),
+      pickupDistanceKm: phaseDistanceKm.signs_picked_up.toFixed(2),
+      pickupDurationMinutes: String(getPhaseDurationMinutes(route, 'pickup')),
+    });
   }, [
     phaseDistanceKm.signs_picked_up,
     phaseDistanceKm.signs_placed,
@@ -1260,14 +1358,94 @@ function RouteDetailContent() {
                 <div className={styles.infoLabel}>Kilometers</div>
                 <div className={styles.infoValue}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</div>
               </div>
-              <div>
-                <div className={styles.infoLabel}>Placement Distance</div>
-                <div className={styles.infoValue}>{`${placementDistance.toFixed(2)} km`}</div>
-              </div>
-              <div>
-                <div className={styles.infoLabel}>Pickup Distance</div>
-                <div className={styles.infoValue}>{`${pickupDistance.toFixed(2)} km`}</div>
-              </div>
+              <label className={styles.phaseCompletionField}>
+                <span className={styles.infoLabel}>Placement Distance (km)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className={styles.phaseCompletionInput}
+                  value={phaseMetricOverrides.placementDistanceKm}
+                  onChange={(event) =>
+                    setPhaseMetricOverrides((prev) => ({ ...prev, placementDistanceKm: event.target.value }))
+                  }
+                  disabled={transitioning}
+                />
+              </label>
+              <label className={styles.phaseCompletionField}>
+                <span className={styles.infoLabel}>Placement Time</span>
+                <div className={styles.phaseDurationSpinnerRow}>
+                  <label className={styles.phaseDurationUnit}>
+                    <span className={styles.phaseDurationUnitLabel}>h</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      className={styles.phaseCompletionInput}
+                      value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) / 60)}
+                      onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'hours', event.target.value)}
+                      disabled={transitioning}
+                    />
+                  </label>
+                  <label className={styles.phaseDurationUnit}>
+                    <span className={styles.phaseDurationUnitLabel}>m</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="55"
+                      step="5"
+                      className={styles.phaseCompletionInput}
+                      value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) % 60)}
+                      onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'minutes', event.target.value)}
+                      disabled={transitioning}
+                    />
+                  </label>
+                </div>
+              </label>
+              <label className={styles.phaseCompletionField}>
+                <span className={styles.infoLabel}>Pickup Distance (km)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className={styles.phaseCompletionInput}
+                  value={phaseMetricOverrides.pickupDistanceKm}
+                  onChange={(event) =>
+                    setPhaseMetricOverrides((prev) => ({ ...prev, pickupDistanceKm: event.target.value }))
+                  }
+                  disabled={transitioning}
+                />
+              </label>
+              <label className={styles.phaseCompletionField}>
+                <span className={styles.infoLabel}>Pickup Time</span>
+                <div className={styles.phaseDurationSpinnerRow}>
+                  <label className={styles.phaseDurationUnit}>
+                    <span className={styles.phaseDurationUnitLabel}>h</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      className={styles.phaseCompletionInput}
+                      value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) / 60)}
+                      onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'hours', event.target.value)}
+                      disabled={transitioning}
+                    />
+                  </label>
+                  <label className={styles.phaseDurationUnit}>
+                    <span className={styles.phaseDurationUnitLabel}>m</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="55"
+                      step="5"
+                      className={styles.phaseCompletionInput}
+                      value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) % 60)}
+                      onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'minutes', event.target.value)}
+                      disabled={transitioning}
+                    />
+                  </label>
+                </div>
+              </label>
             </div>
 
             {route.notes && (
@@ -1280,32 +1458,7 @@ function RouteDetailContent() {
             {/* Status transitions */}
             <div className={styles.transitionRow}>
               {route.status === 'in_progress' && (
-                <div className={styles.phaseCompletionControls}>
-                  <label className={styles.phaseCompletionField}>
-                    <span className={styles.phaseCompletionLabel}>{`End ${phaseLabelPrefix} Distance (km)`}</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className={styles.phaseCompletionInput}
-                      value={phaseCompletionDistanceKm}
-                      onChange={(event) => setPhaseCompletionDistanceKm(event.target.value)}
-                      disabled={transitioning}
-                    />
-                  </label>
-                  <label className={styles.phaseCompletionField}>
-                    <span className={styles.phaseCompletionLabel}>{`End ${phaseLabelPrefix} Duration (min)`}</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      className={styles.phaseCompletionInput}
-                      value={phaseCompletionDurationMinutes}
-                      onChange={(event) => setPhaseCompletionDurationMinutes(event.target.value)}
-                      disabled={transitioning}
-                    />
-                  </label>
-                </div>
+                <div className={styles.infoLabel}>{`Ending ${phaseLabelPrefix} phase using header metrics`}</div>
               )}
               {route.status === 'planned' && (
                 <button
@@ -1546,10 +1699,10 @@ function RouteDetailContent() {
                 const stopCardClass = { delivery: styles.cardDelivery, pickup: styles.cardPickup, inspection: styles.cardInspection }[svcKey] ?? '';
                 const stopCircleClass = { delivery: styles.circleDelivery, pickup: styles.circlePickup, inspection: styles.circleInspection }[svcKey] ?? '';
                 const agentName = stop.agent?.trim() || 'Unassigned';
-                const agentInitials =
-                  generateAgentInitials(agentName) ?? agentName.slice(0, 2).toUpperCase();
+                const agentInitials = getAgentBadgeInitials(agentName);
+                const agentBadgeTone = getAgentBadgeTone(agentName);
                 const isTopVisibleStop = stop.id === topVisibleStopId;
-                const completedStop = isStopCompleted(stop);
+                const completedStop = isStopCompletedForPhase(stop, currentExecutionPhase);
                 const executionActive = route?.status === 'in_progress';
                 const phaseComplete = isStopCompletedForPhase(stop, currentExecutionPhase);
                 const phaseSkipped = isStopSkippedForPhase(stop, currentExecutionPhase);
@@ -1585,10 +1738,13 @@ function RouteDetailContent() {
                     <div className={`${styles.stopSegment} ${styles.stopSegmentMeta}`}>
                       <div className={styles.stopStatus}>{getStopStatusLabel(stop, currentExecutionPhase)}</div>
                       <span
-                        className={`${styles.stopAgentBadge} ${agentInitials.length <= 2 ? styles.stopAgentBadgeCircle : ''}`}
+                        className={`${styles.stopAgentBadge} ${styles.stopAgentBadgeCircle}`}
                         aria-label={agentName}
                         title={agentName}
-                        style={getAgentBadgeTone(agentName)}
+                        style={{
+                          '--nd-agent-badge-bg': agentBadgeTone.backgroundColor,
+                          '--nd-agent-badge-fg': agentBadgeTone.color,
+                        } as React.CSSProperties}
                       >
                         {agentInitials}
                       </span>

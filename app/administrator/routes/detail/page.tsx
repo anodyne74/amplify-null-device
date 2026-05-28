@@ -14,7 +14,7 @@ import { isAdmin } from '@/lib/amplify-config';
 import { generateAgentInitials } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import { createStop, deleteRoute, getCustomer, getUserSettings, updateRoute, updateRouteExecution, updateStopExecution } from '@/lib/queries';
+import { createStop, deleteRoute, getCustomer, getRouteWithStops, getUserSettings, updateRoute, updateRouteExecution, updateStopExecution } from '@/lib/queries';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import type { Route, Stop } from '@/amplify/types';
@@ -290,15 +290,9 @@ function RouteDetailContent() {
   const [mapTheme, setMapTheme] = useState<MapTheme>('light');
 
   const fetchStops = useCallback(async () => {
-    const client = generateClient<Schema>();
-    const { data, errors } = await client.models.Stop.list({
-      filter: { routeId: { eq: id } },
-    });
+    const { stops: allStops, errors } = await getRouteWithStops(id);
     if (!errors || errors.length === 0) {
-      const sorted = [...((data as unknown as Stop[]) || [])].sort(
-        (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
-      );
-      setStops(sorted);
+      setStops(allStops as Stop[]);
     }
   }, [id]);
 
@@ -871,7 +865,7 @@ function RouteDetailContent() {
   };
 
   const planningLocked = route?.status !== 'planned';
-  const visibleStops = (() => {
+  const currentPhaseStops = (() => {
     if (!route) return stops;
 
     if (isPlacementPhase(route.status, route.executionPhase)) {
@@ -884,7 +878,8 @@ function RouteDetailContent() {
 
     return stops;
   })();
-  const topVisibleStopId = visibleStops[0]?.id ?? null;
+  const currentPhaseStopIds = new Set(currentPhaseStops.map((stop) => stop.id));
+  const topVisibleStopId = currentPhaseStops[0]?.id ?? null;
   const pickupStops = stops.filter((stop) => stop.serviceType === 'pickup');
   const allPickupStopsCompleted = pickupStops.every((stop) => isStopCompleted(stop));
   const completedStops = stops.filter((stop) => isStopCompleted(stop));
@@ -1333,7 +1328,7 @@ function RouteDetailContent() {
             <div className={styles.stopsHeader}>
               <h2 className={styles.stopsHeading}>
                 Stops ({stops.length})
-                {visibleStops.length !== stops.length ? ` - In Current Phase: ${visibleStops.length}` : ''}
+                {currentPhaseStops.length !== stops.length ? ` - In Current Phase: ${currentPhaseStops.length}` : ''}
               </h2>
               {canManagePlanning && !planningLocked && !showAddStop && (
                 <button
@@ -1378,7 +1373,7 @@ function RouteDetailContent() {
               </div>
             )}
 
-            {visibleStops.length === 0 && !showAddStop && (route?.status === 'in_progress' || route?.status === 'signs_placed') && (
+            {currentPhaseStops.length === 0 && !showAddStop && (route?.status === 'in_progress' || route?.status === 'signs_placed') && (
               <div className={styles.emptyState}>
                 {isPlacementPhase(route?.status, route?.executionPhase)
                   ? 'All signs are placed. Start the pickup phase to continue.'
@@ -1395,7 +1390,7 @@ function RouteDetailContent() {
             )}
 
             <div className={styles.stopsList}>
-              {visibleStops.map((stop, index) => {
+              {stops.map((stop, index) => {
                 if (editingStopId === stop.id) {
                   return (
                     <div key={stop.id} className={styles.formContainer}>
@@ -1431,6 +1426,7 @@ function RouteDetailContent() {
                 const stopCardClass = { delivery: styles.cardDelivery, pickup: styles.cardPickup, inspection: styles.cardInspection }[svcKey] ?? '';
                 const stopCircleClass = { delivery: styles.circleDelivery, pickup: styles.circlePickup, inspection: styles.circleInspection }[svcKey] ?? '';
                 const isTopVisibleStop = stop.id === topVisibleStopId;
+                const isCurrentPhaseStop = currentPhaseStopIds.has(stop.id);
                 const completedStop = isStopCompleted(stop);
                 return (
                   <div
@@ -1486,7 +1482,7 @@ function RouteDetailContent() {
                             void handleMoveStop(stop.id, 'down');
                           }}
                           className={styles.btnReorder}
-                          disabled={index === visibleStops.length - 1 || reordering}
+                          disabled={index === stops.length - 1 || reordering}
                         >
                           Move Down
                         </button>
@@ -1529,7 +1525,7 @@ function RouteDetailContent() {
                     )}
 
                     {/* Execution actions — visible to all operators when route is active */}
-                    {route?.status === 'in_progress' && (
+                    {route?.status === 'in_progress' && isCurrentPhaseStop && (
                       <div className={styles.stopExecution}>
                         {!stop.actualArrivalTime && (
                           <div className={styles.execActionRow}>

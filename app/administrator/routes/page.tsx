@@ -63,6 +63,12 @@ function formatDuration(route: Route) {
   return '—';
 }
 
+function compareRouteIdDesc(a: Route, b: Route) {
+  const aId = (a.routeCode || a.id || '').trim();
+  const bId = (b.routeCode || b.id || '').trim();
+  return bId.localeCompare(aId, undefined, { numeric: true, sensitivity: 'base' });
+}
+
 export default function OperatorRoutesPage() {
   const { user } = useAuthenticator();
   const canDeleteRoutes = isAdmin(user);
@@ -86,7 +92,8 @@ export default function OperatorRoutesPage() {
       if (routesResult.errors && routesResult.errors.length > 0) {
         setError('Failed to load routes.');
       } else {
-        setRoutes(routesResult.data as unknown as Route[]);
+        const sortedRoutes = [...((routesResult.data as unknown as Route[]) || [])].sort(compareRouteIdDesc);
+        setRoutes(sortedRoutes);
       }
 
       if (!customersResult.errors || customersResult.errors.length === 0) {

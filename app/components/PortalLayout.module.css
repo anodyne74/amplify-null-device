@@ -68,11 +68,26 @@
   border-bottom: 1px solid var(--nd-border-subtle);
 }
 
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: var(--nd-space-sm);
+  margin-bottom: var(--nd-space-xs);
+}
+
+.brandIcon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: block;
+}
+
 .brandTitle {
+  display: none;
   margin: 0;
   font-size: 1rem;
   font-weight: 700;
-  font-family: var(--nd-font-mono);
+  font-family: var(--nd-font-display);
   letter-spacing: 0.06em;
   color: var(--nd-text-primary);
 }
@@ -88,7 +103,7 @@
 .brandSubtitle {
   margin: 4px 0 0;
   font-size: 0.7rem;
-  font-family: var(--nd-font-mono);
+  font-family: var(--nd-font-body);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--nd-text-muted);
@@ -112,21 +127,28 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--nd-space-md);
+  flex-direction: column;
+  gap: var(--nd-space-xs);
   padding: 12px var(--nd-space-md);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-text-secondary);
   text-decoration: none;
-  font-family: var(--nd-font-mono);
-  font-size: 0.8rem;
+  font-family: var(--nd-font-body);
+  font-size: 0.75rem;
   letter-spacing: 0.04em;
   transition: color var(--nd-transition-fast), background-color var(--nd-transition-fast);
   min-height: 44px;
 }
 
 .navIcon {
-  font-size: 1.5rem;
+  font-size: 2.5rem;
   flex-shrink: 0;
+}
+
+.navLabel {
+  text-align: center;
+  line-height: 1.2;
+  font-size: 0.7rem;
 }
 .navLink:hover {
   color: var(--nd-text-primary);
@@ -156,7 +178,7 @@
 .userLabel {
   margin: 0 0 4px;
   font-size: 0.65rem;
-  font-family: var(--nd-font-mono);
+  font-family: var(--nd-font-body);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--nd-text-muted);
@@ -196,7 +218,7 @@
   color: #fff;
   border-radius: var(--nd-radius-sm);
   cursor: pointer;
-  font-family: var(--nd-font-mono);
+  font-family: var(--nd-font-body);
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -214,7 +236,7 @@
   color: var(--nd-text-secondary);
   border-radius: var(--nd-radius-sm);
   cursor: pointer;
-  font-family: var(--nd-font-mono);
+  font-family: var(--nd-font-body);
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -233,7 +255,7 @@
   color: var(--nd-text-secondary);
   border-radius: var(--nd-radius-sm);
   cursor: pointer;
-  font-family: var(--nd-font-mono);
+  font-family: var(--nd-font-body);
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.04em;

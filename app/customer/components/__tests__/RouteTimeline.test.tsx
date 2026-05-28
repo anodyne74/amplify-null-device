@@ -22,12 +22,14 @@ describe('RouteTimeline', () => {
   it('shows signs placed status as current for in-progress routes', () => {
     const activeRoute: Route = {
       ...mockRoute,
-      status: 'signs_placed',
+      status: 'in_progress',
+      executionPhase: 'placement',
       actualStartTime: '2024-01-15T09:00:00Z',
+      placementStartTime: '2024-01-15T09:00:00Z',
     };
 
     render(<RouteTimeline route={activeRoute} />);
-    expect(screen.getByText(/Signs Placed/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/In Progress/i).length).toBeGreaterThan(0);
   });
 
   it('shows completed status as current for completed routes', () => {

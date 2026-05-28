@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { generateAgentInitials } from '@/lib/customerDefaults';
+import { generateAgentInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import styles from './StopForm.module.css';
 import { AddressAutocompleteInput, type ResolvedAddress } from './AddressAutocompleteInput';
 
@@ -63,7 +63,17 @@ export function StopForm({
   const [resolvedAddress, setResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [notes, setNotes] = useState(initialValues?.notes || '');
   const [validationError, setValidationError] = useState<string | null>(null);
-  const agentOptions = (availableAgents ?? []).filter(Boolean);
+  const agentOptions = Array.from(
+    new Set(
+      [
+        ...(availableAgents ?? []),
+        initialValues?.agent,
+        defaultAgentName,
+      ]
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value))
+    )
+  );
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -172,17 +182,20 @@ export function StopForm({
           <div className={styles.agentBadgeGroup} role="radiogroup" aria-label="Listing Agent">
             {agentOptions.map((option) => {
               const selected = agent === option;
+              const agentInitials = generateAgentInitials(option) ?? option.slice(0, 2).toUpperCase();
               return (
                 <button
                   key={option}
                   type="button"
-                  className={`${styles.agentBadge} ${selected ? styles.agentBadgeSelected : ''}`}
+                  className={`${styles.agentBadge} ${agentInitials.length <= 2 ? styles.agentBadgeCircle : ''} ${selected ? styles.agentBadgeSelected : ''}`}
                   onClick={() => setAgent(selected ? '' : option)}
                   disabled={isSubmitting}
                   aria-pressed={selected}
+                  aria-label={option}
+                  title={option}
+                  style={getAgentBadgeTone(option)}
                 >
-                  <span className={styles.agentInitials}>{generateAgentInitials(option) ?? option.slice(0, 2).toUpperCase()}</span>
-                  <span className={styles.agentName}>{option}</span>
+                  {agentInitials}
                 </button>
               );
             })}

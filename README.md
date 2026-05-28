@@ -1,6 +1,6 @@
 # nd-assets - Delivery Management System
 
-A serverless delivery management platform built with Next.js 15, AWS Amplify Gen 2, and Cognito. It includes administrator, operator, and customer portals, route planning and stop management, and invoice workflows with SES email delivery.
+A serverless delivery management platform built with Next.js 15, AWS Amplify Gen 2, and Cognito. It includes role-aware administrator, operator, and customer portals, route planning and execution workflows, customer-specific dashboards, and invoice management with SES email delivery.
 
 ## Overview
 
@@ -15,18 +15,19 @@ A serverless delivery management platform built with Next.js 15, AWS Amplify Gen
 
 ## Current Features
 
-- Role-aware login with branded Amplify Authenticator and pending-approval flow.
-- Multi-role selection screen when a user belongs to more than one group.
-- Route management with:
-	- Import flow that prioritizes Copy Stops From Previous Route.
-	- Optional schedule-file upload parsing (PDF/CSV/TXT).
-	- Preview gating that only activates when stops were copied or successfully parsed.
-- Invoice management with:
-	- PDF upload and auto-parse support.
-	- SES-backed email delivery through API route `/api/admin/send-invoice-email`.
-	- `emailSentAt` tracking on invoices.
-- Administrator dashboard cards for route stats and invoice email metrics (including Emails Sent Today and Unsent Invoices).
-- Customer-user assignment model (`account_owner` / `read_only`) with first-user assignment support.
+- Role-aware login with branded Amplify Authenticator, request-access signup, pending approval, and multi-role portal selection.
+- Administrator portal with dashboard KPIs, customer management, user management, route management, invoice management, and settings.
+- Route management with create/edit/detail flows, customer-aware listings, status filtering, and support for copying stops from a previous route or importing schedule files.
+- Operator portal with a phone-friendly dashboard for planned and active routes plus route detail screens for stop execution, placement/pickup progression, distance tracking, and map-based route review.
+- Customer portal with dashboard analytics, route history, invoice listing, and user settings.
+- Customer access controls with `account_owner` and `read_only` roles, where invoice access is restricted to the account owner.
+- Invoice management with PDF upload and parsing support, SES-backed email delivery through `/api/admin/send-invoice-email`, and `emailSentAt` tracking on invoices.
+- Route and stop maps with numbered markers, service-aware coloring, and multiple map style options.
+- Customer-user assignment support with first-user assignment handling.
+
+Notes:
+
+- Some third-party tile styles require provider API keys in their tile URL configuration for production use.
 
 ## User Groups
 
@@ -62,7 +63,7 @@ Amplify Data schema currently defines 9 primary entities:
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22+
 - AWS CLI v2
 - AWS account in `ap-southeast-2` (or adjust region settings consistently)
 
@@ -114,11 +115,14 @@ Set these in Amplify Console for builds/runtime:
 | `AMPLIFY_IDENTITY_POOL_ID` | Cognito Identity Pool ID |
 | `AWS_REGION` | AWS region (for example `ap-southeast-2`) |
 | `SES_SENDER_EMAIL` | Sender used by SES invoice email API |
+| `SES_INVOICE_TEMPLATE_NAME` | SES template name for invoice emails (default: `NullDeviceInvoiceTemplate`) |
 
 Notes:
 
 - If `SES_SENDER_EMAIL` is not set, API falls back to `no-reply.nulldevice.dev`.
+- If `SES_INVOICE_TEMPLATE_NAME` is not set, API uses `NullDeviceInvoiceTemplate`.
 - Verify sender identity/domain in SES for the configured region.
+- The SES template is provisioned by Amplify backend deployment in `amplify/backend.ts`.
 
 ## Deployment
 
@@ -153,8 +157,21 @@ app/
 	page.tsx                      # branded login + role routing
 	layout.tsx                    # Authenticator.Provider wrapper
 	administrator/
+		dashboard/
+		routes/
+		invoices/
+		customers/
+		users/
+		settings/
 	operator/
+		dashboard/
+		routes/
+		settings/
 	customer/
+		dashboard/
+		routes/
+		invoices/
+		settings/
 	api/admin/send-invoice-email/route.ts
 
 lib/

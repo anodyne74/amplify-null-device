@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator, Authenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
+import { buildPortalOptions } from '@/lib/portalRouting';
+import { SUPPORT_EMAIL } from '@/lib/publicAppConfig';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import styles from './page.module.css';
 
@@ -25,33 +28,7 @@ export default function Home() {
   };
 
   const roleOptions = useMemo(() => {
-    const options: Array<{ key: string; title: string; path: string }> = [];
-
-    if (groups.includes('administrator')) {
-      options.push({
-        key: 'administrator',
-        title: 'Administrator Portal',
-        path: '/administrator',
-      });
-    }
-
-    if (groups.includes('operator')) {
-      options.push({
-        key: 'operator',
-        title: 'Operator Portal',
-        path: '/operator/dashboard',
-      });
-    }
-
-    if (groups.includes('customer')) {
-      options.push({
-        key: 'customer',
-        title: 'Customer Portal',
-        path: '/customer/dashboard',
-      });
-    }
-
-    return options;
+    return buildPortalOptions(groups);
   }, [groups]);
 
   useEffect(() => {
@@ -96,16 +73,22 @@ export default function Home() {
       <div className={styles.loginContainer}>
         {/* Branding Section */}
         <div className={styles.brandingSection}>
-          <div className={styles.logo}>◆</div>
-          <h1 className={styles.brandTitle}>NullDevice</h1>
-          <p className={styles.brandSubtitle}>Route Planning & Delivery Management</p>
+          <Image
+            src="/logo.svg"
+            alt=""
+            aria-hidden="true"
+            className={styles.logo}
+            width={554}
+            height={248}
+            priority
+          />
         </div>
 
         {/* Welcome Section */}
         <div className={styles.welcomeSection}>
           <h2 className={styles.welcomeTitle}>Welcome Back</h2>
           <p className={styles.welcomeText}>
-            Sign in to your account to access routes, customers, and delivery operations.
+            Sign in to your account to access routes and delivery operations.
           </p>
         </div>
 
@@ -152,7 +135,7 @@ export default function Home() {
         {/* Footer Section */}
         <div className={styles.footerSection}>
           <p className={styles.footerText}>
-            Need help? Contact support at <strong>support@nulldevice.local</strong>
+            Need help? Contact support at <strong><a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a></strong>
           </p>
         </div>
       </div>

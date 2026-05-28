@@ -63,6 +63,7 @@ export default function CustomersAdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   // Create customer form state
   const [name, setName] = useState('');
@@ -349,9 +350,36 @@ export default function CustomersAdminPage() {
         <h1 className={styles.heading}>Customers</h1>
 
         <form className={styles.infoPanel} onSubmit={handleCreate}>
-          <h3>Define Customer</h3>
-          <p className={styles.welcome}>Create a new customer record for route and billing workflows.</p>
-          <div className={styles.stackedFields}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <h3 style={{ margin: 0 }}>Define Customer</h3>
+            <button
+              type="button"
+              onClick={() => setShowCreateForm(!showCreateForm)}
+              style={{
+                padding: '6px 12px',
+                fontSize: 13,
+                fontWeight: 600,
+                border: '1px solid var(--nd-operator-accent)',
+                color: 'var(--nd-operator-accent)',
+                background: 'transparent',
+                borderRadius: 'var(--nd-radius-sm)',
+                cursor: 'pointer',
+                transition: 'opacity var(--nd-transition-fast)',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.opacity = '0.8';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.opacity = '1';
+              }}
+            >
+              {showCreateForm ? 'Hide Fields' : 'New Customer'}
+            </button>
+          </div>
+          {showCreateForm && (
+            <>
+              <p className={styles.welcome}>Create a new customer record for route and billing workflows.</p>
+              <div className={styles.stackedFields}>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" required />
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" required />
             <input
@@ -403,6 +431,8 @@ export default function CustomersAdminPage() {
             />
             <button type="submit" disabled={saving}>{saving ? 'Creating...' : 'Create Customer'}</button>
           </div>
+            </>
+          )}
         </form>
 
         {error && <div className={styles.infoPanel}><p>{error}</p></div>}
@@ -418,7 +448,7 @@ export default function CustomersAdminPage() {
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Email</th>
+                  <th>Correspondence Email</th>
                   <th>Rate/hr</th>
                   <th>Status</th>
                   <th>Manage</th>
@@ -481,7 +511,7 @@ export default function CustomersAdminPage() {
                               <input
                                 value={editEmail}
                                 onChange={(e) => setEditEmail(e.target.value)}
-                                placeholder="Email"
+                                placeholder="Correspondence Email"
                                 type="email"
                                 disabled={editSaving}
                                 required
@@ -607,35 +637,57 @@ export default function CustomersAdminPage() {
                             ) : (
                               <div>
                                 <p className={styles.welcome}>
-                                  Assign a Cognito user as the account owner. The owner can view invoices
-                                  and the customer user list. Enter their Cognito user sub (UUID).
+                                  Select a user from the customer group to assign as account owner. The owner can
+                                  view invoices and the customer user list.
                                 </p>
-                                <input
-                                  value={ownerUserSub}
-                                  onChange={(e) => setOwnerUserSub(e.target.value)}
-                                  placeholder="Cognito user sub (UUID)"
-                                  disabled={ownerSaving}
-                                />
-                                <input
-                                  value={ownerName}
-                                  onChange={(e) => setOwnerName(e.target.value)}
-                                  placeholder="Display name (optional)"
-                                  disabled={ownerSaving}
-                                />
-                                <input
-                                  value={ownerEmail}
-                                  onChange={(e) => setOwnerEmail(e.target.value)}
-                                  placeholder="Email (optional)"
-                                  type="email"
-                                  disabled={ownerSaving}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => void handleAssignOwner(customer.id)}
-                                  disabled={ownerSaving || !ownerUserSub.trim()}
-                                >
-                                  {ownerSaving ? 'Assigning...' : 'Assign as Account Owner'}
-                                </button>
+                                {(!customerUsers[customer.id] || customerUsers[customer.id].length === 0) ? (
+                                  <p className={styles.welcome}>No users in this customer group yet.</p>
+                                ) : (
+                                  <>
+                                    <select
+                                      value={ownerUserSub}
+                                      onChange={(e) => {
+                                        const selectedUserSub = e.target.value;
+                                        setOwnerUserSub(selectedUserSub);
+                                        const selectedUser = (customerUsers[customer.id] ?? []).find(
+                                          (u) => u.userSub === selectedUserSub
+                                        );
+                                        if (selectedUser) {
+                                          setOwnerName(selectedUser.name ?? '');
+                                          setOwnerEmail(selectedUser.email ?? '');
+                                        }
+                                      }}
+                                      disabled={ownerSaving}
+                                      style={{ marginBottom: 12 }}
+                                    >
+                                      <option value="">— Select a user —</option>
+                                      {(customerUsers[customer.id] ?? [])
+                                        .filter((u) => u.role !== 'account_owner')
+                                        .map((user) => (
+                                          <option key={user.userSub} value={user.userSub}>
+                                            {user.name || user.email || user.userSub}
+                                          </option>
+                                        ))}
+                                    </select>
+                                    {ownerUserSub && (
+                                      <div style={{ marginBottom: 12, padding: 12, background: '#f5f5f5', borderRadius: 'var(--nd-radius-sm)' }}>
+                                        <p style={{ margin: 0, marginBottom: 8 }}>
+                                          <strong>Selected:</strong> {ownerName || '—'}
+                                        </p>
+                                        <p style={{ margin: 0, fontSize: 13, color: '#666' }}>
+                                          {ownerEmail || ownerUserSub}
+                                        </p>
+                                      </div>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleAssignOwner(customer.id)}
+                                      disabled={ownerSaving || !ownerUserSub.trim()}
+                                    >
+                                      {ownerSaving ? 'Assigning...' : 'Assign as Account Owner'}
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             )}
                           </div>

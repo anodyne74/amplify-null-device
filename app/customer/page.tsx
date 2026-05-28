@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
+import { PORTAL_PATHS } from '@/lib/portalRouting';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 
 /**
@@ -15,7 +16,7 @@ export default function CustomerPage() {
 
   useEffect(() => {
     if (authStatus === 'authenticated') {
-      router.push('/customer/dashboard');
+      router.push(PORTAL_PATHS.customer);
     }
   }, [authStatus, router]);
 

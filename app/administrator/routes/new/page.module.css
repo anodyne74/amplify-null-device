@@ -77,6 +77,16 @@
   width: 100%;
 }
 
+.copyRouteSelect {
+  color: #000;
+  background: #fff;
+}
+
+.copyRouteSelect option {
+  color: #000;
+  background: #fff;
+}
+
 .select:focus,
 .input:focus {
   outline: 2px solid var(--nd-operator-accent);

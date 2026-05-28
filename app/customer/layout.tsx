@@ -23,7 +23,8 @@ const CUSTOMER_NAV = [
  */
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuthenticator();
-  const userDisplayName = user ? getUserDisplayName(user) ?? '' : '';
+  const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
+  const [userDisplayName, setUserDisplayName] = useState(fallbackDisplayName);
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
   const { logout } = useLogout();
 
@@ -43,12 +44,21 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   useSessionTimeout();
 
   useEffect(() => {
+    setUserDisplayName(fallbackDisplayName);
+  }, [fallbackDisplayName]);
+
+  useEffect(() => {
     if (!user?.userId) return;
     if (typeof getUserSettings !== 'function') return;
     let cancelled = false;
 
     void getUserSettings(user.userId)
       .then((result) => {
+        const configuredName = result.data?.name?.trim();
+        if (!cancelled) {
+          setUserDisplayName(configuredName || fallbackDisplayName);
+        }
+
         const defaultTheme = result.data?.defaultTheme;
         if (cancelled || !defaultTheme) return;
         applyThemeMode(defaultTheme);
@@ -60,7 +70,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     return () => {
       cancelled = true;
     };
-  }, [user?.userId]);
+  }, [fallbackDisplayName, user?.userId]);
 
   useEffect(() => {
     if (!user?.userId) return;

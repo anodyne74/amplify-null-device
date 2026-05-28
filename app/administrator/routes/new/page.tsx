@@ -45,6 +45,37 @@ async function generateNextRouteCode() {
   return `${prefix}-${String(next).padStart(3, '0')}`;
 }
 
+function sanitizeCopiedStopNotes(notes?: string | null) {
+  if (!notes) return undefined;
+
+  const cleaned = notes
+    .replace(/\[(PLACEMENT_DONE|PICKUP_DONE|PLACEMENT_SKIPPED|PICKUP_SKIPPED):[^\]]*\]/g, ' ')
+    .replace(/\[SKIPPED\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return cleaned || undefined;
+}
+
+function normalizeCopiedServiceType(serviceType?: string | null): 'delivery' | 'pickup' | 'inspection' {
+  const normalized = serviceType?.trim().toLowerCase();
+  if (normalized === 'pickup' || normalized === 'inspection') {
+    return normalized;
+  }
+  return 'delivery';
+}
+
+function normalizeOptionalNumber(value: unknown): number | undefined {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim());
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
 export default function NewRoutePage() {
   const router = useRouter();
   const [customers, setCustomers] = useState<Array<{
@@ -63,7 +94,12 @@ export default function NewRoutePage() {
   const [manualRouteCode, setManualRouteCode] = useState('');
   const [importRouteCode, setImportRouteCode] = useState('');
   const [routeCodeInitialized, setRouteCodeInitialized] = useState(false);
-  const [copyStopSources, setCopyStopSources] = useState<Array<{ id: string; customerId: string; label: string }>>([]);
+  const [copyStopSources, setCopyStopSources] = useState<Array<{
+    id: string;
+    customerId: string;
+    label: string;
+    createdAt?: string | null;
+  }>>([]);
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'import' | 'manual'>('import');
@@ -82,7 +118,13 @@ export default function NewRoutePage() {
   const [isUploading, setIsUploading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
-  const importCopySourcesForCustomer = copyStopSources.filter((route) => route.customerId === importCustomerId);
+  const importCopySourcesForCustomer = copyStopSources
+    .filter((route) => route.customerId === importCustomerId)
+    .sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
 
   useEffect(() => {
     if (routeCodeInitialized) return;
@@ -151,6 +193,7 @@ export default function NewRoutePage() {
           id: route.id,
           customerId: route.customerId,
           label: dateLabel ? `${baseLabel} (${dateLabel})` : baseLabel,
+          createdAt: route.createdAt ?? null,
         };
       });
 
@@ -190,6 +233,7 @@ export default function NewRoutePage() {
       }
 
       if (result.data?.id) {
+        const failedStops: string[] = [];
         for (let index = 0; index < values.stops.length; index += 1) {
           const stop = values.stops[index];
           const stopResult = await createStop({
@@ -208,11 +252,19 @@ export default function NewRoutePage() {
           });
 
           if (stopResult.errors && stopResult.errors.length > 0) {
-            setSubmitError('Route was created, but one or more stops failed to save.');
-            setIsSubmitting(false);
-            return;
+                const stopErrorMessage = (stopResult.errors as Array<{ message?: string }>)
+              .map((entry) => entry.message ?? String(entry))
+              .join('; ');
+                const failure = `#${index + 1} (${stop.address || 'Unknown address'}): ${stopErrorMessage || 'Unknown stop creation error'}`;
+            failedStops.push(failure);
           }
         }
+
+        if (failedStops.length > 0) {
+          setSubmitError(`Route was created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}`);
+              setIsSubmitting(false);
+              return;
+            }
 
         router.push(`/administrator/routes/detail?id=${result.data.id}`);
       } else {
@@ -235,17 +287,23 @@ export default function NewRoutePage() {
       throw new Error('Failed to load source route stops.');
     }
 
-    return stops.map((stop) => ({
-      address: stop.address,
-      serviceType: stop.serviceType ?? 'delivery',
-      numberOfSigns: stop.numberOfSigns ?? undefined,
-      agent: stop.agent ?? undefined,
-      isAuction: stop.isAuction ?? undefined,
-      notes: stop.notes ?? undefined,
-      latitude: stop.latitude ?? undefined,
-      longitude: stop.longitude ?? undefined,
-      formattedAddress: stop.formattedAddress ?? undefined,
-    }));
+    return stops.map((stop) => {
+      const rawServiceType = stop.serviceType?.toString().trim().toLowerCase();
+      const normalizedLatitude = normalizeOptionalNumber(stop.latitude);
+      const normalizedLongitude = normalizeOptionalNumber(stop.longitude);
+      const normalizedSigns = normalizeOptionalNumber(stop.numberOfSigns);
+      return {
+        address: stop.address?.trim() || stop.formattedAddress?.trim() || 'Unknown address',
+        serviceType: normalizeCopiedServiceType(stop.serviceType),
+        numberOfSigns: normalizedSigns,
+        agent: stop.agent ?? undefined,
+        isAuction: stop.isAuction ?? (rawServiceType === 'auction' ? true : undefined),
+        notes: sanitizeCopiedStopNotes(stop.notes),
+        latitude: normalizedLatitude,
+        longitude: normalizedLongitude,
+        formattedAddress: stop.formattedAddress ?? undefined,
+      };
+    });
   };
 
   const handleImportCustomerChange = (customerId: string) => {
@@ -383,6 +441,7 @@ export default function NewRoutePage() {
       if (!routeId) { setImportError('Route created but ID not returned.'); setIsUploading(false); return; }
 
       // 3. Create stops
+      const failedStops: string[] = [];
       for (let i = 0; i < importDraftStops.length; i++) {
         const stop = importDraftStops[i];
         const stopResult = await createStop({
@@ -400,10 +459,17 @@ export default function NewRoutePage() {
           notes: stop.notes,
         });
         if (stopResult.errors && stopResult.errors.length > 0) {
-          setImportError('Route created but one or more stops failed to save.');
-          setIsUploading(false);
-          return;
+          const stopErrorMessage = (stopResult.errors as Array<{ message?: string }>)
+            .map((entry) => entry.message ?? String(entry))
+            .join('; ');
+          failedStops.push(`#${i + 1} (${stop.address || 'Unknown address'}): ${stopErrorMessage || 'Unknown stop creation error'}`);
         }
+      }
+
+      if (failedStops.length > 0) {
+        setImportError(`Route created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}`);
+        setIsUploading(false);
+        return;
       }
 
       router.push(`/administrator/routes/detail?id=${routeId}`);
@@ -460,7 +526,7 @@ export default function NewRoutePage() {
                 <label className={styles.fieldLabel}>Copy Stops From Previous Route</label>
                 <div className={styles.fileRow}>
                   <select
-                    className={styles.select}
+                    className={`${styles.select} ${styles.copyRouteSelect}`}
                     value={importCopySourceRouteId}
                     onChange={(e) => {
                       const nextRouteId = e.target.value;

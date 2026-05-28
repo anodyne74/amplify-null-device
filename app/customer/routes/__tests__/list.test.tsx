@@ -1,7 +1,6 @@
 'use client';
 
-import { render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RoutesPage from '../page';
 import * as listMyRoutesModule from '@/lib/queries/ListMyRoutes';
 import type { Route } from '@/amplify/types';
@@ -43,7 +42,7 @@ jest.mock('@/lib/queries/ListMyRoutes');
 
 // Mock the session utilities
 jest.mock('@/app/auth/session', () => ({
-  getCurrentCustomerId: (user: any) => 'test-customer-1',
+  getCurrentCustomerId: (_user: any) => 'test-customer-1',
 }));
 
 describe('Customer Routes List Page', () => {
@@ -134,6 +133,54 @@ describe('Customer Routes List Page', () => {
     // Status filter should exist
     const statusLabels = screen.getAllByText(/Status/i);
     expect(statusLabels.length).toBeGreaterThan(0);
+  });
+
+  it('sorts by route id descending by default', async () => {
+    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
+      data: mockRoutes,
+      errors: undefined,
+    });
+
+    render(<RoutesPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading routes/i)).not.toBeInTheDocument();
+    });
+
+    const routeLinks = screen.getAllByRole('link');
+    expect(routeLinks.map((link) => link.getAttribute('href'))).toEqual([
+      '/customer/routes/route-3',
+      '/customer/routes/route-2',
+      '/customer/routes/route-1',
+    ]);
+  });
+
+  it('sorts by status when sort mode is changed', async () => {
+    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
+      data: mockRoutes,
+      errors: undefined,
+    });
+
+    render(<RoutesPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading routes/i)).not.toBeInTheDocument();
+    });
+
+    const sortSelect = screen.getAllByRole('combobox')[1];
+
+    fireEvent.change(sortSelect, {
+      target: { value: 'status' },
+    });
+
+    await waitFor(() => {
+      const routeLinks = screen.getAllByRole('link');
+      expect(routeLinks.map((link) => link.getAttribute('href'))).toEqual([
+        '/customer/routes/route-1',
+        '/customer/routes/route-3',
+        '/customer/routes/route-2',
+      ]);
+    });
   });
 
   it('handles empty route list gracefully', async () => {

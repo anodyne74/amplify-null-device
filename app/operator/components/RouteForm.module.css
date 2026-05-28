@@ -31,6 +31,12 @@
   transition: border-color var(--nd-transition-fast);
 }
 
+.select option,
+.select optgroup {
+  background-color: var(--nd-bg-elevated);
+  color: var(--nd-text-primary);
+}
+
 .input:focus,
 .select:focus,
 .textarea:focus {

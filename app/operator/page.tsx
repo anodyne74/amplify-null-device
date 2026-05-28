@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
+import { resolvePortalPath } from '@/lib/portalRouting';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 
 /**
@@ -25,18 +26,9 @@ export default function OperatorPage() {
       return;
     }
 
-    if (groups.includes('operator')) {
-      router.push('/operator/dashboard');
-      return;
-    }
-
-    if (groups.includes('administrator')) {
-      router.push('/administrator');
-      return;
-    }
-
-    if (groups.includes('customer')) {
-      router.push('/customer/dashboard');
+    const portalPath = resolvePortalPath(groups, ['operator', 'administrator', 'customer']);
+    if (portalPath) {
+      router.push(portalPath);
       return;
     }
 

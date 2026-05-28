@@ -2,18 +2,11 @@
  * Get single route with all stops
  * Used for route detail view
  */
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
-
-let _client: ReturnType<typeof generateClient<Schema>> | null = null;
-function getClient() {
-  if (!_client) _client = generateClient<Schema>();
-  return _client;
-}
+import { getDataClient } from '@/lib/data-client';
 
 export async function getRouteDetail(routeId: string) {
   try {
-    const { data, errors } = await getClient().models.Route.get({
+    const { data, errors } = await getDataClient().models.Route.get({
       id: routeId,
     });
 

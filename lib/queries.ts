@@ -3,14 +3,11 @@
  * These utilities encapsulate the data fetching patterns and enable type-safe operations
  */
 
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '../amplify/data/resource';
 import { normalizeCustomerDefaults } from '@/lib/customerDefaults';
+import { getDataClient } from '@/lib/data-client';
 
-let _client: ReturnType<typeof generateClient<Schema>> | null = null;
 function getClient() {
-  if (!_client) _client = generateClient<Schema>();
-  return _client;
+  return getDataClient();
 }
 
 function getCustomerUserModel() {
@@ -64,6 +61,13 @@ export interface UserSettingsRecord {
   name?: string | null;
   defaultTheme?: ThemeModeSetting | null;
   mapTheme?: MapThemeSetting | null;
+  billingCompanyName?: string | null;
+  billingAbn?: string | null;
+  billingPhone?: string | null;
+  billingCompanyAddress?: string | null;
+  billingPaymentAccountName?: string | null;
+  billingBsb?: string | null;
+  billingAccountNumber?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
 }
@@ -105,6 +109,13 @@ export async function upsertUserSettings(
     name: string;
     defaultTheme: ThemeModeSetting;
     mapTheme: MapThemeSetting;
+    billingCompanyName: string;
+    billingAbn: string;
+    billingPhone: string;
+    billingCompanyAddress: string;
+    billingPaymentAccountName: string;
+    billingBsb: string;
+    billingAccountNumber: string;
   }>
 ) {
   try {
@@ -135,7 +146,7 @@ export async function upsertUserSettings(
 
     const { data, errors } = await model.create({
       userSub,
-      name: updates.name,
+      ...updates,
       defaultTheme: updates.defaultTheme ?? 'system',
       mapTheme: updates.mapTheme ?? 'light',
       createdAt: nowIso,
@@ -256,30 +267,6 @@ export async function updateCustomer(
 }
 
 /**
- * Allow a customer account owner to update only standing instructions and stop defaults.
- */
-export async function updateCustomerDefaultsForUser(
-  userSub: string,
-  updates: Partial<{
-    standingInstructions: string;
-    defaultNumberOfSigns: number;
-    defaultAgentName: string;
-    defaultAgentInitials: string;
-    agentOptions: string[];
-  }>
-) {
-  const context = await getCustomerPortalContext(userSub);
-  if (context.role !== 'account_owner') {
-    return {
-      data: null,
-      errors: [new Error('Only the customer account owner can update standing instructions.')],
-    };
-  }
-
-  return updateCustomer(context.customerId, updates);
-}
-
-/**
  * Delete a customer record.
  */
 export async function deleteCustomer(customerId: string) {
@@ -350,49 +337,38 @@ export async function getRouteWithStops(routeId: string) {
       return { route: null, stops: [], errors: [] };
     }
 
-    // Fetch stops for this route
-    const { data: stops, errors: stopsErrors } = await getClient().models.Stop.list({
-      filter: { routeId: { eq: routeId } },
-    });
+    // Fetch all stops for this route with pagination.
+    const allStops: any[] = [];
+    const allStopErrors: unknown[] = [];
+    let nextToken: string | undefined;
 
-    if (stopsErrors) {
-      console.error('Errors fetching stops:', stopsErrors);
-    }
+    do {
+      const { data: stopsPage, errors: stopsErrors, nextToken: pageNextToken } = await getClient().models.Stop.list({
+        filter: { routeId: { eq: routeId } },
+        nextToken,
+        limit: 200,
+      });
 
-    const sortedStops = [...(stops || [])].sort(
+      if (stopsErrors && stopsErrors.length > 0) {
+        console.error('Errors fetching stops:', stopsErrors);
+        allStopErrors.push(...stopsErrors);
+      }
+
+      if (stopsPage && stopsPage.length > 0) {
+        allStops.push(...stopsPage);
+      }
+
+      nextToken = pageNextToken ?? undefined;
+    } while (nextToken);
+
+    const sortedStops = [...allStops].sort(
       (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
     );
 
-    return { route, stops: sortedStops, errors: stopsErrors || [] };
+    return { route, stops: sortedStops, errors: allStopErrors };
   } catch (error) {
     console.error('Error getting route with stops:', error);
     return { route: null, stops: [], errors: [error] };
-  }
-}
-
-/**
- * Fetch all invoices for a specific customer
- */
-export async function listCustomerInvoices(
-  customerId: string,
-  options?: { limit?: number; nextToken?: string }
-) {
-  try {
-    const { data, errors } = await getClient().models.Invoice.list({
-      filter: { customerId: { eq: customerId } },
-      limit: options?.limit || 20,
-      nextToken: options?.nextToken,
-    });
-
-    if (errors) {
-      console.error('Errors fetching invoices:', errors);
-      return { data: [], errors };
-    }
-
-    return { data: data || [], errors };
-  } catch (error) {
-    console.error('Error listing customer invoices:', error);
-    return { data: [], errors: [error] };
   }
 }
 
@@ -467,7 +443,8 @@ export async function createRoute(input: {
   routeCode?: string;
   customerId: string;
   viewerSubs?: string[];
-  status: 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+  status: 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+  executionPhase?: 'placement' | 'pickup';
   notes?: string;
   scheduleS3Key?: string;
 }) {
@@ -493,12 +470,23 @@ export async function updateRoute(
   updates: Partial<{
     routeCode: string;
     customerId: string;
-    status: 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+    status: 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+    executionPhase: 'placement' | 'pickup';
     actualStartTime: string;
     actualEndTime: string;
+    placementStartTime: string;
+    placementEndTime: string;
+    pickupStartTime: string;
+    pickupEndTime: string;
     actualDurationMinutes: number;
     signsPlacedDistanceKm: number;
     signsPickedUpDistanceKm: number;
+    overrideSigns: number;
+    overrideStops: number;
+    overrideDistanceKm: number;
+    overrideDurationMinutes: number;
+    overrideRate: number;
+    overrideAmount: number;
     notes: string;
     scheduleS3Key: string;
   }>
@@ -521,9 +509,14 @@ export async function updateRoute(
 }
 
 export interface RouteExecutionUpdateInput {
-  status?: 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+  status?: 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+  executionPhase?: 'placement' | 'pickup';
   actualStartTime?: string;
   actualEndTime?: string;
+  placementStartTime?: string;
+  placementEndTime?: string;
+  pickupStartTime?: string;
+  pickupEndTime?: string;
   actualDurationMinutes?: number;
   signsPlacedDistanceKm?: number;
   signsPickedUpDistanceKm?: number;
@@ -634,35 +627,6 @@ export async function createStop(input: {
 }
 
 /**
- * Fetch operator-visible routes.
- */
-export async function listOperatorRoutes(options?: { limit?: number; nextToken?: string }) {
-  try {
-    const { data, errors } = await getClient().models.Route.list({
-      limit: options?.limit || 20,
-      nextToken: options?.nextToken,
-    });
-
-    if (errors) {
-      console.error('Errors fetching operator routes:', errors);
-      return { data: [], errors };
-    }
-
-    return { data: data || [], errors };
-  } catch (error) {
-    console.error('Error listing operator routes:', error);
-    return { data: [], errors: [error] };
-  }
-}
-
-/**
- * Fetch one route and all ordered stops for operator consumption.
- */
-export async function getOperatorRouteDetail(routeId: string) {
-  return getRouteWithStops(routeId);
-}
-
-/**
  * Create an invoice for a customer.
  */
 export async function createInvoice(input: {
@@ -757,53 +721,6 @@ export async function createLineItem(input: {
     console.error('Error creating line item:', error);
     return { data: null, errors: [error] };
   }
-}
-
-/**
- * Create a payment record for a customer.
- */
-export async function createPaymentRecord(input: {
-  customerId: string;
-  invoiceId?: string;
-  paymentDate: string;
-  amount: number;
-  paymentMethod: 'credit_card' | 'bank_transfer' | 'check' | 'other';
-  referenceNumber?: string;
-  status: 'pending' | 'completed' | 'failed' | 'refunded';
-  notes?: string;
-}) {
-  try {
-    const { data, errors } = await getClient().models.PaymentRecord.create(input);
-
-    if (errors) {
-      console.error('Errors creating payment record:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error creating payment record:', error);
-    return { data: null, errors: [error] };
-  }
-}
-
-/**
- * Subscribe to route updates in real-time
- */
-export function subscribeToRoute(routeId: string, onUpdate: (route: any) => void) {
-  const subscription = getClient().models.Route.observeQuery({
-    filter: { id: { eq: routeId } },
-  }).subscribe({
-    next: (data) => {
-      if (data.items && data.items.length > 0) {
-        onUpdate(data.items[0]);
-      }
-    },
-    error: (error) => {
-      console.error('Subscription error:', error);
-    },
-  });
-
-  return () => subscription.unsubscribe();
 }
 
 /**

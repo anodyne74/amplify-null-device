@@ -69,22 +69,40 @@ const generateAmplifyOutputs = () => {
 
   // Extract values from environment variables or backend outputs
   const userPoolId =
+    process.env.NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID ||
     process.env.AMPLIFY_COGNITO_USER_POOL_ID ||
     readPath(backendOutputs, ['auth.userPoolId', 'auth.user_pool_id']) ||
     readPath(existingOutputs, ['auth.user_pool_id']);
   const userPoolClientId =
+    process.env.NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID ||
     process.env.AMPLIFY_COGNITO_CLIENT_ID ||
     readPath(backendOutputs, ['auth.userPoolClientId', 'auth.user_pool_client_id']) ||
     readPath(existingOutputs, ['auth.user_pool_client_id']);
   const identityPoolId =
+    process.env.NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID ||
     process.env.AMPLIFY_IDENTITY_POOL_ID ||
     readPath(backendOutputs, ['auth.identityPoolId', 'auth.identity_pool_id']) ||
     readPath(existingOutputs, ['auth.identity_pool_id']);
-  const region = process.env.AWS_REGION || 'ap-southeast-2';
+  const region = process.env.NEXT_PUBLIC_AWS_REGION || process.env.AWS_REGION || 'ap-southeast-2';
   const graphqlUrl =
     process.env.AMPLIFY_GRAPHQL_ENDPOINT ||
     readPath(backendOutputs, ['data.url']) ||
     readPath(existingOutputs, ['data.url']);
+  const defaultAuthorizationType =
+    readPath(backendOutputs, ['data.default_authorization_type']) ||
+    readPath(existingOutputs, ['data.default_authorization_type']) ||
+    'AWS_IAM';
+  const authorizationTypes =
+    readPath(backendOutputs, ['data.authorization_types']) ||
+    readPath(existingOutputs, ['data.authorization_types']) ||
+    ['AMAZON_COGNITO_USER_POOLS'];
+  const modelIntrospection =
+    readPath(backendOutputs, ['data.model_introspection']) ||
+    readPath(existingOutputs, ['data.model_introspection']) ||
+    {
+      version: 1,
+      models: {},
+    };
 
   // If we have real values, use them; otherwise use placeholders
   const outputs = {
@@ -111,12 +129,9 @@ const generateAmplifyOutputs = () => {
     data: {
       url: graphqlUrl || `https://PLACEHOLDER.appsync-api.${region}.amazonaws.com/graphql`,
       aws_region: region,
-      default_authorization_type: 'AWS_IAM',
-      authorization_types: ['AMAZON_COGNITO_USER_POOLS'],
-      model_introspection: {
-        version: 1,
-        models: {},
-      },
+      default_authorization_type: defaultAuthorizationType,
+      authorization_types: authorizationTypes,
+      model_introspection: modelIntrospection,
     },
   };
 

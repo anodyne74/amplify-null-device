@@ -1,4 +1,5 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
+import { customerAccessActivation } from '../functions/customer-access-activation/resource';
 
 /**
  * Delivery Management System Data Model
@@ -83,13 +84,24 @@ const schema = a.schema({
       routeCode: a.string(), // Human-readable route identifier (e.g. W19-26-001)
       customerId: a.id().required(), // Foreign key to Customer
       viewerSubs: a.string().array(), // Cognito subs of all customer users — grants read access
-      status: a.enum(['planned', 'signs_placed', 'signs_picked_up', 'completed', 'archived']),
+      status: a.enum(['planned', 'in_progress', 'signs_placed', 'signs_picked_up', 'completed', 'archived']),
+      executionPhase: a.enum(['placement', 'pickup']),
       estimatedDurationMinutes: a.integer(),
       actualStartTime: a.datetime(),
       actualEndTime: a.datetime(),
+      placementStartTime: a.datetime(),
+      placementEndTime: a.datetime(),
+      pickupStartTime: a.datetime(),
+      pickupEndTime: a.datetime(),
       actualDurationMinutes: a.integer(),
       signsPlacedDistanceKm: a.float(),
       signsPickedUpDistanceKm: a.float(),
+      overrideSigns: a.integer(),
+      overrideStops: a.integer(),
+      overrideDistanceKm: a.float(),
+      overrideDurationMinutes: a.integer(),
+      overrideRate: a.float(),
+      overrideAmount: a.float(),
       notes: a.string(),
       scheduleS3Key: a.string(), // S3 key for the uploaded schedule file
       createdAt: a.datetime(),
@@ -305,6 +317,13 @@ const schema = a.schema({
       name: a.string(),
       defaultTheme: a.enum(['system', 'light', 'dark']),
       mapTheme: a.enum(['light', 'dark', 'satellite', 'streets']),
+      billingCompanyName: a.string(),
+      billingAbn: a.string(),
+      billingPhone: a.string(),
+      billingCompanyAddress: a.string(),
+      billingPaymentAccountName: a.string(),
+      billingBsb: a.string(),
+      billingAccountNumber: a.string(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })
@@ -312,7 +331,9 @@ const schema = a.schema({
       allow.ownerDefinedIn('userSub').identityClaim('sub').to(['read', 'create', 'update', 'delete']),
       allow.groups(['administrator']).to(['read']),
     ]),
-});
+}).authorization((allow) => [
+  allow.resource(customerAccessActivation).to(['query', 'mutate']),
+]);
 
 export type Schema = ClientSchema<typeof schema>;
 

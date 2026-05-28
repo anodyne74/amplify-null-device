@@ -1,12 +1,10 @@
-'use client';
-
 import './globals.css';
 import '@aws-amplify/ui-react/styles.css';
 import 'leaflet/dist/leaflet.css';
-import { JetBrains_Mono, Inter } from 'next/font/google';
-import { Authenticator } from '@aws-amplify/ui-react';
-import { configureAmplify } from '@/lib/amplify-config';
+import { JetBrains_Mono, Inter, Comfortaa } from 'next/font/google';
 import ErrorBoundary from '@/app/components/ErrorBoundary';
+import AmplifyBootstrap from '@/app/components/AmplifyBootstrap';
+import AmplifyAuthProvider from '@/app/components/AmplifyAuthProvider';
 import AmplifyThemeProvider from '@/app/components/AmplifyThemeProvider';
 
 const jetbrainsMono = JetBrains_Mono({
@@ -21,19 +19,25 @@ const inter = Inter({
   display: 'swap',
 });
 
-// Configure Amplify on client mount
-configureAmplify();
+const comfortaa = Comfortaa({
+  subsets: ['latin'],
+  variable: '--font-comfortaa',
+  weight: ['400', '700'],
+  display: 'swap',
+});
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${jetbrainsMono.variable} ${inter.variable}`}>
+    <html lang="en" className={`${jetbrainsMono.variable} ${inter.variable} ${comfortaa.variable}`}>
       <body>
         <ErrorBoundary>
-          <AmplifyThemeProvider>
-            <Authenticator.Provider>
-              {children}
-            </Authenticator.Provider>
-          </AmplifyThemeProvider>
+          <AmplifyBootstrap>
+            <AmplifyThemeProvider>
+              <AmplifyAuthProvider>
+                {children}
+              </AmplifyAuthProvider>
+            </AmplifyThemeProvider>
+          </AmplifyBootstrap>
         </ErrorBoundary>
       </body>
     </html>

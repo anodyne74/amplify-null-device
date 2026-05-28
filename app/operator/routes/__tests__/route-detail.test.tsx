@@ -43,6 +43,25 @@ jest.mock('@/lib/queries/GetRouteDetail');
 jest.mock('@/lib/queries/DeleteStop');
 jest.mock('@/lib/queries', () => ({
   getCustomer: jest.fn().mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined }),
+  getRouteWithStops: jest.fn().mockResolvedValue({
+    stops: [
+      {
+        id: 'stop-1',
+        routeId: 'route-test-id-1234',
+        sequence: 1,
+        address: '100 First St',
+        serviceType: 'delivery',
+      },
+      {
+        id: 'stop-2',
+        routeId: 'route-test-id-1234',
+        sequence: 2,
+        address: '200 Second Ave',
+        serviceType: 'pickup',
+      },
+    ],
+    errors: undefined,
+  }),
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));
@@ -141,6 +160,10 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByText('planned')).toBeInTheDocument();
     // Customer name is displayed
     expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+
+    // Edit link should target the existing administrator route edit page
+    const editLink = screen.getByRole('link', { name: /edit route/i });
+    expect(editLink).toHaveAttribute('href', expect.stringContaining('/administrator/routes/edit?id=route-test-id-1234'));
   });
 
   it('renders stops list', async () => {
@@ -163,9 +186,7 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByRole('button', { name: /add stop/i })).toBeInTheDocument();
   });
 
-  it('calls deleteStop when delete is confirmed', async () => {
-    window.confirm = jest.fn(() => true);
-
+  it('calls deleteStop when inline delete is confirmed', async () => {
     render(<RouteDetailPage />);
 
     await waitFor(() => {
@@ -174,6 +195,7 @@ describe('Operator Route Detail Page', () => {
 
     const stopDeleteButtons = screen.getAllByRole('button', { name: /^delete$/i });
     fireEvent.click(stopDeleteButtons[0]);
+    fireEvent.click(screen.getByRole('button', { name: /confirm delete/i }));
 
     await waitFor(() => {
       expect(deleteStopModule.deleteStop).toHaveBeenCalledWith('stop-1');
@@ -198,5 +220,24 @@ describe('Operator Route Detail Page', () => {
     });
 
     expect(screen.getByText(/← back to routes/i)).toBeInTheDocument();
+  });
+
+  it('shows "Signs Placed" action label for active placement stops', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
+      data: {
+        ...mockRoute,
+        status: 'in_progress',
+        executionPhase: 'placement',
+        actualStartTime: '2024-03-01T10:00:00Z',
+        placementStartTime: '2024-03-01T10:00:00Z',
+      },
+      errors: undefined,
+    });
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /signs placed/i })).toBeInTheDocument();
+    });
   });
 });

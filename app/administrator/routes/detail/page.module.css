@@ -138,6 +138,92 @@
   gap: var(--nd-space-md);
 }
 
+.billingSection {
+  margin-top: var(--nd-space-lg);
+  padding-top: var(--nd-space-md);
+  border-top: 1px solid var(--nd-border-subtle);
+}
+
+.billingHeading {
+  margin: 0 0 var(--nd-space-md) 0;
+  font-size: 15px;
+  color: var(--nd-text-primary);
+}
+
+.billingGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--nd-space-md);
+}
+
+.billingField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.billingLabel {
+  color: var(--nd-text-muted);
+  font-size: 12px;
+}
+
+.billingInput {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg-surface);
+  color: var(--nd-text-primary);
+  font-size: 14px;
+  font-family: var(--nd-font-mono);
+}
+
+.billingInput:focus {
+  outline: none;
+  border-color: var(--nd-operator-accent);
+  box-shadow: 0 0 0 2px rgba(0, 179, 255, 0.15);
+}
+
+.billingActions {
+  margin-top: var(--nd-space-md);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nd-space-md);
+  align-items: center;
+}
+
+.btnSaveBilling {
+  padding: 10px 18px;
+  background-color: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--nd-transition-fast);
+}
+
+.btnSaveBilling:hover {
+  opacity: 0.9;
+}
+
+.btnSaveBilling:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.billingMeta {
+  color: var(--nd-text-muted);
+  font-size: 12px;
+}
+
+.billingSuccess {
+  margin-top: var(--nd-space-sm);
+  color: var(--nd-status-success);
+  font-size: 13px;
+}
+
 /* Status transition buttons */
 .transitionRow {
   margin-top: var(--nd-space-md);

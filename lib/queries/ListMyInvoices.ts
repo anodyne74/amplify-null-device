@@ -2,13 +2,8 @@
  * List customer's invoices with optional date filtering
  * Used to display invoice list in customer portal
  */
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
 import { getCustomerPortalContext } from '@/lib/queries';
-
-function getClient() {
-  return generateClient<Schema>();
-}
+import { getDataClient } from '@/lib/data-client';
 
 export interface ListMyInvoicesParams {
   limit?: number;
@@ -50,7 +45,7 @@ export async function listMyInvoices(params: ListMyInvoicesParams) {
       }
     }
 
-    const { data, errors, nextToken } = await getClient().models.Invoice.list({
+    const { data, errors, nextToken } = await getDataClient().models.Invoice.list({
       filter,
       limit: params.limit || 20,
       nextToken: params.nextToken,

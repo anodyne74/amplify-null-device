@@ -1,12 +1,7 @@
 /**
  * List all routes (for operators, no customer filter)
  */
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
-
-function getClient() {
-  return generateClient<Schema>();
-}
+import { getDataClient } from '@/lib/data-client';
 
 export interface ListAllRoutesParams {
   limit?: number;
@@ -15,7 +10,7 @@ export interface ListAllRoutesParams {
 
 export async function listAllRoutes(params?: ListAllRoutesParams) {
   try {
-    const { data, errors, nextToken } = await getClient().models.Route.list({
+    const { data, errors, nextToken } = await getDataClient().models.Route.list({
       limit: params?.limit || 50,
       nextToken: params?.nextToken,
     });

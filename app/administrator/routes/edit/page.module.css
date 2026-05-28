@@ -1,6 +1,6 @@
 .container {
   padding: var(--nd-space-lg);
-  max-width: 680px;
+  max-width: 1320px;
   margin: 0 auto;
 }
 
@@ -38,6 +38,12 @@
   color: var(--nd-text-primary);
   font-size: 14px;
   padding: 10px 12px;
+}
+
+.select option,
+.select optgroup {
+  background: var(--nd-bg-elevated);
+  color: var(--nd-text-primary);
 }
 
 .textarea {
@@ -164,6 +170,23 @@
   gap: 10px;
 }
 
+.stopsLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 14px;
+  align-items: start;
+}
+
+.stopsPane {
+  min-width: 0;
+}
+
+.mapPane {
+  position: sticky;
+  top: var(--nd-space-lg);
+  align-self: start;
+}
+
 .stopRow {
   display: grid;
   grid-template-columns: 36px 1fr auto;
@@ -174,6 +197,12 @@
   background: var(--nd-bg-elevated);
   padding: 10px 12px;
   cursor: grab;
+  transition: border-color var(--nd-transition-fast), box-shadow var(--nd-transition-fast);
+}
+
+.stopRowSelected {
+  border-color: var(--nd-operator-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--nd-operator-accent) 60%, transparent);
 }
 
 .stopRowDragging {
@@ -270,6 +299,14 @@
 }
 
 @media (max-width: 760px) {
+  .stopsLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .mapPane {
+    position: static;
+  }
+
   .stopRow {
     grid-template-columns: 30px 1fr;
   }

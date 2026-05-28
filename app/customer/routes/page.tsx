@@ -8,9 +8,17 @@ import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import RouteListItem from '@/app/customer/components/RouteListItem';
 import type { Route } from '@/amplify/types';
+import { compareRouteIdDesc, compareRouteStatusAsc } from '@/lib/routeListHelpers';
+import { ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
 import styles from './page.module.css';
 
-type RouteStatus = 'planned' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+function formatStatusFilterLabel(status: StatusFilter) {
+  if (status === 'all') return 'All Statuses';
+  return status
+    .split('_')
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+}
 
 /**
  * Customer Routes List Page
@@ -24,8 +32,8 @@ export default function CustomerRoutesPage() {
   const [filteredRoutes, setFilteredRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<RouteStatus | 'all'>('all');
-  const [sortBy, setSortBy] = useState<'date' | 'status'>('date');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [sortBy, setSortBy] = useState<'routeId' | 'status'>('routeId');
 
   useEffect(() => {
     if (!customerId) return;
@@ -47,7 +55,7 @@ export default function CustomerRoutesPage() {
 
   // Apply filtering and sorting
   useEffect(() => {
-    let filtered = routes;
+    let filtered = [...routes];
 
     // Apply status filter
     if (statusFilter !== 'all') {
@@ -55,17 +63,10 @@ export default function CustomerRoutesPage() {
     }
 
     // Apply sorting
-    if (sortBy === 'date') {
-      filtered = filtered.sort((a, b) => {
-        const dateA = new Date(a.createdAt || '').getTime();
-        const dateB = new Date(b.createdAt || '').getTime();
-        return dateB - dateA; // Newest first
-      });
+    if (sortBy === 'routeId') {
+      filtered.sort(compareRouteIdDesc);
     } else {
-      filtered = filtered.sort((a, b) => {
-        const statusOrder = { planned: 0, signs_placed: 1, signs_picked_up: 2, completed: 3, archived: 4 };
-        return (statusOrder[a.status as RouteStatus] || 0) - (statusOrder[b.status as RouteStatus] || 0);
-      });
+      filtered.sort(compareRouteStatusAsc);
     }
 
     setFilteredRoutes(filtered);
@@ -92,15 +93,14 @@ export default function CustomerRoutesPage() {
             <label className={styles.filterLabel}>Status</label>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as RouteStatus | 'all')}
+              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
               className={styles.select}
             >
-              <option value="all">All Statuses</option>
-              <option value="planned">Planned</option>
-              <option value="signs_placed">Signs Placed</option>
-              <option value="signs_picked_up">Signs Picked Up</option>
-              <option value="completed">Completed</option>
-              <option value="archived">Archived</option>
+              {ROUTE_STATUS_FILTERS.map((status) => (
+                <option key={status} value={status}>
+                  {formatStatusFilterLabel(status)}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -108,10 +108,10 @@ export default function CustomerRoutesPage() {
             <label className={styles.filterLabel}>Sort By</label>
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'date' | 'status')}
+              onChange={(e) => setSortBy(e.target.value as 'routeId' | 'status')}
               className={styles.select}
             >
-              <option value="date">Date (Newest First)</option>
+              <option value="routeId">Route ID (Desc)</option>
               <option value="status">Status</option>
             </select>
           </div>

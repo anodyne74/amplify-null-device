@@ -47,6 +47,7 @@ const NAV_ITEMS: NavItem[] = [
 
 const DRAWER_WIDTH = 280;
 const APP_BAR_HEIGHT = 68;
+const APP_BAR_HEIGHT_MOBILE = 60;
 
 interface OperatorMUILayoutProps {
   children: React.ReactNode;
@@ -93,30 +94,25 @@ export default function OperatorMUILayout({
     >
       {/* Brand */}
       <Box sx={{ mb: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-        <Typography
+        <Box
           sx={{
-            fontWeight: 700,
-            letterSpacing: '0.06em',
-            color: '#ffb300',
-            fontFamily: 'var(--nd-font-mono, monospace)',
-            fontSize: '0.9rem',
-            mb: 0.5,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 1,
+            borderRadius: 2,
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
           }}
         >
-          NullDevice
-        </Typography>
-        <Typography
-          sx={{
-            fontFamily: 'var(--nd-font-mono, monospace)',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'rgba(255, 255, 255, 0.38)',
-            fontSize: '0.65rem',
-            display: 'block',
-          }}
-        >
-          Operator Portal
-        </Typography>
+          <Box
+            component="img"
+            src="/icon.svg"
+            alt=""
+            aria-hidden="true"
+            sx={{ width: 44, height: 44, display: 'block' }}
+          />
+        </Box>
       </Box>
 
       {/* Navigation - grows to fill space */}
@@ -235,40 +231,53 @@ export default function OperatorMUILayout({
             ml: 0,
           }}
         >
-          <Toolbar sx={{ minHeight: `${APP_BAR_HEIGHT}px !important`, py: 1 }}>
+          <Toolbar
+            sx={{
+              minHeight: {
+                xs: `${APP_BAR_HEIGHT_MOBILE}px !important`,
+                sm: `${APP_BAR_HEIGHT}px !important`,
+              },
+              py: { xs: 0.5, sm: 1 },
+            }}
+          >
             <IconButton
               color="inherit"
               edge="start"
               onClick={() => setDrawerOpen(!drawerOpen)}
-              sx={{ mr: 2 }}
+              sx={{ mr: { xs: 1, sm: 2 } }}
             >
               {drawerOpen ? <CloseIcon /> : <MenuIcon />}
             </IconButton>
-            <div>
+            <Box
+              component="img"
+              src="/icon.svg"
+              alt=""
+              aria-hidden="true"
+              sx={{
+                width: { xs: 24, sm: 30 },
+                height: { xs: 24, sm: 30 },
+                display: 'block',
+                mr: { xs: 1, sm: 1.5 },
+                flexShrink: 0,
+              }}
+            />
+            <Box sx={{ minWidth: 0 }}>
               <Typography
                 sx={{
                   flexGrow: 1,
-                  fontFamily: 'var(--nd-font-mono, monospace)',
-                  fontSize: '1.75rem',
+                  fontFamily: 'var(--nd-font-display, Comfortaa, sans-serif)',
+                  fontSize: { xs: '0.875rem', sm: '0.95rem' },
                   fontWeight: 500,
                   letterSpacing: '0.015em',
-                  color: 'var(--nd-primary-accent)',
-                }}
-              >
-                Operator Portal
-              </Typography>
-              <Typography
-                sx={{
-                  flexGrow: 1,
-                  fontFamily: 'var(--nd-font-mono, monospace)',
-                  fontSize: '0.75rem',
-                  fontWeight: 500,
-                  letterSpacing: '0.015em',
+                  color: 'rgba(255, 255, 255, 0.72)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
                 Welcome: {userEmail}
               </Typography>
-          </div>
+            </Box>
           </Toolbar>
         </AppBar>
 
@@ -282,11 +291,14 @@ export default function OperatorMUILayout({
             display: 'block',
             zIndex: (theme) => theme.zIndex.drawer,
             '& .MuiDrawer-paper': {
-              width: DRAWER_WIDTH,
+              width: { xs: 'min(82vw, 320px)', sm: DRAWER_WIDTH },
               boxSizing: 'border-box',
               backgroundColor: '#111111',
-              top: `${APP_BAR_HEIGHT}px`,
-              height: `calc(100vh - ${APP_BAR_HEIGHT}px)`,
+              top: { xs: `${APP_BAR_HEIGHT_MOBILE}px`, sm: `${APP_BAR_HEIGHT}px` },
+              height: {
+                xs: `calc(100dvh - ${APP_BAR_HEIGHT_MOBILE}px)`,
+                sm: `calc(100dvh - ${APP_BAR_HEIGHT}px)`,
+              },
             },
           }}
         >
@@ -299,15 +311,18 @@ export default function OperatorMUILayout({
           sx={{
             flexGrow: 1,
             width: '100%',
-            mt: `${APP_BAR_HEIGHT}px`,
+            mt: { xs: `${APP_BAR_HEIGHT_MOBILE}px`, sm: `${APP_BAR_HEIGHT}px` },
             pb: 2,
             px: { xs: 2, sm: 2, md: 3 },
             pt: 2,
             backgroundColor: '#0a0a0a',
             boxSizing: 'border-box',
             marginLeft: 0,
-            overflowY: 'auto',
-            height: `calc(100vh - ${APP_BAR_HEIGHT}px)`,
+            overflowY: 'visible',
+            minHeight: {
+              xs: `calc(100dvh - ${APP_BAR_HEIGHT_MOBILE}px)`,
+              sm: `calc(100dvh - ${APP_BAR_HEIGHT}px)`,
+            },
           }}
         >
           <Container

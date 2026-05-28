@@ -14,19 +14,27 @@ interface RouteTimelineProps {
 export default function RouteTimeline({ route }: RouteTimelineProps) {
   const statuses = [
     { id: 'planned', label: 'Planned', timestamp: route.createdAt },
-    { id: 'signs_placed', label: 'Signs Placed', timestamp: route.actualStartTime },
-    { id: 'signs_picked_up', label: 'Signs Picked Up', timestamp: route.actualEndTime },
-    { id: 'completed', label: 'Completed', timestamp: route.actualEndTime },
+    { id: 'in_progress_placement', label: 'In Progress', timestamp: route.placementStartTime ?? route.actualStartTime },
+    { id: 'signs_placed', label: 'Signs Placed', timestamp: route.placementEndTime },
+    { id: 'in_progress_pickup', label: 'In Progress', timestamp: route.pickupStartTime },
+    { id: 'signs_picked_up', label: 'Signs Picked Up', timestamp: route.pickupEndTime ?? route.actualEndTime },
+    { id: 'completed', label: 'Completed', timestamp: route.updatedAt },
   ];
 
   const currentStatusIndex =
-    route.status === 'completed'
-      ? 3
-      : route.status === 'signs_picked_up'
-        ? 2
-        : route.status === 'signs_placed'
-          ? 1
-          : 0;
+    route.status === 'archived'
+      ? 5
+      : route.status === 'completed'
+        ? 5
+        : route.status === 'signs_picked_up'
+          ? 4
+          : route.status === 'in_progress' && route.executionPhase === 'pickup'
+            ? 3
+            : route.status === 'signs_placed'
+              ? 2
+              : route.status === 'in_progress' && route.executionPhase === 'placement'
+                ? 1
+                : 0;
 
   return (
     <div className={styles.container}>

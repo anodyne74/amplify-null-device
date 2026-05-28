@@ -21,7 +21,11 @@
     /* Path mapping for cleaner imports */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "$amplify/*": ["./.amplify/generated/*"],
+      "@aws-amplify/backend/function/runtime": [
+        "./node_modules/@aws-amplify/backend/lib/function/runtime/index.d.ts"
+      ]
     },
     /* Linting */
     "strict": true,

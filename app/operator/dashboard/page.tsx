@@ -39,7 +39,11 @@ export default function OperatorDashboard() {
   }, []);
 
   const activeRoutes = useMemo(
-    () => routes.filter((route) => route.status === 'signs_placed' || route.status === 'signs_picked_up'),
+    () =>
+      routes.filter(
+        (route) =>
+          route.status === 'in_progress' || route.status === 'signs_placed' || route.status === 'signs_picked_up'
+      ),
     [routes]
   );
   const plannedRoutes = useMemo(
@@ -53,6 +57,13 @@ export default function OperatorDashboard() {
 
   return (
     <div className={styles.page}>
+      <div>
+        <h1 className={styles.heading}>Operator Portal</h1>
+        <p className={styles.welcome}>
+          Welcome, {userDisplayName || 'operator'}. Review active work and pick up the next route.
+        </p>
+      </div>
+
       <div className={styles.statsGrid}>
         <div className={styles.statCard}>
           <p className={styles.statLabel}>Active Routes</p>
@@ -86,7 +97,7 @@ export default function OperatorDashboard() {
               >
                 <div className={styles.mobileRouteTopRow}>
                   <strong>{route.routeCode || route.id.slice(0, 8)}</strong>
-                  <span className={route.status === 'signs_placed' || route.status === 'signs_picked_up' ? styles.routeStatusActive : styles.routeStatusPlanned}>
+                  <span className={route.status === 'in_progress' || route.status === 'signs_placed' || route.status === 'signs_picked_up' ? styles.routeStatusActive : styles.routeStatusPlanned}>
                     {(route.status || 'planned').replace(/_/g, ' ')}
                   </span>
                 </div>

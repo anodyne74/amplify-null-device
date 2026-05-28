@@ -23,6 +23,24 @@
   min-width: 0;
 }
 
+.fieldGroup select,
+.cellSelect {
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg-elevated);
+  color: var(--nd-text-primary);
+  font-size: 0.84rem;
+  padding: 8px 10px;
+}
+
+.fieldGroup select option,
+.fieldGroup select optgroup,
+.cellSelect option,
+.cellSelect optgroup {
+  background: var(--nd-bg-elevated);
+  color: var(--nd-text-primary);
+}
+
 .fieldGroup label {
   color: var(--nd-text-secondary);
   font-size: 0.78rem;
@@ -66,6 +84,34 @@
 .warningText {
   margin: 0;
   color: var(--nd-operator-accent);
+}
+
+.successText {
+  margin: 0;
+  color: var(--nd-accent-primary);
+}
+
+.successBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dismissSuccessButton {
+  border: 1px solid var(--nd-border-default);
+  background: transparent;
+  color: var(--nd-text-secondary);
+  border-radius: var(--nd-radius-sm);
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.dismissSuccessButton:hover:not(:disabled) {
+  border-color: var(--nd-accent-primary);
+  color: var(--nd-accent-primary);
 }
 
 .listPanel {

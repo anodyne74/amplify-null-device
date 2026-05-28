@@ -138,12 +138,116 @@
   gap: var(--nd-space-md);
 }
 
+.distanceOverrideSection {
+  margin-top: var(--nd-space-md);
+  padding-top: var(--nd-space-md);
+  border-top: 1px solid var(--nd-border-subtle);
+}
+
+.distanceOverrideHeading {
+  margin: 0 0 var(--nd-space-sm) 0;
+  font-size: 15px;
+  color: var(--nd-text-primary);
+}
+
+.distanceOverrideRow {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(120px, 180px) auto;
+  gap: var(--nd-space-sm);
+  align-items: center;
+}
+
+.distanceOverrideLabel {
+  color: var(--nd-text-secondary);
+  font-size: 13px;
+}
+
+.distanceOverrideInput {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg-surface);
+  color: var(--nd-text-primary);
+  padding: 8px 10px;
+  box-sizing: border-box;
+}
+
+.btnSaveDistanceOverride {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnSaveDistanceOverride:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.distanceOverrideSuccess {
+  margin-top: var(--nd-space-sm);
+  color: var(--nd-status-active);
+  font-size: 13px;
+}
+
 /* Status transition buttons */
 .transitionRow {
   margin-top: var(--nd-space-md);
   display: flex;
   gap: 12px;
   align-items: center;
+}
+
+.phaseCompletionControls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(170px, 220px));
+  gap: var(--nd-space-sm);
+  align-items: end;
+}
+
+.phaseCompletionField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.phaseCompletionLabel {
+  color: var(--nd-text-secondary);
+  font-size: 12px;
+}
+
+.phaseCompletionInput {
+  min-height: 36px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg-surface);
+  color: var(--nd-text-primary);
+  padding: 6px 8px;
+}
+
+.phaseDurationSpinnerRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--nd-space-xs);
+}
+
+.phaseDurationUnit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.phaseDurationUnitLabel {
+  color: var(--nd-text-muted);
+  font-size: 12px;
+  min-width: 10px;
+  text-transform: lowercase;
 }
 
 .btnStart {
@@ -195,6 +299,13 @@
 
 .mapSection {
   margin-bottom: var(--nd-space-md);
+}
+
+.mapSectionExecutionMobile {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--nd-bg-surface);
 }
 
 .mapHeading {
@@ -279,17 +390,108 @@
   gap: 12px;
 }
 
+.stopsListExecutionMobile {
+  --nd-exec-visible-stops: 2;
+  --nd-exec-stop-card-height: 132px;
+  max-height: 44dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
 /* Stop cards with service type variants */
 .stopCard {
-  padding: var(--nd-space-md);
+  padding: 0;
   background-color: var(--nd-bg-surface);
   border: 2px solid var(--nd-border-default);
   border-radius: var(--nd-radius-lg);
   display: grid;
-  grid-template-columns: 48px 1fr auto;
-  gap: var(--nd-space-md);
-  align-items: start;
+  grid-template-columns: 76px minmax(220px, 1.2fr) minmax(180px, 0.8fr) minmax(250px, 1fr);
+  gap: 0;
+  align-items: stretch;
+  overflow: hidden;
   transition: opacity var(--nd-transition-fast), transform var(--nd-transition-fast), box-shadow var(--nd-transition-fast), border-color var(--nd-transition-fast);
+}
+
+@media (max-width: 700px) {
+  .stopCard {
+    display: block;
+    padding-bottom: 8px;
+    overflow: visible;
+  }
+
+  .stopCardExecutionCompact {
+    min-height: auto;
+  }
+
+  .stopSegment {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    padding: 6px 8px;
+  }
+  .stopSegmentAddress {
+    margin-bottom: 6px;
+  }
+  .stopSegmentMeta {
+    gap: 4px;
+  }
+  .stopActions {
+    width: 100%;
+    justify-content: flex-start;
+    margin-top: 6px;
+    gap: 6px;
+  }
+
+  .execActionRow {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+
+  .btnExecComplete,
+  .btnSkip {
+    padding: 10px 14px;
+    font-size: 13px;
+    flex: 1;
+    min-width: 90px;
+  }
+}
+
+.stopCardExecutionCompact {
+  grid-template-columns: 70px minmax(210px, 1.15fr) minmax(170px, 0.75fr) minmax(235px, 1fr);
+}
+
+.stopSegment {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.stopSegment + .stopSegment {
+  border-left: 1px solid color-mix(in srgb, var(--nd-border-subtle) 70%, transparent);
+}
+
+.stopSegmentNumber {
+  justify-content: center;
+}
+
+.stopSegmentAddress {
+  align-items: center;
+}
+
+.stopSegmentMeta {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+}
+
+.stopSegmentAction {
+  justify-content: flex-end;
+  overflow: visible;
 }
 
 .stopCardDragging {
@@ -333,6 +535,12 @@
   flex-shrink: 0;
 }
 
+.stopCardExecutionCompact .circle {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+}
+
 .circleDelivery {
   background-color: var(--nd-status-active);
   color: var(--nd-text-inverse);
@@ -351,49 +559,66 @@
 /* Stop details */
 .stopAddress {
   font-weight: 600;
-  margin-bottom: 4px;
+  margin-bottom: 0;
   color: var(--nd-text-primary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-size: 19px;
+  line-height: 1.42;
+  letter-spacing: 0.01em;
+}
+
+.stopCardExecutionCompact .stopAddress {
+  font-size: 20px;
+  line-height: 1.45;
 }
 
 .stopStatus {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--nd-text-secondary);
+}
+
+.stopCardExecutionCompact .stopStatus {
+  font-size: 13px;
 }
 
 .stopAgentBadge {
-  margin-top: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: var(--nd-bg-elevated);
-  border: 1px solid var(--nd-border-default);
-  color: var(--nd-text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.stopAgentInitials {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-  font-size: 11px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background-color: var(--nd-agent-badge-bg-override, var(--nd-agent-badge-bg, var(--nd-border-default)));
+  color: var(--nd-agent-badge-fg-override, var(--nd-agent-badge-fg, var(--nd-text-primary)));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.stopAgentBadgeCircle {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
 }
 
 /* Stop action buttons */
 .stopActions {
   display: flex;
   gap: var(--nd-space-sm);
-  flex-shrink: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
+  width: 100%;
+}
+
+.stopCardExecutionCompact .stopActions {
+  gap: 6px;
 }
 
 .btnReorder {
@@ -405,6 +630,13 @@
   font-size: 12px;
   cursor: pointer;
   transition: opacity var(--nd-transition-fast);
+}
+
+.stopCardExecutionCompact .btnReorder,
+.stopCardExecutionCompact .btnEdit,
+.stopCardExecutionCompact .btnDelete {
+  padding: 4px 8px;
+  font-size: 11px;
 }
 
 .btnReorder:hover {
@@ -491,38 +723,11 @@
   background-color: transparent;
 }
 
-/* Stop execution actions — spans full card width */
-.stopExecution {
-  grid-column: 1 / -1;
-  border-top: 1px solid var(--nd-border-subtle);
-  padding-top: var(--nd-space-sm);
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: var(--nd-space-md);
-  flex-wrap: wrap;
-}
-
-.btnArrived {
-  padding: 12px 20px;
-  background-color: var(--nd-status-planned);
-  color: var(--nd-text-inverse);
-  border: none;
-  border-radius: var(--nd-radius-sm);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity var(--nd-transition-fast);
-  min-height: 48px;
-}
-
-.btnArrived:hover {
-  opacity: 0.9;
-}
-
-.btnArrived:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.stopCardExecutionCompact .btnExecComplete,
+.stopCardExecutionCompact .btnSkip {
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 13px;
 }
 
 .execTimestamp {
@@ -540,7 +745,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: opacity var(--nd-transition-fast);
-  min-height: 48px;
+  min-height: 40px;
 }
 
 .btnExecComplete:hover {
@@ -567,6 +772,12 @@
   gap: var(--nd-space-sm);
   flex-wrap: wrap;
   width: 100%;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.execActionRowSingle {
+  justify-content: flex-start;
 }
 
 .btnSkip {
@@ -579,6 +790,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: opacity var(--nd-transition-fast);
+  min-height: 40px;
   min-height: 48px;
 }
 
@@ -591,53 +803,6 @@
   cursor: not-allowed;
 }
 
-/* Completion panel shown after arrival */
-.execCompletionPanel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--nd-space-sm);
-  width: 100%;
-}
-
-.execNotesInput {
-  width: 100%;
-  padding: 10px 12px;
-  background-color: var(--nd-bg-elevated);
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-text-primary);
-  font-size: 14px;
-  resize: vertical;
-  font-family: inherit;
-  box-sizing: border-box;
-}
-
-.execNotesInput::placeholder {
-  color: var(--nd-text-muted);
-}
-
-.execPhotoLabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border: 1px dashed var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-  transition: border-color var(--nd-transition-fast);
-}
-
-.execPhotoLabel:hover {
-  border-color: var(--nd-operator-accent);
-  color: var(--nd-operator-accent);
-}
-
-.execPhotoInput {
-  display: none;
-}
-
 .execSkippedBadge {
   font-size: 12px;
   font-weight: 600;
@@ -647,22 +812,129 @@
   border: 1px solid var(--nd-border-default);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 1024px) {
+  .mapSectionExecutionMobile {
+    background: var(--nd-bg-surface);
+    margin-inline: calc(-1 * var(--nd-space-lg));
+    padding: 8px var(--nd-space-lg) 10px;
+    border-bottom: 1px solid var(--nd-border-subtle);
+    position: static;
+    top: auto;
+    z-index: auto;
+  }
+
+  .mapSectionExecutionMobile > div > div {
+    height: 42vh;
+    min-height: 280px;
+    border-radius: var(--nd-radius-md);
+  }
+
+  .stopsListExecutionMobile {
+    max-height: none;
+    overflow-y: visible;
+    overscroll-behavior: contain;
+    padding-right: 0;
+  }
+
+  .stopsListExecutionMobile::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .stopsListExecutionMobile::-webkit-scrollbar-thumb {
+    background: var(--nd-border-default);
+    border-radius: 999px;
+  }
+
   .stopCard {
-    grid-template-columns: 40px 1fr;
+    grid-template-columns: 48px minmax(128px, 1fr) minmax(92px, 0.72fr) minmax(146px, 0.9fr);
+  }
+
+  .stopSegment {
+    padding: 8px 6px;
+  }
+
+  .stopSegment + .stopSegment {
+    border-left-color: color-mix(in srgb, var(--nd-border-subtle) 55%, transparent);
+  }
+
+  .stopCardExecutionCompact .circle {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
+
+  .stopCardExecutionCompact {
+    min-height: var(--nd-exec-stop-card-height);
   }
 
   .stopActions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
+    justify-content: flex-end;
+    gap: 6px;
   }
 
-  .btnArrived,
+  .stopCardExecutionCompact .stopAddress {
+    font-size: 18px;
+    line-height: 1.35;
+  }
+
+  .stopCardExecutionCompact .stopStatus {
+    font-size: 12px;
+    line-height: 1.2;
+  }
+
+  .stopAgentBadge {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
+
+  .stopActions {
+    gap: 4px;
+  }
+
+  .stopCardExecutionCompact .stopSegmentAction {
+    align-items: stretch;
+  }
+
+  .stopCardExecutionCompact .stopActions {
+    justify-content: stretch;
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .stopCardExecutionCompact .stopActions > button,
+  .stopCardExecutionCompact .stopActions > a {
+    width: 100%;
+  }
+
+  .stopCardExecutionCompact .btnReorder,
+  .stopCardExecutionCompact .btnEdit,
+  .stopCardExecutionCompact .btnDelete {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+
   .btnExecComplete,
   .btnSkip {
-    flex: 1;
-    min-height: 52px;
-    font-size: 15px;
+    flex: 0 1 auto;
+    min-height: 42px;
+    font-size: 12px;
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+
+  .execActionRow {
+    gap: 6px;
+  }
+
+  .execActionRowSingle {
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+
+  .execActionRowSingle .btnExecComplete {
+    width: 100%;
   }
 
   .transitionRow .btnStart,
@@ -674,5 +946,234 @@
 
   .transitionRow {
     flex-direction: column;
+  }
+
+  .phaseCompletionControls {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .routeCardHeader {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .routeTitle {
+    width: 100%;
+    font-size: 20px;
+  }
+
+  .btnRouteEdit,
+  .btnRouteDelete {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .stopsHeader {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .btnAddStop {
+    width: 100%;
+  }
+
+  .formContainer {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .stopCardExecutionCompact {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    min-height: auto;
+  }
+
+  .stopSegmentNumber {
+    grid-column: 1;
+    grid-row: 1;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 10px;
+    padding-bottom: 8px;
+  }
+
+  .stopSegmentAddress {
+    grid-column: 2;
+    grid-row: 1;
+    align-items: center;
+    padding-top: 10px;
+    padding-bottom: 8px;
+  }
+
+  .stopSegmentMeta {
+    grid-column: 3;
+    grid-row: 1;
+    align-items: center;
+    justify-content: center;
+    padding-top: 10px;
+    padding-bottom: 8px;
+    padding-left: 4px;
+    padding-right: 8px;
+  }
+
+  .stopSegmentAction {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-items: stretch;
+    padding-top: 4px;
+    padding-bottom: 8px;
+  }
+
+  .stopCardExecutionCompact .stopAddress {
+    font-size: 17px;
+    line-height: 1.38;
+  }
+
+  .stopCardExecutionCompact .stopStatus {
+    display: none;
+  }
+
+  .stopAgentBadge {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    font-size: 12px;
+  }
+
+  .stopCardExecutionCompact .circle {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
+
+  .stopCardExecutionCompact .execActionRow {
+    width: 100%;
+    justify-content: stretch;
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: 3fr 1fr;
+    gap: 8px;
+  }
+
+  .stopCardExecutionCompact .execActionRow > button {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .stopCardExecutionCompact .stopActions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .stopCardExecutionCompact .stopActions > button,
+  .stopCardExecutionCompact .stopActions > a {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .stopCardExecutionCompact .btnReorder,
+  .stopCardExecutionCompact .btnEdit,
+  .stopCardExecutionCompact .btnDelete {
+    width: 100%;
+  }
+
+  .stopCardExecutionCompact .execActionRowSingle {
+    grid-template-columns: 1fr;
+  }
+
+  .routeCard,
+  .summaryCard,
+  .formContainer {
+    padding: 16px;
+  }
+
+  .routeInfoGrid,
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .transitionRow .btnStart,
+  .transitionRow .btnComplete,
+  .btnAddStop {
+    width: 100%;
+  }
+
+  .distanceOverrideRow {
+    grid-template-columns: 1fr;
+  }
+
+  .phaseCompletionControls {
+    grid-template-columns: 1fr;
+  }
+
+  .btnSaveDistanceOverride {
+    width: 100%;
+  }
+}
+
+@media (min-width: 390px) and (max-width: 430px) and (max-height: 940px) {
+  .mapSectionExecutionMobile > div > div {
+    height: 46vh;
+    height: 46dvh;
+    min-height: 332px;
+    max-height: 420px;
+  }
+
+  .stopsListExecutionMobile {
+    --nd-exec-stop-card-height: 122px;
+    max-height: none;
+  }
+
+  .stopCard {
+    grid-template-columns: 50px minmax(128px, 0.92fr) minmax(90px, 0.65fr) minmax(190px, 1.15fr);
+  }
+
+  .stopSegment {
+    padding: 9px 7px;
+  }
+
+  .stopCardExecutionCompact .stopAddress {
+    font-size: 18px;
+    line-height: 1.35;
+  }
+
+  .stopCardExecutionCompact .stopStatus {
+    font-size: 12px;
+  }
+
+  .btnExecComplete,
+  .btnSkip {
+    min-height: 44px;
+    font-size: 12px;
+    padding: 9px 12px;
+  }
+
+  .execActionRow {
+    gap: 8px;
+  }
+
+  .execActionRowSingle {
+    gap: 8px;
+  }
+
+  .stopSegmentAction {
+    justify-content: stretch;
+  }
+
+  .stopSegmentAction .execActionRow {
+    justify-content: stretch;
+  }
+
+  .stopSegmentAction .execActionRow > .btnExecComplete,
+  .stopSegmentAction .execActionRow > .btnSkip {
+    flex: 1 1 0;
+  }
+
+  .stopCardExecutionCompact .stopActions {
+    gap: 6px;
   }
 }

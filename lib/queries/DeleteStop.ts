@@ -1,16 +1,11 @@
 /**
  * Delete a stop by ID
  */
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
-
-function getClient() {
-  return generateClient<Schema>();
-}
+import { getDataClient } from '@/lib/data-client';
 
 export async function deleteStop(stopId: string) {
   try {
-    const { data, errors } = await getClient().models.Stop.delete({ id: stopId });
+    const { data, errors } = await getDataClient().models.Stop.delete({ id: stopId });
 
     if (errors) {
       console.error('Errors deleting stop:', errors);

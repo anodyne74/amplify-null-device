@@ -138,4 +138,34 @@ describe('StopForm', () => {
     render(<StopForm onSubmit={noop} onCancel={noop} error="Something went wrong" />);
     expect(screen.getByText(/something went wrong/i)).toBeInTheDocument();
   });
+
+  it('shows the existing agent when editing a stop even if customer has no configured agent options', () => {
+    render(
+      <StopForm
+        onSubmit={noop}
+        onCancel={noop}
+        initialValues={{
+          address: '123 Main St',
+          serviceType: 'delivery',
+          agent: 'BO',
+        }}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /bo/i })).toBeInTheDocument();
+    expect(screen.queryByText(/no agent options configured/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the default agent as fallback option when customer options are empty', () => {
+    render(
+      <StopForm
+        onSubmit={noop}
+        onCancel={noop}
+        defaultAgentName="Jamie Lee"
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /jamie lee/i })).toBeInTheDocument();
+    expect(screen.queryByText(/no agent options configured/i)).not.toBeInTheDocument();
+  });
 });

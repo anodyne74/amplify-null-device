@@ -74,10 +74,10 @@
 
 .loginContainer {
   width: 100%;
-  max-width: 480px;
+  max-width: 554px;
   display: flex;
   flex-direction: column;
-  gap: var(--nd-space-xl);
+  gap: var(--nd-space-md);
 }
 
 .publicThemeToggle {
@@ -88,29 +88,20 @@
 /* Branding Section */
 .brandingSection {
   text-align: center;
-  padding: var(--nd-space-lg) 0;
+  padding: var(--nd-space-sm) 0;
 }
 
 .logo {
-  font-size: 48px;
-  color: var(--nd-accent-primary);
-  margin-bottom: var(--nd-space-md);
-  animation: logoFloat 3s ease-in-out infinite;
+  width: min(100%, 554px);
+  height: auto;
   display: inline-block;
-}
-
-@keyframes logoFloat {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
+  object-fit: contain;
 }
 
 .brandTitle {
   margin: 0 0 var(--nd-space-xs) 0;
   font-size: 32px;
+  font-family: var(--nd-font-display);
   font-weight: 700;
   color: var(--nd-text-primary);
   letter-spacing: -0.5px;
@@ -133,6 +124,7 @@
   margin: 0 0 var(--nd-space-sm) 0;
   font-size: 24px;
   font-weight: 600;
+  font-family: var(--nd-font-display);
   color: var(--nd-text-primary);
 }
 
@@ -210,6 +202,10 @@
   color: var(--nd-text-primary);
 }
 
+.authCard :global(.amplify-button:hover) {
+  background-color: var(--nd-logo-secondary);
+}
+
 .authCard :global(.amplify-alert) {
   background: rgba(255, 183, 0, 0.12);
   border-left: 4px solid var(--nd-operator-accent);
@@ -249,7 +245,7 @@
 }
 
 .footerText strong {
-  color: var(--nd-text-primary);
+  color: var(--nd-logo-secondary);
   font-weight: 600;
 }
 
@@ -286,7 +282,8 @@
   }
 
   .logo {
-    font-size: 40px;
+    width: min(78vw, 360px);
+    height: auto;
   }
 
   .brandTitle {

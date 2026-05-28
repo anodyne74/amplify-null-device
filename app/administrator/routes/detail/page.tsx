@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -13,11 +13,21 @@ import { StopForm } from '@/app/operator/components/StopForm';
 import { isAdmin } from '@/lib/amplify-config';
 import { generateAgentInitials } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
+import {
+  calculateRouteDistanceKm,
+  formatCurrency,
+  formatElapsedMinutes,
+  formatRouteDate,
+  formatRouteDateTime,
+  getRouteDurationMinutes,
+} from '@/lib/routeDetailHelpers';
+import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import { createStop, deleteRoute, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
+import { createStop, deleteRoute, getCustomer, getRouteWithStops, getUserSettings, updateRoute, updateRouteExecution, updateStopExecution } from '@/lib/queries';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import type { Route, Stop } from '@/amplify/types';
+import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
 
 const RouteStopsMap = dynamic(
@@ -29,136 +39,68 @@ const RouteStopsMap = dynamic(
 );
 
 function StatusBadge({ status }: { status?: string | null }) {
+  const presentation = getRouteStatusPresentation(status);
   const badgeClass = {
     planned: styles.badgePlanned,
-    signs_placed: styles.badgeActive,
-    signs_picked_up: styles.badgeActive,
+    active: styles.badgeActive,
     completed: styles.badgeCompleted,
     archived: styles.badgeArchived,
-  }[(status ?? 'planned') as string] ?? styles.badgePlanned;
-
-  const statusLabel = {
-    planned: 'planned',
-    signs_placed: 'signs placed',
-    signs_picked_up: 'signs picked up',
-    completed: 'completed',
-    archived: 'archived',
-  }[(status ?? 'planned') as string] ?? (status || 'unknown');
+  }[presentation.badgeKey] ?? styles.badgePlanned;
 
   return (
     <span className={`${styles.badge} ${badgeClass}`}>
-      {statusLabel}
+      {presentation.label}
     </span>
   );
 }
 
-function formatDate(dateString?: string | null) {
-  if (!dateString) return '—';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+const DEFAULT_SIGNS_COLLECTED_MINUTES = 15;
+const DEFAULT_SIGNS_RETURNED_MINUTES = 15;
+
+function phaseMinutes(start?: string | null, end?: string | null) {
+  if (!start || !end) return null;
+  return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000));
 }
 
-function formatDateTime(dateString?: string | null) {
-  if (!dateString) return '—';
-  return new Date(dateString).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+function deriveDurationBuckets(route: Route | null, durationTotalMinutes: number) {
+  const signsCollectedMinutes = DEFAULT_SIGNS_COLLECTED_MINUTES;
+  const signsReturnedMinutes = DEFAULT_SIGNS_RETURNED_MINUTES;
+  const distributable = Math.max(0, durationTotalMinutes - signsCollectedMinutes - signsReturnedMinutes);
+
+  const signsPlacedFromRoute = phaseMinutes(route?.placementStartTime, route?.placementEndTime);
+  const signsPickedUpFromRoute = phaseMinutes(route?.pickupStartTime, route?.pickupEndTime);
+
+  let signsPlacedMinutes: number;
+  let signsPickedUpMinutes: number;
+
+  if (signsPlacedFromRoute !== null || signsPickedUpFromRoute !== null) {
+    signsPlacedMinutes = signsPlacedFromRoute ?? Math.max(0, distributable - (signsPickedUpFromRoute ?? 0));
+    signsPickedUpMinutes = signsPickedUpFromRoute ?? Math.max(0, distributable - signsPlacedMinutes);
+  } else {
+    signsPlacedMinutes = Math.ceil(distributable / 2);
+    signsPickedUpMinutes = Math.max(0, distributable - signsPlacedMinutes);
+  }
+
+  return {
+    signsCollectedMinutes,
+    signsPlacedMinutes,
+    signsPickedUpMinutes,
+    signsReturnedMinutes,
+  };
 }
 
-function formatRouteDuration(route: Route) {
-  if (typeof route.actualDurationMinutes === 'number') {
-    return `${route.actualDurationMinutes} min`;
-  }
-
-  if ((route.status === 'signs_placed' || route.status === 'signs_picked_up') && route.actualStartTime) {
-    const minutes = Math.max(
-      1,
-      Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000)
-    );
-    return `${minutes} min (in progress)`;
-  }
-
-  return '—';
-}
-
-function getRouteDurationMinutes(route: Route) {
-  if (typeof route.actualDurationMinutes === 'number') {
-    return Math.max(0, route.actualDurationMinutes);
-  }
-
-  if (route.actualStartTime && route.actualEndTime) {
-    return Math.max(
-      0,
-      Math.round((new Date(route.actualEndTime).getTime() - new Date(route.actualStartTime).getTime()) / 60000)
-    );
-  }
-
-  if ((route.status === 'signs_placed' || route.status === 'signs_picked_up') && route.actualStartTime) {
-    return Math.max(1, Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000));
-  }
-
-  return null;
-}
-
-function formatMinutesAsElapsed(minutes: number | null) {
-  if (minutes === null) return '—';
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-
-  if (hours === 0) return `${remainingMinutes} min`;
-  if (remainingMinutes === 0) return `${hours}h`;
-  return `${hours}h ${remainingMinutes}m`;
-}
-
-function haversineDistanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const toRadians = (value: number) => (value * Math.PI) / 180;
-  const earthRadiusKm = 6371;
-  const dLat = toRadians(b.lat - a.lat);
-  const dLng = toRadians(b.lng - a.lng);
-  const lat1 = toRadians(a.lat);
-  const lat2 = toRadians(b.lat);
-
-  const h =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-
-  return 2 * earthRadiusKm * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
-
-function calculateRouteDistanceKm(stops: Stop[]) {
-  const orderedCoordinates = [...stops]
-    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
-    .filter(
-      (stop) => typeof stop.latitude === 'number' && typeof stop.longitude === 'number'
-    )
-    .map((stop) => ({ lat: stop.latitude as number, lng: stop.longitude as number }));
-
-  if (orderedCoordinates.length < 2) {
-    return 0;
-  }
-
-  let total = 0;
-  for (let i = 1; i < orderedCoordinates.length; i += 1) {
-    total += haversineDistanceKm(orderedCoordinates[i - 1], orderedCoordinates[i]);
-  }
-
-  return Number(total.toFixed(2));
-}
-
-function formatCurrency(amount: number | null) {
-  if (amount === null) return '—';
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+function getDurationTotalMinutes(values: {
+  signsCollectedMinutes: number;
+  signsPlacedMinutes: number;
+  signsPickedUpMinutes: number;
+  signsReturnedMinutes: number;
+}) {
+  return (
+    Math.max(0, values.signsCollectedMinutes) +
+    Math.max(0, values.signsPlacedMinutes) +
+    Math.max(0, values.signsPickedUpMinutes) +
+    Math.max(0, values.signsReturnedMinutes)
+  );
 }
 
 function isStopCompleted(stop: Stop) {
@@ -174,12 +116,12 @@ function getStopStatusLabel(stop: Stop) {
   return 'Signs pending';
 }
 
-function isPlacementPhase(status?: string | null) {
-  return status === 'signs_placed';
+function isPlacementPhase(status?: string | null, executionPhase?: string | null) {
+  return status === 'in_progress' && executionPhase === 'placement';
 }
 
-function isPickupPhase(status?: string | null) {
-  return status === 'signs_picked_up';
+function isPickupPhase(status?: string | null, executionPhase?: string | null) {
+  return status === 'in_progress' && executionPhase === 'pickup';
 }
 
 function RouteDetailContent() {
@@ -211,6 +153,8 @@ function RouteDetailContent() {
   const [editingStop, setEditingStop] = useState(false);
   const [editStopError, setEditStopError] = useState<string | null>(null);
   const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
+  const [pendingDeleteStopId, setPendingDeleteStopId] = useState<string | null>(null);
+  const [deletingStopId, setDeletingStopId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
 
@@ -218,51 +162,30 @@ function RouteDetailContent() {
   const [deletingRoute, setDeletingRoute] = useState(false);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [transitionError, setTransitionError] = useState<string | null>(null);
+  const [savingBillingOverrides, setSavingBillingOverrides] = useState(false);
+  const [billingOverrideError, setBillingOverrideError] = useState<string | null>(null);
+  const [billingOverrideSuccess, setBillingOverrideSuccess] = useState<string | null>(null);
+  const [billingOverrides, setBillingOverrides] = useState({
+    signs: 0,
+    stops: 0,
+    distanceKm: 0,
+    signsCollectedMinutes: DEFAULT_SIGNS_COLLECTED_MINUTES,
+    signsPlacedMinutes: 0,
+    signsPickedUpMinutes: 0,
+    signsReturnedMinutes: DEFAULT_SIGNS_RETURNED_MINUTES,
+    ratePerHour: 0,
+    amount: 0,
+  });
 
   // Mobile execution: per-stop completion notes
   const [stopCompletionNotes, setStopCompletionNotes] = useState<Record<string, string>>({});
   const [stopCompletionPhoto, setStopCompletionPhoto] = useState<Record<string, File | null>>({});
-
-  const completeRouteNow = useCallback(async (routeToComplete: Route) => {
-    const now = new Date();
-    const start = routeToComplete.actualStartTime ? new Date(routeToComplete.actualStartTime) : now;
-    const actualDurationMinutes = Math.round((now.getTime() - start.getTime()) / 60000);
-    const completedAt = now.toISOString();
-
-    const { errors } = await updateRouteExecution(routeToComplete.id, {
-      status: 'completed',
-      actualEndTime: completedAt,
-      actualDurationMinutes,
-    });
-
-    if (errors && errors.length > 0) {
-      setTransitionError('Failed to complete route.');
-      return false;
-    }
-
-    setRoute((r) =>
-      r
-        ? {
-            ...r,
-            status: 'completed',
-            actualEndTime: completedAt,
-            actualDurationMinutes,
-          }
-        : r
-    );
-    return true;
-  }, []);
+  const [mapTheme, setMapTheme] = useState<MapTheme>('light');
 
   const fetchStops = useCallback(async () => {
-    const client = generateClient<Schema>();
-    const { data, errors } = await client.models.Stop.list({
-      filter: { routeId: { eq: id } },
-    });
+    const { stops: allStops, errors } = await getRouteWithStops(id);
     if (!errors || errors.length === 0) {
-      const sorted = [...((data as unknown as Stop[]) || [])].sort(
-        (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
-      );
-      setStops(sorted);
+      setStops(allStops as Stop[]);
     }
   }, [id]);
 
@@ -300,17 +223,10 @@ function RouteDetailContent() {
         setStopCompletionNotes((prev) => { const n = { ...prev }; delete n[stopId]; return n; });
         setStopCompletionPhoto((prev) => { const n = { ...prev }; delete n[stopId]; return n; });
 
-        if (isPickupPhase(route.status)) {
-          const pickupStops = updatedStops.filter((s) => s.serviceType === 'pickup');
-          const allPickedUp = pickupStops.every((s) => isStopCompleted(s));
-          if (allPickedUp) {
-            await completeRouteNow(route);
-          }
-        }
       }
     } catch { /* ignore */ }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [completeRouteNow, route, stopCompletionNotes, stops]);
+  }, [route, stopCompletionNotes, stops]);
 
   const handleSkipStop = useCallback(async (stopId: string) => {
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
@@ -424,20 +340,66 @@ function RouteDetailContent() {
     if (id) fetchAll();
   }, [id, fetchStops]);
 
+  useEffect(() => {
+    if (!user?.userId) return;
+    if (typeof getUserSettings !== 'function') return;
+    let cancelled = false;
+
+    void getUserSettings(user.userId)
+      .then((result) => {
+        if (cancelled || !result.data?.mapTheme) return;
+        setMapTheme(result.data.mapTheme as MapTheme);
+      })
+      .catch(() => {
+        // Non-blocking: map defaults to light.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
+
   const handleStartRoute = async () => {
     if (!route) return;
     setTransitioning(true);
     setTransitionError(null);
     try {
       const startedAt = new Date().toISOString();
-      const { errors } = await updateRouteExecution(route.id, {
-        status: 'signs_placed',
-        actualStartTime: startedAt,
-      });
+      const isStartingPlacement = route.status === 'planned';
+      const isStartingPickup = route.status === 'signs_placed';
+
+      if (!isStartingPlacement && !isStartingPickup) {
+        setTransitioning(false);
+        return;
+      }
+
+      const { errors } = await updateRouteExecution(route.id, isStartingPlacement
+        ? {
+            status: 'in_progress',
+            executionPhase: 'placement',
+            actualStartTime: route.actualStartTime ?? startedAt,
+            placementStartTime: startedAt,
+          }
+        : {
+            status: 'in_progress',
+            executionPhase: 'pickup',
+            pickupStartTime: startedAt,
+          });
       if (errors && errors.length > 0) {
         setTransitionError('Failed to start route.');
       } else {
-        setRoute((r) => (r ? { ...r, status: 'signs_placed', actualStartTime: startedAt } : r));
+        setRoute((r) =>
+          r
+            ? {
+                ...r,
+                status: 'in_progress',
+                executionPhase: isStartingPlacement ? 'placement' : 'pickup',
+                actualStartTime: isStartingPlacement ? (r.actualStartTime ?? startedAt) : r.actualStartTime,
+                placementStartTime: isStartingPlacement ? startedAt : r.placementStartTime,
+                pickupStartTime: isStartingPickup ? startedAt : r.pickupStartTime,
+              }
+            : r
+        );
       }
     } catch {
       setTransitionError('Failed to start route.');
@@ -445,41 +407,78 @@ function RouteDetailContent() {
     setTransitioning(false);
   };
 
-  const handleStartPickupPhase = async () => {
+  const handleEndRoute = async () => {
     if (!route) return;
     setTransitioning(true);
     setTransitionError(null);
 
     try {
-      const { errors } = await updateRouteExecution(route.id, {
-        status: 'signs_picked_up',
-      });
+      if (route.status !== 'in_progress' || !route.executionPhase) {
+        setTransitioning(false);
+        return;
+      }
+
+      const now = new Date();
+      const endedAt = now.toISOString();
+      const isEndingPlacement = route.executionPhase === 'placement';
+      const startForDuration = route.actualStartTime
+        ?? route.placementStartTime
+        ?? route.pickupStartTime
+        ?? endedAt;
+      const actualDurationMinutes = Math.max(
+        0,
+        Math.round((now.getTime() - new Date(startForDuration).getTime()) / 60000)
+      );
+
+      const { errors } = await updateRouteExecution(route.id, isEndingPlacement
+        ? {
+            status: 'signs_placed',
+            executionPhase: 'placement',
+            placementEndTime: endedAt,
+          }
+        : {
+            status: 'signs_picked_up',
+            executionPhase: 'pickup',
+            pickupEndTime: endedAt,
+            actualEndTime: endedAt,
+            actualDurationMinutes,
+          });
 
       if (errors && errors.length > 0) {
-        setTransitionError('Failed to start pickup phase.');
+        setTransitionError('Failed to end route phase.');
       } else {
-        const nextRoute = { ...route, status: 'signs_picked_up' as const };
-        setRoute(nextRoute);
-
-        const pickupStops = stops.filter((stop) => stop.serviceType === 'pickup');
-        const allPickedUp = pickupStops.every((stop) => isStopCompleted(stop));
-        if (allPickedUp) {
-          await completeRouteNow(nextRoute);
-        }
+        setRoute((r) =>
+          r
+            ? {
+                ...r,
+                status: isEndingPlacement ? 'signs_placed' : 'signs_picked_up',
+                executionPhase: route.executionPhase,
+                placementEndTime: isEndingPlacement ? endedAt : r.placementEndTime,
+                pickupEndTime: isEndingPlacement ? r.pickupEndTime : endedAt,
+                actualEndTime: isEndingPlacement ? r.actualEndTime : endedAt,
+                actualDurationMinutes: isEndingPlacement ? r.actualDurationMinutes : actualDurationMinutes,
+              }
+            : r
+        );
       }
     } catch {
-      setTransitionError('Failed to start pickup phase.');
+      setTransitionError('Failed to end route phase.');
     }
 
     setTransitioning(false);
   };
 
   const handleCompleteRoute = async () => {
-    if (!route) return;
+    if (!route || route.status !== 'signs_picked_up' || !canManagePlanning) return;
     setTransitioning(true);
     setTransitionError(null);
     try {
-      await completeRouteNow(route);
+      const { errors } = await updateRouteExecution(route.id, { status: 'completed' });
+      if (errors && errors.length > 0) {
+        setTransitionError('Failed to complete route.');
+      } else {
+        setRoute((r) => (r ? { ...r, status: 'completed' } : r));
+      }
     } catch {
       setTransitionError('Failed to complete route.');
     }
@@ -501,6 +500,49 @@ function RouteDetailContent() {
       setTransitionError('Failed to confirm route completion.');
     }
     setTransitioning(false);
+  };
+
+  const handleSaveBillingOverrides = async () => {
+    if (!route || !canManagePlanning) return;
+
+    setSavingBillingOverrides(true);
+    setBillingOverrideError(null);
+    setBillingOverrideSuccess(null);
+
+    try {
+      const overrideDurationMinutes = getDurationTotalMinutes(billingOverrides);
+      const { errors } = await updateRoute(route.id, {
+        overrideSigns: billingOverrides.signs,
+        overrideStops: billingOverrides.stops,
+        overrideDistanceKm: billingOverrides.distanceKm,
+        overrideDurationMinutes,
+        overrideRate: billingOverrides.ratePerHour,
+        overrideAmount: billingOverrides.amount,
+      });
+
+      if (errors && errors.length > 0) {
+        setBillingOverrideError('Failed to save invoice values.');
+      } else {
+        setRoute((current) =>
+          current
+            ? {
+                ...current,
+                overrideSigns: billingOverrides.signs,
+                overrideStops: billingOverrides.stops,
+                overrideDistanceKm: billingOverrides.distanceKm,
+                overrideDurationMinutes,
+                overrideRate: billingOverrides.ratePerHour,
+                overrideAmount: billingOverrides.amount,
+              }
+            : current
+        );
+        setBillingOverrideSuccess('Invoice values saved.');
+      }
+    } catch {
+      setBillingOverrideError('Failed to save invoice values.');
+    }
+
+    setSavingBillingOverrides(false);
   };
 
   const handleAddStop = async (values: {
@@ -616,19 +658,32 @@ function RouteDetailContent() {
   };
 
   const handleDeleteStop = async (stopId: string) => {
-    if (!canManagePlanning) {
+    if (!canManagePlanning || deletingStopId) {
       return;
     }
-    if (!window.confirm('Delete this stop?')) return;
-    await deleteStop(stopId);
-    const remaining = stops.filter((s) => s.id !== stopId);
-    const client = generateClient<Schema>();
-    await Promise.all(
-      remaining.map((s, idx) =>
-        client.models.Stop.update({ id: s.id, sequence: idx + 1 })
-      )
-    );
-    await fetchStops();
+    setDeletingStopId(stopId);
+    setReorderError(null);
+    try {
+      const result = await deleteStop(stopId);
+      if (result.errors && result.errors.length > 0) {
+        setReorderError('Failed to delete stop. Please try again.');
+        return;
+      }
+
+      const remaining = stops.filter((s) => s.id !== stopId);
+      const client = generateClient<Schema>();
+      await Promise.all(
+        remaining.map((s, idx) =>
+          client.models.Stop.update({ id: s.id, sequence: idx + 1 })
+        )
+      );
+      setPendingDeleteStopId(null);
+      await fetchStops();
+    } catch {
+      setReorderError('Failed to delete stop. Please try again.');
+    } finally {
+      setDeletingStopId(null);
+    }
   };
 
   const handleDropStop = async (targetStopId: string) => {
@@ -703,20 +758,21 @@ function RouteDetailContent() {
   };
 
   const planningLocked = route?.status !== 'planned';
-  const visibleStops = (() => {
+  const currentPhaseStops = (() => {
     if (!route) return stops;
 
-    if (isPlacementPhase(route.status)) {
+    if (isPlacementPhase(route.status, route.executionPhase)) {
       return stops.filter((stop) => stop.serviceType !== 'pickup' && !isStopCompleted(stop));
     }
 
-    if (isPickupPhase(route.status)) {
+    if (route.status === 'signs_placed' || isPickupPhase(route.status, route.executionPhase)) {
       return stops.filter((stop) => stop.serviceType === 'pickup' && !isStopCompleted(stop));
     }
 
     return stops;
   })();
-  const topVisibleStopId = visibleStops[0]?.id ?? null;
+  const currentPhaseStopIds = new Set(currentPhaseStops.map((stop) => stop.id));
+  const topVisibleStopId = currentPhaseStops[0]?.id ?? null;
   const pickupStops = stops.filter((stop) => stop.serviceType === 'pickup');
   const allPickupStopsCompleted = pickupStops.every((stop) => isStopCompleted(stop));
   const completedStops = stops.filter((stop) => isStopCompleted(stop));
@@ -732,10 +788,51 @@ function RouteDetailContent() {
     (sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0),
     0
   );
-  const completionAmount =
-    routeDurationMinutes !== null && customerRatePerHour !== null
-      ? Number(((routeDurationMinutes / 60) * customerRatePerHour).toFixed(2))
-      : null;
+  const billingDefaults = useMemo(() => {
+    const durationMinutes = route?.overrideDurationMinutes ?? routeDurationMinutes ?? 0;
+    const durationBuckets = deriveDurationBuckets(route, durationMinutes);
+    const totalDurationMinutes = getDurationTotalMinutes(durationBuckets);
+    const ratePerHour = route?.overrideRate ?? customerRatePerHour;
+    const amount =
+      route?.overrideAmount ??
+      (ratePerHour !== null
+        ? Number(((totalDurationMinutes / 60) * ratePerHour).toFixed(2))
+        : 0);
+
+    return {
+      signs: route?.overrideSigns ?? totalSigns,
+      stops: route?.overrideStops ?? totalStops,
+      distanceKm: route?.overrideDistanceKm ?? kilometersTravelled,
+      ...durationBuckets,
+      durationMinutes: totalDurationMinutes,
+      ratePerHour: ratePerHour ?? 0,
+      amount,
+    };
+  }, [
+    customerRatePerHour,
+    kilometersTravelled,
+    route,
+    routeDurationMinutes,
+    totalSigns,
+    totalStops,
+  ]);
+
+  useEffect(() => {
+    if (!route) return;
+    setBillingOverrides(billingDefaults);
+    setBillingOverrideError(null);
+    setBillingOverrideSuccess(null);
+  }, [billingDefaults, route]);
+
+  const availableAgentsForStops = useMemo(() => {
+    const customerAgents = customerDefaults?.agentOptions ?? [];
+    const routeAgents = stops
+      .map((stop) => stop.agent?.trim())
+      .filter((agent): agent is string => Boolean(agent));
+
+    return Array.from(new Set([...customerAgents, ...routeAgents]));
+  }, [customerDefaults?.agentOptions, stops]);
+  const defaultAgentForStops = customerDefaults?.defaultAgentName ?? availableAgentsForStops[0] ?? undefined;
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
@@ -784,11 +881,11 @@ function RouteDetailContent() {
               </div>
               <div>
                 <div className={styles.infoLabel}>Created</div>
-                <div className={styles.infoValue}>{formatDate(route.createdAt)}</div>
+                <div className={styles.infoValue}>{formatRouteDate(route.createdAt)}</div>
               </div>
               <div>
                 <div className={styles.infoLabel}>Time Taken</div>
-                <div className={styles.infoValue}>{formatMinutesAsElapsed(routeDurationMinutes)}</div>
+                <div className={styles.infoValue}>{formatElapsedMinutes(routeDurationMinutes)}</div>
               </div>
               <div>
                 <div className={styles.infoLabel}>Kilometers</div>
@@ -814,22 +911,35 @@ function RouteDetailContent() {
                   {transitioning ? 'Starting…' : 'Start Route'}
                 </button>
               )}
-              {isPlacementPhase(route.status) && (
+              {route.status === 'in_progress' && (
                 <button
-                  onClick={handleStartPickupPhase}
+                  onClick={handleEndRoute}
+                  disabled={transitioning || (route.executionPhase === 'pickup' && !allPickupStopsCompleted)}
+                  className={styles.btnComplete}
+                >
+                  {transitioning
+                    ? 'Updating…'
+                    : route.executionPhase === 'pickup' && !allPickupStopsCompleted
+                    ? 'Awaiting Pickups'
+                    : 'End Route'}
+                </button>
+              )}
+              {route.status === 'signs_placed' && (
+                <button
+                  onClick={handleStartRoute}
+                  disabled={transitioning}
+                  className={styles.btnStart}
+                >
+                  {transitioning ? 'Starting…' : 'Start Route'}
+                </button>
+              )}
+              {canManagePlanning && route.status === 'signs_picked_up' && (
+                <button
+                  onClick={handleCompleteRoute}
                   disabled={transitioning}
                   className={styles.btnComplete}
                 >
-                  {transitioning ? 'Updating…' : 'Start Pickup Phase'}
-                </button>
-              )}
-              {isPickupPhase(route.status) && (
-                <button
-                  onClick={handleCompleteRoute}
-                  disabled={transitioning || !allPickupStopsCompleted}
-                  className={styles.btnComplete}
-                >
-                  {transitioning ? 'Completing…' : allPickupStopsCompleted ? 'Complete Route' : 'Awaiting Pickups'}
+                  {transitioning ? 'Completing…' : 'Complete Route'}
                 </button>
               )}
               {canManagePlanning && route.status === 'completed' && (
@@ -846,37 +956,262 @@ function RouteDetailContent() {
               )}
             </div>
 
-            {(route.status === 'completed' || route.status === 'archived') && (
+            {(route.status === 'signs_picked_up' || route.status === 'completed' || route.status === 'archived') && (
               <div className={styles.summaryCard}>
-                <h3 className={styles.summaryHeading}>Final Route Summary</h3>
+                <h3 className={styles.summaryHeading}>Route Summary</h3>
                 <div className={styles.summaryGrid}>
                   <div>
                     <div className={styles.infoLabel}>Kilometers Travelled</div>
-                    <div className={styles.infoValue}>{`${kilometersTravelled.toFixed(2)} km`}</div>
+                    <div className={styles.infoValue}>{`${billingDefaults.distanceKm.toFixed(2)} km`}</div>
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Time Taken</div>
-                    <div className={styles.infoValue}>{formatMinutesAsElapsed(routeDurationMinutes)}</div>
+                    <div className={styles.infoValue}>{formatElapsedMinutes(billingDefaults.durationMinutes)}</div>
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Stops</div>
-                    <div className={styles.infoValue}>{totalStops}</div>
+                    <div className={styles.infoValue}>{billingDefaults.stops}</div>
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Total Number of Signs</div>
-                    <div className={styles.infoValue}>{totalSigns}</div>
+                    <div className={styles.infoValue}>{billingDefaults.signs}</div>
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Customer Rate</div>
                     <div className={styles.infoValue}>
-                      {customerRatePerHour === null ? '—' : formatCurrency(customerRatePerHour)} / hr
+                      {billingDefaults.ratePerHour === 0 ? '—' : formatCurrency(billingDefaults.ratePerHour)} / hr
                     </div>
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Amount</div>
-                    <div className={styles.infoValue}>{formatCurrency(completionAmount)}</div>
+                    <div className={styles.infoValue}>{formatCurrency(billingDefaults.amount)}</div>
                   </div>
                 </div>
+
+                {canManagePlanning && (
+                  <div className={styles.billingSection}>
+                    <h4 className={styles.billingHeading}>Invoice Values</h4>
+                    <div className={styles.billingGrid}>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Signs</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={billingOverrides.signs}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => ({
+                              ...current,
+                              signs: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Stops</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={billingOverrides.stops}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => ({
+                              ...current,
+                              stops: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Distance (km)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className={styles.billingInput}
+                          value={billingOverrides.distanceKm}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => ({
+                              ...current,
+                              distanceKm: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Signs Collected (minutes)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={billingOverrides.signsCollectedMinutes}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => {
+                              const signsCollectedMinutes = Number(event.target.value);
+                              const amount = Number(
+                                ((
+                                  getDurationTotalMinutes({
+                                    ...current,
+                                    signsCollectedMinutes,
+                                  }) / 60
+                                ) * current.ratePerHour).toFixed(2)
+                              );
+                              return {
+                                ...current,
+                                signsCollectedMinutes,
+                                amount,
+                              };
+                            })
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Signs Placed (minutes)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={billingOverrides.signsPlacedMinutes}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => {
+                              const signsPlacedMinutes = Number(event.target.value);
+                              const amount = Number(
+                                ((
+                                  getDurationTotalMinutes({
+                                    ...current,
+                                    signsPlacedMinutes,
+                                  }) / 60
+                                ) * current.ratePerHour).toFixed(2)
+                              );
+                              return {
+                                ...current,
+                                signsPlacedMinutes,
+                                amount,
+                              };
+                            })
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Signs Picked Up (minutes)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={billingOverrides.signsPickedUpMinutes}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => {
+                              const signsPickedUpMinutes = Number(event.target.value);
+                              const amount = Number(
+                                ((
+                                  getDurationTotalMinutes({
+                                    ...current,
+                                    signsPickedUpMinutes,
+                                  }) / 60
+                                ) * current.ratePerHour).toFixed(2)
+                              );
+                              return {
+                                ...current,
+                                signsPickedUpMinutes,
+                                amount,
+                              };
+                            })
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Signs Returned (minutes)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={billingOverrides.signsReturnedMinutes}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => {
+                              const signsReturnedMinutes = Number(event.target.value);
+                              const amount = Number(
+                                ((
+                                  getDurationTotalMinutes({
+                                    ...current,
+                                    signsReturnedMinutes,
+                                  }) / 60
+                                ) * current.ratePerHour).toFixed(2)
+                              );
+                              return {
+                                ...current,
+                                signsReturnedMinutes,
+                                amount,
+                              };
+                            })
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Total Duration (minutes)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          className={styles.billingInput}
+                          value={getDurationTotalMinutes(billingOverrides)}
+                          readOnly
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Rate per Hour</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className={styles.billingInput}
+                          value={billingOverrides.ratePerHour}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => {
+                              const ratePerHour = Number(event.target.value);
+                              const amount = Number(((getDurationTotalMinutes(current) / 60) * ratePerHour).toFixed(2));
+                              return {
+                                ...current,
+                                ratePerHour,
+                                amount,
+                              };
+                            })
+                          }
+                        />
+                      </label>
+                      <label className={styles.billingField}>
+                        <span className={styles.billingLabel}>Amount</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className={styles.billingInput}
+                          value={billingOverrides.amount}
+                          onChange={(event) =>
+                            setBillingOverrides((current) => ({
+                              ...current,
+                              amount: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <div className={styles.billingActions}>
+                      <button
+                        type="button"
+                        className={styles.btnSaveBilling}
+                        onClick={handleSaveBillingOverrides}
+                        disabled={savingBillingOverrides}
+                      >
+                        {savingBillingOverrides ? 'Saving…' : 'Save Invoice Values'}
+                      </button>
+                      <div className={styles.billingMeta}>
+                        Default amount from duration and rate: {formatCurrency(billingDefaults.amount)}
+                      </div>
+                    </div>
+                    {billingOverrideError && <div className={styles.errorBanner}>{billingOverrideError}</div>}
+                    {billingOverrideSuccess && <div className={styles.billingSuccess}>{billingOverrideSuccess}</div>}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -885,7 +1220,8 @@ function RouteDetailContent() {
           <div className={styles.stopsSection}>
             <div className={styles.stopsHeader}>
               <h2 className={styles.stopsHeading}>
-                Stops ({visibleStops.length})
+                Stops ({stops.length})
+                {currentPhaseStops.length !== stops.length ? ` - In Current Phase: ${currentPhaseStops.length}` : ''}
               </h2>
               {canManagePlanning && !planningLocked && !showAddStop && (
                 <button
@@ -899,7 +1235,7 @@ function RouteDetailContent() {
 
             <div className={styles.mapSection}>
               <h3 className={styles.mapHeading}>Route Map</h3>
-              <RouteStopsMap stops={stops} activeStopId={topVisibleStopId} />
+              <RouteStopsMap stops={stops} activeStopId={topVisibleStopId} mapTheme={mapTheme} />
             </div>
 
             {canManagePlanning && !planningLocked && (
@@ -921,8 +1257,8 @@ function RouteDetailContent() {
                   addressSearchOrigin={customerAddressOrigin}
                   standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                   defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
-                  defaultAgentName={customerDefaults?.defaultAgentName ?? undefined}
-                  availableAgents={customerDefaults?.agentOptions ?? undefined}
+                  defaultAgentName={defaultAgentForStops}
+                  availableAgents={availableAgentsForStops}
                   isSubmitting={addingStop}
                   error={addStopError}
                   submitLabel="Add Stop"
@@ -930,11 +1266,13 @@ function RouteDetailContent() {
               </div>
             )}
 
-            {visibleStops.length === 0 && !showAddStop && (isPlacementPhase(route?.status) || isPickupPhase(route?.status)) && (
+            {currentPhaseStops.length === 0 && !showAddStop && (route?.status === 'in_progress' || route?.status === 'signs_placed') && (
               <div className={styles.emptyState}>
-                {isPlacementPhase(route?.status)
+                {isPlacementPhase(route?.status, route?.executionPhase)
                   ? 'All signs are placed. Start the pickup phase to continue.'
-                  : 'All pickup stops are complete. Route will auto-complete after final pickup.'}
+                  : route?.status === 'signs_placed'
+                  ? 'Ready for pickup phase. Click Start Route to begin pickup.'
+                  : 'All pickup stops are complete. Click End Route to finish pickup phase.'}
               </div>
             )}
 
@@ -945,7 +1283,7 @@ function RouteDetailContent() {
             )}
 
             <div className={styles.stopsList}>
-              {visibleStops.map((stop, index) => {
+              {stops.map((stop, index) => {
                 if (editingStopId === stop.id) {
                   return (
                     <div key={stop.id} className={styles.formContainer}>
@@ -967,8 +1305,8 @@ function RouteDetailContent() {
                         addressSearchOrigin={customerAddressOrigin}
                         standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                         defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
-                        defaultAgentName={customerDefaults?.defaultAgentName ?? undefined}
-                        availableAgents={customerDefaults?.agentOptions ?? undefined}
+                        defaultAgentName={defaultAgentForStops}
+                        availableAgents={availableAgentsForStops}
                         isSubmitting={editingStop}
                         error={editStopError}
                         submitLabel="Save Changes"
@@ -981,6 +1319,7 @@ function RouteDetailContent() {
                 const stopCardClass = { delivery: styles.cardDelivery, pickup: styles.cardPickup, inspection: styles.cardInspection }[svcKey] ?? '';
                 const stopCircleClass = { delivery: styles.circleDelivery, pickup: styles.circlePickup, inspection: styles.circleInspection }[svcKey] ?? '';
                 const isTopVisibleStop = stop.id === topVisibleStopId;
+                const isCurrentPhaseStop = currentPhaseStopIds.has(stop.id);
                 const completedStop = isStopCompleted(stop);
                 return (
                   <div
@@ -1036,29 +1375,50 @@ function RouteDetailContent() {
                             void handleMoveStop(stop.id, 'down');
                           }}
                           className={styles.btnReorder}
-                          disabled={index === visibleStops.length - 1 || reordering}
+                          disabled={index === stops.length - 1 || reordering}
                         >
                           Move Down
                         </button>
                         <button
                           onClick={() => setEditingStopId(stop.id)}
                           className={styles.btnEdit}
-                          disabled={reordering}
+                          disabled={reordering || !!deletingStopId}
                         >
                           Edit
                         </button>
-                        <button
-                          onClick={() => handleDeleteStop(stop.id)}
-                          className={styles.btnDelete}
-                          disabled={reordering}
-                        >
-                          Delete
-                        </button>
+                        {pendingDeleteStopId === stop.id ? (
+                          <>
+                            <button
+                              onClick={() => {
+                                void handleDeleteStop(stop.id);
+                              }}
+                              className={styles.btnDelete}
+                              disabled={reordering || !!deletingStopId}
+                            >
+                              {deletingStopId === stop.id ? 'Deleting...' : 'Confirm Delete'}
+                            </button>
+                            <button
+                              onClick={() => setPendingDeleteStopId(null)}
+                              className={styles.btnReorder}
+                              disabled={reordering || !!deletingStopId}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => setPendingDeleteStopId(stop.id)}
+                            className={styles.btnDelete}
+                            disabled={reordering || !!deletingStopId}
+                          >
+                            Delete
+                          </button>
+                        )}
                       </div>
                     )}
 
                     {/* Execution actions — visible to all operators when route is active */}
-                    {(isPlacementPhase(route?.status) || isPickupPhase(route?.status)) && (
+                    {route?.status === 'in_progress' && isCurrentPhaseStop && (
                       <div className={styles.stopExecution}>
                         {!stop.actualArrivalTime && (
                           <div className={styles.execActionRow}>
@@ -1081,7 +1441,7 @@ function RouteDetailContent() {
                         {stop.actualArrivalTime && !stop.actualDepartureTime && (
                           <div className={styles.execCompletionPanel}>
                             <span className={styles.execTimestamp}>
-                              ✓ Arrived: {formatDateTime(stop.actualArrivalTime)}
+                              ✓ Arrived: {formatRouteDateTime(stop.actualArrivalTime)}
                             </span>
                             <textarea
                               className={styles.execNotesInput}
@@ -1126,10 +1486,10 @@ function RouteDetailContent() {
                               <span className={styles.execSkippedBadge}>⏭ Skipped</span>
                             ) : (
                               <>
-                                <span>✓ Arrived: {formatDateTime(stop.actualArrivalTime)}</span>
+                                <span>✓ Arrived: {formatRouteDateTime(stop.actualArrivalTime)}</span>
                                 <span>
                                   ✓ {stop.serviceType === 'pickup' ? 'Collected' : 'Placed'}:{' '}
-                                  {formatDateTime(stop.actualDepartureTime)}
+                                  {formatRouteDateTime(stop.actualDepartureTime)}
                                 </span>
                               </>
                             )}

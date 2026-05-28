@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -11,18 +11,29 @@ import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { StopForm } from '@/app/operator/components/StopForm';
 import { isAdmin } from '@/lib/amplify-config';
-import { generateAgentInitials } from '@/lib/customerDefaults';
+import { generateAgentInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
+import {
+  calculateRouteDistanceKm,
+  formatCurrency,
+  formatElapsedMinutes,
+  formatRouteDate,
+  formatRouteDateTime,
+  getRouteDurationMinutes,
+} from '@/lib/routeDetailHelpers';
+import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
 import {
   createStop,
   deleteRoute,
   getCustomer,
   getUserSettings,
+  updateRoute,
   updateRouteExecution,
   updateStopExecution,
 } from '@/lib/queries';
 import type { MapTheme } from '@/lib/mapThemes';
+import { MAP_THEMES } from '@/lib/mapThemes';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import type { Route, Stop } from '@/amplify/types';
@@ -37,143 +48,138 @@ const RouteStopsMap = dynamic(
 );
 
 function StatusBadge({ status }: { status?: string | null }) {
+  const presentation = getRouteStatusPresentation(status);
   const badgeClass = {
     planned: styles.badgePlanned,
-    signs_placed: styles.badgeActive,
-    signs_picked_up: styles.badgeActive,
+    active: styles.badgeActive,
     completed: styles.badgeCompleted,
     archived: styles.badgeArchived,
-  }[(status ?? 'planned') as string] ?? styles.badgePlanned;
-
-  const statusLabel = {
-    planned: 'planned',
-    signs_placed: 'signs placed',
-    signs_picked_up: 'signs picked up',
-    completed: 'completed',
-    archived: 'archived',
-  }[(status ?? 'planned') as string] ?? (status || 'unknown');
+  }[presentation.badgeKey] ?? styles.badgePlanned;
 
   return (
     <span className={`${styles.badge} ${badgeClass}`}>
-      {statusLabel}
+      {presentation.label}
     </span>
   );
 }
 
-function formatDate(dateString?: string | null) {
-  if (!dateString) return '—';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+function getAgentBadgeInitials(agentName: string) {
+  const compact = agentName.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  const generated = (generateAgentInitials(agentName) ?? '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+  if (generated.length >= 2) return generated.slice(0, 2);
+  if (generated.length === 1 && compact.length >= 2) return `${generated}${compact[1]}`;
+  if (compact.length >= 2) return compact.slice(0, 2);
+  if (compact.length === 1) return `${compact}G`;
+  return 'AG';
 }
 
-function formatDateTime(dateString?: string | null) {
-  if (!dateString) return '—';
-  return new Date(dateString).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+function getPhaseDurationMinutes(route: Route, phase: ExecutionPhase) {
+  const phaseStart =
+    phase === 'pickup'
+      ? route.pickupStartTime
+      : route.placementStartTime ?? route.actualStartTime;
 
-function formatRouteDuration(route: Route) {
-  if (typeof route.actualDurationMinutes === 'number') {
-    return `${route.actualDurationMinutes} min`;
+  const phaseEnd =
+    phase === 'pickup'
+      ? route.pickupEndTime
+      : route.placementEndTime;
+
+  if (phaseStart && phaseEnd) {
+    return Math.max(0, Math.round((new Date(phaseEnd).getTime() - new Date(phaseStart).getTime()) / 60000));
   }
 
-  if ((route.status === 'signs_placed' || route.status === 'signs_picked_up') && route.actualStartTime) {
-    const minutes = Math.max(
-      1,
-      Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000)
+  if (route.status === 'in_progress' && route.executionPhase === phase && phaseStart) {
+    return Math.max(1, Math.round((Date.now() - new Date(phaseStart).getTime()) / 60000));
+  }
+
+  return 0;
+}
+
+function parseNonNegativeInt(value: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.floor(parsed);
+}
+
+function roundToNearestFive(minutes: number) {
+  return Math.max(0, Math.round(minutes / 5) * 5);
+}
+
+type ExecutionPhase = 'placement' | 'pickup';
+
+const PLACEMENT_DONE_MARKER = 'PLACEMENT_DONE';
+const PICKUP_DONE_MARKER = 'PICKUP_DONE';
+const PLACEMENT_SKIPPED_MARKER = 'PLACEMENT_SKIPPED';
+const PICKUP_SKIPPED_MARKER = 'PICKUP_SKIPPED';
+
+function removeMarker(notes: string, marker: string) {
+  return notes.replace(new RegExp(`(?:^|\\s)\\[${marker}:[^\\]]*\\]`, 'g'), ' ').replace(/\s+/g, ' ').trim();
+}
+
+function upsertMarker(notes: string | null | undefined, marker: string, atIso: string) {
+  const base = removeMarker(notes ?? '', marker);
+  return `${base}${base ? ' ' : ''}[${marker}:${atIso}]`;
+}
+
+function getMarkerTimestamp(notes: string | null | undefined, marker: string) {
+  if (!notes) return null;
+  const match = notes.match(new RegExp(`\\[${marker}:([^\\]]+)\\]`));
+  return match?.[1] ?? null;
+}
+
+function isStopSkippedForPhase(stop: Stop, phase: ExecutionPhase) {
+  if (phase === 'placement') {
+    return Boolean(getMarkerTimestamp(stop.notes, PLACEMENT_SKIPPED_MARKER));
+  }
+  return Boolean(getMarkerTimestamp(stop.notes, PICKUP_SKIPPED_MARKER));
+}
+
+function isStopCompletedForPhase(stop: Stop, phase: ExecutionPhase) {
+  if (phase === 'placement') {
+    return (
+      Boolean(getMarkerTimestamp(stop.notes, PLACEMENT_DONE_MARKER)) ||
+      Boolean(getMarkerTimestamp(stop.notes, PLACEMENT_SKIPPED_MARKER)) ||
+      (stop.serviceType !== 'pickup' && Boolean(stop.actualDepartureTime))
     );
-    return `${minutes} min (in progress)`;
   }
 
-  return '—';
+  return (
+    Boolean(getMarkerTimestamp(stop.notes, PICKUP_DONE_MARKER)) ||
+    Boolean(getMarkerTimestamp(stop.notes, PICKUP_SKIPPED_MARKER)) ||
+    (stop.serviceType === 'pickup' && Boolean(stop.actualDepartureTime))
+  );
 }
 
-function getRouteDurationMinutes(route: Route) {
-  if (typeof route.actualDurationMinutes === 'number') {
-    return Math.max(0, route.actualDurationMinutes);
-  }
-
-  if (route.actualStartTime && route.actualEndTime) {
-    return Math.max(
-      0,
-      Math.round((new Date(route.actualEndTime).getTime() - new Date(route.actualStartTime).getTime()) / 60000)
+function getPhaseCompletionTime(stop: Stop, phase: ExecutionPhase) {
+  if (phase === 'placement') {
+    return (
+      getMarkerTimestamp(stop.notes, PLACEMENT_DONE_MARKER) ||
+      getMarkerTimestamp(stop.notes, PLACEMENT_SKIPPED_MARKER)
     );
   }
 
-  if ((route.status === 'signs_placed' || route.status === 'signs_picked_up') && route.actualStartTime) {
-    return Math.max(1, Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000));
-  }
-
-  return null;
-}
-
-function formatMinutesAsElapsed(minutes: number | null) {
-  if (minutes === null) return '—';
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-
-  if (hours === 0) return `${remainingMinutes} min`;
-  if (remainingMinutes === 0) return `${hours}h`;
-  return `${hours}h ${remainingMinutes}m`;
-}
-
-function haversineDistanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const toRadians = (value: number) => (value * Math.PI) / 180;
-  const earthRadiusKm = 6371;
-  const dLat = toRadians(b.lat - a.lat);
-  const dLng = toRadians(b.lng - a.lng);
-  const lat1 = toRadians(a.lat);
-  const lat2 = toRadians(b.lat);
-
-  const h =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-
-  return 2 * earthRadiusKm * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
-
-function calculateRouteDistanceKm(stops: Stop[]) {
-  const orderedCoordinates = [...stops]
-    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
-    .filter(
-      (stop) => typeof stop.latitude === 'number' && typeof stop.longitude === 'number'
-    )
-    .map((stop) => ({ lat: stop.latitude as number, lng: stop.longitude as number }));
-
-  if (orderedCoordinates.length < 2) {
-    return 0;
-  }
-
-  let total = 0;
-  for (let i = 1; i < orderedCoordinates.length; i += 1) {
-    total += haversineDistanceKm(orderedCoordinates[i - 1], orderedCoordinates[i]);
-  }
-
-  return Number(total.toFixed(2));
-}
-
-function formatCurrency(amount: number | null) {
-  if (amount === null) return '—';
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+  return (
+    getMarkerTimestamp(stop.notes, PICKUP_DONE_MARKER) ||
+    getMarkerTimestamp(stop.notes, PICKUP_SKIPPED_MARKER)
+  );
 }
 
 function isStopCompleted(stop: Stop) {
   return Boolean(stop.actualDepartureTime);
 }
 
-function getStopStatusLabel(stop: Stop) {
+function getStopStatusLabel(stop: Stop, executionPhase?: ExecutionPhase | null) {
+  if (executionPhase) {
+    if (isStopSkippedForPhase(stop, executionPhase)) {
+      return executionPhase === 'pickup' ? 'Pickup skipped' : 'Placement skipped';
+    }
+    if (isStopCompletedForPhase(stop, executionPhase)) {
+      return executionPhase === 'pickup' ? 'Signs collected' : 'Signs placed';
+    }
+    return executionPhase === 'pickup' ? 'Awaiting pickup' : 'Awaiting placement';
+  }
+
   if (stop.notes?.startsWith('[SKIPPED]')) return 'Signs skipped';
   if (stop.actualDepartureTime) {
     return stop.serviceType === 'pickup' ? 'Signs collected' : 'Signs placed';
@@ -182,12 +188,18 @@ function getStopStatusLabel(stop: Stop) {
   return 'Signs pending';
 }
 
-function isPlacementPhase(status?: string | null) {
-  return status === 'signs_placed';
+function getPrimaryAddressLine(address?: string | null) {
+  if (!address) return '';
+  const firstSegment = address.split(',')[0]?.trim();
+  return firstSegment || address;
 }
 
-function isPickupPhase(status?: string | null) {
-  return status === 'signs_picked_up';
+function isPlacementPhase(status?: string | null, executionPhase?: string | null) {
+  return status === 'in_progress' && executionPhase === 'placement';
+}
+
+function isPickupPhase(status?: string | null, executionPhase?: string | null) {
+  return status === 'in_progress' && executionPhase === 'pickup';
 }
 
 function RouteDetailContent() {
@@ -219,6 +231,8 @@ function RouteDetailContent() {
   const [editingStop, setEditingStop] = useState(false);
   const [editStopError, setEditStopError] = useState<string | null>(null);
   const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
+  const [pendingDeleteStopId, setPendingDeleteStopId] = useState<string | null>(null);
+  const [deletingStopId, setDeletingStopId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
 
@@ -226,51 +240,65 @@ function RouteDetailContent() {
   const [deletingRoute, setDeletingRoute] = useState(false);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [transitionError, setTransitionError] = useState<string | null>(null);
+  const [phaseMetricOverrides, setPhaseMetricOverrides] = useState({
+    placementDistanceKm: '0.00',
+    placementDurationMinutes: '0',
+    pickupDistanceKm: '0.00',
+    pickupDurationMinutes: '0',
+  });
 
-  // Mobile execution: per-stop completion notes
-  const [stopCompletionNotes, setStopCompletionNotes] = useState<Record<string, string>>({});
-  const [stopCompletionPhoto, setStopCompletionPhoto] = useState<Record<string, File | null>>({});
+  const updatePhaseDurationFromSpinner = useCallback(
+    (field: 'placementDurationMinutes' | 'pickupDurationMinutes', unit: 'hours' | 'minutes', rawValue: string) => {
+      setPhaseMetricOverrides((prev) => {
+        const currentTotalMinutes = parseNonNegativeInt(prev[field]);
+        const currentHours = Math.floor(currentTotalMinutes / 60);
+        const currentMinutes = roundToNearestFive(currentTotalMinutes % 60);
+
+        if (unit === 'hours') {
+          const nextHours = parseNonNegativeInt(rawValue);
+          return {
+            ...prev,
+            [field]: String(nextHours * 60 + currentMinutes),
+          };
+        }
+
+        const nextMinutes = Math.min(55, roundToNearestFive(parseNonNegativeInt(rawValue)));
+        return {
+          ...prev,
+          [field]: String(currentHours * 60 + nextMinutes),
+        };
+      });
+    },
+    []
+  );
+  const [distanceOverrideKm, setDistanceOverrideKm] = useState('');
+  const [savingDistanceOverride, setSavingDistanceOverride] = useState(false);
+  const [distanceOverrideError, setDistanceOverrideError] = useState<string | null>(null);
+  const [distanceOverrideSuccess, setDistanceOverrideSuccess] = useState<string | null>(null);
+
   const [phaseDistanceKm, setPhaseDistanceKm] = useState({
     signs_placed: 0,
     signs_picked_up: 0,
   });
   const [currentPosition, setCurrentPosition] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapTheme, setMapTheme] = useState<MapTheme>('light');
+
+  // Persist theme selection in localStorage for user convenience
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('operatorMapTheme') : null;
+    if (stored && MAP_THEMES.some(t => t.key === stored)) {
+      setMapTheme(stored as MapTheme);
+    }
+  }, []);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('operatorMapTheme', mapTheme);
+    }
+  }, [mapTheme]);
   const gpsWatchIdRef = useRef<number | null>(null);
   const lastGpsPointRef = useRef<{ lat: number; lng: number } | null>(null);
-
-  const completeRouteNow = useCallback(async (routeToComplete: Route) => {
-    const now = new Date();
-    const start = routeToComplete.actualStartTime ? new Date(routeToComplete.actualStartTime) : now;
-    const actualDurationMinutes = Math.round((now.getTime() - start.getTime()) / 60000);
-    const completedAt = now.toISOString();
-    const pickupDistanceKm = Number(phaseDistanceKm.signs_picked_up.toFixed(2));
-
-    const { errors } = await updateRouteExecution(routeToComplete.id, {
-      status: 'completed',
-      actualEndTime: completedAt,
-      actualDurationMinutes,
-      signsPickedUpDistanceKm: pickupDistanceKm,
-    });
-
-    if (errors && errors.length > 0) {
-      setTransitionError('Failed to complete route.');
-      return false;
-    }
-
-    setRoute((r) =>
-      r
-        ? {
-            ...r,
-            status: 'completed',
-            actualEndTime: completedAt,
-            actualDurationMinutes,
-            signsPickedUpDistanceKm: pickupDistanceKm,
-          }
-        : r
-    );
-    return true;
-  }, [phaseDistanceKm.signs_picked_up]);
+  const phaseInputSeedRef = useRef<string | null>(null);
+  const wakeLockRef = useRef<{ release: () => Promise<void>; addEventListener?: (type: string, listener: () => void) => void } | null>(null);
 
   const fetchStops = useCallback(async () => {
     const client = generateClient<Schema>();
@@ -285,59 +313,54 @@ function RouteDetailContent() {
     }
   }, [id]);
 
-  const handleStopArrived = useCallback(async (stopId: string) => {
-    setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-    try {
-      const arrivedAt = new Date().toISOString();
-      const { errors } = await updateStopExecution(stopId, { actualArrivalTime: arrivedAt });
-      if (!errors || errors.length === 0) {
-        setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, actualArrivalTime: arrivedAt } : s)));
-      }
-    } catch { /* ignore */ }
-    setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, []);
-
   const handleStopCompleted = useCallback(async (stopId: string) => {
-    if (!route) return;
+    if (!route || route.status !== 'in_progress' || !route.executionPhase) return;
 
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
     try {
       const completedAt = new Date().toISOString();
-      const notes = stopCompletionNotes[stopId];
-      const updatePayload: { actualDepartureTime: string; notes?: string } = { actualDepartureTime: completedAt };
-      if (notes?.trim()) {
-        updatePayload.notes = notes.trim();
-      }
-      const { errors } = await updateStopExecution(stopId, updatePayload);
+      const phase = route.executionPhase as ExecutionPhase;
+      const completionMarker = phase === 'pickup' ? PICKUP_DONE_MARKER : PLACEMENT_DONE_MARKER;
+      const skipMarker = phase === 'pickup' ? PICKUP_SKIPPED_MARKER : PLACEMENT_SKIPPED_MARKER;
+      const existingStop = stops.find((s) => s.id === stopId);
+      const arrivedAt = existingStop?.actualArrivalTime ?? completedAt;
+      const withDoneMarker = upsertMarker(existingStop?.notes, completionMarker, completedAt);
+      const normalizedNotes = removeMarker(withDoneMarker, skipMarker);
+      const { errors } = await updateStopExecution(stopId, {
+        actualArrivalTime: arrivedAt,
+        actualDepartureTime: completedAt,
+        notes: normalizedNotes,
+      });
       if (!errors || errors.length === 0) {
         const updatedStops = stops.map((s) =>
           s.id === stopId
-            ? { ...s, actualDepartureTime: completedAt, ...(notes?.trim() ? { notes: notes.trim() } : {}) }
+            ? {
+                ...s,
+                actualArrivalTime: arrivedAt,
+                actualDepartureTime: completedAt,
+                notes: normalizedNotes,
+              }
             : s
         );
         setStops(updatedStops);
-        setStopCompletionNotes((prev) => { const n = { ...prev }; delete n[stopId]; return n; });
-        setStopCompletionPhoto((prev) => { const n = { ...prev }; delete n[stopId]; return n; });
 
-        if (isPickupPhase(route.status)) {
-          const pickupStops = updatedStops.filter((s) => s.serviceType === 'pickup');
-          const allPickedUp = pickupStops.every((s) => isStopCompleted(s));
-          if (allPickedUp) {
-            await completeRouteNow(route);
-          }
-        }
       }
     } catch { /* ignore */ }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [completeRouteNow, route, stopCompletionNotes, stops]);
+  }, [route, stops]);
 
   const handleSkipStop = useCallback(async (stopId: string) => {
+    if (!route || route.status !== 'in_progress' || !route.executionPhase) return;
+
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
     try {
       const now = new Date().toISOString();
+      const phase = route.executionPhase as ExecutionPhase;
+      const skipMarker = phase === 'pickup' ? PICKUP_SKIPPED_MARKER : PLACEMENT_SKIPPED_MARKER;
+      const doneMarker = phase === 'pickup' ? PICKUP_DONE_MARKER : PLACEMENT_DONE_MARKER;
       const existingStop = stops.find((s) => s.id === stopId);
-      const existingNotes = existingStop?.notes ?? '';
-      const skippedNotes = existingNotes ? `[SKIPPED] ${existingNotes}` : '[SKIPPED]';
+      const withSkipMarker = upsertMarker(existingStop?.notes, skipMarker, now);
+      const skippedNotes = removeMarker(withSkipMarker, doneMarker);
       const { errors } = await updateStopExecution(stopId, {
         actualArrivalTime: now,
         actualDepartureTime: now,
@@ -354,7 +377,7 @@ function RouteDetailContent() {
       }
     } catch { /* ignore */ }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [stops]);
+  }, [route, stops]);
 
   const persistStopOrder = useCallback(
     async (orderedStops: Stop[]) => {
@@ -467,7 +490,7 @@ function RouteDetailContent() {
   }, [user?.userId]);
 
   useEffect(() => {
-    if (!route || (route.status !== 'signs_placed' && route.status !== 'signs_picked_up')) {
+    if (!route || route.status !== 'in_progress' || !route.executionPhase) {
       if (gpsWatchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
         navigator.geolocation.clearWatch(gpsWatchIdRef.current);
       }
@@ -481,7 +504,7 @@ function RouteDetailContent() {
     }
 
     lastGpsPointRef.current = null;
-    const activePhase = route.status;
+    const activePhase = route.executionPhase === 'pickup' ? 'signs_picked_up' : 'signs_placed';
 
     gpsWatchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
@@ -533,30 +556,140 @@ function RouteDetailContent() {
     };
   }, [route]);
 
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof navigator === 'undefined') {
+      return;
+    }
+
+    const isExecutionActive = route?.status === 'in_progress';
+    const wakeLockApi = (
+      navigator as Navigator & {
+        wakeLock?: {
+          request: (type: 'screen') => Promise<{
+            release: () => Promise<void>;
+            addEventListener?: (type: string, listener: () => void) => void;
+          }>;
+        };
+      }
+    ).wakeLock;
+
+    let cancelled = false;
+
+    const releaseWakeLock = async () => {
+      if (!wakeLockRef.current) return;
+      try {
+        await wakeLockRef.current.release();
+      } catch {
+        // Ignore release failures.
+      } finally {
+        wakeLockRef.current = null;
+      }
+    };
+
+    const requestWakeLock = async () => {
+      if (!wakeLockApi || !isExecutionActive || document.visibilityState !== 'visible') {
+        return;
+      }
+
+      try {
+        const sentinel = await wakeLockApi.request('screen');
+
+        if (cancelled) {
+          await sentinel.release();
+          return;
+        }
+
+        wakeLockRef.current = sentinel;
+        if (typeof sentinel.addEventListener === 'function') {
+          sentinel.addEventListener('release', () => {
+            if (wakeLockRef.current === sentinel) {
+              wakeLockRef.current = null;
+            }
+          });
+        }
+      } catch {
+        // Non-blocking fallback when wake lock is not supported or denied.
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isExecutionActive) {
+        void requestWakeLock();
+      }
+    };
+
+    if (isExecutionActive) {
+      void requestWakeLock();
+    } else {
+      void releaseWakeLock();
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      void releaseWakeLock();
+    };
+  }, [route?.status]);
+
   const handleStartRoute = async () => {
     if (!route) return;
     setTransitioning(true);
     setTransitionError(null);
     try {
       const startedAt = new Date().toISOString();
-      const { errors } = await updateRouteExecution(route.id, {
-        status: 'signs_placed',
-        actualStartTime: startedAt,
-        signsPlacedDistanceKm: 0,
-        signsPickedUpDistanceKm: 0,
-      });
+      const isStartingPlacement = route.status === 'planned';
+      const isStartingPickup = route.status === 'signs_placed';
+
+      if (!isStartingPlacement && !isStartingPickup) {
+        setTransitioning(false);
+        return;
+      }
+
+      const { errors } = await updateRouteExecution(route.id, isStartingPlacement
+        ? {
+            status: 'in_progress',
+            executionPhase: 'placement',
+            actualStartTime: route.actualStartTime ?? startedAt,
+            placementStartTime: startedAt,
+            signsPlacedDistanceKm: route.signsPlacedDistanceKm ?? 0,
+            signsPickedUpDistanceKm: route.signsPickedUpDistanceKm ?? 0,
+          }
+        : {
+            status: 'in_progress',
+            executionPhase: 'pickup',
+            pickupStartTime: startedAt,
+          });
       if (errors && errors.length > 0) {
         setTransitionError('Failed to start route.');
       } else {
-        setPhaseDistanceKm({ signs_placed: 0, signs_picked_up: 0 });
+        if (isStartingPlacement) {
+          setPhaseDistanceKm({ signs_placed: 0, signs_picked_up: 0 });
+          setPhaseMetricOverrides({
+            placementDistanceKm: '0.00',
+            placementDurationMinutes: '0',
+            pickupDistanceKm: '0.00',
+            pickupDurationMinutes: '0',
+          });
+        } else if (isStartingPickup) {
+          setPhaseMetricOverrides((prev) => ({
+            ...prev,
+            pickupDistanceKm: (route.signsPickedUpDistanceKm ?? 0).toFixed(2),
+            pickupDurationMinutes: '0',
+          }));
+        }
         setRoute((r) =>
           r
             ? {
                 ...r,
-                status: 'signs_placed',
-                actualStartTime: startedAt,
-                signsPlacedDistanceKm: 0,
-                signsPickedUpDistanceKm: 0,
+                status: 'in_progress',
+                executionPhase: isStartingPlacement ? 'placement' : 'pickup',
+                actualStartTime: isStartingPlacement ? (r.actualStartTime ?? startedAt) : r.actualStartTime,
+                placementStartTime: isStartingPlacement ? startedAt : r.placementStartTime,
+                pickupStartTime: isStartingPickup ? startedAt : r.pickupStartTime,
+                signsPlacedDistanceKm: isStartingPlacement ? 0 : r.signsPlacedDistanceKm,
+                signsPickedUpDistanceKm: isStartingPlacement ? 0 : r.signsPickedUpDistanceKm,
               }
             : r
         );
@@ -567,44 +700,139 @@ function RouteDetailContent() {
     setTransitioning(false);
   };
 
-  const handleStartPickupPhase = async () => {
+  const handleEndRoute = async () => {
     if (!route) return;
     setTransitioning(true);
     setTransitionError(null);
 
     try {
-      const placementDistanceKm = Number(phaseDistanceKm.signs_placed.toFixed(2));
-      const { errors } = await updateRouteExecution(route.id, {
-        status: 'signs_picked_up',
-        signsPlacedDistanceKm: placementDistanceKm,
-      });
+      if (route.status !== 'in_progress' || !route.executionPhase) {
+        setTransitioning(false);
+        return;
+      }
+
+      const now = new Date();
+      const endedAt = now.toISOString();
+      const isEndingPlacement = route.executionPhase === 'placement';
+      const placementDistanceOverrideKm = Number(phaseMetricOverrides.placementDistanceKm);
+      const pickupDistanceOverrideKm = Number(phaseMetricOverrides.pickupDistanceKm);
+      const placementDurationOverrideMinutes = Number(phaseMetricOverrides.placementDurationMinutes);
+      const pickupDurationOverrideMinutes = Number(phaseMetricOverrides.pickupDurationMinutes);
+
+      const parsedDistanceKm = isEndingPlacement ? placementDistanceOverrideKm : pickupDistanceOverrideKm;
+      const parsedDurationMinutes = isEndingPlacement ? placementDurationOverrideMinutes : pickupDurationOverrideMinutes;
+
+      if (!Number.isFinite(parsedDistanceKm) || parsedDistanceKm < 0) {
+        setTransitionError('Distance must be a number greater than or equal to 0.');
+        setTransitioning(false);
+        return;
+      }
+
+      if (!Number.isFinite(parsedDurationMinutes) || parsedDurationMinutes < 0) {
+        setTransitionError('Duration must be a number greater than or equal to 0.');
+        setTransitioning(false);
+        return;
+      }
+
+      const phaseDistanceOverrideKm = Number(parsedDistanceKm.toFixed(2));
+      const roundedPlacementDistanceKm = Number((Number.isFinite(placementDistanceOverrideKm) ? placementDistanceOverrideKm : 0).toFixed(2));
+      const roundedPickupDistanceKm = Number((Number.isFinite(pickupDistanceOverrideKm) ? pickupDistanceOverrideKm : 0).toFixed(2));
+      const roundedPlacementDurationMinutes = Math.max(0, Math.round(Number.isFinite(placementDurationOverrideMinutes) ? placementDurationOverrideMinutes : 0));
+      const roundedPickupDurationMinutes = Math.max(0, Math.round(Number.isFinite(pickupDurationOverrideMinutes) ? pickupDurationOverrideMinutes : 0));
+
+      const pickupDistanceKm = isEndingPlacement
+        ? roundedPickupDistanceKm
+        : phaseDistanceOverrideKm;
+      const placementDistanceKm = isEndingPlacement
+        ? phaseDistanceOverrideKm
+        : roundedPlacementDistanceKm;
+
+      const startForDuration = route.actualStartTime
+        ?? route.placementStartTime
+        ?? route.pickupStartTime
+        ?? endedAt;
+      const computedRouteDurationMinutes = Math.max(
+        0,
+        Math.round((now.getTime() - new Date(startForDuration).getTime()) / 60000)
+      );
+      const placementStartForDuration = route.placementStartTime ?? route.actualStartTime ?? endedAt;
+      const computedPlacementDurationMinutes = Math.max(
+        0,
+        Math.round((now.getTime() - new Date(placementStartForDuration).getTime()) / 60000)
+      );
+      const totalOverrideDurationMinutes = roundedPlacementDurationMinutes + roundedPickupDurationMinutes;
+      const actualDurationMinutes = isEndingPlacement
+        ? (roundedPlacementDurationMinutes || computedPlacementDurationMinutes)
+        : (totalOverrideDurationMinutes || computedRouteDurationMinutes);
+      const persistedOverrideDurationMinutes = isEndingPlacement
+        ? roundedPlacementDurationMinutes
+        : totalOverrideDurationMinutes;
+
+      const { errors } = await updateRouteExecution(route.id, isEndingPlacement
+        ? {
+            status: 'signs_placed',
+            executionPhase: 'placement',
+            placementEndTime: endedAt,
+            signsPlacedDistanceKm: placementDistanceKm,
+            signsPickedUpDistanceKm: pickupDistanceKm,
+            actualDurationMinutes,
+          }
+        : {
+            status: 'signs_picked_up',
+            executionPhase: 'pickup',
+            pickupEndTime: endedAt,
+            actualEndTime: endedAt,
+            actualDurationMinutes,
+            signsPlacedDistanceKm: placementDistanceKm,
+            signsPickedUpDistanceKm: pickupDistanceKm,
+          });
 
       if (errors && errors.length > 0) {
-        setTransitionError('Failed to start pickup phase.');
+        setTransitionError('Failed to end route phase.');
       } else {
+        await updateRoute(route.id, {
+          overrideDurationMinutes: persistedOverrideDurationMinutes,
+        });
+
         setRoute((r) =>
           r
             ? {
                 ...r,
-                status: 'signs_picked_up',
+                status: isEndingPlacement ? 'signs_placed' : 'signs_picked_up',
+                executionPhase: route.executionPhase,
+                placementEndTime: isEndingPlacement ? endedAt : r.placementEndTime,
+                pickupEndTime: isEndingPlacement ? r.pickupEndTime : endedAt,
+                actualEndTime: isEndingPlacement ? r.actualEndTime : endedAt,
+                actualDurationMinutes,
+                overrideDurationMinutes: persistedOverrideDurationMinutes,
                 signsPlacedDistanceKm: placementDistanceKm,
+                signsPickedUpDistanceKm: pickupDistanceKm,
               }
             : r
         );
+        setPhaseDistanceKm({
+          signs_placed: placementDistanceKm,
+          signs_picked_up: pickupDistanceKm,
+        });
       }
     } catch {
-      setTransitionError('Failed to start pickup phase.');
+      setTransitionError('Failed to end route phase.');
     }
 
     setTransitioning(false);
   };
 
   const handleCompleteRoute = async () => {
-    if (!route) return;
+    if (!route || route.status !== 'signs_picked_up' || !canManagePlanning) return;
     setTransitioning(true);
     setTransitionError(null);
     try {
-      await completeRouteNow(route);
+      const { errors } = await updateRouteExecution(route.id, { status: 'completed' });
+      if (errors && errors.length > 0) {
+        setTransitionError('Failed to complete route.');
+      } else {
+        setRoute((r) => (r ? { ...r, status: 'completed' } : r));
+      }
     } catch {
       setTransitionError('Failed to complete route.');
     }
@@ -626,6 +854,45 @@ function RouteDetailContent() {
       setTransitionError('Failed to confirm route completion.');
     }
     setTransitioning(false);
+  };
+
+  const handleSaveDistanceOverride = async () => {
+    if (!route || !canManagePlanning) return;
+
+    const parsedDistance = Number(distanceOverrideKm);
+    if (Number.isNaN(parsedDistance) || parsedDistance < 0) {
+      setDistanceOverrideError('Distance must be a number greater than or equal to 0.');
+      setDistanceOverrideSuccess(null);
+      return;
+    }
+
+    setSavingDistanceOverride(true);
+    setDistanceOverrideError(null);
+    setDistanceOverrideSuccess(null);
+
+    try {
+      const { errors } = await updateRoute(route.id, {
+        overrideDistanceKm: Number(parsedDistance.toFixed(2)),
+      });
+
+      if (errors && errors.length > 0) {
+        setDistanceOverrideError('Failed to save distance override.');
+      } else {
+        setRoute((current) =>
+          current
+            ? {
+                ...current,
+                overrideDistanceKm: Number(parsedDistance.toFixed(2)),
+              }
+            : current
+        );
+        setDistanceOverrideSuccess('Distance override saved.');
+      }
+    } catch {
+      setDistanceOverrideError('Failed to save distance override.');
+    }
+
+    setSavingDistanceOverride(false);
   };
 
   const handleAddStop = async (values: {
@@ -741,19 +1008,32 @@ function RouteDetailContent() {
   };
 
   const handleDeleteStop = async (stopId: string) => {
-    if (!canManagePlanning) {
+    if (!canManagePlanning || deletingStopId) {
       return;
     }
-    if (!window.confirm('Delete this stop?')) return;
-    await deleteStop(stopId);
-    const remaining = stops.filter((s) => s.id !== stopId);
-    const client = generateClient<Schema>();
-    await Promise.all(
-      remaining.map((s, idx) =>
-        client.models.Stop.update({ id: s.id, sequence: idx + 1 })
-      )
-    );
-    await fetchStops();
+    setDeletingStopId(stopId);
+    setReorderError(null);
+    try {
+      const result = await deleteStop(stopId);
+      if (result.errors && result.errors.length > 0) {
+        setReorderError('Failed to delete stop. Please try again.');
+        return;
+      }
+
+      const remaining = stops.filter((s) => s.id !== stopId);
+      const client = generateClient<Schema>();
+      await Promise.all(
+        remaining.map((s, idx) =>
+          client.models.Stop.update({ id: s.id, sequence: idx + 1 })
+        )
+      );
+      setPendingDeleteStopId(null);
+      await fetchStops();
+    } catch {
+      setReorderError('Failed to delete stop. Please try again.');
+    } finally {
+      setDeletingStopId(null);
+    }
   };
 
   const handleDropStop = async (targetStopId: string) => {
@@ -828,22 +1108,26 @@ function RouteDetailContent() {
   };
 
   const planningLocked = route?.status !== 'planned';
+  const isExecutionMode = route?.status === 'in_progress';
+  const currentExecutionPhase = route?.executionPhase === 'pickup' ? 'pickup' : 'placement';
+  const placementPhaseStops = stops.filter((stop) => stop.serviceType !== 'pickup');
+  const pickupPhaseStops = stops.filter((stop) => stop.serviceType !== 'inspection');
   const visibleStops = (() => {
     if (!route) return stops;
 
-    if (isPlacementPhase(route.status)) {
-      return stops.filter((stop) => stop.serviceType !== 'pickup' && !isStopCompleted(stop));
+    if (isPlacementPhase(route.status, route.executionPhase)) {
+      return placementPhaseStops.filter((stop) => !isStopCompletedForPhase(stop, 'placement'));
     }
 
-    if (isPickupPhase(route.status)) {
-      return stops.filter((stop) => stop.serviceType === 'pickup' && !isStopCompleted(stop));
+    if (route.status === 'signs_placed' || isPickupPhase(route.status, route.executionPhase)) {
+      return pickupPhaseStops.filter((stop) => !isStopCompletedForPhase(stop, 'pickup'));
     }
 
     return stops;
   })();
   const topVisibleStopId = visibleStops[0]?.id ?? null;
-  const pickupStops = stops.filter((stop) => stop.serviceType === 'pickup');
-  const allPickupStopsCompleted = pickupStops.every((stop) => isStopCompleted(stop));
+  const allPickupStopsCompleted =
+    pickupPhaseStops.length === 0 || pickupPhaseStops.every((stop) => isStopCompletedForPhase(stop, 'pickup'));
   const completedStops = stops.filter((stop) => isStopCompleted(stop));
   const summaryStops = route?.status === 'completed' || route?.status === 'archived'
     ? completedStops.length > 0
@@ -852,6 +1136,7 @@ function RouteDetailContent() {
     : stops;
   const routeDurationMinutes = route ? getRouteDurationMinutes(route) : null;
   const kilometersTravelled = calculateRouteDistanceKm(summaryStops);
+  const effectiveKilometersTravelled = route?.overrideDistanceKm ?? kilometersTravelled;
   const totalStops = summaryStops.length;
   const totalSigns = summaryStops.reduce(
     (sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0),
@@ -861,8 +1146,51 @@ function RouteDetailContent() {
     routeDurationMinutes !== null && customerRatePerHour !== null
       ? Number(((routeDurationMinutes / 60) * customerRatePerHour).toFixed(2))
       : null;
+  const availableAgentsForStops = useMemo(() => {
+    const customerAgents = customerDefaults?.agentOptions ?? [];
+    const routeAgents = stops
+      .map((stop) => stop.agent?.trim())
+      .filter((agent): agent is string => Boolean(agent));
+
+    return Array.from(new Set([...customerAgents, ...routeAgents]));
+  }, [customerDefaults?.agentOptions, stops]);
+  const defaultAgentForStops = customerDefaults?.defaultAgentName ?? availableAgentsForStops[0] ?? undefined;
   const placementDistance = phaseDistanceKm.signs_placed;
   const pickupDistance = phaseDistanceKm.signs_picked_up;
+  const isPickupExecutionPhase = route?.status === 'in_progress' && route.executionPhase === 'pickup';
+  const phaseLabelPrefix = isPickupExecutionPhase ? 'Pickup' : 'Placement';
+
+  useEffect(() => {
+    if (!route || route.status !== 'in_progress' || !route.executionPhase) {
+      phaseInputSeedRef.current = null;
+      return;
+    }
+
+    const phaseKey = `${route.id}:${route.status}:${route.executionPhase}`;
+    if (phaseInputSeedRef.current === phaseKey) {
+      return;
+    }
+    phaseInputSeedRef.current = phaseKey;
+
+    setPhaseMetricOverrides({
+      placementDistanceKm: phaseDistanceKm.signs_placed.toFixed(2),
+      placementDurationMinutes: String(getPhaseDurationMinutes(route, 'placement')),
+      pickupDistanceKm: phaseDistanceKm.signs_picked_up.toFixed(2),
+      pickupDurationMinutes: String(getPhaseDurationMinutes(route, 'pickup')),
+    });
+  }, [
+    phaseDistanceKm.signs_picked_up,
+    phaseDistanceKm.signs_placed,
+    route,
+  ]);
+
+  useEffect(() => {
+    if (!route) return;
+    const initialDistance = route.overrideDistanceKm ?? kilometersTravelled;
+    setDistanceOverrideKm(initialDistance.toFixed(2));
+    setDistanceOverrideError(null);
+    setDistanceOverrideSuccess(null);
+  }, [kilometersTravelled, route]);
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
@@ -888,9 +1216,11 @@ function RouteDetailContent() {
                 Route {route.routeCode || route.id.slice(0, 8)}
               </h1>
               <StatusBadge status={route.status} />
-              <Link href={`/operator/routes/edit?id=${route.id}`} className={styles.btnRouteEdit}>
-                Edit Route
-              </Link>
+              {canManagePlanning && (
+                <Link href={`/administrator/routes/edit?id=${route.id}`} className={styles.btnRouteEdit}>
+                  Edit Route
+                </Link>
+              )}
               {canManagePlanning && (
                 <button
                   onClick={() => {
@@ -911,24 +1241,104 @@ function RouteDetailContent() {
               </div>
               <div>
                 <div className={styles.infoLabel}>Created</div>
-                <div className={styles.infoValue}>{formatDate(route.createdAt)}</div>
+                <div className={styles.infoValue}>{formatRouteDate(route.createdAt)}</div>
               </div>
               <div>
                 <div className={styles.infoLabel}>Time Taken</div>
-                <div className={styles.infoValue}>{formatMinutesAsElapsed(routeDurationMinutes)}</div>
+                <div className={styles.infoValue}>{formatElapsedMinutes(routeDurationMinutes)}</div>
               </div>
               <div>
                 <div className={styles.infoLabel}>Kilometers</div>
-                <div className={styles.infoValue}>{`${kilometersTravelled.toFixed(2)} km`}</div>
+                <div className={styles.infoValue}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</div>
               </div>
-              <div>
-                <div className={styles.infoLabel}>Placement Distance</div>
-                <div className={styles.infoValue}>{`${placementDistance.toFixed(2)} km`}</div>
-              </div>
-              <div>
-                <div className={styles.infoLabel}>Pickup Distance</div>
-                <div className={styles.infoValue}>{`${pickupDistance.toFixed(2)} km`}</div>
-              </div>
+              <label className={styles.phaseCompletionField}>
+                <span className={styles.infoLabel}>Placement Distance (km)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className={styles.phaseCompletionInput}
+                  value={phaseMetricOverrides.placementDistanceKm}
+                  onChange={(event) =>
+                    setPhaseMetricOverrides((prev) => ({ ...prev, placementDistanceKm: event.target.value }))
+                  }
+                  disabled={transitioning}
+                />
+              </label>
+              <label className={styles.phaseCompletionField}>
+                <span className={styles.infoLabel}>Placement Time</span>
+                <div className={styles.phaseDurationSpinnerRow}>
+                  <label className={styles.phaseDurationUnit}>
+                    <span className={styles.phaseDurationUnitLabel}>h</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      className={styles.phaseCompletionInput}
+                      value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) / 60)}
+                      onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'hours', event.target.value)}
+                      disabled={transitioning}
+                    />
+                  </label>
+                  <label className={styles.phaseDurationUnit}>
+                    <span className={styles.phaseDurationUnitLabel}>m</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="55"
+                      step="5"
+                      className={styles.phaseCompletionInput}
+                      value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) % 60)}
+                      onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'minutes', event.target.value)}
+                      disabled={transitioning}
+                    />
+                  </label>
+                </div>
+              </label>
+              <label className={styles.phaseCompletionField}>
+                <span className={styles.infoLabel}>Pickup Distance (km)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className={styles.phaseCompletionInput}
+                  value={phaseMetricOverrides.pickupDistanceKm}
+                  onChange={(event) =>
+                    setPhaseMetricOverrides((prev) => ({ ...prev, pickupDistanceKm: event.target.value }))
+                  }
+                  disabled={transitioning}
+                />
+              </label>
+              <label className={styles.phaseCompletionField}>
+                <span className={styles.infoLabel}>Pickup Time</span>
+                <div className={styles.phaseDurationSpinnerRow}>
+                  <label className={styles.phaseDurationUnit}>
+                    <span className={styles.phaseDurationUnitLabel}>h</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      className={styles.phaseCompletionInput}
+                      value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) / 60)}
+                      onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'hours', event.target.value)}
+                      disabled={transitioning}
+                    />
+                  </label>
+                  <label className={styles.phaseDurationUnit}>
+                    <span className={styles.phaseDurationUnitLabel}>m</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="55"
+                      step="5"
+                      className={styles.phaseCompletionInput}
+                      value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) % 60)}
+                      onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'minutes', event.target.value)}
+                      disabled={transitioning}
+                    />
+                  </label>
+                </div>
+              </label>
             </div>
 
             {route.notes && (
@@ -940,6 +1350,9 @@ function RouteDetailContent() {
 
             {/* Status transitions */}
             <div className={styles.transitionRow}>
+              {route.status === 'in_progress' && (
+                <div className={styles.infoLabel}>{`Ending ${phaseLabelPrefix} phase using header metrics`}</div>
+              )}
               {route.status === 'planned' && (
                 <button
                   onClick={handleStartRoute}
@@ -949,22 +1362,35 @@ function RouteDetailContent() {
                   {transitioning ? 'Starting…' : 'Start Route'}
                 </button>
               )}
-              {isPlacementPhase(route.status) && (
+              {route.status === 'in_progress' && (
                 <button
-                  onClick={handleStartPickupPhase}
+                  onClick={handleEndRoute}
+                  disabled={transitioning || (route.executionPhase === 'pickup' && !allPickupStopsCompleted)}
+                  className={styles.btnComplete}
+                >
+                  {transitioning
+                    ? 'Updating…'
+                    : route.executionPhase === 'pickup' && !allPickupStopsCompleted
+                    ? 'Awaiting Pickups'
+                    : 'End Route'}
+                </button>
+              )}
+              {route.status === 'signs_placed' && (
+                <button
+                  onClick={handleStartRoute}
+                  disabled={transitioning}
+                  className={styles.btnStart}
+                >
+                  {transitioning ? 'Starting…' : 'Start Route'}
+                </button>
+              )}
+              {canManagePlanning && route.status === 'signs_picked_up' && (
+                <button
+                  onClick={handleCompleteRoute}
                   disabled={transitioning}
                   className={styles.btnComplete}
                 >
-                  {transitioning ? 'Updating…' : 'Start Pickup Phase'}
-                </button>
-              )}
-              {isPickupPhase(route.status) && (
-                <button
-                  onClick={handleCompleteRoute}
-                  disabled={transitioning || !allPickupStopsCompleted}
-                  className={styles.btnComplete}
-                >
-                  {transitioning ? 'Completing…' : allPickupStopsCompleted ? 'Complete Route' : 'Awaiting Pickups'}
+                  {transitioning ? 'Completing…' : 'Complete Route'}
                 </button>
               )}
               {canManagePlanning && route.status === 'completed' && (
@@ -987,7 +1413,7 @@ function RouteDetailContent() {
                 <div className={styles.summaryGrid}>
                   <div>
                     <div className={styles.infoLabel}>Kilometers Travelled</div>
-                    <div className={styles.infoValue}>{`${kilometersTravelled.toFixed(2)} km`}</div>
+                    <div className={styles.infoValue}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</div>
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Placement Distance</div>
@@ -999,7 +1425,7 @@ function RouteDetailContent() {
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Time Taken</div>
-                    <div className={styles.infoValue}>{formatMinutesAsElapsed(routeDurationMinutes)}</div>
+                    <div className={styles.infoValue}>{formatElapsedMinutes(routeDurationMinutes)}</div>
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Stops</div>
@@ -1020,6 +1446,39 @@ function RouteDetailContent() {
                     <div className={styles.infoValue}>{formatCurrency(completionAmount)}</div>
                   </div>
                 </div>
+
+                {canManagePlanning && route.status === 'completed' && (
+                  <div className={styles.distanceOverrideSection}>
+                    <h4 className={styles.distanceOverrideHeading}>Distance Override</h4>
+                    <div className={styles.distanceOverrideRow}>
+                      <label className={styles.distanceOverrideLabel} htmlFor="distanceOverrideKm">
+                        Kilometers Travelled
+                      </label>
+                      <input
+                        id="distanceOverrideKm"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className={styles.distanceOverrideInput}
+                        value={distanceOverrideKm}
+                        onChange={(event) => setDistanceOverrideKm(event.target.value)}
+                        disabled={savingDistanceOverride}
+                      />
+                      <button
+                        type="button"
+                        className={styles.btnSaveDistanceOverride}
+                        onClick={() => {
+                          void handleSaveDistanceOverride();
+                        }}
+                        disabled={savingDistanceOverride}
+                      >
+                        {savingDistanceOverride ? 'Saving…' : 'Save Distance'}
+                      </button>
+                    </div>
+                    {distanceOverrideError && <div className={styles.errorBanner}>{distanceOverrideError}</div>}
+                    {distanceOverrideSuccess && <div className={styles.distanceOverrideSuccess}>{distanceOverrideSuccess}</div>}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1040,7 +1499,7 @@ function RouteDetailContent() {
               )}
             </div>
 
-            <div className={styles.mapSection}>
+            <div className={`${styles.mapSection} ${isExecutionMode ? styles.mapSectionExecutionMobile : ''}`}>
               <h3 className={styles.mapHeading}>Route Map</h3>
               <RouteStopsMap
                 stops={stops}
@@ -1069,8 +1528,8 @@ function RouteDetailContent() {
                   addressSearchOrigin={customerAddressOrigin}
                   standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                   defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
-                  defaultAgentName={customerDefaults?.defaultAgentName ?? undefined}
-                  availableAgents={customerDefaults?.agentOptions ?? undefined}
+                  defaultAgentName={defaultAgentForStops}
+                  availableAgents={availableAgentsForStops}
                   isSubmitting={addingStop}
                   error={addStopError}
                   submitLabel="Add Stop"
@@ -1078,11 +1537,15 @@ function RouteDetailContent() {
               </div>
             )}
 
-            {visibleStops.length === 0 && !showAddStop && (isPlacementPhase(route?.status) || isPickupPhase(route?.status)) && (
+            {visibleStops.length === 0 && !showAddStop && (route?.status === 'in_progress' || route?.status === 'signs_placed') && (
               <div className={styles.emptyState}>
-                {isPlacementPhase(route?.status)
+                {isPlacementPhase(route?.status, route?.executionPhase)
                   ? 'All signs are placed. Start the pickup phase to continue.'
-                  : 'All pickup stops are complete. Route will auto-complete after final pickup.'}
+                  : route?.status === 'signs_placed'
+                  ? 'Ready for pickup phase. Click Start Route to begin pickup.'
+                  : pickupPhaseStops.length === 0
+                  ? 'No pickup-phase stops on this route. The route can be completed.'
+                  : 'All pickup stops are complete. Click End Route to finish pickup phase.'}
               </div>
             )}
 
@@ -1092,7 +1555,7 @@ function RouteDetailContent() {
               </div>
             )}
 
-            <div className={styles.stopsList}>
+            <div className={`${styles.stopsList} ${isExecutionMode ? styles.stopsListExecutionMobile : ''}`}>
               {visibleStops.map((stop, index) => {
                 if (editingStopId === stop.id) {
                   return (
@@ -1115,8 +1578,8 @@ function RouteDetailContent() {
                         addressSearchOrigin={customerAddressOrigin}
                         standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                         defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
-                        defaultAgentName={customerDefaults?.defaultAgentName ?? undefined}
-                        availableAgents={customerDefaults?.agentOptions ?? undefined}
+                        defaultAgentName={defaultAgentForStops}
+                        availableAgents={availableAgentsForStops}
                         isSubmitting={editingStop}
                         error={editStopError}
                         submitLabel="Save Changes"
@@ -1128,12 +1591,19 @@ function RouteDetailContent() {
                 const svcKey = (stop.serviceType as string) || 'delivery';
                 const stopCardClass = { delivery: styles.cardDelivery, pickup: styles.cardPickup, inspection: styles.cardInspection }[svcKey] ?? '';
                 const stopCircleClass = { delivery: styles.circleDelivery, pickup: styles.circlePickup, inspection: styles.circleInspection }[svcKey] ?? '';
+                const agentName = stop.agent?.trim() || 'Unassigned';
+                const agentInitials = getAgentBadgeInitials(agentName);
+                const agentBadgeTone = getAgentBadgeTone(agentName);
                 const isTopVisibleStop = stop.id === topVisibleStopId;
-                const completedStop = isStopCompleted(stop);
+                const completedStop = isStopCompletedForPhase(stop, currentExecutionPhase);
+                const executionActive = route?.status === 'in_progress';
+                const phaseComplete = isStopCompletedForPhase(stop, currentExecutionPhase);
+                const phaseSkipped = isStopSkippedForPhase(stop, currentExecutionPhase);
+                const phaseCompletedAt = getPhaseCompletionTime(stop, currentExecutionPhase) ?? stop.actualDepartureTime;
                 return (
                   <div
                     key={stop.id}
-                    className={`${styles.stopCard} ${stopCardClass} ${isTopVisibleStop ? styles.stopCardTop : ''} ${completedStop ? styles.stopCardCompleted : ''} ${draggingStopId === stop.id ? styles.stopCardDragging : ''}`}
+                    className={`${styles.stopCard} ${stopCardClass} ${isTopVisibleStop ? styles.stopCardTop : ''} ${completedStop ? styles.stopCardCompleted : ''} ${draggingStopId === stop.id ? styles.stopCardDragging : ''} ${isExecutionMode ? styles.stopCardExecutionCompact : ''}`}
                     draggable={canManagePlanning && !planningLocked && !reordering}
                     onDragStart={() => setDraggingStopId(stop.id)}
                     onDragOver={(event) => {
@@ -1146,145 +1616,135 @@ function RouteDetailContent() {
                     }}
                     onDragEnd={() => setDraggingStopId(null)}
                   >
-                    {/* Sequence circle */}
-                    <div className={`${styles.circle} ${stopCircleClass}`}>
-                      {stop.sequence ?? '?'}
+                    <div className={`${styles.stopSegment} ${styles.stopSegmentNumber}`}>
+                      <div className={`${styles.circle} ${stopCircleClass}`}>
+                        {stop.sequence ?? '?'}
+                      </div>
                     </div>
 
-                    {/* Details */}
-                    <div>
+                    <div className={`${styles.stopSegment} ${styles.stopSegmentAddress}`}>
                       <div className={styles.stopAddress}>
-                        {stop.formattedAddress || stop.address}
+                        {getPrimaryAddressLine(stop.formattedAddress || stop.address)}
                       </div>
-                      <div className={styles.stopStatus}>{getStopStatusLabel(stop)}</div>
-                      {stop.agent && (
-                        <div className={styles.stopAgentBadge}>
-                          <span className={styles.stopAgentInitials}>
-                            {generateAgentInitials(stop.agent) ?? stop.agent.slice(0, 2).toUpperCase()}
-                          </span>
-                          <span>{stop.agent}</span>
+                    </div>
+
+                    <div className={`${styles.stopSegment} ${styles.stopSegmentMeta}`}>
+                      <div className={styles.stopStatus}>{getStopStatusLabel(stop, currentExecutionPhase)}</div>
+                      <span
+                        className={`${styles.stopAgentBadge} ${styles.stopAgentBadgeCircle}`}
+                        aria-label={agentName}
+                        title={agentName}
+                        style={{
+                          '--nd-agent-badge-bg': agentBadgeTone.backgroundColor,
+                          '--nd-agent-badge-fg': agentBadgeTone.color,
+                        } as React.CSSProperties}
+                      >
+                        {agentInitials}
+                      </span>
+                    </div>
+
+                    <div className={`${styles.stopSegment} ${styles.stopSegmentAction}`}>
+                      {canManagePlanning && !planningLocked && !executionActive && (
+                        <div className={styles.stopActions}>
+                          <button
+                            onClick={() => {
+                              void handleMoveStop(stop.id, 'up');
+                            }}
+                            className={styles.btnReorder}
+                            disabled={index === 0 || reordering}
+                          >
+                            Move Up
+                          </button>
+                          <button
+                            onClick={() => {
+                              void handleMoveStop(stop.id, 'down');
+                            }}
+                            className={styles.btnReorder}
+                            disabled={index === visibleStops.length - 1 || reordering}
+                          >
+                            Move Down
+                          </button>
+                          <button
+                            onClick={() => setEditingStopId(stop.id)}
+                            className={styles.btnEdit}
+                            disabled={reordering || !!deletingStopId}
+                          >
+                            Edit
+                          </button>
+                          {pendingDeleteStopId === stop.id ? (
+                            <>
+                              <button
+                                onClick={() => {
+                                  void handleDeleteStop(stop.id);
+                                }}
+                                className={styles.btnDelete}
+                                disabled={reordering || !!deletingStopId}
+                              >
+                                {deletingStopId === stop.id ? 'Deleting...' : 'Confirm Delete'}
+                              </button>
+                              <button
+                                onClick={() => setPendingDeleteStopId(null)}
+                                className={styles.btnReorder}
+                                disabled={reordering || !!deletingStopId}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => setPendingDeleteStopId(stop.id)}
+                              className={styles.btnDelete}
+                              disabled={reordering || !!deletingStopId}
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       )}
+
+                      {executionActive && (
+                        <>
+                          {!phaseComplete && (
+                            <div className={styles.execActionRow}>
+                              <button
+                                onClick={() => { void handleStopCompleted(stop.id); }}
+                                className={styles.btnExecComplete}
+                                disabled={!!stopExecuting[stop.id]}
+                              >
+                                {stopExecuting[stop.id]
+                                  ? 'Saving…'
+                                  : currentExecutionPhase === 'pickup'
+                                  ? 'Signs Picked Up'
+                                  : 'Signs Placed'}
+                              </button>
+                              <button
+                                onClick={() => { void handleSkipStop(stop.id); }}
+                                className={styles.btnSkip}
+                                disabled={!!stopExecuting[stop.id]}
+                              >
+                                Skip Stop
+                              </button>
+                            </div>
+                          )}
+                          {phaseComplete && (
+                            <div className={styles.execDone}>
+                              {phaseSkipped ? (
+                                <span className={styles.execSkippedBadge}>⏭ Skipped</span>
+                              ) : (
+                                <>
+                                  <span>
+                                    ✓ {currentExecutionPhase === 'pickup' ? 'Collected' : 'Placed'}:{' '}
+                                    {formatRouteDateTime(phaseCompletedAt)}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
-
-                    {/* Actions */}
-                    {canManagePlanning && !planningLocked && (
-                      <div className={styles.stopActions}>
-                        <button
-                          onClick={() => {
-                            void handleMoveStop(stop.id, 'up');
-                          }}
-                          className={styles.btnReorder}
-                          disabled={index === 0 || reordering}
-                        >
-                          Move Up
-                        </button>
-                        <button
-                          onClick={() => {
-                            void handleMoveStop(stop.id, 'down');
-                          }}
-                          className={styles.btnReorder}
-                          disabled={index === visibleStops.length - 1 || reordering}
-                        >
-                          Move Down
-                        </button>
-                        <button
-                          onClick={() => setEditingStopId(stop.id)}
-                          className={styles.btnEdit}
-                          disabled={reordering}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteStop(stop.id)}
-                          className={styles.btnDelete}
-                          disabled={reordering}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Execution actions — visible to all operators when route is active */}
-                    {(isPlacementPhase(route?.status) || isPickupPhase(route?.status)) && (
-                      <div className={styles.stopExecution}>
-                        {!stop.actualArrivalTime && (
-                          <div className={styles.execActionRow}>
-                            <button
-                              onClick={() => { void handleStopArrived(stop.id); }}
-                              className={styles.btnArrived}
-                              disabled={!!stopExecuting[stop.id]}
-                            >
-                              {stopExecuting[stop.id] ? 'Saving…' : '📍 Arrived'}
-                            </button>
-                            <button
-                              onClick={() => { void handleSkipStop(stop.id); }}
-                              className={styles.btnSkip}
-                              disabled={!!stopExecuting[stop.id]}
-                            >
-                              Skip Stop
-                            </button>
-                          </div>
-                        )}
-                        {stop.actualArrivalTime && !stop.actualDepartureTime && (
-                          <div className={styles.execCompletionPanel}>
-                            <span className={styles.execTimestamp}>
-                              ✓ Arrived: {formatDateTime(stop.actualArrivalTime)}
-                            </span>
-                            <textarea
-                              className={styles.execNotesInput}
-                              placeholder="Add completion notes (optional)…"
-                              rows={2}
-                              value={stopCompletionNotes[stop.id] ?? ''}
-                              onChange={(e) =>
-                                setStopCompletionNotes((prev) => ({ ...prev, [stop.id]: e.target.value }))
-                              }
-                            />
-                            <label className={styles.execPhotoLabel}>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                className={styles.execPhotoInput}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0] ?? null;
-                                  setStopCompletionPhoto((prev) => ({ ...prev, [stop.id]: file }));
-                                }}
-                              />
-                              {stopCompletionPhoto[stop.id]
-                                ? `📷 ${stopCompletionPhoto[stop.id]!.name}`
-                                : '📷 Attach Photo (optional)'}
-                            </label>
-                            <button
-                              onClick={() => { void handleStopCompleted(stop.id); }}
-                              className={styles.btnExecComplete}
-                              disabled={!!stopExecuting[stop.id]}
-                            >
-                              {stopExecuting[stop.id]
-                                ? 'Saving…'
-                                : stop.serviceType === 'pickup'
-                                ? '✓ Collected Signs'
-                                : '✓ Placed Signs'}
-                            </button>
-                          </div>
-                        )}
-                        {stop.actualArrivalTime && stop.actualDepartureTime && (
-                          <div className={styles.execDone}>
-                            {stop.notes?.startsWith('[SKIPPED]') ? (
-                              <span className={styles.execSkippedBadge}>⏭ Skipped</span>
-                            ) : (
-                              <>
-                                <span>✓ Arrived: {formatDateTime(stop.actualArrivalTime)}</span>
-                                <span>
-                                  ✓ {stop.serviceType === 'pickup' ? 'Collected' : 'Placed'}:{' '}
-                                  {formatDateTime(stop.actualDepartureTime)}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}                  </div>                );
+                  </div>
+                );
               })}
             </div>
           </div>

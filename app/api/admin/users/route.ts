@@ -332,16 +332,33 @@ export async function POST(request: NextRequest) {
       }
 
       const email = body.email.trim().toLowerCase();
-      const response = await cognitoClient.send(
-        new ListUsersCommand({
-          UserPoolId: userPoolId,
-          Limit: 60,
-        })
-      );
+      const escapedEmail = email.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      let paginationToken: string | undefined;
+      let matched: {
+        Username?: string;
+        Enabled?: boolean;
+        UserStatus?: string;
+        UserCreateDate?: Date;
+        UserLastModifiedDate?: Date;
+        Attributes?: { Name?: string; Value?: string }[];
+      } | undefined;
 
-      const matched = (response.Users || []).find(
-        (user) => getAttributeValue(user.Attributes, 'email')?.toLowerCase() === email
-      );
+      do {
+        const response = await cognitoClient.send(
+          new ListUsersCommand({
+            UserPoolId: userPoolId,
+            Filter: `email = "${escapedEmail}"`,
+            Limit: 60,
+            PaginationToken: paginationToken,
+          } as any)
+        );
+
+        matched = (response.Users || []).find(
+          (user) => getAttributeValue(user.Attributes, 'email')?.toLowerCase() === email
+        );
+        paginationToken = (response as any).PaginationToken as string | undefined;
+      } while (!matched && paginationToken);
+
       if (!matched) {
         return NextResponse.json({ error: `No user found for email ${email}.` }, { status: 404 });
       }

@@ -20,6 +20,16 @@
   --nd-text-muted: rgba(255, 255, 255, 0.38);
   --nd-text-inverse: #0a0a0a;
 
+  /* Logo – primary blue */
+  --nd-logo-primary: #5D65E6;
+  --nd-logo-primary-dim: rgba(93, 101, 230, 0.15);
+  --nd-logo-primary-glow: 0 0 12px rgba(93, 101, 230, 0.4);
+
+  /* Logo – secondary purple */
+  --nd-logo-secondary: #ad80e8;
+  --nd-logo-secondary-dim: rgba(173, 128, 232, 0.15);
+  --nd-logo-secondary-glow: 0 0 12px rgba(173, 128, 232, 0.4);
+
   /* Accent – primary neon green */
   --nd-accent-primary: #00ff88;
   --nd-accent-primary-dim: rgba(0, 255, 136, 0.15);
@@ -61,6 +71,7 @@
   --nd-transition-base: 0.25s ease;
 
   /* Typography */
+  --nd-font-display: var(--font-comfortaa, Comfortaa, sans-serif);
   --nd-font-mono: var(--font-jetbrains-mono, 'JetBrains Mono', 'Fira Code', monospace);
   --nd-font-body: var(--font-inter, Inter, system-ui, sans-serif);
 
@@ -150,7 +161,7 @@ body {
 h1,
 h2,
 h3 {
-  font-family: var(--nd-font-mono);
+  font-family: var(--nd-font-display);
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -195,7 +206,7 @@ button {
   padding: 0.6em 1.2em;
   font-size: 0.9rem;
   font-weight: 600;
-  font-family: var(--nd-font-mono);
+  font-family: var(--nd-font-display);
   letter-spacing: 0.03em;
   background-color: var(--nd-bg-elevated);
   color: var(--nd-text-primary);
@@ -205,11 +216,11 @@ button {
               box-shadow var(--nd-transition-fast);
 }
 button:hover {
-  border-color: var(--nd-accent-primary);
-  box-shadow: var(--nd-accent-primary-glow);
+  border-color: var(--nd-logo-primary);
+  box-shadow: var(--nd-logo-primary-glow);
 }
 button:focus-visible {
-  outline: 2px solid var(--nd-accent-primary);
+  outline: 2px solid var(--nd-logo-primary);
   outline-offset: 2px;
 }
 
@@ -217,18 +228,27 @@ button:focus-visible {
    Amplify Authenticator Overrides
    ───────────────────────────────────────────────────────────────────────────── */
 [data-amplify-authenticator] {
+  --amplify-font-family: var(--nd-font-display);
+  --amplify-components-tabs-item-hover-color: var(--nd-text-primary);
+  --amplify-components-tabs-item-active-color: var(--nd-logo-primary);
+  --amplify-components-tabs-item-active-border-color: var(--nd-logo-primary);
+  --amplify-components-button-primary-background-color: var(--nd-logo-primary);
   --amplify-colors-background-primary: var(--nd-bg-surface);
   --amplify-colors-background-secondary: var(--nd-bg-elevated);
   --amplify-colors-border-primary: var(--nd-border-default);
-  --amplify-colors-brand-primary-10: var(--nd-accent-primary-dim);
-  --amplify-colors-brand-primary-80: var(--nd-accent-primary);
-  --amplify-colors-brand-primary-90: var(--nd-accent-primary);
-  --amplify-colors-brand-primary-100: var(--nd-accent-primary);
+  --amplify-colors-brand-primary-10: var(--nd-logo-primary-dim);
+  --amplify-colors-brand-primary-80: var(--nd-logo-primary);
+  --amplify-colors-brand-primary-90: var(--nd-logo-primary);
+  --amplify-colors-brand-primary-100: var(--nd-logo-primary);
   --amplify-colors-font-primary: var(--nd-text-primary);
   --amplify-colors-font-secondary: var(--nd-text-secondary);
   --amplify-components-authenticator-container-width-max: 420px;
   --amplify-radii-small: var(--nd-radius-sm);
   --amplify-radii-medium: var(--nd-radius-md);
+  --amplify-components-button-link-color: var(--nd-logo-primary);
+  --amplify-components-button-link-hover-color: var(--nd-text-primary);
+  --amplify-colors-hover-background-color: var(--nd-accent-primary);
+  --amplify-components-hover-background-color: var(--nd-accent-primary);
 }
 
 [data-amplify-router]{

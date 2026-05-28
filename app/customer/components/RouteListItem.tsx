@@ -1,7 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import RouteStatusBadge from '@/app/components/RouteStatusBadge';
 import type { Route } from '@/amplify/types';
+import { formatRouteDate } from '@/lib/routeDetailHelpers';
+import { formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
 import styles from './RouteListItem.module.css';
 
 interface RouteListItemProps {
@@ -13,37 +16,7 @@ interface RouteListItemProps {
  * Displays a single route in the list view
  */
 export default function RouteListItem({ route }: RouteListItemProps) {
-  const getStatusLabel = (status: string) => {
-    return status.replace(/_/g, ' ').charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const formatDuration = (minutes?: number | null): string => {
-    if (!minutes) return 'N/A';
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
-  };
-
-  const statusClass =
-    (({
-      scheduled: styles.badgePlanned,
-      in_progress: styles.badgeActive,
-      completed: styles.badgeCompleted,
-      cancelled: styles.badgeDanger,
-      signs_placed: styles.badgeActive,
-      signs_picked_up: styles.badgeActive,
-      planned: styles.badgePlanned,
-      archived: styles.badgeArchived,
-    } as Record<string, string>)[route.status ?? '']) ?? styles.badgePlanned;
+  const createdDate = formatRouteDate(route.createdAt);
 
   return (
     <Link href={`/customer/routes/${route.id}`}>
@@ -60,16 +33,14 @@ export default function RouteListItem({ route }: RouteListItemProps) {
 
         {/* Status Badge */}
         <div>
-          <span className={`${styles.badge} ${statusClass}`}>
-            {getStatusLabel(route.status || 'unknown')}
-          </span>
+          <RouteStatusBadge status={route.status} classes={styles} />
         </div>
 
         {/* Date */}
         <div>
           <p className={styles.metaLabel}>Created</p>
           <p className={styles.metaValue}>
-            {formatDate(route.createdAt)}
+            {createdDate === '—' ? 'N/A' : createdDate}
           </p>
         </div>
 
@@ -77,7 +48,7 @@ export default function RouteListItem({ route }: RouteListItemProps) {
         <div>
           <p className={styles.metaLabel}>Duration</p>
           <p className={styles.metaValue}>
-            {formatDuration(route.estimatedDurationMinutes as number | undefined)}
+            {formatEstimatedDurationMinutes(route.estimatedDurationMinutes as number | undefined)}
           </p>
         </div>
       </div>

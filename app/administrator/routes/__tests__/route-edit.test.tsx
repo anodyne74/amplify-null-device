@@ -129,6 +129,12 @@ describe('Administrator Route Edit Page', () => {
       errors: undefined,
     });
 
+    (queriesModule.getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: mockRoute,
+      stops: mockStops,
+      errors: undefined,
+    });
+
     (queriesModule.createStop as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
     (queriesModule.updateRoute as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
 

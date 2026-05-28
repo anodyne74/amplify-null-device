@@ -267,30 +267,6 @@ export async function updateCustomer(
 }
 
 /**
- * Allow a customer account owner to update only standing instructions and stop defaults.
- */
-export async function updateCustomerDefaultsForUser(
-  userSub: string,
-  updates: Partial<{
-    standingInstructions: string;
-    defaultNumberOfSigns: number;
-    defaultAgentName: string;
-    defaultAgentInitials: string;
-    agentOptions: string[];
-  }>
-) {
-  const context = await getCustomerPortalContext(userSub);
-  if (context.role !== 'account_owner') {
-    return {
-      data: null,
-      errors: [new Error('Only the customer account owner can update standing instructions.')],
-    };
-  }
-
-  return updateCustomer(context.customerId, updates);
-}
-
-/**
  * Delete a customer record.
  */
 export async function deleteCustomer(customerId: string) {
@@ -393,32 +369,6 @@ export async function getRouteWithStops(routeId: string) {
   } catch (error) {
     console.error('Error getting route with stops:', error);
     return { route: null, stops: [], errors: [error] };
-  }
-}
-
-/**
- * Fetch all invoices for a specific customer
- */
-export async function listCustomerInvoices(
-  customerId: string,
-  options?: { limit?: number; nextToken?: string }
-) {
-  try {
-    const { data, errors } = await getClient().models.Invoice.list({
-      filter: { customerId: { eq: customerId } },
-      limit: options?.limit || 20,
-      nextToken: options?.nextToken,
-    });
-
-    if (errors) {
-      console.error('Errors fetching invoices:', errors);
-      return { data: [], errors };
-    }
-
-    return { data: data || [], errors };
-  } catch (error) {
-    console.error('Error listing customer invoices:', error);
-    return { data: [], errors: [error] };
   }
 }
 
@@ -677,35 +627,6 @@ export async function createStop(input: {
 }
 
 /**
- * Fetch operator-visible routes.
- */
-export async function listOperatorRoutes(options?: { limit?: number; nextToken?: string }) {
-  try {
-    const { data, errors } = await getClient().models.Route.list({
-      limit: options?.limit || 20,
-      nextToken: options?.nextToken,
-    });
-
-    if (errors) {
-      console.error('Errors fetching operator routes:', errors);
-      return { data: [], errors };
-    }
-
-    return { data: data || [], errors };
-  } catch (error) {
-    console.error('Error listing operator routes:', error);
-    return { data: [], errors: [error] };
-  }
-}
-
-/**
- * Fetch one route and all ordered stops for operator consumption.
- */
-export async function getOperatorRouteDetail(routeId: string) {
-  return getRouteWithStops(routeId);
-}
-
-/**
  * Create an invoice for a customer.
  */
 export async function createInvoice(input: {
@@ -800,53 +721,6 @@ export async function createLineItem(input: {
     console.error('Error creating line item:', error);
     return { data: null, errors: [error] };
   }
-}
-
-/**
- * Create a payment record for a customer.
- */
-export async function createPaymentRecord(input: {
-  customerId: string;
-  invoiceId?: string;
-  paymentDate: string;
-  amount: number;
-  paymentMethod: 'credit_card' | 'bank_transfer' | 'check' | 'other';
-  referenceNumber?: string;
-  status: 'pending' | 'completed' | 'failed' | 'refunded';
-  notes?: string;
-}) {
-  try {
-    const { data, errors } = await getClient().models.PaymentRecord.create(input);
-
-    if (errors) {
-      console.error('Errors creating payment record:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error creating payment record:', error);
-    return { data: null, errors: [error] };
-  }
-}
-
-/**
- * Subscribe to route updates in real-time
- */
-export function subscribeToRoute(routeId: string, onUpdate: (route: any) => void) {
-  const subscription = getClient().models.Route.observeQuery({
-    filter: { id: { eq: routeId } },
-  }).subscribe({
-    next: (data) => {
-      if (data.items && data.items.length > 0) {
-        onUpdate(data.items[0]);
-      }
-    },
-    error: (error) => {
-      console.error('Subscription error:', error);
-    },
-  });
-
-  return () => subscription.unsubscribe();
 }
 
 /**

@@ -11,6 +11,13 @@ import { parseAgentOptionsInput, stringifyAgentOptions } from '@/lib/customerDef
 import { getCustomer, getCustomerPortalContext, getUserSettings, updateCustomer } from '@/lib/queries';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
+import {
+  formatCurrency,
+  formatDuration,
+  formatPeriodDisplay,
+  formatPeriodSummary,
+  getDeltaPercent,
+} from '@/lib/dashboardAnalytics';
 import styles from '@/app/dashboard.module.css';
 import PeriodSelector from '../../components/PeriodSelector';
 import KpiCard from '../../components/KpiCard';
@@ -27,57 +34,6 @@ type CustomerInvoice = {
   invoiceDate?: string | null;
   createdAt?: string | null;
 };
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDuration(minutes: number) {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}:${mins.toString().padStart(2, '0')}:00`;
-}
-
-function getDeltaPercent(current: number, previous: number): number {
-  if (previous === 0) {
-    return current === 0 ? 0 : 100;
-  }
-
-  return Math.round(((current - previous) / previous) * 100);
-}
-
-function formatPeriodDisplay(periodKey: string, period: AnalyticsPeriod): string {
-  if (period === 'quarter') return periodKey;
-  if (period === 'year') return periodKey;
-  if (period === 'month') return periodKey;
-  return periodKey;
-}
-
-function formatPeriodSummary(period: AnalyticsPeriod, date = new Date()): string {
-  if (period === 'week') {
-    const start = new Date(date);
-    start.setDate(date.getDate() - date.getDay());
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    return `Week ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`;
-  }
-
-  if (period === 'month') {
-    return date.toLocaleString('en-AU', { month: 'long', year: 'numeric' });
-  }
-
-  if (period === 'quarter') {
-    const quarter = Math.floor(date.getMonth() / 3) + 1;
-    return `Quarter ${quarter} ${date.getFullYear()}`;
-  }
-
-  return `Year ${date.getFullYear()}`;
-}
 
 /**
  * Customer Dashboard

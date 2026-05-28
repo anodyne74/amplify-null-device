@@ -1,6 +1,9 @@
 'use client';
 
+import RouteStatusBadge from '@/app/components/RouteStatusBadge';
 import type { Route } from '@/amplify/types';
+import { formatRouteDate } from '@/lib/routeDetailHelpers';
+import { formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
 import styles from './RouteCard.module.css';
 
 interface RouteCardProps {
@@ -12,36 +15,8 @@ interface RouteCardProps {
  * Displays a route in card format for list view
  */
 export default function RouteCard({ route }: RouteCardProps) {
-  const getStatusLabel = (status?: string | null) => {
-    switch (status) {
-      case 'completed':
-        return 'Completed';
-      case 'in_progress':
-        return 'In Progress';
-      case 'signs_picked_up':
-        return 'Signs Picked Up';
-      case 'signs_placed':
-        return 'Signs Placed';
-      case 'planned':
-        return 'Planned';
-      case 'archived':
-        return 'Archived';
-      default:
-        return 'Unknown';
-    }
-  };
-
   const stopCount = route.stops?.length || 0;
-
-  const statusClass =
-    {
-      planned: styles.badgePlanned,
-      in_progress: styles.badgeActive,
-      signs_placed: styles.badgeActive,
-      signs_picked_up: styles.badgeActive,
-      completed: styles.badgeCompleted,
-      archived: styles.badgeArchived,
-    }[route.status ?? 'planned'] ?? styles.badgePlanned;
+  const createdDate = formatRouteDate(route.createdAt);
 
   return (
     <div className={styles.card}>
@@ -50,9 +25,7 @@ export default function RouteCard({ route }: RouteCardProps) {
         <h3 className={styles.title}>
           Route {route.id.slice(0, 8)}...
         </h3>
-        <span className={`${styles.badge} ${statusClass}`}>
-          {getStatusLabel(route.status)}
-        </span>
+        <RouteStatusBadge status={route.status} classes={styles} />
       </div>
 
       {/* Route Info */}
@@ -63,19 +36,14 @@ export default function RouteCard({ route }: RouteCardProps) {
 
         {route.estimatedDurationMinutes && (
           <p className={styles.meta}>
-            <strong>Duration:</strong> {Math.floor(route.estimatedDurationMinutes / 60)}h{' '}
-            {route.estimatedDurationMinutes % 60}m
+            <strong>Duration:</strong> {formatEstimatedDurationMinutes(route.estimatedDurationMinutes)}
           </p>
         )}
 
         {route.createdAt && (
           <p className={styles.meta}>
             <strong>Created:</strong>{' '}
-            {new Date(route.createdAt).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            })}
+            {createdDate}
           </p>
         )}
       </div>

@@ -7,6 +7,13 @@ import type { Schema } from '@/amplify/data/resource';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { listInvoices } from '@/lib/queries';
 import type { Route } from '@/amplify/types';
+import {
+  formatCurrency,
+  formatDuration,
+  formatPeriodDisplay,
+  formatPeriodSummary,
+  getDeltaPercent,
+} from '@/lib/dashboardAnalytics';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import styles from '@/app/dashboard.module.css';
 import PeriodSelector from '../../components/PeriodSelector';
@@ -26,57 +33,6 @@ type Invoice = {
   status?: 'draft' | 'finalized' | 'sent' | 'paid' | null;
   emailSentAt?: string | null;
 };
-
-function getDeltaPercent(current: number, previous: number): number {
-  if (previous === 0) {
-    return current === 0 ? 0 : 100;
-  }
-
-  return Math.round(((current - previous) / previous) * 100);
-}
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDuration(minutes: number) {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return `${hours}:${mins.toString().padStart(2, '0')}:00`;
-}
-
-function formatPeriodDisplay(periodKey: string, period: AnalyticsPeriod): string {
-  if (period === 'quarter') return periodKey;
-  if (period === 'year') return periodKey;
-  if (period === 'month') return periodKey;
-  return periodKey;
-}
-
-function formatPeriodSummary(period: AnalyticsPeriod, date = new Date()): string {
-  if (period === 'week') {
-    const start = new Date(date);
-    start.setDate(date.getDate() - date.getDay());
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    return `Week ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`;
-  }
-
-  if (period === 'month') {
-    return date.toLocaleString('en-AU', { month: 'long', year: 'numeric' });
-  }
-
-  if (period === 'quarter') {
-    const quarter = Math.floor(date.getMonth() / 3) + 1;
-    return `Quarter ${quarter} ${date.getFullYear()}`;
-  }
-
-  return `Year ${date.getFullYear()}`;
-}
 
 export default function AdminHomePage() {
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -177,11 +133,35 @@ export default function AdminHomePage() {
   const periodLabel = formatPeriodDisplay(currentPeriodKey, selectedPeriod as AnalyticsPeriod);
   const periodSummary = formatPeriodSummary(selectedPeriod as AnalyticsPeriod);
 
-  const completedRoutes = []; // Placeholder for completed routes data
-  const totalCompletedDistance = 0; // Placeholder for total completed distance
-  const totalCompletedHours = 0; // Placeholder for total completed hours
-  const totalInvoicedAmount = 0; // Placeholder for total invoiced amount
-  const totalOutstandingBalance = 0; // Placeholder for total outstanding balance
+  const completedRoutes = useMemo(
+    () => routes.filter((route) => route.status === 'completed'),
+    [routes]
+  );
+  const totalCompletedDistance = useMemo(
+    () =>
+      completedRoutes.reduce(
+        (sum, route) =>
+          sum + (typeof route.signsPlacedDistanceKm === 'number' ? route.signsPlacedDistanceKm : 0) +
+          (typeof route.signsPickedUpDistanceKm === 'number' ? route.signsPickedUpDistanceKm : 0),
+        0
+      ),
+    [completedRoutes]
+  );
+  const totalCompletedHours = useMemo(
+    () => completedRoutes.reduce((sum, route) => sum + (typeof route.actualDurationMinutes === 'number' ? route.actualDurationMinutes : 0), 0),
+    [completedRoutes]
+  );
+  const totalInvoicedAmount = useMemo(
+    () => invoices.reduce((sum, invoice) => sum + (typeof invoice.totalAmount === 'number' ? invoice.totalAmount : 0), 0),
+    [invoices]
+  );
+  const totalOutstandingBalance = useMemo(
+    () =>
+      invoices
+        .filter((invoice) => invoice.status !== 'paid')
+        .reduce((sum, invoice) => sum + (typeof invoice.totalAmount === 'number' ? invoice.totalAmount : 0), 0),
+    [invoices]
+  );
 
   return (
     <OperatorRoute requireAdmin>

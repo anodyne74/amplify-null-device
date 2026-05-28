@@ -1,4 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { CognitoJwtVerifier } from 'aws-jwt-verify';
+import outputs from '@/amplify_outputs.json';
 
 interface StaticMapMarker {
   latitude: number;
@@ -13,7 +15,48 @@ function toMarkerLabel(sequence: number | null | undefined, index: number) {
   return String((index + 1) % 10);
 }
 
-export async function POST(request: Request) {
+type VerifiedClaims = {
+  'cognito:groups'?: string[];
+};
+
+const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
+const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
+
+const verifier = userPoolId && userPoolClientId
+  ? CognitoJwtVerifier.create({
+      userPoolId,
+      tokenUse: 'id',
+      clientId: userPoolClientId,
+    })
+  : null;
+
+function getBearerToken(request: NextRequest): string | null {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return null;
+  }
+
+  return authHeader.slice('Bearer '.length).trim();
+}
+
+export async function POST(request: NextRequest) {
+  const token = getBearerToken(request);
+  if (!token || !verifier) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  let claims: VerifiedClaims;
+  try {
+    claims = (await verifier.verify(token)) as VerifiedClaims;
+  } catch {
+    return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+  }
+
+  const groups = Array.isArray(claims['cognito:groups']) ? claims['cognito:groups'] : [];
+  if (!groups.includes('administrator')) {
+    return NextResponse.json({ error: 'Forbidden: admin access required' }, { status: 403 });
+  }
+
   const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   if (!googleMapsApiKey) {
     return NextResponse.json({ error: 'Google Maps API key is not configured.' }, { status: 500 });

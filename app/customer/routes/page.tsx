@@ -8,9 +8,17 @@ import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import RouteListItem from '@/app/customer/components/RouteListItem';
 import type { Route } from '@/amplify/types';
+import { compareRouteIdDesc, compareRouteStatusAsc } from '@/lib/routeListHelpers';
+import { ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
 import styles from './page.module.css';
 
-type RouteStatus = 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+function formatStatusFilterLabel(status: StatusFilter) {
+  if (status === 'all') return 'All Statuses';
+  return status
+    .split('_')
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+}
 
 /**
  * Customer Routes List Page
@@ -24,7 +32,7 @@ export default function CustomerRoutesPage() {
   const [filteredRoutes, setFilteredRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<RouteStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortBy, setSortBy] = useState<'routeId' | 'status'>('routeId');
 
   useEffect(() => {
@@ -47,7 +55,7 @@ export default function CustomerRoutesPage() {
 
   // Apply filtering and sorting
   useEffect(() => {
-    let filtered = routes;
+    let filtered = [...routes];
 
     // Apply status filter
     if (statusFilter !== 'all') {
@@ -56,16 +64,9 @@ export default function CustomerRoutesPage() {
 
     // Apply sorting
     if (sortBy === 'routeId') {
-      filtered = filtered.sort((a, b) => {
-        const aId = (a.routeCode || a.id || '').trim();
-        const bId = (b.routeCode || b.id || '').trim();
-        return bId.localeCompare(aId, undefined, { numeric: true, sensitivity: 'base' });
-      });
+      filtered.sort(compareRouteIdDesc);
     } else {
-      filtered = filtered.sort((a, b) => {
-        const statusOrder = { planned: 0, in_progress: 1, signs_placed: 2, signs_picked_up: 3, completed: 4, archived: 5 };
-        return (statusOrder[a.status as RouteStatus] || 0) - (statusOrder[b.status as RouteStatus] || 0);
-      });
+      filtered.sort(compareRouteStatusAsc);
     }
 
     setFilteredRoutes(filtered);
@@ -92,16 +93,14 @@ export default function CustomerRoutesPage() {
             <label className={styles.filterLabel}>Status</label>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as RouteStatus | 'all')}
+              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
               className={styles.select}
             >
-              <option value="all">All Statuses</option>
-              <option value="planned">Planned</option>
-              <option value="in_progress">In Progress</option>
-              <option value="signs_placed">Signs Placed</option>
-              <option value="signs_picked_up">Signs Picked Up</option>
-              <option value="completed">Completed</option>
-              <option value="archived">Archived</option>
+              {ROUTE_STATUS_FILTERS.map((status) => (
+                <option key={status} value={status}>
+                  {formatStatusFilterLabel(status)}
+                </option>
+              ))}
             </select>
           </div>
 

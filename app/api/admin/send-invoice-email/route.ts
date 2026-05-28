@@ -47,6 +47,19 @@ function renderEmailTemplate(
   return template.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_match, key) => values[key] ?? '');
 }
 
+function sanitizeMimeHeaderValue(value: string): string {
+  return value.replace(/[\r\n\0]+/g, ' ').trim();
+}
+
+function sanitizeAttachmentFileName(value: string, fallback: string): string {
+  const cleaned = sanitizeMimeHeaderValue(value)
+    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^[_\.\s-]+|[_\.\s-]+$/g, '');
+
+  return cleaned || fallback;
+}
+
 function wrapBase64(base64: string): string {
   const width = 76;
   const lines: string[] = [];
@@ -180,18 +193,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch invoice PDF for attachment' }, { status: 500 });
     }
     const pdfBytes = new Uint8Array(await pdfResponse.arrayBuffer());
-    const pdfFileName = `invoice-${invoice.invoiceNumber || invoice.id}.pdf`;
+    const pdfFileName = sanitizeAttachmentFileName(`invoice-${invoice.invoiceNumber || invoice.id}.pdf`, `invoice-${invoice.id}.pdf`);
     const encodedPdf = wrapBase64(Buffer.from(pdfBytes).toString('base64'));
 
     // Send email via SES as a raw MIME message to include the PDF attachment.
-    const senderEmail = process.env.SES_SENDER_EMAIL || 'no-reply.nulldevice.dev';
+    const senderEmail = sanitizeMimeHeaderValue(process.env.SES_SENDER_EMAIL || 'no-reply.nulldevice.dev');
+    const safeToEmail = sanitizeMimeHeaderValue(toEmail);
     const mixedBoundary = `mixed_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const altBoundary = `alt_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const safeSubject = sanitizeMimeHeaderValue(subject);
 
     const rawMessage = [
       `From: ${senderEmail}`,
-      `To: ${toEmail}`,
-      `Subject: ${subject}`,
+      `To: ${safeToEmail}`,
+      `Subject: ${safeSubject}`,
       'MIME-Version: 1.0',
       `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
       '',
@@ -228,7 +243,7 @@ export async function POST(request: NextRequest) {
         Data: new TextEncoder().encode(rawMessage),
       },
       Source: senderEmail,
-      Destinations: [toEmail],
+      Destinations: [safeToEmail],
     });
 
     let messageId: string;

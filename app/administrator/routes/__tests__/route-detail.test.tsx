@@ -43,6 +43,25 @@ jest.mock('@/lib/queries/GetRouteDetail');
 jest.mock('@/lib/queries/DeleteStop');
 jest.mock('@/lib/queries', () => ({
   getCustomer: jest.fn().mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined }),
+  getRouteWithStops: jest.fn().mockResolvedValue({
+    stops: [
+      {
+        id: 'stop-1',
+        routeId: 'route-test-id-1234',
+        sequence: 1,
+        address: '100 First St',
+        serviceType: 'delivery',
+      },
+      {
+        id: 'stop-2',
+        routeId: 'route-test-id-1234',
+        sequence: 2,
+        address: '200 Second Ave',
+        serviceType: 'pickup',
+      },
+    ],
+    errors: undefined,
+  }),
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));

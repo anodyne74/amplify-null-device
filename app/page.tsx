@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator, Authenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
+import { buildPortalOptions } from '@/lib/portalRouting';
 import { SUPPORT_EMAIL } from '@/lib/publicAppConfig';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import styles from './page.module.css';
@@ -27,33 +28,7 @@ export default function Home() {
   };
 
   const roleOptions = useMemo(() => {
-    const options: Array<{ key: string; title: string; path: string }> = [];
-
-    if (groups.includes('administrator')) {
-      options.push({
-        key: 'administrator',
-        title: 'Administrator Portal',
-        path: '/administrator',
-      });
-    }
-
-    if (groups.includes('operator')) {
-      options.push({
-        key: 'operator',
-        title: 'Operator Portal',
-        path: '/operator/dashboard',
-      });
-    }
-
-    if (groups.includes('customer')) {
-      options.push({
-        key: 'customer',
-        title: 'Customer Portal',
-        path: '/customer/dashboard',
-      });
-    }
-
-    return options;
+    return buildPortalOptions(groups);
   }, [groups]);
 
   useEffect(() => {

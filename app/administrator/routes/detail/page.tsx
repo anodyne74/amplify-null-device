@@ -13,6 +13,15 @@ import { StopForm } from '@/app/operator/components/StopForm';
 import { isAdmin } from '@/lib/amplify-config';
 import { generateAgentInitials } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
+import {
+  calculateRouteDistanceKm,
+  formatCurrency,
+  formatElapsedMinutes,
+  formatRouteDate,
+  formatRouteDateTime,
+  getRouteDurationMinutes,
+} from '@/lib/routeDetailHelpers';
+import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
 import { createStop, deleteRoute, getCustomer, getRouteWithStops, getUserSettings, updateRoute, updateRouteExecution, updateStopExecution } from '@/lib/queries';
 import { deleteStop } from '@/lib/queries/DeleteStop';
@@ -30,135 +39,19 @@ const RouteStopsMap = dynamic(
 );
 
 function StatusBadge({ status }: { status?: string | null }) {
+  const presentation = getRouteStatusPresentation(status);
   const badgeClass = {
     planned: styles.badgePlanned,
-    in_progress: styles.badgeActive,
-    signs_placed: styles.badgeActive,
-    signs_picked_up: styles.badgeActive,
+    active: styles.badgeActive,
     completed: styles.badgeCompleted,
     archived: styles.badgeArchived,
-  }[(status ?? 'planned') as string] ?? styles.badgePlanned;
-
-  const statusLabel = {
-    planned: 'planned',
-    in_progress: 'in progress',
-    signs_placed: 'signs placed',
-    signs_picked_up: 'signs picked up',
-    completed: 'completed',
-    archived: 'archived',
-  }[(status ?? 'planned') as string] ?? (status || 'unknown');
+  }[presentation.badgeKey] ?? styles.badgePlanned;
 
   return (
     <span className={`${styles.badge} ${badgeClass}`}>
-      {statusLabel}
+      {presentation.label}
     </span>
   );
-}
-
-function formatDate(dateString?: string | null) {
-  if (!dateString) return '—';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
-function formatDateTime(dateString?: string | null) {
-  if (!dateString) return '—';
-  return new Date(dateString).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function getRouteDurationMinutes(route: Route) {
-  if (typeof route.actualDurationMinutes === 'number') {
-    return Math.max(0, route.actualDurationMinutes);
-  }
-
-  if (route.placementStartTime && route.pickupEndTime) {
-    return Math.max(
-      0,
-      Math.round((new Date(route.pickupEndTime).getTime() - new Date(route.placementStartTime).getTime()) / 60000)
-    );
-  }
-
-  if (route.actualStartTime && route.actualEndTime) {
-    return Math.max(
-      0,
-      Math.round((new Date(route.actualEndTime).getTime() - new Date(route.actualStartTime).getTime()) / 60000)
-    );
-  }
-
-  if (route.status === 'in_progress') {
-    const phaseStart =
-      route.executionPhase === 'pickup'
-        ? route.pickupStartTime ?? route.actualStartTime
-        : route.placementStartTime ?? route.actualStartTime;
-    if (phaseStart) {
-      return Math.max(1, Math.round((Date.now() - new Date(phaseStart).getTime()) / 60000));
-    }
-  }
-
-  return null;
-}
-
-function formatMinutesAsElapsed(minutes: number | null) {
-  if (minutes === null) return '—';
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-
-  if (hours === 0) return `${remainingMinutes} min`;
-  if (remainingMinutes === 0) return `${hours}h`;
-  return `${hours}h ${remainingMinutes}m`;
-}
-
-function haversineDistanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const toRadians = (value: number) => (value * Math.PI) / 180;
-  const earthRadiusKm = 6371;
-  const dLat = toRadians(b.lat - a.lat);
-  const dLng = toRadians(b.lng - a.lng);
-  const lat1 = toRadians(a.lat);
-  const lat2 = toRadians(b.lat);
-
-  const h =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-
-  return 2 * earthRadiusKm * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
-
-function calculateRouteDistanceKm(stops: Stop[]) {
-  const orderedCoordinates = [...stops]
-    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
-    .filter(
-      (stop) => typeof stop.latitude === 'number' && typeof stop.longitude === 'number'
-    )
-    .map((stop) => ({ lat: stop.latitude as number, lng: stop.longitude as number }));
-
-  if (orderedCoordinates.length < 2) {
-    return 0;
-  }
-
-  let total = 0;
-  for (let i = 1; i < orderedCoordinates.length; i += 1) {
-    total += haversineDistanceKm(orderedCoordinates[i - 1], orderedCoordinates[i]);
-  }
-
-  return Number(total.toFixed(2));
-}
-
-function formatCurrency(amount: number | null) {
-  if (amount === null) return '—';
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
 }
 
 const DEFAULT_SIGNS_COLLECTED_MINUTES = 15;
@@ -988,11 +881,11 @@ function RouteDetailContent() {
               </div>
               <div>
                 <div className={styles.infoLabel}>Created</div>
-                <div className={styles.infoValue}>{formatDate(route.createdAt)}</div>
+                <div className={styles.infoValue}>{formatRouteDate(route.createdAt)}</div>
               </div>
               <div>
                 <div className={styles.infoLabel}>Time Taken</div>
-                <div className={styles.infoValue}>{formatMinutesAsElapsed(routeDurationMinutes)}</div>
+                <div className={styles.infoValue}>{formatElapsedMinutes(routeDurationMinutes)}</div>
               </div>
               <div>
                 <div className={styles.infoLabel}>Kilometers</div>
@@ -1073,7 +966,7 @@ function RouteDetailContent() {
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Time Taken</div>
-                    <div className={styles.infoValue}>{formatMinutesAsElapsed(billingDefaults.durationMinutes)}</div>
+                    <div className={styles.infoValue}>{formatElapsedMinutes(billingDefaults.durationMinutes)}</div>
                   </div>
                   <div>
                     <div className={styles.infoLabel}>Stops</div>
@@ -1548,7 +1441,7 @@ function RouteDetailContent() {
                         {stop.actualArrivalTime && !stop.actualDepartureTime && (
                           <div className={styles.execCompletionPanel}>
                             <span className={styles.execTimestamp}>
-                              ✓ Arrived: {formatDateTime(stop.actualArrivalTime)}
+                              ✓ Arrived: {formatRouteDateTime(stop.actualArrivalTime)}
                             </span>
                             <textarea
                               className={styles.execNotesInput}
@@ -1593,10 +1486,10 @@ function RouteDetailContent() {
                               <span className={styles.execSkippedBadge}>⏭ Skipped</span>
                             ) : (
                               <>
-                                <span>✓ Arrived: {formatDateTime(stop.actualArrivalTime)}</span>
+                                <span>✓ Arrived: {formatRouteDateTime(stop.actualArrivalTime)}</span>
                                 <span>
                                   ✓ {stop.serviceType === 'pickup' ? 'Collected' : 'Placed'}:{' '}
-                                  {formatDateTime(stop.actualDepartureTime)}
+                                  {formatRouteDateTime(stop.actualDepartureTime)}
                                 </span>
                               </>
                             )}

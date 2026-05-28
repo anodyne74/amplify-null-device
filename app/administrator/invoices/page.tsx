@@ -132,9 +132,14 @@ async function fetchRouteMapDataUrl(
   }
 
   try {
+    const session = await fetchAuthSession();
+    const token = session.tokens?.idToken?.toString();
     const response = await fetch('/api/admin/static-route-map', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ markers }),
     });
 

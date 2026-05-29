@@ -1,12 +1,6 @@
 import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 
-type RouteStatusBadgeClasses = {
-  badge: string;
-  badgePlanned: string;
-  badgeActive: string;
-  badgeCompleted: string;
-  badgeArchived: string;
-};
+type RouteStatusBadgeClasses = Readonly<Record<string, string>>;
 
 type RouteStatusBadgeProps = {
   status?: string | null;

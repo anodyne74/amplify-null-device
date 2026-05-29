@@ -5,31 +5,7 @@ import type { Route } from '@/amplify/types';
 import { formatRouteDate, formatRouteDuration } from '@/lib/routeListHelpers';
 import { ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
 
-type RoutesListContentClasses = {
-  badge: string;
-  badgePlanned: string;
-  badgeActive: string;
-  badgeCompleted: string;
-  badgeArchived: string;
-  cellLabel: string;
-  cellRight: string;
-  cellValue: string;
-  cellValueMono: string;
-  cellValueMonoNormal: string;
-  deleteBtn: string;
-  editLink: string;
-  emptyState: string;
-  emptyStateText: string;
-  errorBanner: string;
-  filterBtn: string;
-  filterBtnActive: string;
-  filterLabel: string;
-  filterRow: string;
-  notesPreview: string;
-  routeRow: string;
-  routesList: string;
-  viewLink: string;
-};
+type RoutesListContentClasses = Readonly<Record<string, string>>;
 
 type RoutesListContentProps = {
   canDeleteRoutes: boolean;

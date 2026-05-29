@@ -63,12 +63,94 @@ try {
 const placeholderPaths = collectPlaceholderPaths(outputs);
 const hasPlaceholders = placeholderPaths.length > 0;
 
+const readFirstDefinedEnv = (keys) => {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (value && value.trim()) {
+      return { key, value: value.trim() };
+    }
+  }
+  return null;
+};
+
+const auth = (isObject(outputs) ? outputs.auth : null) || {};
+const envToOutputChecks = [
+  {
+    outputKey: 'user_pool_id',
+    envKeys: [
+      'NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID',
+      'NEXT_PUBLIC_COGNITO_USER_POOL_ID',
+      'AMPLIFY_COGNITO_USER_POOL_ID',
+    ],
+  },
+  {
+    outputKey: 'user_pool_client_id',
+    envKeys: [
+      'NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID',
+      'NEXT_PUBLIC_COGNITO_CLIENT_ID',
+      'AMPLIFY_COGNITO_CLIENT_ID',
+    ],
+  },
+  {
+    outputKey: 'identity_pool_id',
+    envKeys: [
+      'NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID',
+      'NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID',
+      'AMPLIFY_IDENTITY_POOL_ID',
+    ],
+  },
+  {
+    outputKey: 'aws_region',
+    envKeys: [
+      'NEXT_PUBLIC_AWS_REGION',
+      'NEXT_PUBLIC_COGNITO_REGION',
+      'NEXT_PUBLIC_API_REGION',
+      'AWS_REGION',
+    ],
+  },
+];
+
+const envMismatches = envToOutputChecks
+  .map((check) => {
+    const envValue = readFirstDefinedEnv(check.envKeys);
+    const outputValue = typeof auth[check.outputKey] === 'string' ? auth[check.outputKey].trim() : '';
+
+    if (!envValue || !outputValue || outputValue.includes('PLACEHOLDER')) {
+      return null;
+    }
+
+    if (envValue.value === outputValue) {
+      return null;
+    }
+
+    return {
+      outputKey: check.outputKey,
+      envKey: envValue.key,
+      envValue: envValue.value,
+      outputValue,
+    };
+  })
+  .filter(Boolean);
+
 if (requireRealOutputs && hasPlaceholders) {
   console.error('❌ amplify_outputs.json contains placeholder values in a deployed CI context.');
   console.error('Set real values via Amplify environment variables or backend outputs.');
   console.error('Placeholder fields found at:');
   placeholderPaths.forEach((placeholderPath) => {
     console.error(`  - ${placeholderPath}`);
+  });
+  process.exit(1);
+}
+
+if (isAmplifyHostedContext && envMismatches.length > 0) {
+  console.error('❌ Amplify auth environment variable mismatch detected.');
+  console.error('The generated amplify_outputs.json does not match one or more configured env overrides.');
+  console.error('This usually means stale Cognito IDs are set in Amplify Console environment variables.');
+  console.error('Mismatches:');
+  envMismatches.forEach((mismatch) => {
+    console.error(
+      `  - ${mismatch.outputKey}: env ${mismatch.envKey}="${mismatch.envValue}" != outputs "${mismatch.outputValue}"`
+    );
   });
   process.exit(1);
 }

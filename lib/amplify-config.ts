@@ -18,10 +18,19 @@ function readPublicAuthEnv() {
   const fromProcess = typeof process !== 'undefined' ? process.env : undefined;
 
   return {
-    user_pool_id: fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID,
-    user_pool_client_id: fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID,
-    identity_pool_id: fromProcess?.NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID,
-    aws_region: fromProcess?.NEXT_PUBLIC_AWS_REGION,
+    user_pool_id:
+      fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID ||
+      fromProcess?.NEXT_PUBLIC_COGNITO_USER_POOL_ID,
+    user_pool_client_id:
+      fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID ||
+      fromProcess?.NEXT_PUBLIC_COGNITO_CLIENT_ID,
+    identity_pool_id:
+      fromProcess?.NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID ||
+      fromProcess?.NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID,
+    aws_region:
+      fromProcess?.NEXT_PUBLIC_AWS_REGION ||
+      fromProcess?.NEXT_PUBLIC_COGNITO_REGION ||
+      fromProcess?.NEXT_PUBLIC_API_REGION,
   };
 }
 

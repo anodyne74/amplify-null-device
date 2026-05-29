@@ -115,12 +115,12 @@ Set these in Amplify Console for builds/runtime:
 | `AMPLIFY_IDENTITY_POOL_ID` | Cognito Identity Pool ID |
 | `AWS_REGION` | AWS region (for example `ap-southeast-2`) |
 | `SES_SENDER_EMAIL` | Sender used by SES invoice email API |
-| `SES_INVOICE_TEMPLATE_NAME` | SES template name for invoice emails (default: `NullDeviceInvoiceTemplate`) |
+| `SES_INVOICE_TEMPLATE_NAME` | SES template name for invoice emails (default: branch-scoped, e.g. `NullDeviceInvoiceTemplate-main`) |
 
 Notes:
 
 - If `SES_SENDER_EMAIL` is not set, API falls back to `no-reply.nulldevice.dev`.
-- If `SES_INVOICE_TEMPLATE_NAME` is not set, API uses `NullDeviceInvoiceTemplate`.
+- If `SES_INVOICE_TEMPLATE_NAME` is not set, API uses a branch-scoped default (`NullDeviceInvoiceTemplate-${AWS_BRANCH}` when `AWS_BRANCH`/`AMPLIFY_BRANCH` is available, otherwise `NullDeviceInvoiceTemplate`).
 - Verify sender identity/domain in SES for the configured region.
 - The SES template is provisioned by Amplify backend deployment in `amplify/backend.ts`.
 

@@ -8,7 +8,20 @@ import outputs from '@/amplify_outputs.json';
 import { listCustomerUsers, getCustomer, updateInvoice } from '@/lib/queries';
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
-const invoiceTemplateName = process.env.SES_INVOICE_TEMPLATE_NAME || 'NullDeviceInvoiceTemplate';
+function sanitizeNamePart(value: string, fallback: string) {
+  const cleaned = value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return cleaned || fallback;
+}
+
+const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || '', '');
+const defaultInvoiceTemplateName = branchName
+  ? `NullDeviceInvoiceTemplate-${branchName}`
+  : 'NullDeviceInvoiceTemplate';
+const invoiceTemplateName = process.env.SES_INVOICE_TEMPLATE_NAME || defaultInvoiceTemplateName;
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
 const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
 

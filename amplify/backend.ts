@@ -11,11 +11,31 @@ import { customerAccessActivation } from './functions/customer-access-activation
 
 const backend = defineBackend({ auth, data, storage, customerAccessActivation });
 
+function sanitizeNamePart(value: string, fallback: string) {
+	const cleaned = value
+		.toLowerCase()
+		.replace(/[^a-z0-9-]+/g, '-')
+		.replace(/-+/g, '-')
+		.replace(/^-+|-+$/g, '');
+	return cleaned || fallback;
+}
+
+function withMaxLength(value: string, max: number) {
+	return value.length <= max ? value : value.slice(0, max);
+}
+
+const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || 'dev', 'dev');
+const invoiceTemplateName = withMaxLength(`NullDeviceInvoiceTemplate-${branchName}`, 64);
+const inboundBucketName = withMaxLength(`ses-inbound-nulldevice-${branchName}`, 63);
+const forwarderFunctionName = withMaxLength(`ses-forwarder-nulldevice-${branchName}`, 64);
+const inboundRuleSetName = withMaxLength(`inbound-rule-set-nulldevice-${branchName}`, 64);
+const inboundRuleName = withMaxLength(`forward-specific-nulldevice-${branchName}`, 64);
+
 const sesStack = backend.createStack('ses-invoice-template');
 
 new CfnTemplate(sesStack, 'InvoiceSummaryTemplate', {
 	template: {
-		templateName: 'NullDeviceInvoiceTemplate',
+		templateName: invoiceTemplateName,
 		subjectPart: 'Invoice {{invoiceNumber}} from NullDevice',
 		htmlPart: `
 <!doctype html>
@@ -102,7 +122,7 @@ This is an automated message. Please do not reply.
 const forwarderStack = backend.createStack('ses-email-forwarder');
 
 const inboundBucket = new Bucket(forwarderStack, 'InboundMailBucket', {
-	bucketName: 'ses-inbound-nulldevice-dev',
+	bucketName: inboundBucketName,
 	versioned: true,
 	removalPolicy: RemovalPolicy.RETAIN,
 });
@@ -142,7 +162,7 @@ forwarderRole.addToPolicy(
 );
 
 const forwarderFunction = new LambdaFunction(forwarderStack, 'SesForwarderFunction', {
-	functionName: 'ses-forwarder-nulldevice-dev',
+	functionName: forwarderFunctionName,
 	runtime: Runtime.PYTHON_3_12,
 	handler: 'index.lambda_handler',
 	role: forwarderRole,
@@ -211,13 +231,13 @@ forwarderFunction.addPermission('AllowSESInvoke', {
 });
 
 const receiptRuleSet = new CfnReceiptRuleSet(forwarderStack, 'SesReceiptRuleSet', {
-	ruleSetName: 'inbound-rule-set-nulldevice-dev',
+	ruleSetName: inboundRuleSetName,
 });
 
 new CfnReceiptRule(forwarderStack, 'SesReceiptRule', {
 	ruleSetName: receiptRuleSet.ref,
 	rule: {
-		name: 'forward-specific-nulldevice-dev',
+		name: inboundRuleName,
 		enabled: true,
 		tlsPolicy: 'Optional',
 		recipients: ['admin@nulldevice.dev', 'billing@nulldevice.dev', 'support@nulldevice.dev'],

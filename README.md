@@ -93,6 +93,7 @@ App URL: `http://localhost:3000`
 | `npm run test:ci` | Jest CI run with coverage |
 | `npm run generate:config` | Generate local `amplify_outputs.json` |
 | `npm run validate:amplify-outputs` | Validate generated Amplify outputs |
+| `npm run import:prep` | Prepare or apply a legacy tracker + route-list import bundle |
 
 ## Configuration
 
@@ -123,6 +124,45 @@ Notes:
 - If `SES_INVOICE_TEMPLATE_NAME` is not set, API uses a branch-scoped default (`NullDeviceInvoiceTemplate-${AWS_BRANCH}` when `AWS_BRANCH`/`AMPLIFY_BRANCH` is available, otherwise `NullDeviceInvoiceTemplate`).
 - Verify sender identity/domain in SES for the configured region.
 - The SES template is provisioned by Amplify backend deployment in `amplify/backend.ts`.
+
+## Legacy Import
+
+Use `scripts/import-prep.js` to turn a historical tracker CSV plus matching route-list CSVs into an import bundle, or to apply that bundle directly into Amplify Data.
+
+The tracker file should use the meaningful A-K columns only. Any calculated columns after K are ignored.
+
+Example dry run:
+
+```bash
+npm run import:prep -- \
+	--tracker "/home/dave/Downloads/Tracker - Jobs.csv" \
+	--route-lists-dir "/home/dave/Downloads/route-lists" \
+	--customer-id "YOUR_CUSTOMER_ID" \
+	--mode dry-run \
+	--output legacy-import-bundle.json
+```
+
+Example apply run:
+
+```bash
+npm run import:prep -- \
+	--tracker "/home/dave/Downloads/Tracker - Jobs.csv" \
+	--route-lists-dir "/home/dave/Downloads/route-lists" \
+	--customer-id "YOUR_CUSTOMER_ID" \
+	--mode apply \
+	--confirm-apply \
+	--outputs-path amplify_outputs.json
+```
+
+Notes:
+
+- The script matches route-list files by route code in the filename, such as `W23-26-001 - Route List - Route.csv`.
+- The tracker export uses the second tab in the workbook, which should be the `Jobs` sheet.
+- If a route-list file is missing, the bundle still generates and adds a warning for that route.
+- Apply mode upserts routes, stops, invoices, and a legacy line item for each invoice when the imported totals are available.
+- Apply mode requires `--confirm-apply` so writes cannot happen accidentally.
+- In an interactive terminal, apply mode also asks for a final `yes` confirmation before writing.
+- The current importer defaults stop service types to `delivery`.
 
 ## Deployment
 

@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "preflight:ampx": "npx ampx --version",
     "validate:amplify-outputs": "node scripts/validate-amplify-outputs.js",
+    "import:prep": "node scripts/import-prep.js",
     "test": "jest --watch",
     "test:ci": "jest --ci --coverage --maxWorkers=2 --passWithNoTests",
     "generate:config": "node scripts/generate-amplify-outputs-from-backend.js"

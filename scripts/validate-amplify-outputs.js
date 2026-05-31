@@ -45,7 +45,9 @@ const hasAmplifyAppId = Boolean(process.env.AWS_APP_ID);
 const hasAmplifyEnv = Boolean(process.env.AMPLIFY_ENVIRONMENT_NAME);
 const forceRealOutputs = process.env.AMPLIFY_FORCE_REAL_OUTPUTS === 'true';
 const isAmplifyHostedContext = hasAmplifyBranch || hasAmplifyAppId || hasAmplifyEnv;
-const requireRealOutputs = forceRealOutputs || (isCi && isAmplifyHostedContext);
+// Amplify-hosted builds must always ship real backend outputs.
+// Relying on CI=true is brittle because some hosted contexts may not set it.
+const requireRealOutputs = forceRealOutputs || isAmplifyHostedContext || isCi;
 
 if (!fs.existsSync(outputPath)) {
   console.error('❌ Missing amplify_outputs.json');
@@ -73,42 +75,42 @@ const readFirstDefinedEnv = (keys) => {
   return null;
 };
 
+const AUTH_ENV_ALIASES = {
+  userPoolId: [
+    'NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID',
+    'NEXT_PUBLIC_COGNITO_USER_POOL_ID',
+    'AMPLIFY_COGNITO_USER_POOL_ID',
+  ],
+  userPoolClientId: [
+    'NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID',
+    'NEXT_PUBLIC_COGNITO_CLIENT_ID',
+    'AMPLIFY_COGNITO_CLIENT_ID',
+  ],
+  identityPoolId: [
+    'NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID',
+    'NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID',
+    'AMPLIFY_IDENTITY_POOL_ID',
+  ],
+  awsRegion: [
+    'NEXT_PUBLIC_AWS_REGION',
+    'NEXT_PUBLIC_COGNITO_REGION',
+    'NEXT_PUBLIC_API_REGION',
+    'AWS_REGION',
+  ],
+};
+
+const ENV_TO_OUTPUT_KEY = {
+  userPoolId: 'user_pool_id',
+  userPoolClientId: 'user_pool_client_id',
+  identityPoolId: 'identity_pool_id',
+  awsRegion: 'aws_region',
+};
+
 const auth = (isObject(outputs) ? outputs.auth : null) || {};
-const envToOutputChecks = [
-  {
-    outputKey: 'user_pool_id',
-    envKeys: [
-      'NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID',
-      'NEXT_PUBLIC_COGNITO_USER_POOL_ID',
-      'AMPLIFY_COGNITO_USER_POOL_ID',
-    ],
-  },
-  {
-    outputKey: 'user_pool_client_id',
-    envKeys: [
-      'NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID',
-      'NEXT_PUBLIC_COGNITO_CLIENT_ID',
-      'AMPLIFY_COGNITO_CLIENT_ID',
-    ],
-  },
-  {
-    outputKey: 'identity_pool_id',
-    envKeys: [
-      'NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID',
-      'NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID',
-      'AMPLIFY_IDENTITY_POOL_ID',
-    ],
-  },
-  {
-    outputKey: 'aws_region',
-    envKeys: [
-      'NEXT_PUBLIC_AWS_REGION',
-      'NEXT_PUBLIC_COGNITO_REGION',
-      'NEXT_PUBLIC_API_REGION',
-      'AWS_REGION',
-    ],
-  },
-];
+const envToOutputChecks = Object.entries(ENV_TO_OUTPUT_KEY).map(([aliasKey, outputKey]) => ({
+  outputKey,
+  envKeys: AUTH_ENV_ALIASES[aliasKey],
+}));
 
 const envMismatches = envToOutputChecks
   .map((check) => {

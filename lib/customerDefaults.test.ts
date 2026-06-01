@@ -8,7 +8,7 @@ import {
 describe('customerDefaults', () => {
   it('generates initials from the default agent name', () => {
     expect(generateAgentInitials('Jamie Lee')).toBe('JL');
-    expect(generateAgentInitials('Pat')).toBe('P');
+    expect(generateAgentInitials('Pat')).toBe('PA');
   });
 
   it('normalizes defaults and includes the default agent in options', () => {

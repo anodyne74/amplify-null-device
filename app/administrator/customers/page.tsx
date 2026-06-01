@@ -18,6 +18,7 @@ import styles from '@/app/dashboard.module.css';
 type Customer = {
   id: string;
   name: string;
+  companyName?: string | null;
   email: string;
   billingRatePerHour: number;
   status?: 'active' | 'inactive' | 'suspended' | null;
@@ -67,18 +68,21 @@ export default function CustomersAdminPage() {
 
   // Create customer form state
   const [name, setName] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
-  const [billingRatePerHour, setBillingRatePerHour] = useState('$0.00');
+  const [billingRatePerHour, setBillingRatePerHour] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
   const [standingInstructions, setStandingInstructions] = useState('');
   const [defaultNumberOfSigns, setDefaultNumberOfSigns] = useState('');
   const [defaultAgentName, setDefaultAgentName] = useState('');
+  const [defaultAgentInitials, setDefaultAgentInitials] = useState('');
   const [agentOptionsText, setAgentOptionsText] = useState('');
   const [createResolvedAddress, setCreateResolvedAddress] = useState<ResolvedAddress | null>(null);
 
   // Edit customer panel state
   const [expandedEditPanel, setExpandedEditPanel] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [editCompanyName, setEditCompanyName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editBillingRatePerHour, setEditBillingRatePerHour] = useState('$0.00');
   const [editStatus, setEditStatus] = useState<'active' | 'inactive' | 'suspended'>('active');
@@ -154,6 +158,7 @@ export default function CustomersAdminPage() {
 
       const result = await createCustomer({
         name,
+        companyName: companyName.trim() || undefined,
         email,
         billingRatePerHour: createRate,
         status: 'active',
@@ -161,6 +166,7 @@ export default function CustomersAdminPage() {
         standingInstructions,
         defaultNumberOfSigns: createSigns,
         defaultAgentName,
+        defaultAgentInitials,
         agentOptions: parseAgentOptionsInput(agentOptionsText),
       });
 
@@ -168,12 +174,14 @@ export default function CustomersAdminPage() {
         setError('Failed to create customer.');
       } else {
         setName('');
+        setCompanyName('');
         setEmail('');
-        setBillingRatePerHour('$0.00');
+        setBillingRatePerHour('');
         setAddressLine1('');
         setStandingInstructions('');
         setDefaultNumberOfSigns('');
         setDefaultAgentName('');
+        setDefaultAgentInitials('');
         setAgentOptionsText('');
         setCreateResolvedAddress(null);
         await fetchCustomers();
@@ -225,6 +233,7 @@ export default function CustomersAdminPage() {
     setEditResolvedAddress(null);
 
     setEditName(customer.name);
+    setEditCompanyName(customer.companyName ?? '');
     setEditEmail(customer.email);
     setEditBillingRatePerHour(usdFormatter.format(customer.billingRatePerHour ?? 0));
     setEditStatus(customer.status ?? 'active');
@@ -275,6 +284,7 @@ export default function CustomersAdminPage() {
 
       const result = await updateCustomer(customerId, {
         name: editName.trim(),
+        companyName: editCompanyName.trim() || undefined,
         email: editEmail.trim(),
         billingRatePerHour: rate,
         status: editStatus,
@@ -381,14 +391,15 @@ export default function CustomersAdminPage() {
               <p className={styles.welcome}>Create a new customer record for route and billing workflows.</p>
               <div className={styles.stackedFields}>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" required />
+            <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Company Name" />
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" required />
             <input
               value={billingRatePerHour}
               onChange={(e) => setBillingRatePerHour(e.target.value)}
-              onBlur={(e) => setBillingRatePerHour(formatCurrency(e.target.value))}
               placeholder="Billing rate per hour"
-              type="text"
-              inputMode="decimal"
+              type="number"
+              min={0}
+              step="0.01"
               required
             />
             <input
@@ -402,6 +413,12 @@ export default function CustomersAdminPage() {
               value={defaultAgentName}
               onChange={(e) => setDefaultAgentName(e.target.value)}
               placeholder="Default agent name"
+            />
+            <input
+              value={defaultAgentInitials}
+              onChange={(e) => setDefaultAgentInitials(e.target.value)}
+              placeholder="Default agent initials (e.g., BO)"
+              maxLength={4}
             />
             <AddressAutocompleteInput
               id="create-customer-address"
@@ -448,6 +465,7 @@ export default function CustomersAdminPage() {
               <thead>
                 <tr>
                   <th>Name</th>
+                  <th>Company Name</th>
                   <th>Correspondence Email</th>
                   <th>Rate/hr</th>
                   <th>Status</th>
@@ -459,6 +477,7 @@ export default function CustomersAdminPage() {
                   <Fragment key={customer.id}>
                     <tr>
                       <td>{customer.name}</td>
+                      <td>{customer.companyName || '—'}</td>
                       <td>{customer.email}</td>
                       <td>{usdFormatter.format(customer.billingRatePerHour ?? 0)}</td>
                       <td>
@@ -492,7 +511,7 @@ export default function CustomersAdminPage() {
                     </tr>
                     {expandedEditPanel === customer.id && (
                       <tr key={`${customer.id}-edit-panel`}>
-                        <td colSpan={5}>
+                        <td colSpan={6}>
                           <div className={styles.infoPanel}>
                             <h4>Edit Customer — {customer.name}</h4>
                             {editError && <p>{editError}</p>}
@@ -507,6 +526,12 @@ export default function CustomersAdminPage() {
                                 placeholder="Name"
                                 disabled={editSaving}
                                 required
+                              />
+                              <input
+                                value={editCompanyName}
+                                onChange={(e) => setEditCompanyName(e.target.value)}
+                                placeholder="Company Name"
+                                disabled={editSaving}
                               />
                               <input
                                 value={editEmail}

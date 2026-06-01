@@ -1269,94 +1269,96 @@ function RouteDetailContent() {
                 <div className={styles.infoLabel}>Kilometers</div>
                 <div className={styles.infoValue}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</div>
               </div>
-              <label className={styles.phaseCompletionField}>
-                <span className={styles.infoLabel}>Placement Distance (km)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className={styles.phaseCompletionInput}
-                  value={phaseMetricOverrides.placementDistanceKm}
-                  onChange={(event) =>
-                    setPhaseMetricOverrides((prev) => ({ ...prev, placementDistanceKm: event.target.value }))
-                  }
-                  disabled={transitioning}
-                />
-              </label>
-              <label className={styles.phaseCompletionField}>
-                <span className={styles.infoLabel}>Placement Time</span>
-                <div className={styles.phaseDurationSpinnerRow}>
-                  <label className={styles.phaseDurationUnit}>
-                    <span className={styles.phaseDurationUnitLabel}>h</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      className={styles.phaseCompletionInput}
-                      value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) / 60)}
-                      onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'hours', event.target.value)}
-                      disabled={transitioning}
-                    />
-                  </label>
-                  <label className={styles.phaseDurationUnit}>
-                    <span className={styles.phaseDurationUnitLabel}>m</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="55"
-                      step="5"
-                      className={styles.phaseCompletionInput}
-                      value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) % 60)}
-                      onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'minutes', event.target.value)}
-                      disabled={transitioning}
-                    />
-                  </label>
-                </div>
-              </label>
-              <label className={styles.phaseCompletionField}>
-                <span className={styles.infoLabel}>Pickup Distance (km)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className={styles.phaseCompletionInput}
-                  value={phaseMetricOverrides.pickupDistanceKm}
-                  onChange={(event) =>
-                    setPhaseMetricOverrides((prev) => ({ ...prev, pickupDistanceKm: event.target.value }))
-                  }
-                  disabled={transitioning}
-                />
-              </label>
-              <label className={styles.phaseCompletionField}>
-                <span className={styles.infoLabel}>Pickup Time</span>
-                <div className={styles.phaseDurationSpinnerRow}>
-                  <label className={styles.phaseDurationUnit}>
-                    <span className={styles.phaseDurationUnitLabel}>h</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      className={styles.phaseCompletionInput}
-                      value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) / 60)}
-                      onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'hours', event.target.value)}
-                      disabled={transitioning}
-                    />
-                  </label>
-                  <label className={styles.phaseDurationUnit}>
-                    <span className={styles.phaseDurationUnitLabel}>m</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="55"
-                      step="5"
-                      className={styles.phaseCompletionInput}
-                      value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) % 60)}
-                      onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'minutes', event.target.value)}
-                      disabled={transitioning}
-                    />
-                  </label>
-                </div>
-              </label>
+              <div className={styles.phaseCompletionControls}>
+                <label className={styles.phaseCompletionField}>
+                  <span className={styles.infoLabel}>Placement Distance (km)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className={styles.phaseCompletionInput}
+                    value={phaseMetricOverrides.placementDistanceKm}
+                    onChange={(event) =>
+                      setPhaseMetricOverrides((prev) => ({ ...prev, placementDistanceKm: event.target.value }))
+                    }
+                    disabled={transitioning}
+                  />
+                </label>
+                <label className={styles.phaseCompletionField}>
+                  <span className={styles.infoLabel}>Placement Time</span>
+                  <div className={styles.phaseDurationSpinnerRow}>
+                    <label className={styles.phaseDurationUnit}>
+                      <span className={styles.phaseDurationUnitLabel}>h</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className={styles.phaseCompletionInput}
+                        value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) / 60)}
+                        onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'hours', event.target.value)}
+                        disabled={transitioning}
+                      />
+                    </label>
+                    <label className={styles.phaseDurationUnit}>
+                      <span className={styles.phaseDurationUnitLabel}>m</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="55"
+                        step="5"
+                        className={styles.phaseCompletionInput}
+                        value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) % 60)}
+                        onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'minutes', event.target.value)}
+                        disabled={transitioning}
+                      />
+                    </label>
+                  </div>
+                </label>
+                <label className={styles.phaseCompletionField}>
+                  <span className={styles.infoLabel}>Pickup Distance (km)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className={styles.phaseCompletionInput}
+                    value={phaseMetricOverrides.pickupDistanceKm}
+                    onChange={(event) =>
+                      setPhaseMetricOverrides((prev) => ({ ...prev, pickupDistanceKm: event.target.value }))
+                    }
+                    disabled={transitioning}
+                  />
+                </label>
+                <label className={styles.phaseCompletionField}>
+                  <span className={styles.infoLabel}>Pickup Time</span>
+                  <div className={styles.phaseDurationSpinnerRow}>
+                    <label className={styles.phaseDurationUnit}>
+                      <span className={styles.phaseDurationUnitLabel}>h</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className={styles.phaseCompletionInput}
+                        value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) / 60)}
+                        onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'hours', event.target.value)}
+                        disabled={transitioning}
+                      />
+                    </label>
+                    <label className={styles.phaseDurationUnit}>
+                      <span className={styles.phaseDurationUnitLabel}>m</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="55"
+                        step="5"
+                        className={styles.phaseCompletionInput}
+                        value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) % 60)}
+                        onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'minutes', event.target.value)}
+                        disabled={transitioning}
+                      />
+                    </label>
+                  </div>
+                </label>
+              </div>
             </div>
 
             {route.notes && (

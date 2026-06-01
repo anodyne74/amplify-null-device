@@ -45,7 +45,10 @@ export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
 
     setPdfLoading(true);
     try {
-      const { url } = await getUrl({ path: invoice.pdfS3Key });
+      const { url } = await getUrl({
+        path: invoice.pdfS3Key,
+        options: { validateObjectExistence: false },
+      });
       const urlString = url.toString();
 
       if (action === 'view') {

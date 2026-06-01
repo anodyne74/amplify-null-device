@@ -206,7 +206,8 @@
 
 .phaseCompletionControls {
   display: grid;
-  grid-template-columns: repeat(2, minmax(170px, 220px));
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--nd-space-sm);
   align-items: end;
 }
@@ -215,6 +216,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .phaseCompletionLabel {
@@ -223,17 +225,19 @@
 }
 
 .phaseCompletionInput {
+  width: 100%;
   min-height: 36px;
   border: 1px solid var(--nd-border-default);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg-surface);
   color: var(--nd-text-primary);
   padding: 6px 8px;
+  box-sizing: border-box;
 }
 
 .phaseDurationSpinnerRow {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--nd-space-xs);
 }
 
@@ -241,6 +245,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .phaseDurationUnitLabel {

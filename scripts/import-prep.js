@@ -30,6 +30,9 @@ function parseArgs(argv) {
     output: 'legacy-import-bundle.json',
     outputsPath: 'amplify_outputs.json',
     routeStatus: 'completed',
+    authMode: 'userPool',
+    username: '',
+    password: '',
   };
 
   for (let i = 2; i < argv.length; i += 1) {
@@ -74,6 +77,21 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
+    if (arg === '--auth-mode' && next) {
+      args.authMode = next;
+      i += 1;
+      continue;
+    }
+    if (arg === '--username' && next) {
+      args.username = next;
+      i += 1;
+      continue;
+    }
+    if (arg === '--password' && next) {
+      args.password = next;
+      i += 1;
+      continue;
+    }
   }
 
   return args;
@@ -89,7 +107,16 @@ function usage() {
     [--confirm-apply] \
     [--output legacy-import-bundle.json] \
     [--outputs-path amplify_outputs.json] \
-    [--route-status completed|archived]
+    [--route-status completed|archived] \
+    [--auth-mode userPool|iam] \
+    [--username <cognito-username-or-email>] \
+    [--password <cognito-password>]
+
+  Auth notes:
+    - Default auth mode is userPool and requires an operator/administrator user.
+    - Prefer environment variables for credentials:
+      IMPORT_PREP_USERNAME, IMPORT_PREP_PASSWORD
+    - IAM mode requires identity pool federation and is not recommended for this import.
 `);
 }
 
@@ -396,6 +423,21 @@ function deriveInvoiceStatus(sentDate, paidDate) {
   return 'finalized';
 }
 
+function toIsoDateTime(dateValue) {
+  if (!dateValue) return null;
+  const parsed = new Date(dateValue);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString();
+  }
+
+  const asText = String(dateValue).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(asText)) {
+    return `${asText}T23:59:59.000Z`;
+  }
+
+  return null;
+}
+
 function buildBundle({ trackerRecords, trackerWarnings, routeLists, routeListWarnings, args }) {
   const records = trackerRecords.map((trackerRecord) => {
     const routeList = routeLists.get(trackerRecord.routeCode);
@@ -405,6 +447,10 @@ function buildBundle({ trackerRecords, trackerWarnings, routeLists, routeListWar
       route: {
         routeCode: trackerRecord.routeCode,
         status: args.routeStatus,
+        completedAt:
+          toIsoDateTime(trackerRecord.lifecycle.paidDate) ||
+          toIsoDateTime(trackerRecord.lifecycle.sentDate) ||
+          new Date().toISOString(),
         overrideSigns: trackerRecord.summary.signs,
         overrideStops: trackerRecord.summary.stops,
         overrideDistanceKm: trackerRecord.summary.kilometers,
@@ -465,13 +511,31 @@ function buildBundle({ trackerRecords, trackerWarnings, routeLists, routeListWar
 async function applyBundle(bundle, args) {
   const { Amplify } = await import('aws-amplify');
   const { generateClient } = await import('aws-amplify/data');
+  const { signIn, fetchAuthSession } = await import('aws-amplify/auth');
 
   const outputsRaw = fs.readFileSync(args.outputsPath, 'utf8');
   const outputs = JSON.parse(outputsRaw);
   Amplify.configure(outputs);
 
+  let authMode = args.authMode;
+  if (authMode === 'userPool') {
+    const username = args.username || process.env.IMPORT_PREP_USERNAME;
+    const password = args.password || process.env.IMPORT_PREP_PASSWORD;
+
+    if (!username || !password) {
+      throw new Error(
+        'User Pool auth requires credentials. Set IMPORT_PREP_USERNAME and IMPORT_PREP_PASSWORD or pass --username/--password.'
+      );
+    }
+
+    await signIn({ username, password });
+    const session = await fetchAuthSession();
+    if (!session.tokens?.idToken) {
+      throw new Error('Sign-in succeeded but no User Pool token is available.');
+    }
+  }
+
   const client = generateClient();
-  const authMode = 'iam';
 
   const routeCache = new Map();
   const invoiceCache = new Map();
@@ -517,6 +581,13 @@ async function applyBundle(bundle, args) {
         customerId: record.customerId,
         routeCode: record.route.routeCode,
         status: record.route.status,
+        executionPhase: record.route.status === 'completed' || record.route.status === 'archived' ? 'pickup' : undefined,
+        actualStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
+        actualEndTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
+        placementStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
+        placementEndTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
+        pickupStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
+        pickupEndTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
         overrideSigns: record.route.overrideSigns ?? undefined,
         overrideStops: record.route.overrideStops ?? undefined,
         overrideDistanceKm: record.route.overrideDistanceKm ?? undefined,
@@ -553,12 +624,16 @@ async function applyBundle(bundle, args) {
       for (const stopRecord of record.stops) {
         const stopKey = `${stopRecord.sequence}|${normalizeAddress(stopRecord.address).toLowerCase()}`;
         const existingStop = stopMap.get(stopKey);
+        const isTerminalRoute = record.route.status === 'completed' || record.route.status === 'archived';
+        const completedAt = record.route.completedAt || new Date().toISOString();
         const stopPayload = {
           routeId: route.id,
           customerId: record.customerId,
           sequence: stopRecord.sequence,
           address: stopRecord.address,
-          serviceType: stopRecord.serviceType,
+          serviceType: isTerminalRoute ? 'pickup' : stopRecord.serviceType,
+          actualArrivalTime: isTerminalRoute ? completedAt : undefined,
+          actualDepartureTime: isTerminalRoute ? completedAt : undefined,
           numberOfSigns: stopRecord.numberOfSigns ?? undefined,
         };
 
@@ -647,7 +722,14 @@ async function applyBundle(bundle, args) {
         summary.lineItemsCreated += 1;
       }
     } catch (error) {
-      summary.errors.push(`${record.importKey}: ${error instanceof Error ? error.message : String(error)}`);
+      const message = error instanceof Error ? error.message : String(error);
+      if (/No federated jwt/i.test(message)) {
+        summary.errors.push(
+          `${record.importKey}: ${message}. Use --auth-mode userPool with an operator/administrator account (set IMPORT_PREP_USERNAME and IMPORT_PREP_PASSWORD).`
+        );
+      } else {
+        summary.errors.push(`${record.importKey}: ${message}`);
+      }
     }
   }
 
@@ -685,6 +767,10 @@ function validateArgs(args) {
 
   if (!['completed', 'archived'].includes(args.routeStatus)) {
     throw new Error(`Unsupported route status '${args.routeStatus}'. Use completed or archived.`);
+  }
+
+  if (!['userPool', 'iam'].includes(args.authMode)) {
+    throw new Error(`Unsupported auth mode '${args.authMode}'. Use userPool or iam.`);
   }
 }
 

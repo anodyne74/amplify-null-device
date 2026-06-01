@@ -205,6 +205,7 @@ export async function getCustomer(customerId: string) {
  */
 export async function createCustomer(input: {
   name: string;
+  companyName?: string;
   email: string;
   contactPhone?: string;
   addressLine1?: string;
@@ -237,6 +238,7 @@ export async function updateCustomer(
   customerId: string,
   updates: Partial<{
     name: string;
+    companyName: string;
     email: string;
     contactPhone: string;
     addressLine1: string;

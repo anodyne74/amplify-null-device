@@ -97,21 +97,27 @@ export default function Home() {
           <Authenticator 
             hideSignUp={false}
             formFields={{
-              signUp: {
-                given_name: {
-                  order: 1,
-                  label: 'First Name',
-                  placeholder: 'Enter your first name',
+              signIn: {
+                username: { 
+                  label: 'Email', 
+                  placeholder: 'Enter your email address',
                   isRequired: true,
+                  type: 'email',
                 },
-                email: {
-                  order: 2,
+              },
+              signUp: {
+                username: { 
+                  order: 1, 
+                  label: 'Email', 
+                  placeholder: 'Enter your email address',
+                  isRequired: true,
+                  type: 'email',
                 },
                 password: {
-                  order: 3,
+                  order: 2,
                 },
                 confirm_password: {
-                  order: 4,
+                  order: 3,
                 },
               },
             }}

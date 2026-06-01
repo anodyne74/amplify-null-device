@@ -115,8 +115,32 @@ export default function AdminHomePage() {
     [groupedAnalytics]
   );
 
-  const currentAnalytics = analyticsByPeriod[currentPeriodKey];
-  const previousAnalytics = analyticsByPeriod[previousPeriodKey];
+  const activePeriodKey = useMemo(() => {
+    if (analyticsByPeriod[currentPeriodKey]) {
+      return currentPeriodKey;
+    }
+
+    if (groupedAnalytics.length > 0) {
+      return groupedAnalytics[groupedAnalytics.length - 1].dateGroup;
+    }
+
+    return currentPeriodKey;
+  }, [analyticsByPeriod, currentPeriodKey, groupedAnalytics]);
+
+  const isFallbackPeriod = useMemo(
+    () => activePeriodKey !== currentPeriodKey && groupedAnalytics.length > 0,
+    [activePeriodKey, currentPeriodKey, groupedAnalytics]
+  );
+
+  const currentAnalytics = analyticsByPeriod[activePeriodKey];
+  const previousAnalytics = useMemo(() => {
+    const activeIndex = groupedAnalytics.findIndex((item) => item.dateGroup === activePeriodKey);
+    if (activeIndex > 0) {
+      return groupedAnalytics[activeIndex - 1];
+    }
+
+    return analyticsByPeriod[previousPeriodKey];
+  }, [activePeriodKey, analyticsByPeriod, groupedAnalytics, previousPeriodKey]);
 
   const routesCompletedKpi = currentAnalytics?.routesCompleted ?? 0;
   const totalRevenueKpi = currentAnalytics?.totalRevenue ?? 0;
@@ -130,7 +154,7 @@ export default function AdminHomePage() {
   const previousDistanceKpi = previousAnalytics?.totalDistanceKm ?? 0;
   const previousAvgRevenuePerRouteKpi =
     previousRoutesCompletedKpi > 0 ? previousRevenueKpi / previousRoutesCompletedKpi : 0;
-  const periodLabel = formatPeriodDisplay(currentPeriodKey, selectedPeriod as AnalyticsPeriod);
+  const periodLabel = formatPeriodDisplay(activePeriodKey, selectedPeriod as AnalyticsPeriod);
   const periodSummary = formatPeriodSummary(selectedPeriod as AnalyticsPeriod);
 
   const completedRoutes = useMemo(
@@ -338,7 +362,10 @@ export default function AdminHomePage() {
         </div>
 
         <div style={{ marginTop: '1rem' }}>
-          <p className={styles.welcome}>Showing analytics for {periodSummary}</p>
+          <p className={styles.welcome}>
+            Showing analytics for {periodSummary}
+            {isFallbackPeriod ? ` (latest available: ${periodLabel})` : ''}
+          </p>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>

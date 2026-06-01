@@ -145,13 +145,25 @@ npm run import:prep -- \
 Example apply run:
 
 ```bash
+export IMPORT_PREP_USERNAME="operator-or-admin@example.com"
+export IMPORT_PREP_PASSWORD="your-password"
+
 npm run import:prep -- \
 	--tracker "/home/dave/Downloads/Tracker - Jobs.csv" \
 	--route-lists-dir "/home/dave/Downloads/route-lists" \
 	--customer-id "YOUR_CUSTOMER_ID" \
 	--mode apply \
 	--confirm-apply \
+	--auth-mode userPool \
 	--outputs-path amplify_outputs.json
+```
+
+Optional auth flags:
+
+```bash
+--auth-mode userPool|iam
+--username "operator-or-admin@example.com"
+--password "your-password"
 ```
 
 Notes:
@@ -163,6 +175,8 @@ Notes:
 - Apply mode requires `--confirm-apply` so writes cannot happen accidentally.
 - In an interactive terminal, apply mode also asks for a final `yes` confirmation before writing.
 - The current importer defaults stop service types to `delivery`.
+- Apply mode now defaults to `--auth-mode userPool` and requires a signed-in Cognito operator/administrator account.
+- If you see `No federated jwt`, you are using IAM/federated auth without valid identity credentials; switch to `--auth-mode userPool` and provide `IMPORT_PREP_USERNAME` / `IMPORT_PREP_PASSWORD`.
 
 ## Deployment
 

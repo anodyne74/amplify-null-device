@@ -45,6 +45,18 @@ type Invoice = {
   emailSentAt?: string | null;
 };
 
+function normalizeInvoiceStatus(status?: Invoice['status'] | string | null) {
+  return String(status ?? '').trim().toLowerCase();
+}
+
+function isInvoicePaid(status?: Invoice['status'] | string | null) {
+  return normalizeInvoiceStatus(status) === 'paid';
+}
+
+function getInvoicePdfKey(invoice: Invoice) {
+  return invoice.pdfS3Key || `invoices/${invoice.id}.pdf`;
+}
+
 function getNextInvoiceNumber(invoices: Invoice[]) {
   const matches = invoices
     .map((invoice) => {
@@ -487,13 +499,14 @@ export default function InvoicesAdminPage() {
   };
 
   const handlePdfAction = async (invoice: Invoice, action: 'view' | 'download') => {
-    if (!invoice.pdfS3Key) return;
-
     setPdfActionLoadingId(invoice.id);
     setUploadError(null);
 
     try {
-      const { url } = await getUrl({ path: invoice.pdfS3Key });
+      const { url } = await getUrl({
+        path: getInvoicePdfKey(invoice),
+        options: { validateObjectExistence: false },
+      });
       const urlString = url.toString();
 
       if (action === 'view') {
@@ -1155,6 +1168,16 @@ export default function InvoicesAdminPage() {
                           <button
                             type="button"
                             className={invoiceStyles.uploadButton}
+                            onClick={() => {
+                              void handlePdfAction(invoice, 'view');
+                            }}
+                            disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
+                          >
+                            View PDF
+                          </button>
+                          <button
+                            type="button"
+                            className={invoiceStyles.uploadButton}
                             onClick={() => handleUploadClick(invoice.id)}
                             disabled={uploadingId === invoice.id}
                           >
@@ -1165,16 +1188,29 @@ export default function InvoicesAdminPage() {
                       </td>
                       <td>
                         <div className={invoiceStyles.actionButtons}>
-                          <button
-                            type="button"
-                            className={invoiceStyles.markPaidButton}
-                            onClick={() => {
-                              void handleMarkPaid(invoice.id);
-                            }}
-                            disabled={invoice.status === 'paid'}
-                          >
-                            {invoice.status === 'paid' ? 'Paid' : 'Mark Paid'}
-                          </button>
+                          {!isInvoicePaid(invoice.status) && (
+                            <button
+                              type="button"
+                              className={invoiceStyles.markPaidButton}
+                              onClick={() => {
+                                void handleMarkPaid(invoice.id);
+                              }}
+                            >
+                              Mark Paid
+                            </button>
+                          )}
+                          {invoice.pdfS3Key && (
+                            <button
+                              type="button"
+                              className={invoiceStyles.inlineButton}
+                              onClick={() => {
+                                void handlePdfAction(invoice, 'view');
+                              }}
+                              disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
+                            >
+                              View PDF
+                            </button>
+                          )}
                           <button
                             type="button"
                             className={invoiceStyles.emailButton}

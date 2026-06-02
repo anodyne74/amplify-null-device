@@ -67,7 +67,7 @@
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--nd-bg-void) 0%, var(--nd-bg-surface) 100%);
+  background: linear-gradient(135deg, var(--nd-color-bg-canvas) 0%, var(--nd-color-bg-surface) 100%);
   padding: var(--nd-space-lg);
   font-family: inherit;
 }
@@ -173,14 +173,14 @@
 }
 
 .authCard :global(.amplify-button[data-variation='primary']) {
-  background-color: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-  border-color: var(--nd-operator-accent);
+  background-color: var(--nd-interactive-primary-bg);
+  color: var(--nd-interactive-primary-fg);
+  border-color: var(--nd-interactive-primary-bg);
 }
 
 .authCard :global(.amplify-button[data-variation='primary']:hover) {
-  background-color: #ffc133;
-  border-color: #ffc133;
+  background-color: var(--nd-interactive-primary-bg-hover);
+  border-color: var(--nd-interactive-primary-bg-hover);
 }
 
 .authCard :global(.amplify-input),
@@ -207,9 +207,9 @@
 }
 
 .authCard :global(.amplify-alert) {
-  background: rgba(255, 183, 0, 0.12);
-  border-left: 4px solid var(--nd-operator-accent);
-  color: var(--nd-operator-accent);
+  background: var(--nd-alert-warning-bg);
+  border-left: 4px solid var(--nd-alert-warning-border);
+  color: var(--nd-alert-warning-fg);
 }
 
 .signupHeader {

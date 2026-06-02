@@ -12,7 +12,7 @@
 }
 
 .item:hover {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--nd-shadow-md);
   border-color: var(--nd-accent-primary);
 }
 
@@ -61,7 +61,7 @@
 .badgeDanger {
   color: var(--nd-status-danger);
   border-color: var(--nd-status-danger);
-  background-color: rgba(255, 71, 87, 0.15);
+  background-color: var(--nd-status-danger-dim);
 }
 
 .badgeArchived {

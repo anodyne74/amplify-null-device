@@ -1,0 +1,102 @@
+import { useEffect } from 'react';
+import type { Route } from '@/amplify/types';
+import type { CustomerOption, Invoice } from '@/app/administrator/invoices/types';
+
+type UseInvoiceDerivedFormEffectsParams = {
+  invoices: Invoice[];
+  invoiceNumberOverridden: boolean;
+  setInvoiceNumber: (value: string) => void;
+  routeId: string;
+  routes: Route[];
+  customers: CustomerOption[];
+  totalAmountOverridden: boolean;
+  setTotalHours: (value: string) => void;
+  setTotalAmount: (value: string) => void;
+  totalHours: string;
+};
+
+function getNextInvoiceNumber(invoices: Invoice[]) {
+  const matches = invoices
+    .map((invoice) => {
+      const number = invoice.invoiceNumber?.trim();
+      if (!number) return null;
+      const numericMatch = number.match(/(\d+)(?!.*\d)/);
+      if (!numericMatch) return null;
+      return {
+        prefix: number.slice(0, number.length - numericMatch[1].length),
+        numeric: Number(numericMatch[1]),
+        width: numericMatch[1].length,
+      };
+    })
+    .filter((value): value is { prefix: string; numeric: number; width: number } => Boolean(value));
+
+  if (matches.length === 0) {
+    return 'INV-001';
+  }
+
+  const maxNumeric = Math.max(...matches.map((entry) => entry.numeric));
+  const widest = Math.max(3, ...matches.map((entry) => entry.width));
+  const preferredPrefix = matches.find((entry) => entry.prefix)?.prefix ?? 'INV-';
+  return `${preferredPrefix}${String(maxNumeric + 1).padStart(widest, '0')}`;
+}
+
+function getRouteDurationHours(route?: Route | null) {
+  if (!route) return 0;
+  const minutes = route.overrideDurationMinutes ?? route.actualDurationMinutes ?? 0;
+  return Number((minutes / 60).toFixed(2));
+}
+
+export function useInvoiceDerivedFormEffects({
+  invoices,
+  invoiceNumberOverridden,
+  setInvoiceNumber,
+  routeId,
+  routes,
+  customers,
+  totalAmountOverridden,
+  setTotalHours,
+  setTotalAmount,
+  totalHours,
+}: UseInvoiceDerivedFormEffectsParams) {
+  useEffect(() => {
+    if (invoiceNumberOverridden) return;
+    setInvoiceNumber(getNextInvoiceNumber(invoices));
+  }, [invoices, invoiceNumberOverridden, setInvoiceNumber]);
+
+  useEffect(() => {
+    if (!routeId) {
+      setTotalHours('0');
+      setTotalAmount('0');
+      return;
+    }
+
+    const selectedRoute = routes.find((route) => route.id === routeId);
+    if (!selectedRoute) return;
+
+    const routeHours = getRouteDurationHours(selectedRoute);
+    setTotalHours(routeHours.toFixed(2));
+
+    if (totalAmountOverridden) {
+      return;
+    }
+
+    const customer = customers.find((entry) => entry.id === selectedRoute.customerId);
+    const rate = customer?.billingRatePerHour ?? 0;
+    const amount = routeHours * rate;
+    setTotalAmount(Number(amount).toFixed(2));
+  }, [routeId, routes, customers, setTotalAmount, setTotalHours, totalAmountOverridden]);
+
+  useEffect(() => {
+    if (totalAmountOverridden) return;
+    const selectedRoute = routes.find((route) => route.id === routeId);
+    if (!selectedRoute) return;
+
+    const customer = customers.find((entry) => entry.id === selectedRoute.customerId);
+    const rate = customer?.billingRatePerHour ?? 0;
+    const parsedHours = Number(totalHours);
+    if (!Number.isFinite(parsedHours) || parsedHours < 0) return;
+
+    const amount = parsedHours * rate;
+    setTotalAmount(Number(amount).toFixed(2));
+  }, [totalHours, routeId, routes, customers, setTotalAmount, totalAmountOverridden]);
+}

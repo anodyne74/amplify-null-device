@@ -14,6 +14,8 @@ type AmplifyOutputsShape = {
   [key: string]: unknown;
 };
 
+let amplifyConfigured = false;
+
 function readPublicAuthEnv() {
   const fromProcess = typeof process !== 'undefined' ? process.env : undefined;
 
@@ -63,6 +65,10 @@ export function getAmplifyConfig(): AmplifyOutputsShape {
  * Should be called once in the app's root (e.g., layout.tsx or _app.tsx)
  */
 export function configureAmplify() {
+  if (amplifyConfigured) {
+    return;
+  }
+
   const config = getAmplifyConfig();
   const auth = config.auth ?? {};
 
@@ -76,6 +82,7 @@ export function configureAmplify() {
   }
 
   Amplify.configure(config);
+  amplifyConfigured = true;
 }
 
 /**

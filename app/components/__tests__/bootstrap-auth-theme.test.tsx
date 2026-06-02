@@ -64,4 +64,10 @@ describe('bootstrap/auth/theme components', () => {
     expect(setModeMock).toHaveBeenCalledWith('dark');
     expect(select).toHaveValue('system');
   });
+
+  it('uses default label when custom label is not provided', () => {
+    render(<ThemeModeSelect />);
+
+    expect(screen.getByLabelText('Theme')).toBeInTheDocument();
+  });
 });

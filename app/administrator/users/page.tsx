@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import AdminActionButton from '@/app/components/AdminActionButton';
+import AdminFeedbackBanner from '@/app/components/AdminFeedbackBanner';
+import AdminFormField from '@/app/components/AdminFormField';
+import AdminSectionHeader from '@/app/components/AdminSectionHeader';
 import OperatorRoute from '@/app/components/OperatorRoute';
+import AdminListState from '@/app/components/AdminListState';
 import {
   createCustomerUser,
   deleteCustomerUser,
@@ -11,6 +16,8 @@ import {
   syncViewerSubsForCustomer,
 } from '@/lib/queries';
 import styles from '@/app/dashboard.module.css';
+import UserSelectorControl from '@/app/administrator/users/components/UserSelectorControl';
+import GroupMembershipSection from '@/app/administrator/users/components/GroupMembershipSection';
 
 type CognitoUser = {
   id?: string;
@@ -165,14 +172,29 @@ export default function UsersAdminPage() {
     [customerUsers]
   );
 
+  const selectedUser = useMemo(
+    () => users.find((user) => user.username === selectedUsername),
+    [users, selectedUsername]
+  );
+
   // ── Customer Access ──────────────────────────────────────────────
   const loadCustomers = useCallback(async () => {
-    const result = await listCustomers({ limit: 100 });
-    if (!result.errors || result.errors.length === 0) {
-      setCustomers((result.data as CustomerSummary[]) ?? []);
-      if (result.data && result.data.length > 0 && !selectedCustomerId) {
-        setSelectedCustomerId((result.data[0] as CustomerSummary).id);
+    const allCustomers: CustomerSummary[] = [];
+    let nextToken: string | undefined;
+
+    do {
+      const result = await listCustomers({ limit: 100, nextToken });
+      if (result.errors && result.errors.length > 0) {
+        return;
       }
+
+      allCustomers.push(...((result.data as CustomerSummary[]) ?? []));
+      nextToken = result.nextToken ?? undefined;
+    } while (nextToken);
+
+    setCustomers(allCustomers);
+    if (allCustomers.length > 0 && !selectedCustomerId) {
+      setSelectedCustomerId(allCustomers[0].id);
     }
   }, [selectedCustomerId]);
 
@@ -262,6 +284,7 @@ export default function UsersAdminPage() {
       const existing =
         customerUsers.find((u) => u.userSub === assignedUserSub) ||
         customerUsers.find((u) => (u.email || '').toLowerCase() === normalizedEmail);
+      let createdCustomerUserId: string | undefined;
       if (!existing) {
         const result = await createCustomerUser({
           customerId: selectedCustomerId,
@@ -280,12 +303,14 @@ export default function UsersAdminPage() {
           setAccessPending(false);
           return;
         }
+
+        createdCustomerUserId = (result.data as { id?: string } | null)?.id;
       }
 
       const updated = [...customerUsers];
       if (!existing) {
         updated.push({
-          id: 'temp',
+          id: createdCustomerUserId || `temp-${assignedUserSub}`,
           customerId: selectedCustomerId,
           userSub: assignedUserSub,
           accountOwnerSub:
@@ -308,7 +333,7 @@ export default function UsersAdminPage() {
       setNewUserEmail('');
       setNewUserRole('read_only');
       setNewUserName('');
-      await loadCustomerUsers(selectedCustomerId);
+      setCustomerUsers(updated);
     } catch (e) {
       setAccessError(e instanceof Error ? e.message : 'Failed to assign customer access.');
     }
@@ -330,7 +355,7 @@ export default function UsersAdminPage() {
       await syncViewerSubsForCustomer(selectedCustomerId, viewerSubs);
 
       setAccessSuccess('User removed and access revoked from all routes and stops.');
-      await loadCustomerUsers(selectedCustomerId);
+      setCustomerUsers(updated);
     }
     setAccessPending(false);
   };
@@ -404,7 +429,7 @@ export default function UsersAdminPage() {
             : [
                 ...customerUsers,
                 {
-                  id: 'temp',
+                  id: `temp-${selectedUser.sub}`,
                   customerId: selectedCustomerId,
                   userSub: selectedUser.sub,
                   accountOwnerSub,
@@ -417,11 +442,11 @@ export default function UsersAdminPage() {
             selectedCustomerId,
             toViewerSubs(updatedUsers)
           );
-          await loadCustomerUsers(selectedCustomerId);
+          setCustomerUsers(updatedUsers);
         }
       }
 
-      await loadGroups(selectedUsername);
+      setGroups((prev) => (prev.includes(groupName) ? prev : [...prev, groupName]));
       setSuccessMessage(
         `Assigned ${groupName} to ${selectedEmailInput || selectedUsername}. The user should sign out and sign back in to refresh permissions.`
       );
@@ -438,7 +463,44 @@ export default function UsersAdminPage() {
     setSuccessMessage(null);
     try {
       await callAdminApi({ action: 'removeUserFromGroup', username: selectedUsername, groupName });
-      await loadGroups(selectedUsername);
+
+      if (groupName === 'customer' && selectedCustomerId) {
+        const selectedUser =
+          users.find((user) => user.username === selectedUsername) ||
+          (selectedEmailInput
+            ? await resolveUserByEmail(selectedEmailInput).catch(() => undefined)
+            : undefined);
+
+        const normalizedEmail = (selectedEmailInput || selectedUser?.email || '').trim().toLowerCase();
+        const customerUserToRemove = customerUsers.find((customerUser) => {
+          if (selectedUser?.sub && customerUser.userSub === selectedUser.sub) {
+            return true;
+          }
+
+          return Boolean(
+            normalizedEmail &&
+            customerUser.email &&
+            customerUser.email.trim().toLowerCase() === normalizedEmail
+          );
+        });
+
+        if (customerUserToRemove) {
+          const removeCustomerUserResult = await deleteCustomerUser(customerUserToRemove.id);
+          if (removeCustomerUserResult.errors && removeCustomerUserResult.errors.length > 0) {
+            setError('Customer group removed, but customer access record cleanup failed.');
+            setPending(false);
+            return;
+          }
+
+          const updatedCustomerUsers = customerUsers.filter(
+            (customerUser) => customerUser.id !== customerUserToRemove.id
+          );
+          await syncViewerSubsForCustomer(selectedCustomerId, toViewerSubs(updatedCustomerUsers));
+          setCustomerUsers(updatedCustomerUsers);
+        }
+      }
+
+      setGroups((prev) => prev.filter((group) => group !== groupName));
       setSuccessMessage(
         `Removed ${groupName} from ${selectedEmailInput || selectedUsername}. The user should sign out and sign back in to refresh permissions.`
       );
@@ -448,185 +510,149 @@ export default function UsersAdminPage() {
     setPending(false);
   };
 
+  const handleLoadGroupsByEmail = async () => {
+    if (!selectedEmailInput) return;
+    try {
+      const resolved = await resolveUserByEmail(selectedEmailInput);
+      if (!resolved.username) {
+        setError('Unable to resolve username for this email.');
+        return;
+      }
+      setSelectedUsername(resolved.username);
+      await loadGroups(resolved.username);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to resolve user by email.');
+    }
+  };
+
+  const handleSelectUsername = (username: string) => {
+    setSelectedUsername(username);
+    const selected = users.find((user) => user.username === username);
+    setSelectedEmailInput(selected?.email || selected?.username || '');
+  };
+
+  const handleToggleGroup = (group: string, checked: boolean) => {
+    if (checked) {
+      void assignGroup(group as (typeof GROUPS)[number]);
+      return;
+    }
+    void removeGroup(group as (typeof GROUPS)[number]);
+  };
+
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
         <h1 className={styles.heading}>Users</h1>
         <div className={styles.infoPanel}>
-          <h3>Manage User Groups</h3>
-          <p className={styles.welcome}>Assign and revoke customer, operator, and administrator groups by user email.</p>
-          <p className={styles.welcome}>Users must sign up via Request Access and set their own password during sign-up.</p>
+          <AdminSectionHeader
+            title="Manage User Groups"
+            description="Assign and revoke customer, operator, and administrator groups by user email."
+            secondaryDescription="Users must sign up via Request Access and set their own password during sign-up."
+          />
 
-          {error && <p className={styles.welcome}>{error}</p>}
-          {successMessage && <p className={styles.welcome}>{successMessage}</p>}
+          <AdminFeedbackBanner
+            message={error}
+            tone="error"
+            messageClassName={styles.inlineErrorText}
+          />
+          <AdminFeedbackBanner
+            message={successMessage}
+            tone="success"
+            messageClassName={styles.inlineSuccessText}
+          />
 
-          <div>
-            <label htmlFor="userSelect">User</label>
-            <br />
-            {listUsersDenied ? (
-              <>
-                <input
-                  id="userSelect"
-                  type="text"
-                  value={selectedEmailInput}
-                  onChange={(event) => setSelectedEmailInput(event.target.value.trim())}
-                  placeholder="Enter user email"
-                  disabled={pending}
-                />
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!selectedEmailInput) return;
-                    try {
-                      const resolved = await resolveUserByEmail(selectedEmailInput);
-                      if (!resolved.username) {
-                        setError('Unable to resolve username for this email.');
-                        return;
-                      }
-                      setSelectedUsername(resolved.username);
-                      await loadGroups(resolved.username);
-                    } catch (e) {
-                      setError(e instanceof Error ? e.message : 'Failed to resolve user by email.');
-                    }
-                  }}
-                  disabled={pending || !selectedEmailInput}
-                >
-                  Load Groups
-                </button>
-              </>
-            ) : (
-              <>
-                <select
-                  id="userSelect"
-                  value={selectedUsername}
-                  onChange={(event) => {
-                    const username = event.target.value;
-                    setSelectedUsername(username);
-                    const selected = users.find((u) => u.username === username);
-                    setSelectedEmailInput(selected?.email || selected?.username || '');
-                  }}
-                  disabled={loading || pending}
-                >
-                  {users.map((user) => (
-                    <option key={user.username} value={user.username}>
-                      {user.name || user.username || 'Unnamed user'}
-                      {user.email ? ` (${user.email})` : ''}
-                      {user.status ? ` (${user.status})` : ''}
-                    </option>
-                  ))}
-                </select>
-                <button type="button" onClick={() => void loadUsers()} disabled={loading || pending}>
-                  Refresh Users
-                </button>
-              </>
-            )}
-          </div>
+          <UserSelectorControl
+            listUsersDenied={listUsersDenied}
+            selectedEmailInput={selectedEmailInput}
+            selectedUsername={selectedUsername}
+            users={users}
+            loading={loading}
+            pending={pending}
+            onEmailInputChange={setSelectedEmailInput}
+            onLoadGroupsByEmail={handleLoadGroupsByEmail}
+            onSelectUsername={handleSelectUsername}
+            onRefreshUsers={() => {
+              void loadUsers();
+            }}
+          />
 
-          {selectedUsername && (
-            <div>
-              {users.find((u) => u.username === selectedUsername)?.name && (
-                <p className={styles.welcome}>
-                  Name: {users.find((u) => u.username === selectedUsername)?.name}
-                </p>
-              )}
-
-              {users.find((u) => u.username === selectedUsername)?.email && (
-                <p className={styles.welcome}>
-                  Email: {users.find((u) => u.username === selectedUsername)?.email}
-                </p>
-              )}
-
-              <h4>Group Membership</h4>
-              {!selectedCustomerId && (
-                <p className={styles.welcome} style={{ color: 'var(--nd-text-muted)', fontSize: '0.9rem' }}>
-                  To enable customer access, select a customer in the "Customer Access" section below first.
-                </p>
-              )}
-              <div style={{ display: 'grid', gap: 10 }}>
-                {GROUPS.map((group) => {
-                  const checked = groups.includes(group);
-                  const disabled = pending || (group === 'customer' && !selectedCustomerId);
-                  return (
-                    <label
-                      key={group}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        opacity: disabled ? 0.65 : 1,
-                        cursor: disabled ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={disabled}
-                        onChange={(event) => {
-                          if (event.target.checked) {
-                            void assignGroup(group);
-                            return;
-                          }
-                          void removeGroup(group);
-                        }}
-                      />
-                      <span style={{ textTransform: 'capitalize' }}>{group}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          <GroupMembershipSection
+            selectedUsername={selectedUsername}
+            selectedUser={selectedUser}
+            selectedCustomerId={selectedCustomerId}
+            pending={pending}
+            groups={groups}
+            groupOptions={GROUPS}
+            onToggleGroup={handleToggleGroup}
+          />
         </div>
 
         {/* ── Customer Access ── */}
         <div className={styles.infoPanel}>
-          <h3>Customer Access</h3>
-          <p className={styles.welcome}>
-            Customer-group users must be assigned to a customer. Assign each user by email as either
-            primary contact (account owner) or read-only.
-          </p>
+          <AdminSectionHeader
+            title="Customer Access"
+            description="Customer-group users must be assigned to a customer. Assign each user by email as either primary contact (account owner) or read-only."
+          />
 
-          {accessError && <p className={styles.welcome}>{accessError}</p>}
-          {accessSuccess && <p className={styles.welcome}>{accessSuccess}</p>}
+          <AdminFeedbackBanner
+            message={accessError}
+            tone="error"
+            messageClassName={styles.inlineErrorText}
+          />
+          <AdminFeedbackBanner
+            message={accessSuccess}
+            tone="success"
+            messageClassName={styles.inlineSuccessText}
+          />
 
-          <div>
-            <label htmlFor="customerSelect">Customer</label>
-            <br />
+          <AdminFormField label="Customer" htmlFor="customerSelect" className={styles.inlineGrid}>
             <select
               id="customerSelect"
               value={selectedCustomerId}
               onChange={(e) => setSelectedCustomerId(e.target.value)}
               disabled={accessPending}
+              aria-label="Customer for access management"
             >
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-          </div>
+          </AdminFormField>
 
           {selectedCustomerId && (
             <div>
               <h4>Users for this customer</h4>
               {customerUsers.length === 0 ? (
-                <p className={styles.welcome}>No users assigned yet.</p>
+                <AdminListState empty emptyMessage="No users assigned yet." />
               ) : (
-                <ul>
+                <ul className={styles.accessUserList}>
                   {customerUsers.map((cu) => (
-                    <li key={cu.id}>
-                      <strong>{cu.role === 'account_owner' ? 'Owner' : 'Read-only'}:</strong>{' '}
-                      {cu.name ?? cu.email ?? 'Unnamed user'}
-                      {cu.email ? ` (${cu.email})` : ''}
+                    <li key={cu.id} className={styles.accessUserRow}>
+                      <div className={styles.accessUserIdentity}>
+                        <span className={`${styles.statusChip} ${cu.role === 'account_owner' ? styles.statusChipActive : styles.statusChipMuted}`}>
+                          {cu.role === 'account_owner' ? 'Primary' : 'Read-only'}
+                        </span>
+                        <span className={styles.accessUserName}>{cu.name ?? cu.email ?? 'Unnamed user'}</span>
+                        {cu.email && <span className={styles.accessUserMeta}>{cu.email}</span>}
+                      </div>
                       {cu.role !== 'account_owner' && (
-                        <>
-                          {' '}
-                          <button
-                            type="button"
-                            onClick={() => void handleRemoveCustomerUser(cu.id)}
-                            disabled={accessPending}
-                          >
-                            Remove
-                          </button>
-                        </>
+                        <details className={styles.rowMenu}>
+                          <summary className={styles.rowMenuTrigger}>Manage</summary>
+                          <div className={styles.rowMenuList}>
+                            <AdminActionButton
+                              onClick={() => void handleRemoveCustomerUser(cu.id)}
+                              variant="danger"
+                              isLoading={accessPending}
+                              loadingLabel="Removing..."
+                              aria-label={`Remove ${cu.name ?? cu.email ?? 'user'} from customer access`}
+                            >
+                              Remove User
+                            </AdminActionButton>
+                          </div>
+                        </details>
+                      )}
+                      {cu.role === 'account_owner' && (
+                        <span className={`${styles.statusChip} ${styles.statusChipSent}`}>Owner</span>
                       )}
                     </li>
                   ))}
@@ -642,34 +668,51 @@ export default function UsersAdminPage() {
                   This customer has no primary contact yet. Assign a primary contact first before adding read-only users.
                 </p>
               )}
-              <select
-                value={newUserRole}
-                onChange={(e) => setNewUserRole(e.target.value as 'account_owner' | 'read_only')}
-                disabled={accessPending}
-              >
-                <option value="account_owner">Primary contact (account owner)</option>
-                <option value="read_only" disabled={!hasAccountOwner}>Read-only</option>
-              </select>
-              <input
-                value={newUserEmail}
-                onChange={(e) => setNewUserEmail(e.target.value)}
-                placeholder="User email"
-                disabled={accessPending}
-                type="email"
-              />
-              <input
-                value={newUserName}
-                onChange={(e) => setNewUserName(e.target.value)}
-                placeholder="Display name (optional)"
-                disabled={accessPending}
-              />
-              <button
-                type="button"
-                onClick={() => void handleAddCustomerUser()}
-                disabled={accessPending || !newUserEmail.trim()}
-              >
-                {accessPending ? 'Saving...' : 'Add Customer User'}
-              </button>
+              <div className={styles.inlineGrid}>
+                <AdminFormField label="Role" htmlFor="newCustomerRole" className={styles.inlineGrid}>
+                  <select
+                    id="newCustomerRole"
+                    value={newUserRole}
+                    onChange={(e) => setNewUserRole(e.target.value as 'account_owner' | 'read_only')}
+                    disabled={accessPending}
+                    aria-label="Role for new customer user"
+                  >
+                    <option value="account_owner">Primary contact (account owner)</option>
+                    <option value="read_only" disabled={!hasAccountOwner}>Read-only</option>
+                  </select>
+                </AdminFormField>
+                <AdminFormField label="Email" htmlFor="newCustomerEmail" className={styles.inlineGrid}>
+                  <input
+                    id="newCustomerEmail"
+                    value={newUserEmail}
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                    placeholder="User email"
+                    disabled={accessPending}
+                    type="email"
+                    aria-label="Email for new customer user"
+                  />
+                </AdminFormField>
+                <AdminFormField label="Display Name" htmlFor="newCustomerName" className={styles.inlineGrid}>
+                  <input
+                    id="newCustomerName"
+                    value={newUserName}
+                    onChange={(e) => setNewUserName(e.target.value)}
+                    placeholder="Display name (optional)"
+                    disabled={accessPending}
+                    aria-label="Optional display name for new customer user"
+                  />
+                </AdminFormField>
+                <AdminActionButton
+                  onClick={() => void handleAddCustomerUser()}
+                  variant="primary"
+                  isLoading={accessPending}
+                  loadingLabel="Saving..."
+                  disabled={!newUserEmail.trim()}
+                  aria-label="Add customer user"
+                >
+                  Add Customer User
+                </AdminActionButton>
+              </div>
             </div>
           )}
         </div>

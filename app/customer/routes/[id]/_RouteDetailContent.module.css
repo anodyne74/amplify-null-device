@@ -13,7 +13,7 @@
 
 .errorBanner {
   padding: var(--nd-space-md);
-  background-color: rgba(255,71,87,0.12);
+  background-color: var(--nd-status-danger-dim);
   color: var(--nd-status-danger);
   border-radius: var(--nd-radius-md);
   margin-top: var(--nd-space-md);

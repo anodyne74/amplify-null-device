@@ -47,10 +47,62 @@ export default function AdminHomePage() {
     async function loadStats() {
       setStatsLoading(true);
       try {
+        const fetchAllRoutes = async () => {
+          const allRoutes: Route[] = [];
+          let nextToken: string | undefined;
+
+          do {
+            const pageResult = await listAllRoutes({ limit: 500, nextToken });
+            if (pageResult.errors && pageResult.errors.length > 0) {
+              return { data: [] as Route[], errors: pageResult.errors };
+            }
+
+            allRoutes.push(...((pageResult.data as Route[]) || []));
+            nextToken = pageResult.nextToken ?? undefined;
+          } while (nextToken);
+
+          return { data: allRoutes, errors: undefined };
+        };
+
+        const fetchAllInvoices = async () => {
+          const allInvoices: Invoice[] = [];
+          let nextToken: string | undefined;
+
+          do {
+            const pageResult = await listInvoices({ limit: 500, nextToken });
+            if (pageResult.errors && pageResult.errors.length > 0) {
+              return { data: [] as Invoice[], errors: pageResult.errors };
+            }
+
+            allInvoices.push(...((pageResult.data as Invoice[]) || []));
+            nextToken = pageResult.nextToken ?? undefined;
+          } while (nextToken);
+
+          return { data: allInvoices, errors: undefined };
+        };
+
+        const fetchAllCustomers = async () => {
+          const client = generateClient<Schema>();
+          const allCustomers: Array<{ id: string }> = [];
+          let nextToken: string | undefined;
+
+          do {
+            const pageResult = await client.models.Customer.list({ limit: 200, nextToken });
+            if (pageResult.errors && pageResult.errors.length > 0) {
+              return { data: [] as Array<{ id: string }>, errors: pageResult.errors };
+            }
+
+            allCustomers.push(...((pageResult.data as Array<{ id: string }>) ?? []));
+            nextToken = pageResult.nextToken ?? undefined;
+          } while (nextToken);
+
+          return { data: allCustomers, errors: undefined };
+        };
+
         const [routeResult, invoiceResult, customerResult] = await Promise.all([
-          listAllRoutes({ limit: 500 }),
-          listInvoices({ limit: 500 }),
-          generateClient<Schema>().models.Customer.list({ limit: 200 }),
+          fetchAllRoutes(),
+          fetchAllInvoices(),
+          fetchAllCustomers(),
         ]);
         if (!routeResult.errors || routeResult.errors.length === 0) {
           setRoutes((routeResult.data as Route[]) || []);
@@ -63,8 +115,15 @@ export default function AdminHomePage() {
         }
 
         const client = generateClient<Schema>();
-        const allStops = await client.models.Stop.list({ limit: 2000 });
-        const stopList = (allStops.data as unknown as Array<{ numberOfSigns?: number | null }>) ?? [];
+        const stopList: Array<{ numberOfSigns?: number | null }> = [];
+        let nextToken: string | undefined;
+
+        do {
+          const stopsPage = await client.models.Stop.list({ limit: 2000, nextToken });
+          stopList.push(...((stopsPage.data as unknown as Array<{ numberOfSigns?: number | null }>) ?? []));
+          nextToken = stopsPage.nextToken ?? undefined;
+        } while (nextToken);
+
         setTotalStops(stopList.length);
         setTotalSigns(stopList.reduce((sum, s) => sum + (typeof s.numberOfSigns === 'number' ? s.numberOfSigns : 0), 0));
       } catch { /* stats are best-effort */ }
@@ -361,14 +420,14 @@ export default function AdminHomePage() {
           </div>
         </div>
 
-        <div style={{ marginTop: '1rem' }}>
+        <div className={styles.analyticsSummaryRow}>
           <p className={styles.welcome}>
             Showing analytics for {periodSummary}
             {isFallbackPeriod ? ` (latest available: ${periodLabel})` : ''}
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
+        <div className={`${styles.statsGrid} ${styles.kpiGrid}`}>
           <KpiCard
             title="Routes Completed"
             value={statsLoading ? '…' : routesCompletedKpi}

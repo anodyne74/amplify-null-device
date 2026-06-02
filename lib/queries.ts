@@ -169,18 +169,18 @@ export async function upsertUserSettings(
  */
 export async function listCustomers(options?: { limit?: number; nextToken?: string }) {
   try {
-    const { data, errors } = await getClient().models.Customer.list({
+    const { data, errors, nextToken } = await getClient().models.Customer.list({
       limit: options?.limit || 20,
       nextToken: options?.nextToken,
     });
     if (errors) {
       console.error('Errors fetching customers:', errors);
-      return { data: [], errors };
+      return { data: [], errors, nextToken: undefined };
     }
-    return { data: data || [], errors };
+    return { data: data || [], errors, nextToken: nextToken ?? undefined };
   } catch (error) {
     console.error('Error listing customers:', error);
-    return { data: [], errors: [error] };
+    return { data: [], errors: [error], nextToken: undefined };
   }
 }
 
@@ -383,24 +383,24 @@ export async function listInvoices(options?: {
   status?: 'draft' | 'finalized' | 'sent' | 'paid';
 }) {
   try {
-    const { data, errors } = await getClient().models.Invoice.list({
+    const { data, errors, nextToken } = await getClient().models.Invoice.list({
       limit: options?.limit || 20,
       nextToken: options?.nextToken,
     });
 
     if (errors) {
       console.error('Errors fetching invoices:', errors);
-      return { data: [], errors };
+      return { data: [], errors, nextToken: undefined };
     }
 
     const filtered = options?.status
       ? (data || []).filter((invoice) => invoice.status === options.status)
       : (data || []);
 
-    return { data: filtered, errors };
+    return { data: filtered, errors, nextToken: nextToken ?? undefined };
   } catch (error) {
     console.error('Error listing invoices:', error);
-    return { data: [], errors: [error] };
+    return { data: [], errors: [error], nextToken: undefined };
   }
 }
 

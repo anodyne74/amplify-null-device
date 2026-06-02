@@ -151,8 +151,25 @@ export IMPORT_PREP_PASSWORD="your-password"
 npm run import:prep -- \
 	--tracker "/home/dave/Downloads/Tracker - Jobs.csv" \
 	--route-lists-dir "/home/dave/Downloads/route-lists" \
+	--invoice-pdfs-dir "/home/dave/Downloads/invoice-pdfs" \
 	--customer-id "YOUR_CUSTOMER_ID" \
 	--mode apply \
+	--confirm-apply \
+	--auth-mode userPool \
+	--outputs-path amplify_outputs.json
+```
+
+Example PDF-only rerun (no route/stop/invoice recalculation):
+
+```bash
+export IMPORT_PREP_USERNAME="operator-or-admin@example.com"
+export IMPORT_PREP_PASSWORD="your-password"
+
+npm run import:prep -- \
+	--tracker "/home/dave/Downloads/Tracker - Jobs.csv" \
+	--invoice-pdfs-dir "/home/dave/Downloads/invoice-pdfs" \
+	--customer-id "YOUR_CUSTOMER_ID" \
+	--mode pdf-only \
 	--confirm-apply \
 	--auth-mode userPool \
 	--outputs-path amplify_outputs.json
@@ -171,7 +188,10 @@ Notes:
 - The script matches route-list files by route code in the filename, such as `W23-26-001 - Route List - Route.csv`.
 - The tracker export uses the second tab in the workbook, which should be the `Jobs` sheet.
 - If a route-list file is missing, the bundle still generates and adds a warning for that route.
+- If `--invoice-pdfs-dir` is provided, the importer matches PDFs by invoice number (for example `INV-001.pdf`) and uploads them to `invoices/{invoiceId}.pdf`, then saves `pdfS3Key` on the invoice record.
+- PDF upload requires a signed-in Cognito user in `operator` or `administrator` group with current storage write permissions deployed.
 - Apply mode upserts routes, stops, invoices, and a legacy line item for each invoice when the imported totals are available.
+- `pdf-only` mode only uploads matched invoice PDFs and updates `pdfS3Key` on existing invoices.
 - Apply mode requires `--confirm-apply` so writes cannot happen accidentally.
 - In an interactive terminal, apply mode also asks for a final `yes` confirmation before writing.
 - The current importer defaults stop service types to `delivery`.

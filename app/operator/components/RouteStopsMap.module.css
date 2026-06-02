@@ -22,7 +22,7 @@
 }
 
 .sequenceLabel {
-  color: #10131a;
+  color: var(--nd-color-text-on-accent);
   font-size: 11px;
   font-weight: 700;
 }
@@ -39,12 +39,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--nd-text-inverse);
+  color: var(--nd-color-text-on-accent);
   font-weight: 800;
   font-size: 12px;
   line-height: 1;
   box-sizing: border-box;
-  border: 2px solid rgba(0, 0, 0, 0.18);
+  border: 2px solid color-mix(in srgb, var(--nd-color-bg-canvas) 22%, transparent);
   transition: transform var(--nd-transition-fast), box-shadow var(--nd-transition-fast);
 }
 
@@ -67,7 +67,7 @@
 
 .stopMarkerActive {
   transform: scale(1.18);
-  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.95), 0 4px 10px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--nd-operator-accent) 92%, transparent), var(--nd-shadow-md);
 }
 
 .stopMarkerCompleted {

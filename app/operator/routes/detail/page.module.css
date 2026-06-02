@@ -16,7 +16,7 @@
 
 .errorBanner {
   padding: var(--nd-space-md);
-  background-color: rgba(255,71,87,0.12);
+  background-color: var(--nd-status-danger-dim);
   color: var(--nd-status-danger);
   border-radius: var(--nd-radius-md);
   margin-top: var(--nd-space-md);
@@ -47,10 +47,13 @@
 
 .btnRouteEdit {
   margin-left: auto;
-  padding: 6px 12px;
+  min-height: 44px;
+  padding: 10px 14px;
   border: 1px solid var(--nd-operator-accent);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-operator-accent);
+  display: inline-flex;
+  align-items: center;
   text-decoration: none;
   font-size: 13px;
   font-weight: 600;
@@ -61,7 +64,8 @@
 }
 
 .btnRouteDelete {
-  padding: 6px 12px;
+  min-height: 44px;
+  padding: 10px 14px;
   border: 1px solid var(--nd-status-danger);
   border-radius: var(--nd-radius-sm);
   background: transparent;
@@ -164,7 +168,7 @@
 
 .distanceOverrideInput {
   width: 100%;
-  min-height: 38px;
+  min-height: 44px;
   border: 1px solid var(--nd-border-default);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg-surface);
@@ -174,8 +178,8 @@
 }
 
 .btnSaveDistanceOverride {
-  min-height: 38px;
-  padding: 8px 14px;
+  min-height: 44px;
+  padding: 10px 14px;
   border: none;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-operator-accent);
@@ -226,7 +230,7 @@
 
 .phaseCompletionInput {
   width: 100%;
-  min-height: 36px;
+  min-height: 44px;
   border: 1px solid var(--nd-border-default);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg-surface);
@@ -256,6 +260,7 @@
 }
 
 .btnStart {
+  min-height: 44px;
   padding: 10px 20px;
   background-color: var(--nd-operator-accent);
   color: var(--nd-text-inverse);
@@ -277,6 +282,7 @@
 }
 
 .btnComplete {
+  min-height: 44px;
   padding: 10px 20px;
   background-color: var(--nd-status-active);
   color: var(--nd-text-inverse);
@@ -352,7 +358,8 @@
 }
 
 .btnAddStop {
-  padding: 8px 16px;
+  min-height: 44px;
+  padding: 10px 16px;
   background-color: var(--nd-operator-accent);
   color: var(--nd-text-inverse);
   border: none;
@@ -505,7 +512,7 @@
 
 .stopCardTop {
   transform: translateY(-1px);
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.8), 0 12px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--nd-operator-accent) 80%, transparent), var(--nd-shadow-lg);
 }
 
 .stopCardCompleted {
@@ -601,8 +608,8 @@
   letter-spacing: 0.04em;
   background-color: var(--nd-agent-badge-bg-override, var(--nd-agent-badge-bg, var(--nd-border-default)));
   color: var(--nd-agent-badge-fg-override, var(--nd-agent-badge-fg, var(--nd-text-primary)));
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  border: 1px solid color-mix(in srgb, var(--nd-color-border-default) 90%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nd-color-bg-canvas) 16%, transparent);
   white-space: nowrap;
   box-sizing: border-box;
 }
@@ -627,7 +634,8 @@
 }
 
 .btnReorder {
-  padding: 6px 10px;
+  min-height: 44px;
+  padding: 10px 12px;
   background-color: transparent;
   color: var(--nd-text-secondary);
   border: 1px solid var(--nd-border-default);
@@ -640,7 +648,8 @@
 .stopCardExecutionCompact .btnReorder,
 .stopCardExecutionCompact .btnEdit,
 .stopCardExecutionCompact .btnDelete {
-  padding: 4px 8px;
+  min-height: 40px;
+  padding: 8px 10px;
   font-size: 11px;
 }
 
@@ -654,7 +663,8 @@
 }
 
 .btnEdit {
-  padding: 6px 12px;
+  min-height: 44px;
+  padding: 10px 14px;
   background-color: transparent;
   color: var(--nd-operator-accent);
   border: 1px solid var(--nd-operator-accent);
@@ -674,7 +684,8 @@
 }
 
 .btnDelete {
-  padding: 6px 12px;
+  min-height: 44px;
+  padding: 10px 14px;
   background-color: transparent;
   color: var(--nd-status-danger);
   border: 1px solid var(--nd-status-danger);
@@ -730,7 +741,7 @@
 
 .stopCardExecutionCompact .btnExecComplete,
 .stopCardExecutionCompact .btnSkip {
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 12px;
   font-size: 13px;
 }
@@ -750,7 +761,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: opacity var(--nd-transition-fast);
-  min-height: 40px;
+  min-height: 44px;
 }
 
 .btnExecComplete:hover {
@@ -795,7 +806,6 @@
   font-weight: 600;
   cursor: pointer;
   transition: opacity var(--nd-transition-fast);
-  min-height: 40px;
   min-height: 48px;
 }
 
@@ -923,7 +933,7 @@
   .btnExecComplete,
   .btnSkip {
     flex: 0 1 auto;
-    min-height: 42px;
+    min-height: 44px;
     font-size: 12px;
     padding: 8px 12px;
     white-space: nowrap;

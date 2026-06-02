@@ -1,0 +1,52 @@
+# NullDevice Theme Guide
+
+This folder defines the token architecture used by CSS modules, Amplify UI, and MUI.
+
+## Token Tiers
+
+1. Core palette tokens (TypeScript): `themeTokens.ts`
+- Source of truth for light/dark color values used in JS/TS themes.
+- Shared by `app/amplify-theme.ts` and `app/operator/mui-theme.ts`.
+
+2. Global CSS semantic tokens: `app/globals.css`
+- `--nd-color-*` aliases for component-level styling.
+- `--nd-status-*-dim` surface tokens for badges/alerts.
+- `--nd-interactive-*` action tokens for primary controls.
+
+3. Component tokens in CSS modules
+- Prefer semantic tokens such as:
+  - `--nd-color-bg-surface`
+  - `--nd-color-text-primary`
+  - `--nd-status-danger-dim`
+  - `--nd-interactive-primary-bg`
+- Avoid hard-coded hex/rgba except when introducing a new semantic token.
+
+4. Non-module styles and sx props
+- For MUI `sx` and inline style objects, use CSS variables (`var(--nd-...)`) instead of literals.
+- Prefer semantic intent tokens over direct palette tokens when available.
+
+## Layout Primitives
+
+Shared layout helpers are defined in `app/globals.css`:
+- `.nd-page-shell`
+- `.nd-stack`
+- `.nd-surface-panel`
+- `.nd-table-scroll`
+
+Use these first before creating page-local layout wrappers.
+
+## Extending Theme Safely
+
+1. Add new palette value to `themeTokens.ts`.
+2. Expose semantic CSS variable in `app/globals.css`.
+3. Update Amplify/MUI theme consumers if relevant.
+4. Replace local literals in CSS modules with the new semantic variable.
+
+## Contrast Intent
+
+- `--nd-color-text-on-accent`: text/icons on bright accent fills (amber/green/cyan).
+- `--nd-color-text-on-danger`: text/icons on danger fills.
+- `--nd-text-primary|secondary|muted`: default foreground hierarchy on neutral surfaces.
+- Status surfaces (`--nd-status-*-dim`) are for badges/alerts, not body backgrounds.
+
+When introducing a new filled component state, define a semantic "text-on-*" token if contrast differs from existing states.

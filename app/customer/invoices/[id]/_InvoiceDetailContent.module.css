@@ -23,7 +23,7 @@
 
 .errorBox {
   padding: var(--nd-space-lg);
-  background-color: rgba(255,71,87,0.12);
+  background-color: var(--nd-status-danger-dim);
   color: var(--nd-status-danger);
   border-radius: var(--nd-radius-lg);
   font-size: 14px;
@@ -37,7 +37,7 @@
 .goBackBtn {
   padding: 8px 16px;
   background-color: var(--nd-status-danger);
-  color: var(--nd-text-inverse);
+  color: var(--nd-color-text-on-danger);
   border: none;
   border-radius: var(--nd-radius-sm);
   font-size: 14px;

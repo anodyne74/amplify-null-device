@@ -24,6 +24,7 @@ function parseArgs(argv) {
   const args = {
     tracker: '',
     routeListsDir: '',
+    invoicePdfsDir: '',
     customerId: '',
     mode: 'dry-run',
     confirmApply: false,
@@ -50,6 +51,11 @@ function parseArgs(argv) {
     }
     if (arg === '--customer-id' && next) {
       args.customerId = next;
+      i += 1;
+      continue;
+    }
+    if (arg === '--invoice-pdfs-dir' && next) {
+      args.invoicePdfsDir = next;
       i += 1;
       continue;
     }
@@ -101,9 +107,10 @@ function usage() {
   console.log(`Usage:
   node scripts/import-prep.js \
     --tracker /path/to/Tracker.csv \
-    --route-lists-dir /path/to/route-lists \
+    [--route-lists-dir /path/to/route-lists] \
+    [--invoice-pdfs-dir /path/to/invoice-pdfs] \
     --customer-id <customer-id> \
-    [--mode dry-run|apply] \
+    [--mode dry-run|apply|pdf-only] \
     [--confirm-apply] \
     [--output legacy-import-bundle.json] \
     [--outputs-path amplify_outputs.json] \
@@ -118,6 +125,10 @@ function usage() {
       IMPORT_PREP_USERNAME, IMPORT_PREP_PASSWORD
     - IAM mode requires identity pool federation and is not recommended for this import.
 `);
+}
+
+function normalizeToken(value) {
+  return String(value || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
 }
 
 async function confirmApply(bundle) {
@@ -417,6 +428,38 @@ function buildRouteListIndex(routeListsDir) {
   return { index, warnings };
 }
 
+function buildInvoicePdfIndex(invoicePdfsDir) {
+  if (!invoicePdfsDir) {
+    return { index: new Map(), warnings: [] };
+  }
+
+  const files = fs
+    .readdirSync(invoicePdfsDir)
+    .filter((name) => name.toLowerCase().endsWith('.pdf'))
+    .map((name) => path.join(invoicePdfsDir, name));
+
+  const index = new Map();
+  const warnings = [];
+
+  for (const filePath of files) {
+    const fileName = path.basename(filePath, path.extname(filePath));
+    const key = normalizeToken(fileName);
+    if (!key) {
+      warnings.push(`Invoice PDF skipped (no usable key): ${path.basename(filePath)}`);
+      continue;
+    }
+
+    if (index.has(key)) {
+      warnings.push(`Duplicate invoice PDF match key '${key}' (keeping first): ${path.basename(filePath)}`);
+      continue;
+    }
+
+    index.set(key, filePath);
+  }
+
+  return { index, warnings };
+}
+
 function deriveInvoiceStatus(sentDate, paidDate) {
   if (paidDate) return 'paid';
   if (sentDate) return 'sent';
@@ -438,9 +481,20 @@ function toIsoDateTime(dateValue) {
   return null;
 }
 
-function buildBundle({ trackerRecords, trackerWarnings, routeLists, routeListWarnings, args }) {
+function buildBundle({
+  trackerRecords,
+  trackerWarnings,
+  routeLists,
+  routeListWarnings,
+  invoicePdfs,
+  invoicePdfWarnings,
+  args,
+}) {
   const records = trackerRecords.map((trackerRecord) => {
     const routeList = routeLists.get(trackerRecord.routeCode);
+    const invoicePdfPath = trackerRecord.invoiceNumber
+      ? (invoicePdfs.get(normalizeToken(trackerRecord.invoiceNumber)) || null)
+      : null;
     return {
       importKey: `${trackerRecord.routeCode}::${trackerRecord.invoiceNumber || 'NO-INVOICE'}`,
       customerId: args.customerId,
@@ -476,9 +530,20 @@ function buildBundle({ trackerRecords, trackerWarnings, routeLists, routeListWar
       source: {
         trackerRow: trackerRecord.source.trackerRow,
         routeListFile: routeList ? path.basename(routeList.filePath) : null,
+        invoicePdfFile: invoicePdfPath ? path.basename(invoicePdfPath) : null,
+        invoicePdfPath,
       },
       warnings: [
-        ...(routeList ? [] : [`Missing route list CSV for ${trackerRecord.routeCode}`]),
+        ...(
+          args.mode !== 'pdf-only' && !routeList
+            ? [`Missing route list CSV for ${trackerRecord.routeCode}`]
+            : []
+        ),
+        ...(
+          args.invoicePdfsDir && trackerRecord.invoiceNumber && !invoicePdfPath
+            ? [`Missing invoice PDF for ${trackerRecord.invoiceNumber}`]
+            : []
+        ),
       ],
     };
   });
@@ -490,6 +555,7 @@ function buildBundle({ trackerRecords, trackerWarnings, routeLists, routeListWar
     sourceFiles: {
       tracker: args.tracker,
       routeListsDir: args.routeListsDir,
+      invoicePdfsDir: args.invoicePdfsDir || null,
     },
     stats: {
       trackerRows: trackerRecords.length,
@@ -497,11 +563,16 @@ function buildBundle({ trackerRecords, trackerWarnings, routeLists, routeListWar
       routesPrepared: records.length,
       invoicesPrepared: records.filter((record) => record.invoice.invoiceNumber).length,
       stopsPrepared: records.reduce((sum, record) => sum + record.stops.length, 0),
-      warnings: trackerWarnings.length + routeListWarnings.length + records.reduce((sum, record) => sum + record.warnings.length, 0),
+      warnings:
+        trackerWarnings.length +
+        routeListWarnings.length +
+        invoicePdfWarnings.length +
+        records.reduce((sum, record) => sum + record.warnings.length, 0),
     },
     warnings: [
       ...trackerWarnings,
       ...routeListWarnings,
+      ...invoicePdfWarnings,
       ...records.flatMap((record) => record.warnings),
     ],
     records,
@@ -512,6 +583,7 @@ async function applyBundle(bundle, args) {
   const { Amplify } = await import('aws-amplify');
   const { generateClient } = await import('aws-amplify/data');
   const { signIn, fetchAuthSession } = await import('aws-amplify/auth');
+  const { uploadData } = await import('aws-amplify/storage');
 
   const outputsRaw = fs.readFileSync(args.outputsPath, 'utf8');
   const outputs = JSON.parse(outputsRaw);
@@ -533,6 +605,22 @@ async function applyBundle(bundle, args) {
     if (!session.tokens?.idToken) {
       throw new Error('Sign-in succeeded but no User Pool token is available.');
     }
+
+    const groupsClaim = session.tokens.idToken.payload?.['cognito:groups'];
+    const groups = Array.isArray(groupsClaim)
+      ? groupsClaim.map((value) => String(value))
+      : groupsClaim
+      ? [String(groupsClaim)]
+      : [];
+
+    if (args.invoicePdfsDir) {
+      const canWriteInvoiceStorage = groups.includes('administrator') || groups.includes('operator');
+      if (!canWriteInvoiceStorage) {
+        throw new Error(
+          `Invoice PDF upload requires an administrator/operator account. Signed-in groups: ${groups.join(', ') || 'none'}`
+        );
+      }
+    }
   }
 
   const client = generateClient();
@@ -548,6 +636,9 @@ async function applyBundle(bundle, args) {
     invoicesCreated: 0,
     invoicesUpdated: 0,
     lineItemsCreated: 0,
+    pdfsUploaded: 0,
+    pdfsMissing: 0,
+    pdfUploadErrors: 0,
     errors: [],
   };
 
@@ -561,6 +652,75 @@ async function applyBundle(bundle, args) {
       }
 
       const routeKey = `${record.customerId}::${record.route.routeCode}`;
+      const isPdfOnlyMode = args.mode === 'pdf-only';
+
+      if (isPdfOnlyMode) {
+        if (!record.invoice.invoiceNumber) {
+          continue;
+        }
+
+        const invoiceKey = `${record.customerId}::${record.invoice.invoiceNumber}`;
+        let invoice = invoiceCache.get(invoiceKey);
+        if (!invoice) {
+          const invoiceLookup = await client.models.Invoice.list(
+            {
+              filter: {
+                customerId: { eq: record.customerId },
+                invoiceNumber: { eq: record.invoice.invoiceNumber },
+              },
+              limit: 1,
+            },
+            { authMode }
+          );
+          invoice = invoiceLookup.data?.[0] || null;
+        }
+
+        if (!invoice?.id) {
+          summary.errors.push(`Invoice not found for ${record.importKey}. Run full apply first or verify invoice number.`);
+          continue;
+        }
+
+        const invoicePdfPath = record.source?.invoicePdfPath;
+        if (!invoicePdfPath) {
+          summary.pdfsMissing += 1;
+          invoiceCache.set(invoiceKey, invoice);
+          continue;
+        }
+
+        try {
+          const s3Key = `invoices/${invoice.id}.pdf`;
+          await uploadData({
+            path: s3Key,
+            data: fs.readFileSync(invoicePdfPath),
+            options: { contentType: 'application/pdf' },
+          }).result;
+
+          if (invoice.pdfS3Key !== s3Key) {
+            const invoiceWithPdf = await client.models.Invoice.update(
+              { id: invoice.id, pdfS3Key: s3Key },
+              { authMode }
+            );
+            invoice = invoiceWithPdf.data || invoice;
+          }
+
+          summary.pdfsUploaded += 1;
+        } catch (pdfError) {
+          const pdfMessage = pdfError instanceof Error ? pdfError.message : String(pdfError);
+          summary.pdfUploadErrors += 1;
+          if (/s3:PutObject/i.test(pdfMessage)) {
+            summary.errors.push(
+              `${record.importKey}: failed to upload invoice PDF (${pdfMessage}). ` +
+              'The signed-in user does not have invoice storage write permission. Use an operator/administrator account and deploy the latest storage policy.'
+            );
+          } else {
+            summary.errors.push(`${record.importKey}: failed to upload invoice PDF (${pdfMessage})`);
+          }
+        }
+
+        invoiceCache.set(invoiceKey, invoice);
+        continue;
+      }
+
       let route = routeCache.get(routeKey);
 
       if (!route) {
@@ -690,6 +850,43 @@ async function applyBundle(bundle, args) {
         continue;
       }
 
+      if (args.invoicePdfsDir && record.invoice.invoiceNumber) {
+        const invoicePdfPath = record.source?.invoicePdfPath;
+        if (invoicePdfPath) {
+          try {
+            const s3Key = `invoices/${invoice.id}.pdf`;
+            await uploadData({
+              path: s3Key,
+              data: fs.readFileSync(invoicePdfPath),
+              options: { contentType: 'application/pdf' },
+            }).result;
+
+            if (invoice.pdfS3Key !== s3Key) {
+              const invoiceWithPdf = await client.models.Invoice.update(
+                { id: invoice.id, pdfS3Key: s3Key },
+                { authMode }
+              );
+              invoice = invoiceWithPdf.data || invoice;
+            }
+
+            summary.pdfsUploaded += 1;
+          } catch (pdfError) {
+            const pdfMessage = pdfError instanceof Error ? pdfError.message : String(pdfError);
+            summary.pdfUploadErrors += 1;
+            if (/s3:PutObject/i.test(pdfMessage)) {
+              summary.errors.push(
+                `${record.importKey}: failed to upload invoice PDF (${pdfMessage}). ` +
+                'The signed-in user does not have invoice storage write permission. Use an operator/administrator account and deploy the latest storage policy.'
+              );
+            } else {
+              summary.errors.push(`${record.importKey}: failed to upload invoice PDF (${pdfMessage})`);
+            }
+          }
+        } else {
+          summary.pdfsMissing += 1;
+        }
+      }
+
       invoiceCache.set(invoiceKey, invoice);
 
       const existingLineItems = await client.models.LineItem.list(
@@ -737,32 +934,45 @@ async function applyBundle(bundle, args) {
     `Apply summary: ${summary.routesCreated} route(s) created, ${summary.routesUpdated} updated; ` +
     `${summary.invoicesCreated} invoice(s) created, ${summary.invoicesUpdated} updated; ` +
     `${summary.stopsCreated} stop(s) created, ${summary.stopsUpdated} updated; ` +
-    `${summary.lineItemsCreated} line item(s) created.`
+    `${summary.lineItemsCreated} line item(s) created; ` +
+    `${summary.pdfsUploaded} PDF(s) uploaded, ${summary.pdfsMissing} missing, ${summary.pdfUploadErrors} upload error(s).`
   );
 
   return summary;
 }
 
 function validateArgs(args) {
-  if (!args.tracker || !args.routeListsDir || !args.customerId) {
+  if (!args.tracker || !args.customerId) {
     usage();
-    throw new Error('Missing required args: --tracker, --route-lists-dir, --customer-id');
+    throw new Error('Missing required args: --tracker, --customer-id');
   }
 
   if (!fs.existsSync(args.tracker)) {
     throw new Error(`Tracker file not found: ${args.tracker}`);
   }
 
-  if (!fs.existsSync(args.routeListsDir)) {
+  if (args.mode !== 'pdf-only' && !args.routeListsDir) {
+    throw new Error('Missing required args for this mode: --route-lists-dir');
+  }
+
+  if (args.routeListsDir && !fs.existsSync(args.routeListsDir)) {
     throw new Error(`Route lists directory not found: ${args.routeListsDir}`);
   }
 
-  if (!['dry-run', 'apply'].includes(args.mode)) {
-    throw new Error(`Unsupported mode '${args.mode}'. Use dry-run or apply.`);
+  if (args.invoicePdfsDir && !fs.existsSync(args.invoicePdfsDir)) {
+    throw new Error(`Invoice PDFs directory not found: ${args.invoicePdfsDir}`);
   }
 
-  if (args.mode === 'apply' && !args.confirmApply) {
-    throw new Error('Apply mode requires --confirm-apply to protect against accidental writes.');
+  if (!['dry-run', 'apply', 'pdf-only'].includes(args.mode)) {
+    throw new Error(`Unsupported mode '${args.mode}'. Use dry-run, apply, or pdf-only.`);
+  }
+
+  if ((args.mode === 'apply' || args.mode === 'pdf-only') && !args.confirmApply) {
+    throw new Error('Write modes require --confirm-apply to protect against accidental writes.');
+  }
+
+  if (args.mode === 'pdf-only' && !args.invoicePdfsDir) {
+    throw new Error('pdf-only mode requires --invoice-pdfs-dir.');
   }
 
   if (!['completed', 'archived'].includes(args.routeStatus)) {
@@ -780,17 +990,22 @@ async function main() {
     validateArgs(args);
 
     const { records: trackerRecords, warnings: trackerWarnings } = parseTracker(args.tracker);
-    const { index: routeLists, warnings: routeListWarnings } = buildRouteListIndex(args.routeListsDir);
+    const { index: routeLists, warnings: routeListWarnings } = args.routeListsDir
+      ? buildRouteListIndex(args.routeListsDir)
+      : { index: new Map(), warnings: [] };
+    const { index: invoicePdfs, warnings: invoicePdfWarnings } = buildInvoicePdfIndex(args.invoicePdfsDir);
 
     const bundle = buildBundle({
       trackerRecords,
       trackerWarnings,
       routeLists,
       routeListWarnings,
+      invoicePdfs,
+      invoicePdfWarnings,
       args,
     });
 
-    if (args.mode === 'apply') {
+    if (args.mode === 'apply' || args.mode === 'pdf-only') {
       await confirmApply(bundle);
       const applySummary = await applyBundle(bundle, args);
       bundle.applySummary = applySummary;

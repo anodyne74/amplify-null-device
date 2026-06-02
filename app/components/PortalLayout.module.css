@@ -32,7 +32,7 @@
   display: none;
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: color-mix(in srgb, var(--nd-color-bg-canvas) 72%, transparent);
   z-index: 999;
 }
 
@@ -215,7 +215,7 @@
   padding: 7px;
   background-color: var(--nd-status-danger);
   border: none;
-  color: #fff;
+  color: var(--nd-color-text-on-danger);
   border-radius: var(--nd-radius-sm);
   cursor: pointer;
   font-family: var(--nd-font-body);

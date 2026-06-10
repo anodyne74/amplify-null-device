@@ -99,7 +99,9 @@ describe('UsersAdminPage customer access actions', () => {
       expect(screen.getByText('Read User')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText('Manage'));
+    expect(screen.queryByRole('button', { name: 'Remove Read User from customer access' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /more customer access actions for read user/i }));
 
     const removeButton = screen.getByRole('button', { name: 'Remove Read User from customer access' });
     expect(removeButton).toHaveClass('adminBtnDanger');

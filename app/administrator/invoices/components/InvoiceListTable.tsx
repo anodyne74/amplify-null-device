@@ -2,6 +2,7 @@ import type { Route } from '@/amplify/types';
 import AdminActionButton from '@/app/components/AdminActionButton';
 import AdminDataTable from '@/app/components/AdminDataTable';
 import AdminListState from '@/app/components/AdminListState';
+import AdminRowMenu from '@/app/components/AdminRowMenu';
 import AdminSectionHeader from '@/app/components/AdminSectionHeader';
 import type { Invoice, InvoiceStatus } from '@/app/administrator/invoices/types';
 import styles from '@/app/dashboard.module.css';
@@ -154,42 +155,39 @@ export default function InvoiceListTable({
                         >
                           View
                         </AdminActionButton>
-                        <details className={invoiceStyles.rowMenu}>
-                          <summary className={invoiceStyles.rowMenuTrigger}>More</summary>
-                          <div className={invoiceStyles.rowMenuList}>
-                            <AdminActionButton
-                              className={invoiceStyles.inlineButton}
-                              variant="secondary"
-                              onClick={() => handleRegeneratePdf(invoice)}
-                              isLoading={uploadingId === invoice.id}
-                              loadingLabel="Generating..."
-                              disabled={pdfActionLoadingId === invoice.id}
-                              aria-label={`Regenerate PDF for invoice ${invoice.invoiceNumber}`}
-                            >
-                              Regenerate
-                            </AdminActionButton>
-                            <AdminActionButton
-                              className={invoiceStyles.inlineButton}
-                              variant="ghost"
-                              onClick={() => onPdfAction(invoice, 'download')}
-                              isLoading={pdfActionLoadingId === invoice.id}
-                              loadingLabel="Preparing..."
-                              disabled={uploadingId === invoice.id}
-                              aria-label={`Download PDF for invoice ${invoice.invoiceNumber}`}
-                            >
-                              Download
-                            </AdminActionButton>
-                            <AdminActionButton
-                              className={invoiceStyles.inlineButton}
-                              variant="secondary"
-                              onClick={() => onUploadClick(invoice.id)}
-                              disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
-                              aria-label={`Replace PDF for invoice ${invoice.invoiceNumber}`}
-                            >
-                              Replace
-                            </AdminActionButton>
-                          </div>
-                        </details>
+                        <AdminRowMenu ariaLabel={`More PDF actions for invoice ${invoice.invoiceNumber}`}>
+                          <AdminActionButton
+                            className={invoiceStyles.inlineButton}
+                            variant="secondary"
+                            onClick={() => handleRegeneratePdf(invoice)}
+                            isLoading={uploadingId === invoice.id}
+                            loadingLabel="Generating..."
+                            disabled={pdfActionLoadingId === invoice.id}
+                            aria-label={`Regenerate PDF for invoice ${invoice.invoiceNumber}`}
+                          >
+                            Regenerate
+                          </AdminActionButton>
+                          <AdminActionButton
+                            className={invoiceStyles.inlineButton}
+                            variant="ghost"
+                            onClick={() => onPdfAction(invoice, 'download')}
+                            isLoading={pdfActionLoadingId === invoice.id}
+                            loadingLabel="Preparing..."
+                            disabled={uploadingId === invoice.id}
+                            aria-label={`Download PDF for invoice ${invoice.invoiceNumber}`}
+                          >
+                            Download
+                          </AdminActionButton>
+                          <AdminActionButton
+                            className={invoiceStyles.inlineButton}
+                            variant="secondary"
+                            onClick={() => onUploadClick(invoice.id)}
+                            disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
+                            aria-label={`Replace PDF for invoice ${invoice.invoiceNumber}`}
+                          >
+                            Replace
+                          </AdminActionButton>
+                        </AdminRowMenu>
                       </div>
                     ) : (
                       <div className={invoiceStyles.uploadedState}>
@@ -204,21 +202,18 @@ export default function InvoiceListTable({
                         >
                           Generate PDF
                         </AdminActionButton>
-                        <details className={invoiceStyles.rowMenu}>
-                          <summary className={invoiceStyles.rowMenuTrigger}>More</summary>
-                          <div className={invoiceStyles.rowMenuList}>
-                            <AdminActionButton
-                              className={invoiceStyles.uploadButton}
-                              variant="secondary"
-                              onClick={() => onUploadClick(invoice.id)}
-                              isLoading={uploadingId === invoice.id}
-                              loadingLabel="Uploading..."
-                              aria-label={`Upload PDF for invoice ${invoice.invoiceNumber}`}
-                            >
-                              Upload PDF
-                            </AdminActionButton>
-                          </div>
-                        </details>
+                        <AdminRowMenu ariaLabel={`More PDF actions for invoice ${invoice.invoiceNumber}`}>
+                          <AdminActionButton
+                            className={invoiceStyles.uploadButton}
+                            variant="secondary"
+                            onClick={() => onUploadClick(invoice.id)}
+                            isLoading={uploadingId === invoice.id}
+                            loadingLabel="Uploading..."
+                            aria-label={`Upload PDF for invoice ${invoice.invoiceNumber}`}
+                          >
+                            Upload PDF
+                          </AdminActionButton>
+                        </AdminRowMenu>
                       </div>
                     )}
                   </td>

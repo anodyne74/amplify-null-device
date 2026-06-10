@@ -40,6 +40,7 @@ This workspace does not currently include `node_modules`, so I did not run the a
 - Customer team members may use desktop or mobile.
 - Customer owners can view routes, invoices, financial metrics, and operational metrics.
 - Customer owners can view and download existing invoice documents, but do not need export tooling for custom metrics or new invoice generation.
+- Customer-facing invoice PDFs are part of the customer portal experience and should align with the customer portal theme.
 - Customer owners can grant view-only access to team members.
 - View-only users should see route information and non-financial metrics only.
 - View-only mobile users should get a simplified route tracker showing the route, stops, map, and route status.
@@ -55,6 +56,7 @@ This workspace does not currently include `node_modules`, so I did not run the a
 - Route finalisation should collect notes/photos at the route level only.
 - Admin destructive or high-impact context-menu actions require confirmation.
 - Customer owners should view/download existing invoice documents only.
+- Invoice templates should be treated as customer-facing UI artifacts, not generic admin exports, and should visually align with the customer portal.
 - Customer view-only users need a simplified route tracker, not the full dashboard.
 - The authoritative visual/theme guide should be built in this codebase; `brand/PDF Guideline.pdf` is not authoritative for future product UI decisions.
 
@@ -122,7 +124,7 @@ Recommendation:
 
 ### 3. Navigation and branding underuse the available brand assets
 
-Severity: Medium  
+Severity: Medium
 Evidence:
 
 - `app/components/PortalLayout.module.css:85` sets `.brandTitle` to `display: none`.
@@ -280,13 +282,35 @@ Recommendation:
 - Make auth button states use a single intent color sequence.
 - Add or remove the public theme toggle intentionally.
 
+### 11. Invoice PDFs are customer-facing but use a separate visual language
+
+Severity: Medium
+Evidence:
+
+- `app/administrator/invoices/hooks/useInvoiceDocumentActions.ts` generates invoice PDFs from the administrator invoice flow, but those PDFs are viewed and downloaded by customer owners in the customer portal.
+- The generated invoice template uses hard-coded PDF colors such as slate header, pale blue accent panels, and Helvetica text rather than customer portal theme semantics.
+- The customer invoice detail UI in `app/customer/invoices/[id]/_InvoiceDetailContent.module.css` uses shared customer portal surfaces, text tokens, status tokens, and portal actions.
+
+Impact:
+
+The invoice document is an extension of the customer portal, but it can feel like a separate back-office export. This weakens customer trust and makes the most financially sensitive artifact feel less connected to the product experience.
+
+Recommendation:
+
+- Redesign the invoice PDF template to align with the customer portal theme while preserving print/PDF legibility.
+- Use the customer theme direction: calm surfaces, restrained cyan/blue accenting, clear hierarchy, and minimal neon.
+- Keep financial content professional and high contrast: invoice number, due/paid status, total amount due, billing period, line items, route stop details, payment details, and route map.
+- Use NullDevice brand assets consistently, but avoid oversized decorative branding that competes with billing details.
+- Reserve red only for overdue/error states; paid/sent/pending states should follow the same status semantics used in the portal.
+- Treat the template as a responsive document artifact: it should render cleanly on A4 PDF, print, and browser PDF preview.
+
 ## Recommended Design Direction
 
 The strongest direction is one shared NullDevice design language with three role-specific shells:
 
 - Operator Field Mode: mobile-first, dark-default, high contrast, large controls, map-led, minimal chrome, designed for parked use and night legibility.
 - Admin Console: desktop-first, polished, dense but readable, optimized for repeated management actions, tables, forms, bulk workflows, and context menus for lower-frequency operations.
-- Customer Portal: professional and calmer than the internal tools, visually pleasing metrics, clear route/invoice access, and a simplified mobile route tracker for view-only team members.
+- Customer Portal: professional and calmer than the internal tools, visually pleasing metrics, clear route/invoice access, customer-portal-aligned invoice templates, and a simplified mobile route tracker for view-only team members.
 
 Theme guidance:
 
@@ -309,5 +333,5 @@ Theme guidance:
 6. Add active nav state and `aria-current` to `PortalLayout`.
 7. Normalize color semantics so red is reserved for true danger/attention states.
 8. Move low-frequency admin actions into row or page-level context menus, with confirmations for route deletion, invoice deletion, invoice-line deletion, route archiving, and invoice regeneration.
-9. Separate customer owner and view-only information architecture, especially for billing, metrics visibility, and the simplified route tracker.
+9. Improve the customer portal information architecture, including owner billing visibility, the simplified view-only route tracker, and the generated invoice PDF template so it matches the customer portal theme and customer owner billing experience.
 10. Create visual regression coverage for the operator route execution workflow.

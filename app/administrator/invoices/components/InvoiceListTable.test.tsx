@@ -83,7 +83,9 @@ describe('InvoiceListTable', () => {
 
     renderTable([createInvoice()], { onGeneratePdf });
 
-    fireEvent.click(screen.getByText('More'));
+    expect(screen.queryByRole('button', { name: 'Regenerate PDF for invoice INV-001' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /more pdf actions for invoice inv-001/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Regenerate PDF for invoice INV-001' }));
 
     expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('Regenerate invoice INV-001'));
@@ -94,5 +96,18 @@ describe('InvoiceListTable', () => {
 
     expect(onGeneratePdf).toHaveBeenCalledWith(expect.objectContaining({ id: 'inv-1' }));
     confirmSpy.mockRestore();
+  });
+
+  it('keeps replacement and download PDF actions inside an accessible row menu', () => {
+    renderTable([createInvoice()]);
+
+    expect(screen.getByRole('button', { name: 'View PDF for invoice INV-001' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Download PDF for invoice INV-001' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Replace PDF for invoice INV-001' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /more pdf actions for invoice inv-001/i }));
+
+    expect(screen.getByRole('button', { name: 'Download PDF for invoice INV-001' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Replace PDF for invoice INV-001' })).toBeInTheDocument();
   });
 });

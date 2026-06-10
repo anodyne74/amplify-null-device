@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import AdminRowMenu from '@/app/components/AdminRowMenu';
 import type { Customer, CustomerStatus } from '@/app/administrator/customers/types';
 import styles from '@/app/dashboard.module.css';
 
@@ -69,25 +70,22 @@ export default function CustomerTableRow({
         </td>
         <td>
           <div className={styles.actionsRow}>
-            <details className={styles.rowMenu}>
-              <summary className={styles.rowMenuTrigger}>Manage</summary>
-              <div className={styles.rowMenuList}>
-                <button
-                  type="button"
-                  onClick={onToggleEdit}
-                  aria-label={`${isEditOpen ? 'Close edit panel for' : 'Edit'} customer ${customer.name}`}
-                >
-                  {isEditOpen ? 'Close Edit' : 'Edit'}
-                </button>
-                <button
-                  type="button"
-                  onClick={onToggleOwner}
-                  aria-label={`${isOwnerOpen ? 'Close owner management for' : 'Manage owner for'} customer ${customer.name}`}
-                >
-                  {isOwnerOpen ? 'Close Owner' : 'Manage Owner'}
-                </button>
-              </div>
-            </details>
+            <AdminRowMenu label="Manage" ariaLabel={`More customer actions for ${customer.name}`} align="end">
+              <button
+                type="button"
+                onClick={onToggleEdit}
+                aria-label={`${isEditOpen ? 'Close edit panel for' : 'Edit'} customer ${customer.name}`}
+              >
+                {isEditOpen ? 'Close Edit' : 'Edit'}
+              </button>
+              <button
+                type="button"
+                onClick={onToggleOwner}
+                aria-label={`${isOwnerOpen ? 'Close owner management for' : 'Manage owner for'} customer ${customer.name}`}
+              >
+                {isOwnerOpen ? 'Close Owner' : 'Manage Owner'}
+              </button>
+            </AdminRowMenu>
           </div>
         </td>
       </tr>

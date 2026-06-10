@@ -393,6 +393,7 @@
   position: relative;
 }
 
+.rowMenu[data-open='true'] .rowMenuTrigger,
 .rowMenu[open] .rowMenuTrigger {
   border-color: var(--nd-operator-accent);
   color: var(--nd-operator-accent);
@@ -430,6 +431,11 @@
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg-surface);
   box-shadow: 0 10px 20px color-mix(in srgb, var(--nd-bg-base) 78%, transparent);
+}
+
+.rowMenuAlignEnd .rowMenuList {
+  right: 0;
+  left: auto;
 }
 
 .rowMenuTrigger:focus-visible,

@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import AdminActionButton from '@/app/components/AdminActionButton';
+import AdminRowMenu from '@/app/components/AdminRowMenu';
 import RouteStatusBadge from '@/app/components/RouteStatusBadge';
 import type { Route } from '@/amplify/types';
 import { formatRouteDate, formatRouteDuration } from '@/lib/routeListHelpers';
@@ -69,55 +71,62 @@ export default function RoutesListContent({
         </div>
       ) : (
         <div className={classes.routesList}>
-          {filteredRoutes.map((route) => (
-            <div key={route.id} className={classes.routeRow}>
-              <div>
-                <div className={classes.cellLabel}>Route ID</div>
-                <div className={classes.cellValueMono}>{route.routeCode || route.id.slice(0, 8)}</div>
-              </div>
-              <div>
-                <div className={classes.cellLabel}>Customer</div>
-                <div className={classes.cellValueMonoNormal}>{customersById[route.customerId] || 'Unknown customer'}</div>
-              </div>
-              <div>
-                <RouteStatusBadge status={route.status} classes={classes} />
-              </div>
-              <div>
-                <div className={classes.cellLabel}>Created</div>
-                <div className={classes.cellValue}>{formatRouteDate(route.createdAt)}</div>
-              </div>
-              <div>
-                <div className={classes.cellLabel}>Duration</div>
-                <div className={classes.cellValue}>{formatRouteDuration(route)}</div>
-                {route.notes && (
-                  <div className={classes.notesPreview}>
-                    {route.notes.slice(0, 60)}
-                    {route.notes.length > 60 ? '…' : ''}
-                  </div>
-                )}
-              </div>
-              <div className={classes.cellRight}>
-                <Link href={getDetailHref(route)} className={classes.viewLink}>
-                  View
-                </Link>
-                {showEditLink && (
-                  <Link href={getEditHref(route)} className={classes.editLink}>
-                    Edit
+          {filteredRoutes.map((route) => {
+            const routeLabel = route.routeCode || route.id.slice(0, 8);
+
+            return (
+              <div key={route.id} className={classes.routeRow}>
+                <div>
+                  <div className={classes.cellLabel}>Route ID</div>
+                  <div className={classes.cellValueMono}>{routeLabel}</div>
+                </div>
+                <div>
+                  <div className={classes.cellLabel}>Customer</div>
+                  <div className={classes.cellValueMonoNormal}>{customersById[route.customerId] || 'Unknown customer'}</div>
+                </div>
+                <div>
+                  <RouteStatusBadge status={route.status} classes={classes} />
+                </div>
+                <div>
+                  <div className={classes.cellLabel}>Created</div>
+                  <div className={classes.cellValue}>{formatRouteDate(route.createdAt)}</div>
+                </div>
+                <div>
+                  <div className={classes.cellLabel}>Duration</div>
+                  <div className={classes.cellValue}>{formatRouteDuration(route)}</div>
+                  {route.notes && (
+                    <div className={classes.notesPreview}>
+                      {route.notes.slice(0, 60)}
+                      {route.notes.length > 60 ? '…' : ''}
+                    </div>
+                  )}
+                </div>
+                <div className={classes.cellRight}>
+                  <Link href={getDetailHref(route)} className={classes.viewLink}>
+                    View
                   </Link>
-                )}
-                {canDeleteRoutes && (
-                  <button
-                    type="button"
-                    className={classes.deleteBtn}
-                    onClick={() => onDeleteRoute(route)}
-                    disabled={deletingRouteId === route.id}
-                  >
-                    {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
-                  </button>
-                )}
+                  {showEditLink && (
+                    <Link href={getEditHref(route)} className={classes.editLink}>
+                      Edit
+                    </Link>
+                  )}
+                  {canDeleteRoutes && (
+                    <AdminRowMenu ariaLabel={`More actions for route ${routeLabel}`} align="end">
+                      <AdminActionButton
+                        className={classes.deleteBtn}
+                        variant="danger"
+                        onClick={() => onDeleteRoute(route)}
+                        isLoading={deletingRouteId === route.id}
+                        loadingLabel="Deleting..."
+                      >
+                        Delete
+                      </AdminActionButton>
+                    </AdminRowMenu>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </>

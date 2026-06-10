@@ -130,7 +130,9 @@ describe('Operator Customers Page', () => {
     expect(customerRow).not.toBeNull();
     const rowScope = within(customerRow as HTMLElement);
 
-    fireEvent.click(rowScope.getByText('Manage'));
+    expect(rowScope.queryByRole('button', { name: /edit customer acme corp/i })).not.toBeInTheDocument();
+
+    fireEvent.click(rowScope.getByRole('button', { name: /more customer actions for acme corp/i }));
     fireEvent.click(rowScope.getByRole('button', { name: /edit customer acme corp/i }));
 
     const editPanelHeading = await screen.findByText(/edit customer/i);

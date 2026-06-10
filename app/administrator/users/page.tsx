@@ -8,6 +8,7 @@ import AdminFormField from '@/app/components/AdminFormField';
 import AdminSectionHeader from '@/app/components/AdminSectionHeader';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import AdminListState from '@/app/components/AdminListState';
+import AdminRowMenu from '@/app/components/AdminRowMenu';
 import {
   createCustomerUser,
   deleteCustomerUser,
@@ -636,20 +637,21 @@ export default function UsersAdminPage() {
                         {cu.email && <span className={styles.accessUserMeta}>{cu.email}</span>}
                       </div>
                       {cu.role !== 'account_owner' && (
-                        <details className={styles.rowMenu}>
-                          <summary className={styles.rowMenuTrigger}>Manage</summary>
-                          <div className={styles.rowMenuList}>
-                            <AdminActionButton
-                              onClick={() => void handleRemoveCustomerUser(cu.id)}
-                              variant="danger"
-                              isLoading={accessPending}
-                              loadingLabel="Removing..."
-                              aria-label={`Remove ${cu.name ?? cu.email ?? 'user'} from customer access`}
-                            >
-                              Remove User
-                            </AdminActionButton>
-                          </div>
-                        </details>
+                        <AdminRowMenu
+                          label="Manage"
+                          ariaLabel={`More customer access actions for ${cu.name ?? cu.email ?? 'user'}`}
+                          align="end"
+                        >
+                          <AdminActionButton
+                            onClick={() => void handleRemoveCustomerUser(cu.id)}
+                            variant="danger"
+                            isLoading={accessPending}
+                            loadingLabel="Removing..."
+                            aria-label={`Remove ${cu.name ?? cu.email ?? 'user'} from customer access`}
+                          >
+                            Remove User
+                          </AdminActionButton>
+                        </AdminRowMenu>
                       )}
                       {cu.role === 'account_owner' && (
                         <span className={`${styles.statusChip} ${styles.statusChipSent}`}>Owner</span>

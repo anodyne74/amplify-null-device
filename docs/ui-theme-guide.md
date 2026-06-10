@@ -31,6 +31,7 @@ Customer owners work primarily on desktop. They can view routes, invoices, exist
 - Present metrics calmly with clear hierarchy.
 - Avoid neon color mixing across multiple equal-priority cards.
 - Existing invoice documents should be viewable and downloadable.
+- Customer-facing invoice templates must align with the customer portal theme.
 
 ### Customer View-Only Route Tracker
 
@@ -88,6 +89,17 @@ Prefer reusable primitives and semantic classes for:
 - Row context menus
 
 Use cards only for repeated items, modals, or genuinely framed tools. Avoid nested cards and marketing-style hero composition in operational workflows.
+
+## Customer Portal Invoice Template
+
+Invoice PDFs are customer-facing UI artifacts even when generated from administrator workflows.
+
+- Align invoice documents to the customer portal theme: calm surfaces, restrained cyan/blue accenting, clear hierarchy, and minimal neon.
+- Use NullDevice brand assets consistently, but keep billing details more prominent than decorative branding.
+- Prioritize invoice number, status, total amount due, billing period, line items, payment details, route stop details, and route map.
+- Preserve A4 print/PDF legibility with high contrast text, generous table spacing, and clear section separation.
+- Use the same status semantics as the portal; reserve red for overdue, failed, or destructive states.
+- Do not expose invoice documents or financial content to customer view-only users.
 
 ## Accessibility
 

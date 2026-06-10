@@ -77,6 +77,7 @@ export default function AdministratorLayout({ children }: { children: React.Reac
         navItems={ADMIN_NAV}
         userEmail={userDisplayName}
         onLogout={signOut}
+        role="admin"
       >
         {children}
       </PortalLayout>

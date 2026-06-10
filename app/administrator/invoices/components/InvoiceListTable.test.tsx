@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 import type { Route } from '@/amplify/types';
 import type { Invoice } from '@/app/administrator/invoices/types';
 import InvoiceListTable from '@/app/administrator/invoices/components/InvoiceListTable';
@@ -17,7 +18,7 @@ function createInvoice(overrides: Partial<Invoice> = {}): Invoice {
   };
 }
 
-function renderTable(invoices: Invoice[]) {
+function renderTable(invoices: Invoice[], overrides: Partial<ComponentProps<typeof InvoiceListTable>> = {}) {
   const routes: Route[] = [
     {
       id: 'route-1',
@@ -26,24 +27,29 @@ function renderTable(invoices: Invoice[]) {
     },
   ];
 
+  const props: ComponentProps<typeof InvoiceListTable> = {
+    loading: false,
+    invoices,
+    routes,
+    uploadingId: null,
+    pdfActionLoadingId: null,
+    emailingInvoiceId: null,
+    customerName: () => 'Acme Customer',
+    routeCode: () => 'R-101',
+    isInvoicePaid: (status) => status === 'paid',
+    onRouteLink: jest.fn(),
+    onSetStatus: jest.fn(),
+    onGeneratePdf: jest.fn(),
+    onPdfAction: jest.fn(),
+    onUploadClick: jest.fn(),
+    onMarkPaid: jest.fn(),
+    onEmailInvoiceToPrimary: jest.fn(),
+    ...overrides,
+  };
+
   return render(
     <InvoiceListTable
-      loading={false}
-      invoices={invoices}
-      routes={routes}
-      uploadingId={null}
-      pdfActionLoadingId={null}
-      emailingInvoiceId={null}
-      customerName={() => 'Acme Customer'}
-      routeCode={() => 'R-101'}
-      isInvoicePaid={(status) => status === 'paid'}
-      onRouteLink={jest.fn()}
-      onSetStatus={jest.fn()}
-      onGeneratePdf={jest.fn()}
-      onPdfAction={jest.fn()}
-      onUploadClick={jest.fn()}
-      onMarkPaid={jest.fn()}
-      onEmailInvoiceToPrimary={jest.fn()}
+      {...props}
     />
   );
 }
@@ -69,5 +75,24 @@ describe('InvoiceListTable', () => {
 
     expect(screen.getByRole('button', { name: 'Generate PDF for invoice INV-002' })).toHaveClass('adminBtnPrimary');
     expect(screen.queryByRole('button', { name: 'Mark invoice INV-002 as paid' })).not.toBeInTheDocument();
+  });
+
+  it('requires confirmation before regenerating an attached invoice PDF', () => {
+    const onGeneratePdf = jest.fn();
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
+
+    renderTable([createInvoice()], { onGeneratePdf });
+
+    fireEvent.click(screen.getByText('More'));
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate PDF for invoice INV-001' }));
+
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('Regenerate invoice INV-001'));
+    expect(onGeneratePdf).not.toHaveBeenCalled();
+
+    confirmSpy.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate PDF for invoice INV-001' }));
+
+    expect(onGeneratePdf).toHaveBeenCalledWith(expect.objectContaining({ id: 'inv-1' }));
+    confirmSpy.mockRestore();
   });
 });

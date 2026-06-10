@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -31,7 +31,8 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import MapIcon from '@mui/icons-material/Map';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
-import { operatorTheme } from '@/app/operator/mui-theme';
+import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
+import { getOperatorTheme } from '@/app/operator/mui-theme';
 
 interface NavItem {
   label: string;
@@ -66,8 +67,10 @@ export default function OperatorMUILayout({
   onLogout,
 }: OperatorMUILayoutProps) {
   const pathname = usePathname();
+  const { resolvedMode } = useThemeMode();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+  const operatorTheme = useMemo(() => getOperatorTheme(resolvedMode), [resolvedMode]);
 
   const handleLogout = () => {
     setLogoutDialogOpen(false);
@@ -134,6 +137,7 @@ export default function OperatorMUILayout({
                 href={item.href}
                 onClick={handleNavClick}
                 selected={Boolean(isActive)}
+                aria-current={isActive ? 'page' : undefined}
                 sx={{
                   borderRadius: 1,
                   color: isActive ? 'var(--nd-operator-accent)' : 'var(--nd-text-secondary)',
@@ -221,7 +225,7 @@ export default function OperatorMUILayout({
 
   return (
     <ThemeProvider theme={operatorTheme}>
-      <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--nd-bg-void)' }}>
+      <Box data-role="operator" sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--nd-bg-void)' }}>
         {/* AppBar */}
         <AppBar
           position="fixed"
@@ -244,6 +248,7 @@ export default function OperatorMUILayout({
               color="inherit"
               edge="start"
               onClick={() => setDrawerOpen(!drawerOpen)}
+              aria-label={drawerOpen ? 'Close navigation menu' : 'Open navigation menu'}
               sx={{ mr: { xs: 1, sm: 2 } }}
             >
               {drawerOpen ? <CloseIcon /> : <MenuIcon />}

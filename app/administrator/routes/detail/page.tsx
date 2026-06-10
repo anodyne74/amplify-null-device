@@ -555,6 +555,11 @@ function RouteDetailContent() {
 
   const handleConfirmCompletion = async () => {
     if (!route) return;
+    const confirmed = window.confirm(
+      `Archive route ${route.routeCode || route.id.slice(0, 8)}? Archived routes are no longer active.`
+    );
+    if (!confirmed) return;
+
     setTransitioning(true);
     setTransitionError(null);
     try {

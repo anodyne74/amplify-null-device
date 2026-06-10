@@ -1,56 +1,56 @@
 import { createTheme } from '@mui/material/styles';
-import { ndThemePalettes } from '@/app/theme/themeTokens';
-
-const darkPalette = ndThemePalettes.dark;
+import { ndThemePalettes, type ThemeModeResolved } from '@/app/theme/themeTokens';
 
 /**
- * Material UI Theme for Operator Portal
- * Applies NullDevice dark theme colors and tokens to MUI components
- * Optimized for mobile-first field use
+ * Material UI theme for the operator portal.
+ * Defaults to dark for field use, but follows the resolved app theme when available.
  */
-export const operatorTheme = createTheme({
+export function getOperatorTheme(mode: ThemeModeResolved = 'dark') {
+  const palette = ndThemePalettes[mode];
+
+  return createTheme({
   palette: {
-    mode: 'dark',
+    mode,
     primary: {
-      main: darkPalette.operatorAccent,
-      light: darkPalette.statusPlanned,
-      dark: darkPalette.statusPlanned,
-      contrastText: darkPalette.textInverse,
+      main: palette.operatorAccent,
+      light: palette.statusPlanned,
+      dark: palette.statusPlanned,
+      contrastText: palette.textInverse,
     },
     secondary: {
-      main: darkPalette.accentPrimary,
-      light: darkPalette.statusActive,
-      dark: darkPalette.statusActive,
-      contrastText: darkPalette.textInverse,
+      main: palette.accentPrimary,
+      light: palette.statusActive,
+      dark: palette.statusActive,
+      contrastText: palette.textInverse,
     },
     background: {
-      default: darkPalette.backgroundCanvas,
-      paper: darkPalette.backgroundSurface,
+      default: palette.backgroundCanvas,
+      paper: palette.backgroundSurface,
     },
-    divider: darkPalette.borderSubtle,
+    divider: palette.borderSubtle,
     text: {
-      primary: darkPalette.textPrimary,
-      secondary: darkPalette.textSecondary,
-      disabled: darkPalette.textMuted,
+      primary: palette.textPrimary,
+      secondary: palette.textSecondary,
+      disabled: palette.textMuted,
     },
     action: {
-      active: darkPalette.textPrimary,
+      active: palette.textPrimary,
       hover: 'color-mix(in srgb, var(--nd-operator-accent) 8%, transparent)',
-      selected: darkPalette.operatorAccentDim,
-      disabled: darkPalette.textMuted,
+      selected: palette.operatorAccentDim,
+      disabled: palette.textMuted,
       disabledBackground: 'color-mix(in srgb, var(--nd-text-primary) 12%, transparent)',
     },
     error: {
-      main: darkPalette.statusDanger,
+      main: palette.statusDanger,
     },
     warning: {
-      main: darkPalette.statusWarning,
+      main: palette.statusWarning,
     },
     success: {
-      main: darkPalette.statusActive,
+      main: palette.statusActive,
     },
     info: {
-      main: darkPalette.statusCompleted,
+      main: palette.statusCompleted,
     },
   },
   typography: {
@@ -97,9 +97,9 @@ export const operatorTheme = createTheme({
     MuiAppBar: {
       styleOverrides: {
         root: {
-          backgroundColor: darkPalette.backgroundElevated,
+          backgroundColor: palette.backgroundElevated,
           backgroundImage: 'none',
-          borderBottom: `1px solid ${darkPalette.borderSubtle}`,
+          borderBottom: `1px solid ${palette.borderSubtle}`,
         },
       },
     },
@@ -111,7 +111,7 @@ export const operatorTheme = createTheme({
           },
         },
         paper: {
-          backgroundColor: darkPalette.backgroundSurface,
+          backgroundColor: palette.backgroundSurface,
           borderRight: '1px solid color-mix(in srgb, var(--nd-operator-accent) 30%, transparent)',
         },
       },
@@ -172,9 +172,9 @@ export const operatorTheme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          backgroundColor: darkPalette.backgroundElevated,
+          backgroundColor: palette.backgroundElevated,
           borderRadius: '4px',
-          border: `1px solid ${darkPalette.borderSubtle}`,
+          border: `1px solid ${palette.borderSubtle}`,
         },
       },
     },
@@ -191,4 +191,7 @@ export const operatorTheme = createTheme({
   shape: {
     borderRadius: 4, // nd-radius-sm
   },
-});
+  });
+}
+
+export const operatorTheme = getOperatorTheme('dark');

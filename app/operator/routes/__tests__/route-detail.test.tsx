@@ -117,6 +117,39 @@ const mockStops: Stop[] = [
   },
 ];
 
+const mockStopsWithUpcoming: Stop[] = [
+  {
+    id: 'stop-1',
+    routeId: 'route-test-id-1234',
+    sequence: 1,
+    address: '100 First St',
+    formattedAddress: '100 First St, Melbourne VIC',
+    serviceType: 'delivery',
+    latitude: -37.8136,
+    longitude: 144.9631,
+  },
+  {
+    id: 'stop-2',
+    routeId: 'route-test-id-1234',
+    sequence: 2,
+    address: '200 Second Ave',
+    formattedAddress: '200 Second Ave, Melbourne VIC',
+    serviceType: 'delivery',
+    latitude: -37.814,
+    longitude: 144.9731,
+  },
+  {
+    id: 'stop-3',
+    routeId: 'route-test-id-1234',
+    sequence: 3,
+    address: '300 Third Rd',
+    formattedAddress: '300 Third Rd, Melbourne VIC',
+    serviceType: 'delivery',
+    latitude: -37.815,
+    longitude: 144.9831,
+  },
+];
+
 describe('Operator Route Detail Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -239,5 +272,34 @@ describe('Operator Route Detail Page', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /signs placed/i })).toBeInTheDocument();
     });
+  });
+
+  it('renders active route as dedicated field mode with next stop and two upcoming stops', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
+      data: {
+        ...mockRoute,
+        status: 'in_progress',
+        executionPhase: 'placement',
+        actualStartTime: '2024-03-01T10:00:00Z',
+        placementStartTime: '2024-03-01T10:00:00Z',
+      },
+      errors: undefined,
+    });
+    mockStopList.mockResolvedValue({
+      data: mockStopsWithUpcoming,
+      errors: undefined,
+    });
+
+    render(<RouteDetailPage />);
+
+    const fieldMode = await screen.findByRole('region', { name: /operator field mode/i });
+    expect(fieldMode).toBeInTheDocument();
+    expect(screen.getByText(/placement phase/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /next stop/i })).toBeInTheDocument();
+    expect(screen.getByText('100 First St')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /upcoming stops/i })).toBeInTheDocument();
+    expect(screen.getByText('200 Second Ave')).toBeInTheDocument();
+    expect(screen.getByText('300 Third Rd')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^start route$/i })).not.toBeInTheDocument();
   });
 });

@@ -164,7 +164,30 @@ describe('Customer Dashboard standing instructions', () => {
     expect(screen.getByRole('heading', { name: /customer portal/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /save standing instructions/i })).not.toBeInTheDocument();
     expect(screen.getByText(/call before arrival/i)).toBeInTheDocument();
-    expect(screen.getAllByText('Restricted').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: /route tracker/i })).toBeInTheDocument();
+    expect(screen.queryByText('Restricted')).not.toBeInTheDocument();
+  });
+
+  it('hides financial dashboard surfaces for reviewer role', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'read_only',
+      customerId: 'cust-1',
+    });
+
+    render(<CustomerDashboard />);
+
+    expect(await screen.findByText(/welcome, owner name · reviewer/i)).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /route tracker/i })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/pending invoices/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/outstanding balance/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/total invoiced amount/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/outstanding amount/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/total revenue/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/average revenue/i)).not.toBeInTheDocument();
   });
 
   it('validates non-negative default signs before save', async () => {

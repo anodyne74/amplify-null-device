@@ -45,6 +45,14 @@
   --nd-operator-accent-dim: rgba(255, 179, 0, 0.15);
   --nd-operator-sidebar: #1a1200;
 
+  /* Role semantics */
+  --nd-role-accent: var(--nd-logo-primary);
+  --nd-role-accent-dim: var(--nd-logo-primary-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-logo-primary);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-role-accent) 12%, transparent);
+  --nd-role-nav-active-fg: var(--nd-role-accent);
+
   /* Semantic status colours */
   --nd-status-active: #00ff88;
   --nd-status-completed: #00e5ff;
@@ -160,6 +168,13 @@
   --nd-operator-accent-dim: rgba(224, 154, 0, 0.14);
   --nd-operator-sidebar: #fff7e5;
 
+  --nd-role-accent: var(--nd-logo-primary);
+  --nd-role-accent-dim: var(--nd-logo-primary-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-logo-primary);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-role-accent) 10%, transparent);
+  --nd-role-nav-active-fg: var(--nd-role-accent);
+
   --nd-status-active: #0aa35f;
   --nd-status-completed: #0a9cb0;
   --nd-status-planned: #c78900;
@@ -180,6 +195,33 @@
   --nd-alert-warning-border: var(--nd-status-planned);
 
   color-scheme: light;
+}
+
+[data-role='operator'] {
+  --nd-role-accent: var(--nd-operator-accent);
+  --nd-role-accent-dim: var(--nd-operator-accent-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-operator-accent);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-operator-accent) 12%, transparent);
+  --nd-role-nav-active-fg: var(--nd-operator-accent);
+}
+
+[data-role='admin'] {
+  --nd-role-accent: var(--nd-operator-accent);
+  --nd-role-accent-dim: var(--nd-operator-accent-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-customer-accent);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-operator-accent) 10%, transparent);
+  --nd-role-nav-active-fg: var(--nd-operator-accent);
+}
+
+[data-role='customer'] {
+  --nd-role-accent: var(--nd-customer-accent);
+  --nd-role-accent-dim: var(--nd-customer-accent-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-customer-accent);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-customer-accent) 10%, transparent);
+  --nd-role-nav-active-fg: var(--nd-customer-accent);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -251,7 +293,7 @@ h1,
 h2,
 h3 {
   font-family: var(--nd-font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   margin: 0;
 }
 
@@ -289,14 +331,14 @@ a:hover {
 /* ─────────────────────────────────────────────────────────────────────────────
    Buttons
    ───────────────────────────────────────────────────────────────────────────── */
-button {
+button:not(.MuiButtonBase-root):not(.amplify-button) {
   border-radius: var(--nd-radius-md);
   border: 1px solid var(--nd-border-default);
   padding: 0.6em 1.2em;
   font-size: 0.9rem;
   font-weight: 600;
   font-family: var(--nd-font-display);
-  letter-spacing: 0.03em;
+  letter-spacing: 0;
   background-color: var(--nd-bg-elevated);
   color: var(--nd-text-primary);
   cursor: pointer;
@@ -304,12 +346,12 @@ button {
               background-color var(--nd-transition-fast),
               box-shadow var(--nd-transition-fast);
 }
-button:hover {
+button:not(.MuiButtonBase-root):not(.amplify-button):hover {
   border-color: var(--nd-logo-primary);
   box-shadow: var(--nd-logo-primary-glow);
 }
-button:focus-visible {
-  outline: 2px solid var(--nd-logo-primary);
+button:not(.MuiButtonBase-root):not(.amplify-button):focus-visible {
+  outline: 2px solid var(--nd-role-focus-ring);
   outline-offset: 2px;
 }
 
@@ -355,7 +397,7 @@ button:focus-visible {
     min-height: auto;
   }
 
-  button {
+  button:not(.MuiButtonBase-root):not(.amplify-button) {
     padding: 0.5em 1em;
   }
 }

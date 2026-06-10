@@ -12,6 +12,12 @@
   overflow: hidden;
 }
 
+.mapField {
+  height: min(48dvh, 520px);
+  min-height: 360px;
+  border-color: color-mix(in srgb, var(--nd-operator-accent) 34%, var(--nd-border-subtle));
+}
+
 .emptyState {
   padding: var(--nd-space-xl);
   border: 1px dashed var(--nd-border-default);
@@ -70,6 +76,10 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--nd-operator-accent) 92%, transparent), var(--nd-shadow-md);
 }
 
+.stopMarkerUpcoming {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nd-text-primary) 28%, transparent);
+}
+
 .stopMarkerCompleted {
   opacity: 0.45;
   filter: saturate(0.6);
@@ -84,5 +94,11 @@
 @media (max-width: 768px) {
   .map {
     height: 280px;
+  }
+
+  .mapField {
+    height: 42dvh;
+    min-height: 300px;
+    max-height: 430px;
   }
 }

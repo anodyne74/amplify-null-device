@@ -303,6 +303,220 @@
   cursor: not-allowed;
 }
 
+/* Active operator field mode */
+.fieldMode {
+  margin-top: var(--nd-space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-space-md);
+}
+
+.fieldModeHeader,
+.fieldModeTelemetry,
+.fieldModeMapPanel,
+.fieldNextStopPanel,
+.fieldUpcomingPanel,
+.fieldModeFooter {
+  background: var(--nd-bg-surface);
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-lg);
+}
+
+.fieldModeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nd-space-md);
+  padding: var(--nd-space-md);
+}
+
+.fieldModeEyebrow {
+  margin: 0 0 4px 0;
+  color: var(--nd-operator-accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.fieldModeTitle {
+  margin: 0;
+  color: var(--nd-text-primary);
+  font-size: clamp(1.25rem, 5vw, 1.9rem);
+  line-height: 1.1;
+}
+
+.fieldModeTelemetry {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--nd-space-sm);
+  padding: var(--nd-space-sm);
+}
+
+.fieldModeTelemetry > div {
+  min-width: 0;
+  padding: var(--nd-space-sm);
+  background: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-md);
+}
+
+.fieldModeTelemetryValue {
+  display: block;
+  margin-top: 4px;
+  color: var(--nd-text-primary);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.fieldModeMapPanel,
+.fieldNextStopPanel,
+.fieldUpcomingPanel {
+  padding: var(--nd-space-md);
+}
+
+.fieldModeSectionHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--nd-space-sm);
+  margin-bottom: var(--nd-space-sm);
+}
+
+.fieldModeSectionHeader h2 {
+  margin: 0;
+  color: var(--nd-text-primary);
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.fieldModeSectionHeader span {
+  color: var(--nd-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.fieldModeGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
+  gap: var(--nd-space-md);
+}
+
+.fieldStopAddress {
+  color: var(--nd-text-primary);
+  font-size: clamp(1.55rem, 7vw, 2.45rem);
+  font-weight: 850;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.fieldStopMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--nd-space-sm);
+  margin-top: var(--nd-space-md);
+}
+
+.fieldStopMetaGrid > div {
+  min-width: 0;
+  padding: var(--nd-space-sm);
+  background: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-md);
+}
+
+.fieldPrimaryActions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(112px, 0.8fr);
+  gap: var(--nd-space-sm);
+  margin-top: var(--nd-space-md);
+}
+
+.btnFieldPrimary,
+.btnFieldSecondary,
+.btnFieldComplete {
+  min-height: 58px;
+  border-radius: var(--nd-radius-md);
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.btnFieldPrimary {
+  border: none;
+  background: var(--nd-status-active);
+  color: var(--nd-text-inverse);
+}
+
+.btnFieldSecondary {
+  border: 1px solid var(--nd-border-default);
+  background: var(--nd-bg-elevated);
+  color: var(--nd-text-secondary);
+}
+
+.btnFieldComplete {
+  min-width: 180px;
+  border: none;
+  background: var(--nd-operator-accent);
+  color: var(--nd-text-inverse);
+}
+
+.btnFieldPrimary:disabled,
+.btnFieldSecondary:disabled,
+.btnFieldComplete:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.fieldUpcomingList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fieldUpcomingItem {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: var(--nd-space-sm);
+  align-items: center;
+  min-height: 54px;
+  color: var(--nd-text-primary);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.fieldUpcomingSequence {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--nd-operator-accent-dim);
+  color: var(--nd-operator-accent);
+  border: 1px solid color-mix(in srgb, var(--nd-operator-accent) 35%, transparent);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.fieldEmptyText {
+  margin: 0;
+  color: var(--nd-text-secondary);
+  font-size: 15px;
+}
+
+.fieldModeFooter {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--nd-space-md);
+  padding: var(--nd-space-md);
+}
+
 /* Stops section */
 .stopsSection {
   margin-top: var(--nd-space-lg);
@@ -577,7 +791,7 @@
   word-break: break-word;
   font-size: 19px;
   line-height: 1.42;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
 }
 
 .stopCardExecutionCompact .stopAddress {
@@ -605,7 +819,7 @@
   border-radius: 999px;
   font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   background-color: var(--nd-agent-badge-bg-override, var(--nd-agent-badge-bg, var(--nd-border-default)));
   color: var(--nd-agent-badge-fg-override, var(--nd-agent-badge-fg, var(--nd-text-primary)));
   border: 1px solid color-mix(in srgb, var(--nd-color-border-default) 90%, transparent);
@@ -828,6 +1042,14 @@
 }
 
 @media (max-width: 1024px) {
+  .fieldModeGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fieldModeTelemetry {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .mapSectionExecutionMobile {
     background: var(--nd-bg-surface);
     margin-inline: calc(-1 * var(--nd-space-lg));
@@ -999,6 +1221,45 @@
 }
 
 @media (max-width: 640px) {
+  .container {
+    padding: var(--nd-space-sm);
+  }
+
+  .fieldModeHeader {
+    align-items: flex-start;
+  }
+
+  .fieldModeTelemetry {
+    grid-template-columns: 1fr;
+  }
+
+  .fieldModeMapPanel,
+  .fieldNextStopPanel,
+  .fieldUpcomingPanel,
+  .fieldModeFooter {
+    padding: var(--nd-space-sm);
+  }
+
+  .fieldModeSectionHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .fieldStopMetaGrid,
+  .fieldPrimaryActions {
+    grid-template-columns: 1fr;
+  }
+
+  .fieldModeFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .btnFieldComplete {
+    width: 100%;
+  }
+
   .stopCardExecutionCompact {
     display: grid;
     grid-template-columns: 48px minmax(0, 1fr) auto;

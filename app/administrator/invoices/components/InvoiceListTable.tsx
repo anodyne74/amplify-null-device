@@ -63,6 +63,14 @@ export default function InvoiceListTable({
   onMarkPaid,
   onEmailInvoiceToPrimary,
 }: InvoiceListTableProps) {
+  const handleRegeneratePdf = (invoice: Invoice) => {
+    const confirmed = window.confirm(
+      `Regenerate invoice ${invoice.invoiceNumber}? This will replace the attached PDF.`
+    );
+    if (!confirmed) return;
+    onGeneratePdf(invoice);
+  };
+
   return (
     <div className={`${styles.infoPanel} ${invoiceStyles.listPanel}`}>
       <AdminSectionHeader title="Invoice List" titleClassName={invoiceStyles.panelHeading} />
@@ -152,7 +160,7 @@ export default function InvoiceListTable({
                             <AdminActionButton
                               className={invoiceStyles.inlineButton}
                               variant="secondary"
-                              onClick={() => onGeneratePdf(invoice)}
+                              onClick={() => handleRegeneratePdf(invoice)}
                               isLoading={uploadingId === invoice.id}
                               loadingLabel="Generating..."
                               disabled={pdfActionLoadingId === invoice.id}

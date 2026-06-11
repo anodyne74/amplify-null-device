@@ -669,8 +669,8 @@ export async function updateInvoice(
     status: 'draft' | 'sent' | 'paid';
     routeId: string | null;
     pdfS3Key: string;
-    emailSentAt: string;
-    importedAt: string;
+    emailSentAt: string | null;
+    importedAt: string | null;
   }>
 ) {
   try {

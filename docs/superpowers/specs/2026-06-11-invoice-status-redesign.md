@@ -46,7 +46,7 @@ Three targeted changes inside `deriveInvoiceStatus` and `applyBundle`:
 | Remove status dropdown | Delete the `<select>` element and `onSetStatus` prop. |
 | Status badge | Existing `statusChip` badge already handles `draft / sent / paid` — no change. |
 | Add Sent column | New column between Status and PDF. Shows `formatLocalDateTime(invoice.emailSentAt)` or `—`. Format: `"4 Jun 2025, 2:14 pm"` via `Intl.DateTimeFormat`. |
-| Generate PDF gate | Render the Generate PDF button only when `!invoice.importedAt`. The Upload PDF button remains available for imported invoices. |
+| PDF generation gate | Render the Generate PDF and Regenerate PDF buttons only when `!invoice.importedAt`. Upload PDF and Replace PDF buttons remain available for imported invoices — modification is permitted, generation is not. |
 | Email button label | `invoice.emailSentAt ? 'Resend' : 'Email'`. |
 | Imported badge | Render a purple `Imported` chip next to the invoice number when `invoice.importedAt` is set. |
 
@@ -77,3 +77,4 @@ The `send-invoice-email` route already sets both `status: 'sent'` and `emailSent
 - Customer portal invoice detail view — status badge already renders correctly for the three new values; no changes needed.
 - PDF generation logic itself — unchanged; only the button visibility is gated.
 - Re-enabling PDF generation for imported invoices if a PDF is later uploaded — out of scope; once imported, the flag is permanent.
+

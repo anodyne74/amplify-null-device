@@ -43,3 +43,6 @@ tsconfig.tsbuildinfo
 amplify_outputs*
 amplifyconfiguration*
 legacy-import-bundle.json
+
+# Visual brainstorming sessions
+.superpowers/

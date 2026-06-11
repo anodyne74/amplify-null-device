@@ -835,7 +835,7 @@ async function applyBundle(bundle, args) {
         status: record.invoice.status,
         routeId: route.id,
         importedAt: new Date().toISOString(),
-        ...(record.invoice.status === 'sent' && record.invoice.sentDate
+        ...(record.invoice.sentDate
           ? { emailSentAt: toIsoDateTime(record.invoice.sentDate) }
           : {}),
       };

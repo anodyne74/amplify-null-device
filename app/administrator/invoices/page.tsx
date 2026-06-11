@@ -391,7 +391,7 @@ export default function InvoicesAdminPage() {
     setSaving(false);
   };
 
-  const setStatus = async (id: string, status: 'draft' | 'finalized' | 'sent' | 'paid') => {
+  const setStatus = async (id: string, status: 'draft' | 'sent' | 'paid') => {
     const result = await updateInvoice(id, { status });
     if (result.errors && result.errors.length > 0) { setError('Failed to update status.'); return; }
     await fetchData();
@@ -1086,11 +1086,10 @@ export default function InvoicesAdminPage() {
                       <td>
                       <select
                         value={invoice.status ?? 'draft'}
-                        onChange={(e) => { void setStatus(invoice.id, e.target.value as 'draft' | 'finalized' | 'sent' | 'paid'); }}
+                        onChange={(e) => { void setStatus(invoice.id, e.target.value as 'draft' | 'sent' | 'paid'); }}
                         className={invoiceStyles.cellSelect}
                       >
                         <option value="draft">draft</option>
-                        <option value="finalized">finalized</option>
                         <option value="sent">sent</option>
                         <option value="paid">paid</option>
                       </select>

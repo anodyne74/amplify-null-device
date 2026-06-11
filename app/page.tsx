@@ -73,15 +73,18 @@ export default function Home() {
       <div className={styles.loginContainer}>
         {/* Branding Section */}
         <div className={styles.brandingSection}>
-          <Image
-            src="/logo.svg"
-            alt=""
-            aria-hidden="true"
-            className={styles.logo}
-            width={554}
-            height={248}
-            priority
-          />
+          <div className={styles.logoLockup} aria-label="null device">
+            <Image
+              src="/icon.svg"
+              alt=""
+              aria-hidden="true"
+              className={styles.logoMark}
+              width={96}
+              height={96}
+              priority
+            />
+            <span className={styles.logoWordmark}>null device</span>
+          </div>
         </div>
 
         {/* Welcome Section */}

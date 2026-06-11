@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import React from 'react';
 import Link from 'next/link';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { generateClient } from 'aws-amplify/data';
@@ -12,22 +11,10 @@ import { parseAgentOptionsInput, stringifyAgentOptions } from '@/lib/customerDef
 import { getCustomer, getCustomerPortalContext, getUserSettings, updateCustomer } from '@/lib/queries';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
-import {
-  formatCurrency,
-  formatDuration,
-  formatPeriodDisplay,
-  formatPeriodSummary,
-  getDeltaPercent,
-} from '@/lib/dashboardAnalytics';
+import { formatCurrency, formatDuration } from '@/lib/dashboardAnalytics';
 import styles from '@/app/dashboard.module.css';
-import PeriodSelector from '../../components/PeriodSelector';
-import KpiCard from '../../components/KpiCard';
-import {
-  aggregateRouteData,
-  getDateGroup,
-  getPreviousDateGroup,
-  type AnalyticsPeriod,
-} from '@/lib/aggregateRouteData';
+import MetricsVisualization, { type MetricsPeriod } from '../../components/MetricsVisualization';
+import { aggregateRouteData } from '@/lib/aggregateRouteData';
 
 type CustomerInvoice = {
   totalAmount?: number | null;
@@ -69,7 +56,7 @@ export default function CustomerDashboard() {
   const [analyticsRoutes, setAnalyticsRoutes] = useState<Route[]>([]);
   const [analyticsInvoices, setAnalyticsInvoices] = useState<CustomerInvoice[]>([]);
 
-  const [selectedPeriod, setSelectedPeriod] = React.useState<'week' | 'month' | 'quarter' | 'year'>('week');
+  const [selectedPeriod, setSelectedPeriod] = useState<MetricsPeriod>('month');
 
   const completedRoutesForAnalytics = useMemo(
     () => analyticsRoutes.filter((route) => route.status === 'completed'),
@@ -77,42 +64,9 @@ export default function CustomerDashboard() {
   );
 
   const groupedAnalytics = useMemo(
-    () => aggregateRouteData(completedRoutesForAnalytics, analyticsInvoices, selectedPeriod as AnalyticsPeriod),
+    () => aggregateRouteData(completedRoutesForAnalytics, analyticsInvoices, selectedPeriod),
     [completedRoutesForAnalytics, analyticsInvoices, selectedPeriod]
   );
-
-  const currentPeriodKey = useMemo(
-    () => getDateGroup(new Date().toISOString(), selectedPeriod as AnalyticsPeriod),
-    [selectedPeriod]
-  );
-
-  const previousPeriodKey = useMemo(
-    () => getPreviousDateGroup(new Date(), selectedPeriod as AnalyticsPeriod),
-    [selectedPeriod]
-  );
-
-  const analyticsByPeriod = useMemo(
-    () => Object.fromEntries(groupedAnalytics.map((item) => [item.dateGroup, item])),
-    [groupedAnalytics]
-  );
-
-  const currentAnalytics = analyticsByPeriod[currentPeriodKey];
-  const previousAnalytics = analyticsByPeriod[previousPeriodKey];
-
-  const routesCompletedKpi = currentAnalytics?.routesCompleted ?? 0;
-  const totalRevenueKpi = currentAnalytics?.totalRevenue ?? 0;
-  const totalDistanceKpi = currentAnalytics?.totalDistanceKm ?? 0;
-  const avgRevenuePerRouteKpi = routesCompletedKpi > 0 ? totalRevenueKpi / routesCompletedKpi : 0;
-  const routesDelta = getDeltaPercent(routesCompletedKpi, previousAnalytics?.routesCompleted ?? 0);
-  const revenueDelta = getDeltaPercent(totalRevenueKpi, previousAnalytics?.totalRevenue ?? 0);
-  const distanceDelta = getDeltaPercent(totalDistanceKpi, previousAnalytics?.totalDistanceKm ?? 0);
-  const previousRoutesCompletedKpi = previousAnalytics?.routesCompleted ?? 0;
-  const previousRevenueKpi = previousAnalytics?.totalRevenue ?? 0;
-  const previousDistanceKpi = previousAnalytics?.totalDistanceKm ?? 0;
-  const previousAvgRevenuePerRouteKpi =
-    previousRoutesCompletedKpi > 0 ? previousRevenueKpi / previousRoutesCompletedKpi : 0;
-  const periodLabel = formatPeriodDisplay(currentPeriodKey, selectedPeriod as AnalyticsPeriod);
-  const periodSummary = formatPeriodSummary(selectedPeriod as AnalyticsPeriod);
 
   useEffect(() => {
     setDisplayName(fallbackDisplayName);
@@ -594,46 +548,14 @@ export default function CustomerDashboard() {
         )}
       </div>
 
-      <div className={styles.analyticsSummaryRow}>
-        <p className={styles.welcome}>Showing analytics for {periodSummary}</p>
-      </div>
-
-      <div className={`${styles.statsGrid} ${styles.kpiGrid}`}>
-        <PeriodSelector selectedPeriod={selectedPeriod} onChange={setSelectedPeriod} />
-        <div className={styles.kpiContents}>
-          <KpiCard
-            title="Routes Completed"
-            value={statsLoading ? '…' : routesCompletedKpi}
-            delta={statsLoading ? undefined : routesDelta}
-            subtitle={`Period ${periodLabel}`}
-            comparison={statsLoading ? undefined : `Prev: ${previousRoutesCompletedKpi}`}
-          />
-          {isAccountOwner && (
-            <>
-              <KpiCard
-                title="Total Revenue"
-                value={statsLoading ? '…' : formatCurrency(totalRevenueKpi)}
-                delta={!statsLoading ? revenueDelta : undefined}
-                subtitle={`Period ${periodLabel}`}
-                comparison={!statsLoading ? `Prev: ${formatCurrency(previousRevenueKpi)}` : undefined}
-              />
-              <KpiCard
-                title="Average Revenue / Route"
-                value={statsLoading ? '…' : formatCurrency(avgRevenuePerRouteKpi)}
-                subtitle={`Period ${periodLabel}`}
-                comparison={!statsLoading ? `Prev: ${formatCurrency(previousAvgRevenuePerRouteKpi)}` : undefined}
-              />
-            </>
-          )}
-          <KpiCard
-            title="Total Distance"
-            value={statsLoading ? '…' : `${totalDistanceKpi.toFixed(1)} km`}
-            delta={statsLoading ? undefined : distanceDelta}
-            subtitle={`Period ${periodLabel}`}
-            comparison={statsLoading ? undefined : `Prev: ${previousDistanceKpi.toFixed(1)} km`}
-          />
-        </div>
-      </div>
+      <MetricsVisualization
+        data={groupedAnalytics}
+        period={selectedPeriod}
+        onPeriodChange={setSelectedPeriod}
+        loading={statsLoading}
+        canShowFinancials={isAccountOwner}
+        scopeLabel={customer?.name ?? 'Customer routes'}
+      />
     </div>
   );
 }

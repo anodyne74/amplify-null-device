@@ -69,14 +69,26 @@ describe('Customer Dashboard standing instructions', () => {
     (listMyRoutes as jest.Mock).mockResolvedValue({
       data: [
         { id: 'route-1', routeCode: 'W19-26-001', status: 'signs_placed', createdAt: '2024-01-16T11:00:00Z' },
-        { id: 'route-2', routeCode: 'W19-26-002', status: 'completed', createdAt: '2024-01-14T09:00:00Z' },
+        {
+          id: 'route-2',
+          routeCode: 'W19-26-002',
+          status: 'completed',
+          createdAt: '2026-01-14T09:00:00Z',
+          actualEndTime: '2026-01-14T12:00:00Z',
+          actualDurationMinutes: 120,
+          signsPlacedDistanceKm: 12.5,
+          signsPickedUpDistanceKm: 10,
+          stops: 2,
+          signsPlaced: 5,
+          signsPickedUp: 5,
+        },
       ],
       errors: undefined,
     });
     (listMyInvoices as jest.Mock).mockResolvedValue({
       data: [
-        { id: 'inv-1', totalAmount: 1200, status: 'paid' },
-        { id: 'inv-2', totalAmount: 800, status: 'sent' },
+        { id: 'inv-1', totalAmount: 1200, status: 'paid', invoiceDate: '2026-01-20T00:00:00Z' },
+        { id: 'inv-2', totalAmount: 800, status: 'sent', invoiceDate: '2026-01-21T00:00:00Z' },
       ],
       errors: undefined,
     });
@@ -150,6 +162,8 @@ describe('Customer Dashboard standing instructions', () => {
     expect(screen.getByRole('heading', { name: /customer totals/i })).toBeInTheDocument();
     expect(screen.getByText(/total invoiced amount/i)).toBeInTheDocument();
     expect(screen.getByText(/outstanding amount/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /performance metrics/i })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /revenue trend/i })).toBeInTheDocument();
   });
 
   it('shows read-only standing instructions for reviewer role', async () => {
@@ -188,6 +202,7 @@ describe('Customer Dashboard standing instructions', () => {
     expect(screen.queryByText(/outstanding amount/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/total revenue/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/average revenue/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /revenue trend/i })).not.toBeInTheDocument();
   });
 
   it('shows a route-first tracker for reviewer users without fetching invoices', async () => {

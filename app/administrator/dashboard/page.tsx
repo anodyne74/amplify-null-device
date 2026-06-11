@@ -1,29 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import React from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { listInvoices } from '@/lib/queries';
 import type { Route } from '@/amplify/types';
-import {
-  formatCurrency,
-  formatDuration,
-  formatPeriodDisplay,
-  formatPeriodSummary,
-  getDeltaPercent,
-} from '@/lib/dashboardAnalytics';
+import { formatCurrency, formatDuration } from '@/lib/dashboardAnalytics';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import styles from '@/app/dashboard.module.css';
-import PeriodSelector from '../../components/PeriodSelector';
-import KpiCard from '../../components/KpiCard';
-import {
-  aggregateRouteData,
-  getDateGroup,
-  getPreviousDateGroup,
-  type AnalyticsPeriod,
-} from '@/lib/aggregateRouteData';
+import MetricsVisualization, { type MetricsPeriod } from '../../components/MetricsVisualization';
+import { aggregateRouteData } from '@/lib/aggregateRouteData';
 
 type Invoice = {
   id: string;
@@ -41,7 +28,7 @@ export default function AdminHomePage() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [totalStops, setTotalStops] = useState(0);
   const [totalSigns, setTotalSigns] = useState(0);
-  const [selectedPeriod, setSelectedPeriod] = React.useState<'week' | 'month' | 'quarter' | 'year'>('week');
+  const [selectedPeriod, setSelectedPeriod] = useState<MetricsPeriod>('month');
 
   useEffect(() => {
     async function loadStats() {
@@ -155,66 +142,9 @@ export default function AdminHomePage() {
   );
 
   const groupedAnalytics = useMemo(
-    () => aggregateRouteData(completedRoutesForAnalytics, invoices, selectedPeriod as AnalyticsPeriod),
+    () => aggregateRouteData(completedRoutesForAnalytics, invoices, selectedPeriod),
     [completedRoutesForAnalytics, invoices, selectedPeriod]
   );
-
-  const currentPeriodKey = useMemo(
-    () => getDateGroup(new Date().toISOString(), selectedPeriod as AnalyticsPeriod),
-    [selectedPeriod]
-  );
-
-  const previousPeriodKey = useMemo(
-    () => getPreviousDateGroup(new Date(), selectedPeriod as AnalyticsPeriod),
-    [selectedPeriod]
-  );
-
-  const analyticsByPeriod = useMemo(
-    () => Object.fromEntries(groupedAnalytics.map((item) => [item.dateGroup, item])),
-    [groupedAnalytics]
-  );
-
-  const activePeriodKey = useMemo(() => {
-    if (analyticsByPeriod[currentPeriodKey]) {
-      return currentPeriodKey;
-    }
-
-    if (groupedAnalytics.length > 0) {
-      return groupedAnalytics[groupedAnalytics.length - 1].dateGroup;
-    }
-
-    return currentPeriodKey;
-  }, [analyticsByPeriod, currentPeriodKey, groupedAnalytics]);
-
-  const isFallbackPeriod = useMemo(
-    () => activePeriodKey !== currentPeriodKey && groupedAnalytics.length > 0,
-    [activePeriodKey, currentPeriodKey, groupedAnalytics]
-  );
-
-  const currentAnalytics = analyticsByPeriod[activePeriodKey];
-  const previousAnalytics = useMemo(() => {
-    const activeIndex = groupedAnalytics.findIndex((item) => item.dateGroup === activePeriodKey);
-    if (activeIndex > 0) {
-      return groupedAnalytics[activeIndex - 1];
-    }
-
-    return analyticsByPeriod[previousPeriodKey];
-  }, [activePeriodKey, analyticsByPeriod, groupedAnalytics, previousPeriodKey]);
-
-  const routesCompletedKpi = currentAnalytics?.routesCompleted ?? 0;
-  const totalRevenueKpi = currentAnalytics?.totalRevenue ?? 0;
-  const totalDistanceKpi = currentAnalytics?.totalDistanceKm ?? 0;
-  const avgRevenuePerRouteKpi = routesCompletedKpi > 0 ? totalRevenueKpi / routesCompletedKpi : 0;
-  const routesDelta = getDeltaPercent(routesCompletedKpi, previousAnalytics?.routesCompleted ?? 0);
-  const revenueDelta = getDeltaPercent(totalRevenueKpi, previousAnalytics?.totalRevenue ?? 0);
-  const distanceDelta = getDeltaPercent(totalDistanceKpi, previousAnalytics?.totalDistanceKm ?? 0);
-  const previousRoutesCompletedKpi = previousAnalytics?.routesCompleted ?? 0;
-  const previousRevenueKpi = previousAnalytics?.totalRevenue ?? 0;
-  const previousDistanceKpi = previousAnalytics?.totalDistanceKm ?? 0;
-  const previousAvgRevenuePerRouteKpi =
-    previousRoutesCompletedKpi > 0 ? previousRevenueKpi / previousRoutesCompletedKpi : 0;
-  const periodLabel = formatPeriodDisplay(activePeriodKey, selectedPeriod as AnalyticsPeriod);
-  const periodSummary = formatPeriodSummary(selectedPeriod as AnalyticsPeriod);
 
   const completedRoutes = useMemo(
     () => routes.filter((route) => route.status === 'completed'),
@@ -252,10 +182,6 @@ export default function AdminHomePage() {
         <div>
           <h1 className={styles.heading}>Administrator Portal</h1>
           <p className={styles.welcome}>Manage customers, invoices, users, and route operations. Send invoices via email directly to customers.</p>
-        </div>
-
-        <div className={styles.controlsRow}>
-          <PeriodSelector selectedPeriod={selectedPeriod} onChange={setSelectedPeriod} />
         </div>
 
         {/* Dashboard cards grid */}
@@ -420,42 +346,14 @@ export default function AdminHomePage() {
           </div>
         </div>
 
-        <div className={styles.analyticsSummaryRow}>
-          <p className={styles.welcome}>
-            Showing analytics for {periodSummary}
-            {isFallbackPeriod ? ` (latest available: ${periodLabel})` : ''}
-          </p>
-        </div>
-
-        <div className={`${styles.statsGrid} ${styles.kpiGrid}`}>
-          <KpiCard
-            title="Routes Completed"
-            value={statsLoading ? '…' : routesCompletedKpi}
-            delta={statsLoading ? undefined : routesDelta}
-            subtitle={`Period ${periodLabel}`}
-            comparison={statsLoading ? undefined : `Prev: ${previousRoutesCompletedKpi}`}
-          />
-          <KpiCard
-            title="Total Revenue"
-            value={statsLoading ? '…' : formatCurrency(totalRevenueKpi)}
-            delta={statsLoading ? undefined : revenueDelta}
-            subtitle={`Period ${periodLabel}`}
-            comparison={statsLoading ? undefined : `Prev: ${formatCurrency(previousRevenueKpi)}`}
-          />
-          <KpiCard
-            title="Average Revenue / Route"
-            value={statsLoading ? '…' : formatCurrency(avgRevenuePerRouteKpi)}
-            subtitle={`Period ${periodLabel}`}
-            comparison={statsLoading ? undefined : `Prev: ${formatCurrency(previousAvgRevenuePerRouteKpi)}`}
-          />
-          <KpiCard
-            title="Total Distance"
-            value={statsLoading ? '…' : `${totalDistanceKpi.toFixed(1)} km`}
-            delta={statsLoading ? undefined : distanceDelta}
-            subtitle={`Period ${periodLabel}`}
-            comparison={statsLoading ? undefined : `Prev: ${previousDistanceKpi.toFixed(1)} km`}
-          />
-        </div>
+        <MetricsVisualization
+          data={groupedAnalytics}
+          period={selectedPeriod}
+          onPeriodChange={setSelectedPeriod}
+          loading={statsLoading}
+          canShowFinancials
+          scopeLabel="All customers"
+        />
 
       </div>
     </OperatorRoute>

@@ -547,6 +547,234 @@
   display: contents;
 }
 
+.metricsPanel {
+  display: grid;
+  gap: var(--nd-space-lg);
+  padding: var(--nd-space-lg);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--nd-bg-elevated) 92%, transparent), var(--nd-bg-surface)),
+    var(--nd-bg-surface);
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-lg);
+}
+
+.metricsHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--nd-space-md);
+  flex-wrap: wrap;
+}
+
+.metricsTitleGroup {
+  display: grid;
+  gap: 8px;
+}
+
+.metricsEyebrow {
+  margin: 0;
+  color: var(--nd-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.metricsTitleGroup h2 {
+  margin: 0;
+  color: var(--nd-text-primary);
+  font-family: var(--nd-font-display);
+  font-size: clamp(1.2rem, 1.7vw, 1.65rem);
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.metricsScopePill {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 10px;
+  color: var(--nd-customer-accent);
+  background: color-mix(in srgb, var(--nd-customer-accent-dim) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--nd-customer-accent) 35%, transparent);
+  border-radius: var(--nd-radius-sm);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.metricsHeadlineGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.metricsHeadlineCard {
+  display: grid;
+  gap: 8px;
+  min-height: 116px;
+  padding: 16px;
+  background: color-mix(in srgb, var(--nd-bg-elevated) 86%, transparent);
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-md);
+}
+
+.metricsHeadlineLabel,
+.metricsHeadlineMeta {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.metricsHeadlineLabel {
+  color: var(--nd-text-muted);
+  font-weight: 700;
+}
+
+.metricsHeadlineValue {
+  margin: 0;
+  color: var(--nd-text-primary);
+  font-family: var(--nd-font-mono);
+  font-size: clamp(1.6rem, 2.6vw, 2.25rem);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.metricsHeadlineMeta {
+  color: var(--nd-text-secondary);
+  text-transform: none;
+}
+
+.metricsChartsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--nd-space-md);
+}
+
+.metricsChartCard {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--nd-bg-surface) 92%, transparent);
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: var(--nd-radius-md);
+}
+
+.metricsChartHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.metricsChartTitle,
+.metricsChartSubtitle {
+  margin: 0;
+}
+
+.metricsChartTitle {
+  color: var(--nd-text-primary);
+  font-family: var(--nd-font-display);
+  font-size: 0.92rem;
+  letter-spacing: 0;
+}
+
+.metricsChartSubtitle {
+  color: var(--nd-text-muted);
+  font-size: 0.76rem;
+}
+
+.metricsChartSvg {
+  width: 100%;
+  height: 210px;
+  min-height: 210px;
+  overflow: visible;
+}
+
+.metricsChartAxis {
+  stroke: var(--nd-border-default);
+  stroke-width: 1;
+}
+
+.metricsChartLabel {
+  fill: var(--nd-text-muted);
+  font-size: 11px;
+  font-family: var(--nd-font-body);
+}
+
+.metricsRoutesBar {
+  fill: var(--nd-accent-primary);
+}
+
+.metricsRevenueBar {
+  fill: var(--nd-customer-accent);
+}
+
+.metricsDistanceLine {
+  fill: none;
+  stroke: var(--nd-operator-accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.metricsDistancePoint {
+  fill: var(--nd-bg-surface);
+  stroke: var(--nd-operator-accent);
+  stroke-width: 3;
+}
+
+.metricsSignPlaced {
+  fill: var(--nd-accent-primary);
+}
+
+.metricsSignPickedUp {
+  fill: var(--nd-customer-accent);
+}
+
+.metricsLegend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--nd-text-secondary);
+  font-size: 0.76rem;
+}
+
+.metricsLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.metricsLegendSwatchPlaced,
+.metricsLegendSwatchPickedUp {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.metricsLegendSwatchPlaced {
+  background: var(--nd-accent-primary);
+}
+
+.metricsLegendSwatchPickedUp {
+  background: var(--nd-customer-accent);
+}
+
+.metricsEmptyState {
+  margin: 0;
+  padding: 20px;
+  color: var(--nd-text-muted);
+  background: color-mix(in srgb, var(--nd-bg-elevated) 76%, transparent);
+  border: 1px dashed var(--nd-border-default);
+  border-radius: var(--nd-radius-md);
+  text-align: center;
+}
+
 .customerSettingsForm {
   display: grid;
   gap: 12px;

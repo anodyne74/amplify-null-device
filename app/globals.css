@@ -29,6 +29,7 @@
   --nd-logo-secondary: #ad80e8;
   --nd-logo-secondary-dim: rgba(173, 128, 232, 0.15);
   --nd-logo-secondary-glow: 0 0 12px rgba(173, 128, 232, 0.4);
+  --nd-logo-wordmark: rgba(255, 255, 255, 0.94);
 
   /* Accent – primary neon green */
   --nd-accent-primary: #00ff88;
@@ -155,6 +156,7 @@
   --nd-text-secondary: #374151;
   --nd-text-muted: #6b7280;
   --nd-text-inverse: #ffffff;
+  --nd-logo-wordmark: #111827;
 
   --nd-accent-primary: #00c978;
   --nd-accent-primary-dim: rgba(0, 201, 120, 0.15);

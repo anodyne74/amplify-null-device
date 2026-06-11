@@ -1,11 +1,31 @@
 import React from 'react';
 
-interface PeriodSelectorProps {
-  selectedPeriod: 'week' | 'month' | 'quarter' | 'year';
-  onChange: (period: 'week' | 'month' | 'quarter' | 'year') => void;
+export type PeriodSelectorPeriod = 'week' | 'month' | 'quarter' | 'year';
+
+const DEFAULT_PERIODS: readonly PeriodSelectorPeriod[] = ['week', 'month', 'quarter', 'year'];
+
+const PERIOD_LABELS: Record<PeriodSelectorPeriod, string> = {
+  week: 'Week',
+  month: 'Month',
+  quarter: 'Quarter',
+  year: 'Year',
+};
+
+interface PeriodSelectorProps<TPeriod extends PeriodSelectorPeriod = PeriodSelectorPeriod> {
+  selectedPeriod: TPeriod;
+  onChange: (period: TPeriod) => void;
+  periods?: readonly TPeriod[];
+  label?: string;
 }
 
-const PeriodSelector: React.FC<PeriodSelectorProps> = ({ selectedPeriod, onChange }) => {
+export default function PeriodSelector<TPeriod extends PeriodSelectorPeriod = PeriodSelectorPeriod>({
+  selectedPeriod,
+  onChange,
+  periods,
+  label = 'Select Period',
+}: PeriodSelectorProps<TPeriod>) {
+  const availablePeriods = periods ?? (DEFAULT_PERIODS as readonly TPeriod[]);
+
   return (
     <div
       style={{
@@ -29,12 +49,12 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({ selectedPeriod, onChang
           color: 'var(--nd-text-muted)',
         }}
       >
-        Select Period
+        {label}
       </label>
       <select
         id="period-selector"
         value={selectedPeriod}
-        onChange={(e) => onChange(e.target.value as 'week' | 'month' | 'quarter' | 'year')}
+        onChange={(e) => onChange(e.target.value as TPeriod)}
         style={{
           minWidth: '140px',
           backgroundColor: 'var(--nd-bg-void)',
@@ -46,13 +66,12 @@ const PeriodSelector: React.FC<PeriodSelectorProps> = ({ selectedPeriod, onChang
           fontSize: '0.875rem',
         }}
       >
-        <option value="week">Week</option>
-        <option value="month">Month</option>
-        <option value="quarter">Quarter</option>
-        <option value="year">Year</option>
+        {availablePeriods.map((period) => (
+          <option key={period} value={period}>
+            {PERIOD_LABELS[period]}
+          </option>
+        ))}
       </select>
     </div>
   );
-};
-
-export default PeriodSelector;
+}

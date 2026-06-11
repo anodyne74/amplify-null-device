@@ -45,7 +45,9 @@ const hasAmplifyAppId = Boolean(process.env.AWS_APP_ID);
 const hasAmplifyEnv = Boolean(process.env.AMPLIFY_ENVIRONMENT_NAME);
 const forceRealOutputs = process.env.AMPLIFY_FORCE_REAL_OUTPUTS === 'true';
 const isAmplifyHostedContext = hasAmplifyBranch || hasAmplifyAppId || hasAmplifyEnv;
-const requireRealOutputs = forceRealOutputs || (isCi && isAmplifyHostedContext);
+// Amplify-hosted builds must always ship real backend outputs.
+// Relying on CI=true is brittle because some hosted contexts may not set it.
+const requireRealOutputs = forceRealOutputs || isAmplifyHostedContext || isCi;
 
 if (!fs.existsSync(outputPath)) {
   console.error('❌ Missing amplify_outputs.json');
@@ -63,12 +65,94 @@ try {
 const placeholderPaths = collectPlaceholderPaths(outputs);
 const hasPlaceholders = placeholderPaths.length > 0;
 
+const readFirstDefinedEnv = (keys) => {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (value && value.trim()) {
+      return { key, value: value.trim() };
+    }
+  }
+  return null;
+};
+
+const AUTH_ENV_ALIASES = {
+  userPoolId: [
+    'NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID',
+    'NEXT_PUBLIC_COGNITO_USER_POOL_ID',
+    'AMPLIFY_COGNITO_USER_POOL_ID',
+  ],
+  userPoolClientId: [
+    'NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID',
+    'NEXT_PUBLIC_COGNITO_CLIENT_ID',
+    'AMPLIFY_COGNITO_CLIENT_ID',
+  ],
+  identityPoolId: [
+    'NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID',
+    'NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID',
+    'AMPLIFY_IDENTITY_POOL_ID',
+  ],
+  awsRegion: [
+    'NEXT_PUBLIC_AWS_REGION',
+    'NEXT_PUBLIC_COGNITO_REGION',
+    'NEXT_PUBLIC_API_REGION',
+    'AWS_REGION',
+  ],
+};
+
+const ENV_TO_OUTPUT_KEY = {
+  userPoolId: 'user_pool_id',
+  userPoolClientId: 'user_pool_client_id',
+  identityPoolId: 'identity_pool_id',
+  awsRegion: 'aws_region',
+};
+
+const auth = (isObject(outputs) ? outputs.auth : null) || {};
+const envToOutputChecks = Object.entries(ENV_TO_OUTPUT_KEY).map(([aliasKey, outputKey]) => ({
+  outputKey,
+  envKeys: AUTH_ENV_ALIASES[aliasKey],
+}));
+
+const envMismatches = envToOutputChecks
+  .map((check) => {
+    const envValue = readFirstDefinedEnv(check.envKeys);
+    const outputValue = typeof auth[check.outputKey] === 'string' ? auth[check.outputKey].trim() : '';
+
+    if (!envValue || !outputValue || outputValue.includes('PLACEHOLDER')) {
+      return null;
+    }
+
+    if (envValue.value === outputValue) {
+      return null;
+    }
+
+    return {
+      outputKey: check.outputKey,
+      envKey: envValue.key,
+      envValue: envValue.value,
+      outputValue,
+    };
+  })
+  .filter(Boolean);
+
 if (requireRealOutputs && hasPlaceholders) {
   console.error('❌ amplify_outputs.json contains placeholder values in a deployed CI context.');
   console.error('Set real values via Amplify environment variables or backend outputs.');
   console.error('Placeholder fields found at:');
   placeholderPaths.forEach((placeholderPath) => {
     console.error(`  - ${placeholderPath}`);
+  });
+  process.exit(1);
+}
+
+if (isAmplifyHostedContext && envMismatches.length > 0) {
+  console.error('❌ Amplify auth environment variable mismatch detected.');
+  console.error('The generated amplify_outputs.json does not match one or more configured env overrides.');
+  console.error('This usually means stale Cognito IDs are set in Amplify Console environment variables.');
+  console.error('Mismatches:');
+  envMismatches.forEach((mismatch) => {
+    console.error(
+      `  - ${mismatch.outputKey}: env ${mismatch.envKey}="${mismatch.envValue}" != outputs "${mismatch.outputValue}"`
+    );
   });
   process.exit(1);
 }

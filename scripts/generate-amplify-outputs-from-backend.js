@@ -66,39 +66,70 @@ const getExistingOutputs = () => {
 const generateAmplifyOutputs = () => {
   const backendOutputs = getBackendOutputs();
   const existingOutputs = getExistingOutputs();
+  const isAmplifyHostedContext = Boolean(process.env.AWS_BRANCH || process.env.AWS_APP_ID || process.env.AMPLIFY_ENVIRONMENT_NAME);
+  const allowExistingOutputsFallback = !isAmplifyHostedContext;
+
+  const authFromBackend = {
+    userPoolId: readPath(backendOutputs, ['auth.userPoolId', 'auth.user_pool_id']),
+    userPoolClientId: readPath(backendOutputs, ['auth.userPoolClientId', 'auth.user_pool_client_id']),
+    identityPoolId: readPath(backendOutputs, ['auth.identityPoolId', 'auth.identity_pool_id']),
+    region: readPath(backendOutputs, ['auth.region', 'auth.aws_region', 'data.aws_region']),
+  };
+
+  const authFromEnv = {
+    userPoolId:
+      process.env.NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID ||
+      process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID ||
+      process.env.AMPLIFY_COGNITO_USER_POOL_ID,
+    userPoolClientId:
+      process.env.NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID ||
+      process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID ||
+      process.env.AMPLIFY_COGNITO_CLIENT_ID,
+    identityPoolId:
+      process.env.NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID ||
+      process.env.NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID ||
+      process.env.AMPLIFY_IDENTITY_POOL_ID,
+    region:
+      process.env.NEXT_PUBLIC_AWS_REGION ||
+      process.env.NEXT_PUBLIC_COGNITO_REGION ||
+      process.env.NEXT_PUBLIC_API_REGION ||
+      process.env.AWS_REGION,
+  };
 
   // Extract values from environment variables or backend outputs
   const userPoolId =
-    process.env.NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID ||
-    process.env.AMPLIFY_COGNITO_USER_POOL_ID ||
-    readPath(backendOutputs, ['auth.userPoolId', 'auth.user_pool_id']) ||
-    readPath(existingOutputs, ['auth.user_pool_id']);
+    (isAmplifyHostedContext ? authFromBackend.userPoolId || authFromEnv.userPoolId : authFromEnv.userPoolId || authFromBackend.userPoolId) ||
+    (allowExistingOutputsFallback ? readPath(existingOutputs, ['auth.user_pool_id']) : undefined);
   const userPoolClientId =
-    process.env.NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID ||
-    process.env.AMPLIFY_COGNITO_CLIENT_ID ||
-    readPath(backendOutputs, ['auth.userPoolClientId', 'auth.user_pool_client_id']) ||
-    readPath(existingOutputs, ['auth.user_pool_client_id']);
+    (isAmplifyHostedContext
+      ? authFromBackend.userPoolClientId || authFromEnv.userPoolClientId
+      : authFromEnv.userPoolClientId || authFromBackend.userPoolClientId) ||
+    (allowExistingOutputsFallback ? readPath(existingOutputs, ['auth.user_pool_client_id']) : undefined);
   const identityPoolId =
-    process.env.NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID ||
-    process.env.AMPLIFY_IDENTITY_POOL_ID ||
-    readPath(backendOutputs, ['auth.identityPoolId', 'auth.identity_pool_id']) ||
-    readPath(existingOutputs, ['auth.identity_pool_id']);
-  const region = process.env.NEXT_PUBLIC_AWS_REGION || process.env.AWS_REGION || 'ap-southeast-2';
+    (isAmplifyHostedContext
+      ? authFromBackend.identityPoolId || authFromEnv.identityPoolId
+      : authFromEnv.identityPoolId || authFromBackend.identityPoolId) ||
+    (allowExistingOutputsFallback ? readPath(existingOutputs, ['auth.identity_pool_id']) : undefined);
+  const region =
+    authFromBackend.region ||
+    authFromEnv.region ||
+    (allowExistingOutputsFallback ? readPath(existingOutputs, ['auth.aws_region', 'data.aws_region']) : undefined) ||
+    'ap-southeast-2';
   const graphqlUrl =
     process.env.AMPLIFY_GRAPHQL_ENDPOINT ||
     readPath(backendOutputs, ['data.url']) ||
-    readPath(existingOutputs, ['data.url']);
+    (allowExistingOutputsFallback ? readPath(existingOutputs, ['data.url']) : undefined);
   const defaultAuthorizationType =
     readPath(backendOutputs, ['data.default_authorization_type']) ||
-    readPath(existingOutputs, ['data.default_authorization_type']) ||
+    (allowExistingOutputsFallback ? readPath(existingOutputs, ['data.default_authorization_type']) : undefined) ||
     'AWS_IAM';
   const authorizationTypes =
     readPath(backendOutputs, ['data.authorization_types']) ||
-    readPath(existingOutputs, ['data.authorization_types']) ||
+    (allowExistingOutputsFallback ? readPath(existingOutputs, ['data.authorization_types']) : undefined) ||
     ['AMAZON_COGNITO_USER_POOLS'];
   const modelIntrospection =
     readPath(backendOutputs, ['data.model_introspection']) ||
-    readPath(existingOutputs, ['data.model_introspection']) ||
+    (allowExistingOutputsFallback ? readPath(existingOutputs, ['data.model_introspection']) : undefined) ||
     {
       version: 1,
       models: {},

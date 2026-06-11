@@ -103,6 +103,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
         userEmail={userDisplayName}
         onLogout={logout}
         confirmLogout={true}
+        role="customer"
       >
         {children}
       </PortalLayout>

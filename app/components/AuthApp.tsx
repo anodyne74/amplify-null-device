@@ -1,14 +1,15 @@
 "use client";
+import { useEffect } from 'react';
 import Image from 'next/image';
 import { Authenticator } from '@aws-amplify/ui-react';
 import '@aws-amplify/ui-react/styles.css';
-import { Amplify } from 'aws-amplify';
-import outputs from '../../amplify_outputs.json';
-
-// Configure Amplify with outputs from Amplify backend
-Amplify.configure(outputs);
+import { configureAmplify } from '@/lib/amplify-config';
 
 export default function AuthApp() {
+  useEffect(() => {
+    configureAmplify();
+  }, []);
+
   return (
     <Authenticator
       loginMechanisms={["username"]}
@@ -57,7 +58,7 @@ export default function AuthApp() {
               title="Google Map"
             />
           </div>
-          <div className="admin-area" style={{ background: '#fff', padding: '2rem', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', maxWidth: '600px', margin: '2rem auto' }}>
+          <div className="admin-area" style={{ background: 'var(--nd-bg-surface)', padding: '2rem', borderRadius: '12px', border: '1px solid var(--nd-border-subtle)', boxShadow: 'var(--nd-shadow-sm)', maxWidth: '600px', margin: '2rem auto' }}>
             <h2>Admin Area</h2>
             <p>Only authenticated users can see this section.</p>
           </div>

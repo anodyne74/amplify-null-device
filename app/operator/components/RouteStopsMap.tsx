@@ -9,9 +9,11 @@ import styles from './RouteStopsMap.module.css';
 interface RouteStopsMapProps {
   stops: Stop[];
   activeStopId?: string | null;
+  upcomingStopIds?: string[];
   currentPosition?: { latitude: number; longitude: number } | null;
   mapTheme?: MapTheme;
   onStopSelect?: (stopId: string) => void;
+  presentation?: 'standard' | 'field';
 }
 
 type StopWithCoords = Stop & { latitude: number; longitude: number };
@@ -76,17 +78,19 @@ function applyMapOrientation(map: LeafletMap, headingDegrees: number) {
 function updateViewport(
   map: LeafletMap,
   activeStop: StopWithCoords,
+  upcomingStops: StopWithCoords[],
   devicePosition: DevicePosition | null,
   L: typeof import('leaflet')
 ) {
-  if (!devicePosition) {
+  if (!devicePosition && upcomingStops.length === 0) {
     map.setView([activeStop.latitude, activeStop.longitude], 13, { animate: false });
     return;
   }
 
   const bounds = L.latLngBounds([
     [activeStop.latitude, activeStop.longitude],
-    [devicePosition.latitude, devicePosition.longitude],
+    ...upcomingStops.map((stop) => [stop.latitude, stop.longitude] as [number, number]),
+    ...(devicePosition ? [[devicePosition.latitude, devicePosition.longitude] as [number, number]] : []),
   ]);
 
   map.fitBounds(bounds, {
@@ -103,9 +107,11 @@ function hasCoordinates(stop: Stop): stop is StopWithCoords {
 export function RouteStopsMap({
   stops,
   activeStopId,
+  upcomingStopIds = [],
   currentPosition,
   mapTheme = 'light',
   onStopSelect,
+  presentation = 'standard',
 }: RouteStopsMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -127,6 +133,8 @@ export function RouteStopsMap({
 
   const orderedStops = [...stops].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
   const mappedStops = orderedStops.filter(hasCoordinates);
+  const upcomingStopKey = upcomingStopIds.join('|');
+  const upcomingStopIdSet = useMemo(() => new Set(upcomingStopIds), [upcomingStopIds]);
   const selectedMapTheme = getMapTheme(mapTheme);
 
   // Only set up independent geolocation if currentPosition is not provided
@@ -179,6 +187,7 @@ export function RouteStopsMap({
       lastRenderedPositionRef.current = null;
 
       const activeStop = mappedStops.find((stop) => stop.id === activeStopId) ?? mappedStops.find((stop) => !stop.actualDepartureTime) ?? mappedStops[0];
+      const upcomingStops = mappedStops.filter((stop) => upcomingStopIdSet.has(stop.id));
       const map = L.map(containerRef.current, { scrollWheelZoom: true });
       mapRef.current = map;
 
@@ -195,6 +204,7 @@ export function RouteStopsMap({
       mappedStops.forEach((stop) => {
         const isCompleted = Boolean(stop.actualDepartureTime);
         const isActive = stop.id === activeStop.id;
+        const isUpcoming = upcomingStopIdSet.has(stop.id);
 
         const serviceClass =
           stop.serviceType === 'pickup'
@@ -207,6 +217,7 @@ export function RouteStopsMap({
           styles.stopMarker,
           serviceClass,
           isActive ? styles.stopMarkerActive : '',
+          isUpcoming ? styles.stopMarkerUpcoming : '',
           isCompleted ? styles.stopMarkerCompleted : '',
         ]
           .filter(Boolean)
@@ -236,17 +247,17 @@ export function RouteStopsMap({
       if (displayPosition) {
         const accuracyCircle = L.circle([displayPosition.latitude, displayPosition.longitude], {
           radius: Math.max(displayPosition.accuracy ?? 20, 20),
-          color: '#2563eb',
+          color: 'var(--nd-role-accent, var(--nd-customer-accent))',
           weight: 1,
-          fillColor: '#60a5fa',
+          fillColor: 'var(--nd-role-accent, var(--nd-customer-accent))',
           fillOpacity: 0.12,
         }).addTo(map);
 
         const positionMarker = L.circleMarker([displayPosition.latitude, displayPosition.longitude], {
           radius: 8,
-          color: '#ffffff',
+          color: 'var(--nd-color-text-on-accent)',
           weight: 2,
-          fillColor: '#2563eb',
+          fillColor: 'var(--nd-role-accent, var(--nd-customer-accent))',
           fillOpacity: 1,
         })
           .addTo(map)
@@ -265,7 +276,7 @@ export function RouteStopsMap({
         };
       }
 
-      updateViewport(map, activeStop, displayPosition, L);
+      updateViewport(map, activeStop, upcomingStops, displayPosition, L);
       map.invalidateSize();
       syncOrientation();
     });
@@ -284,7 +295,7 @@ export function RouteStopsMap({
       headingRef.current = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStopId, stops, mapTheme]);
+  }, [activeStopId, stops, mapTheme, upcomingStopKey, presentation]);
 
   useEffect(() => {
     if (!mapRef.current || !leafletRef.current) return;
@@ -312,9 +323,9 @@ export function RouteStopsMap({
     if (!deviceAccuracyRef.current) {
       deviceAccuracyRef.current = L.circle(latLng, {
         radius: Math.max(displayPosition.accuracy ?? 20, 20),
-        color: '#2563eb',
+        color: 'var(--nd-role-accent, var(--nd-customer-accent))',
         weight: 1,
-        fillColor: '#60a5fa',
+        fillColor: 'var(--nd-role-accent, var(--nd-customer-accent))',
         fillOpacity: 0.12,
       }).addTo(mapRef.current);
     } else {
@@ -325,9 +336,9 @@ export function RouteStopsMap({
     if (!deviceMarkerRef.current) {
       deviceMarkerRef.current = L.circleMarker(latLng, {
         radius: 8,
-        color: '#ffffff',
+        color: 'var(--nd-color-text-on-accent)',
         weight: 2,
-        fillColor: '#2563eb',
+        fillColor: 'var(--nd-role-accent, var(--nd-customer-accent))',
         fillOpacity: 1,
       })
         .addTo(mapRef.current)
@@ -375,9 +386,10 @@ export function RouteStopsMap({
     if (!mapRef.current || !leafletRef.current || mappedStops.length === 0) return;
 
     const activeStop = mappedStops.find((stop) => stop.id === activeStopId) ?? mappedStops.find((stop) => !stop.actualDepartureTime) ?? mappedStops[0];
-    updateViewport(mapRef.current, activeStop, displayPosition, leafletRef.current);
+    const upcomingStops = mappedStops.filter((stop) => upcomingStopIdSet.has(stop.id));
+    updateViewport(mapRef.current, activeStop, upcomingStops, displayPosition, leafletRef.current);
     mapRef.current.invalidateSize({ pan: false });
-  }, [activeStopId, mappedStops, displayPosition]);
+  }, [activeStopId, mappedStops, upcomingStopIdSet, displayPosition]);
 
   if (orderedStops.length === 0) {
     return (
@@ -397,7 +409,10 @@ export function RouteStopsMap({
 
   return (
     <div className={styles.wrapper}>
-      <div ref={containerRef} className={styles.map} />
+      <div
+        ref={containerRef}
+        className={`${styles.map} ${presentation === 'field' ? styles.mapField : ''}`}
+      />
     </div>
   );
 }

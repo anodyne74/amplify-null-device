@@ -61,7 +61,7 @@
   border: none;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
+  color: var(--nd-color-text-on-accent);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -82,7 +82,7 @@
   border: 1px solid var(--nd-status-danger);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-status-danger);
-  background: rgba(255, 71, 87, 0.12);
+  background: var(--nd-status-danger-dim);
 }
 
 .routeCode {
@@ -212,7 +212,7 @@
 
 .dragHint {
   font-size: 12px;
-  color: var(--nd-text-muted, #888);
+  color: var(--nd-text-muted);
   margin: 0 0 8px;
 }
 
@@ -229,8 +229,8 @@
   font-size: 11px;
   font-weight: bold;
   text-transform: uppercase;
-  background-color: var(--nd-status-danger, #e53935);
-  color: #fff;
+  background-color: var(--nd-status-danger);
+  color: var(--nd-color-text-on-accent);
   margin-top: 4px;
 }
 

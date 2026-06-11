@@ -1,53 +1,56 @@
 import { createTheme } from '@mui/material/styles';
+import { ndThemePalettes, type ThemeModeResolved } from '@/app/theme/themeTokens';
 
 /**
- * Material UI Theme for Operator Portal
- * Applies NullDevice dark theme colors and tokens to MUI components
- * Optimized for mobile-first field use
+ * Material UI theme for the operator portal.
+ * Defaults to dark for field use, but follows the resolved app theme when available.
  */
-export const operatorTheme = createTheme({
+export function getOperatorTheme(mode: ThemeModeResolved = 'dark') {
+  const palette = ndThemePalettes[mode];
+
+  return createTheme({
   palette: {
-    mode: 'dark',
+    mode,
     primary: {
-      main: '#ffb300', // nd-operator-accent (amber)
-      light: '#ffc933',
-      dark: '#cc8f00',
-      contrastText: '#0a0a0a',
+      main: palette.operatorAccent,
+      light: palette.statusPlanned,
+      dark: palette.statusPlanned,
+      contrastText: palette.textInverse,
     },
     secondary: {
-      main: '#00ff88', // nd-accent-primary (neon green)
-      light: '#33ffaa',
-      dark: '#00cc6a',
-      contrastText: '#0a0a0a',
+      main: palette.accentPrimary,
+      light: palette.statusActive,
+      dark: palette.statusActive,
+      contrastText: palette.textInverse,
     },
     background: {
-      default: '#0a0a0a', // nd-bg-void
-      paper: '#111111', // nd-bg-surface
+      default: palette.backgroundCanvas,
+      paper: palette.backgroundSurface,
     },
-    divider: 'rgba(255, 255, 255, 0.08)', // nd-border-subtle
+    divider: palette.borderSubtle,
     text: {
-      primary: 'rgba(255, 255, 255, 0.92)', // nd-text-primary
-      secondary: 'rgba(255, 255, 255, 0.6)', // nd-text-secondary
-      disabled: 'rgba(255, 255, 255, 0.38)', // nd-text-muted
+      primary: palette.textPrimary,
+      secondary: palette.textSecondary,
+      disabled: palette.textMuted,
     },
     action: {
-      active: 'rgba(255, 255, 255, 0.92)',
-      hover: 'rgba(255, 179, 0, 0.08)', // nd-operator-accent-dim
-      selected: 'rgba(255, 179, 0, 0.12)',
-      disabled: 'rgba(255, 255, 255, 0.38)',
-      disabledBackground: 'rgba(255, 255, 255, 0.12)',
+      active: palette.textPrimary,
+      hover: 'color-mix(in srgb, var(--nd-operator-accent) 8%, transparent)',
+      selected: palette.operatorAccentDim,
+      disabled: palette.textMuted,
+      disabledBackground: 'color-mix(in srgb, var(--nd-text-primary) 12%, transparent)',
     },
     error: {
-      main: '#ff4757', // nd-status-danger
+      main: palette.statusDanger,
     },
     warning: {
-      main: '#ffa502', // nd-status-warning
+      main: palette.statusWarning,
     },
     success: {
-      main: '#00ff88', // nd-status-active
+      main: palette.statusActive,
     },
     info: {
-      main: '#00e5ff', // nd-status-completed
+      main: palette.statusCompleted,
     },
   },
   typography: {
@@ -94,9 +97,9 @@ export const operatorTheme = createTheme({
     MuiAppBar: {
       styleOverrides: {
         root: {
-          backgroundColor: '#1a1a1a', // nd-bg-elevated
+          backgroundColor: palette.backgroundElevated,
           backgroundImage: 'none',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          borderBottom: `1px solid ${palette.borderSubtle}`,
         },
       },
     },
@@ -104,12 +107,12 @@ export const operatorTheme = createTheme({
       styleOverrides: {
         root: {
           '& .MuiBackdrop-root': {
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            backgroundColor: 'color-mix(in srgb, var(--nd-bg-void) 50%, transparent)',
           },
         },
         paper: {
-          backgroundColor: '#111111', // nd-bg-surface
-          borderRight: '1px solid rgba(255, 179, 0, 0.3)',
+          backgroundColor: palette.backgroundSurface,
+          borderRight: '1px solid color-mix(in srgb, var(--nd-operator-accent) 30%, transparent)',
         },
       },
     },
@@ -133,7 +136,7 @@ export const operatorTheme = createTheme({
         root: {
           borderRadius: '4px',
           '&:hover': {
-            backgroundColor: 'rgba(255, 179, 0, 0.08)',
+            backgroundColor: 'color-mix(in srgb, var(--nd-operator-accent) 8%, transparent)',
           },
         },
         sizeMedium: {
@@ -147,13 +150,13 @@ export const operatorTheme = createTheme({
           borderRadius: '4px',
           marginBottom: '4px',
           '&.Mui-selected': {
-            backgroundColor: 'rgba(255, 179, 0, 0.12)',
+            backgroundColor: 'color-mix(in srgb, var(--nd-operator-accent) 12%, transparent)',
             '&:hover': {
-              backgroundColor: 'rgba(255, 179, 0, 0.16)',
+              backgroundColor: 'color-mix(in srgb, var(--nd-operator-accent) 16%, transparent)',
             },
           },
           '&:hover': {
-            backgroundColor: 'rgba(255, 179, 0, 0.08)',
+            backgroundColor: 'color-mix(in srgb, var(--nd-operator-accent) 8%, transparent)',
           },
         },
       },
@@ -169,9 +172,9 @@ export const operatorTheme = createTheme({
     MuiCard: {
       styleOverrides: {
         root: {
-          backgroundColor: '#1a1a1a', // nd-bg-elevated
+          backgroundColor: palette.backgroundElevated,
           borderRadius: '4px',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          border: `1px solid ${palette.borderSubtle}`,
         },
       },
     },
@@ -188,4 +191,7 @@ export const operatorTheme = createTheme({
   shape: {
     borderRadius: 4, // nd-radius-sm
   },
-});
+  });
+}
+
+export const operatorTheme = getOperatorTheme('dark');

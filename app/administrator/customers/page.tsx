@@ -1,8 +1,19 @@
 'use client';
 
-import { Fragment, FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
+import AdminFeedbackBanner from '@/app/components/AdminFeedbackBanner';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
+import AdminDataTable from '@/app/components/AdminDataTable';
+import AdminListState from '@/app/components/AdminListState';
+import AdminSectionHeader from '@/app/components/AdminSectionHeader';
+import type { ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
+import CustomerCreateForm from '@/app/administrator/customers/components/CustomerCreateForm';
+import CustomerEditPanel from '@/app/administrator/customers/components/CustomerEditPanel';
+import CustomerOwnerPanel from '@/app/administrator/customers/components/CustomerOwnerPanel';
+import CustomerTableRow from '@/app/administrator/customers/components/CustomerTableRow';
+import { useCustomerEditState } from '@/app/administrator/customers/hooks/useCustomerEditState';
+import { useCustomerOwnerState } from '@/app/administrator/customers/hooks/useCustomerOwnerState';
+import type { Customer, CustomerStatus, CustomerUser } from '@/app/administrator/customers/types';
 import { parseAgentOptionsInput, stringifyAgentOptions } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import {
@@ -14,30 +25,6 @@ import {
   updateCustomer,
 } from '@/lib/queries';
 import styles from '@/app/dashboard.module.css';
-
-type Customer = {
-  id: string;
-  name: string;
-  email: string;
-  billingRatePerHour: number;
-  status?: 'active' | 'inactive' | 'suspended' | null;
-  addressLine1?: string | null;
-  standingInstructions?: string | null;
-  defaultNumberOfSigns?: number | null;
-  defaultAgentName?: string | null;
-  defaultAgentInitials?: string | null;
-  agentOptions?: string[] | null;
-};
-
-type CustomerUser = {
-  id: string;
-  customerId: string;
-  userSub: string;
-  accountOwnerSub: string;
-  name?: string | null;
-  email?: string | null;
-  role?: 'account_owner' | 'read_only' | null;
-};
 
 const usdFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -67,51 +54,92 @@ export default function CustomersAdminPage() {
 
   // Create customer form state
   const [name, setName] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [email, setEmail] = useState('');
-  const [billingRatePerHour, setBillingRatePerHour] = useState('$0.00');
+  const [billingRatePerHour, setBillingRatePerHour] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
   const [standingInstructions, setStandingInstructions] = useState('');
   const [defaultNumberOfSigns, setDefaultNumberOfSigns] = useState('');
   const [defaultAgentName, setDefaultAgentName] = useState('');
+  const [defaultAgentInitials, setDefaultAgentInitials] = useState('');
   const [agentOptionsText, setAgentOptionsText] = useState('');
   const [createResolvedAddress, setCreateResolvedAddress] = useState<ResolvedAddress | null>(null);
 
-  // Edit customer panel state
-  const [expandedEditPanel, setExpandedEditPanel] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editBillingRatePerHour, setEditBillingRatePerHour] = useState('$0.00');
-  const [editStatus, setEditStatus] = useState<'active' | 'inactive' | 'suspended'>('active');
-  const [editAddressLine1, setEditAddressLine1] = useState('');
-  const [editStandingInstructions, setEditStandingInstructions] = useState('');
-  const [editDefaultNumberOfSigns, setEditDefaultNumberOfSigns] = useState('');
-  const [editDefaultAgentName, setEditDefaultAgentName] = useState('');
-  const [editDefaultAgentInitials, setEditDefaultAgentInitials] = useState('');
-  const [editAgentOptionsText, setEditAgentOptionsText] = useState('');
-  const [editResolvedAddress, setEditResolvedAddress] = useState<ResolvedAddress | null>(null);
-  const [editSaving, setEditSaving] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
-  const [editSuccess, setEditSuccess] = useState<string | null>(null);
+  const {
+    expandedEditPanel,
+    editName,
+    setEditName,
+    editCompanyName,
+    setEditCompanyName,
+    editEmail,
+    setEditEmail,
+    editBillingRatePerHour,
+    setEditBillingRatePerHour,
+    editStatus,
+    setEditStatus,
+    editAddressLine1,
+    setEditAddressLine1,
+    editStandingInstructions,
+    setEditStandingInstructions,
+    editDefaultNumberOfSigns,
+    setEditDefaultNumberOfSigns,
+    editDefaultAgentName,
+    setEditDefaultAgentName,
+    editDefaultAgentInitials,
+    setEditDefaultAgentInitials,
+    editAgentOptionsText,
+    setEditAgentOptionsText,
+    editResolvedAddress,
+    setEditResolvedAddress,
+    editSaving,
+    setEditSaving,
+    editError,
+    setEditError,
+    editSuccess,
+    setEditSuccess,
+    closeEditPanel,
+    openEditPanel,
+  } = useCustomerEditState();
 
-  // Owner assignment panel state (keyed by customerId)
-  const [expandedOwnerPanel, setExpandedOwnerPanel] = useState<string | null>(null);
-  const [customerUsers, setCustomerUsers] = useState<Record<string, CustomerUser[]>>({});
-  const [ownerUserSub, setOwnerUserSub] = useState('');
-  const [ownerName, setOwnerName] = useState('');
-  const [ownerEmail, setOwnerEmail] = useState('');
-  const [ownerSaving, setOwnerSaving] = useState(false);
-  const [ownerError, setOwnerError] = useState<string | null>(null);
-  const [ownerSuccess, setOwnerSuccess] = useState<string | null>(null);
+  const {
+    expandedOwnerPanel,
+    customerUsers,
+    setCustomerUsers,
+    ownerUserSub,
+    ownerName,
+    ownerEmail,
+    ownerSaving,
+    setOwnerSaving,
+    ownerError,
+    setOwnerError,
+    ownerSuccess,
+    setOwnerSuccess,
+    resetOwnerSelection,
+    closeOwnerPanel,
+    openOwnerPanel,
+    selectOwnerUserSub,
+  } = useCustomerOwnerState();
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const result = await listCustomers({ limit: 100 });
-    if (result.errors && result.errors.length > 0) {
-      setError('Failed to load customers.');
-    } else {
-      setCustomers((result.data as Customer[]) ?? []);
-    }
+    const allCustomers: Customer[] = [];
+    let nextToken: string | undefined;
+
+    do {
+      const result = await listCustomers({ limit: 100, nextToken });
+      if (result.errors && result.errors.length > 0) {
+        setError('Failed to load customers.');
+        setCustomers([]);
+        setLoading(false);
+        return;
+      }
+
+      allCustomers.push(...((result.data as Customer[]) ?? []));
+      nextToken = result.nextToken ?? undefined;
+    } while (nextToken);
+
+    setCustomers(allCustomers);
     setLoading(false);
   }, []);
 
@@ -124,7 +152,7 @@ export default function CustomersAdminPage() {
     if (!result.errors || result.errors.length === 0) {
       setCustomerUsers((prev) => ({ ...prev, [customerId]: result.data as CustomerUser[] }));
     }
-  }, []);
+  }, [setCustomerUsers]);
 
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();
@@ -154,6 +182,7 @@ export default function CustomersAdminPage() {
 
       const result = await createCustomer({
         name,
+        companyName: companyName.trim() || undefined,
         email,
         billingRatePerHour: createRate,
         status: 'active',
@@ -161,6 +190,7 @@ export default function CustomersAdminPage() {
         standingInstructions,
         defaultNumberOfSigns: createSigns,
         defaultAgentName,
+        defaultAgentInitials,
         agentOptions: parseAgentOptionsInput(agentOptionsText),
       });
 
@@ -168,12 +198,14 @@ export default function CustomersAdminPage() {
         setError('Failed to create customer.');
       } else {
         setName('');
+        setCompanyName('');
         setEmail('');
-        setBillingRatePerHour('$0.00');
+        setBillingRatePerHour('');
         setAddressLine1('');
         setStandingInstructions('');
         setDefaultNumberOfSigns('');
         setDefaultAgentName('');
+        setDefaultAgentInitials('');
         setAgentOptionsText('');
         setCreateResolvedAddress(null);
         await fetchCustomers();
@@ -185,57 +217,39 @@ export default function CustomersAdminPage() {
     setSaving(false);
   };
 
-  const setStatus = async (id: string, status: 'active' | 'inactive' | 'suspended') => {
+  const setStatus = async (id: string, status: CustomerStatus) => {
     const result = await updateCustomer(id, { status });
     if (result.errors && result.errors.length > 0) {
       setError('Failed to update customer status.');
       return;
     }
-    await fetchCustomers();
+    setCustomers((prev) =>
+      prev.map((customer) => (customer.id === id ? { ...customer, status } : customer))
+    );
   };
 
   const toggleOwnerPanel = async (customerId: string) => {
-    setExpandedEditPanel(null);
+    closeEditPanel();
     if (expandedOwnerPanel === customerId) {
-      setExpandedOwnerPanel(null);
+      closeOwnerPanel();
       return;
     }
-    setExpandedOwnerPanel(customerId);
-    setOwnerError(null);
-    setOwnerSuccess(null);
-    setOwnerUserSub('');
-    setOwnerName('');
-    setOwnerEmail('');
+    openOwnerPanel(customerId);
     await fetchCustomerUsers(customerId);
   };
 
   const toggleEditPanel = (customer: Customer) => {
-    setExpandedOwnerPanel(null);
+    closeOwnerPanel();
     if (expandedEditPanel === customer.id) {
-      setExpandedEditPanel(null);
-      setEditError(null);
-      setEditSuccess(null);
-      setEditResolvedAddress(null);
+      closeEditPanel();
       return;
     }
 
-    setExpandedEditPanel(customer.id);
-    setEditError(null);
-    setEditSuccess(null);
-    setEditResolvedAddress(null);
-
-    setEditName(customer.name);
-    setEditEmail(customer.email);
-    setEditBillingRatePerHour(usdFormatter.format(customer.billingRatePerHour ?? 0));
-    setEditStatus(customer.status ?? 'active');
-    setEditAddressLine1(customer.addressLine1 ?? '');
-    setEditStandingInstructions(customer.standingInstructions ?? '');
-    setEditDefaultNumberOfSigns(
-      typeof customer.defaultNumberOfSigns === 'number' ? String(customer.defaultNumberOfSigns) : ''
-    );
-    setEditDefaultAgentName(customer.defaultAgentName ?? '');
-    setEditDefaultAgentInitials(customer.defaultAgentInitials ?? '');
-    setEditAgentOptionsText(stringifyAgentOptions(customer.agentOptions));
+    openEditPanel({
+      customer,
+      billingRateDisplay: usdFormatter.format(customer.billingRatePerHour ?? 0),
+      agentOptionsText: stringifyAgentOptions(customer.agentOptions),
+    });
   };
 
   const handleUpdateCustomer = async (customerId: string) => {
@@ -275,6 +289,7 @@ export default function CustomersAdminPage() {
 
       const result = await updateCustomer(customerId, {
         name: editName.trim(),
+        companyName: editCompanyName.trim() || undefined,
         email: editEmail.trim(),
         billingRatePerHour: rate,
         status: editStatus,
@@ -289,11 +304,31 @@ export default function CustomersAdminPage() {
       if (result.errors && result.errors.length > 0) {
         setEditError('Failed to update customer.');
       } else {
+        const normalizedAgentOptions = parseAgentOptionsInput(editAgentOptionsText);
+        setCustomers((prev) =>
+          prev.map((customer) =>
+            customer.id === customerId
+              ? {
+                  ...customer,
+                  name: editName.trim(),
+                  companyName: editCompanyName.trim() || null,
+                  email: editEmail.trim(),
+                  billingRatePerHour: rate,
+                  status: editStatus,
+                  addressLine1: resolved.formattedAddress,
+                  standingInstructions: editStandingInstructions,
+                  defaultNumberOfSigns: editSigns ?? null,
+                  defaultAgentName: editDefaultAgentName,
+                  defaultAgentInitials: editDefaultAgentInitials,
+                  agentOptions: normalizedAgentOptions,
+                }
+              : customer
+          )
+        );
         setEditSuccess('Customer updated.');
-        await fetchCustomers();
         // Close the edit panel after successful save
         setTimeout(() => {
-          setExpandedEditPanel(null);
+          closeEditPanel();
         }, 500);
       }
     } catch (err) {
@@ -331,11 +366,12 @@ export default function CustomersAdminPage() {
       const viewerSubs = [...new Set(users.map((u) => u.userSub))];
       await syncViewerSubsForCustomer(customerId, viewerSubs);
 
+      setCustomerUsers((prev) => ({
+        ...prev,
+        [customerId]: users,
+      }));
       setOwnerSuccess('Account owner assigned and access synced.');
-      setOwnerUserSub('');
-      setOwnerName('');
-      setOwnerEmail('');
-      await fetchCustomerUsers(customerId);
+      resetOwnerSelection();
     }
 
     setOwnerSaving(false);
@@ -349,355 +385,149 @@ export default function CustomersAdminPage() {
       <div className={styles.page}>
         <h1 className={styles.heading}>Customers</h1>
 
-        <form className={styles.infoPanel} onSubmit={handleCreate}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            <h3 style={{ margin: 0 }}>Define Customer</h3>
-            <button
-              type="button"
-              onClick={() => setShowCreateForm(!showCreateForm)}
-              style={{
-                padding: '6px 12px',
-                fontSize: 13,
-                fontWeight: 600,
-                border: '1px solid var(--nd-operator-accent)',
-                color: 'var(--nd-operator-accent)',
-                background: 'transparent',
-                borderRadius: 'var(--nd-radius-sm)',
-                cursor: 'pointer',
-                transition: 'opacity var(--nd-transition-fast)',
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.opacity = '0.8';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.opacity = '1';
-              }}
-            >
-              {showCreateForm ? 'Hide Fields' : 'New Customer'}
-            </button>
-          </div>
-          {showCreateForm && (
-            <>
-              <p className={styles.welcome}>Create a new customer record for route and billing workflows.</p>
-              <div className={styles.stackedFields}>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" required />
-            <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" required />
-            <input
-              value={billingRatePerHour}
-              onChange={(e) => setBillingRatePerHour(e.target.value)}
-              onBlur={(e) => setBillingRatePerHour(formatCurrency(e.target.value))}
-              placeholder="Billing rate per hour"
-              type="text"
-              inputMode="decimal"
-              required
-            />
-            <input
-              value={defaultNumberOfSigns}
-              onChange={(e) => setDefaultNumberOfSigns(e.target.value)}
-              placeholder="Default number of signs"
-              type="number"
-              min={0}
-            />
-            <input
-              value={defaultAgentName}
-              onChange={(e) => setDefaultAgentName(e.target.value)}
-              placeholder="Default agent name"
-            />
-            <AddressAutocompleteInput
-              id="create-customer-address"
-              value={addressLine1}
-              onChange={(value) => {
-                setAddressLine1(value);
-              }}
-              onResolved={(resolved) => {
-                setCreateResolvedAddress(resolved);
-                if (resolved) {
-                  setAddressLine1(resolved.formattedAddress);
-                }
-              }}
-              disabled={saving}
-              placeholder="Address"
-              className={styles.input}
-            />
-            <textarea
-              value={agentOptionsText}
-              onChange={(e) => setAgentOptionsText(e.target.value)}
-              placeholder="Agent options, one per line"
-            />
-            <textarea
-              value={standingInstructions}
-              onChange={(e) => setStandingInstructions(e.target.value)}
-              placeholder="Standing instructions for operators"
-            />
-            <button type="submit" disabled={saving}>{saving ? 'Creating...' : 'Create Customer'}</button>
-          </div>
-            </>
-          )}
-        </form>
+        <CustomerCreateForm
+          showCreateForm={showCreateForm}
+          saving={saving}
+          name={name}
+          companyName={companyName}
+          email={email}
+          billingRatePerHour={billingRatePerHour}
+          defaultNumberOfSigns={defaultNumberOfSigns}
+          defaultAgentName={defaultAgentName}
+          defaultAgentInitials={defaultAgentInitials}
+          addressLine1={addressLine1}
+          agentOptionsText={agentOptionsText}
+          standingInstructions={standingInstructions}
+          onToggleShowCreateForm={() => setShowCreateForm(!showCreateForm)}
+          onSubmit={handleCreate}
+          onNameChange={setName}
+          onCompanyNameChange={setCompanyName}
+          onEmailChange={setEmail}
+          onBillingRatePerHourChange={setBillingRatePerHour}
+          onDefaultNumberOfSignsChange={setDefaultNumberOfSigns}
+          onDefaultAgentNameChange={setDefaultAgentName}
+          onDefaultAgentInitialsChange={setDefaultAgentInitials}
+          onAddressChange={setAddressLine1}
+          onAddressResolved={(resolved) => {
+            setCreateResolvedAddress(resolved);
+            if (resolved) {
+              setAddressLine1(resolved.formattedAddress);
+            }
+          }}
+          onAgentOptionsTextChange={setAgentOptionsText}
+          onStandingInstructionsChange={setStandingInstructions}
+        />
 
-        {error && <div className={styles.infoPanel}><p>{error}</p></div>}
+        <AdminFeedbackBanner
+          message={error}
+          tone="error"
+          className={styles.infoPanel}
+          messageClassName={styles.inlineErrorText}
+        />
 
         <div className={styles.infoPanel}>
-          <h3>Customer List</h3>
-          {loading ? (
-            <p className={styles.welcome}>Loading customers...</p>
-          ) : customers.length === 0 ? (
-            <p className={styles.welcome}>No customers yet.</p>
+          <AdminSectionHeader title="Customer List" />
+          {loading || customers.length === 0 ? (
+            <AdminListState
+              loading={loading}
+              empty={!loading && customers.length === 0}
+              loadingMessage="Loading customers..."
+              emptyMessage="No customers yet."
+            />
           ) : (
-            <table>
+            <AdminDataTable
+              hint="On smaller screens, swipe horizontally to see all customer columns."
+              ariaLabel="Customer list"
+            >
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Correspondence Email</th>
-                  <th>Rate/hr</th>
-                  <th>Status</th>
-                  <th>Manage</th>
+                  <th scope="col">Name</th>
+                  <th scope="col">Company Name</th>
+                  <th scope="col">Correspondence Email</th>
+                  <th scope="col">Rate/hr</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Manage</th>
                 </tr>
               </thead>
               <tbody>
                 {customers.map((customer) => (
-                  <Fragment key={customer.id}>
-                    <tr>
-                      <td>{customer.name}</td>
-                      <td>{customer.email}</td>
-                      <td>{usdFormatter.format(customer.billingRatePerHour ?? 0)}</td>
-                      <td>
-                        <select
-                          value={customer.status ?? 'active'}
-                          onChange={(e) => {
-                            void setStatus(customer.id, e.target.value as 'active' | 'inactive' | 'suspended');
-                          }}
-                        >
-                          <option value="active">active</option>
-                          <option value="inactive">inactive</option>
-                          <option value="suspended">suspended</option>
-                        </select>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={() => toggleEditPanel(customer)}
-                          >
-                            {expandedEditPanel === customer.id ? 'Close Edit' : 'Edit'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void toggleOwnerPanel(customer.id)}
-                          >
-                            {expandedOwnerPanel === customer.id ? 'Close Owner' : 'Manage Owner'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {expandedEditPanel === customer.id && (
-                      <tr key={`${customer.id}-edit-panel`}>
-                        <td colSpan={5}>
-                          <div className={styles.infoPanel}>
-                            <h4>Edit Customer — {customer.name}</h4>
-                            {editError && <p>{editError}</p>}
-                            {editSuccess && <p>{editSuccess}</p>}
-                            <p className={styles.welcome}>
-                              Address is validated via Google address lookup before saving.
-                            </p>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                              <input
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                placeholder="Name"
-                                disabled={editSaving}
-                                required
-                              />
-                              <input
-                                value={editEmail}
-                                onChange={(e) => setEditEmail(e.target.value)}
-                                placeholder="Correspondence Email"
-                                type="email"
-                                disabled={editSaving}
-                                required
-                              />
-                              <input
-                                value={editBillingRatePerHour}
-                                onChange={(e) => setEditBillingRatePerHour(e.target.value)}
-                                onBlur={(e) => setEditBillingRatePerHour(formatCurrency(e.target.value))}
-                                placeholder="Billing rate per hour"
-                                type="text"
-                                inputMode="decimal"
-                                disabled={editSaving}
-                                required
-                              />
-                              <select
-                                value={editStatus}
-                                onChange={(e) => setEditStatus(e.target.value as 'active' | 'inactive' | 'suspended')}
-                                disabled={editSaving}
-                              >
-                                <option value="active">active</option>
-                                <option value="inactive">inactive</option>
-                                <option value="suspended">suspended</option>
-                              </select>
-                              <input
-                                value={editDefaultNumberOfSigns}
-                                onChange={(e) => setEditDefaultNumberOfSigns(e.target.value)}
-                                placeholder="Default number of signs"
-                                type="number"
-                                min={0}
-                                disabled={editSaving}
-                              />
-                              <input
-                                value={editDefaultAgentName}
-                                onChange={(e) => setEditDefaultAgentName(e.target.value)}
-                                placeholder="Default agent name"
-                                disabled={editSaving}
-                              />
-                              <input
-                                value={editDefaultAgentInitials}
-                                onChange={(e) => setEditDefaultAgentInitials(e.target.value)}
-                                placeholder="Default agent initials (e.g., BO)"
-                                maxLength={4}
-                                disabled={editSaving}
-                              />
-                              <div style={{ gridColumn: '1 / -1' }}>
-                                <AddressAutocompleteInput
-                                  id={`customer-address-${customer.id}`}
-                                  value={editAddressLine1}
-                                  onChange={(value) => {
-                                    setEditAddressLine1(value);
-                                  }}
-                                  onResolved={(resolved) => {
-                                    setEditResolvedAddress(resolved);
-                                    if (resolved) {
-                                      setEditAddressLine1(resolved.formattedAddress);
-                                    }
-                                  }}
-                                  disabled={editSaving}
-                                  placeholder="Address"
-                                  className={styles.input}
-                                />
-                              </div>
-                              <textarea
-                                value={editAgentOptionsText}
-                                onChange={(e) => setEditAgentOptionsText(e.target.value)}
-                                placeholder="Agent options, one per line"
-                                disabled={editSaving}
-                                style={{ gridColumn: '1 / -1' }}
-                              />
-                              <textarea
-                                value={editStandingInstructions}
-                                onChange={(e) => setEditStandingInstructions(e.target.value)}
-                                placeholder="Standing instructions for operators"
-                                disabled={editSaving}
-                                style={{ gridColumn: '1 / -1' }}
-                              />
-                              {customer.defaultAgentInitials && (
-                                <p style={{ gridColumn: '1 / -1', margin: 0 }} className={styles.welcome}>
-                                  Current default initials: {customer.defaultAgentInitials}
-                                </p>
-                              )}
-                            </div>
-                            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                              <button
-                                type="button"
-                                onClick={() => void handleUpdateCustomer(customer.id)}
-                                disabled={editSaving}
-                              >
-                                {editSaving ? 'Saving...' : 'Save Customer'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => toggleEditPanel(customer)}
-                                disabled={editSaving}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
+                  <CustomerTableRow
+                    key={customer.id}
+                    customer={customer}
+                    formattedRate={usdFormatter.format(customer.billingRatePerHour ?? 0)}
+                    isEditOpen={expandedEditPanel === customer.id}
+                    isOwnerOpen={expandedOwnerPanel === customer.id}
+                    onStatusChange={(status) => {
+                      void setStatus(customer.id, status);
+                    }}
+                    onToggleEdit={() => toggleEditPanel(customer)}
+                    onToggleOwner={() => {
+                      void toggleOwnerPanel(customer.id);
+                    }}
+                    editPanel={(
+                      <CustomerEditPanel
+                        customer={customer}
+                        editName={editName}
+                        editCompanyName={editCompanyName}
+                        editEmail={editEmail}
+                        editBillingRatePerHour={editBillingRatePerHour}
+                        editStatus={editStatus}
+                        editAddressLine1={editAddressLine1}
+                        editStandingInstructions={editStandingInstructions}
+                        editDefaultNumberOfSigns={editDefaultNumberOfSigns}
+                        editDefaultAgentName={editDefaultAgentName}
+                        editDefaultAgentInitials={editDefaultAgentInitials}
+                        editAgentOptionsText={editAgentOptionsText}
+                        editSaving={editSaving}
+                        editError={editError}
+                        editSuccess={editSuccess}
+                        onEditNameChange={setEditName}
+                        onEditCompanyNameChange={setEditCompanyName}
+                        onEditEmailChange={setEditEmail}
+                        onEditBillingRatePerHourChange={setEditBillingRatePerHour}
+                        onEditBillingRatePerHourBlur={(value) => setEditBillingRatePerHour(formatCurrency(value))}
+                        onEditStatusChange={setEditStatus}
+                        onEditDefaultNumberOfSignsChange={setEditDefaultNumberOfSigns}
+                        onEditDefaultAgentNameChange={setEditDefaultAgentName}
+                        onEditDefaultAgentInitialsChange={setEditDefaultAgentInitials}
+                        onEditAddressLine1Change={setEditAddressLine1}
+                        onEditResolvedAddressChange={(resolved) => {
+                          setEditResolvedAddress(resolved);
+                          if (resolved) {
+                            setEditAddressLine1(resolved.formattedAddress);
+                          }
+                        }}
+                        onEditAgentOptionsTextChange={setEditAgentOptionsText}
+                        onEditStandingInstructionsChange={setEditStandingInstructions}
+                        onSave={() => {
+                          void handleUpdateCustomer(customer.id);
+                        }}
+                        onCancel={() => toggleEditPanel(customer)}
+                      />
                     )}
-                    {expandedOwnerPanel === customer.id && (
-                      <tr key={`${customer.id}-owner-panel`}>
-                        <td colSpan={5}>
-                          <div className={styles.infoPanel}>
-                            <h4>Account Owner — {customer.name}</h4>
-                            {ownerError && <p>{ownerError}</p>}
-                            {ownerSuccess && <p>{ownerSuccess}</p>}
-
-                            {existingOwner(customer.id) ? (
-                              <div>
-                                <p>
-                                  <strong>Owner assigned:</strong>{' '}
-                                  {existingOwner(customer.id)?.name ?? '—'}{' '}
-                                  ({existingOwner(customer.id)?.email ?? existingOwner(customer.id)?.userSub})
-                                </p>
-                                <p className={styles.welcome}>
-                                  To change the account owner, remove the existing CustomerUser record
-                                  from the Users admin page, then assign a new one here.
-                                </p>
-                              </div>
-                            ) : (
-                              <div>
-                                <p className={styles.welcome}>
-                                  Select a user from the customer group to assign as account owner. The owner can
-                                  view invoices and the customer user list.
-                                </p>
-                                {(!customerUsers[customer.id] || customerUsers[customer.id].length === 0) ? (
-                                  <p className={styles.welcome}>No users in this customer group yet.</p>
-                                ) : (
-                                  <>
-                                    <select
-                                      value={ownerUserSub}
-                                      onChange={(e) => {
-                                        const selectedUserSub = e.target.value;
-                                        setOwnerUserSub(selectedUserSub);
-                                        const selectedUser = (customerUsers[customer.id] ?? []).find(
-                                          (u) => u.userSub === selectedUserSub
-                                        );
-                                        if (selectedUser) {
-                                          setOwnerName(selectedUser.name ?? '');
-                                          setOwnerEmail(selectedUser.email ?? '');
-                                        }
-                                      }}
-                                      disabled={ownerSaving}
-                                      style={{ marginBottom: 12 }}
-                                    >
-                                      <option value="">— Select a user —</option>
-                                      {(customerUsers[customer.id] ?? [])
-                                        .filter((u) => u.role !== 'account_owner')
-                                        .map((user) => (
-                                          <option key={user.userSub} value={user.userSub}>
-                                            {user.name || user.email || user.userSub}
-                                          </option>
-                                        ))}
-                                    </select>
-                                    {ownerUserSub && (
-                                      <div style={{ marginBottom: 12, padding: 12, background: '#f5f5f5', borderRadius: 'var(--nd-radius-sm)' }}>
-                                        <p style={{ margin: 0, marginBottom: 8 }}>
-                                          <strong>Selected:</strong> {ownerName || '—'}
-                                        </p>
-                                        <p style={{ margin: 0, fontSize: 13, color: '#666' }}>
-                                          {ownerEmail || ownerUserSub}
-                                        </p>
-                                      </div>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => void handleAssignOwner(customer.id)}
-                                      disabled={ownerSaving || !ownerUserSub.trim()}
-                                    >
-                                      {ownerSaving ? 'Assigning...' : 'Assign as Account Owner'}
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+                    ownerPanel={(
+                      <CustomerOwnerPanel
+                        customer={customer}
+                        ownerError={ownerError}
+                        ownerSuccess={ownerSuccess}
+                        ownerSaving={ownerSaving}
+                        ownerUserSub={ownerUserSub}
+                        ownerName={ownerName}
+                        ownerEmail={ownerEmail}
+                        usersForCustomer={customerUsers[customer.id] ?? []}
+                        existingOwner={existingOwner(customer.id)}
+                        onOwnerUserSubChange={(selectedUserSub) => {
+                          selectOwnerUserSub(selectedUserSub, customerUsers[customer.id] ?? []);
+                        }}
+                        onAssignOwner={() => {
+                          void handleAssignOwner(customer.id);
+                        }}
+                      />
                     )}
-                  </Fragment>
+                  />
                 ))}
               </tbody>
-            </table>
+            </AdminDataTable>
           )}
         </div>
       </div>

@@ -45,6 +45,14 @@
   --nd-operator-accent-dim: rgba(255, 179, 0, 0.15);
   --nd-operator-sidebar: #1a1200;
 
+  /* Role semantics */
+  --nd-role-accent: var(--nd-logo-primary);
+  --nd-role-accent-dim: var(--nd-logo-primary-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-logo-primary);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-role-accent) 12%, transparent);
+  --nd-role-nav-active-fg: var(--nd-role-accent);
+
   /* Semantic status colours */
   --nd-status-active: #00ff88;
   --nd-status-completed: #00e5ff;
@@ -52,6 +60,48 @@
   --nd-status-archived: rgba(255, 255, 255, 0.38);
   --nd-status-danger: #ff4757;
   --nd-status-warning: #ffa502;
+
+  /* Status surfaces */
+  --nd-status-active-dim: rgba(0, 255, 136, 0.16);
+  --nd-status-planned-dim: rgba(255, 179, 0, 0.16);
+  --nd-status-danger-dim: rgba(255, 71, 87, 0.12);
+  --nd-status-warning-dim: rgba(255, 165, 2, 0.16);
+
+  /* Semantic aliases for extensible component styling */
+  --nd-color-bg-canvas: var(--nd-bg-void);
+  --nd-color-bg-surface: var(--nd-bg-surface);
+  --nd-color-bg-elevated: var(--nd-bg-elevated);
+  --nd-color-border-subtle: var(--nd-border-subtle);
+  --nd-color-border-default: var(--nd-border-default);
+  --nd-color-border-strong: var(--nd-border-strong);
+  --nd-color-text-primary: var(--nd-text-primary);
+  --nd-color-text-secondary: var(--nd-text-secondary);
+  --nd-color-text-muted: var(--nd-text-muted);
+  --nd-color-text-inverse: var(--nd-text-inverse);
+  --nd-color-brand-primary: var(--nd-logo-primary);
+  --nd-color-accent-primary: var(--nd-accent-primary);
+  --nd-color-accent-operator: var(--nd-operator-accent);
+  --nd-color-accent-customer: var(--nd-customer-accent);
+  --nd-color-text-on-accent: #0a0a0a;
+  --nd-color-text-on-danger: #ffffff;
+
+  /* Component-level semantic tokens */
+  --nd-interactive-primary-bg: var(--nd-operator-accent);
+  --nd-interactive-primary-bg-hover: #ffc133;
+  --nd-interactive-primary-fg: var(--nd-color-text-on-accent);
+  --nd-alert-warning-bg: var(--nd-status-planned-dim);
+  --nd-alert-warning-fg: var(--nd-status-planned);
+  --nd-alert-warning-border: var(--nd-status-planned);
+
+  /* Elevation */
+  --nd-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --nd-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --nd-shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.18);
+
+  /* Shared layout tokens */
+  --nd-layout-page-max: 1200px;
+  --nd-layout-page-gutter: var(--nd-space-lg);
+  --nd-layout-stack-gap: var(--nd-space-lg);
 
   /* Spacing scale */
   --nd-space-xs: 4px;
@@ -118,6 +168,13 @@
   --nd-operator-accent-dim: rgba(224, 154, 0, 0.14);
   --nd-operator-sidebar: #fff7e5;
 
+  --nd-role-accent: var(--nd-logo-primary);
+  --nd-role-accent-dim: var(--nd-logo-primary-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-logo-primary);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-role-accent) 10%, transparent);
+  --nd-role-nav-active-fg: var(--nd-role-accent);
+
   --nd-status-active: #0aa35f;
   --nd-status-completed: #0a9cb0;
   --nd-status-planned: #c78900;
@@ -125,7 +182,46 @@
   --nd-status-danger: #dc2626;
   --nd-status-warning: #d97706;
 
+  --nd-status-active-dim: rgba(10, 163, 95, 0.14);
+  --nd-status-planned-dim: rgba(199, 137, 0, 0.16);
+  --nd-status-danger-dim: rgba(220, 38, 38, 0.12);
+  --nd-status-warning-dim: rgba(217, 119, 6, 0.14);
+
+  --nd-interactive-primary-bg: var(--nd-operator-accent);
+  --nd-interactive-primary-bg-hover: #cc8f00;
+  --nd-interactive-primary-fg: var(--nd-color-text-on-accent);
+  --nd-alert-warning-bg: var(--nd-status-planned-dim);
+  --nd-alert-warning-fg: var(--nd-status-planned);
+  --nd-alert-warning-border: var(--nd-status-planned);
+
   color-scheme: light;
+}
+
+[data-role='operator'] {
+  --nd-role-accent: var(--nd-operator-accent);
+  --nd-role-accent-dim: var(--nd-operator-accent-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-operator-accent);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-operator-accent) 12%, transparent);
+  --nd-role-nav-active-fg: var(--nd-operator-accent);
+}
+
+[data-role='admin'] {
+  --nd-role-accent: var(--nd-operator-accent);
+  --nd-role-accent-dim: var(--nd-operator-accent-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-customer-accent);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-operator-accent) 10%, transparent);
+  --nd-role-nav-active-fg: var(--nd-operator-accent);
+}
+
+[data-role='customer'] {
+  --nd-role-accent: var(--nd-customer-accent);
+  --nd-role-accent-dim: var(--nd-customer-accent-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-customer-accent);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-customer-accent) 10%, transparent);
+  --nd-role-nav-active-fg: var(--nd-customer-accent);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -155,6 +251,41 @@ body {
   justify-content: center;
 }
 
+/* Shared layout primitives for cross-page consistency */
+.nd-page-shell {
+  width: 100%;
+  max-width: var(--nd-layout-page-max);
+  margin-inline: auto;
+  padding-inline: var(--nd-layout-page-gutter);
+}
+
+.nd-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-layout-stack-gap);
+}
+
+.nd-surface-panel {
+  background: var(--nd-color-bg-surface);
+  border: 1px solid var(--nd-color-border-subtle);
+  border-radius: var(--nd-radius-lg);
+}
+
+.nd-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nd-scrollbar-subtle::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.nd-scrollbar-subtle::-webkit-scrollbar-thumb {
+  background: var(--nd-color-border-default);
+  border-radius: 999px;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Typography
    ───────────────────────────────────────────────────────────────────────────── */
@@ -162,7 +293,7 @@ h1,
 h2,
 h3 {
   font-family: var(--nd-font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   margin: 0;
 }
 
@@ -200,14 +331,14 @@ a:hover {
 /* ─────────────────────────────────────────────────────────────────────────────
    Buttons
    ───────────────────────────────────────────────────────────────────────────── */
-button {
+button:not(.MuiButtonBase-root):not(.amplify-button) {
   border-radius: var(--nd-radius-md);
   border: 1px solid var(--nd-border-default);
   padding: 0.6em 1.2em;
   font-size: 0.9rem;
   font-weight: 600;
   font-family: var(--nd-font-display);
-  letter-spacing: 0.03em;
+  letter-spacing: 0;
   background-color: var(--nd-bg-elevated);
   color: var(--nd-text-primary);
   cursor: pointer;
@@ -215,12 +346,12 @@ button {
               background-color var(--nd-transition-fast),
               box-shadow var(--nd-transition-fast);
 }
-button:hover {
+button:not(.MuiButtonBase-root):not(.amplify-button):hover {
   border-color: var(--nd-logo-primary);
   box-shadow: var(--nd-logo-primary-glow);
 }
-button:focus-visible {
-  outline: 2px solid var(--nd-logo-primary);
+button:not(.MuiButtonBase-root):not(.amplify-button):focus-visible {
+  outline: 2px solid var(--nd-role-focus-ring);
   outline-offset: 2px;
 }
 
@@ -266,7 +397,7 @@ button:focus-visible {
     min-height: auto;
   }
 
-  button {
+  button:not(.MuiButtonBase-root):not(.amplify-button) {
     padding: 0.5em 1em;
   }
 }

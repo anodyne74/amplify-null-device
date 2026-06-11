@@ -29,6 +29,7 @@ const schema = a.schema({
   Customer: a
     .model({
       name: a.string().required(),
+      companyName: a.string(),
       email: a.email().required(),
       contactPhone: a.phone(),
       // Address (single formatted value, same style as stop.formattedAddress)

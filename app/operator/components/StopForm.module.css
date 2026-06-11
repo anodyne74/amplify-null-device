@@ -162,7 +162,7 @@
 
 .errorBanner {
   padding: 12px;
-  background-color: rgba(255, 71, 87, 0.12);
+  background-color: var(--nd-status-danger-dim);
   color: var(--nd-status-danger);
   border-radius: var(--nd-radius-md);
   margin-bottom: var(--nd-space-md);

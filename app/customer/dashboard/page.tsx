@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import React from 'react';
+import Link from 'next/link';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
@@ -327,12 +328,33 @@ export default function CustomerDashboard() {
     setSavingSettings(false);
   };
 
+  const isAccountOwner = customerRole === 'account_owner';
+  const averageSignsPerHour = totalHours > 0 ? (totalSigns / (totalHours / 60)).toFixed(2) : '…';
+  const trackerRoutes = useMemo(
+    () =>
+      [...analyticsRoutes]
+        .sort((a, b) => {
+          const statusPriority = (status?: string | null) => {
+            if (status === 'in_progress') return 0;
+            if (status === 'signs_placed' || status === 'signs_picked_up') return 1;
+            if (status === 'planned') return 2;
+            if (status === 'completed') return 3;
+            return 4;
+          };
+          const priorityDelta = statusPriority(a.status) - statusPriority(b.status);
+          if (priorityDelta !== 0) return priorityDelta;
+          return String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? ''));
+        })
+        .slice(0, 4),
+    [analyticsRoutes]
+  );
+
   return (
-    <div className={styles.page}>
+    <div className={styles.page} data-role="customer">
       <div>
         <h1 className={styles.heading}>Customer Portal</h1>
         <p className={styles.welcome}>
-          Welcome, {displayName || userEmail} · {customerRole === 'account_owner' ? 'Owner' : 'Reviewer'}
+          Welcome, {displayName || userEmail} · {isAccountOwner ? 'Owner' : 'Reviewer'}
         </p>
       </div>
 
@@ -341,7 +363,7 @@ export default function CustomerDashboard() {
           <p className={styles.statLabel}>Active Routes</p>
           <p className={`${styles.statValue} ${styles.cyan}`}>{statsLoading ? '…' : activeRoutes}</p>
         </div>
-        {customerRole === 'account_owner' ? (
+        {isAccountOwner ? (
           <>
             <div className={styles.statCard}>
               <p className={styles.statLabel}>Pending Invoices</p>
@@ -354,11 +376,73 @@ export default function CustomerDashboard() {
           </>
         ) : (
           <div className={styles.statCard}>
-            <p className={styles.statLabel}>Access Level</p>
-            <p className={`${styles.statValue} ${styles.green}`}>Read Only</p>
+            <p className={styles.statLabel}>Route Stops</p>
+            <p className={`${styles.statValue} ${styles.green}`}>{statsLoading ? '…' : totalStops}</p>
           </div>
         )}
       </div>
+
+      {!isAccountOwner && (
+        <div className={styles.infoPanel}>
+          <h3>Route Tracker</h3>
+          <div className={styles.statsGrid}>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Route Status</p>
+              <p className={`${styles.statValue} ${styles.cyan}`}>{statsLoading ? '…' : activeRoutes}</p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Stops</p>
+              <p className={`${styles.statValue} ${styles.green}`}>{statsLoading ? '…' : totalStops}</p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Signs</p>
+              <p className={`${styles.statValue} ${styles.amber}`}>{statsLoading ? '…' : totalSigns}</p>
+            </div>
+            <div className={styles.statCard}>
+              <p className={styles.statLabel}>Distance</p>
+              <p className={`${styles.statValue} ${styles.cyan}`}>
+                {statsLoading ? '…' : `${totalDistance.toFixed(1)} km`}
+              </p>
+            </div>
+          </div>
+          {trackerRoutes.length === 0 ? (
+            <p className={styles.welcome}>No routes are available for review.</p>
+          ) : (
+            <div className={styles.mobileRouteList}>
+              {trackerRoutes.map((route) => {
+                const routeLabel = route.routeCode || route.id.slice(0, 8);
+                const statusLabel = String(route.status || 'planned').replace(/_/g, ' ');
+                const statusClass =
+                  route.status === 'in_progress' || route.status === 'signs_placed' || route.status === 'signs_picked_up'
+                    ? styles.routeStatusActive
+                    : styles.routeStatusPlanned;
+
+                return (
+                  <Link
+                    key={route.id}
+                    href={`/customer/routes/${route.id}`}
+                    className={styles.mobileRouteCard}
+                    aria-label={`Review route ${routeLabel}`}
+                  >
+                    <div className={styles.mobileRouteTopRow}>
+                      <strong>Route {routeLabel}</strong>
+                      <span className={statusClass}>{statusLabel}</span>
+                    </div>
+                    <div className={styles.mobileRouteMeta}>
+                      {route.createdAt ? new Date(route.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      }) : 'Date unavailable'}
+                    </div>
+                    <div className={styles.mobileRouteAction}>Review route {routeLabel}</div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className={styles.infoPanel}>
         <h3>Customer Totals</h3>
@@ -388,83 +472,59 @@ export default function CustomerDashboard() {
             </p>
           </div>
           <div className={styles.statCard}>
-            <p className={styles.statLabel}>Total Invoiced Amount</p>
-            <p className={`${styles.statValue} ${styles.cyan}`}>
-              {customerRole === 'account_owner'
-                ? statsLoading
-                  ? '…'
-                  : formatCurrency(totalInvoicedAmount)
-                : 'Restricted'}
-            </p>
-          </div>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Outstanding Amount</p>
-            <p className={`${styles.statValue} ${styles.danger}`}>
-              {customerRole === 'account_owner'
-                ? statsLoading
-                  ? '…'
-                  : formatCurrency(outstandingAmount)
-                : 'Restricted'}
-            </p>
-          </div>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Average Per Job</p>
-            <p className={`${styles.statValue} ${styles.amber}`}>
-              {customerRole === 'account_owner'
-                ? statsLoading || totalCompletedRoutes === 0
-                  ? '…'
-                  : formatCurrency(totalInvoicedAmount / totalCompletedRoutes)
-                : 'Restricted'}
-            </p>
-          </div>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Average Per Stop</p>
-            <p className={`${styles.statValue} ${styles.cyan}`}>
-              {customerRole === 'account_owner'
-                ? statsLoading || totalStops === 0
-                  ? '…'
-                  : formatCurrency(totalInvoicedAmount / totalStops)
-                : 'Restricted'}
-            </p>
-          </div>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Average Per Sign</p>
-            <p className={`${styles.statValue} ${styles.green}`}>
-              {customerRole === 'account_owner'
-                ? statsLoading || totalSigns === 0
-                  ? '…'
-                  : formatCurrency(totalInvoicedAmount / totalSigns)
-                : 'Restricted'}
-            </p>
-          </div>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Average Per Kilometer</p>
-            <p className={`${styles.statValue} ${styles.amber}`}>
-              {customerRole === 'account_owner'
-                ? statsLoading || totalDistance === 0
-                  ? '…'
-                  : formatCurrency(totalInvoicedAmount / totalDistance)
-                : 'Restricted'}
-            </p>
-          </div>
-          <div className={styles.statCard}>
             <p className={styles.statLabel}>Average Signs Per Hour</p>
             <p className={`${styles.statValue} ${styles.danger}`}>
-              {customerRole === 'account_owner'
-                ? statsLoading || totalHours === 0
-                  ? '…'
-                  : (totalSigns / (totalHours / 60)).toFixed(2)
-                : 'Restricted'}
+              {statsLoading ? '…' : averageSignsPerHour}
             </p>
           </div>
+          {isAccountOwner && (
+            <>
+              <div className={styles.statCard}>
+                <p className={styles.statLabel}>Total Invoiced Amount</p>
+                <p className={`${styles.statValue} ${styles.cyan}`}>
+                  {statsLoading ? '…' : formatCurrency(totalInvoicedAmount)}
+                </p>
+              </div>
+              <div className={styles.statCard}>
+                <p className={styles.statLabel}>Outstanding Amount</p>
+                <p className={`${styles.statValue} ${styles.danger}`}>
+                  {statsLoading ? '…' : formatCurrency(outstandingAmount)}
+                </p>
+              </div>
+              <div className={styles.statCard}>
+                <p className={styles.statLabel}>Average Per Job</p>
+                <p className={`${styles.statValue} ${styles.amber}`}>
+                  {statsLoading || totalCompletedRoutes === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalCompletedRoutes)}
+                </p>
+              </div>
+              <div className={styles.statCard}>
+                <p className={styles.statLabel}>Average Per Stop</p>
+                <p className={`${styles.statValue} ${styles.cyan}`}>
+                  {statsLoading || totalStops === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalStops)}
+                </p>
+              </div>
+              <div className={styles.statCard}>
+                <p className={styles.statLabel}>Average Per Sign</p>
+                <p className={`${styles.statValue} ${styles.green}`}>
+                  {statsLoading || totalSigns === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalSigns)}
+                </p>
+              </div>
+              <div className={styles.statCard}>
+                <p className={styles.statLabel}>Average Per Kilometer</p>
+                <p className={`${styles.statValue} ${styles.amber}`}>
+                  {statsLoading || totalDistance === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalDistance)}
+                </p>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       <div className={styles.infoPanel}>
-        <h3>{customerRole === 'account_owner' ? 'Owner Capabilities' : 'Reviewer Capabilities'}</h3>
+        <h3>{isAccountOwner ? 'Owner Capabilities' : 'Reviewer Capabilities'}</h3>
         <ul>
           <li>View your active routes in the Routes section</li>
-          {customerRole === 'account_owner' ? (
+          {isAccountOwner ? (
             <>
               <li>Download invoices from the Invoices section</li>
               <li>Check your statistics and billing info on the Dashboard</li>
@@ -480,8 +540,8 @@ export default function CustomerDashboard() {
 
       <div className={styles.infoPanel}>
         <h3>Standing Instructions</h3>
-        {customerRole === 'account_owner' ? (
-          <div style={{ display: 'grid', gap: 12 }}>
+        {isAccountOwner ? (
+          <div className={styles.customerSettingsForm}>
             {settingsError && <p>{settingsError}</p>}
             {settingsSuccess && <p>{settingsSuccess}</p>}
             <textarea
@@ -490,7 +550,7 @@ export default function CustomerDashboard() {
               placeholder="Instructions operators should see by default"
               disabled={savingSettings}
             />
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+            <div className={styles.customerSettingsGrid}>
               <input
                 value={defaultNumberOfSigns}
                 onChange={(event) => setDefaultNumberOfSigns(event.target.value)}
@@ -522,7 +582,7 @@ export default function CustomerDashboard() {
             </button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gap: 10 }}>
+          <div className={styles.customerSettingsForm}>
             <p className={styles.welcome}>Only the account owner can edit these defaults.</p>
             <p>{customer?.standingInstructions || 'No standing instructions configured.'}</p>
             <p className={styles.welcome}>
@@ -534,13 +594,13 @@ export default function CustomerDashboard() {
         )}
       </div>
 
-      <div style={{ marginTop: '1rem' }}>
+      <div className={styles.analyticsSummaryRow}>
         <p className={styles.welcome}>Showing analytics for {periodSummary}</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
+      <div className={`${styles.statsGrid} ${styles.kpiGrid}`}>
         <PeriodSelector selectedPeriod={selectedPeriod} onChange={setSelectedPeriod} />
-        <div style={{ display: 'contents' }}>
+        <div className={styles.kpiContents}>
           <KpiCard
             title="Routes Completed"
             value={statsLoading ? '…' : routesCompletedKpi}
@@ -548,39 +608,23 @@ export default function CustomerDashboard() {
             subtitle={`Period ${periodLabel}`}
             comparison={statsLoading ? undefined : `Prev: ${previousRoutesCompletedKpi}`}
           />
-          <KpiCard
-            title="Total Revenue"
-            value={
-              customerRole === 'account_owner'
-                ? statsLoading
-                  ? '…'
-                  : formatCurrency(totalRevenueKpi)
-                : 'Restricted'
-            }
-            delta={customerRole === 'account_owner' && !statsLoading ? revenueDelta : undefined}
-            subtitle={`Period ${periodLabel}`}
-            comparison={
-              customerRole === 'account_owner' && !statsLoading
-                ? `Prev: ${formatCurrency(previousRevenueKpi)}`
-                : undefined
-            }
-          />
-          <KpiCard
-            title="Average Revenue / Route"
-            value={
-              customerRole === 'account_owner'
-                ? statsLoading
-                  ? '…'
-                  : formatCurrency(avgRevenuePerRouteKpi)
-                : 'Restricted'
-            }
-            subtitle={`Period ${periodLabel}`}
-            comparison={
-              customerRole === 'account_owner' && !statsLoading
-                ? `Prev: ${formatCurrency(previousAvgRevenuePerRouteKpi)}`
-                : undefined
-            }
-          />
+          {isAccountOwner && (
+            <>
+              <KpiCard
+                title="Total Revenue"
+                value={statsLoading ? '…' : formatCurrency(totalRevenueKpi)}
+                delta={!statsLoading ? revenueDelta : undefined}
+                subtitle={`Period ${periodLabel}`}
+                comparison={!statsLoading ? `Prev: ${formatCurrency(previousRevenueKpi)}` : undefined}
+              />
+              <KpiCard
+                title="Average Revenue / Route"
+                value={statsLoading ? '…' : formatCurrency(avgRevenuePerRouteKpi)}
+                subtitle={`Period ${periodLabel}`}
+                comparison={!statsLoading ? `Prev: ${formatCurrency(previousAvgRevenuePerRouteKpi)}` : undefined}
+              />
+            </>
+          )}
           <KpiCard
             title="Total Distance"
             value={statsLoading ? '…' : `${totalDistanceKpi.toFixed(1)} km`}

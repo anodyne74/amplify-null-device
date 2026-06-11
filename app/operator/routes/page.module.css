@@ -3,7 +3,6 @@
   max-width: 1100px;
   margin: 0 auto;
   width: 100%;
-  overflow-x: hidden;
 }
 
 .pageHeader {
@@ -20,6 +19,7 @@
 
 .btnCreateRoute {
   padding: 10px 20px;
+  min-height: 44px;
   background-color: var(--nd-operator-accent);
   color: var(--nd-text-inverse);
   border: none;
@@ -36,7 +36,7 @@
 
 .errorBanner {
   padding: var(--nd-space-md);
-  background-color: rgba(255,71,87,0.12);
+  background-color: var(--nd-status-danger-dim);
   color: var(--nd-status-danger);
   border-radius: var(--nd-radius-md);
   margin-bottom: var(--nd-space-md);
@@ -60,7 +60,8 @@
 }
 
 .filterBtn {
-  padding: 6px 14px;
+  padding: 10px 14px;
+  min-height: 44px;
   border-radius: var(--nd-radius-sm);
   border: 1px solid var(--nd-border-default);
   background-color: transparent;
@@ -112,11 +113,9 @@
   border: 1px solid var(--nd-border-subtle);
   border-radius: var(--nd-radius-lg);
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(140px, 1.2fr) minmax(120px, auto) minmax(110px, auto) minmax(120px, 1fr) minmax(90px, auto);
+  grid-template-columns: 130px 180px 120px 120px 1fr 120px;
   gap: var(--nd-space-md);
   align-items: center;
-  width: 100%;
-  min-width: 0;
 }
 
 .cellLabel {
@@ -165,6 +164,11 @@
 }
 
 .viewLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-operator-accent);
   font-weight: 600;
   text-decoration: none;
@@ -176,6 +180,11 @@
 }
 
 .editLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-operator-accent);
   font-weight: 600;
   text-decoration: none;
@@ -193,7 +202,8 @@
   color: var(--nd-status-danger);
   font-weight: 600;
   font-size: 13px;
-  padding: 4px 8px;
+  min-height: 44px;
+  padding: 8px 12px;
   cursor: pointer;
 }
 
@@ -241,7 +251,7 @@
   background-color: transparent;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1024px) {
   .routeRow {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -252,7 +262,7 @@
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .container {
     padding: var(--nd-space-md);
   }
@@ -268,7 +278,7 @@
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 640px) {
   .routeRow {
     grid-template-columns: 1fr;
   }

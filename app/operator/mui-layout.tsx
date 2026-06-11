@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -31,7 +31,8 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import MapIcon from '@mui/icons-material/Map';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
-import { operatorTheme } from '@/app/operator/mui-theme';
+import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
+import { getOperatorTheme } from '@/app/operator/mui-theme';
 
 interface NavItem {
   label: string;
@@ -66,8 +67,10 @@ export default function OperatorMUILayout({
   onLogout,
 }: OperatorMUILayoutProps) {
   const pathname = usePathname();
+  const { resolvedMode } = useThemeMode();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+  const operatorTheme = useMemo(() => getOperatorTheme(resolvedMode), [resolvedMode]);
 
   const handleLogout = () => {
     setLogoutDialogOpen(false);
@@ -93,7 +96,7 @@ export default function OperatorMUILayout({
       }}
     >
       {/* Brand */}
-      <Box sx={{ mb: 3, pb: 2, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+      <Box sx={{ mb: 3, pb: 2, borderBottom: '1px solid var(--nd-border-subtle)' }}>
         <Box
           sx={{
             display: 'inline-flex',
@@ -101,8 +104,8 @@ export default function OperatorMUILayout({
             justifyContent: 'center',
             p: 1,
             borderRadius: 2,
-            backgroundColor: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
+            backgroundColor: 'color-mix(in srgb, var(--nd-text-primary) 3%, transparent)',
+            border: '1px solid var(--nd-border-subtle)',
           }}
         >
           <Box
@@ -134,12 +137,13 @@ export default function OperatorMUILayout({
                 href={item.href}
                 onClick={handleNavClick}
                 selected={Boolean(isActive)}
+                aria-current={isActive ? 'page' : undefined}
                 sx={{
                   borderRadius: 1,
-                  color: isActive ? '#ffb300' : 'rgba(255, 255, 255, 0.6)',
+                  color: isActive ? 'var(--nd-operator-accent)' : 'var(--nd-text-secondary)',
                   '&.Mui-selected': {
-                    backgroundColor: 'rgba(255, 179, 0, 0.08)',
-                    color: '#ffb300',
+                    backgroundColor: 'color-mix(in srgb, var(--nd-operator-accent) 8%, transparent)',
+                    color: 'var(--nd-operator-accent)',
                   },
                 }}
               >
@@ -166,7 +170,7 @@ export default function OperatorMUILayout({
         })}
       </List>
 
-      <Divider sx={{ my: 2, borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+      <Divider sx={{ my: 2, borderColor: 'var(--nd-border-subtle)' }} />
 
       {/* User Section - anchored to bottom */}
       <Box sx={{ mt: 'auto' }}>
@@ -175,7 +179,7 @@ export default function OperatorMUILayout({
             fontFamily: 'var(--nd-font-mono, monospace)',
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
-            color: 'rgba(255, 255, 255, 0.38)',
+            color: 'var(--nd-text-muted)',
             fontSize: '0.65rem',
             display: 'block',
             mt: 2,
@@ -186,7 +190,7 @@ export default function OperatorMUILayout({
         </Typography>
         <Typography
           sx={{
-            color: 'rgba(255, 255, 255, 0.6)',
+            color: 'var(--nd-text-secondary)',
             fontFamily: 'var(--nd-font-mono, monospace)',
             fontSize: '0.75rem',
             wordBreak: 'break-all',
@@ -203,13 +207,13 @@ export default function OperatorMUILayout({
           startIcon={<LogoutIcon />}
           onClick={() => setLogoutDialogOpen(true)}
           sx={{
-            borderColor: 'rgba(255, 255, 255, 0.15)',
-            color: 'rgba(255, 255, 255, 0.6)',
+            borderColor: 'var(--nd-border-default)',
+            color: 'var(--nd-text-secondary)',
             fontSize: '0.75rem',
             py: 1,
             '&:hover': {
-              borderColor: '#ff4757',
-              color: '#ff4757',
+              borderColor: 'var(--nd-status-danger)',
+              color: 'var(--nd-status-danger)',
             },
           }}
         >
@@ -221,7 +225,7 @@ export default function OperatorMUILayout({
 
   return (
     <ThemeProvider theme={operatorTheme}>
-      <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0a0a0a' }}>
+      <Box data-role="operator" sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--nd-bg-void)' }}>
         {/* AppBar */}
         <AppBar
           position="fixed"
@@ -244,6 +248,7 @@ export default function OperatorMUILayout({
               color="inherit"
               edge="start"
               onClick={() => setDrawerOpen(!drawerOpen)}
+              aria-label={drawerOpen ? 'Close navigation menu' : 'Open navigation menu'}
               sx={{ mr: { xs: 1, sm: 2 } }}
             >
               {drawerOpen ? <CloseIcon /> : <MenuIcon />}
@@ -269,7 +274,7 @@ export default function OperatorMUILayout({
                   fontSize: { xs: '0.875rem', sm: '0.95rem' },
                   fontWeight: 500,
                   letterSpacing: '0.015em',
-                  color: 'rgba(255, 255, 255, 0.72)',
+                  color: 'color-mix(in srgb, var(--nd-text-primary) 78%, transparent)',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -293,7 +298,7 @@ export default function OperatorMUILayout({
             '& .MuiDrawer-paper': {
               width: { xs: 'min(82vw, 320px)', sm: DRAWER_WIDTH },
               boxSizing: 'border-box',
-              backgroundColor: '#111111',
+              backgroundColor: 'var(--nd-bg-surface)',
               top: { xs: `${APP_BAR_HEIGHT_MOBILE}px`, sm: `${APP_BAR_HEIGHT}px` },
               height: {
                 xs: `calc(100dvh - ${APP_BAR_HEIGHT_MOBILE}px)`,
@@ -315,7 +320,7 @@ export default function OperatorMUILayout({
             pb: 2,
             px: { xs: 2, sm: 2, md: 3 },
             pt: 2,
-            backgroundColor: '#0a0a0a',
+            backgroundColor: 'var(--nd-bg-void)',
             boxSizing: 'border-box',
             marginLeft: 0,
             overflowY: 'visible',

@@ -93,6 +93,7 @@ App URL: `http://localhost:3000`
 | `npm run test:ci` | Jest CI run with coverage |
 | `npm run generate:config` | Generate local `amplify_outputs.json` |
 | `npm run validate:amplify-outputs` | Validate generated Amplify outputs |
+| `npm run import:prep` | Prepare or apply a legacy tracker + route-list import bundle |
 
 ## Configuration
 
@@ -123,6 +124,79 @@ Notes:
 - If `SES_INVOICE_TEMPLATE_NAME` is not set, API uses a branch-scoped default (`NullDeviceInvoiceTemplate-${AWS_BRANCH}` when `AWS_BRANCH`/`AMPLIFY_BRANCH` is available, otherwise `NullDeviceInvoiceTemplate`).
 - Verify sender identity/domain in SES for the configured region.
 - The SES template is provisioned by Amplify backend deployment in `amplify/backend.ts`.
+
+## Legacy Import
+
+Use `scripts/import-prep.js` to turn a historical tracker CSV plus matching route-list CSVs into an import bundle, or to apply that bundle directly into Amplify Data.
+
+The tracker file should use the meaningful A-K columns only. Any calculated columns after K are ignored.
+
+Example dry run:
+
+```bash
+npm run import:prep -- \
+	--tracker "/home/dave/Downloads/Tracker - Jobs.csv" \
+	--route-lists-dir "/home/dave/Downloads/route-lists" \
+	--customer-id "YOUR_CUSTOMER_ID" \
+	--mode dry-run \
+	--output legacy-import-bundle.json
+```
+
+Example apply run:
+
+```bash
+export IMPORT_PREP_USERNAME="operator-or-admin@example.com"
+export IMPORT_PREP_PASSWORD="your-password"
+
+npm run import:prep -- \
+	--tracker "/home/dave/Downloads/Tracker - Jobs.csv" \
+	--route-lists-dir "/home/dave/Downloads/route-lists" \
+	--invoice-pdfs-dir "/home/dave/Downloads/invoice-pdfs" \
+	--customer-id "YOUR_CUSTOMER_ID" \
+	--mode apply \
+	--confirm-apply \
+	--auth-mode userPool \
+	--outputs-path amplify_outputs.json
+```
+
+Example PDF-only rerun (no route/stop/invoice recalculation):
+
+```bash
+export IMPORT_PREP_USERNAME="operator-or-admin@example.com"
+export IMPORT_PREP_PASSWORD="your-password"
+
+npm run import:prep -- \
+	--tracker "/home/dave/Downloads/Tracker - Jobs.csv" \
+	--invoice-pdfs-dir "/home/dave/Downloads/invoice-pdfs" \
+	--customer-id "YOUR_CUSTOMER_ID" \
+	--mode pdf-only \
+	--confirm-apply \
+	--auth-mode userPool \
+	--outputs-path amplify_outputs.json
+```
+
+Optional auth flags:
+
+```bash
+--auth-mode userPool|iam
+--username "operator-or-admin@example.com"
+--password "your-password"
+```
+
+Notes:
+
+- The script matches route-list files by route code in the filename, such as `W23-26-001 - Route List - Route.csv`.
+- The tracker export uses the second tab in the workbook, which should be the `Jobs` sheet.
+- If a route-list file is missing, the bundle still generates and adds a warning for that route.
+- If `--invoice-pdfs-dir` is provided, the importer matches PDFs by invoice number (for example `INV-001.pdf`) and uploads them to `invoices/{invoiceId}.pdf`, then saves `pdfS3Key` on the invoice record.
+- PDF upload requires a signed-in Cognito user in `operator` or `administrator` group with current storage write permissions deployed.
+- Apply mode upserts routes, stops, invoices, and a legacy line item for each invoice when the imported totals are available.
+- `pdf-only` mode only uploads matched invoice PDFs and updates `pdfS3Key` on existing invoices.
+- Apply mode requires `--confirm-apply` so writes cannot happen accidentally.
+- In an interactive terminal, apply mode also asks for a final `yes` confirmation before writing.
+- The current importer defaults stop service types to `delivery`.
+- Apply mode now defaults to `--auth-mode userPool` and requires a signed-in Cognito operator/administrator account.
+- If you see `No federated jwt`, you are using IAM/federated auth without valid identity credentials; switch to `--auth-mode userPool` and provide `IMPORT_PREP_USERNAME` / `IMPORT_PREP_PASSWORD`.
 
 ## Deployment
 

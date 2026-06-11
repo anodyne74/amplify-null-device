@@ -5,6 +5,7 @@ export const storage = defineStorage({
   access: (allow) => ({
     'invoices/*': [
       allow.groups(['administrator', 'operator']).to(['read', 'write', 'delete']),
+      allow.groups(['customer']).to(['read']),
       allow.authenticated.to(['read', 'write']),
     ],
     'schedules/*': [

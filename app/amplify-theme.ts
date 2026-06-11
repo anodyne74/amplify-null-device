@@ -1,60 +1,49 @@
 import { createTheme } from '@aws-amplify/ui';
+import { ndSharedTokens, ndThemePalettes } from '@/app/theme/themeTokens';
+
+function toAmplifyColorTokens(mode: 'light' | 'dark') {
+  const palette = ndThemePalettes[mode];
+  const brandMain = palette.operatorAccent;
+  const brandMainHover = mode === 'light' ? palette.statusPlanned : palette.operatorAccent;
+
+  return {
+    background: {
+      primary: { value: palette.backgroundCanvas },
+      secondary: { value: palette.backgroundSurface },
+    },
+    border: {
+      primary: { value: palette.borderDefault },
+    },
+    font: {
+      primary: { value: palette.textPrimary },
+      secondary: { value: palette.textSecondary },
+    },
+    brand: {
+      primary: {
+        10: { value: palette.operatorAccentDim },
+        80: { value: brandMain },
+        90: { value: brandMainHover },
+        100: { value: brandMainHover },
+      },
+    },
+  };
+}
 
 export const amplifyTheme = createTheme({
   name: 'nulldevice',
   tokens: {
-    colors: {
-      background: {
-        primary: { value: '#f7f8fa' },
-        secondary: { value: '#ffffff' },
-      },
-      border: {
-        primary: { value: '#d0d5dd' },
-      },
-      font: {
-        primary: { value: '#111827' },
-        secondary: { value: '#4b5563' },
-      },
-      brand: {
-        primary: {
-          10: { value: 'rgba(255, 179, 0, 0.12)' },
-          80: { value: '#ffb300' },
-          90: { value: '#e6a100' },
-          100: { value: '#cc8f00' },
-        },
-      },
-    },
+    colors: toAmplifyColorTokens('light'),
     radii: {
-      small: { value: '4px' },
-      medium: { value: '6px' },
-      large: { value: '8px' },
+      small: { value: ndSharedTokens.radiusSm },
+      medium: { value: ndSharedTokens.radiusMd },
+      large: { value: ndSharedTokens.radiusLg },
     },
   },
   overrides: [
     {
       colorMode: 'dark',
       tokens: {
-        colors: {
-          background: {
-            primary: { value: '#111111' },
-            secondary: { value: '#1a1a1a' },
-          },
-          border: {
-            primary: { value: 'rgba(255, 255, 255, 0.15)' },
-          },
-          font: {
-            primary: { value: 'rgba(255, 255, 255, 0.92)' },
-            secondary: { value: 'rgba(255, 255, 255, 0.6)' },
-          },
-          brand: {
-            primary: {
-              10: { value: 'rgba(255, 179, 0, 0.15)' },
-              80: { value: '#ffb300' },
-              90: { value: '#ffb300' },
-              100: { value: '#ffb300' },
-            },
-          },
-        },
+        colors: toAmplifyColorTokens('dark'),
       },
     },
   ],

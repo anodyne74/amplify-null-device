@@ -32,7 +32,7 @@
   display: none;
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: color-mix(in srgb, var(--nd-color-bg-canvas) 72%, transparent);
   z-index: 999;
 }
 
@@ -88,7 +88,7 @@
   font-size: 1rem;
   font-weight: 700;
   font-family: var(--nd-font-display);
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
   color: var(--nd-text-primary);
 }
 
@@ -104,7 +104,7 @@
   margin: 4px 0 0;
   font-size: 0.7rem;
   font-family: var(--nd-font-body);
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--nd-text-muted);
 }
@@ -135,7 +135,7 @@
   text-decoration: none;
   font-family: var(--nd-font-body);
   font-size: 0.75rem;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   transition: color var(--nd-transition-fast), background-color var(--nd-transition-fast);
   min-height: 44px;
 }
@@ -154,6 +154,16 @@
   color: var(--nd-text-primary);
   background-color: var(--nd-bg-elevated);
   text-decoration: none;
+}
+
+.navLinkActive {
+  color: var(--nd-role-nav-active-fg);
+  background-color: var(--nd-role-nav-active-bg);
+}
+
+.navLinkActive:hover {
+  color: var(--nd-role-nav-active-fg);
+  background-color: var(--nd-role-nav-active-bg);
 }
 
 .sidebar.customer .navLink:hover {
@@ -179,7 +189,7 @@
   margin: 0 0 4px;
   font-size: 0.65rem;
   font-family: var(--nd-font-body);
-  letter-spacing: 0.1em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--nd-text-muted);
 }
@@ -215,13 +225,13 @@
   padding: 7px;
   background-color: var(--nd-status-danger);
   border: none;
-  color: #fff;
+  color: var(--nd-color-text-on-danger);
   border-radius: var(--nd-radius-sm);
   cursor: pointer;
   font-family: var(--nd-font-body);
   font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   transition: opacity var(--nd-transition-fast);
 }
 .logoutConfirmBtn:hover {
@@ -239,7 +249,7 @@
   font-family: var(--nd-font-body);
   font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   transition: border-color var(--nd-transition-fast), color var(--nd-transition-fast);
 }
 .logoutCancelBtn:hover {
@@ -258,7 +268,7 @@
   font-family: var(--nd-font-body);
   font-size: 0.78rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   transition: border-color var(--nd-transition-fast), color var(--nd-transition-fast);
   text-align: left;
 }

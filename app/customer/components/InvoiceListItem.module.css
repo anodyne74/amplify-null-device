@@ -70,7 +70,7 @@
 .badgeDanger {
   color: var(--nd-status-danger);
   border-color: var(--nd-status-danger);
-  background-color: rgba(255, 71, 87, 0.15);
+  background-color: var(--nd-status-danger-dim);
 }
 
 .badgeArchived {

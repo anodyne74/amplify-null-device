@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import ThemeModeSelect from '@/app/components/ThemeModeSelect';
 import styles from './PortalLayout.module.css';
 
 export interface NavItem {
@@ -22,6 +24,7 @@ interface PortalLayoutProps {
   onLogout: () => void;
   /** If true, shows a confirm dialog before logging out (useful for session-aware portals) */
   confirmLogout?: boolean;
+  role?: 'admin' | 'customer' | 'operator';
 }
 
 /**
@@ -37,11 +40,14 @@ export default function PortalLayout({
   userEmail,
   onLogout,
   confirmLogout = false,
+  role,
 }: PortalLayoutProps) {
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const sidebarClass = `${styles.sidebar} ${styles[variant]}`;
+  const roleName = role ?? variant;
 
   // The sidebar transform cannot be expressed as a static CSS rule because it
   // depends on the React state value `sidebarOpen`.
@@ -59,7 +65,7 @@ export default function PortalLayout({
   }
 
   return (
-    <div className={styles.layout}>
+    <div className={styles.layout} data-role={roleName}>
       {/* Mobile menu toggle */}
       <button
         className={styles.menuToggle}
@@ -96,23 +102,32 @@ export default function PortalLayout({
 
         <nav className={styles.nav}>
           <ul className={styles.navList}>
-            {navItems.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={styles.navLink}
-                  onClick={() => setSidebarOpen(false)}
-                  title={item.label}
-                >
-                  <FontAwesomeIcon icon={item.icon} className={styles.navIcon} />
-                  <span className={styles.navLabel}>{item.label}</span>
-                </Link>
-              </li>
-            ))}
+            {navItems.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={`${styles.navLink} ${isActive ? styles.navLinkActive : ''}`}
+                    onClick={() => setSidebarOpen(false)}
+                    title={item.label}
+                    aria-current={isActive ? 'page' : undefined}
+                  >
+                    <FontAwesomeIcon icon={item.icon} className={styles.navIcon} />
+                    <span className={styles.navLabel}>{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </nav>
 
         <div className={styles.userSection}>
+          <div className={styles.themeControls}>
+            <ThemeModeSelect label="Theme" />
+          </div>
+
           <p className={styles.userLabel}>Signed in as</p>
           <p className={styles.userEmail}>{userEmail}</p>
 

@@ -22,45 +22,69 @@ export default function InvoicesPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // Guard: redirect reviewers away from invoice pages
   useEffect(() => {
     if (!user?.userId) return;
-    getCustomerPortalContext(user.userId).then(({ role }) => {
-      if (role === 'read_only') {
-        router.replace('/customer/dashboard');
-      }
-    });
-  }, [user?.userId, router]);
-
-  // Fetch invoices on mount or when filters change
-  useEffect(() => {
-    if (!user?.userId) return;
+    let cancelled = false;
 
     const fetchInvoices = async () => {
       setLoading(true);
       setError(null);
 
-      const result = await listMyInvoices({
-        customerId: user.userId,
-        userSub: user.userId,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        limit: 50,
-      });
+      try {
+        const context = await getCustomerPortalContext(user.userId);
 
-      if (result.errors && result.errors.length > 0) {
-        const message = (result.errors[0] as Error | undefined)?.message;
-        setError(message?.includes('reviewer users cannot view invoices') ? 'Access denied' : 'Failed to load invoices');
-        console.error('Error fetching invoices:', result.errors);
-      } else {
-        setInvoices(result.data || []);
+        if (context.role === 'read_only') {
+          router.replace('/customer/dashboard');
+          if (!cancelled) {
+            setInvoices([]);
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (!context.customerId) {
+          if (!cancelled) {
+            setError('Could not resolve your customer account');
+            setInvoices([]);
+          }
+          return;
+        }
+
+        const result = await listMyInvoices({
+          customerId: context.customerId,
+          userSub: user.userId,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+          limit: 50,
+        });
+
+        if (cancelled) return;
+
+        if (result.errors && result.errors.length > 0) {
+          const message = (result.errors[0] as Error | undefined)?.message;
+          setError(message?.includes('reviewer users cannot view invoices') ? 'Access denied' : 'Failed to load invoices');
+          console.error('Error fetching invoices:', result.errors);
+        } else {
+          setInvoices(result.data || []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError('Failed to load invoices');
+          console.error('Error fetching invoices:', err);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-
-      setLoading(false);
     };
 
     fetchInvoices();
-  }, [user?.userId, startDate, endDate]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId, startDate, endDate, router]);
 
   const handleClearFilters = () => {
     setStartDate('');

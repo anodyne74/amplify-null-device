@@ -14,14 +14,25 @@ type AmplifyOutputsShape = {
   [key: string]: unknown;
 };
 
+let amplifyConfigured = false;
+
 function readPublicAuthEnv() {
   const fromProcess = typeof process !== 'undefined' ? process.env : undefined;
 
   return {
-    user_pool_id: fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID,
-    user_pool_client_id: fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID,
-    identity_pool_id: fromProcess?.NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID,
-    aws_region: fromProcess?.NEXT_PUBLIC_AWS_REGION,
+    user_pool_id:
+      fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID ||
+      fromProcess?.NEXT_PUBLIC_COGNITO_USER_POOL_ID,
+    user_pool_client_id:
+      fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID ||
+      fromProcess?.NEXT_PUBLIC_COGNITO_CLIENT_ID,
+    identity_pool_id:
+      fromProcess?.NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID ||
+      fromProcess?.NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID,
+    aws_region:
+      fromProcess?.NEXT_PUBLIC_AWS_REGION ||
+      fromProcess?.NEXT_PUBLIC_COGNITO_REGION ||
+      fromProcess?.NEXT_PUBLIC_API_REGION,
   };
 }
 
@@ -54,6 +65,10 @@ export function getAmplifyConfig(): AmplifyOutputsShape {
  * Should be called once in the app's root (e.g., layout.tsx or _app.tsx)
  */
 export function configureAmplify() {
+  if (amplifyConfigured) {
+    return;
+  }
+
   const config = getAmplifyConfig();
   const auth = config.auth ?? {};
 
@@ -67,6 +82,7 @@ export function configureAmplify() {
   }
 
   Amplify.configure(config);
+  amplifyConfigured = true;
 }
 
 /**

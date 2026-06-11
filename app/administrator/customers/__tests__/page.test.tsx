@@ -126,7 +126,14 @@ describe('Operator Customers Page', () => {
       expect(screen.getByText('Acme Corp')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    const customerRow = screen.getByText('Acme Corp').closest('tr');
+    expect(customerRow).not.toBeNull();
+    const rowScope = within(customerRow as HTMLElement);
+
+    expect(rowScope.queryByRole('button', { name: /edit customer acme corp/i })).not.toBeInTheDocument();
+
+    fireEvent.click(rowScope.getByRole('button', { name: /more customer actions for acme corp/i }));
+    fireEvent.click(rowScope.getByRole('button', { name: /edit customer acme corp/i }));
 
     const editPanelHeading = await screen.findByText(/edit customer/i);
     const editPanel = editPanelHeading.closest('div');

@@ -259,9 +259,6 @@ export default function InvoicesAdminPage() {
           onRouteLink={(invoiceId, newRouteId) => {
             void handleRouteLink(invoiceId, newRouteId);
           }}
-          onSetStatus={(invoiceId, status) => {
-            void setStatus(invoiceId, status);
-          }}
           onGeneratePdf={(invoice) => {
             void handleGeneratePdf(invoice);
           }}

@@ -364,3 +364,18 @@
     min-width: 760px;
   }
 }
+
+.importedBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: #1e1a2e;
+  border: 1px solid #4c3d7a;
+  color: #a78bfa;
+  font-size: 10px;
+  font-weight: 600;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

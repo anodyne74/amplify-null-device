@@ -156,7 +156,7 @@ const schema = a.schema({
 
   /**
    * Invoice - Billing document for a customer
-   * Status lifecycle: draft → finalized → sent → paid
+   * Status lifecycle: draft → sent → paid
    * Invoices reference routes/stops for line item generation
    */
   Invoice: a

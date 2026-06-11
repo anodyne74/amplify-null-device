@@ -46,6 +46,7 @@ function getStatusChipClass(status?: InvoiceStatus | string | null) {
 export function formatLocalDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   return new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Sydney',
     day: 'numeric',
     month: 'short',
     year: 'numeric',

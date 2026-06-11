@@ -11,7 +11,7 @@ describe('formatLocalDateTime', () => {
 
   it('formats a valid ISO datetime string', () => {
     const result = formatLocalDateTime('2025-06-04T04:14:00.000Z');
-    expect(result).toMatch(/Jun/);
-    expect(result).toMatch(/2025/);
+    expect(result).toMatch(/4 Jun(?:e)? 2025/);
+    expect(result).toMatch(/2:14/);
   });
 });

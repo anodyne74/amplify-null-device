@@ -68,8 +68,8 @@ describe('Customer Dashboard standing instructions', () => {
     });
     (listMyRoutes as jest.Mock).mockResolvedValue({
       data: [
-        { id: 'route-1', status: 'signs_placed' },
-        { id: 'route-2', status: 'completed' },
+        { id: 'route-1', routeCode: 'W19-26-001', status: 'signs_placed', createdAt: '2024-01-16T11:00:00Z' },
+        { id: 'route-2', routeCode: 'W19-26-002', status: 'completed', createdAt: '2024-01-14T09:00:00Z' },
       ],
       errors: undefined,
     });
@@ -188,6 +188,31 @@ describe('Customer Dashboard standing instructions', () => {
     expect(screen.queryByText(/outstanding amount/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/total revenue/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/average revenue/i)).not.toBeInTheDocument();
+  });
+
+  it('shows a route-first tracker for reviewer users without fetching invoices', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'read_only',
+      customerId: 'cust-1',
+    });
+
+    render(<CustomerDashboard />);
+
+    expect(await screen.findByRole('heading', { name: /route tracker/i })).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /review route w19-26-001/i })).toHaveAttribute(
+        'href',
+        '/customer/routes/route-1'
+      );
+    });
+
+    expect(screen.getByRole('link', { name: /review route w19-26-002/i })).toHaveAttribute(
+      'href',
+      '/customer/routes/route-2'
+    );
+    expect(listMyInvoices).not.toHaveBeenCalled();
+    expect(screen.queryByText(/pending invoices/i)).not.toBeInTheDocument();
   });
 
   it('validates non-negative default signs before save', async () => {

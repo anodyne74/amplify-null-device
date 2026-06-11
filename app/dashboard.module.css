@@ -543,6 +543,21 @@
   margin-top: 0.5rem;
 }
 
+.kpiContents {
+  display: contents;
+}
+
+.customerSettingsForm {
+  display: grid;
+  gap: 12px;
+}
+
+.customerSettingsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
 .infoPanel th, .infoPanel td {
   padding: 12px;
   border: 1px solid var(--nd-border-subtle);

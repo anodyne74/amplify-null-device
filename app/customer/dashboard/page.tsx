@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import React from 'react';
+import Link from 'next/link';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
@@ -329,6 +330,24 @@ export default function CustomerDashboard() {
 
   const isAccountOwner = customerRole === 'account_owner';
   const averageSignsPerHour = totalHours > 0 ? (totalSigns / (totalHours / 60)).toFixed(2) : '…';
+  const trackerRoutes = useMemo(
+    () =>
+      [...analyticsRoutes]
+        .sort((a, b) => {
+          const statusPriority = (status?: string | null) => {
+            if (status === 'in_progress') return 0;
+            if (status === 'signs_placed' || status === 'signs_picked_up') return 1;
+            if (status === 'planned') return 2;
+            if (status === 'completed') return 3;
+            return 4;
+          };
+          const priorityDelta = statusPriority(a.status) - statusPriority(b.status);
+          if (priorityDelta !== 0) return priorityDelta;
+          return String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? ''));
+        })
+        .slice(0, 4),
+    [analyticsRoutes]
+  );
 
   return (
     <div className={styles.page} data-role="customer">
@@ -386,9 +405,42 @@ export default function CustomerDashboard() {
               </p>
             </div>
           </div>
-          <p className={styles.welcome}>
-            Open Routes to view stop details, map position, and route progress.
-          </p>
+          {trackerRoutes.length === 0 ? (
+            <p className={styles.welcome}>No routes are available for review.</p>
+          ) : (
+            <div className={styles.mobileRouteList}>
+              {trackerRoutes.map((route) => {
+                const routeLabel = route.routeCode || route.id.slice(0, 8);
+                const statusLabel = String(route.status || 'planned').replace(/_/g, ' ');
+                const statusClass =
+                  route.status === 'in_progress' || route.status === 'signs_placed' || route.status === 'signs_picked_up'
+                    ? styles.routeStatusActive
+                    : styles.routeStatusPlanned;
+
+                return (
+                  <Link
+                    key={route.id}
+                    href={`/customer/routes/${route.id}`}
+                    className={styles.mobileRouteCard}
+                    aria-label={`Review route ${routeLabel}`}
+                  >
+                    <div className={styles.mobileRouteTopRow}>
+                      <strong>Route {routeLabel}</strong>
+                      <span className={statusClass}>{statusLabel}</span>
+                    </div>
+                    <div className={styles.mobileRouteMeta}>
+                      {route.createdAt ? new Date(route.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      }) : 'Date unavailable'}
+                    </div>
+                    <div className={styles.mobileRouteAction}>Review route {routeLabel}</div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -489,7 +541,7 @@ export default function CustomerDashboard() {
       <div className={styles.infoPanel}>
         <h3>Standing Instructions</h3>
         {isAccountOwner ? (
-          <div style={{ display: 'grid', gap: 12 }}>
+          <div className={styles.customerSettingsForm}>
             {settingsError && <p>{settingsError}</p>}
             {settingsSuccess && <p>{settingsSuccess}</p>}
             <textarea
@@ -498,7 +550,7 @@ export default function CustomerDashboard() {
               placeholder="Instructions operators should see by default"
               disabled={savingSettings}
             />
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+            <div className={styles.customerSettingsGrid}>
               <input
                 value={defaultNumberOfSigns}
                 onChange={(event) => setDefaultNumberOfSigns(event.target.value)}
@@ -530,7 +582,7 @@ export default function CustomerDashboard() {
             </button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gap: 10 }}>
+          <div className={styles.customerSettingsForm}>
             <p className={styles.welcome}>Only the account owner can edit these defaults.</p>
             <p>{customer?.standingInstructions || 'No standing instructions configured.'}</p>
             <p className={styles.welcome}>
@@ -542,13 +594,13 @@ export default function CustomerDashboard() {
         )}
       </div>
 
-      <div style={{ marginTop: '1rem' }}>
+      <div className={styles.analyticsSummaryRow}>
         <p className={styles.welcome}>Showing analytics for {periodSummary}</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '0.5rem' }}>
+      <div className={`${styles.statsGrid} ${styles.kpiGrid}`}>
         <PeriodSelector selectedPeriod={selectedPeriod} onChange={setSelectedPeriod} />
-        <div style={{ display: 'contents' }}>
+        <div className={styles.kpiContents}>
           <KpiCard
             title="Routes Completed"
             value={statsLoading ? '…' : routesCompletedKpi}

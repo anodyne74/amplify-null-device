@@ -3,6 +3,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RoutesPage from '../page';
 import * as listMyRoutesModule from '@/lib/queries/ListMyRoutes';
+import { getCustomerPortalContext } from '@/lib/queries';
 import type { Route } from '@/amplify/types';
 
 // Mock Next.js router first
@@ -24,8 +25,8 @@ jest.mock('@aws-amplify/ui-react', () => ({
   useAuthenticator: () => ({
     authStatus: 'authenticated',
     user: {
-      userId: 'test-customer-1',
-      username: 'test-customer-1',
+      userId: 'viewer-sub-1',
+      username: 'viewer-sub-1',
       signInUserSession: {
         idToken: {
           payload: {
@@ -39,10 +40,13 @@ jest.mock('@aws-amplify/ui-react', () => ({
 
 // Mock the queries
 jest.mock('@/lib/queries/ListMyRoutes');
+jest.mock('@/lib/queries', () => ({
+  getCustomerPortalContext: jest.fn(),
+}));
 
 // Mock the session utilities
 jest.mock('@/app/auth/session', () => ({
-  getCurrentCustomerId: (_user: any) => 'test-customer-1',
+  getCurrentCustomerId: (_user: any) => 'viewer-sub-1',
 }));
 
 describe('Customer Routes List Page', () => {
@@ -72,6 +76,10 @@ describe('Customer Routes List Page', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'read_only',
+      customerId: 'test-customer-1',
+    });
   });
 
   it('fetches and displays routes on mount', async () => {
@@ -198,7 +206,7 @@ describe('Customer Routes List Page', () => {
     expect(screen.getByText(/No routes found/i)).toBeInTheDocument();
   });
 
-  it('calls listMyRoutes with correct customer ID', async () => {
+  it('calls listMyRoutes with the portal context customer ID instead of the user sub', async () => {
     (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
       data: mockRoutes,
       errors: undefined,

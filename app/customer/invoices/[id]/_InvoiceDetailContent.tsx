@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useRouter } from 'next/navigation';
 import { getInvoiceDetail, type InvoiceDetail } from '@/lib/queries/GetInvoiceDetail';
+import { getCustomerPortalContext } from '@/lib/queries';
 import InvoiceLineItems from '@/app/customer/components/InvoiceLineItems';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import styles from './_InvoiceDetailContent.module.css';
@@ -26,45 +27,63 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
   const [error, setError] = useState<string | null>(null);
   const [pdfActionLoading, setPdfActionLoading] = useState(false);
 
-  // Guard: redirect reviewers away from invoice pages
   useEffect(() => {
     if (!user?.userId) return;
-    import('@/lib/queries').then(({ getCustomerPortalContext }) => {
-      getCustomerPortalContext(user.userId).then(({ role }) => {
-        if (role === 'read_only') {
-          router.replace('/customer/dashboard');
-        }
-      });
-    });
-  }, [user?.userId, router]);
-
-  useEffect(() => {
-    if (!user?.userId) return;
+    let cancelled = false;
 
     const fetchInvoice = async () => {
       setLoading(true);
       setError(null);
 
-      const result = await getInvoiceDetail({
-        invoiceId: params.id,
-        customerId: user.userId,
-        userSub: user.userId,
-      });
+      try {
+        const context = await getCustomerPortalContext(user.userId);
 
-      if (result.errors && result.errors.length > 0) {
-        setError('Failed to load invoice');
-        console.error('Error fetching invoice:', result.errors);
-      } else if (!result.data) {
-        setError('Invoice not found');
-      } else {
-        setInvoice(result.data);
+        if (context.role === 'read_only') {
+          router.replace('/customer/dashboard');
+          return;
+        }
+
+        if (!context.customerId) {
+          if (!cancelled) {
+            setError('Could not resolve your customer account');
+          }
+          return;
+        }
+
+        const result = await getInvoiceDetail({
+          invoiceId: params.id,
+          customerId: context.customerId,
+          userSub: user.userId,
+        });
+
+        if (cancelled) return;
+
+        if (result.errors && result.errors.length > 0) {
+          setError('Failed to load invoice');
+          console.error('Error fetching invoice:', result.errors);
+        } else if (!result.data) {
+          setError('Invoice not found');
+        } else {
+          setInvoice(result.data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError('Failed to load invoice');
+          console.error('Error fetching invoice:', err);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-
-      setLoading(false);
     };
 
     fetchInvoice();
-  }, [user?.userId, params.id]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId, params.id, router]);
 
   const handlePdfAction = async (action: 'view' | 'download') => {
     if (!invoice?.pdfS3Key) return;

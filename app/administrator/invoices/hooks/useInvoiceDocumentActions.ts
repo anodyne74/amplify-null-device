@@ -2,6 +2,7 @@ import type { ChangeEvent, MutableRefObject, RefObject } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { getUrl, uploadData } from 'aws-amplify/storage';
 import type { Route } from '@/amplify/types';
+import { buildInvoicePdfConfig } from '@/app/administrator/invoices/invoicePdfTheme';
 import type { CustomerOption, Invoice } from '@/app/administrator/invoices/types';
 import { DEFAULT_COMPANY_BILLING_DETAILS } from '@/lib/companyBilling';
 import { extractScheduleText } from '@/lib/extractScheduleText';
@@ -364,25 +365,7 @@ export function useInvoiceDocumentActions({
       );
 
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-      type tupleRow = [number, number, number];
-
-      const config = {
-        margins: { top: 64, bottom: 64, left: 56, right: 540 },
-        colors: {
-          header: [15, 23, 42] as tupleRow,
-          secondary: [248, 250, 252] as tupleRow,
-          accent: [239, 246, 255] as tupleRow,
-        },
-        fonts: {
-          regular: 'helvetica',
-          bold: 'helvetica',
-          default: 11,
-          small: 10,
-          medium: 12,
-          large: 18,
-          xlarge: 22,
-        },
-      };
+      const config = buildInvoicePdfConfig();
 
       let y = config.margins.top;
       const ensurePageSpace = (requiredHeight: number) => {
@@ -398,7 +381,7 @@ export function useInvoiceDocumentActions({
         doc.addImage(logoDataUrl, 'PNG', 28, 0, 280, 128);
       }
 
-      doc.setTextColor(241, 245, 249);
+      doc.setTextColor(...config.colors.headerText);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(config.fonts.xlarge);
       doc.text('INVOICE', 540, 52, { align: 'right' });
@@ -412,7 +395,7 @@ export function useInvoiceDocumentActions({
 
       y = 150;
 
-      doc.setTextColor(...config.colors.header);
+      doc.setTextColor(...config.colors.text);
 
       doc.setFillColor(...config.colors.secondary);
       doc.roundedRect(config.margins.left, y - 20, 484, 142, 8, 8, 'F');
@@ -441,7 +424,7 @@ export function useInvoiceDocumentActions({
 
       y += 160;
 
-      doc.setFillColor(...config.colors.accent);
+      doc.setFillColor(...config.colors.totalBand);
       doc.roundedRect(config.margins.left, y - 16, 484, 54, 6, 6, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
@@ -536,8 +519,8 @@ export function useInvoiceDocumentActions({
           ]),
           theme: 'striped',
           margin: { left: config.margins.left, right: config.margins.right },
-          styles: { font: 'helvetica', fontSize: 10, textColor: [15, 23, 42], fillColor: [248, 250, 252] },
-          headStyles: { fillColor: [239, 246, 255], textColor: [15, 23, 42], fontStyle: 'bold' },
+          styles: { font: 'helvetica', fontSize: 10, textColor: config.colors.text, fillColor: config.colors.secondary },
+          headStyles: { fillColor: config.colors.tableHead, textColor: config.colors.text, fontStyle: 'bold' },
           columnStyles: {
             0: { cellWidth: 350 },
             1: { cellWidth: 84 },
@@ -573,9 +556,9 @@ export function useInvoiceDocumentActions({
       const totalPages = doc.getNumberOfPages();
       for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
         doc.setPage(pageNumber);
-        doc.setDrawColor(203, 213, 225);
+        doc.setDrawColor(...config.colors.border);
         doc.line(config.margins.left, 812, 540, 812);
-        doc.setTextColor(71, 85, 105);
+        doc.setTextColor(...config.colors.muted);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         doc.text(`${pdfCompanyName} | ${pdfCompanyAbn} | ${pdfCompanyPhone} | ${BILLING_EMAIL}`, config.margins.left, 826);

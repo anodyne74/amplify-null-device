@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import { verifyCustomerAccess, getCurrentCustomerId } from '@/app/auth/session';
+import { getCustomerPortalContext, getRouteWithStops } from '@/lib/queries';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import RouteTimeline from '@/app/customer/components/RouteTimeline';
 import StopListItem from '@/app/customer/components/StopListItem';
-import type { Route } from '@/amplify/types';
+import { RouteStopsMap } from '@/app/operator/components/RouteStopsMap';
+import type { Route, Stop } from '@/amplify/types';
 import styles from './_RouteDetailContent.module.css';
 
 interface RouteDetailContentProps {
@@ -24,36 +24,59 @@ interface RouteDetailContentProps {
  */
 export default function RouteDetailContent({ params }: RouteDetailContentProps) {
   const { user } = useAuthenticator();
-  const customerId = user ? getCurrentCustomerId(user) : undefined;
+  const userId = user?.userId;
   const [route, setRoute] = useState<Route | null>(null);
+  const [stops, setStops] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!params.id) return;
+    if (!params.id || !userId) return;
+    let cancelled = false;
 
     async function fetchRoute() {
       setLoading(true);
-      const result = await getRouteDetail(params.id);
+      setError(null);
 
-      if (result.errors) {
-        setError('Failed to load route details');
-      } else if (result.data) {
-        // Verify customer can access this route
-        if (customerId && !verifyCustomerAccess(user, result.data.customerId)) {
-          setError('You do not have permission to view this route');
+      try {
+        const context = await getCustomerPortalContext(userId);
+        const result = await getRouteWithStops(params.id);
+
+        if (cancelled) return;
+
+        if (result.errors && result.errors.length > 0) {
+          setError('Failed to load route details');
+        } else if (result.route) {
+          const fetchedRoute = result.route as unknown as Route;
+          if (!context.customerId || fetchedRoute.customerId !== context.customerId) {
+            setError('You do not have permission to view this route');
+          } else {
+            const fetchedStops = [...((result.stops as unknown as Stop[]) ?? [])].sort(
+              (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
+            );
+            setStops(fetchedStops);
+            setRoute({ ...fetchedRoute, stops: fetchedStops } as Route);
+          }
         } else {
-          setRoute(result.data as unknown as Route);
+          setError('Route not found');
         }
-      } else {
-        setError('Route not found');
+      } catch {
+        if (!cancelled) {
+          setError('Failed to load route details');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-
-      setLoading(false);
     }
 
     fetchRoute();
-  }, [params.id, customerId, user]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [params.id, userId]);
 
   if (loading) {
     return <LoadingSpinner message="Loading route details..." />;
@@ -92,6 +115,18 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
     return `${hours}h ${mins}m`;
   };
 
+  const routeLabel = route.routeCode || `${route.id.slice(0, 8)}...`;
+  const nextStop = stops.find((stop) => !stop.actualDepartureTime) ?? stops[0] ?? null;
+  const nextStopIndex = nextStop ? stops.findIndex((stop) => stop.id === nextStop.id) : -1;
+  const upcomingStopIds =
+    nextStopIndex >= 0
+      ? stops
+          .slice(nextStopIndex + 1)
+          .filter((stop) => !stop.actualDepartureTime)
+          .slice(0, 2)
+          .map((stop) => stop.id)
+      : [];
+
   return (
     <ProtectedRoute>
       <div>
@@ -99,12 +134,33 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
           ← Back to Routes
         </Link>
 
-        <h1 className={styles.pageTitle}>Route {route.id.slice(0, 8)}...</h1>
+        <h1 className={styles.pageTitle}>Route {routeLabel}</h1>
 
         {/* Status and Timeline */}
         <div className={styles.timelineWrapper}>
           <RouteTimeline route={route} />
         </div>
+
+        <section className={styles.trackerPanel} aria-label="Route map and next stop">
+          <div className={styles.mapShell}>
+            <RouteStopsMap
+              stops={stops}
+              activeStopId={nextStop?.id ?? null}
+              upcomingStopIds={upcomingStopIds}
+              mapTheme="dark"
+              presentation="field"
+            />
+          </div>
+          <div className={styles.nextStopPanel}>
+            <p className={styles.detailLabel}>Next Stop</p>
+            <p className={styles.nextStopTitle}>
+              {nextStop ? `Stop ${nextStop.sequence ?? nextStopIndex + 1}` : 'No stop scheduled'}
+            </p>
+            <p className={styles.nextStopAddress}>
+              {nextStop?.formattedAddress || nextStop?.address || 'No address available'}
+            </p>
+          </div>
+        </section>
 
         {/* Route Details Grid */}
         <div className={styles.detailsGrid}>
@@ -157,13 +213,13 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
 
         {/* Stops */}
         <div>
-          <h3>Delivery Stops ({route.stops?.length || 0})</h3>
+          <h3>Delivery Stops ({stops.length})</h3>
 
-          {(!route.stops || route.stops.length === 0) ? (
+          {stops.length === 0 ? (
             <p className={styles.noStopsText}>No stops scheduled for this route</p>
           ) : (
             <div className={styles.stopsList}>
-              {route.stops.map((stop, index) => (
+              {stops.map((stop, index) => (
                 <StopListItem key={stop.id} stop={stop} sequence={index + 1} />
               ))}
             </div>

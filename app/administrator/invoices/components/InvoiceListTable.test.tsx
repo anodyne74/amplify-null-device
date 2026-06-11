@@ -38,7 +38,6 @@ function renderTable(invoices: Invoice[], overrides: Partial<ComponentProps<type
     routeCode: () => 'R-101',
     isInvoicePaid: (status) => status === 'paid',
     onRouteLink: jest.fn(),
-    onSetStatus: jest.fn(),
     onGeneratePdf: jest.fn(),
     onPdfAction: jest.fn(),
     onUploadClick: jest.fn(),
@@ -60,7 +59,7 @@ describe('InvoiceListTable', () => {
 
     expect(screen.getByRole('button', { name: 'View PDF for invoice INV-001' })).toHaveClass('adminBtnGhost');
     expect(screen.getByRole('button', { name: 'Mark invoice INV-001 as paid' })).toHaveClass('adminBtnPrimary');
-    expect(screen.getByRole('button', { name: 'Email invoice INV-001 to primary contact' })).toHaveClass('adminBtnSecondary');
+    expect(screen.getByRole('button', { name: 'Email invoice INV-001' })).toHaveClass('adminBtnSecondary');
   });
 
   it('shows generate action as primary and hides mark-paid when invoice is already paid', () => {

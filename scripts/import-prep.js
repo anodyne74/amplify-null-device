@@ -460,10 +460,10 @@ function buildInvoicePdfIndex(invoicePdfsDir) {
   return { index, warnings };
 }
 
-function deriveInvoiceStatus(sentDate, paidDate) {
+export function deriveInvoiceStatus(sentDate, paidDate) {
   if (paidDate) return 'paid';
   if (sentDate) return 'sent';
-  return 'finalized';
+  return 'draft';
 }
 
 function toIsoDateTime(dateValue) {
@@ -517,6 +517,7 @@ function buildBundle({
         invoiceDate: trackerRecord.lifecycle.sentDate,
         totalAmount: trackerRecord.summary.amount,
         status: deriveInvoiceStatus(trackerRecord.lifecycle.sentDate, trackerRecord.lifecycle.paidDate),
+        sentDate: trackerRecord.lifecycle.sentDate,
       },
       lineItem: {
         description: `Legacy route ${trackerRecord.routeCode}`,
@@ -833,6 +834,10 @@ async function applyBundle(bundle, args) {
         totalAmount: record.invoice.totalAmount ?? 0,
         status: record.invoice.status,
         routeId: route.id,
+        importedAt: new Date().toISOString(),
+        ...(record.invoice.sentDate
+          ? { emailSentAt: toIsoDateTime(record.invoice.sentDate) }
+          : {}),
       };
 
       if (invoice?.id) {
@@ -1031,4 +1036,6 @@ async function main() {
   }
 }
 
-void main();
+if (process.argv[1]?.endsWith('import-prep.js')) {
+  void main();
+}

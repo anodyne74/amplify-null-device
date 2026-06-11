@@ -204,12 +204,6 @@
   color: var(--nd-text-muted);
 }
 
-.statusChipFinalized {
-  border-color: color-mix(in srgb, var(--nd-operator-accent) 45%, transparent);
-  background: color-mix(in srgb, var(--nd-status-planned-dim) 72%, transparent);
-  color: var(--nd-operator-accent);
-}
-
 .statusChipSent {
   border-color: color-mix(in srgb, var(--nd-customer-accent) 45%, transparent);
   background: color-mix(in srgb, var(--nd-customer-accent) 16%, transparent);
@@ -363,4 +357,19 @@
   .invoiceTable {
     min-width: 760px;
   }
+}
+
+.importedBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: #1e1a2e;
+  border: 1px solid #4c3d7a;
+  color: #a78bfa;
+  font-size: 0.68rem;
+  font-weight: 600;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }

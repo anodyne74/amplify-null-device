@@ -380,7 +380,7 @@ export async function getRouteWithStops(routeId: string) {
 export async function listInvoices(options?: {
   limit?: number;
   nextToken?: string;
-  status?: 'draft' | 'finalized' | 'sent' | 'paid';
+  status?: 'draft' | 'sent' | 'paid';
 }) {
   try {
     const { data, errors, nextToken } = await getClient().models.Invoice.list({
@@ -638,9 +638,10 @@ export async function createInvoice(input: {
   periodStartDate?: string;
   periodEndDate?: string;
   totalAmount: number;
-  status: 'draft' | 'finalized' | 'sent' | 'paid';
+  status: 'draft' | 'sent' | 'paid';
   routeId?: string;
   pdfS3Key?: string;
+  importedAt?: string;
 }) {
   try {
     const { data, errors } = await getClient().models.Invoice.create(input);
@@ -667,10 +668,11 @@ export async function updateInvoice(
     periodStartDate: string;
     periodEndDate: string;
     totalAmount: number;
-    status: 'draft' | 'finalized' | 'sent' | 'paid';
+    status: 'draft' | 'sent' | 'paid';
     routeId: string | null;
     pdfS3Key: string;
-    emailSentAt: string;
+    emailSentAt: string | null;
+    importedAt: string | null;
   }>
 ) {
   try {

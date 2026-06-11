@@ -7,7 +7,7 @@ export type CustomerOption = {
   billingRatePerHour?: number;
 };
 
-export type InvoiceStatus = 'draft' | 'finalized' | 'sent' | 'paid';
+export type InvoiceStatus = 'draft' | 'sent' | 'paid';
 
 export type Invoice = {
   id: string;
@@ -20,4 +20,5 @@ export type Invoice = {
   totalAmount: number;
   status?: InvoiceStatus | null;
   emailSentAt?: string | null;
+  importedAt?: string | null;
 };

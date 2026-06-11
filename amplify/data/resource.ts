@@ -157,7 +157,7 @@ const schema = a.schema({
 
   /**
    * Invoice - Billing document for a customer
-   * Status lifecycle: draft → finalized → sent → paid
+   * Status lifecycle: draft → sent → paid
    * Invoices reference routes/stops for line item generation
    */
   Invoice: a
@@ -168,7 +168,8 @@ const schema = a.schema({
       periodStartDate: a.date(),
       periodEndDate: a.date(),
       totalAmount: a.float().required(),
-      status: a.enum(['draft', 'finalized', 'sent', 'paid']),
+      status: a.enum(['draft', 'sent', 'paid']),
+      importedAt: a.datetime(),
       routeId: a.id(),        // linked route
       pdfS3Key: a.string(),   // S3 key for uploaded PDF e.g. invoices/{id}.pdf
       emailSentAt: a.datetime(), // timestamp of last SES email send

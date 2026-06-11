@@ -19,7 +19,6 @@ interface InvoiceListTableProps {
   routeCode: (id?: string | null) => string;
   isInvoicePaid: (status?: Invoice['status'] | string | null) => boolean;
   onRouteLink: (invoiceId: string, routeId: string) => void;
-  onSetStatus: (invoiceId: string, status: InvoiceStatus) => void;
   onGeneratePdf: (invoice: Invoice) => void;
   onPdfAction: (invoice: Invoice, action: 'view' | 'download') => void;
   onUploadClick: (invoiceId: string) => void;
@@ -39,11 +38,22 @@ function getStatusChipClass(status?: InvoiceStatus | string | null) {
       return invoiceStyles.statusChipPaid;
     case 'sent':
       return invoiceStyles.statusChipSent;
-    case 'finalized':
-      return invoiceStyles.statusChipFinalized;
     default:
       return invoiceStyles.statusChipDraft;
   }
+}
+
+export function formatLocalDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  return new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Sydney',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(iso));
 }
 
 export default function InvoiceListTable({
@@ -57,7 +67,6 @@ export default function InvoiceListTable({
   routeCode,
   isInvoicePaid,
   onRouteLink,
-  onSetStatus,
   onGeneratePdf,
   onPdfAction,
   onUploadClick,
@@ -95,6 +104,7 @@ export default function InvoiceListTable({
               <th scope="col">Route</th>
               <th scope="col">Total</th>
               <th scope="col">Status</th>
+              <th scope="col">Sent</th>
               <th scope="col">PDF</th>
               <th scope="col">Actions</th>
             </tr>
@@ -102,7 +112,12 @@ export default function InvoiceListTable({
           <tbody>
             {invoices.map((invoice) => (
               <tr key={invoice.id}>
-                  <td>{invoice.invoiceNumber}</td>
+                  <td>
+                    {invoice.invoiceNumber}
+                    {invoice.importedAt && (
+                      <span className={invoiceStyles.importedBadge}>Imported</span>
+                    )}
+                  </td>
                   <td>{customerName(invoice.customerId)}</td>
                   <td>
                     <select
@@ -123,22 +138,12 @@ export default function InvoiceListTable({
                   </td>
                   <td className={invoiceStyles.cellNumeric}>${invoice.totalAmount.toFixed(2)}</td>
                   <td>
-                    <div className={invoiceStyles.statusCellStack}>
-                      <span className={`${invoiceStyles.statusChip} ${getStatusChipClass(invoice.status)}`}>
-                        {toTitleCase(invoice.status)}
-                      </span>
-                      <select
-                        value={invoice.status ?? 'draft'}
-                        onChange={(event) => onSetStatus(invoice.id, event.target.value as InvoiceStatus)}
-                        className={invoiceStyles.cellSelect}
-                        aria-label={`Status for invoice ${invoice.invoiceNumber}`}
-                      >
-                        <option value="draft">draft</option>
-                        <option value="finalized">finalized</option>
-                        <option value="sent">sent</option>
-                        <option value="paid">paid</option>
-                      </select>
-                    </div>
+                    <span className={`${invoiceStyles.statusChip} ${getStatusChipClass(invoice.status)}`}>
+                      {toTitleCase(invoice.status ?? 'draft')}
+                    </span>
+                  </td>
+                  <td>
+                    {formatLocalDateTime(invoice.emailSentAt)}
                   </td>
                   <td className={invoiceStyles.pdfCell}>
                     {invoice.pdfS3Key ? (
@@ -156,17 +161,19 @@ export default function InvoiceListTable({
                           View
                         </AdminActionButton>
                         <AdminRowMenu ariaLabel={`More PDF actions for invoice ${invoice.invoiceNumber}`}>
-                          <AdminActionButton
-                            className={invoiceStyles.inlineButton}
-                            variant="secondary"
-                            onClick={() => handleRegeneratePdf(invoice)}
-                            isLoading={uploadingId === invoice.id}
-                            loadingLabel="Generating..."
-                            disabled={pdfActionLoadingId === invoice.id}
-                            aria-label={`Regenerate PDF for invoice ${invoice.invoiceNumber}`}
-                          >
-                            Regenerate
-                          </AdminActionButton>
+                          {!invoice.importedAt && (
+                            <AdminActionButton
+                              className={invoiceStyles.inlineButton}
+                              variant="secondary"
+                              onClick={() => handleRegeneratePdf(invoice)}
+                              isLoading={uploadingId === invoice.id}
+                              loadingLabel="Generating..."
+                              disabled={pdfActionLoadingId === invoice.id}
+                              aria-label={`Regenerate PDF for invoice ${invoice.invoiceNumber}`}
+                            >
+                              Regenerate
+                            </AdminActionButton>
+                          )}
                           <AdminActionButton
                             className={invoiceStyles.inlineButton}
                             variant="ghost"
@@ -192,16 +199,18 @@ export default function InvoiceListTable({
                     ) : (
                       <div className={invoiceStyles.uploadedState}>
                         <span className={`${invoiceStyles.statusChip} ${invoiceStyles.pdfChipMissing}`}>PDF Missing</span>
-                        <AdminActionButton
-                          className={invoiceStyles.uploadButton}
-                          variant="primary"
-                          onClick={() => onGeneratePdf(invoice)}
-                          isLoading={uploadingId === invoice.id}
-                          loadingLabel="Generating..."
-                          aria-label={`Generate PDF for invoice ${invoice.invoiceNumber}`}
-                        >
-                          Generate PDF
-                        </AdminActionButton>
+                        {!invoice.importedAt && (
+                          <AdminActionButton
+                            className={invoiceStyles.uploadButton}
+                            variant="primary"
+                            onClick={() => onGeneratePdf(invoice)}
+                            isLoading={uploadingId === invoice.id}
+                            loadingLabel="Generating..."
+                            aria-label={`Generate PDF for invoice ${invoice.invoiceNumber}`}
+                          >
+                            Generate PDF
+                          </AdminActionButton>
+                        )}
                         <AdminRowMenu ariaLabel={`More PDF actions for invoice ${invoice.invoiceNumber}`}>
                           <AdminActionButton
                             className={invoiceStyles.uploadButton}
@@ -235,9 +244,9 @@ export default function InvoiceListTable({
                         onClick={() => onEmailInvoiceToPrimary(invoice)}
                         isLoading={emailingInvoiceId === invoice.id}
                         loadingLabel="Preparing..."
-                        aria-label={`Email invoice ${invoice.invoiceNumber} to primary contact`}
+                        aria-label={`${invoice.emailSentAt ? 'Resend' : 'Email'} invoice ${invoice.invoiceNumber}`}
                       >
-                        Email Primary
+                        {invoice.emailSentAt ? 'Resend' : 'Email'}
                       </AdminActionButton>
                     </div>
                   </td>

@@ -16,7 +16,7 @@ import { useInvoiceDerivedFormEffects } from '@/app/administrator/invoices/hooks
 import { useInvoiceDocumentActions } from '@/app/administrator/invoices/hooks/useInvoiceDocumentActions';
 import { useInvoiceUiState } from '@/app/administrator/invoices/hooks/useInvoiceUiState';
 import { useInvoicesDataState } from '@/app/administrator/invoices/hooks/useInvoicesDataState';
-import type { Invoice, InvoiceStatus } from '@/app/administrator/invoices/types';
+import type { Invoice } from '@/app/administrator/invoices/types';
 import styles from '@/app/dashboard.module.css';
 import invoiceStyles from '@/app/administrator/invoices/page.module.css';
 
@@ -164,12 +164,6 @@ export default function InvoicesAdminPage() {
     setSaving(false);
   };
 
-  const setStatus = async (id: string, status: InvoiceStatus) => {
-    const result = await updateInvoice(id, { status });
-    if (result.errors && result.errors.length > 0) { setError('Failed to update status.'); return; }
-    updateInvoiceInState(id, { status });
-  };
-
   const handleRouteLink = async (invoiceId: string, newRouteId: string) => {
     const result = await updateInvoice(invoiceId, { routeId: newRouteId || null });
     if (result.errors && result.errors.length > 0) {
@@ -181,7 +175,9 @@ export default function InvoicesAdminPage() {
   };
 
   const handleMarkPaid = async (invoiceId: string) => {
-    await setStatus(invoiceId, 'paid');
+    const result = await updateInvoice(invoiceId, { status: 'paid' });
+    if (result.errors && result.errors.length > 0) { setError('Failed to update status.'); return; }
+    updateInvoiceInState(invoiceId, { status: 'paid' });
   };
 
   // Customer name lookup

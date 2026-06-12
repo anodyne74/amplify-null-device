@@ -121,6 +121,7 @@ export function RouteStopsMap({
   const lastRenderedPositionRef = useRef<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
   const headingRef = useRef(0);
   const [devicePosition, setDevicePosition] = useState<DevicePosition | null>(null);
+  const [mapLoadFailed, setMapLoadFailed] = useState(false);
 
   // Use provided currentPosition, or fallback to device geolocation if not provided
   const displayPosition = useMemo(
@@ -279,6 +280,12 @@ export function RouteStopsMap({
       updateViewport(map, activeStop, upcomingStops, displayPosition, L);
       map.invalidateSize();
       syncOrientation();
+    }).catch(() => {
+      // The leaflet chunk failed to load (offline, blocked, deploy skew).
+      // Surface a clear fallback instead of hanging on the loading state.
+      if (!cancelled) {
+        setMapLoadFailed(true);
+      }
     });
 
     return () => {
@@ -390,6 +397,14 @@ export function RouteStopsMap({
     updateViewport(mapRef.current, activeStop, upcomingStops, displayPosition, leafletRef.current);
     mapRef.current.invalidateSize({ pan: false });
   }, [activeStopId, mappedStops, upcomingStopIdSet, displayPosition]);
+
+  if (mapLoadFailed) {
+    return (
+      <div className={styles.emptyState} role="alert">
+        Map unavailable. Check your connection and reload the page to try again.
+      </div>
+    );
+  }
 
   if (orderedStops.length === 0) {
     return (

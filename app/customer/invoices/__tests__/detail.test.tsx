@@ -1,8 +1,12 @@
 import '@testing-library/jest-dom';
-import { render, screen, waitFor } from '@testing-library/react';
+import React from 'react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import InvoiceDetailContent from '../[id]/_InvoiceDetailContent';
+import ToastProvider from '@/app/components/ToastProvider';
 import { getInvoiceDetail } from '@/lib/queries/GetInvoiceDetail';
 import { getCustomerPortalContext } from '@/lib/queries';
+
+const renderWithToast = (ui: React.ReactElement) => render(<ToastProvider>{ui}</ToastProvider>);
 
 const replaceMock = jest.fn();
 const backMock = jest.fn();
@@ -57,7 +61,7 @@ describe('Customer invoice detail', () => {
   });
 
   it('loads invoice detail with the portal context customer ID', async () => {
-    render(<InvoiceDetailContent params={{ id: 'inv-1' }} />);
+    renderWithToast(<InvoiceDetailContent params={{ id: 'inv-1' }} />);
 
     expect(await screen.findByRole('heading', { name: /invoice inv-001/i })).toBeInTheDocument();
 
@@ -69,5 +73,29 @@ describe('Customer invoice detail', () => {
       });
     });
     expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it('shows an inline access message for read-only users instead of redirecting', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'read_only',
+      customerId: 'cust-1',
+    });
+
+    renderWithToast(<InvoiceDetailContent params={{ id: 'inv-1' }} />);
+
+    expect(
+      await screen.findByText(/invoices are available to account owners/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/contact your account owner for access/i)).toBeInTheDocument();
+
+    // Breadcrumbs still render above the access-restricted panel
+    const breadcrumbs = screen.getByRole('navigation', { name: /breadcrumb/i });
+    expect(within(breadcrumbs).getByRole('link', { name: 'Invoices' })).toHaveAttribute(
+      'href',
+      '/customer/invoices'
+    );
+
+    expect(replaceMock).not.toHaveBeenCalled();
+    expect(getInvoiceDetail).not.toHaveBeenCalled();
   });
 });

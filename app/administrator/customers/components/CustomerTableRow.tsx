@@ -9,6 +9,7 @@ interface CustomerTableRowProps {
   isOwnerOpen: boolean;
   onToggleEdit: () => void;
   onToggleOwner: () => void;
+  onDelete: () => void;
   editPanel?: ReactNode;
   ownerPanel?: ReactNode;
 }
@@ -37,6 +38,7 @@ export default function CustomerTableRow({
   isOwnerOpen,
   onToggleEdit,
   onToggleOwner,
+  onDelete,
   editPanel,
   ownerPanel,
 }: CustomerTableRowProps) {
@@ -88,6 +90,13 @@ export default function CustomerTableRow({
                 aria-label={`${isOwnerOpen ? 'Close owner management for' : 'Manage owner for'} customer ${customer.name}`}
               >
                 {isOwnerOpen ? 'Close Owner' : 'Manage Owner'}
+              </button>
+              <button
+                type="button"
+                onClick={onDelete}
+                aria-label={`Delete customer ${customer.name}`}
+              >
+                Delete
               </button>
             </div>
           </td>

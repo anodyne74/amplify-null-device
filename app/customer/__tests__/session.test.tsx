@@ -43,6 +43,10 @@ jest.mock('@/app/components/ThemeModeSelect', () => {
   };
 });
 
+jest.mock('@/app/components/AmplifyThemeProvider', () => ({
+  useThemeMode: () => ({ mode: 'system', resolvedMode: 'dark', setMode: jest.fn() }),
+}));
+
 describe('Customer Session Management Integration', () => {
   let mockPush: jest.Mock;
   let mockSignOut: jest.Mock;

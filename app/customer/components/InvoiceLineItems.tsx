@@ -1,5 +1,6 @@
 'use client';
 
+import { formatInvoiceCurrency } from '@/lib/format';
 import styles from './InvoiceLineItems.module.css';
 
 interface LineItemDisplay {
@@ -21,15 +22,6 @@ interface InvoiceLineItemsProps {
  * Displays itemized charges table for an invoice
  */
 export default function InvoiceLineItems({ lineItems = [], totalAmount }: InvoiceLineItemsProps) {
-  // Format currency
-  const formatCurrency = (amount?: number | null) => {
-    if (amount === null || amount === undefined) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  };
-
   return (
     <div className={styles.container}>
       <h3 className={styles.heading}>
@@ -63,10 +55,10 @@ export default function InvoiceLineItems({ lineItems = [], totalAmount }: Invoic
                 {item.quantity || 0}
               </td>
               <td className={`${styles.td} ${styles.tdRight}`}>
-                {formatCurrency(item.ratePerUnit)}
+                {formatInvoiceCurrency(item.ratePerUnit)}
               </td>
               <td className={`${styles.td} ${styles.tdRight} ${styles.tdAmount}`}>
-                {formatCurrency(item.amount)}
+                {formatInvoiceCurrency(item.amount)}
               </td>
             </tr>
           ))}
@@ -80,7 +72,7 @@ export default function InvoiceLineItems({ lineItems = [], totalAmount }: Invoic
             Total Amount:
           </div>
           <div className={styles.totalsAmount}>
-            {formatCurrency(totalAmount)}
+            {formatInvoiceCurrency(totalAmount)}
           </div>
         </div>
       </div>

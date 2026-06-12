@@ -1,45 +1,94 @@
-.container {
-  padding: var(--nd-space-lg);
-  max-width: 1100px;
-  margin: 0 auto;
+/* Header action: push the create button to the right edge of the section header row. */
+.createRouteLink {
+  margin-left: auto;
+  text-decoration: none;
 }
 
-.pageHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--nd-space-lg);
-}
-
-.heading {
-  margin: 0;
+/* CTA link rendered inside the AsyncState empty state. */
+.emptyStateCta {
   color: var(--nd-operator-accent);
-}
-
-.btnCreateRoute {
-  padding: 10px 20px;
-  background-color: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-  border: none;
-  border-radius: var(--nd-radius-sm);
-  font-size: 14px;
   font-weight: 600;
-  cursor: pointer;
-  transition: opacity var(--nd-transition-fast);
-}
-
-.btnCreateRoute:hover {
-  opacity: 0.9;
-}
-
-.errorBanner {
-  padding: var(--nd-space-md);
-  background-color: var(--nd-status-danger-dim);
-  color: var(--nd-status-danger);
-  border-radius: var(--nd-radius-md);
-  margin-bottom: var(--nd-space-md);
+  text-decoration: none;
   font-size: 14px;
-  border: 1px solid var(--nd-status-danger);
+}
+
+.emptyStateCta:hover {
+  text-decoration: underline;
+}
+
+/* Search + date-range refinements row. Wraps on narrow viewports. */
+.searchFilterRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--nd-space-md);
+  margin-bottom: 16px;
+}
+
+.searchField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 240px;
+  min-width: 180px;
+}
+
+.dateField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 1 170px;
+  min-width: 150px;
+}
+
+.filterFieldLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nd-text-secondary);
+}
+
+.searchInput,
+.dateInput {
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg-surface);
+  color: var(--nd-text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.searchInput:focus-visible,
+.dateInput:focus-visible {
+  outline: 2px solid var(--nd-operator-accent);
+  outline-offset: 2px;
+}
+
+/* Scoped under .searchFilterRow so it wins over the generic
+   `.infoPanel button` styling from dashboard.module.css. */
+.searchFilterRow .clearFiltersBtn {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: transparent;
+  color: var(--nd-text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: border-color var(--nd-transition-fast), color var(--nd-transition-fast);
+}
+
+.searchFilterRow .clearFiltersBtn:hover {
+  border-color: var(--nd-border-strong);
+  color: var(--nd-text-primary);
+}
+
+.resultCount {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--nd-text-secondary);
 }
 
 .filterRow {
@@ -53,7 +102,10 @@
   color: var(--nd-text-primary);
 }
 
-.filterBtn {
+/* Selectors are scoped under .filterRow so they win over the generic
+   `.infoPanel button` styling from dashboard.module.css. */
+.filterRow .filterBtn {
+  min-height: 0;
   margin-right: var(--nd-space-sm);
   padding: 6px 14px;
   border-radius: var(--nd-radius-sm);
@@ -62,22 +114,23 @@
   color: var(--nd-text-secondary);
   cursor: pointer;
   font-size: 13px;
+  font-weight: 400;
   transition: border-color var(--nd-transition-fast), color var(--nd-transition-fast);
 }
 
-.filterBtn:hover {
+.filterRow .filterBtn:hover {
   border-color: var(--nd-border-strong);
   color: var(--nd-text-primary);
 }
 
-.filterBtnActive {
+.filterRow .filterBtnActive {
   background-color: var(--nd-operator-accent);
   color: var(--nd-text-inverse);
   border-color: var(--nd-operator-accent);
   font-weight: 600;
 }
 
-.filterBtnActive:hover {
+.filterRow .filterBtnActive:hover {
   border-color: var(--nd-operator-accent);
   color: var(--nd-text-inverse);
   opacity: 0.9;

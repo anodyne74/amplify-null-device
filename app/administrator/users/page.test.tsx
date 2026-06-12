@@ -106,4 +106,36 @@ describe('UsersAdminPage customer access actions', () => {
     const removeButton = screen.getByRole('button', { name: 'Remove Read User from customer access' });
     expect(removeButton).toHaveClass('adminBtnDanger');
   });
+
+  it('requires confirmation before removing a customer user', async () => {
+    render(<UsersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Read User')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /more customer access actions for read user/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Read User from customer access' }));
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Remove customer access?' });
+    expect(dialog).toHaveTextContent('Remove Read User from customer access?');
+    expect(mockDeleteCustomerUser).not.toHaveBeenCalled();
+
+    // Cancelling closes the dialog without removing.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(mockDeleteCustomerUser).not.toHaveBeenCalled();
+
+    // Confirming performs the removal (row menu remains open after cancel).
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Read User from customer access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove User' }));
+
+    await waitFor(() => {
+      expect(mockDeleteCustomerUser).toHaveBeenCalledWith('cu-1');
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    });
+    expect(mockSyncViewerSubsForCustomer).toHaveBeenCalledWith('cust-1', []);
+  });
 });

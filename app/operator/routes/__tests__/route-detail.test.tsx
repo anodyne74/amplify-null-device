@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import RouteDetailPage from '../detail/page';
 import * as getRouteDetailModule from '@/lib/queries/GetRouteDetail';
 import * as deleteStopModule from '@/lib/queries/DeleteStop';
@@ -36,6 +36,13 @@ jest.mock('@/lib/amplify-config', () => ({
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+// Mock toast hook (provider lives in the root layout, not in this tree)
+jest.mock('@/app/components/ToastProvider', () => ({
+  __esModule: true,
+  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useToast: () => ({ showToast: jest.fn() }),
 }));
 
 // Mock query modules
@@ -245,14 +252,17 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByRole('button', { name: /start route/i })).toBeInTheDocument();
   });
 
-  it('shows back link to routes list', async () => {
+  it('shows breadcrumb navigation back to the routes list', async () => {
     render(<RouteDetailPage />);
 
     await waitFor(() => {
       expect(screen.queryByText(/loading route/i)).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText(/← back to routes/i)).toBeInTheDocument();
+    const breadcrumbs = screen.getByRole('navigation', { name: /breadcrumb/i });
+    const routesLink = within(breadcrumbs).getByRole('link', { name: 'Routes' });
+    expect(routesLink).toHaveAttribute('href', '/operator/routes');
+    expect(within(breadcrumbs).getByText(/route w19-26-001/i)).toHaveAttribute('aria-current', 'page');
   });
 
   it('shows "Signs Placed" action label for active placement stops', async () => {

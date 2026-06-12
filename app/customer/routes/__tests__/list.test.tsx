@@ -49,6 +49,14 @@ jest.mock('@/app/auth/session', () => ({
   getCurrentCustomerId: (_user: any) => 'viewer-sub-1',
 }));
 
+// Render children directly: the real ProtectedRoute fetches user groups
+// asynchronously, which races the page assertions below.
+jest.mock('@/app/components/ProtectedRoute', () => {
+  return function MockProtectedRoute({ children }: { children: React.ReactNode }) {
+    return <>{children}</>;
+  };
+});
+
 describe('Customer Routes List Page', () => {
   const mockRoutes: Route[] = [
     {

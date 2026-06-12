@@ -2,15 +2,6 @@
   padding: 20px;
 }
 
-.backLink {
-  color: var(--nd-customer-accent);
-  text-decoration: none;
-}
-
-.backLink:hover {
-  text-decoration: underline;
-}
-
 .errorBanner {
   padding: var(--nd-space-md);
   background-color: var(--nd-status-danger-dim);
@@ -128,5 +119,29 @@
 @media (max-width: 820px) {
   .trackerPanel {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .detailsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .detailsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .nextStopPanel {
+    padding: var(--nd-space-md);
+  }
+
+  .nextStopTitle {
+    font-size: 1.1rem;
+  }
+
+  .detailValue {
+    font-size: 16px;
   }
 }

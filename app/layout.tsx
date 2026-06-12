@@ -6,6 +6,7 @@ import ErrorBoundary from '@/app/components/ErrorBoundary';
 import AmplifyBootstrap from '@/app/components/AmplifyBootstrap';
 import AmplifyAuthProvider from '@/app/components/AmplifyAuthProvider';
 import AmplifyThemeProvider from '@/app/components/AmplifyThemeProvider';
+import ToastProvider from '@/app/components/ToastProvider';
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
@@ -34,7 +35,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AmplifyBootstrap>
             <AmplifyThemeProvider>
               <AmplifyAuthProvider>
-                {children}
+                <ToastProvider>
+                  {children}
+                </ToastProvider>
               </AmplifyAuthProvider>
             </AmplifyThemeProvider>
           </AmplifyBootstrap>

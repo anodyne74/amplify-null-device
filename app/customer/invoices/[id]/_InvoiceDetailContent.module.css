@@ -50,6 +50,26 @@
   opacity: 0.9;
 }
 
+.accessPanel {
+  padding: var(--nd-space-lg);
+  background-color: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-lg);
+}
+
+.accessPanelTitle {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--nd-text-primary);
+}
+
+.accessPanelText {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--nd-text-secondary);
+}
+
 .pageHeader {
   margin-bottom: var(--nd-space-lg);
   display: flex;

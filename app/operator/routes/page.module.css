@@ -251,9 +251,19 @@
   background-color: transparent;
 }
 
+/* Large tablets / small laptops: drop the fixed column widths so the six
+   cells share the row evenly instead of overflowing. */
+@media (max-width: 1180px) {
+  .routeRow {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+/* Tablets: two scannable rows of three cells per route. */
 @media (max-width: 1024px) {
   .routeRow {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: var(--nd-space-md);
   }
 
   .cellRight {
@@ -278,14 +288,42 @@
   }
 }
 
+/* Phones: collapse each route into a labeled card — every cell becomes a
+   "label · value" line so values keep their context, with the actions row
+   separated at the bottom of the card. */
 @media (max-width: 640px) {
   .routeRow {
     grid-template-columns: 1fr;
+    gap: 8px;
+    border-left: 3px solid var(--nd-operator-accent);
   }
 
-  .cellRight {
-    align-items: flex-start;
+  .routeRow > div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
+  }
+
+  .cellLabel {
+    margin-bottom: 0;
+  }
+
+  .notesPreview {
+    flex-basis: 100%;
+    margin-top: 0;
+    white-space: normal;
+  }
+
+  .routeRow > .cellRight {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
     text-align: left;
+    border-top: 1px solid var(--nd-border-subtle);
+    padding-top: 8px;
   }
 }
 

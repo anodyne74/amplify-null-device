@@ -1,0 +1,23 @@
+.errorState,
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nd-space-sm);
+  padding: var(--nd-space-xl) var(--nd-space-md);
+  text-align: center;
+}
+
+.errorMessage {
+  margin: 0;
+  color: var(--nd-status-danger);
+}
+
+.emptyMessage {
+  margin: 0;
+  color: var(--nd-text-secondary);
+}
+
+.retryButton {
+  background: var(--nd-bg-elevated);
+}

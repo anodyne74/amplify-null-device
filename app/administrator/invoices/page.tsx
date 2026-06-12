@@ -174,10 +174,17 @@ export default function InvoicesAdminPage() {
     updateInvoiceInState(invoiceId, { routeId: newRouteId || null });
   };
 
-  const handleMarkPaid = async (invoiceId: string) => {
+  // Shared per-invoice mark-paid mutation (single row + bulk action).
+  const markInvoicePaid = async (invoiceId: string): Promise<boolean> => {
     const result = await updateInvoice(invoiceId, { status: 'paid' });
-    if (result.errors && result.errors.length > 0) { setError('Failed to update status.'); return; }
+    if (result.errors && result.errors.length > 0) return false;
     updateInvoiceInState(invoiceId, { status: 'paid' });
+    return true;
+  };
+
+  const handleMarkPaid = async (invoiceId: string) => {
+    const ok = await markInvoicePaid(invoiceId);
+    if (!ok) setError('Failed to update status.');
   };
 
   // Customer name lookup
@@ -265,6 +272,7 @@ export default function InvoicesAdminPage() {
           onMarkPaid={(invoiceId) => {
             void handleMarkPaid(invoiceId);
           }}
+          onBulkMarkPaidInvoice={markInvoicePaid}
           onEmailInvoiceToPrimary={(invoice) => {
             void handleEmailInvoiceToPrimary(invoice);
           }}

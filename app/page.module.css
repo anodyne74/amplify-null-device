@@ -61,6 +61,20 @@
   transform: translateY(-1px);
 }
 
+.roleButtonTitle {
+  display: block;
+}
+
+.roleButtonDescription {
+  display: block;
+  margin-top: var(--nd-space-xs);
+  font-family: var(--nd-font-body);
+  font-size: 0.8rem;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--nd-text-secondary);
+}
+
 /* Login Page Styles */
 .loginPage {
   display: flex;

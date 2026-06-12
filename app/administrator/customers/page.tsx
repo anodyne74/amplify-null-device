@@ -1,9 +1,12 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import AdminActionButton from '@/app/components/AdminActionButton';
 import AdminFeedbackBanner from '@/app/components/AdminFeedbackBanner';
+import ConfirmDialog from '@/app/components/ConfirmDialog';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import AdminDataTable from '@/app/components/AdminDataTable';
+import AdminDataTable, { AdminSortableHeader, useAdminTableSort } from '@/app/components/AdminDataTable';
+import AdminPagination, { ADMIN_PAGE_SIZE, getPageSlice } from '@/app/components/AdminPagination';
 import AdminListState from '@/app/components/AdminListState';
 import AdminSectionHeader from '@/app/components/AdminSectionHeader';
 import type { ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
@@ -19,11 +22,13 @@ import { geocodeAddress } from '@/lib/googleMaps';
 import {
   createCustomer,
   createCustomerUser,
+  deleteCustomer,
   listCustomerUsers,
   listCustomers,
   syncViewerSubsForCustomer,
   updateCustomer,
 } from '@/lib/queries';
+import { useToast } from '@/app/components/ToastProvider';
 import styles from '@/app/dashboard.module.css';
 
 const usdFormatter = new Intl.NumberFormat('en-US', {
@@ -46,11 +51,36 @@ function formatCurrency(value: string): string {
 }
 
 export default function CustomersAdminPage() {
+  const { showToast } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Sorting + pagination for the customer list
+  const { sortBy, sortDirection, toggleSort } = useAdminTableSort<'name' | 'status'>();
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [sortBy, sortDirection]);
+
+  const sortedCustomers = useMemo(() => {
+    if (!sortBy) return customers;
+    const value = (customer: Customer) =>
+      sortBy === 'name' ? customer.name ?? '' : customer.status ?? 'active';
+    const sorted = [...customers].sort((a, b) =>
+      value(a).localeCompare(value(b), undefined, { numeric: true, sensitivity: 'base' })
+    );
+    if (sortDirection === 'desc') sorted.reverse();
+    return sorted;
+  }, [customers, sortBy, sortDirection]);
+
+  const { currentPage, pageRows: pageCustomers } = getPageSlice(sortedCustomers, page, ADMIN_PAGE_SIZE);
 
   // Create customer form state
   const [name, setName] = useState('');
@@ -122,14 +152,14 @@ export default function CustomersAdminPage() {
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     const allCustomers: Customer[] = [];
     let nextToken: string | undefined;
 
     do {
       const result = await listCustomers({ limit: 100, nextToken });
       if (result.errors && result.errors.length > 0) {
-        setError('Failed to load customers.');
+        setLoadError('Failed to load customers.');
         setCustomers([]);
         setLoading(false);
         return;
@@ -315,10 +345,6 @@ export default function CustomersAdminPage() {
           )
         );
         setEditSuccess('Customer updated.');
-        // Close the edit panel after successful save
-        setTimeout(() => {
-          closeEditPanel();
-        }, 500);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Address could not be validated.';
@@ -326,6 +352,24 @@ export default function CustomersAdminPage() {
     }
 
     setEditSaving(false);
+  };
+
+  const handleDeleteCustomer = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+
+    const result = await deleteCustomer(deleteTarget.id);
+    if (result.errors && result.errors.length > 0) {
+      showToast(`Failed to delete customer ${deleteTarget.name}.`, 'error');
+    } else {
+      if (expandedEditPanel === deleteTarget.id) closeEditPanel();
+      if (expandedOwnerPanel === deleteTarget.id) closeOwnerPanel();
+      showToast(`Customer ${deleteTarget.name} deleted.`, 'success');
+      await fetchCustomers();
+    }
+
+    setDeleting(false);
+    setDeleteTarget(null);
   };
 
   const handleAssignOwner = async (customerId: string) => {
@@ -374,6 +418,21 @@ export default function CustomersAdminPage() {
       <div className={styles.page}>
         <h1 className={styles.heading}>Customers</h1>
 
+        <ConfirmDialog
+          open={deleteTarget !== null}
+          title="Delete customer?"
+          message={`Delete customer ${deleteTarget?.name ?? ''}? This permanently removes the customer record and cannot be undone.`}
+          confirmLabel="Delete Customer"
+          tone="danger"
+          busy={deleting}
+          onConfirm={() => {
+            void handleDeleteCustomer();
+          }}
+          onCancel={() => {
+            if (!deleting) setDeleteTarget(null);
+          }}
+        />
+
         <CustomerCreateForm
           showCreateForm={showCreateForm}
           saving={saving}
@@ -416,7 +475,26 @@ export default function CustomersAdminPage() {
 
         <div className={styles.infoPanel}>
           <AdminSectionHeader title="Customer List" />
-          {loading || customers.length === 0 ? (
+          {!loading && loadError ? (
+            <>
+              <AdminFeedbackBanner
+                message={loadError}
+                tone="error"
+                messageClassName={styles.inlineErrorText}
+              />
+              <div className={styles.actionsRow}>
+                <AdminActionButton
+                  onClick={() => {
+                    void fetchCustomers();
+                  }}
+                  variant="secondary"
+                  aria-label="Retry loading customers"
+                >
+                  Retry
+                </AdminActionButton>
+              </div>
+            </>
+          ) : loading || customers.length === 0 ? (
             <AdminListState
               loading={loading}
               empty={!loading && customers.length === 0}
@@ -430,16 +508,28 @@ export default function CustomersAdminPage() {
             >
               <thead>
                 <tr>
-                  <th scope="col">Name</th>
+                  <AdminSortableHeader
+                    label="Name"
+                    sortKey="name"
+                    sortBy={sortBy}
+                    sortDirection={sortDirection}
+                    onSort={toggleSort}
+                  />
                   <th scope="col">Company Name</th>
                   <th scope="col">Correspondence Email</th>
                   <th scope="col">Rate/hr</th>
-                  <th scope="col">Status</th>
+                  <AdminSortableHeader
+                    label="Status"
+                    sortKey="status"
+                    sortBy={sortBy}
+                    sortDirection={sortDirection}
+                    onSort={toggleSort}
+                  />
                   <th scope="col">Manage</th>
                 </tr>
               </thead>
               <tbody>
-                {customers.map((customer) => (
+                {pageCustomers.map((customer) => (
                   <CustomerTableRow
                     key={customer.id}
                     customer={customer}
@@ -450,6 +540,7 @@ export default function CustomersAdminPage() {
                     onToggleOwner={() => {
                       void toggleOwnerPanel(customer.id);
                     }}
+                    onDelete={() => setDeleteTarget(customer)}
                     editPanel={(
                       <CustomerEditPanel
                         customer={customer}
@@ -514,6 +605,14 @@ export default function CustomersAdminPage() {
                 ))}
               </tbody>
             </AdminDataTable>
+          )}
+          {!loading && !loadError && customers.length > 0 && (
+            <AdminPagination
+              page={currentPage}
+              totalItems={sortedCustomers.length}
+              onPageChange={setPage}
+              itemsLabel="customers"
+            />
           )}
         </div>
       </div>

@@ -10,6 +10,10 @@ jest.mock('@/lib/amplify-config', () => ({
   getUserDisplayName: jest.fn(() => 'test@example.com'),
 }));
 
+jest.mock('@/app/components/AmplifyThemeProvider', () => ({
+  useThemeMode: () => ({ mode: 'system', resolvedMode: 'dark', setMode: jest.fn() }),
+}));
+
 jest.mock('@/app/components/OperatorRoute', () => {
   return function MockOperatorRoute({ children }: { children: React.ReactNode }) {
     return <>{children}</>;

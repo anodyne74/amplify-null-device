@@ -62,7 +62,10 @@ export function StopForm({
   const [isAuction, setIsAuction] = useState(Boolean(initialValues?.isAuction));
   const [resolvedAddress, setResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [notes, setNotes] = useState(initialValues?.notes || '');
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    address?: string;
+    numberOfSigns?: string;
+  }>({});
   const agentOptions = Array.from(
     new Set(
       [
@@ -75,23 +78,30 @@ export function StopForm({
     )
   );
 
+  const validateAddress = (value: string) =>
+    value.trim() ? undefined : 'Address is required.';
+
+  const validateNumberOfSigns = (value: string) => {
+    if (!value.trim()) return undefined;
+    const parsed = parseInt(value, 10);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      return 'Number of signs must be 0 or greater.';
+    }
+    return undefined;
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    setValidationError(null);
 
-    if (!address.trim()) {
-      setValidationError('Address is required.');
+    // Submit-time validation remains the final gate even with blur validation.
+    const addressError = validateAddress(address);
+    const numberOfSignsError = validateNumberOfSigns(numberOfSigns);
+    setFieldErrors({ address: addressError, numberOfSigns: numberOfSignsError });
+    if (addressError || numberOfSignsError) {
       return;
     }
 
-    let parsedSigns: number | undefined;
-    if (numberOfSigns.trim()) {
-      parsedSigns = parseInt(numberOfSigns, 10);
-      if (Number.isNaN(parsedSigns) || parsedSigns < 0) {
-        setValidationError('Number of signs must be 0 or greater.');
-        return;
-      }
-    }
+    const parsedSigns = numberOfSigns.trim() ? parseInt(numberOfSigns, 10) : undefined;
 
     await onSubmit({
       address: address.trim(),
@@ -108,9 +118,9 @@ export function StopForm({
 
   return (
     <div>
-      {(validationError || error) && (
+      {error && (
         <div className={styles.errorBanner}>
-          {validationError || error}
+          {error}
         </div>
       )}
 
@@ -121,17 +131,34 @@ export function StopForm({
         <AddressAutocompleteInput
           id="address"
           value={address}
-          onChange={(val) => setAddress(val)}
+          onChange={(val) => {
+            setAddress(val);
+            // Re-validate live once the field has been flagged, so the error
+            // clears as soon as the input becomes valid.
+            setFieldErrors((prev) =>
+              prev.address ? { ...prev, address: validateAddress(val) } : prev
+            );
+          }}
           onResolved={(resolved) => {
             setResolvedAddress(resolved);
             if (resolved) setAddress(resolved.formattedAddress);
           }}
+          onBlur={() =>
+            setFieldErrors((prev) => ({ ...prev, address: validateAddress(address) }))
+          }
           searchOrigin={addressSearchOrigin}
           searchRadiusMeters={addressSearchRadiusMeters}
           className={styles.input}
           disabled={isSubmitting}
           placeholder="Start typing an address…"
+          ariaDescribedBy={fieldErrors.address ? 'address-error' : undefined}
+          ariaInvalid={Boolean(fieldErrors.address)}
         />
+        {fieldErrors.address && (
+          <p id="address-error" className={styles.fieldError} role="alert">
+            {fieldErrors.address}
+          </p>
+        )}
       </div>
 
       {standingInstructions && (
@@ -167,11 +194,31 @@ export function StopForm({
           type="number"
           min={0}
           value={numberOfSigns}
-          onChange={(e) => setNumberOfSigns(e.target.value)}
+          onChange={(e) => {
+            setNumberOfSigns(e.target.value);
+            setFieldErrors((prev) =>
+              prev.numberOfSigns
+                ? { ...prev, numberOfSigns: validateNumberOfSigns(e.target.value) }
+                : prev
+            );
+          }}
+          onBlur={() =>
+            setFieldErrors((prev) => ({
+              ...prev,
+              numberOfSigns: validateNumberOfSigns(numberOfSigns),
+            }))
+          }
           className={styles.input}
           disabled={isSubmitting}
           placeholder="e.g. 4"
+          aria-describedby={fieldErrors.numberOfSigns ? 'numberOfSigns-error' : undefined}
+          aria-invalid={fieldErrors.numberOfSigns ? true : undefined}
         />
+        {fieldErrors.numberOfSigns && (
+          <p id="numberOfSigns-error" className={styles.fieldError} role="alert">
+            {fieldErrors.numberOfSigns}
+          </p>
+        )}
       </div>
 
       <div className={styles.field}>

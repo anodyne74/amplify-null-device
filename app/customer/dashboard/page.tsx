@@ -338,26 +338,6 @@ export default function CustomerDashboard() {
       {!isAccountOwner && (
         <div className={styles.infoPanel}>
           <h3>Route Tracker</h3>
-          <div className={styles.statsGrid}>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Route Status</p>
-              <p className={`${styles.statValue} ${styles.cyan}`}>{statsLoading ? '…' : activeRoutes}</p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Stops</p>
-              <p className={`${styles.statValue} ${styles.green}`}>{statsLoading ? '…' : totalStops}</p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Signs</p>
-              <p className={`${styles.statValue} ${styles.amber}`}>{statsLoading ? '…' : totalSigns}</p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Distance</p>
-              <p className={`${styles.statValue} ${styles.cyan}`}>
-                {statsLoading ? '…' : `${totalDistance.toFixed(1)} km`}
-              </p>
-            </div>
-          </div>
           {trackerRoutes.length === 0 ? (
             <p className={styles.welcome}>No routes are available for review.</p>
           ) : (

@@ -5,6 +5,7 @@ import { useAuthenticator } from '@aws-amplify/ui-react';
 import { faHome, faRoad, faFileInvoice, faGear } from '@fortawesome/free-solid-svg-icons';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import PortalLayout from '@/app/components/PortalLayout';
+import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { getUserDisplayName } from '@/lib/amplify-config';
 import { getCustomerPortalContext, getUserSettings } from '@/lib/queries';
 import { useSessionTimeout, useLogout } from '@/app/auth/sessionManager';
@@ -27,19 +28,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const [userDisplayName, setUserDisplayName] = useState(fallbackDisplayName);
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
   const { logout } = useLogout();
-
-  const applyThemeMode = (theme: 'system' | 'light' | 'dark') => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem('nd-theme-mode', theme);
-    const resolved =
-      theme === 'system'
-        ? window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
-          ? 'light'
-          : 'dark'
-        : theme;
-    document.documentElement.setAttribute('data-theme', resolved);
-    document.documentElement.style.colorScheme = resolved;
-  };
+  const { setMode: applyThemeMode } = useThemeMode();
 
   useSessionTimeout();
 
@@ -70,7 +59,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     return () => {
       cancelled = true;
     };
-  }, [fallbackDisplayName, user?.userId]);
+  }, [applyThemeMode, fallbackDisplayName, user?.userId]);
 
   useEffect(() => {
     if (!user?.userId) return;

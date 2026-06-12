@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RoutesPage from '../page';
 import * as listAllRoutesModule from '@/lib/queries/ListAllRoutes';
 import * as listAllCustomersModule from '@/lib/queries/ListAllCustomers';
@@ -135,6 +135,73 @@ describe('Operator Routes List Page', () => {
     await waitFor(() => {
       expect(screen.getByText(/failed to load routes/i)).toBeInTheDocument();
     });
+  });
+
+  it('shows a Retry button on fetch error and refetches when clicked', async () => {
+    (listAllRoutesModule.listAllRoutes as jest.Mock)
+      .mockResolvedValueOnce({
+        data: [],
+        errors: [{ message: 'Network error' }],
+      })
+      .mockResolvedValueOnce({
+        data: mockRoutes,
+        errors: undefined,
+      });
+
+    render(<RoutesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/failed to load routes/i)).toBeInTheDocument();
+    });
+
+    const retryButton = screen.getByRole('button', { name: /retry/i });
+    expect(retryButton).toBeInTheDocument();
+
+    fireEvent.click(retryButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('W19-26-001')).toBeInTheDocument();
+    });
+
+    expect(listAllRoutesModule.listAllRoutes).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/failed to load routes/i)).not.toBeInTheDocument();
+  });
+
+  it('shows a create CTA in the empty state linking to the new route page', async () => {
+    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
+      data: [],
+      errors: undefined,
+    });
+
+    render(<RoutesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/no routes found/i)).toBeInTheDocument();
+    });
+
+    const cta = screen.getByRole('link', { name: /create your first route/i });
+    expect(cta).toHaveAttribute('href', '/administrator/routes/new');
+  });
+
+  it('keeps the status filter visible when a filtered status has no routes', async () => {
+    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
+      data: mockRoutes,
+      errors: undefined,
+    });
+
+    render(<RoutesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('W19-26-001')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^archived$/i }));
+
+    expect(screen.getByText(/no routes found/i)).toBeInTheDocument();
+    // The filter row stays so the user can switch back.
+    expect(screen.getByRole('button', { name: /^all$/i })).toBeInTheDocument();
+    // The full-page empty CTA is reserved for a truly empty route list.
+    expect(screen.queryByRole('link', { name: /create your first route/i })).not.toBeInTheDocument();
   });
 
   it('uses the admin-only guard on the routes page', () => {

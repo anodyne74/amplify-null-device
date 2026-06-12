@@ -65,8 +65,8 @@ describe('getCustomerRouteRedirect', () => {
     expect(getCustomerRouteRedirect(flags(['administrator']))).toBe('/administrator');
   });
 
-  it('prefers operator over administrator for non-customer dual-role users', () => {
-    expect(getCustomerRouteRedirect(flags(['administrator', 'operator']))).toBe('/operator/dashboard');
+  it('prefers administrator over operator for non-customer dual-role users', () => {
+    expect(getCustomerRouteRedirect(flags(['administrator', 'operator']))).toBe('/administrator');
   });
 
   it('sends users with no groups to pending approval', () => {

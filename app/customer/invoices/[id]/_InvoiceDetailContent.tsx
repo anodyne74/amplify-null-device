@@ -8,6 +8,7 @@ import { getCustomerPortalContext } from '@/lib/queries';
 import InvoiceLineItems from '@/app/customer/components/InvoiceLineItems';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { useToast } from '@/app/components/ToastProvider';
+import { getInvoiceStatusTone, type InvoiceStatusTone } from '@/lib/invoiceStatusHelpers';
 import styles from './_InvoiceDetailContent.module.css';
 
 interface InvoiceDetailContentProps {
@@ -167,7 +168,13 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
     );
   }
 
-  const statusClass = { paid: styles.statusPaid, overdue: styles.statusOverdue, pending: styles.statusPending }[invoice.status ?? 'pending'] ?? styles.statusPending;
+  const toneClasses: Record<InvoiceStatusTone, string> = {
+    success: styles.statusPaid,
+    danger: styles.statusOverdue,
+    warning: styles.statusPending,
+    neutral: styles.statusPending,
+  };
+  const statusClass = toneClasses[getInvoiceStatusTone(invoice.status)];
 
   return (
     <div className={styles.container}>

@@ -10,6 +10,7 @@ import RouteTimeline from '@/app/customer/components/RouteTimeline';
 import StopListItem from '@/app/customer/components/StopListItem';
 import { RouteStopsMap } from '@/app/operator/components/RouteStopsMap';
 import type { Route, Stop } from '@/amplify/types';
+import { formatDurationHoursMinutes } from '@/lib/format';
 import styles from './_RouteDetailContent.module.css';
 
 interface RouteDetailContentProps {
@@ -108,13 +109,6 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
     });
   };
 
-  const formatDuration = (minutes?: number | null): string => {
-    if (!minutes) return 'N/A';
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
-  };
-
   const routeLabel = route.routeCode || `${route.id.slice(0, 8)}...`;
   const nextStop = stops.find((stop) => !stop.actualDepartureTime) ?? stops[0] ?? null;
   const nextStopIndex = nextStop ? stops.findIndex((stop) => stop.id === nextStop.id) : -1;
@@ -178,7 +172,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
               Estimated Duration
             </p>
             <p className={styles.detailValue}>
-              {formatDuration(route.estimatedDurationMinutes as number | undefined)}
+              {formatDurationHoursMinutes(route.estimatedDurationMinutes as number | undefined)}
             </p>
           </div>
 
@@ -188,7 +182,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
                 Actual Duration
               </p>
               <p className={styles.detailValue}>
-                {formatDuration(route.actualDurationMinutes as number | undefined)}
+                {formatDurationHoursMinutes(route.actualDurationMinutes as number | undefined)}
               </p>
             </div>
           )}

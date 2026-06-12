@@ -20,6 +20,12 @@ export const CUSTOMER_PORTAL_INVOICE_PDF_THEME = {
     large: 18,
     xlarge: 22,
   },
+  layout: {
+    headerHeight: 92,
+    companyDetailsTop: 112,
+    companyDetailsHeight: 74,
+    companyDetailsMaxWidth: 484,
+  },
 };
 
 export function buildInvoicePdfConfig() {
@@ -31,5 +37,6 @@ export function buildInvoicePdfConfig() {
       tableHead: CUSTOMER_PORTAL_INVOICE_PDF_THEME.colors.accent,
     },
     fonts: CUSTOMER_PORTAL_INVOICE_PDF_THEME.fonts,
+    layout: CUSTOMER_PORTAL_INVOICE_PDF_THEME.layout,
   };
 }

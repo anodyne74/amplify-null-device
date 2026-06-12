@@ -10,6 +10,7 @@ import { getCustomerPortalContext } from '@/lib/queries';
 // Mock the router
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
+  usePathname: jest.fn(() => '/customer/dashboard'),
 }));
 
 // Mock the authenticator

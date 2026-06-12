@@ -21,6 +21,43 @@
   padding: 16px;
 }
 
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--nd-border-subtle);
+  overflow-x: auto;
+}
+
+.tabButton {
+  appearance: none;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--nd-text-secondary);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tabButton:hover {
+  color: var(--nd-text-primary);
+}
+
+.tabButton:focus-visible {
+  outline: 2px solid var(--nd-customer-accent);
+  outline-offset: 2px;
+}
+
+.tabButtonActive {
+  color: var(--nd-operator-accent);
+  border-bottom-color: var(--nd-operator-accent);
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -79,4 +116,52 @@
 .message {
   margin: 0;
   font-size: 0.9rem;
+}
+
+.readOnlyGrid {
+  display: grid;
+  gap: 14px;
+}
+
+.readOnlySection {
+  padding: 14px;
+  border: 1px solid var(--nd-border-subtle);
+  border-radius: 8px;
+  background: var(--nd-bg-surface);
+}
+
+.readOnlySection h2 {
+  margin: 0 0 10px;
+  color: var(--nd-text-primary);
+  font-size: 0.95rem;
+}
+
+.readOnlySection p {
+  margin: 0;
+  color: var(--nd-text-secondary);
+  line-height: 1.5;
+}
+
+.detailList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.detailList div {
+  display: grid;
+  gap: 2px;
+}
+
+.detailList dt {
+  color: var(--nd-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.detailList dd {
+  margin: 0;
+  color: var(--nd-text-primary);
+  overflow-wrap: anywhere;
 }

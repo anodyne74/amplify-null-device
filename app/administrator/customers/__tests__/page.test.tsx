@@ -130,10 +130,12 @@ describe('Operator Customers Page', () => {
     expect(customerRow).not.toBeNull();
     const rowScope = within(customerRow as HTMLElement);
 
+    expect(rowScope.getByText('Active')).toBeInTheDocument();
+    expect(rowScope.queryByRole('combobox', { name: /status for customer acme corp/i })).not.toBeInTheDocument();
     expect(rowScope.queryByRole('button', { name: /edit customer acme corp/i })).not.toBeInTheDocument();
 
     fireEvent.click(rowScope.getByRole('button', { name: /more customer actions for acme corp/i }));
-    fireEvent.click(rowScope.getByRole('button', { name: /edit customer acme corp/i }));
+    fireEvent.click(screen.getByRole('button', { name: /edit customer acme corp/i }));
 
     const editPanelHeading = await screen.findByText(/edit customer/i);
     const editPanel = editPanelHeading.closest('div');

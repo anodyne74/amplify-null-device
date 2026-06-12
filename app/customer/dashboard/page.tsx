@@ -6,7 +6,7 @@ import { useAuthenticator } from '@aws-amplify/ui-react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import type { Customer, Stop, Route } from '@/amplify/types';
-import { getUserDisplayName, getUserEmail } from '@/lib/amplify-config';
+import { getUserDisplayName } from '@/lib/amplify-config';
 import { parseAgentOptionsInput, stringifyAgentOptions } from '@/lib/customerDefaults';
 import { getCustomer, getCustomerPortalContext, getUserSettings, updateCustomer } from '@/lib/queries';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
@@ -29,8 +29,7 @@ type CustomerInvoice = {
  */
 export default function CustomerDashboard() {
   const { user } = useAuthenticator();
-  const userEmail = user ? getUserEmail(user) : '';
-  const fallbackDisplayName = user ? getUserDisplayName(user) ?? getUserEmail(user) ?? '' : '';
+  const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
   const [displayName, setDisplayName] = useState(fallbackDisplayName);
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -308,7 +307,7 @@ export default function CustomerDashboard() {
       <div>
         <h1 className={styles.heading}>Customer Portal</h1>
         <p className={styles.welcome}>
-          Welcome, {displayName || userEmail} · {isAccountOwner ? 'Owner' : 'Reviewer'}
+          Welcome,{displayName ? ` ${displayName}` : ''} · {isAccountOwner ? 'Owner' : 'Reviewer'}
         </p>
       </div>
 

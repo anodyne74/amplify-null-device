@@ -1550,7 +1550,7 @@ function RouteDetailContent() {
 
 export default function RouteDetailPage() {
   return (
-    <OperatorRoute>
+    <OperatorRoute requireAdmin>
       <Suspense fallback={<LoadingSpinner message="Loading route..." />}>
         <RouteDetailContent />
       </Suspense>

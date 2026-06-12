@@ -64,6 +64,16 @@ export default function PortalLayout({
     }
   }
 
+  function isNavItemActive(href: string) {
+    if (!pathname) return false;
+    if (pathname === href) return true;
+
+    const segmentCount = href.split('/').filter(Boolean).length;
+    if (segmentCount <= 1) return false;
+
+    return pathname.startsWith(`${href}/`);
+  }
+
   return (
     <div className={styles.layout} data-role={roleName}>
       {/* Mobile menu toggle */}
@@ -103,7 +113,7 @@ export default function PortalLayout({
         <nav className={styles.nav}>
           <ul className={styles.navList}>
             {navItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const isActive = isNavItemActive(item.href);
 
               return (
                 <li key={item.href}>

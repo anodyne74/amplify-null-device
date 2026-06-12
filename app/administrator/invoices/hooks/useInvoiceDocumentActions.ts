@@ -375,10 +375,10 @@ export function useInvoiceDocumentActions({
       };
 
       doc.setFillColor(...config.colors.header);
-      doc.rect(0, 0, 595, 112, 'F');
+      doc.rect(0, 0, 595, config.layout.headerHeight, 'F');
 
       if (logoDataUrl) {
-        doc.addImage(logoDataUrl, 'PNG', 28, 0, 280, 128);
+        doc.addImage(logoDataUrl, 'PNG', 28, 0, 220, 96);
       }
 
       doc.setTextColor(...config.colors.headerText);
@@ -386,14 +386,32 @@ export function useInvoiceDocumentActions({
       doc.setFontSize(config.fonts.xlarge);
       doc.text('INVOICE', 540, 52, { align: 'right' });
 
-      doc.setFontSize(config.fonts.small);
-      doc.setFont('helvetica', 'normal');
-      doc.text(pdfCompanyName, 540, 72, { align: 'right' });
-      doc.text(pdfCompanyAbn, 540, 86, { align: 'right' });
-      doc.text(pdfCompanyPhone, 540, 100, { align: 'right' });
-      doc.text(pdfCompanyAddress, 540, 114, { align: 'right' });
+      y = config.layout.companyDetailsTop;
+      doc.setTextColor(...config.colors.text);
+      doc.setFillColor(...config.colors.secondary);
+      doc.roundedRect(
+        config.margins.left,
+        y,
+        config.layout.companyDetailsMaxWidth,
+        config.layout.companyDetailsHeight,
+        6,
+        6,
+        'F'
+      );
 
-      y = 150;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(config.fonts.small);
+      doc.text('From', config.margins.left + 12, y + 18);
+      doc.text(pdfCompanyName, config.margins.left + 12, y + 34);
+
+      doc.setFont('helvetica', 'normal');
+      const companyDetailLines = doc.splitTextToSize(
+        `${pdfCompanyAbn} · ${pdfCompanyPhone}\n${pdfCompanyAddress}`,
+        config.layout.companyDetailsMaxWidth - 24
+      );
+      doc.text(companyDetailLines, config.margins.left + 12, y + 50);
+
+      y = config.layout.companyDetailsTop + config.layout.companyDetailsHeight + 40;
 
       doc.setTextColor(...config.colors.text);
 

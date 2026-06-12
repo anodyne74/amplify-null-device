@@ -4,6 +4,49 @@
   gap: var(--nd-space-lg);
 }
 
+.pageHeaderStack {
+  display: grid;
+  gap: 4px;
+}
+
+.pageToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.scopeField {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--nd-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.scopeField span {
+  color: var(--nd-text-muted);
+  text-transform: uppercase;
+}
+
+.scopeField select {
+  min-height: 38px;
+  min-width: 190px;
+  padding: 8px 34px 8px 10px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg-surface);
+  color: var(--nd-text-primary);
+  font: inherit;
+}
+
+.scopeField select:focus-visible {
+  outline: 2px solid var(--nd-customer-accent);
+  outline-offset: 2px;
+}
+
 .heading {
   color: var(--nd-text-primary);
   font-family: var(--nd-font-display);
@@ -440,12 +483,42 @@
 
 .rowMenuTrigger:focus-visible,
 .rowMenuList button:focus-visible,
+.customerActionsPanel button:focus-visible,
 .groupLabel input:focus-visible,
 .inlineGrid select:focus-visible,
 .inlineGrid input:focus-visible,
 .statusCellStack select:focus-visible {
   outline: 2px solid var(--nd-customer-accent);
   outline-offset: 2px;
+}
+
+.customerActionsExpandedRow td {
+  background: color-mix(in srgb, var(--nd-bg-elevated) 88%, transparent);
+}
+
+.customerActionsPanel {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  padding: 2px 0;
+}
+
+.customerActionsPanel button {
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg-surface);
+  color: var(--nd-text-primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.customerActionsPanel button:hover {
+  border-color: var(--nd-operator-accent);
+  color: var(--nd-operator-accent);
 }
 
 .accessUserList {

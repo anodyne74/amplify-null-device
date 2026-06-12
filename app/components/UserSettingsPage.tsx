@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { getUserDisplayName } from '@/lib/amplify-config';
 import {
+  getCustomer,
+  getCustomerPortalContext,
   getUserSettings,
   upsertUserSettings,
   type MapThemeSetting,
@@ -15,6 +17,15 @@ import { MAP_THEMES } from '@/lib/mapThemes';
 import styles from './UserSettingsPage.module.css';
 
 type RoleVariant = 'administrator' | 'operator' | 'customer';
+type SettingsTab = 'user' | 'administrator' | 'customer';
+
+type CustomerSettingsDetails = {
+  name?: string | null;
+  companyName?: string | null;
+  email?: string | null;
+  addressLine1?: string | null;
+  standingInstructions?: string | null;
+};
 
 interface UserSettingsPageProps {
   title: string;
@@ -36,6 +47,9 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
   const [billingPaymentAccountName, setBillingPaymentAccountName] = useState(DEFAULT_COMPANY_BILLING_DETAILS.paymentAccountName);
   const [billingBsb, setBillingBsb] = useState(DEFAULT_COMPANY_BILLING_DETAILS.bsb);
   const [billingAccountNumber, setBillingAccountNumber] = useState(DEFAULT_COMPANY_BILLING_DETAILS.accountNumber);
+  const [activeTab, setActiveTab] = useState<SettingsTab>('user');
+  const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('read_only');
+  const [customerDetails, setCustomerDetails] = useState<CustomerSettingsDetails | null>(null);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -57,7 +71,6 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
         setName(result.data.name?.trim() || fallbackDisplayName);
         setDefaultTheme((result.data.defaultTheme as ThemeModeSetting | null) || 'system');
         setMapTheme((result.data.mapTheme as MapThemeSetting | null) || 'light');
-
         setBillingCompanyName(result.data.billingCompanyName?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyName);
         setBillingAbn(result.data.billingAbn?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.abn);
         setBillingPhone(result.data.billingPhone?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.phone);
@@ -74,6 +87,55 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
       cancelled = true;
     };
   }, [fallbackDisplayName, user?.userId]);
+
+  useEffect(() => {
+    if (roleVariant !== 'customer' || !user?.userId) return;
+    let cancelled = false;
+
+    void getCustomerPortalContext(user.userId)
+      .then(async (context) => {
+        if (cancelled) return;
+        setCustomerRole(context.role);
+
+        if (context.role !== 'account_owner' || !context.customerId) {
+          setCustomerDetails(null);
+          return;
+        }
+
+        const result = await getCustomer(context.customerId);
+        if (cancelled || (result.errors && result.errors.length > 0)) return;
+        setCustomerDetails((result.data as CustomerSettingsDetails | null) ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCustomerRole('read_only');
+          setCustomerDetails(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [roleVariant, user?.userId]);
+
+  const availableTabs = useMemo<Array<{ id: SettingsTab; label: string }>>(
+    () => [
+      { id: 'user', label: 'User preferences' },
+      ...(roleVariant === 'administrator'
+        ? [{ id: 'administrator' as const, label: 'Administrator settings' }]
+        : []),
+      ...(roleVariant === 'customer' && customerRole === 'account_owner'
+        ? [{ id: 'customer' as const, label: 'Customer settings' }]
+        : []),
+    ],
+    [customerRole, roleVariant]
+  );
+
+  useEffect(() => {
+    if (!availableTabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab('user');
+    }
+  }, [activeTab, availableTabs]);
 
   const handleSave = async () => {
     if (!user?.userId) {
@@ -116,56 +178,90 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
       <p className={styles.subtext}>{roleLabel} profile and preferences.</p>
 
       <div className={styles.panel}>
-        <div className={styles.grid}>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="settings-name">
-              Name
-            </label>
-            <input
-              id="settings-name"
-              className={styles.input}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Your display name"
-            />
+        {availableTabs.length > 1 && (
+          <div className={styles.tabs} role="tablist" aria-label="Settings sections">
+            {availableTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                className={`${styles.tabButton} ${activeTab === tab.id ? styles.tabButtonActive : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
+        )}
 
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="settings-theme">
-              Default Theme
-            </label>
-            <select
-              id="settings-theme"
-              className={styles.select}
-              value={defaultTheme}
-              onChange={(event) => setDefaultTheme(event.target.value as ThemeModeSetting)}
-            >
-              <option value="system">System</option>
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select>
-          </div>
+        {activeTab === 'user' && (
+          <>
+            <div className={styles.grid}>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="settings-name">
+                  Name
+                </label>
+                <input
+                  id="settings-name"
+                  className={styles.input}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Your display name"
+                />
+              </div>
 
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="settings-map-theme">
-              Map Theme
-            </label>
-            <select
-              id="settings-map-theme"
-              className={styles.select}
-              value={mapTheme}
-              onChange={(event) => setMapTheme(event.target.value as MapThemeSetting)}
-            >
-              {MAP_THEMES.map((theme) => (
-                <option key={theme.key} value={theme.key}>
-                  {theme.label}
-                </option>
-              ))}
-            </select>
-          </div>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="settings-theme">
+                  Default Theme
+                </label>
+                <select
+                  id="settings-theme"
+                  className={styles.select}
+                  value={defaultTheme}
+                  onChange={(event) => setDefaultTheme(event.target.value as ThemeModeSetting)}
+                >
+                  <option value="system">System</option>
+                  <option value="dark">Dark</option>
+                  <option value="light">Light</option>
+                </select>
+              </div>
 
-          {roleVariant === 'administrator' && (
-            <>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="settings-map-theme">
+                  Map Theme
+                </label>
+                <select
+                  id="settings-map-theme"
+                  className={styles.select}
+                  value={mapTheme}
+                  onChange={(event) => setMapTheme(event.target.value as MapThemeSetting)}
+                >
+                  {MAP_THEMES.map((theme) => (
+                    <option key={theme.key} value={theme.key}>
+                      {theme.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className={styles.actions}>
+              <button type="button" className={styles.button} disabled={pending} onClick={() => void handleSave()}>
+                {pending ? 'Saving...' : 'Save Settings'}
+              </button>
+              {message && <p className={styles.message}>{message}</p>}
+            </div>
+
+            <p className={styles.subtext}>
+              Current theme in app: {mode}
+            </p>
+          </>
+        )}
+
+        {activeTab === 'administrator' && roleVariant === 'administrator' && (
+          <>
+            <div className={styles.grid}>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="settings-billing-company-name">
                   Billing Company Name
@@ -256,20 +352,46 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
                   placeholder="Account number"
                 />
               </div>
-            </>
-          )}
-        </div>
+            </div>
 
-        <div className={styles.actions}>
-          <button type="button" className={styles.button} disabled={pending} onClick={() => void handleSave()}>
-            {pending ? 'Saving...' : 'Save Settings'}
-          </button>
-          {message && <p className={styles.message}>{message}</p>}
-        </div>
+            <div className={styles.actions}>
+              <button type="button" className={styles.button} disabled={pending} onClick={() => void handleSave()}>
+                {pending ? 'Saving...' : 'Save Settings'}
+              </button>
+              {message && <p className={styles.message}>{message}</p>}
+            </div>
+          </>
+        )}
 
-        <p className={styles.subtext}>
-          Current theme in app: {mode}
-        </p>
+        {activeTab === 'customer' && roleVariant === 'customer' && (
+          <div className={styles.readOnlyGrid}>
+            <section className={styles.readOnlySection}>
+              <h2>Standing instructions</h2>
+              <p>{customerDetails?.standingInstructions?.trim() || 'No standing instructions configured.'}</p>
+            </section>
+            <section className={styles.readOnlySection}>
+              <h2>Invoice details</h2>
+              <dl className={styles.detailList}>
+                <div>
+                  <dt>Bill to</dt>
+                  <dd>{customerDetails?.name || '—'}</dd>
+                </div>
+                <div>
+                  <dt>Company</dt>
+                  <dd>{customerDetails?.companyName || '—'}</dd>
+                </div>
+                <div>
+                  <dt>Email</dt>
+                  <dd>{customerDetails?.email || '—'}</dd>
+                </div>
+                <div>
+                  <dt>Address</dt>
+                  <dd>{customerDetails?.addressLine1 || '—'}</dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+        )}
       </div>
     </div>
   );

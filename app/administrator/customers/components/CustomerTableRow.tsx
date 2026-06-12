@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react';
-import AdminRowMenu from '@/app/components/AdminRowMenu';
+import { useState, type ReactNode } from 'react';
 import type { Customer, CustomerStatus } from '@/app/administrator/customers/types';
 import styles from '@/app/dashboard.module.css';
 
@@ -8,7 +7,6 @@ interface CustomerTableRowProps {
   formattedRate: string;
   isEditOpen: boolean;
   isOwnerOpen: boolean;
-  onStatusChange: (status: CustomerStatus) => void;
   onToggleEdit: () => void;
   onToggleOwner: () => void;
   editPanel?: ReactNode;
@@ -37,12 +35,13 @@ export default function CustomerTableRow({
   formattedRate,
   isEditOpen,
   isOwnerOpen,
-  onStatusChange,
   onToggleEdit,
   onToggleOwner,
   editPanel,
   ownerPanel,
 }: CustomerTableRowProps) {
+  const [actionsOpen, setActionsOpen] = useState(false);
+
   return (
     <>
       <tr>
@@ -55,22 +54,27 @@ export default function CustomerTableRow({
             <span className={`${styles.statusChip} ${getCustomerStatusChipClass(customer.status ?? 'active')}`}>
               {toTitleCase(customer.status)}
             </span>
-            <select
-              value={customer.status ?? 'active'}
-              onChange={(event) => {
-                onStatusChange(event.target.value as CustomerStatus);
-              }}
-              aria-label={`Status for customer ${customer.name}`}
-            >
-              <option value="active">active</option>
-              <option value="inactive">inactive</option>
-              <option value="suspended">suspended</option>
-            </select>
           </div>
         </td>
         <td>
           <div className={styles.actionsRow}>
-            <AdminRowMenu label="Manage" ariaLabel={`More customer actions for ${customer.name}`} align="end">
+            <button
+              type="button"
+              className={styles.rowMenuTrigger}
+              aria-expanded={actionsOpen}
+              aria-controls={`customer-actions-${customer.id}`}
+              aria-label={`More customer actions for ${customer.name}`}
+              onClick={() => setActionsOpen((open) => !open)}
+            >
+              Manage
+            </button>
+          </div>
+        </td>
+      </tr>
+      {actionsOpen && (
+        <tr className={styles.customerActionsExpandedRow}>
+          <td colSpan={6}>
+            <div className={styles.customerActionsPanel} id={`customer-actions-${customer.id}`}>
               <button
                 type="button"
                 onClick={onToggleEdit}
@@ -85,10 +89,10 @@ export default function CustomerTableRow({
               >
                 {isOwnerOpen ? 'Close Owner' : 'Manage Owner'}
               </button>
-            </AdminRowMenu>
-          </div>
-        </td>
-      </tr>
+            </div>
+          </td>
+        </tr>
+      )}
       {isEditOpen && (
         <tr>
           <td colSpan={6}>{editPanel}</td>

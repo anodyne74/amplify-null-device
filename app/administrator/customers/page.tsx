@@ -13,7 +13,7 @@ import CustomerOwnerPanel from '@/app/administrator/customers/components/Custome
 import CustomerTableRow from '@/app/administrator/customers/components/CustomerTableRow';
 import { useCustomerEditState } from '@/app/administrator/customers/hooks/useCustomerEditState';
 import { useCustomerOwnerState } from '@/app/administrator/customers/hooks/useCustomerOwnerState';
-import type { Customer, CustomerStatus, CustomerUser } from '@/app/administrator/customers/types';
+import type { Customer, CustomerUser } from '@/app/administrator/customers/types';
 import { parseAgentOptionsInput, stringifyAgentOptions } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import {
@@ -215,17 +215,6 @@ export default function CustomersAdminPage() {
     }
 
     setSaving(false);
-  };
-
-  const setStatus = async (id: string, status: CustomerStatus) => {
-    const result = await updateCustomer(id, { status });
-    if (result.errors && result.errors.length > 0) {
-      setError('Failed to update customer status.');
-      return;
-    }
-    setCustomers((prev) =>
-      prev.map((customer) => (customer.id === id ? { ...customer, status } : customer))
-    );
   };
 
   const toggleOwnerPanel = async (customerId: string) => {
@@ -457,9 +446,6 @@ export default function CustomersAdminPage() {
                     formattedRate={usdFormatter.format(customer.billingRatePerHour ?? 0)}
                     isEditOpen={expandedEditPanel === customer.id}
                     isOwnerOpen={expandedOwnerPanel === customer.id}
-                    onStatusChange={(status) => {
-                      void setStatus(customer.id, status);
-                    }}
                     onToggleEdit={() => toggleEditPanel(customer)}
                     onToggleOwner={() => {
                       void toggleOwnerPanel(customer.id);

@@ -12,5 +12,7 @@ describe('invoice PDF customer portal theme', () => {
     expect(config.colors.header).toEqual(CUSTOMER_PORTAL_INVOICE_PDF_THEME.colors.header);
     expect(config.colors.totalBand).toEqual(CUSTOMER_PORTAL_INVOICE_PDF_THEME.colors.accentStrong);
     expect(config.fonts.large).toBeLessThan(config.fonts.xlarge);
+    expect(config.layout.headerHeight).toBeLessThan(config.layout.companyDetailsTop);
+    expect(config.layout.companyDetailsMaxWidth).toBeLessThanOrEqual(484);
   });
 });

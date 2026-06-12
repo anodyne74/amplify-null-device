@@ -166,14 +166,16 @@ export function getUsername(user: any): string | undefined {
 export function getUserDisplayName(user: any): string | undefined {
   if (!user) return undefined;
 
-  const firstName =
+  const displayName =
     user.attributes?.given_name ||
-    user.signInUserSession?.idToken?.payload?.given_name;
-  if (typeof firstName === 'string' && firstName.trim()) {
-    return firstName.trim();
+    user.signInUserSession?.idToken?.payload?.given_name ||
+    user.attributes?.name ||
+    user.signInUserSession?.idToken?.payload?.name;
+  if (typeof displayName === 'string' && displayName.trim()) {
+    return displayName.trim();
   }
 
-  return getUserEmail(user) || getUsername(user);
+  return undefined;
 }
 
 /**

@@ -6,6 +6,8 @@ import * as getRouteDetailModule from '@/lib/queries/GetRouteDetail';
 import * as deleteStopModule from '@/lib/queries/DeleteStop';
 import type { Route, Stop } from '@/amplify/types';
 
+const mockOperatorRoute = jest.fn(({ children }: { children: React.ReactNode; requireAdmin?: boolean }) => <>{children}</>);
+
 // Mock Next.js navigation
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn() }),
@@ -35,7 +37,7 @@ jest.mock('@/lib/amplify-config', () => ({
 // Mock OperatorRoute to render children
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
-  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  default: (props: { children: React.ReactNode; requireAdmin?: boolean }) => mockOperatorRoute(props),
 }));
 
 // Mock query modules
@@ -160,6 +162,18 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByText('planned')).toBeInTheDocument();
     // Customer name is displayed
     expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+  });
+
+  it('requires administrator access for the administrator route detail page', async () => {
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/loading route/i)).not.toBeInTheDocument();
+    });
+
+    expect(mockOperatorRoute).toHaveBeenCalledWith(
+      expect.objectContaining({ requireAdmin: true })
+    );
   });
 
   it('renders stops list', async () => {

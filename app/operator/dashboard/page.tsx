@@ -60,7 +60,7 @@ export default function OperatorDashboard() {
       <div>
         <h1 className={styles.heading}>Operator Portal</h1>
         <p className={styles.welcome}>
-          Welcome, {userDisplayName || 'operator'}. Review active work and pick up the next route.
+          Welcome,{userDisplayName ? ` ${userDisplayName}.` : ''} Review active work and pick up the next route.
         </p>
       </div>
 

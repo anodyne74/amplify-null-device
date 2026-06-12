@@ -6,7 +6,6 @@ import type { Schema } from '@/amplify/data/resource';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { listInvoices } from '@/lib/queries';
 import type { Route } from '@/amplify/types';
-import { formatCurrency, formatDuration } from '@/lib/dashboardAnalytics';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import styles from '@/app/dashboard.module.css';
 import MetricsVisualization, { type MetricsPeriod } from '../../components/MetricsVisualization';
@@ -14,6 +13,7 @@ import { aggregateRouteData } from '@/lib/aggregateRouteData';
 
 type Invoice = {
   id: string;
+  customerId?: string | null;
   totalAmount: number;
   invoiceDate?: string | null;
   createdAt?: string | null;
@@ -21,14 +21,18 @@ type Invoice = {
   emailSentAt?: string | null;
 };
 
+type CustomerSummary = {
+  id: string;
+  name?: string | null;
+};
+
 export default function AdminHomePage() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [customerCount, setCustomerCount] = useState<number | null>(null);
+  const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [totalStops, setTotalStops] = useState(0);
-  const [totalSigns, setTotalSigns] = useState(0);
   const [selectedPeriod, setSelectedPeriod] = useState<MetricsPeriod>('month');
+  const [selectedCustomerId, setSelectedCustomerId] = useState('all');
 
   useEffect(() => {
     async function loadStats() {
@@ -70,16 +74,16 @@ export default function AdminHomePage() {
 
         const fetchAllCustomers = async () => {
           const client = generateClient<Schema>();
-          const allCustomers: Array<{ id: string }> = [];
+          const allCustomers: CustomerSummary[] = [];
           let nextToken: string | undefined;
 
           do {
             const pageResult = await client.models.Customer.list({ limit: 200, nextToken });
             if (pageResult.errors && pageResult.errors.length > 0) {
-              return { data: [] as Array<{ id: string }>, errors: pageResult.errors };
+              return { data: [] as CustomerSummary[], errors: pageResult.errors };
             }
 
-            allCustomers.push(...((pageResult.data as Array<{ id: string }>) ?? []));
+            allCustomers.push(...((pageResult.data as CustomerSummary[]) ?? []));
             nextToken = pageResult.nextToken ?? undefined;
           } while (nextToken);
 
@@ -98,91 +102,100 @@ export default function AdminHomePage() {
           setInvoices((invoiceResult.data as Invoice[]) || []);
         }
         if (!customerResult.errors || customerResult.errors.length === 0) {
-          setCustomerCount(customerResult.data?.length ?? 0);
+          setCustomers(customerResult.data ?? []);
         }
-
-        const client = generateClient<Schema>();
-        const stopList: Array<{ numberOfSigns?: number | null }> = [];
-        let nextToken: string | undefined;
-
-        do {
-          const stopsPage = await client.models.Stop.list({ limit: 2000, nextToken });
-          stopList.push(...((stopsPage.data as unknown as Array<{ numberOfSigns?: number | null }>) ?? []));
-          nextToken = stopsPage.nextToken ?? undefined;
-        } while (nextToken);
-
-        setTotalStops(stopList.length);
-        setTotalSigns(stopList.reduce((sum, s) => sum + (typeof s.numberOfSigns === 'number' ? s.numberOfSigns : 0), 0));
       } catch { /* stats are best-effort */ }
       setStatsLoading(false);
     }
     void loadStats();
   }, []);
 
-  const activeRoutes = useMemo(
-    () => routes.filter((r) => r.status === 'in_progress' || r.status === 'signs_placed' || r.status === 'signs_picked_up'),
-    [routes]
+  const scopedRoutes = useMemo(
+    () => selectedCustomerId === 'all'
+      ? routes
+      : routes.filter((route) => route.customerId === selectedCustomerId),
+    [routes, selectedCustomerId]
   );
-  const plannedRoutes = useMemo(() => routes.filter((r) => r.status === 'planned'), [routes]);
+
+  const scopedInvoices = useMemo(
+    () => selectedCustomerId === 'all'
+      ? invoices
+      : invoices.filter((invoice) => invoice.customerId === selectedCustomerId),
+    [invoices, selectedCustomerId]
+  );
+
+  const selectedCustomerName = useMemo(() => {
+    if (selectedCustomerId === 'all') return 'All customers';
+    return customers.find((customer) => customer.id === selectedCustomerId)?.name || 'Selected customer';
+  }, [customers, selectedCustomerId]);
+
+  const activeRoutes = useMemo(
+    () => scopedRoutes.filter((r) => r.status === 'in_progress' || r.status === 'signs_placed' || r.status === 'signs_picked_up'),
+    [scopedRoutes]
+  );
+  const plannedRoutes = useMemo(() => scopedRoutes.filter((r) => r.status === 'planned'), [scopedRoutes]);
   const completedToday = useMemo(() => {
     const today = new Date().toDateString();
-    return routes.filter(
+    return scopedRoutes.filter(
       (r) => r.status === 'completed' && r.actualEndTime && new Date(r.actualEndTime).toDateString() === today
     );
-  }, [routes]);
+  }, [scopedRoutes]);
 
   const unsentInvoices = useMemo(
-    () => invoices.filter((inv) => inv.status !== 'sent' && inv.status !== 'paid'),
-    [invoices]
+    () => scopedInvoices.filter((inv) => inv.status !== 'sent' && inv.status !== 'paid'),
+    [scopedInvoices]
   );
 
   const completedRoutesForAnalytics = useMemo(
-    () => routes.filter((route) => route.status === 'completed'),
-    [routes]
+    () => scopedRoutes.filter((route) => route.status === 'completed'),
+    [scopedRoutes]
   );
 
   const groupedAnalytics = useMemo(
-    () => aggregateRouteData(completedRoutesForAnalytics, invoices, selectedPeriod),
-    [completedRoutesForAnalytics, invoices, selectedPeriod]
+    () => aggregateRouteData(completedRoutesForAnalytics, scopedInvoices, selectedPeriod),
+    [completedRoutesForAnalytics, scopedInvoices, selectedPeriod]
   );
 
   const completedRoutes = useMemo(
-    () => routes.filter((route) => route.status === 'completed'),
-    [routes]
+    () => scopedRoutes.filter((route) => route.status === 'completed'),
+    [scopedRoutes]
   );
-  const totalCompletedDistance = useMemo(
-    () =>
-      completedRoutes.reduce(
-        (sum, route) =>
-          sum + (typeof route.signsPlacedDistanceKm === 'number' ? route.signsPlacedDistanceKm : 0) +
-          (typeof route.signsPickedUpDistanceKm === 'number' ? route.signsPickedUpDistanceKm : 0),
-        0
-      ),
-    [completedRoutes]
-  );
-  const totalCompletedHours = useMemo(
-    () => completedRoutes.reduce((sum, route) => sum + (typeof route.actualDurationMinutes === 'number' ? route.actualDurationMinutes : 0), 0),
-    [completedRoutes]
-  );
-  const totalInvoicedAmount = useMemo(
-    () => invoices.reduce((sum, invoice) => sum + (typeof invoice.totalAmount === 'number' ? invoice.totalAmount : 0), 0),
-    [invoices]
-  );
-  const totalOutstandingBalance = useMemo(
-    () =>
-      invoices
-        .filter((invoice) => invoice.status !== 'paid')
-        .reduce((sum, invoice) => sum + (typeof invoice.totalAmount === 'number' ? invoice.totalAmount : 0), 0),
-    [invoices]
-  );
+  const scopedCustomerCount = selectedCustomerId === 'all' ? customers.length : selectedCustomerId ? 1 : 0;
 
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
-        <div>
+        <div className={styles.pageHeaderStack}>
           <h1 className={styles.heading}>Administrator Portal</h1>
           <p className={styles.welcome}>Manage customers, invoices, users, and route operations. Send invoices via email directly to customers.</p>
         </div>
+
+        <div className={styles.pageToolbar}>
+          <label className={styles.scopeField} htmlFor="admin-dashboard-scope">
+            <span>Dashboard scope</span>
+            <select
+              id="admin-dashboard-scope"
+              value={selectedCustomerId}
+              onChange={(event) => setSelectedCustomerId(event.target.value)}
+            >
+              <option value="all">All customers</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name || customer.id}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <MetricsVisualization
+          data={groupedAnalytics}
+          period={selectedPeriod}
+          onPeriodChange={setSelectedPeriod}
+          loading={statsLoading}
+          canShowFinancials
+          scopeLabel={selectedCustomerName}
+        />
 
         {/* Dashboard cards grid */}
         <div className={styles.statsGrid}>
@@ -197,7 +210,7 @@ export default function AdminHomePage() {
             <div className={styles.statCard}>
               <p className={styles.statLabel}>Total Routes</p>
               <p className={`${styles.statValue} ${styles.amber}`}>
-                {statsLoading ? '…' : routes.length}
+                {statsLoading ? '…' : scopedRoutes.length}
               </p>
             </div>
           </div>
@@ -213,7 +226,7 @@ export default function AdminHomePage() {
             <div className={styles.statCard}>
               <p className={styles.statLabel}>Total Invoices</p>
               <p className={`${styles.statValue} ${styles.green}`}>
-                {statsLoading ? '…' : invoices.length}
+                {statsLoading ? '…' : scopedInvoices.length}
               </p>
             </div>
           </div>
@@ -239,18 +252,12 @@ export default function AdminHomePage() {
             <div className={styles.statCard}>
               <p className={styles.statLabel}>Customers</p>
               <p className={`${styles.statValue} ${styles.cyan}`}>
-                {statsLoading ? '…' : customerCount ?? '—'}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Total Stops</p>
-              <p className={`${styles.statValue} ${styles.cyan}`}>
-                {statsLoading ? '…' : totalStops}
+                {statsLoading ? '…' : scopedCustomerCount}
               </p>
             </div>
           </div>
 
-          {/* Unsent Invoices + Send Invoice */}
+          {/* Unsent Invoices */}
           <div className={styles.cardColumn}>
             <div className={styles.statCard}>
               <p className={styles.statLabel}>Unsent Invoices</p>
@@ -258,102 +265,8 @@ export default function AdminHomePage() {
                 {statsLoading ? '…' : unsentInvoices.length}
               </p>
             </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Total Signs</p>
-              <p className={`${styles.statValue} ${styles.green}`}>
-                {statsLoading ? '…' : totalSigns}
-              </p>
-            </div>
           </div>
         </div>
-
-        {/* Total Statistics Section */}
-        <div className={styles.infoPanel}>
-          <h3>Total Statistics</h3>
-          <div className={styles.statsGrid}>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Jobs Completed</p>
-              <p className={`${styles.statValue} ${styles.green}`}>
-                {statsLoading ? '…' : completedRoutes.length}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Total Distance</p>
-              <p className={`${styles.statValue} ${styles.amber}`}>
-                {statsLoading ? '…' : `${totalCompletedDistance.toFixed(1)} km`}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Total Stops</p>
-              <p className={`${styles.statValue} ${styles.cyan}`}>
-                {statsLoading ? '…' : totalStops}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Total Signs</p>
-              <p className={`${styles.statValue} ${styles.danger}`}>
-                {statsLoading ? '…' : totalSigns}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Total Hours</p>
-              <p className={`${styles.statValue} ${styles.green}`}>
-                {statsLoading ? '…' : formatDuration(totalCompletedHours)}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Invoiced Amount</p>
-              <p className={`${styles.statValue} ${styles.cyan}`}>
-                {statsLoading ? '…' : formatCurrency(totalInvoicedAmount)}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Outstanding Amount</p>
-              <p className={`${styles.statValue} ${styles.danger}`}>
-                {statsLoading ? '…' : formatCurrency(totalOutstandingBalance)}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Average Per Job</p>
-              <p className={`${styles.statValue} ${styles.amber}`}>
-                {statsLoading || completedRoutes.length === 0 ? '…' : formatCurrency(totalInvoicedAmount / completedRoutes.length)}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Average Per Stop</p>
-              <p className={`${styles.statValue} ${styles.cyan}`}>
-                {statsLoading || totalStops === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalStops)}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Average Per Sign</p>
-              <p className={`${styles.statValue} ${styles.green}`}>
-                {statsLoading || totalSigns === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalSigns)}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Average Per Kilometer</p>
-              <p className={`${styles.statValue} ${styles.amber}`}>
-                {statsLoading || totalCompletedDistance === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalCompletedDistance)}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Average Signs Per Hour</p>
-              <p className={`${styles.statValue} ${styles.danger}`}>
-                {statsLoading || totalCompletedHours === 0 ? '…' : (totalSigns / (totalCompletedHours / 60)).toFixed(2)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <MetricsVisualization
-          data={groupedAnalytics}
-          period={selectedPeriod}
-          onPeriodChange={setSelectedPeriod}
-          loading={statsLoading}
-          canShowFinancials
-          scopeLabel="All customers"
-        />
 
       </div>
     </OperatorRoute>

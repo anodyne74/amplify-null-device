@@ -7,6 +7,8 @@ const setModeMock = jest.fn();
 const getUserDisplayNameMock = jest.fn();
 const getUserSettingsMock = jest.fn();
 const upsertUserSettingsMock = jest.fn();
+const getCustomerPortalContextMock = jest.fn();
+const getCustomerMock = jest.fn();
 
 jest.mock('@aws-amplify/ui-react', () => ({
   useAuthenticator: () => useAuthenticatorMock(),
@@ -21,6 +23,8 @@ jest.mock('@/lib/amplify-config', () => ({
 }));
 
 jest.mock('@/lib/queries', () => ({
+  getCustomer: (...args: unknown[]) => getCustomerMock(...args),
+  getCustomerPortalContext: (...args: unknown[]) => getCustomerPortalContextMock(...args),
   getUserSettings: (...args: unknown[]) => getUserSettingsMock(...args),
   upsertUserSettings: (...args: unknown[]) => upsertUserSettingsMock(...args),
 }));
@@ -34,6 +38,8 @@ describe('UserSettingsPage', () => {
     getUserDisplayNameMock.mockReturnValue('Fallback Name');
     getUserSettingsMock.mockResolvedValue({ data: null, errors: undefined });
     upsertUserSettingsMock.mockResolvedValue({ data: { id: 'settings-1' }, errors: undefined });
+    getCustomerPortalContextMock.mockResolvedValue({ role: 'read_only', customerId: 'customer-1', errors: undefined });
+    getCustomerMock.mockResolvedValue({ data: null, errors: undefined });
   });
 
   it('loads and displays persisted settings for administrator', async () => {
@@ -52,6 +58,9 @@ describe('UserSettingsPage', () => {
     expect(await screen.findByDisplayValue('Saved Name')).toBeInTheDocument();
     expect(screen.getByLabelText('Default Theme')).toHaveValue('dark');
     expect(screen.getByLabelText('Map Theme')).toHaveValue('satellite');
+
+    expect(screen.queryByLabelText('Billing Company Name')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /administrator settings/i }));
     expect(screen.getByDisplayValue('Acme Pty Ltd')).toBeInTheDocument();
   });
 
@@ -60,8 +69,47 @@ describe('UserSettingsPage', () => {
 
     await screen.findByDisplayValue('Fallback Name');
 
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Billing Company Name')).not.toBeInTheDocument();
     expect(screen.getByText('Operator profile and preferences.')).toBeInTheDocument();
+  });
+
+  it('shows administrator billing fields in a separate settings tab', async () => {
+    render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
+
+    await screen.findByDisplayValue('Fallback Name');
+
+    expect(screen.getByRole('tab', { name: /user preferences/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByLabelText('Billing Company Name')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /administrator settings/i }));
+
+    expect(screen.getByRole('tab', { name: /administrator settings/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('Billing Company Name')).toBeInTheDocument();
+  });
+
+  it('shows customer settings only for account owners', async () => {
+    getCustomerPortalContextMock.mockResolvedValue({ role: 'account_owner', customerId: 'customer-1', errors: undefined });
+    getCustomerMock.mockResolvedValue({
+      data: {
+        name: 'Acme Corp',
+        companyName: 'Acme Holdings',
+        email: 'accounts@acme.test',
+        addressLine1: '100 Main St',
+        standingInstructions: 'Place signs near the front gate.',
+      },
+      errors: undefined,
+    });
+
+    render(<UserSettingsPage title="Settings" roleVariant="customer" />);
+
+    expect(await screen.findByRole('tab', { name: /customer settings/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /customer settings/i }));
+
+    expect(screen.getByText('Place signs near the front gate.')).toBeInTheDocument();
+    expect(screen.getByText('Acme Holdings')).toBeInTheDocument();
+    expect(screen.getByText('accounts@acme.test')).toBeInTheDocument();
   });
 
   it('shows auth error when trying to save without a user', async () => {

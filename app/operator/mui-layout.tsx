@@ -245,11 +245,15 @@ export default function OperatorMUILayout({
             }}
           >
             <IconButton
-              color="inherit"
               edge="start"
               onClick={() => setDrawerOpen(!drawerOpen)}
               aria-label={drawerOpen ? 'Close navigation menu' : 'Open navigation menu'}
-              sx={{ mr: { xs: 1, sm: 2 } }}
+              sx={{
+                mr: { xs: 1, sm: 2 },
+                color: 'var(--nd-text-primary)',
+                border: '1px solid color-mix(in srgb, var(--nd-border-default) 72%, transparent)',
+                backgroundColor: 'color-mix(in srgb, var(--nd-bg-surface) 86%, transparent)',
+              }}
             >
               {drawerOpen ? <CloseIcon /> : <MenuIcon />}
             </IconButton>

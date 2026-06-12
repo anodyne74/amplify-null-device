@@ -229,6 +229,22 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Reset & Base
    ───────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --nd-transition-fast: 0s;
+    --nd-transition-base: 0s;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 *,
 *::before,
 *::after {
@@ -353,6 +369,18 @@ button:not(.MuiButtonBase-root):not(.amplify-button):hover {
   box-shadow: var(--nd-logo-primary-glow);
 }
 button:not(.MuiButtonBase-root):not(.amplify-button):focus-visible {
+  outline: 2px solid var(--nd-role-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Consistent keyboard focus for all interactive elements; portals tint the
+   ring via --nd-role-focus-ring so it follows the active portal accent. */
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role='button']:focus-visible,
+[tabindex]:focus-visible {
   outline: 2px solid var(--nd-role-focus-ring);
   outline-offset: 2px;
 }

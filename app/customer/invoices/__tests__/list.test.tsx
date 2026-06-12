@@ -136,6 +136,21 @@ describe('Invoice List Page Integration', () => {
     consoleErrorSpy.mockRestore();
   });
 
+  it('shows an inline access message for read-only users instead of redirecting', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'read_only',
+      customerId: 'cust-1',
+    });
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/invoices are available to account owners/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/contact your account owner for access/i)).toBeInTheDocument();
+    expect(listMyInvoicesModule.listMyInvoices).not.toHaveBeenCalled();
+  });
+
   it('displays invoice count summary', async () => {
     render(<InvoicesPage />);
 

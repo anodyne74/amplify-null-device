@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { useRouter } from 'next/navigation';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { getCustomerPortalContext } from '@/lib/queries';
 import InvoiceListItem from '../components/InvoiceListItem';
@@ -15,10 +14,10 @@ import styles from './page.module.css';
  */
 export default function InvoicesPage() {
   const { user } = useAuthenticator();
-  const router = useRouter();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [readOnly, setReadOnly] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -34,10 +33,9 @@ export default function InvoicesPage() {
         const context = await getCustomerPortalContext(user.userId);
 
         if (context.role === 'read_only') {
-          router.replace('/customer/dashboard');
           if (!cancelled) {
+            setReadOnly(true);
             setInvoices([]);
-            setLoading(false);
           }
           return;
         }
@@ -92,7 +90,7 @@ export default function InvoicesPage() {
   };
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <LoadingSpinner message="Loading invoices..." />;
   }
 
   return (
@@ -107,6 +105,18 @@ export default function InvoicesPage() {
         </p>
       </div>
 
+      {/* Read-only users cannot view invoices */}
+      {readOnly ? (
+        <div className={styles.accessPanel}>
+          <p className={styles.accessPanelTitle}>
+            Invoices are available to account owners
+          </p>
+          <p className={styles.accessPanelText}>
+            Contact your account owner for access.
+          </p>
+        </div>
+      ) : (
+        <>
       {/* Filter Section */}
       <div className={styles.filterSection}>
         <div className={styles.filterField}>
@@ -187,6 +197,8 @@ export default function InvoicesPage() {
         <div className={styles.footerSummary}>
           Showing {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
         </div>
+      )}
+        </>
       )}
     </div>
   );

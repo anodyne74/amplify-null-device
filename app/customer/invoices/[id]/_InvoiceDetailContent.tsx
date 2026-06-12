@@ -7,6 +7,7 @@ import { getInvoiceDetail, type InvoiceDetail } from '@/lib/queries/GetInvoiceDe
 import { getCustomerPortalContext } from '@/lib/queries';
 import InvoiceLineItems from '@/app/customer/components/InvoiceLineItems';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import { useToast } from '@/app/components/ToastProvider';
 import styles from './_InvoiceDetailContent.module.css';
 
 interface InvoiceDetailContentProps {
@@ -22,9 +23,11 @@ interface InvoiceDetailContentProps {
 export default function InvoiceDetailContent({ params }: InvoiceDetailContentProps) {
   const { user } = useAuthenticator();
   const router = useRouter();
+  const { showToast } = useToast();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [readOnly, setReadOnly] = useState(false);
   const [pdfActionLoading, setPdfActionLoading] = useState(false);
 
   useEffect(() => {
@@ -39,7 +42,9 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
         const context = await getCustomerPortalContext(user.userId);
 
         if (context.role === 'read_only') {
-          router.replace('/customer/dashboard');
+          if (!cancelled) {
+            setReadOnly(true);
+          }
           return;
         }
 
@@ -83,7 +88,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
     return () => {
       cancelled = true;
     };
-  }, [user?.userId, params.id, router]);
+  }, [user?.userId, params.id]);
 
   const handlePdfAction = async (action: 'view' | 'download') => {
     if (!invoice?.pdfS3Key) return;
@@ -109,7 +114,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
       document.body.removeChild(link);
     } catch (err) {
       console.error('Download error:', err);
-      setError('Failed to generate invoice PDF link');
+      showToast('Could not download the invoice PDF. Please try again.', 'error');
     } finally {
       setPdfActionLoading(false);
     }
@@ -122,7 +127,28 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
   };
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <LoadingSpinner message="Loading invoice..." />;
+  }
+
+  if (readOnly) {
+    return (
+      <div className={styles.errorWrapper}>
+        <div className={styles.accessPanel}>
+          <p className={styles.accessPanelTitle}>
+            Invoices are available to account owners
+          </p>
+          <p className={styles.accessPanelText}>
+            Contact your account owner for access.
+          </p>
+          <button
+            onClick={() => router.back()}
+            className={styles.backBtn}
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (error || !invoice) {

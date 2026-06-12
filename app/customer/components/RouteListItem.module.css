@@ -82,3 +82,18 @@
   font-weight: 500;
   color: var(--nd-text-primary);
 }
+
+@media (max-width: 640px) {
+  /* Reflow the fixed desktop columns into a stacked card: title and
+     status span the full width, created/duration sit side by side */
+  .item {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--nd-space-sm) var(--nd-space-md);
+    align-items: start;
+  }
+
+  .item > div:nth-child(1),
+  .item > div:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+}

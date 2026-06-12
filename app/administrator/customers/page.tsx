@@ -1,7 +1,9 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import AdminActionButton from '@/app/components/AdminActionButton';
 import AdminFeedbackBanner from '@/app/components/AdminFeedbackBanner';
+import ConfirmDialog from '@/app/components/ConfirmDialog';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import AdminDataTable from '@/app/components/AdminDataTable';
 import AdminListState from '@/app/components/AdminListState';
@@ -19,11 +21,13 @@ import { geocodeAddress } from '@/lib/googleMaps';
 import {
   createCustomer,
   createCustomerUser,
+  deleteCustomer,
   listCustomerUsers,
   listCustomers,
   syncViewerSubsForCustomer,
   updateCustomer,
 } from '@/lib/queries';
+import { useToast } from '@/app/components/ToastProvider';
 import styles from '@/app/dashboard.module.css';
 
 const usdFormatter = new Intl.NumberFormat('en-US', {
@@ -46,11 +50,15 @@ function formatCurrency(value: string): string {
 }
 
 export default function CustomersAdminPage() {
+  const { showToast } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Create customer form state
   const [name, setName] = useState('');
@@ -122,14 +130,14 @@ export default function CustomersAdminPage() {
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     const allCustomers: Customer[] = [];
     let nextToken: string | undefined;
 
     do {
       const result = await listCustomers({ limit: 100, nextToken });
       if (result.errors && result.errors.length > 0) {
-        setError('Failed to load customers.');
+        setLoadError('Failed to load customers.');
         setCustomers([]);
         setLoading(false);
         return;
@@ -315,10 +323,6 @@ export default function CustomersAdminPage() {
           )
         );
         setEditSuccess('Customer updated.');
-        // Close the edit panel after successful save
-        setTimeout(() => {
-          closeEditPanel();
-        }, 500);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Address could not be validated.';
@@ -326,6 +330,24 @@ export default function CustomersAdminPage() {
     }
 
     setEditSaving(false);
+  };
+
+  const handleDeleteCustomer = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+
+    const result = await deleteCustomer(deleteTarget.id);
+    if (result.errors && result.errors.length > 0) {
+      showToast(`Failed to delete customer ${deleteTarget.name}.`, 'error');
+    } else {
+      if (expandedEditPanel === deleteTarget.id) closeEditPanel();
+      if (expandedOwnerPanel === deleteTarget.id) closeOwnerPanel();
+      showToast(`Customer ${deleteTarget.name} deleted.`, 'success');
+      await fetchCustomers();
+    }
+
+    setDeleting(false);
+    setDeleteTarget(null);
   };
 
   const handleAssignOwner = async (customerId: string) => {
@@ -374,6 +396,21 @@ export default function CustomersAdminPage() {
       <div className={styles.page}>
         <h1 className={styles.heading}>Customers</h1>
 
+        <ConfirmDialog
+          open={deleteTarget !== null}
+          title="Delete customer?"
+          message={`Delete customer ${deleteTarget?.name ?? ''}? This permanently removes the customer record and cannot be undone.`}
+          confirmLabel="Delete Customer"
+          tone="danger"
+          busy={deleting}
+          onConfirm={() => {
+            void handleDeleteCustomer();
+          }}
+          onCancel={() => {
+            if (!deleting) setDeleteTarget(null);
+          }}
+        />
+
         <CustomerCreateForm
           showCreateForm={showCreateForm}
           saving={saving}
@@ -416,7 +453,26 @@ export default function CustomersAdminPage() {
 
         <div className={styles.infoPanel}>
           <AdminSectionHeader title="Customer List" />
-          {loading || customers.length === 0 ? (
+          {!loading && loadError ? (
+            <>
+              <AdminFeedbackBanner
+                message={loadError}
+                tone="error"
+                messageClassName={styles.inlineErrorText}
+              />
+              <div className={styles.actionsRow}>
+                <AdminActionButton
+                  onClick={() => {
+                    void fetchCustomers();
+                  }}
+                  variant="secondary"
+                  aria-label="Retry loading customers"
+                >
+                  Retry
+                </AdminActionButton>
+              </div>
+            </>
+          ) : loading || customers.length === 0 ? (
             <AdminListState
               loading={loading}
               empty={!loading && customers.length === 0}
@@ -450,6 +506,7 @@ export default function CustomersAdminPage() {
                     onToggleOwner={() => {
                       void toggleOwnerPanel(customer.id);
                     }}
+                    onDelete={() => setDeleteTarget(customer)}
                     editPanel={(
                       <CustomerEditPanel
                         customer={customer}

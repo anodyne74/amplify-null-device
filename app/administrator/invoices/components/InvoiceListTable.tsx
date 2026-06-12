@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { Route } from '@/amplify/types';
 import AdminActionButton from '@/app/components/AdminActionButton';
+import ConfirmDialog from '@/app/components/ConfirmDialog';
 import AdminDataTable from '@/app/components/AdminDataTable';
 import AdminListState from '@/app/components/AdminListState';
 import AdminRowMenu from '@/app/components/AdminRowMenu';
@@ -73,16 +75,35 @@ export default function InvoiceListTable({
   onMarkPaid,
   onEmailInvoiceToPrimary,
 }: InvoiceListTableProps) {
-  const handleRegeneratePdf = (invoice: Invoice) => {
-    const confirmed = window.confirm(
-      `Regenerate invoice ${invoice.invoiceNumber}? This will replace the attached PDF.`
-    );
-    if (!confirmed) return;
-    onGeneratePdf(invoice);
+  const [confirmAction, setConfirmAction] = useState<
+    { type: 'regenerate' | 'markPaid'; invoice: Invoice } | null
+  >(null);
+
+  const handleConfirm = () => {
+    if (!confirmAction) return;
+    if (confirmAction.type === 'regenerate') {
+      onGeneratePdf(confirmAction.invoice);
+    } else {
+      onMarkPaid(confirmAction.invoice.id);
+    }
+    setConfirmAction(null);
   };
 
   return (
     <div className={`${styles.infoPanel} ${invoiceStyles.listPanel}`}>
+      <ConfirmDialog
+        open={confirmAction !== null}
+        title={confirmAction?.type === 'markPaid' ? 'Mark invoice as paid?' : 'Regenerate invoice PDF?'}
+        message={
+          confirmAction?.type === 'markPaid'
+            ? `Mark invoice ${confirmAction.invoice.invoiceNumber} as paid? This cannot be undone from this screen.`
+            : `Regenerate invoice ${confirmAction?.invoice.invoiceNumber}? This will replace the attached PDF.`
+        }
+        confirmLabel={confirmAction?.type === 'markPaid' ? 'Mark Paid' : 'Regenerate'}
+        tone="danger"
+        onConfirm={handleConfirm}
+        onCancel={() => setConfirmAction(null)}
+      />
       <AdminSectionHeader title="Invoice List" titleClassName={invoiceStyles.panelHeading} />
       {loading || invoices.length === 0 ? (
         <AdminListState
@@ -165,7 +186,7 @@ export default function InvoiceListTable({
                             <AdminActionButton
                               className={invoiceStyles.inlineButton}
                               variant="secondary"
-                              onClick={() => handleRegeneratePdf(invoice)}
+                              onClick={() => setConfirmAction({ type: 'regenerate', invoice })}
                               isLoading={uploadingId === invoice.id}
                               loadingLabel="Generating..."
                               disabled={pdfActionLoadingId === invoice.id}
@@ -232,7 +253,7 @@ export default function InvoiceListTable({
                         <AdminActionButton
                           className={invoiceStyles.markPaidButton}
                           variant="primary"
-                          onClick={() => onMarkPaid(invoice.id)}
+                          onClick={() => setConfirmAction({ type: 'markPaid', invoice })}
                           aria-label={`Mark invoice ${invoice.invoiceNumber} as paid`}
                         >
                           Mark Paid

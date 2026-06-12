@@ -6,6 +6,7 @@ import AdminActionButton from '@/app/components/AdminActionButton';
 import AdminFeedbackBanner from '@/app/components/AdminFeedbackBanner';
 import AdminFormField from '@/app/components/AdminFormField';
 import AdminSectionHeader from '@/app/components/AdminSectionHeader';
+import ConfirmDialog from '@/app/components/ConfirmDialog';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import AdminListState from '@/app/components/AdminListState';
 import AdminRowMenu from '@/app/components/AdminRowMenu';
@@ -86,6 +87,7 @@ export default function UsersAdminPage() {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<'account_owner' | 'read_only'>('read_only');
   const [newUserName, setNewUserName] = useState('');
+  const [removalTarget, setRemovalTarget] = useState<CustomerUser | null>(null);
 
   const callAdminApi = useCallback(async (body: Record<string, unknown>) => {
     const session = await fetchAuthSession();
@@ -359,6 +361,7 @@ export default function UsersAdminPage() {
       setCustomerUsers(updated);
     }
     setAccessPending(false);
+    setRemovalTarget(null);
   };
 
   const assignGroup = async (groupName: (typeof GROUPS)[number]) => {
@@ -544,6 +547,20 @@ export default function UsersAdminPage() {
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
         <h1 className={styles.heading}>Users</h1>
+        <ConfirmDialog
+          open={removalTarget !== null}
+          title="Remove customer access?"
+          message={`Remove ${removalTarget?.name ?? removalTarget?.email ?? 'this user'} from customer access? Their access to this customer's routes and stops will be revoked.`}
+          confirmLabel="Remove User"
+          tone="danger"
+          busy={accessPending}
+          onConfirm={() => {
+            if (removalTarget) void handleRemoveCustomerUser(removalTarget.id);
+          }}
+          onCancel={() => {
+            if (!accessPending) setRemovalTarget(null);
+          }}
+        />
         <div className={styles.infoPanel}>
           <AdminSectionHeader
             title="Manage User Groups"
@@ -556,6 +573,19 @@ export default function UsersAdminPage() {
             tone="error"
             messageClassName={styles.inlineErrorText}
           />
+          {error && !listUsersDenied && (
+            <div className={styles.actionsRow}>
+              <AdminActionButton
+                onClick={() => void loadUsers()}
+                variant="secondary"
+                isLoading={loading}
+                loadingLabel="Retrying..."
+                aria-label="Retry loading users"
+              >
+                Retry
+              </AdminActionButton>
+            </div>
+          )}
           <AdminFeedbackBanner
             message={successMessage}
             tone="success"
@@ -643,7 +673,7 @@ export default function UsersAdminPage() {
                           align="end"
                         >
                           <AdminActionButton
-                            onClick={() => void handleRemoveCustomerUser(cu.id)}
+                            onClick={() => setRemovalTarget(cu)}
                             variant="danger"
                             isLoading={accessPending}
                             loadingLabel="Removing..."

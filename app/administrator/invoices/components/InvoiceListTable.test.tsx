@@ -78,7 +78,6 @@ describe('InvoiceListTable', () => {
 
   it('requires confirmation before regenerating an attached invoice PDF', () => {
     const onGeneratePdf = jest.fn();
-    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
 
     renderTable([createInvoice()], { onGeneratePdf });
 
@@ -87,14 +86,44 @@ describe('InvoiceListTable', () => {
     fireEvent.click(screen.getByRole('button', { name: /more pdf actions for invoice inv-001/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Regenerate PDF for invoice INV-001' }));
 
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('Regenerate invoice INV-001'));
+    const dialog = screen.getByRole('alertdialog', { name: 'Regenerate invoice PDF?' });
+    expect(dialog).toHaveTextContent('Regenerate invoice INV-001? This will replace the attached PDF.');
     expect(onGeneratePdf).not.toHaveBeenCalled();
 
-    confirmSpy.mockReturnValue(true);
+    // Cancelling does not regenerate.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(onGeneratePdf).not.toHaveBeenCalled();
+
+    // Confirming regenerates (row menu remains open after cancel).
     fireEvent.click(screen.getByRole('button', { name: 'Regenerate PDF for invoice INV-001' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }));
 
     expect(onGeneratePdf).toHaveBeenCalledWith(expect.objectContaining({ id: 'inv-1' }));
-    confirmSpy.mockRestore();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('requires confirmation before marking an invoice as paid', () => {
+    const onMarkPaid = jest.fn();
+
+    renderTable([createInvoice()], { onMarkPaid });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark invoice INV-001 as paid' }));
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Mark invoice as paid?' });
+    expect(dialog).toHaveTextContent('Mark invoice INV-001 as paid?');
+    expect(onMarkPaid).not.toHaveBeenCalled();
+
+    // Cancelling does not mark paid.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onMarkPaid).not.toHaveBeenCalled();
+
+    // Confirming marks paid.
+    fireEvent.click(screen.getByRole('button', { name: 'Mark invoice INV-001 as paid' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark Paid' }));
+
+    expect(onMarkPaid).toHaveBeenCalledWith('inv-1');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 
   it('keeps replacement and download PDF actions inside an accessible row menu', () => {

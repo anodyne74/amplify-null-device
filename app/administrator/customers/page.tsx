@@ -1,11 +1,12 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import AdminActionButton from '@/app/components/AdminActionButton';
 import AdminFeedbackBanner from '@/app/components/AdminFeedbackBanner';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import AdminDataTable from '@/app/components/AdminDataTable';
+import AdminDataTable, { AdminSortableHeader, useAdminTableSort } from '@/app/components/AdminDataTable';
+import AdminPagination, { ADMIN_PAGE_SIZE, getPageSlice } from '@/app/components/AdminPagination';
 import AdminListState from '@/app/components/AdminListState';
 import AdminSectionHeader from '@/app/components/AdminSectionHeader';
 import type { ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
@@ -59,6 +60,27 @@ export default function CustomersAdminPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Sorting + pagination for the customer list
+  const { sortBy, sortDirection, toggleSort } = useAdminTableSort<'name' | 'status'>();
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [sortBy, sortDirection]);
+
+  const sortedCustomers = useMemo(() => {
+    if (!sortBy) return customers;
+    const value = (customer: Customer) =>
+      sortBy === 'name' ? customer.name ?? '' : customer.status ?? 'active';
+    const sorted = [...customers].sort((a, b) =>
+      value(a).localeCompare(value(b), undefined, { numeric: true, sensitivity: 'base' })
+    );
+    if (sortDirection === 'desc') sorted.reverse();
+    return sorted;
+  }, [customers, sortBy, sortDirection]);
+
+  const { currentPage, pageRows: pageCustomers } = getPageSlice(sortedCustomers, page, ADMIN_PAGE_SIZE);
 
   // Create customer form state
   const [name, setName] = useState('');
@@ -486,16 +508,28 @@ export default function CustomersAdminPage() {
             >
               <thead>
                 <tr>
-                  <th scope="col">Name</th>
+                  <AdminSortableHeader
+                    label="Name"
+                    sortKey="name"
+                    sortBy={sortBy}
+                    sortDirection={sortDirection}
+                    onSort={toggleSort}
+                  />
                   <th scope="col">Company Name</th>
                   <th scope="col">Correspondence Email</th>
                   <th scope="col">Rate/hr</th>
-                  <th scope="col">Status</th>
+                  <AdminSortableHeader
+                    label="Status"
+                    sortKey="status"
+                    sortBy={sortBy}
+                    sortDirection={sortDirection}
+                    onSort={toggleSort}
+                  />
                   <th scope="col">Manage</th>
                 </tr>
               </thead>
               <tbody>
-                {customers.map((customer) => (
+                {pageCustomers.map((customer) => (
                   <CustomerTableRow
                     key={customer.id}
                     customer={customer}
@@ -571,6 +605,14 @@ export default function CustomersAdminPage() {
                 ))}
               </tbody>
             </AdminDataTable>
+          )}
+          {!loading && !loadError && customers.length > 0 && (
+            <AdminPagination
+              page={currentPage}
+              totalItems={sortedCustomers.length}
+              onPageChange={setPage}
+              itemsLabel="customers"
+            />
           )}
         </div>
       </div>

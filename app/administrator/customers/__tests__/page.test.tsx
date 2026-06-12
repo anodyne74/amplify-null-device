@@ -253,6 +253,44 @@ describe('Operator Customers Page', () => {
     expect(listCustomers).toHaveBeenCalledTimes(1);
   });
 
+  it('sorts the customer list by name and shows the pagination summary', async () => {
+    (listCustomers as jest.Mock).mockResolvedValue({
+      data: [
+        { id: 'c-1', name: 'Zenith Co', email: 'z@example.com', billingRatePerHour: 95, status: 'active' },
+        { id: 'c-2', name: 'Acme Corp', email: 'a@example.com', billingRatePerHour: 95, status: 'inactive' },
+      ],
+      errors: undefined,
+    });
+
+    render(<CustomersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Zenith Co')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Showing 1–2 of 2 customers')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previous page of customers' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Next page of customers' })).toBeDisabled();
+
+    const firstDataRow = () => screen.getAllByRole('row')[1];
+
+    // Default order matches the fetched order.
+    expect(firstDataRow()).toHaveTextContent('Zenith Co');
+
+    const sortByName = screen.getByRole('button', { name: 'Sort by Name' });
+    fireEvent.click(sortByName);
+    expect(sortByName.closest('th')).toHaveAttribute('aria-sort', 'ascending');
+    expect(firstDataRow()).toHaveTextContent('Acme Corp');
+
+    fireEvent.click(sortByName);
+    expect(sortByName.closest('th')).toHaveAttribute('aria-sort', 'descending');
+    expect(firstDataRow()).toHaveTextContent('Zenith Co');
+
+    // Status is sortable as well.
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Status' }));
+    expect(firstDataRow()).toHaveTextContent('Zenith Co'); // active < inactive
+  });
+
   it('offers a retry action when loading customers fails', async () => {
     (listCustomers as jest.Mock)
       .mockResolvedValueOnce({ data: null, errors: [new Error('network')] })

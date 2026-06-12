@@ -20,22 +20,28 @@ jest.mock('@/app/components/OperatorRoute', () => {
   };
 });
 
-jest.mock('@/app/operator/mui-layout', () => {
-  return function MockOperatorMUILayout({
-    children,
+jest.mock('@/app/components/PortalLayout', () => {
+  return function MockPortalLayout({
+    portalTitle,
+    navItems,
     userEmail,
+    children,
   }: {
-    children: React.ReactNode;
+    portalTitle: string;
+    navItems: Array<{ href: string; label: string; icon: unknown }>;
     userEmail: string;
-    onLogout: () => void;
+    children: React.ReactNode;
   }) {
     return (
       <div>
-        <div data-testid="portal-title">Operator Portal</div>
+        <div data-testid="portal-title">{portalTitle}</div>
         <div data-testid="user-email">{userEmail}</div>
         <nav data-testid="nav">
-          <div data-testid="nav-item-Dashboard">Dashboard</div>
-          <div data-testid="nav-item-Routes">Routes</div>
+          {navItems.map((item) => (
+            <div key={item.href} data-testid={`nav-item-${item.label}`}>
+              {item.label}
+            </div>
+          ))}
         </nav>
         {children}
       </div>
@@ -62,7 +68,7 @@ describe('OperatorLayout', () => {
     expect(screen.getByTestId('portal-title')).toHaveTextContent('Operator Portal');
   });
 
-  it('shows only Dashboard and Routes nav when in operator mode', () => {
+  it('shows operator navigation only', () => {
     render(
       <OperatorLayout>
         <div>Test content</div>
@@ -71,5 +77,7 @@ describe('OperatorLayout', () => {
 
     expect(screen.getByTestId('nav-item-Dashboard')).toBeInTheDocument();
     expect(screen.getByTestId('nav-item-Routes')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-item-Settings')).toBeInTheDocument();
+    expect(screen.getByTestId('nav').children).toHaveLength(3);
   });
 });

@@ -349,7 +349,7 @@ a:hover {
 /* ─────────────────────────────────────────────────────────────────────────────
    Buttons
    ───────────────────────────────────────────────────────────────────────────── */
-button:not(.MuiButtonBase-root):not(.amplify-button) {
+button:not(.amplify-button) {
   border-radius: var(--nd-radius-md);
   border: 1px solid var(--nd-border-default);
   padding: 0.6em 1.2em;
@@ -364,11 +364,11 @@ button:not(.MuiButtonBase-root):not(.amplify-button) {
               background-color var(--nd-transition-fast),
               box-shadow var(--nd-transition-fast);
 }
-button:not(.MuiButtonBase-root):not(.amplify-button):hover {
+button:not(.amplify-button):hover {
   border-color: var(--nd-logo-primary);
   box-shadow: var(--nd-logo-primary-glow);
 }
-button:not(.MuiButtonBase-root):not(.amplify-button):focus-visible {
+button:not(.amplify-button):focus-visible {
   outline: 2px solid var(--nd-role-focus-ring);
   outline-offset: 2px;
 }
@@ -427,7 +427,7 @@ textarea:focus-visible,
     min-height: auto;
   }
 
-  button:not(.MuiButtonBase-root):not(.amplify-button) {
+  button:not(.amplify-button) {
     padding: 0.5em 1em;
   }
 }

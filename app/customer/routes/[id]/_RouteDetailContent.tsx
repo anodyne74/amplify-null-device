@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { getCustomerPortalContext, getRouteWithStops } from '@/lib/queries';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import Breadcrumbs from '@/app/components/Breadcrumbs';
 import RouteTimeline from '@/app/customer/components/RouteTimeline';
 import StopListItem from '@/app/customer/components/StopListItem';
 import { RouteStopsMap } from '@/app/operator/components/RouteStopsMap';
@@ -87,9 +87,12 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
     return (
       <ProtectedRoute>
         <div className={styles.errorPage}>
-          <Link href="/customer/routes" className={styles.backLink}>
-            ← Back to Routes
-          </Link>
+          <Breadcrumbs
+            items={[
+              { label: 'Routes', href: '/customer/routes' },
+              { label: 'Route' },
+            ]}
+          />
           <div className={styles.errorBanner}>
             {error || 'Route not found'}
           </div>
@@ -124,9 +127,12 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   return (
     <ProtectedRoute>
       <div>
-        <Link href="/customer/routes" className={styles.backLink}>
-          ← Back to Routes
-        </Link>
+        <Breadcrumbs
+          items={[
+            { label: 'Routes', href: '/customer/routes' },
+            { label: `Route ${routeLabel}` },
+          ]}
+        />
 
         <h1 className={styles.pageTitle}>Route {routeLabel}</h1>
 

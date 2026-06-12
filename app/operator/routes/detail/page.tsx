@@ -9,6 +9,7 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import Breadcrumbs from '@/app/components/Breadcrumbs';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { useToast } from '@/app/components/ToastProvider';
 import { StopForm } from '@/app/operator/components/StopForm';
@@ -1262,10 +1263,12 @@ function RouteDetailContent() {
 
   return (
     <div className={styles.container}>
-      {/* Back link */}
-      <Link href="/operator/routes" className={styles.backLink}>
-        ← Back to Routes
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: 'Routes', href: '/operator/routes' },
+          { label: route ? `Route ${route.routeCode || route.id.slice(0, 8)}` : 'Route' },
+        ]}
+      />
 
       {error && (
         <div className={styles.errorBanner}>

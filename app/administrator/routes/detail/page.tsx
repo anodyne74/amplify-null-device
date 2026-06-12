@@ -9,6 +9,7 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import Breadcrumbs from '@/app/components/Breadcrumbs';
 import { StopForm } from '@/app/operator/components/StopForm';
 import { isAdmin } from '@/lib/amplify-config';
 import { generateAgentInitials } from '@/lib/customerDefaults';
@@ -914,10 +915,12 @@ function RouteDetailContent() {
 
   return (
     <div className={styles.container}>
-      {/* Back link */}
-      <Link href="/administrator/routes" className={styles.backLink}>
-        ← Back to Routes
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: 'Routes', href: '/administrator/routes' },
+          { label: route ? `Route ${route.routeCode || route.id.slice(0, 8)}` : 'Route' },
+        ]}
+      />
 
       {error && (
         <div className={styles.errorBanner}>

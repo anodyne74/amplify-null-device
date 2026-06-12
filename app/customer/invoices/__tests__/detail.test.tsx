@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import InvoiceDetailContent from '../[id]/_InvoiceDetailContent';
 import ToastProvider from '@/app/components/ToastProvider';
 import { getInvoiceDetail } from '@/lib/queries/GetInvoiceDetail';
@@ -87,6 +87,14 @@ describe('Customer invoice detail', () => {
       await screen.findByText(/invoices are available to account owners/i)
     ).toBeInTheDocument();
     expect(screen.getByText(/contact your account owner for access/i)).toBeInTheDocument();
+
+    // Breadcrumbs still render above the access-restricted panel
+    const breadcrumbs = screen.getByRole('navigation', { name: /breadcrumb/i });
+    expect(within(breadcrumbs).getByRole('link', { name: 'Invoices' })).toHaveAttribute(
+      'href',
+      '/customer/invoices'
+    );
+
     expect(replaceMock).not.toHaveBeenCalled();
     expect(getInvoiceDetail).not.toHaveBeenCalled();
   });

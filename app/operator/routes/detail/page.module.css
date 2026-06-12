@@ -4,16 +4,6 @@
   margin: 0 auto;
 }
 
-.backLink {
-  color: var(--nd-operator-accent);
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.backLink:hover {
-  text-decoration: underline;
-}
-
 .errorBanner {
   padding: var(--nd-space-md);
   background-color: var(--nd-status-danger-dim);

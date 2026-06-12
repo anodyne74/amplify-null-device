@@ -2,15 +2,6 @@
   padding: 20px;
 }
 
-.backLink {
-  color: var(--nd-customer-accent);
-  text-decoration: none;
-}
-
-.backLink:hover {
-  text-decoration: underline;
-}
-
 .errorBanner {
   padding: var(--nd-space-md);
   background-color: var(--nd-status-danger-dim);

@@ -7,6 +7,7 @@ import { getInvoiceDetail, type InvoiceDetail } from '@/lib/queries/GetInvoiceDe
 import { getCustomerPortalContext } from '@/lib/queries';
 import InvoiceLineItems from '@/app/customer/components/InvoiceLineItems';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import Breadcrumbs from '@/app/components/Breadcrumbs';
 import { useToast } from '@/app/components/ToastProvider';
 import { getInvoiceStatusTone, type InvoiceStatusTone } from '@/lib/invoiceStatusHelpers';
 import styles from './_InvoiceDetailContent.module.css';
@@ -134,6 +135,12 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
   if (readOnly) {
     return (
       <div className={styles.errorWrapper}>
+        <Breadcrumbs
+          items={[
+            { label: 'Invoices', href: '/customer/invoices' },
+            { label: 'Invoice' },
+          ]}
+        />
         <div className={styles.accessPanel}>
           <p className={styles.accessPanelTitle}>
             Invoices are available to account owners
@@ -155,6 +162,12 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
   if (error || !invoice) {
     return (
       <div className={styles.errorWrapper}>
+        <Breadcrumbs
+          items={[
+            { label: 'Invoices', href: '/customer/invoices' },
+            { label: 'Invoice' },
+          ]}
+        />
         <div className={styles.errorBox}>
           <p className={styles.errorMessage}>{error || 'Invoice not found'}</p>
           <button
@@ -178,14 +191,15 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
 
   return (
     <div className={styles.container}>
-      {/* Header with Back Button */}
+      <Breadcrumbs
+        items={[
+          { label: 'Invoices', href: '/customer/invoices' },
+          { label: `Invoice ${invoice.invoiceNumber || invoice.id}` },
+        ]}
+      />
+
+      {/* Header */}
       <div className={styles.pageHeader}>
-        <button
-          onClick={() => router.back()}
-          className={styles.backBtn}
-        >
-          ← Back
-        </button>
         <h1 className={styles.pageTitle}>
           Invoice {invoice.invoiceNumber || invoice.id}
         </h1>

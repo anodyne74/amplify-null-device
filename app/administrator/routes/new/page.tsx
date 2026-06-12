@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import Breadcrumbs from '@/app/components/Breadcrumbs';
 import { RouteForm, type RouteDraftStop } from '@/app/operator/components/RouteForm';
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
@@ -483,6 +484,12 @@ export default function NewRoutePage() {
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.container}>
+        <Breadcrumbs
+          items={[
+            { label: 'Routes', href: '/administrator/routes' },
+            { label: 'New Route' },
+          ]}
+        />
         <h1 className={styles.heading}>Create New Route</h1>
 
         {loadingCustomers ? (

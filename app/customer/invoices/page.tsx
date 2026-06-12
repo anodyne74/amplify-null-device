@@ -84,7 +84,7 @@ export default function InvoicesPage() {
     return () => {
       cancelled = true;
     };
-  }, [user?.userId, startDate, endDate, router]);
+  }, [user?.userId, startDate, endDate]);
 
   const handleClearFilters = () => {
     setStartDate('');

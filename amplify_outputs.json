@@ -14,23 +14,7 @@
     "user_verification_types": [
       "email"
     ],
-    "groups": [
-      {
-        "customer": {
-          "precedence": 0
-        }
-      },
-      {
-        "operator": {
-          "precedence": 1
-        }
-      },
-      {
-        "administrator": {
-          "precedence": 2
-        }
-      }
-    ],
+    "groups": [],
     "mfa_configuration": "NONE",
     "password_policy": {
       "min_length": 8,
@@ -2211,57 +2195,5 @@
       },
       "nonModels": {}
     }
-  },
-  "storage": {
-    "aws_region": "ap-southeast-2",
-    "bucket_name": "amplify-d2qllmg205y34i-4o-invoicestoragebucket0990-arsr4mmnmmkd",
-    "buckets": [
-      {
-        "name": "invoiceStorage",
-        "bucket_name": "amplify-d2qllmg205y34i-4o-invoicestoragebucket0990-arsr4mmnmmkd",
-        "aws_region": "ap-southeast-2",
-        "paths": {
-          "invoices/*": {
-            "groupsadministrator": [
-              "get",
-              "list",
-              "write",
-              "delete"
-            ],
-            "groupsoperator": [
-              "get",
-              "list",
-              "write",
-              "delete"
-            ],
-            "authenticated": [
-              "get",
-              "list",
-              "write"
-            ]
-          },
-          "schedules/*": {
-            "groupsadministrator": [
-              "get",
-              "list",
-              "write",
-              "delete"
-            ],
-            "groupsoperator": [
-              "get",
-              "list",
-              "write",
-              "delete"
-            ],
-            "authenticated": [
-              "get",
-              "list",
-              "write"
-            ]
-          }
-        }
-      }
-    ]
-  },
-  "version": "1.3"
+  }
 }

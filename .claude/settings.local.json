@@ -3,7 +3,35 @@
     "allow": [
       "Bash(npm run *)",
       "Bash(git status *)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"TSC_EXIT=$?\")",
+      "Bash(npx jest *)",
+      "Bash(npx next *)",
+      "Bash(npx eslint *)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 40)",
+      "Bash(perl -pi -e 's/\\(<AdminFormField label=\"[^\"]+\" htmlFor=\"create-customer-[^\"]+\"\\)/$1 className={styles.inlineGrid}/g' app/administrator/customers/components/CustomerCreateForm.tsx)",
+      "Read(//c/c/code/amplify-null-device/.claude/worktrees/ui-ux-improvements/app/administrator/customers/components/**)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 30)",
+      "PowerShell(npx jest app/operator --ci 2>&1 | Select-Object -Last 40)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 10; npx jest app/operator --ci 2>&1 | Select-Object -Last 6)",
+      "PowerShell(npx jest app/customer --ci 2>&1 | Select-Object -Last 60)",
+      "Bash(npm ci *)",
+      "PowerShell(npx tsc --noEmit)",
+      "PowerShell(Set-Content *)",
+      "PowerShell(npx jest app/operator app/administrator app/customer app/components --ci 2>&1 | Select-Object -Last 40)",
+      "PowerShell(npx jest app/administrator --ci 2>&1 | Select-Object -Last 30)",
+      "PowerShell(npx jest lib app/customer --ci 2>&1 | Select-Object -Last 40)",
+      "Bash(sed -n 130,170p app/administrator/routes/__tests__/route-edit.test.tsx)",
+      "Bash(sed -n 80,130p app/customer/routes/__tests__/list.test.tsx)",
+      "PowerShell(Get-Content *)",
+      "PowerShell(npx jest app/administrator app/operator app/components --ci 2>&1 | Select-Object -Last 25)",
+      "PowerShell(npx jest app/administrator/routes/__tests__/routes-list.test.tsx app/operator app/components --ci 2>&1 | Select-Object -Last 6)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 10)",
+      "PowerShell(npx jest app/administrator app/components --ci 2>&1 | Select-Object -Last 60)",
+      "Bash(sed -i \"s/{ name: 'Administrator Portal' }/{ name: \\\\/^Administrator Portal\\\\/ }/g; s/{ name: 'Operator Portal' }/{ name: \\\\/^Operator Portal\\\\/ }/g; s/{ name: 'Customer Portal' }/{ name: \\\\/^Customer Portal\\\\/ }/g\" app/__tests__/home-redirect.test.tsx app/administrator/__tests__/page.test.tsx)",
+      "Bash(grep -cn \"name: /\\\\^\" app/__tests__/home-redirect.test.tsx app/administrator/__tests__/page.test.tsx)",
+      "Bash(npm uninstall *)"
     ]
   }
 }

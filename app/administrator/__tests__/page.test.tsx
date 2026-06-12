@@ -68,6 +68,6 @@ describe('Home Administrator Redirect', () => {
 
     const { queryByRole } = render(<Home />);
 
-    expect(queryByRole('button', { name: 'Operator Portal' })).toBeInTheDocument();
+    expect(queryByRole('button', { name: /^Operator Portal/ })).toBeInTheDocument();
   });
 });

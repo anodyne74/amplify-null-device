@@ -47,7 +47,7 @@ export default function Home() {
         <div className={styles.wrapper}>
           <div className={styles.card}>
             <h1 className={styles.heading}>Choose Portal Role</h1>
-            <p className={styles.subtitle}>Choose Administrator for desktop management or Operator for on-route mobile use.</p>
+            <p className={styles.subtitle}>Your account has access to more than one portal. Pick where to go.</p>
             <div className={styles.roleButtons}>
               {roleOptions.map((option) => (
                 <button
@@ -56,7 +56,8 @@ export default function Home() {
                   className={styles.roleButton}
                   onClick={() => handleRoleSelect(option.key, option.path)}
                 >
-                  {option.title}
+                  <span className={styles.roleButtonTitle}>{option.title}</span>
+                  <span className={styles.roleButtonDescription}>{option.description}</span>
                 </button>
               ))}
             </div>

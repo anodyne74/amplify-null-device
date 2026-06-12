@@ -9,6 +9,8 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import ConfirmDialog from '@/app/components/ConfirmDialog';
+import { useToast } from '@/app/components/ToastProvider';
 import { StopForm } from '@/app/operator/components/StopForm';
 import { isAdmin } from '@/lib/amplify-config';
 import { generateAgentInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
@@ -226,6 +228,7 @@ function RouteDetailContent() {
   const id = searchParams.get('id') ?? '';
   const { user } = useAuthenticator();
   const canManagePlanning = isAdmin(user);
+  const { showToast } = useToast();
 
   const [route, setRoute] = useState<Route | null>(null);
   const [customerName, setCustomerName] = useState<string>('');
@@ -255,6 +258,7 @@ function RouteDetailContent() {
   const [reorderError, setReorderError] = useState<string | null>(null);
 
   const [transitioning, setTransitioning] = useState(false);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [deletingRoute, setDeletingRoute] = useState(false);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [transitionError, setTransitionError] = useState<string | null>(null);
@@ -361,11 +365,15 @@ function RouteDetailContent() {
             : s
         );
         setStops(updatedStops);
-
+        showToast('Stop completed', 'success');
+      } else {
+        showToast('Failed to complete stop. Please try again.', 'error');
       }
-    } catch { /* ignore */ }
+    } catch {
+      showToast('Failed to complete stop. Please try again.', 'error');
+    }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [route, stops]);
+  }, [route, stops, showToast]);
 
   const handleSkipStop = useCallback(async (stopId: string) => {
     if (!route || route.status !== 'in_progress' || !route.executionPhase) return;
@@ -392,10 +400,15 @@ function RouteDetailContent() {
               : s
           )
         );
+        showToast('Stop skipped', 'success');
+      } else {
+        showToast('Failed to skip stop. Please try again.', 'error');
       }
-    } catch { /* ignore */ }
+    } catch {
+      showToast('Failed to skip stop. Please try again.', 'error');
+    }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [route, stops]);
+  }, [route, stops, showToast]);
 
   const persistStopOrder = useCallback(
     async (orderedStops: Stop[]) => {
@@ -508,24 +521,35 @@ function RouteDetailContent() {
   }, [user?.userId]);
 
   useEffect(() => {
-    if (!route || route.status !== 'in_progress' || !route.executionPhase) {
-      if (gpsWatchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
-        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
-      }
-      gpsWatchIdRef.current = null;
-      lastGpsPointRef.current = null;
-      return;
-    }
-
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       return;
     }
 
+    if (!route || route.status !== 'in_progress' || !route.executionPhase) {
+      // Defensive: previous cleanup should already have cleared any watch,
+      // but never leave a stale watch running outside execution mode.
+      if (gpsWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+        gpsWatchIdRef.current = null;
+      }
+      lastGpsPointRef.current = null;
+      return;
+    }
+
+    // Guards against position callbacks firing after cleanup (e.g. a callback
+    // already queued when clearWatch runs on unmount).
+    let cancelled = false;
+
     lastGpsPointRef.current = null;
+    setCurrentPosition(null);
     const activePhase = route.executionPhase === 'pickup' ? 'signs_picked_up' : 'signs_placed';
 
-    gpsWatchIdRef.current = navigator.geolocation.watchPosition(
+    const watchId = navigator.geolocation.watchPosition(
       (position) => {
+        if (cancelled) {
+          return;
+        }
+
         const nextPoint = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
@@ -563,13 +587,16 @@ function RouteDetailContent() {
         timeout: 15000,
       }
     );
+    gpsWatchIdRef.current = watchId;
 
-      setCurrentPosition(null);
     return () => {
-      if (gpsWatchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+      cancelled = true;
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchId);
       }
-      gpsWatchIdRef.current = null;
+      if (gpsWatchIdRef.current === watchId) {
+        gpsWatchIdRef.current = null;
+      }
       lastGpsPointRef.current = null;
     };
   }, [route]);
@@ -612,9 +639,21 @@ function RouteDetailContent() {
       try {
         const sentinel = await wakeLockApi.request('screen');
 
+        // The async request can resolve after cleanup (unmount or status
+        // change) — release immediately instead of holding a stale lock.
         if (cancelled) {
           await sentinel.release();
           return;
+        }
+
+        // Release any previous sentinel before replacing it (e.g. when the
+        // browser auto-released it on tab hide but did not fire 'release').
+        if (wakeLockRef.current && wakeLockRef.current !== sentinel) {
+          try {
+            await wakeLockRef.current.release();
+          } catch {
+            // Ignore release failures on the stale sentinel.
+          }
         }
 
         wakeLockRef.current = sentinel;
@@ -859,10 +898,6 @@ function RouteDetailContent() {
 
   const handleConfirmCompletion = async () => {
     if (!route) return;
-    const confirmed = window.confirm(
-      `Archive route ${route.routeCode || route.id.slice(0, 8)}? Archived routes are no longer active.`
-    );
-    if (!confirmed) return;
 
     setTransitioning(true);
     setTransitionError(null);
@@ -877,6 +912,7 @@ function RouteDetailContent() {
       setTransitionError('Failed to confirm route completion.');
     }
     setTransitioning(false);
+    setShowArchiveConfirm(false);
   };
 
   const handleSaveDistanceOverride = async () => {
@@ -1428,7 +1464,7 @@ function RouteDetailContent() {
               )}
               {canManagePlanning && route.status === 'completed' && (
                 <button
-                  onClick={handleConfirmCompletion}
+                  onClick={() => setShowArchiveConfirm(true)}
                   disabled={transitioning}
                   className={styles.btnComplete}
                 >
@@ -1924,6 +1960,21 @@ function RouteDetailContent() {
             </div>
           </div>
           )}
+
+          <ConfirmDialog
+            open={showArchiveConfirm}
+            title="Archive Route"
+            message={`Archive route ${route.routeCode || route.id.slice(0, 8)}? Archived routes are no longer active.`}
+            confirmLabel="Archive Route"
+            tone="danger"
+            busy={transitioning}
+            onConfirm={() => {
+              void handleConfirmCompletion();
+            }}
+            onCancel={() => {
+              if (!transitioning) setShowArchiveConfirm(false);
+            }}
+          />
         </>
       )}
     </div>

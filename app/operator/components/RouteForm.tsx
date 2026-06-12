@@ -1,7 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useToast } from '@/app/components/ToastProvider';
 import { StopForm } from '@/app/operator/components/StopForm';
 import { geocodeAddress } from '@/lib/googleMaps';
 import type { Stop } from '@/amplify/types';
@@ -80,6 +81,15 @@ export function RouteForm({
   const [copyError, setCopyError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const { showToast } = useToast();
+
+  // The parent owns the create mutation and reports failures through the
+  // `error` prop; track the latest value so the post-submit success check
+  // below does not read a stale closure.
+  const submitErrorRef = useRef<string | null>(error ?? null);
+  useEffect(() => {
+    submitErrorRef.current = error ?? null;
+  }, [error]);
 
   const canCopyStops = Boolean(copyStopSources && onCopyStopsFromSource);
   const selectedCustomer = customers.find((customer) => customer.id === customerId);
@@ -205,6 +215,14 @@ export function RouteForm({
     }
 
     await onSubmit({ routeCode: routeCode.trim(), customerId, notes, stops });
+
+    // Defer one tick so a failure flagged during submit has propagated back
+    // down via the `error` prop before we announce success.
+    setTimeout(() => {
+      if (!submitErrorRef.current) {
+        showToast('Route created', 'success');
+      }
+    }, 0);
   };
 
   const handleCopyStops = async () => {

@@ -160,6 +160,12 @@
   cursor: not-allowed;
 }
 
+.fieldError {
+  margin: var(--nd-space-xs) 0 0;
+  font-size: 13px;
+  color: var(--nd-status-danger);
+}
+
 .errorBanner {
   padding: 12px;
   background-color: var(--nd-status-danger-dim);

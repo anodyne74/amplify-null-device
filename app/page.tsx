@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthenticator, Authenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
 import { buildPortalOptions } from '@/lib/portalRouting';
+import { getLandingRedirect } from '@/lib/auth-routing';
 import { SUPPORT_EMAIL } from '@/lib/publicAppConfig';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import styles from './page.module.css';
@@ -33,13 +34,12 @@ export default function Home() {
 
   useEffect(() => {
     if (authStatus === 'authenticated' && !loading) {
-      if (roleOptions.length === 1) {
-        router.push(roleOptions[0].path);
-      } else if (roleOptions.length === 0) {
-        router.push('/pending-approval');
+      const destination = getLandingRedirect(groups);
+      if (destination) {
+        router.push(destination);
       }
     }
-  }, [authStatus, loading, roleOptions, router]);
+  }, [authStatus, loading, groups, router]);
 
   if (authStatus === 'authenticated') {
     if (!loading && roleOptions.length > 1) {

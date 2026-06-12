@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
+import { getCustomerRouteRedirect } from '@/lib/auth-routing';
 import LoadingSpinner from './LoadingSpinner';
 
 /**
@@ -28,19 +29,10 @@ export default function ProtectedRoute({
       return;
     }
 
-    if (authStatus === 'authenticated' && !loading) {
-      if (requireCustomer && isOperator && !isCustomer) {
-        router.push('/operator/dashboard');
-        return;
-      }
-
-      if (requireCustomer && isAdmin && !isCustomer) {
-        router.push('/administrator');
-        return;
-      }
-
-      if (requireCustomer && !isCustomer) {
-        router.push('/pending-approval');
+    if (authStatus === 'authenticated' && !loading && requireCustomer) {
+      const destination = getCustomerRouteRedirect({ isAdmin, isOperator, isCustomer });
+      if (destination) {
+        router.push(destination);
       }
     }
   }, [authStatus, isAdmin, isCustomer, isOperator, loading, requireCustomer, router]);

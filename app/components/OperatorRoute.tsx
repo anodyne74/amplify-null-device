@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
+import { getAdminRouteRedirect, getOperatorRouteRedirect } from '@/lib/auth-routing';
 import LoadingSpinner from './LoadingSpinner';
 
 /**
@@ -30,37 +31,13 @@ export default function OperatorRoute({
     }
 
     if (authStatus === 'authenticated' && !loading) {
-      if (requireAdmin) {
-        if (!isAdmin) {
-          if (isOperator) {
-            router.push('/operator/dashboard');
-            return;
-          }
-
-          if (isCustomer) {
-            router.push('/customer/dashboard');
-            return;
-          }
-
-          router.push('/pending-approval');
-        }
-      } else {
-        // Admin-only users should be sent to the admin portal, but dual-role users
-        // are allowed to stay in operator mode when they explicitly choose it.
-        if (isAdmin && !isOperator) {
-          router.push('/administrator');
-          return;
-        }
-
-        if (!isOperator) {
-          if (isCustomer) {
-            router.push('/customer/dashboard');
-            return;
-          }
-
-          router.push('/pending-approval');
-          return;
-        }
+      // Admin-only users should be sent to the admin portal, but dual-role users
+      // are allowed to stay in operator mode when they explicitly choose it.
+      const destination = requireAdmin
+        ? getAdminRouteRedirect({ isAdmin, isOperator, isCustomer })
+        : getOperatorRouteRedirect({ isAdmin, isOperator, isCustomer });
+      if (destination) {
+        router.push(destination);
       }
     }
   }, [authStatus, isAdmin, isCustomer, isOperator, loading, requireAdmin, router]);

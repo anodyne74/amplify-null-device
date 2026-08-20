@@ -20,19 +20,16 @@ jest.mock('@/app/components/OperatorRoute', () => {
   };
 });
 
-jest.mock('@/app/components/PortalLayout', () => {
-  return function MockPortalLayout({
-    portalTitle,
+jest.mock('@/app/administrator/components/AdminShell', () => {
+  return function MockAdminShell({
     navItems,
     children,
   }: {
-    portalTitle: string;
-    navItems: Array<{ href: string; label: string; icon: any }>;
+    navItems: Array<{ href: string; label: string; icon: unknown }>;
     children: React.ReactNode;
   }) {
     return (
       <div>
-        <div data-testid="portal-title">{portalTitle}</div>
         <nav data-testid="nav">
           {navItems.map((item) => (
             <div key={item.href} data-testid={`nav-item-${item.label}`}>
@@ -53,16 +50,6 @@ describe('AdministratorLayout', () => {
       signOut: jest.fn(),
       user: null,
     });
-  });
-
-  it('renders administrator portal title', () => {
-    render(
-      <AdministratorLayout>
-        <div>Test content</div>
-      </AdministratorLayout>
-    );
-
-    expect(screen.getByTestId('portal-title')).toHaveTextContent('Administrator Portal');
   });
 
   it('shows administrator navigation only', () => {

@@ -61,15 +61,32 @@
   transform: translateY(-1px);
 }
 
+.roleButtonTitle {
+  display: block;
+}
+
+.roleButtonDescription {
+  display: block;
+  margin-top: var(--nd-space-xs);
+  font-family: var(--nd-font-body);
+  font-size: 0.8rem;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--nd-text-secondary);
+}
+
 /* Login Page Styles */
 .loginPage {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
+  width: 100%;
+  height: 100vh;
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--nd-bg-void) 0%, var(--nd-bg-surface) 100%);
-  padding: var(--nd-space-lg);
+  background: linear-gradient(135deg, var(--nd-color-bg-canvas) 0%, var(--nd-color-bg-surface) 100%);
+  padding: clamp(1.25rem, 4vh, 3rem) var(--nd-space-lg);
   font-family: inherit;
+  overflow-y: auto;
 }
 
 .loginContainer {
@@ -91,11 +108,29 @@
   padding: var(--nd-space-sm) 0;
 }
 
-.logo {
-  width: min(100%, 554px);
-  height: auto;
-  display: inline-block;
+.logoLockup {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.75rem, 2vw, 1.1rem);
+  min-width: 0;
+}
+
+.logoMark {
+  width: clamp(58px, 9vw, 82px);
+  height: clamp(58px, 9vw, 82px);
+  flex: 0 0 auto;
   object-fit: contain;
+}
+
+.logoWordmark {
+  color: var(--nd-logo-wordmark);
+  font-family: var(--nd-font-display);
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
 }
 
 .brandTitle {
@@ -173,14 +208,14 @@
 }
 
 .authCard :global(.amplify-button[data-variation='primary']) {
-  background-color: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-  border-color: var(--nd-operator-accent);
+  background-color: var(--nd-interactive-primary-bg);
+  color: var(--nd-interactive-primary-fg);
+  border-color: var(--nd-interactive-primary-bg);
 }
 
 .authCard :global(.amplify-button[data-variation='primary']:hover) {
-  background-color: #ffc133;
-  border-color: #ffc133;
+  background-color: var(--nd-interactive-primary-bg-hover);
+  border-color: var(--nd-interactive-primary-bg-hover);
 }
 
 .authCard :global(.amplify-input),
@@ -207,9 +242,9 @@
 }
 
 .authCard :global(.amplify-alert) {
-  background: rgba(255, 183, 0, 0.12);
-  border-left: 4px solid var(--nd-operator-accent);
-  color: var(--nd-operator-accent);
+  background: var(--nd-alert-warning-bg);
+  border-left: 4px solid var(--nd-alert-warning-border);
+  color: var(--nd-alert-warning-fg);
 }
 
 .signupHeader {
@@ -281,9 +316,17 @@
     padding: var(--nd-space-md) 0;
   }
 
-  .logo {
-    width: min(78vw, 360px);
-    height: auto;
+  .logoLockup {
+    gap: 0.65rem;
+  }
+
+  .logoMark {
+    width: 58px;
+    height: 58px;
+  }
+
+  .logoWordmark {
+    font-size: clamp(1.9rem, 10vw, 2.55rem);
   }
 
   .brandTitle {

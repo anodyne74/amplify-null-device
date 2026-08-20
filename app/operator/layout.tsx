@@ -3,32 +3,27 @@
 import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import OperatorMUILayout from '@/app/operator/mui-layout';
+import PortalLayout from '@/app/components/PortalLayout';
+import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { getUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/queries';
 
+const OPERATOR_NAV = [
+  { href: '/operator/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
+  { href: '/operator/routes', label: 'Routes', icon: 'route' },
+  { href: '/operator/settings', label: 'Settings', icon: 'settings' },
+];
+
 /**
  * Operator Portal Layout
- * Uses Material UI components with NullDevice dark theme
- * Optimized for mobile-first field use
+ * Uses the shared PortalLayout (sidebar + main content shell) with the
+ * operator accent variant. Responsive: collapsible sidebar on mobile.
  */
 export default function OperatorLayout({ children }: { children: React.ReactNode }) {
   const { signOut, user } = useAuthenticator();
   const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
   const [userDisplayName, setUserDisplayName] = useState(fallbackDisplayName);
-
-  const applyThemeMode = (theme: 'system' | 'light' | 'dark') => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem('nd-theme-mode', theme);
-    const resolved =
-      theme === 'system'
-        ? window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
-          ? 'light'
-          : 'dark'
-        : theme;
-    document.documentElement.setAttribute('data-theme', resolved);
-    document.documentElement.style.colorScheme = resolved;
-  };
+  const { setMode: applyThemeMode } = useThemeMode();
 
   useEffect(() => {
     setUserDisplayName(fallbackDisplayName);
@@ -57,14 +52,21 @@ export default function OperatorLayout({ children }: { children: React.ReactNode
     return () => {
       cancelled = true;
     };
-  }, [fallbackDisplayName, user?.userId]);
+  }, [applyThemeMode, fallbackDisplayName, user?.userId]);
 
   return (
     <OperatorRoute>
-      <OperatorMUILayout userEmail={userDisplayName} onLogout={signOut}>
+      <PortalLayout
+        variant="operator"
+        portalTitle="Operator Portal"
+        navItems={OPERATOR_NAV}
+        userEmail={userDisplayName}
+        onLogout={signOut}
+        confirmLogout
+        role="operator"
+      >
         {children}
-      </OperatorMUILayout>
+      </PortalLayout>
     </OperatorRoute>
   );
 }
-

@@ -3,6 +3,13 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { RouteForm } from '../RouteForm';
 
+// Mock toast hook (provider lives in the root layout, not in this tree)
+jest.mock('@/app/components/ToastProvider', () => ({
+  __esModule: true,
+  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useToast: () => ({ showToast: jest.fn() }),
+}));
+
 const mockCustomers = [
   { id: 'cust-1', name: 'Acme Corp', email: 'acme@example.com' },
   { id: 'cust-2', name: 'Globex Inc', email: 'globex@example.com' },

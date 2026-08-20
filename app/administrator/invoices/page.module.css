@@ -61,15 +61,15 @@
 
 .primaryButton {
   background: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
+  color: var(--nd-color-text-on-accent);
   border-color: var(--nd-operator-accent);
-  box-shadow: 0 8px 18px rgba(255, 179, 0, 0.22);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--nd-operator-accent) 24%, transparent);
 }
 
 .primaryButton:hover:not(:disabled) {
-  border-color: #ffc133;
-  background: #ffc133;
-  box-shadow: 0 10px 22px rgba(255, 179, 0, 0.28);
+  border-color: var(--nd-interactive-primary-bg-hover);
+  background: var(--nd-interactive-primary-bg-hover);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--nd-operator-accent) 30%, transparent);
 }
 
 .alertPanel {
@@ -135,14 +135,14 @@
 }
 
 .invoiceTable thead tr {
-  background: rgba(255, 179, 0, 0.06);
+  background: color-mix(in srgb, var(--nd-status-planned-dim) 40%, transparent);
 }
 
 .invoiceTable th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #171717;
+  background: var(--nd-bg-overlay);
   text-align: left;
   font-size: 0.72rem;
   letter-spacing: 0.06em;
@@ -159,11 +159,11 @@
 }
 
 .invoiceTable tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.015);
+  background: color-mix(in srgb, var(--nd-bg-elevated) 90%, transparent);
 }
 
 .invoiceTable tbody tr:hover {
-  background: rgba(255, 179, 0, 0.05);
+  background: color-mix(in srgb, var(--nd-operator-accent-dim) 35%, transparent);
 }
 
 .cellNumeric {
@@ -174,6 +174,58 @@
 .cellSelect {
   min-width: 130px;
   width: 100%;
+}
+
+.statusCellStack {
+  display: grid;
+  gap: 8px;
+}
+
+.statusChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 22px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--nd-border-default);
+  background: var(--nd-bg-overlay);
+  color: var(--nd-text-secondary);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.statusChipDraft {
+  border-color: color-mix(in srgb, var(--nd-text-muted) 40%, transparent);
+  color: var(--nd-text-muted);
+}
+
+.statusChipSent {
+  border-color: color-mix(in srgb, var(--nd-customer-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--nd-customer-accent) 16%, transparent);
+  color: var(--nd-customer-accent);
+}
+
+.statusChipPaid {
+  border-color: color-mix(in srgb, var(--nd-accent-primary) 45%, transparent);
+  background: color-mix(in srgb, var(--nd-status-active-dim) 84%, transparent);
+  color: var(--nd-accent-primary);
+}
+
+.pdfChipAttached {
+  border-color: color-mix(in srgb, var(--nd-accent-primary) 45%, transparent);
+  background: color-mix(in srgb, var(--nd-status-active-dim) 84%, transparent);
+  color: var(--nd-accent-primary);
+}
+
+.pdfChipMissing {
+  border-color: color-mix(in srgb, var(--nd-status-danger) 35%, transparent);
+  background: color-mix(in srgb, var(--nd-status-danger) 10%, transparent);
+  color: var(--nd-status-danger);
 }
 
 .pdfCell {
@@ -204,22 +256,66 @@
 
 .inlineButton {
   padding: 6px 10px;
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  background: transparent;
-  color: var(--nd-text-primary);
   font-size: 0.74rem;
   line-height: 1;
 }
 
-.inlineButton:hover:not(:disabled) {
-  border-color: var(--nd-operator-accent);
-  color: var(--nd-operator-accent);
+.inlineButton:focus-visible,
+.uploadButton:focus-visible,
+.markPaidButton:focus-visible,
+.emailButton:focus-visible,
+.rowMenuTrigger:focus-visible,
+.cellSelect:focus-visible {
+  outline: 2px solid var(--nd-customer-accent);
+  outline-offset: 2px;
 }
 
 .inlineButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.rowMenu {
+  position: relative;
+}
+
+.rowMenu[open] .rowMenuTrigger {
+  border-color: var(--nd-operator-accent);
+  color: var(--nd-operator-accent);
+}
+
+.rowMenuTrigger {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: transparent;
+  color: var(--nd-text-secondary);
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.rowMenuTrigger::-webkit-details-marker {
+  display: none;
+}
+
+.rowMenuList {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 3;
+  display: grid;
+  gap: 6px;
+  min-width: 146px;
+  padding: 8px;
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg-surface);
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--nd-bg-base) 78%, transparent);
 }
 
 .uploadButton {
@@ -236,23 +332,7 @@
 }
 
 .markPaidButton {
-  border-color: rgba(0, 255, 136, 0.38);
-  background: rgba(0, 255, 136, 0.16);
-}
-
-.markPaidButton:hover:not(:disabled) {
-  border-color: var(--nd-accent-primary);
-  background: rgba(0, 255, 136, 0.24);
-}
-
-.emailButton {
-  border-color: rgba(255, 179, 0, 0.4);
-  background: rgba(255, 179, 0, 0.14);
-}
-
-.emailButton:hover:not(:disabled) {
-  border-color: var(--nd-operator-accent);
-  background: rgba(255, 179, 0, 0.24);
+  font-weight: 600;
 }
 
 .markPaidButton[disabled] {
@@ -277,4 +357,19 @@
   .invoiceTable {
     min-width: 760px;
   }
+}
+
+.importedBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: #1e1a2e;
+  border: 1px solid #4c3d7a;
+  color: #a78bfa;
+  font-size: 0.68rem;
+  font-weight: 600;
+  vertical-align: middle;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }

@@ -3,8 +3,8 @@ import { customerAccessActivation } from '../functions/customer-access-activatio
 
 /**
  * Delivery Management System Data Model
- * 
- * Schema includes 9 entities for a complete delivery management platform:
+ *
+ * Schema includes entities for a complete delivery management platform:
  * - Customer: Business customers using the service
  * - Operator: Staff members managing routes and billing
  * - Route: Delivery routes assigned to customers
@@ -14,7 +14,11 @@ import { customerAccessActivation } from '../functions/customer-access-activatio
  * - PaymentRecord: Payment history tracking
  * - AuditLog: Security audit trail for compliance
  * - CustomerUser: Cognito users associated with a customer (account_owner or read_only)
- * 
+ * - Administrator: Administrator profile details synced from Cognito
+ * - UserSettings: Per-user UI preferences and Null Device's own invoice remittance details
+ * - OperatorAvailabilityBlock: Days Null Device has no drivers available for a customer
+ * - CustomerClosureBlock: Days a customer's agency is closed
+ *
  * Authorization Rules:
  * - Customers can only access their own data (routes, invoices, payments)
  * - Operators can manage all resources
@@ -29,6 +33,7 @@ const schema = a.schema({
   Customer: a
     .model({
       name: a.string().required(),
+      companyName: a.string(),
       email: a.email().required(),
       contactPhone: a.phone(),
       // Address (single formatted value, same style as stop.formattedAddress)
@@ -40,6 +45,14 @@ const schema = a.schema({
       agentOptions: a.string().array(),
       status: a.enum(['active', 'inactive', 'suspended']),
       billingRatePerHour: a.float().required(), // Configurable hourly rate for invoicing
+      // Rate card / GST / direct-debit — customer-scoped billing setup (distinct from
+      // UserSettings.billing*, which is Null Device's own remittance details)
+      gstRegistered: a.boolean(),
+      gstAbn: a.string(), // Customer's own ABN
+      directDebitAccountName: a.string(),
+      directDebitBsb: a.string(),
+      directDebitAccountNumber: a.string(),
+      directDebitAuthorizedAt: a.datetime(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
@@ -50,6 +63,8 @@ const schema = a.schema({
       payments: a.hasMany('PaymentRecord', 'customerId'),
       auditLogs: a.hasMany('AuditLog', 'customerId'),
       users: a.hasMany('CustomerUser', 'customerId'),
+      operatorAvailabilityBlocks: a.hasMany('OperatorAvailabilityBlock', 'customerId'),
+      customerClosureBlocks: a.hasMany('CustomerClosureBlock', 'customerId'),
     })
     .authorization((allow) => [
       allow.owner().identityClaim('sub').to(['create', 'read', 'update']),
@@ -103,6 +118,9 @@ const schema = a.schema({
       overrideRate: a.float(),
       overrideAmount: a.float(),
       notes: a.string(),
+      customerInstructions: a.string(), // Customer-authored, distinct from the operator's own `notes`
+      drivingModeEnabled: a.boolean(), // Renders the operator app's simplified in-vehicle driving mode for this route
+      vanCount: a.integer(), // Number of vans/vehicles assigned to this route
       scheduleS3Key: a.string(), // S3 key for the uploaded schedule file
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
@@ -113,7 +131,11 @@ const schema = a.schema({
       invoices: a.hasMany('Invoice', 'routeId'),
     })
     .authorization((allow) => [
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      // 'update' scoped in practice to customerInstructions by the client (lib/queries.ts
+      // updateRouteCustomerInstructions) — Amplify Gen 2 has no field-level authorization,
+      // so this is a coarse grant like the rest of this schema. Covers both account_owner
+      // and read_only CustomerUser sub-roles (not distinguishable at this layer).
+      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read', 'update']),
       allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'update']),
@@ -156,7 +178,7 @@ const schema = a.schema({
 
   /**
    * Invoice - Billing document for a customer
-   * Status lifecycle: draft → finalized → sent → paid
+   * Status lifecycle: draft → sent → paid
    * Invoices reference routes/stops for line item generation
    */
   Invoice: a
@@ -167,7 +189,8 @@ const schema = a.schema({
       periodStartDate: a.date(),
       periodEndDate: a.date(),
       totalAmount: a.float().required(),
-      status: a.enum(['draft', 'finalized', 'sent', 'paid']),
+      status: a.enum(['draft', 'sent', 'paid']),
+      importedAt: a.datetime(),
       routeId: a.id(),        // linked route
       pdfS3Key: a.string(),   // S3 key for uploaded PDF e.g. invoices/{id}.pdf
       emailSentAt: a.datetime(), // timestamp of last SES email send
@@ -290,6 +313,52 @@ const schema = a.schema({
       allow.ownerDefinedIn('userSub').identityClaim('sub').to(['read']),           // each user reads own record
       allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read']),   // account owner reads all for their customer
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),  // only admins manage users
+    ]),
+
+  /**
+   * OperatorAvailabilityBlock - A day Null Device has no drivers available for a customer.
+   * One calendar per customer, written from the Null Device side only.
+   * No enforcement against Route creation yet — read/write calendar data only.
+   */
+  OperatorAvailabilityBlock: a
+    .model({
+      customerId: a.id().required(),
+      date: a.date().required(),
+      reason: a.string(),
+      createdByOperatorId: a.id(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+      // Relationships
+      customer: a.belongsTo('Customer', 'customerId'),
+    })
+    .authorization((allow) => [
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+      allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
+      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']), // customer views, can't write
+    ]),
+
+  /**
+   * CustomerClosureBlock - A day the customer's agency is closed.
+   * One calendar per customer, written from the customer side only.
+   * No enforcement against Route creation yet — read/write calendar data only.
+   */
+  CustomerClosureBlock: a
+    .model({
+      customerId: a.id().required(),
+      date: a.date().required(),
+      reason: a.string(),
+      createdByUserSub: a.string(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+      // Relationships
+      customer: a.belongsTo('Customer', 'customerId'),
+    })
+    .authorization((allow) => [
+      // Coarse across both account_owner and read_only CustomerUser sub-roles — not
+      // distinguishable at this layer, same limitation as elsewhere in this schema.
+      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read', 'create', 'update', 'delete']),
+      allow.groups(['administrator']).to(['read']),
+      allow.groups(['operator']).to(['read']),
     ]),
 
   /**

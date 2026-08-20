@@ -14,7 +14,7 @@
   display: flex;
   gap: var(--nd-space-sm);
   margin-bottom: var(--nd-space-lg);
-  border-bottom: 2px solid var(--nd-border);
+  border-bottom: 2px solid var(--nd-border-default);
 }
 
 .tab {
@@ -69,22 +69,22 @@
 .select,
 .input {
   padding: var(--nd-space-sm) var(--nd-space-md);
-  background: var(--nd-surface);
-  border: 1px solid var(--nd-border);
-  border-radius: var(--nd-radius);
+  background: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-text-primary);
   font-size: 0.95rem;
   width: 100%;
 }
 
 .copyRouteSelect {
-  color: #000;
-  background: #fff;
+  color: var(--nd-text-primary);
+  background: var(--nd-bg-elevated);
 }
 
 .copyRouteSelect option {
-  color: #000;
-  background: #fff;
+  color: var(--nd-text-primary);
+  background: var(--nd-bg-elevated);
 }
 
 .select:focus,
@@ -95,9 +95,9 @@
 
 .textarea {
   padding: var(--nd-space-sm) var(--nd-space-md);
-  background: var(--nd-surface);
-  border: 1px solid var(--nd-border);
-  border-radius: var(--nd-radius);
+  background: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-text-primary);
   font-family: monospace;
   font-size: 0.82rem;
@@ -119,9 +119,9 @@
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
 .btnSecondary {
   padding: var(--nd-space-sm) var(--nd-space-md);
-  background: var(--nd-surface);
+  background: var(--nd-bg-elevated);
   border: 1px solid var(--nd-operator-accent);
-  border-radius: var(--nd-radius);
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-operator-accent);
   font-weight: 600;
   cursor: pointer;
@@ -130,29 +130,29 @@
 
 .btnSecondary:hover {
   background: var(--nd-operator-accent);
-  color: var(--nd-bg);
+  color: var(--nd-color-text-on-accent);
 }
 
 .btnClear {
   padding: var(--nd-space-xs) var(--nd-space-sm);
   background: none;
-  border: 1px solid var(--nd-border);
-  border-radius: var(--nd-radius);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-text-secondary);
   cursor: pointer;
   font-size: 1rem;
 }
 
 .btnClear:hover {
-  border-color: var(--nd-error, #e55);
-  color: var(--nd-error, #e55);
+  border-color: var(--nd-status-danger);
+  color: var(--nd-status-danger);
 }
 
 .btnParse {
   padding: var(--nd-space-sm) var(--nd-space-lg);
-  background: var(--nd-surface);
+  background: var(--nd-bg-elevated);
   border: 2px solid var(--nd-operator-accent);
-  border-radius: var(--nd-radius);
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-operator-accent);
   font-weight: 700;
   cursor: pointer;
@@ -170,8 +170,8 @@
   padding: var(--nd-space-md) var(--nd-space-xl);
   background: var(--nd-operator-accent);
   border: none;
-  border-radius: var(--nd-radius);
-  color: var(--nd-bg);
+  border-radius: var(--nd-radius-sm);
+  color: var(--nd-color-text-on-accent);
   font-weight: 700;
   cursor: pointer;
   font-size: 1rem;
@@ -186,10 +186,10 @@
 
 /* ── Feedback ─────────────────────────────────────────────────────────────── */
 .warnings {
-  background: color-mix(in srgb, #f59e0b 12%, var(--nd-surface));
-  border-left: 3px solid #f59e0b;
+  background: color-mix(in srgb, var(--nd-status-warning) 12%, var(--nd-bg-elevated));
+  border-left: 3px solid var(--nd-status-warning);
   padding: var(--nd-space-sm) var(--nd-space-md);
-  border-radius: 0 var(--nd-radius) var(--nd-radius) 0;
+  border-radius: 0 var(--nd-radius-sm) var(--nd-radius-sm) 0;
   font-size: 0.88rem;
   color: var(--nd-text-primary);
 }
@@ -199,7 +199,7 @@
 }
 
 .error {
-  color: var(--nd-error, #e55);
+  color: var(--nd-status-danger);
   font-size: 0.9rem;
   font-weight: 500;
 }
@@ -211,8 +211,8 @@
 
 .previewTable {
   overflow-x: auto;
-  border: 1px solid var(--nd-border);
-  border-radius: var(--nd-radius);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-sm);
   font-size: 0.85rem;
 }
 
@@ -222,14 +222,14 @@
   grid-template-columns: 32px 1fr 50px 50px 100px 70px;
   gap: var(--nd-space-sm);
   padding: var(--nd-space-xs) var(--nd-space-md);
-  border-bottom: 1px solid var(--nd-border);
+  border-bottom: 1px solid var(--nd-border-default);
   align-items: center;
 }
 
 .previewRowHeader {
   font-weight: 700;
   color: var(--nd-text-secondary);
-  background: var(--nd-surface);
+  background: var(--nd-bg-elevated);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -258,8 +258,8 @@
 }
 
 .auctionBadge {
-  background: color-mix(in srgb, #f59e0b 20%, transparent);
-  color: #a0620a;
+  background: color-mix(in srgb, var(--nd-status-warning) 20%, transparent);
+  color: var(--nd-status-warning);
   font-size: 0.7rem;
   padding: 1px 6px;
   border-radius: 99px;

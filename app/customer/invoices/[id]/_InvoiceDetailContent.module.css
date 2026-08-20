@@ -23,7 +23,7 @@
 
 .errorBox {
   padding: var(--nd-space-lg);
-  background-color: rgba(255,71,87,0.12);
+  background-color: var(--nd-status-danger-dim);
   color: var(--nd-status-danger);
   border-radius: var(--nd-radius-lg);
   font-size: 14px;
@@ -37,7 +37,7 @@
 .goBackBtn {
   padding: 8px 16px;
   background-color: var(--nd-status-danger);
-  color: var(--nd-text-inverse);
+  color: var(--nd-color-text-on-danger);
   border: none;
   border-radius: var(--nd-radius-sm);
   font-size: 14px;
@@ -48,6 +48,26 @@
 
 .goBackBtn:hover {
   opacity: 0.9;
+}
+
+.accessPanel {
+  padding: var(--nd-space-lg);
+  background-color: var(--nd-bg-elevated);
+  border: 1px solid var(--nd-border-default);
+  border-radius: var(--nd-radius-lg);
+}
+
+.accessPanelTitle {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--nd-text-primary);
+}
+
+.accessPanelText {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--nd-text-secondary);
 }
 
 .pageHeader {

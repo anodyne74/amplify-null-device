@@ -1,0 +1,319 @@
+/*
+ * Design tokens consumed by app/components/ui/components.css.
+ * Ported from the "Null Device Design System" Claude Design project's tokens/*.css.
+ *
+ * Deliberately NOT ported:
+ * - tokens/fonts.css: its Comfortaa @font-face rules point at relative asset paths
+ *   that don't exist in this repo, and its Manrope/JetBrains Mono Google Fonts
+ *   @import would duplicate what app/layout.tsx already self-hosts via next/font
+ *   (same reasoning as bundling Lucide locally instead of the CDN mask approach —
+ *   see app/components/ui/core/Icon.tsx). The --font-display/--font-body/--font-mono
+ *   variables below reference the app's existing next/font CSS variables instead.
+ * - tokens/base.css: applies raw element selectors (body, h1-h5, a, hr, ::selection)
+ *   that would immediately override app/globals.css's existing global styles on
+ *   every page — out of scope until the full token swap (see plan Part A.4).
+ *
+ * These variables are a separate namespace from app/globals.css's existing --nd-*
+ * app tokens (e.g. --nd-bg-void) — no collisions, safe to load globally now since
+ * nothing outside app/components/ui/** reads them yet.
+ */
+
+/* Colors */
+:root {
+  --nd-navy: #141b38;
+  --nd-indigo: #5d65e6;
+  --nd-violet: #b181e8;
+  --nd-black: #141b38;
+  --nd-surface-dark: #1c244a;
+  --nd-fail: #e5484d;
+
+  --indigo-50: #eef0fe;
+  --indigo-100: #dfe2fd;
+  --indigo-200: #c3c8fa;
+  --indigo-300: #a0a8f4;
+  --indigo-400: #7d86ec;
+  --indigo-500: #5d65e6;
+  --indigo-600: #4a51cc;
+  --indigo-700: #3a40a6;
+  --indigo-800: #2a2e76;
+
+  --violet-100: #f0e5fb;
+  --violet-300: #d4b6f2;
+  --violet-500: #b181e8;
+  --violet-700: #8354bc;
+
+  --neutral-0: #ffffff;
+  --neutral-25: #fbfcfe;
+  --neutral-50: #f6f7fb;
+  --neutral-100: #edeff6;
+  --neutral-200: #dfe2ee;
+  --neutral-300: #c7cbdd;
+  --neutral-400: #9aa0ba;
+  --neutral-500: #767d9b;
+  --neutral-600: #5a6180;
+  --neutral-700: #414863;
+  --neutral-800: #2b3150;
+  --neutral-900: #1c244a;
+  --neutral-950: #141b38;
+
+  --amber-50: #fff6e0;
+  --amber-100: #ffecbd;
+  --amber-200: #ffe096;
+  --amber-300: #fbd073;
+  --amber-400: #f4be4f;
+  --amber-500: #e5a62b;
+  --amber-600: #bf8412;
+  --amber-700: #8c5f08;
+
+  --red-50: #fdecee;
+  --red-500: #e5484d;
+  --red-600: #c62b31;
+  --red-700: #951f24;
+
+  --logo-indigo: #5d65e6;
+  --logo-violet: #b181e8;
+  --gradient-logo: linear-gradient(45deg, #5d65e6 0%, #b181e8 100%);
+  --gradient-hero: linear-gradient(160deg, #141b38 0%, #2a2e76 100%);
+
+  --status-planned: #bf8412;
+  --status-active: #5d65e6;
+  --status-completed: #3a40a6;
+  --status-archived: #9aa0ba;
+  --status-danger: #c62b31;
+  --status-warning: #bf8412;
+
+  --chart-1: #5d65e6;
+  --chart-2: #b181e8;
+  --chart-3: #f4be4f;
+  --chart-4: #3a40a6;
+  --chart-5: #9aa0ba;
+  --chart-6: #2b3150;
+  --chart-grid: #dfe2ee;
+  --chart-axis: #9aa0ba;
+
+  --map-route-line: #5d65e6;
+  --map-marker-fill: #141b38;
+  --map-marker-stroke: #5d65e6;
+  --map-marker-selected: #b181e8;
+}
+
+/* Semantic aliases */
+:root {
+  --surface-page: var(--neutral-50);
+  --surface-card: var(--neutral-0);
+  --surface-raised: var(--neutral-0);
+  --surface-sunken: var(--neutral-100);
+  --surface-inverse: var(--neutral-950);
+  --surface-brand: var(--indigo-500);
+  --surface-brand-subtle: var(--indigo-50);
+  --surface-hover: var(--neutral-100);
+  --surface-active: var(--neutral-200);
+  --surface-overlay: rgba(20, 27, 56, 0.48);
+  --surface-glass: rgba(255, 255, 255, 0.76);
+
+  --text-heading: var(--neutral-950);
+  --text-body: var(--neutral-800);
+  --text-muted: var(--neutral-600);
+  --text-subtle: var(--neutral-500);
+  --text-disabled: var(--neutral-400);
+  --text-on-brand: #ffffff;
+  --text-on-inverse: var(--neutral-0);
+  --text-inverse-muted: rgba(255, 255, 255, 0.66);
+  --text-brand: var(--indigo-600);
+  --text-link: var(--indigo-600);
+  --text-link-hover: var(--indigo-700);
+
+  --border-subtle: var(--neutral-200);
+  --border-default: var(--neutral-300);
+  --border-strong: var(--neutral-400);
+  --border-brand: var(--indigo-500);
+  --border-inverse: rgba(255, 255, 255, 0.14);
+
+  --action-primary-bg: var(--indigo-500);
+  --action-primary-bg-hover: var(--indigo-600);
+  --action-primary-bg-active: var(--indigo-700);
+  --action-secondary-bg: var(--neutral-0);
+  --action-secondary-border: var(--neutral-300);
+  --action-danger-bg: var(--red-500);
+  --focus-ring: 0 0 0 var(--focus-ring-w) rgba(93, 101, 230, 0.28);
+  --focus-ring-inverse: 0 0 0 var(--focus-ring-w) rgba(93, 101, 230, 0.45);
+
+  --status-success-fg: var(--indigo-700);
+  --status-success-bg: var(--indigo-50);
+  --status-warning-fg: var(--amber-700);
+  --status-warning-bg: var(--amber-50);
+  --status-danger-fg: var(--red-600);
+  --status-danger-bg: var(--red-50);
+  --status-info-fg: var(--neutral-700);
+  --status-info-bg: var(--neutral-100);
+  --status-neutral-fg: var(--neutral-600);
+  --status-neutral-bg: var(--neutral-100);
+}
+
+/* Night scope — the operator field app, read in a vehicle after dark. Inert today:
+   nothing outside app/components/ui/** reads these variable names, and no page sets
+   data-theme="night" yet (that's operator-portal migration work, later). */
+[data-theme='dark'],
+[data-theme='night'] {
+  --surface-page: #0e1329;
+  --surface-card: var(--neutral-950);
+  --surface-raised: var(--neutral-900);
+  --surface-sunken: #0a0f22;
+  --surface-inverse: var(--neutral-0);
+  --surface-brand: var(--indigo-500);
+  --surface-brand-subtle: rgba(93, 101, 230, 0.18);
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --surface-active: rgba(255, 255, 255, 0.1);
+  --surface-overlay: rgba(10, 15, 34, 0.66);
+  --surface-glass: rgba(20, 27, 56, 0.78);
+  --text-heading: #f3f5fc;
+  --text-body: rgba(243, 245, 252, 0.86);
+  --text-muted: rgba(243, 245, 252, 0.62);
+  --text-subtle: rgba(243, 245, 252, 0.46);
+  --text-disabled: rgba(243, 245, 252, 0.32);
+  --text-on-brand: #ffffff;
+  --text-brand: var(--indigo-300);
+  --text-link: var(--indigo-300);
+  --text-link-hover: var(--indigo-200);
+  --border-subtle: rgba(255, 255, 255, 0.09);
+  --border-default: rgba(255, 255, 255, 0.16);
+  --border-strong: rgba(255, 255, 255, 0.3);
+  --action-secondary-bg: var(--neutral-900);
+  --action-secondary-border: rgba(255, 255, 255, 0.16);
+  --status-success-bg: rgba(93, 101, 230, 0.18);
+  --status-success-fg: var(--indigo-300);
+  --status-warning-bg: rgba(244, 190, 79, 0.16);
+  --status-warning-fg: #f4be4f;
+  --status-danger-bg: rgba(229, 72, 77, 0.16);
+  --status-danger-fg: #ff9a9d;
+  --status-info-bg: rgba(255, 255, 255, 0.07);
+  --status-info-fg: rgba(243, 245, 252, 0.72);
+  --status-neutral-bg: rgba(255, 255, 255, 0.07);
+  --status-neutral-fg: rgba(243, 245, 252, 0.6);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.5);
+  --chart-grid: rgba(255, 255, 255, 0.1);
+  --chart-axis: rgba(243, 245, 252, 0.46);
+}
+
+/* Typography — font variables point at the app's existing next/font CSS variables
+   (see app/layout.tsx) rather than Google Fonts / bare family-name strings. */
+:root {
+  --font-display: var(--font-comfortaa, Comfortaa, 'Trebuchet MS', system-ui, sans-serif);
+  --font-body: var(--font-manrope, Manrope, 'Segoe UI', system-ui, sans-serif);
+  --font-mono: var(--font-jetbrains-mono, 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace);
+
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 21px;
+  --text-2xl: 26px;
+  --text-3xl: 32px;
+  --text-4xl: 40px;
+  --text-5xl: 52px;
+  --text-6xl: 64px;
+
+  --lh-tight: 1.15;
+  --lh-snug: 1.3;
+  --lh-normal: 1.55;
+  --lh-relaxed: 1.7;
+
+  --ls-display: -0.02em;
+  --ls-heading: -0.01em;
+  --ls-body: 0em;
+  --ls-caps: 0.08em;
+}
+
+/* Spacing */
+:root {
+  --space-0: 0px;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 20px;
+  --space-7: 24px;
+  --space-8: 32px;
+  --space-9: 40px;
+  --space-10: 48px;
+  --space-11: 64px;
+  --space-12: 80px;
+  --space-13: 96px;
+  --space-14: 128px;
+
+  --gutter-page: 32px;
+  --gutter-page-sm: 20px;
+  --container-max: 1280px;
+  --container-prose: 68ch;
+
+  --control-h-sm: 32px;
+  --control-h-md: 40px;
+  --control-h-lg: 48px;
+  --control-h-touch: 52px;
+
+  --sidebar-w: 248px;
+  --topbar-h: 64px;
+}
+
+/* Radius */
+:root {
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+  --border-hairline: 1px;
+  --border-thick: 1.5px;
+  --focus-ring-w: 3px;
+}
+
+/* Elevation */
+:root {
+  --shadow-none: none;
+  --shadow-xs: 0 1px 2px rgba(13, 13, 13, 0.05);
+  --shadow-sm: 0 1px 3px rgba(13, 13, 13, 0.07), 0 1px 2px rgba(13, 13, 13, 0.04);
+  --shadow-md: 0 2px 6px rgba(13, 13, 13, 0.1);
+  --shadow-lg: 0 12px 28px rgba(13, 13, 13, 0.12);
+  --shadow-xl: 0 24px 56px rgba(13, 13, 13, 0.18);
+  --shadow-teal: 0 6px 20px rgba(0, 209, 178, 0.3);
+  --shadow-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --blur-glass: saturate(160%) blur(14px);
+}
+
+/* Motion */
+:root {
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --dur-instant: 80ms;
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 360ms;
+  --dur-page: 520ms;
+  --transition-control: background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms;
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+    --dur-page: 0ms;
+  }
+}

@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import InvoicesPage from '../page';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import * as listMyInvoicesModule from '@/lib/queries/ListMyInvoices';
+import { getCustomerPortalContext } from '@/lib/queries';
 
 // Mock the router
 jest.mock('next/navigation', () => ({
@@ -24,6 +25,9 @@ jest.mock('@/app/components/LoadingSpinner', () => {
 
 // Mock the listMyInvoices function
 jest.spyOn(listMyInvoicesModule, 'listMyInvoices');
+jest.mock('@/lib/queries', () => ({
+  getCustomerPortalContext: jest.fn(),
+}));
 
 describe('Invoice List Page Integration', () => {
   const mockInvoices = [
@@ -57,8 +61,12 @@ describe('Invoice List Page Integration', () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',
       user: {
-        userId: 'cust-1',
+        userId: 'owner-sub-1',
       },
+    });
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'account_owner',
+      customerId: 'cust-1',
     });
 
     (listMyInvoicesModule.listMyInvoices as jest.Mock).mockResolvedValue({
@@ -93,6 +101,7 @@ describe('Invoice List Page Integration', () => {
       expect(listMyInvoicesModule.listMyInvoices).toHaveBeenCalledWith(
         expect.objectContaining({
           customerId: 'cust-1',
+          userSub: 'owner-sub-1',
         })
       );
     });
@@ -125,6 +134,21 @@ describe('Invoice List Page Integration', () => {
     });
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it('shows an inline access message for read-only users instead of redirecting', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'read_only',
+      customerId: 'cust-1',
+    });
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/invoices are available to account owners/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/contact your account owner for access/i)).toBeInTheDocument();
+    expect(listMyInvoicesModule.listMyInvoices).not.toHaveBeenCalled();
   });
 
   it('displays invoice count summary', async () => {

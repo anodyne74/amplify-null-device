@@ -15,7 +15,7 @@
   background-color: var(--nd-bg-elevated);
   border: 1px solid var(--nd-border-default);
   border-radius: var(--nd-radius-md);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--nd-shadow-md);
   max-height: 240px;
   overflow-y: auto;
 }

@@ -1,9 +1,9 @@
 {
   "auth": {
-    "user_pool_id": "ap-southeast-2_nDap1DZ2i",
+    "user_pool_id": "ap-southeast-2_wygM2jzcG",
     "aws_region": "ap-southeast-2",
-    "user_pool_client_id": "j9staijlumcebg5bg3l7nldqc",
-    "identity_pool_id": "ap-southeast-2:b8ff012c-cda3-49c9-a75a-e0d0b4bd4729",
+    "user_pool_client_id": "6pjhmmou3mt5kes6ksp4hcaam9",
+    "identity_pool_id": "ap-southeast-2:c7a7d1d2-ac52-400f-9561-24415408d384",
     "mfa_methods": [],
     "standard_required_attributes": [
       "email"
@@ -14,7 +14,23 @@
     "user_verification_types": [
       "email"
     ],
-    "groups": [],
+    "groups": [
+      {
+        "customer": {
+          "precedence": 0
+        }
+      },
+      {
+        "operator": {
+          "precedence": 1
+        }
+      },
+      {
+        "administrator": {
+          "precedence": 2
+        }
+      }
+    ],
     "mfa_configuration": "NONE",
     "password_policy": {
       "min_length": 8,
@@ -26,7 +42,7 @@
     "unauthenticated_identities_enabled": true
   },
   "data": {
-    "url": "https://4l2seoicn5balcruzgr4p52iqq.appsync-api.ap-southeast-2.amazonaws.com/graphql",
+    "url": "https://pafh3os7fbhank7fjjmflz5xw4.appsync-api.ap-southeast-2.amazonaws.com/graphql",
     "aws_region": "ap-southeast-2",
     "default_authorization_type": "AMAZON_COGNITO_USER_POOLS",
     "authorization_types": [
@@ -1961,6 +1977,55 @@
               "isRequired": false,
               "attributes": []
             },
+            "billingCompanyName": {
+              "name": "billingCompanyName",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "billingAbn": {
+              "name": "billingAbn",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "billingPhone": {
+              "name": "billingPhone",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "billingCompanyAddress": {
+              "name": "billingCompanyAddress",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "billingPaymentAccountName": {
+              "name": "billingPaymentAccountName",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "billingBsb": {
+              "name": "billingBsb",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "billingAccountNumber": {
+              "name": "billingAccountNumber",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
             "createdAt": {
               "name": "createdAt",
               "isArray": false,
@@ -2149,11 +2214,11 @@
   },
   "storage": {
     "aws_region": "ap-southeast-2",
-    "bucket_name": "amplify-d2qllmg205y34i-3r-invoicestoragebucket0990-go5f1vjainmk",
+    "bucket_name": "amplify-d2qllmg205y34i-4o-invoicestoragebucket0990-arsr4mmnmmkd",
     "buckets": [
       {
         "name": "invoiceStorage",
-        "bucket_name": "amplify-d2qllmg205y34i-3r-invoicestoragebucket0990-go5f1vjainmk",
+        "bucket_name": "amplify-d2qllmg205y34i-4o-invoicestoragebucket0990-arsr4mmnmmkd",
         "aws_region": "ap-southeast-2",
         "paths": {
           "invoices/*": {

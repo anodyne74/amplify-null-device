@@ -14,14 +14,25 @@ type AmplifyOutputsShape = {
   [key: string]: unknown;
 };
 
+let amplifyConfigured = false;
+
 function readPublicAuthEnv() {
   const fromProcess = typeof process !== 'undefined' ? process.env : undefined;
 
   return {
-    user_pool_id: fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID,
-    user_pool_client_id: fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID,
-    identity_pool_id: fromProcess?.NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID,
-    aws_region: fromProcess?.NEXT_PUBLIC_AWS_REGION,
+    user_pool_id:
+      fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_USER_POOL_ID ||
+      fromProcess?.NEXT_PUBLIC_COGNITO_USER_POOL_ID,
+    user_pool_client_id:
+      fromProcess?.NEXT_PUBLIC_AMPLIFY_COGNITO_CLIENT_ID ||
+      fromProcess?.NEXT_PUBLIC_COGNITO_CLIENT_ID,
+    identity_pool_id:
+      fromProcess?.NEXT_PUBLIC_AMPLIFY_IDENTITY_POOL_ID ||
+      fromProcess?.NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID,
+    aws_region:
+      fromProcess?.NEXT_PUBLIC_AWS_REGION ||
+      fromProcess?.NEXT_PUBLIC_COGNITO_REGION ||
+      fromProcess?.NEXT_PUBLIC_API_REGION,
   };
 }
 
@@ -54,6 +65,10 @@ export function getAmplifyConfig(): AmplifyOutputsShape {
  * Should be called once in the app's root (e.g., layout.tsx or _app.tsx)
  */
 export function configureAmplify() {
+  if (amplifyConfigured) {
+    return;
+  }
+
   const config = getAmplifyConfig();
   const auth = config.auth ?? {};
 
@@ -67,6 +82,7 @@ export function configureAmplify() {
   }
 
   Amplify.configure(config);
+  amplifyConfigured = true;
 }
 
 /**
@@ -150,14 +166,16 @@ export function getUsername(user: any): string | undefined {
 export function getUserDisplayName(user: any): string | undefined {
   if (!user) return undefined;
 
-  const firstName =
+  const displayName =
     user.attributes?.given_name ||
-    user.signInUserSession?.idToken?.payload?.given_name;
-  if (typeof firstName === 'string' && firstName.trim()) {
-    return firstName.trim();
+    user.signInUserSession?.idToken?.payload?.given_name ||
+    user.attributes?.name ||
+    user.signInUserSession?.idToken?.payload?.name;
+  if (typeof displayName === 'string' && displayName.trim()) {
+    return displayName.trim();
   }
 
-  return getUserEmail(user) || getUsername(user);
+  return undefined;
 }
 
 /**

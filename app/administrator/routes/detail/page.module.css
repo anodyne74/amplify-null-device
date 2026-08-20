@@ -4,19 +4,9 @@
   margin: 0 auto;
 }
 
-.backLink {
-  color: var(--nd-operator-accent);
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.backLink:hover {
-  text-decoration: underline;
-}
-
 .errorBanner {
   padding: var(--nd-space-md);
-  background-color: rgba(255,71,87,0.12);
+  background-color: var(--nd-status-danger-dim);
   color: var(--nd-status-danger);
   border-radius: var(--nd-radius-md);
   margin-top: var(--nd-space-md);
@@ -181,7 +171,7 @@
 .billingInput:focus {
   outline: none;
   border-color: var(--nd-operator-accent);
-  box-shadow: 0 0 0 2px rgba(0, 179, 255, 0.15);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nd-operator-accent) 24%, transparent);
 }
 
 .billingActions {
@@ -220,7 +210,7 @@
 
 .billingSuccess {
   margin-top: var(--nd-space-sm);
-  color: var(--nd-status-success);
+  color: var(--nd-status-active);
   font-size: 13px;
 }
 
@@ -384,7 +374,7 @@
 
 .stopCardTop {
   transform: translateY(-1px);
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.8), 0 12px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--nd-operator-accent) 80%, transparent), var(--nd-shadow-lg);
 }
 
 .stopCardCompleted {

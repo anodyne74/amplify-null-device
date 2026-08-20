@@ -5,6 +5,7 @@ import {
   isAdmin,
   getUserEmail,
   getUsername,
+  getUserDisplayName,
   hasGroup,
 } from './amplify-config';
 
@@ -147,6 +148,43 @@ describe('amplify-config utilities', () => {
 
     it('should return undefined for null user', () => {
       expect(getUsername(null)).toBeUndefined();
+    });
+  });
+
+  describe('getUserDisplayName', () => {
+    it('returns a configured first name claim when present', () => {
+      expect(
+        getUserDisplayName({
+          signInUserSession: {
+            idToken: { payload: { given_name: '  David  ', email: 'david@example.com' } },
+          },
+          userId: 'abc-123',
+        })
+      ).toBe('David');
+    });
+
+    it('returns a configured name claim when first name is not present', () => {
+      expect(
+        getUserDisplayName({
+          attributes: { name: 'Null Device Admin' },
+          signInUserSession: {
+            idToken: { payload: { email: 'admin@example.com' } },
+          },
+        })
+      ).toBe('Null Device Admin');
+    });
+
+    it('does not fall back to email, username, or user id when no name claim is present', () => {
+      expect(
+        getUserDisplayName({
+          username: 'david@example.com',
+          userId: 'abc-123',
+          signInDetails: { loginId: 'david@example.com' },
+          signInUserSession: {
+            idToken: { payload: { email: 'david@example.com', sub: 'abc-123' } },
+          },
+        })
+      ).toBeUndefined();
     });
   });
 

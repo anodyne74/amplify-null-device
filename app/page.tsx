@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthenticator, Authenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
 import { buildPortalOptions } from '@/lib/portalRouting';
+import { getLandingRedirect } from '@/lib/auth-routing';
 import { SUPPORT_EMAIL } from '@/lib/publicAppConfig';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import styles from './page.module.css';
@@ -33,13 +34,12 @@ export default function Home() {
 
   useEffect(() => {
     if (authStatus === 'authenticated' && !loading) {
-      if (roleOptions.length === 1) {
-        router.push(roleOptions[0].path);
-      } else if (roleOptions.length === 0) {
-        router.push('/pending-approval');
+      const destination = getLandingRedirect(groups);
+      if (destination) {
+        router.push(destination);
       }
     }
-  }, [authStatus, loading, roleOptions, router]);
+  }, [authStatus, loading, groups, router]);
 
   if (authStatus === 'authenticated') {
     if (!loading && roleOptions.length > 1) {
@@ -47,7 +47,7 @@ export default function Home() {
         <div className={styles.wrapper}>
           <div className={styles.card}>
             <h1 className={styles.heading}>Choose Portal Role</h1>
-            <p className={styles.subtitle}>Choose Administrator for desktop management or Operator for on-route mobile use.</p>
+            <p className={styles.subtitle}>Your account has access to more than one portal. Pick where to go.</p>
             <div className={styles.roleButtons}>
               {roleOptions.map((option) => (
                 <button
@@ -56,7 +56,8 @@ export default function Home() {
                   className={styles.roleButton}
                   onClick={() => handleRoleSelect(option.key, option.path)}
                 >
-                  {option.title}
+                  <span className={styles.roleButtonTitle}>{option.title}</span>
+                  <span className={styles.roleButtonDescription}>{option.description}</span>
                 </button>
               ))}
             </div>
@@ -73,15 +74,18 @@ export default function Home() {
       <div className={styles.loginContainer}>
         {/* Branding Section */}
         <div className={styles.brandingSection}>
-          <Image
-            src="/logo.svg"
-            alt=""
-            aria-hidden="true"
-            className={styles.logo}
-            width={554}
-            height={248}
-            priority
-          />
+          <div className={styles.logoLockup} aria-label="null device">
+            <Image
+              src="/icon.svg"
+              alt=""
+              aria-hidden="true"
+              className={styles.logoMark}
+              width={96}
+              height={96}
+              priority
+            />
+            <span className={styles.logoWordmark}>null device</span>
+          </div>
         </div>
 
         {/* Welcome Section */}
@@ -97,21 +101,27 @@ export default function Home() {
           <Authenticator 
             hideSignUp={false}
             formFields={{
-              signUp: {
-                given_name: {
-                  order: 1,
-                  label: 'First Name',
-                  placeholder: 'Enter your first name',
+              signIn: {
+                username: { 
+                  label: 'Email', 
+                  placeholder: 'Enter your email address',
                   isRequired: true,
+                  type: 'email',
                 },
-                email: {
-                  order: 2,
+              },
+              signUp: {
+                username: { 
+                  order: 1, 
+                  label: 'Email', 
+                  placeholder: 'Enter your email address',
+                  isRequired: true,
+                  type: 'email',
                 },
                 password: {
-                  order: 3,
+                  order: 2,
                 },
                 confirm_password: {
-                  order: 4,
+                  order: 3,
                 },
               },
             }}

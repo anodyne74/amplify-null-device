@@ -3,55 +3,115 @@
    NullDevice Design Tokens
    ───────────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Backgrounds */
-  --nd-bg-void: #0a0a0a;
-  --nd-bg-surface: #111111;
-  --nd-bg-elevated: #1a1a1a;
-  --nd-bg-overlay: #222222;
+  /* Backgrounds — navy ink, from the Null Device Design System's night scope
+     (tokens/semantic.css [data-theme="dark","night"]); this app's dark mode is
+     the default at :root, so it takes the design system's "night" values. */
+  --nd-bg-void: #0e1329;
+  --nd-bg-surface: #141b38;
+  --nd-bg-elevated: #1c244a;
+  --nd-bg-overlay: #2b3150;
 
   /* Borders */
-  --nd-border-subtle: rgba(255, 255, 255, 0.08);
-  --nd-border-default: rgba(255, 255, 255, 0.15);
+  --nd-border-subtle: rgba(255, 255, 255, 0.09);
+  --nd-border-default: rgba(255, 255, 255, 0.16);
   --nd-border-strong: rgba(255, 255, 255, 0.3);
 
   /* Text */
-  --nd-text-primary: rgba(255, 255, 255, 0.92);
-  --nd-text-secondary: rgba(255, 255, 255, 0.6);
-  --nd-text-muted: rgba(255, 255, 255, 0.38);
-  --nd-text-inverse: #0a0a0a;
+  --nd-text-primary: #f3f5fc;
+  --nd-text-secondary: rgba(243, 245, 252, 0.86);
+  --nd-text-muted: rgba(243, 245, 252, 0.62);
+  --nd-text-inverse: #141b38;
 
-  /* Logo – primary blue */
+  /* Logo – indigo (unchanged: the design system's single action colour is the
+     same hex this app's logo already used) */
   --nd-logo-primary: #5D65E6;
   --nd-logo-primary-dim: rgba(93, 101, 230, 0.15);
   --nd-logo-primary-glow: 0 0 12px rgba(93, 101, 230, 0.4);
 
-  /* Logo – secondary purple */
-  --nd-logo-secondary: #ad80e8;
-  --nd-logo-secondary-dim: rgba(173, 128, 232, 0.15);
-  --nd-logo-secondary-glow: 0 0 12px rgba(173, 128, 232, 0.4);
+  /* Logo – violet (gradient terminus only, never a UI fill) */
+  --nd-logo-secondary: #b181e8;
+  --nd-logo-secondary-dim: rgba(177, 129, 232, 0.15);
+  --nd-logo-secondary-glow: 0 0 12px rgba(177, 129, 232, 0.4);
+  --nd-logo-wordmark: #f3f5fc;
 
-  /* Accent – primary neon green */
-  --nd-accent-primary: #00ff88;
-  --nd-accent-primary-dim: rgba(0, 255, 136, 0.15);
-  --nd-accent-primary-glow: 0 0 12px rgba(0, 255, 136, 0.4);
+  /* Accent – primary. The design system has one action colour (indigo), not a
+     separate generic accent — this now matches --nd-logo-primary. */
+  --nd-accent-primary: #5D65E6;
+  --nd-accent-primary-dim: rgba(93, 101, 230, 0.15);
+  --nd-accent-primary-glow: 0 0 12px rgba(93, 101, 230, 0.4);
 
-  /* Portal accent – customer (electric cyan) */
-  --nd-customer-accent: #00e5ff;
-  --nd-customer-accent-dim: rgba(0, 229, 255, 0.15);
-  --nd-customer-sidebar: #001f2b;
+  /* Portal accent – customer. The design system defines no separate per-portal
+     hue (indigo is "the single action colour"), so this now matches the shared
+     brand indigo rather than a distinct cyan. */
+  --nd-customer-accent: #5D65E6;
+  --nd-customer-accent-dim: rgba(93, 101, 230, 0.15);
+  --nd-customer-sidebar: #1c244a;
 
-  /* Portal accent – operator (amber) */
-  --nd-operator-accent: #ffb300;
-  --nd-operator-accent-dim: rgba(255, 179, 0, 0.15);
-  --nd-operator-sidebar: #1a1200;
+  /* Portal accent – operator. Same reasoning: unified to the shared indigo
+     rather than a distinct amber (amber is reserved for warning/pending status
+     in the new system). */
+  --nd-operator-accent: #5D65E6;
+  --nd-operator-accent-dim: rgba(93, 101, 230, 0.15);
+  --nd-operator-sidebar: #1c244a;
 
-  /* Semantic status colours */
-  --nd-status-active: #00ff88;
-  --nd-status-completed: #00e5ff;
-  --nd-status-planned: #ffb300;
-  --nd-status-archived: rgba(255, 255, 255, 0.38);
-  --nd-status-danger: #ff4757;
-  --nd-status-warning: #ffa502;
+  /* Role semantics */
+  --nd-role-accent: var(--nd-logo-primary);
+  --nd-role-accent-dim: var(--nd-logo-primary-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-logo-primary);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-role-accent) 12%, transparent);
+  --nd-role-nav-active-fg: var(--nd-role-accent);
+
+  /* Semantic status colours — from the design system's tokens/colors.css; these
+     are theme-invariant (same hex in light and dark). */
+  --nd-status-active: #5D65E6;
+  --nd-status-completed: #3a40a6;
+  --nd-status-planned: #bf8412;
+  --nd-status-archived: #9aa0ba;
+  --nd-status-danger: #c62b31;
+  --nd-status-warning: #bf8412;
+
+  /* Status surfaces */
+  --nd-status-active-dim: rgba(93, 101, 230, 0.16);
+  --nd-status-planned-dim: rgba(191, 132, 18, 0.16);
+  --nd-status-danger-dim: rgba(198, 43, 49, 0.12);
+  --nd-status-warning-dim: rgba(191, 132, 18, 0.16);
+
+  /* Semantic aliases for extensible component styling */
+  --nd-color-bg-canvas: var(--nd-bg-void);
+  --nd-color-bg-surface: var(--nd-bg-surface);
+  --nd-color-bg-elevated: var(--nd-bg-elevated);
+  --nd-color-border-subtle: var(--nd-border-subtle);
+  --nd-color-border-default: var(--nd-border-default);
+  --nd-color-border-strong: var(--nd-border-strong);
+  --nd-color-text-primary: var(--nd-text-primary);
+  --nd-color-text-secondary: var(--nd-text-secondary);
+  --nd-color-text-muted: var(--nd-text-muted);
+  --nd-color-text-inverse: var(--nd-text-inverse);
+  --nd-color-brand-primary: var(--nd-logo-primary);
+  --nd-color-accent-primary: var(--nd-accent-primary);
+  --nd-color-accent-operator: var(--nd-operator-accent);
+  --nd-color-accent-customer: var(--nd-customer-accent);
+  --nd-color-text-on-accent: #ffffff;
+  --nd-color-text-on-danger: #ffffff;
+
+  /* Component-level semantic tokens */
+  --nd-interactive-primary-bg: var(--nd-logo-primary);
+  --nd-interactive-primary-bg-hover: #4a51cc;
+  --nd-interactive-primary-fg: var(--nd-color-text-on-accent);
+  --nd-alert-warning-bg: var(--nd-status-planned-dim);
+  --nd-alert-warning-fg: var(--nd-status-planned);
+  --nd-alert-warning-border: var(--nd-status-planned);
+
+  /* Elevation */
+  --nd-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --nd-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --nd-shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.18);
+
+  /* Shared layout tokens */
+  --nd-layout-page-max: 1200px;
+  --nd-layout-page-gutter: var(--nd-space-lg);
+  --nd-layout-stack-gap: var(--nd-space-lg);
 
   /* Spacing scale */
   --nd-space-xs: 4px;
@@ -73,7 +133,7 @@
   /* Typography */
   --nd-font-display: var(--font-comfortaa, Comfortaa, sans-serif);
   --nd-font-mono: var(--font-jetbrains-mono, 'JetBrains Mono', 'Fira Code', monospace);
-  --nd-font-body: var(--font-inter, Inter, system-ui, sans-serif);
+  --nd-font-body: var(--font-manrope, Manrope, system-ui, sans-serif);
 
   font-family: var(--nd-font-body);
   font-synthesis: none;
@@ -92,45 +152,113 @@
 }
 
 [data-theme='light'] {
-  --nd-bg-void: #f4f6f8;
+  /* Navy-tinted neutrals, from the design system's default (light) tokens/semantic.css */
+  --nd-bg-void: #f6f7fb;
   --nd-bg-surface: #ffffff;
-  --nd-bg-elevated: #f8fafc;
-  --nd-bg-overlay: #eef2f7;
+  --nd-bg-elevated: #fbfcfe;
+  --nd-bg-overlay: #edeff6;
 
-  --nd-border-subtle: rgba(17, 24, 39, 0.1);
-  --nd-border-default: rgba(17, 24, 39, 0.2);
-  --nd-border-strong: rgba(17, 24, 39, 0.38);
+  --nd-border-subtle: #dfe2ee;
+  --nd-border-default: #c7cbdd;
+  --nd-border-strong: #9aa0ba;
 
-  --nd-text-primary: #111827;
-  --nd-text-secondary: #374151;
-  --nd-text-muted: #6b7280;
+  --nd-text-primary: #141b38;
+  --nd-text-secondary: #2b3150;
+  --nd-text-muted: #5a6180;
   --nd-text-inverse: #ffffff;
+  --nd-logo-wordmark: #141b38;
 
-  --nd-accent-primary: #00c978;
-  --nd-accent-primary-dim: rgba(0, 201, 120, 0.15);
-  --nd-accent-primary-glow: 0 0 10px rgba(0, 201, 120, 0.25);
+  /* Indigo — the same single action colour as dark mode; unchanged by theme. */
+  --nd-accent-primary: #5D65E6;
+  --nd-accent-primary-dim: rgba(93, 101, 230, 0.12);
+  --nd-accent-primary-glow: 0 0 10px rgba(93, 101, 230, 0.25);
 
-  --nd-customer-accent: #00bcd4;
-  --nd-customer-accent-dim: rgba(0, 188, 212, 0.12);
-  --nd-customer-sidebar: #e7f9fc;
+  /* Unified with the shared brand indigo — see :root comment for why the
+     per-portal cyan/amber distinction was dropped. */
+  --nd-customer-accent: #5D65E6;
+  --nd-customer-accent-dim: rgba(93, 101, 230, 0.12);
+  --nd-customer-sidebar: #eef0fe;
 
-  --nd-operator-accent: #e09a00;
-  --nd-operator-accent-dim: rgba(224, 154, 0, 0.14);
-  --nd-operator-sidebar: #fff7e5;
+  --nd-operator-accent: #5D65E6;
+  --nd-operator-accent-dim: rgba(93, 101, 230, 0.12);
+  --nd-operator-sidebar: #eef0fe;
 
-  --nd-status-active: #0aa35f;
-  --nd-status-completed: #0a9cb0;
-  --nd-status-planned: #c78900;
-  --nd-status-archived: #9ca3af;
-  --nd-status-danger: #dc2626;
-  --nd-status-warning: #d97706;
+  --nd-role-accent: var(--nd-logo-primary);
+  --nd-role-accent-dim: var(--nd-logo-primary-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-logo-primary);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-role-accent) 10%, transparent);
+  --nd-role-nav-active-fg: var(--nd-role-accent);
+
+  /* Status colours — theme-invariant, same hex as :root. */
+  --nd-status-active: #5D65E6;
+  --nd-status-completed: #3a40a6;
+  --nd-status-planned: #bf8412;
+  --nd-status-archived: #9aa0ba;
+  --nd-status-danger: #c62b31;
+  --nd-status-warning: #bf8412;
+
+  --nd-status-active-dim: rgba(93, 101, 230, 0.12);
+  --nd-status-planned-dim: rgba(191, 132, 18, 0.14);
+  --nd-status-danger-dim: rgba(198, 43, 49, 0.1);
+  --nd-status-warning-dim: rgba(191, 132, 18, 0.14);
+
+  --nd-interactive-primary-bg: var(--nd-logo-primary);
+  --nd-interactive-primary-bg-hover: #4a51cc;
+  --nd-interactive-primary-fg: var(--nd-color-text-on-accent);
+  --nd-alert-warning-bg: var(--nd-status-planned-dim);
+  --nd-alert-warning-fg: var(--nd-status-planned);
+  --nd-alert-warning-border: var(--nd-status-planned);
 
   color-scheme: light;
+}
+
+[data-role='operator'] {
+  --nd-role-accent: var(--nd-operator-accent);
+  --nd-role-accent-dim: var(--nd-operator-accent-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-operator-accent);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-operator-accent) 12%, transparent);
+  --nd-role-nav-active-fg: var(--nd-operator-accent);
+}
+
+[data-role='admin'] {
+  --nd-role-accent: var(--nd-operator-accent);
+  --nd-role-accent-dim: var(--nd-operator-accent-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-customer-accent);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-operator-accent) 10%, transparent);
+  --nd-role-nav-active-fg: var(--nd-operator-accent);
+}
+
+[data-role='customer'] {
+  --nd-role-accent: var(--nd-customer-accent);
+  --nd-role-accent-dim: var(--nd-customer-accent-dim);
+  --nd-role-surface: var(--nd-bg-surface);
+  --nd-role-focus-ring: var(--nd-customer-accent);
+  --nd-role-nav-active-bg: color-mix(in srgb, var(--nd-customer-accent) 10%, transparent);
+  --nd-role-nav-active-fg: var(--nd-customer-accent);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Reset & Base
    ───────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --nd-transition-fast: 0s;
+    --nd-transition-base: 0s;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 *,
 *::before,
 *::after {
@@ -155,6 +283,41 @@ body {
   justify-content: center;
 }
 
+/* Shared layout primitives for cross-page consistency */
+.nd-page-shell {
+  width: 100%;
+  max-width: var(--nd-layout-page-max);
+  margin-inline: auto;
+  padding-inline: var(--nd-layout-page-gutter);
+}
+
+.nd-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nd-layout-stack-gap);
+}
+
+.nd-surface-panel {
+  background: var(--nd-color-bg-surface);
+  border: 1px solid var(--nd-color-border-subtle);
+  border-radius: var(--nd-radius-lg);
+}
+
+.nd-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nd-scrollbar-subtle::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.nd-scrollbar-subtle::-webkit-scrollbar-thumb {
+  background: var(--nd-color-border-default);
+  border-radius: 999px;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Typography
    ───────────────────────────────────────────────────────────────────────────── */
@@ -162,7 +325,7 @@ h1,
 h2,
 h3 {
   font-family: var(--nd-font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   margin: 0;
 }
 
@@ -200,14 +363,14 @@ a:hover {
 /* ─────────────────────────────────────────────────────────────────────────────
    Buttons
    ───────────────────────────────────────────────────────────────────────────── */
-button {
+button:not(.amplify-button) {
   border-radius: var(--nd-radius-md);
   border: 1px solid var(--nd-border-default);
   padding: 0.6em 1.2em;
   font-size: 0.9rem;
   font-weight: 600;
   font-family: var(--nd-font-display);
-  letter-spacing: 0.03em;
+  letter-spacing: 0;
   background-color: var(--nd-bg-elevated);
   color: var(--nd-text-primary);
   cursor: pointer;
@@ -215,12 +378,24 @@ button {
               background-color var(--nd-transition-fast),
               box-shadow var(--nd-transition-fast);
 }
-button:hover {
+button:not(.amplify-button):hover {
   border-color: var(--nd-logo-primary);
   box-shadow: var(--nd-logo-primary-glow);
 }
-button:focus-visible {
-  outline: 2px solid var(--nd-logo-primary);
+button:not(.amplify-button):focus-visible {
+  outline: 2px solid var(--nd-role-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Consistent keyboard focus for all interactive elements; portals tint the
+   ring via --nd-role-focus-ring so it follows the active portal accent. */
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role='button']:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--nd-role-focus-ring);
   outline-offset: 2px;
 }
 
@@ -266,7 +441,7 @@ button:focus-visible {
     min-height: auto;
   }
 
-  button {
+  button:not(.amplify-button) {
     padding: 0.5em 1em;
   }
 }

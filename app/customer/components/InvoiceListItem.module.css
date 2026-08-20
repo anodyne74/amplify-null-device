@@ -70,7 +70,7 @@
 .badgeDanger {
   color: var(--nd-status-danger);
   border-color: var(--nd-status-danger);
-  background-color: rgba(255, 71, 87, 0.15);
+  background-color: var(--nd-status-danger-dim);
 }
 
 .badgeArchived {
@@ -141,4 +141,55 @@
 .routeMuted {
   color: var(--nd-text-muted);
   font-size: 13px;
+}
+
+@media (max-width: 768px) {
+  /* Stack each invoice row into a card so nothing overflows on phones */
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--nd-space-sm) var(--nd-space-md);
+    padding: var(--nd-space-md);
+    align-items: center;
+  }
+
+  .colId {
+    grid-area: 1 / 1;
+    font-size: 15px;
+  }
+
+  .colStatus {
+    grid-area: 1 / 2;
+    justify-self: end;
+  }
+
+  .badge {
+    width: auto;
+  }
+
+  .colDate {
+    grid-area: 2 / 1;
+  }
+
+  .colAmount {
+    grid-area: 2 / 2;
+    justify-self: end;
+  }
+
+  .colPeriod {
+    grid-area: 3 / 1 / 3 / 3;
+  }
+
+  .colRoute {
+    grid-area: 4 / 1;
+  }
+
+  .colAction {
+    grid-area: 4 / 2;
+    justify-self: end;
+  }
+
+  .actionGroup {
+    flex-direction: row;
+  }
 }

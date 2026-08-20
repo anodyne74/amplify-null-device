@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
-import { getCurrentCustomerId } from '@/app/auth/session';
+import { getCustomerPortalContext } from '@/lib/queries';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import RouteListItem from '@/app/customer/components/RouteListItem';
@@ -26,7 +26,7 @@ function formatStatusFilterLabel(status: StatusFilter) {
  */
 export default function CustomerRoutesPage() {
   const { user } = useAuthenticator();
-  const customerId = user ? getCurrentCustomerId(user) : undefined;
+  const userId = user?.userId;
   
   const [routes, setRoutes] = useState<Route[]>([]);
   const [filteredRoutes, setFilteredRoutes] = useState<Route[]>([]);
@@ -36,22 +36,51 @@ export default function CustomerRoutesPage() {
   const [sortBy, setSortBy] = useState<'routeId' | 'status'>('routeId');
 
   useEffect(() => {
-    if (!customerId) return;
+    if (!userId) return;
+    let cancelled = false;
 
     async function fetchRoutes() {
       setLoading(true);
-      const result = await listMyRoutes({ customerId: customerId as string, limit: 50 });
-      
-      if (result.errors) {
-        setError('Failed to load routes');
-      } else if (result.data) {
-        setRoutes(result.data as unknown as Route[]);
+      setError(null);
+
+      try {
+        const context = await getCustomerPortalContext(userId);
+
+        if (!context.customerId) {
+          if (!cancelled) {
+            setError('Could not resolve your customer account');
+            setRoutes([]);
+          }
+          return;
+        }
+
+        const result = await listMyRoutes({ customerId: context.customerId, limit: 50 });
+
+        if (cancelled) return;
+
+        if (result.errors) {
+          setError('Failed to load routes');
+        } else if (result.data) {
+          setRoutes(result.data as unknown as Route[]);
+        }
+      } catch {
+        if (!cancelled) {
+          setError('Failed to load routes');
+          setRoutes([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-      setLoading(false);
     }
 
     fetchRoutes();
-  }, [customerId]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   // Apply filtering and sorting
   useEffect(() => {

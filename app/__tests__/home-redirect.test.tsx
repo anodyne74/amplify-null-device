@@ -10,6 +10,7 @@ jest.mock('next/navigation', () => ({
 
 jest.mock('@aws-amplify/ui-react', () => ({
   useAuthenticator: jest.fn(),
+  Authenticator: () => <div data-testid="authenticator">Authenticator</div>,
 }));
 
 jest.mock('@/lib/use-user-groups', () => ({
@@ -116,8 +117,8 @@ describe('Home Redirect', () => {
     render(<Home />);
 
     expect(screen.getByText(/choose portal role/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Administrator Portal' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Customer Portal' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Administrator Portal/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Customer Portal/ })).toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -135,7 +136,7 @@ describe('Home Redirect', () => {
 
     render(<Home />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Administrator Portal' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Administrator Portal/ }));
 
     await waitFor(() => {
       expect(push).toHaveBeenCalledWith('/administrator');
@@ -157,7 +158,7 @@ describe('Home Redirect', () => {
     render(<Home />);
 
     const roleButtons = screen.getAllByRole('button');
-    expect(roleButtons.map((button) => button.textContent)).toEqual([
+    expect(roleButtons.map((button) => button.querySelector('span')?.textContent)).toEqual([
       'Administrator Portal',
       'Operator Portal',
       'Customer Portal',
@@ -178,7 +179,7 @@ describe('Home Redirect', () => {
 
     render(<Home />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Operator Portal' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Operator Portal/ }));
 
     await waitFor(() => {
       expect(push).toHaveBeenCalledWith('/operator/dashboard');
@@ -199,7 +200,7 @@ describe('Home Redirect', () => {
 
     render(<Home />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Administrator Portal' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Administrator Portal/ }));
 
     await waitFor(() => {
       expect(push).toHaveBeenCalledWith('/administrator');
@@ -220,6 +221,25 @@ describe('Home Redirect', () => {
 
     render(<Home />);
 
-    expect(screen.getByRole('button', { name: 'Operator Portal' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Operator Portal/ })).toBeInTheDocument();
+  });
+
+  it('renders login branding with an icon mark and visible wordmark text', () => {
+    (useAuthenticator as jest.Mock).mockReturnValue({
+      authStatus: 'unauthenticated',
+    });
+    (useUserGroups as jest.Mock).mockReturnValue({
+      groups: [],
+      loading: false,
+      isAdmin: false,
+      isOperator: false,
+      isCustomer: false,
+    });
+
+    const { container } = render(<Home />);
+
+    expect(screen.getByText('null device')).toBeInTheDocument();
+    expect(container.querySelector('img[src="/icon.svg"]')).toBeInTheDocument();
+    expect(container.querySelector('img[src="/logo.svg"]')).not.toBeInTheDocument();
   });
 });

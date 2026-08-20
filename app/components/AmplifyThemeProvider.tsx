@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { ThemeProvider } from '@aws-amplify/ui-react';
 import { amplifyTheme } from '@/app/amplify-theme';
+import type { ThemeModeResolved } from '@/app/theme/themeTokens';
 
 const THEME_MODE_STORAGE_KEY = 'nd-theme-mode';
 
@@ -10,6 +11,7 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 
 interface ThemeModeContextValue {
   mode: ThemeMode;
+  resolvedMode: ThemeModeResolved;
   setMode: (mode: ThemeMode) => void;
 }
 
@@ -21,15 +23,17 @@ function getSystemPrefersLight() {
     window.matchMedia('(prefers-color-scheme: light)').matches;
 }
 
-function resolveMode(mode: ThemeMode): 'light' | 'dark' {
+export function resolveThemeMode(mode: ThemeMode, systemMode: ThemeModeResolved = 'dark'): ThemeModeResolved {
   if (mode === 'system') {
-    return getSystemPrefersLight() ? 'light' : 'dark';
+    return systemMode;
   }
   return mode;
 }
 
 export default function AmplifyThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<ThemeMode>('system');
+  const [systemMode, setSystemMode] = useState<ThemeModeResolved>('dark');
+  const resolvedMode = resolveThemeMode(mode, systemMode);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(THEME_MODE_STORAGE_KEY);
@@ -43,33 +47,36 @@ export default function AmplifyThemeProvider({ children }: { children: React.Rea
   }, [mode]);
 
   useEffect(() => {
-    const applyTheme = () => {
-      const resolved = resolveMode(mode);
-      document.documentElement.setAttribute('data-theme', resolved);
-      document.documentElement.style.colorScheme = resolved;
+    const updateSystemMode = () => {
+      setSystemMode(getSystemPrefersLight() ? 'light' : 'dark');
     };
 
-    applyTheme();
+    updateSystemMode();
 
-    if (mode !== 'system' || typeof window.matchMedia !== 'function') {
+    if (typeof window.matchMedia !== 'function') {
       return;
     }
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
     if (typeof mediaQuery.addEventListener === 'function') {
-      mediaQuery.addEventListener('change', applyTheme);
-      return () => mediaQuery.removeEventListener('change', applyTheme);
+      mediaQuery.addEventListener('change', updateSystemMode);
+      return () => mediaQuery.removeEventListener('change', updateSystemMode);
     }
 
     if (typeof mediaQuery.addListener === 'function') {
-      mediaQuery.addListener(applyTheme);
-      return () => mediaQuery.removeListener(applyTheme);
+      mediaQuery.addListener(updateSystemMode);
+      return () => mediaQuery.removeListener(updateSystemMode);
     }
 
     return;
-  }, [mode]);
+  }, []);
 
-  const contextValue = useMemo(() => ({ mode, setMode }), [mode]);
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', resolvedMode);
+    document.documentElement.style.colorScheme = resolvedMode;
+  }, [resolvedMode]);
+
+  const contextValue = useMemo(() => ({ mode, resolvedMode, setMode }), [mode, resolvedMode]);
 
   return (
     <ThemeModeContext.Provider value={contextValue}>

@@ -2,19 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { faGauge, faRoad, faUsers, faFileInvoice, faUser, faGear } from '@fortawesome/free-solid-svg-icons';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PortalLayout from '@/app/components/PortalLayout';
+import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { getUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/queries';
 
 const ADMIN_NAV = [
-  { href: '/administrator', label: 'Admin Home', icon: faGauge },
-  { href: '/administrator/routes', label: 'Routes', icon: faRoad },
-  { href: '/administrator/customers', label: 'Customers', icon: faUsers },
-  { href: '/administrator/invoices', label: 'Invoices', icon: faFileInvoice },
-  { href: '/administrator/users', label: 'Users', icon: faUser },
-  { href: '/administrator/settings', label: 'Settings', icon: faGear },
+  { href: '/administrator', label: 'Admin Home', icon: 'layout-dashboard' },
+  { href: '/administrator/routes', label: 'Routes', icon: 'route' },
+  { href: '/administrator/customers', label: 'Customers', icon: 'users' },
+  { href: '/administrator/invoices', label: 'Invoices', icon: 'file-text' },
+  { href: '/administrator/users', label: 'Users', icon: 'user' },
+  { href: '/administrator/settings', label: 'Settings', icon: 'settings' },
 ];
 
 /**
@@ -26,19 +26,7 @@ export default function AdministratorLayout({ children }: { children: React.Reac
   const { signOut, user } = useAuthenticator();
   const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
   const [userDisplayName, setUserDisplayName] = useState(fallbackDisplayName);
-
-  const applyThemeMode = (theme: 'system' | 'light' | 'dark') => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem('nd-theme-mode', theme);
-    const resolved =
-      theme === 'system'
-        ? window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
-          ? 'light'
-          : 'dark'
-        : theme;
-    document.documentElement.setAttribute('data-theme', resolved);
-    document.documentElement.style.colorScheme = resolved;
-  };
+  const { setMode: applyThemeMode } = useThemeMode();
 
   useEffect(() => {
     setUserDisplayName(fallbackDisplayName);
@@ -67,7 +55,7 @@ export default function AdministratorLayout({ children }: { children: React.Reac
     return () => {
       cancelled = true;
     };
-  }, [fallbackDisplayName, user?.userId]);
+  }, [applyThemeMode, fallbackDisplayName, user?.userId]);
 
   return (
     <OperatorRoute requireAdmin>
@@ -77,6 +65,7 @@ export default function AdministratorLayout({ children }: { children: React.Reac
         navItems={ADMIN_NAV}
         userEmail={userDisplayName}
         onLogout={signOut}
+        role="admin"
       >
         {children}
       </PortalLayout>

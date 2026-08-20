@@ -10,6 +10,7 @@ import { getCustomerPortalContext } from '@/lib/queries';
 // Mock the router
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
+  usePathname: jest.fn(() => '/customer/dashboard'),
 }));
 
 // Mock the authenticator
@@ -41,6 +42,10 @@ jest.mock('@/app/components/ThemeModeSelect', () => {
     return null;
   };
 });
+
+jest.mock('@/app/components/AmplifyThemeProvider', () => ({
+  useThemeMode: () => ({ mode: 'system', resolvedMode: 'dark', setMode: jest.fn() }),
+}));
 
 describe('Customer Session Management Integration', () => {
   let mockPush: jest.Mock;

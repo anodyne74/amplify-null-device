@@ -169,18 +169,18 @@ export async function upsertUserSettings(
  */
 export async function listCustomers(options?: { limit?: number; nextToken?: string }) {
   try {
-    const { data, errors } = await getClient().models.Customer.list({
+    const { data, errors, nextToken } = await getClient().models.Customer.list({
       limit: options?.limit || 20,
       nextToken: options?.nextToken,
     });
     if (errors) {
       console.error('Errors fetching customers:', errors);
-      return { data: [], errors };
+      return { data: [], errors, nextToken: undefined };
     }
-    return { data: data || [], errors };
+    return { data: data || [], errors, nextToken: nextToken ?? undefined };
   } catch (error) {
     console.error('Error listing customers:', error);
-    return { data: [], errors: [error] };
+    return { data: [], errors: [error], nextToken: undefined };
   }
 }
 
@@ -205,6 +205,7 @@ export async function getCustomer(customerId: string) {
  */
 export async function createCustomer(input: {
   name: string;
+  companyName?: string;
   email: string;
   contactPhone?: string;
   addressLine1?: string;
@@ -237,6 +238,7 @@ export async function updateCustomer(
   customerId: string,
   updates: Partial<{
     name: string;
+    companyName: string;
     email: string;
     contactPhone: string;
     addressLine1: string;
@@ -378,27 +380,27 @@ export async function getRouteWithStops(routeId: string) {
 export async function listInvoices(options?: {
   limit?: number;
   nextToken?: string;
-  status?: 'draft' | 'finalized' | 'sent' | 'paid';
+  status?: 'draft' | 'sent' | 'paid';
 }) {
   try {
-    const { data, errors } = await getClient().models.Invoice.list({
+    const { data, errors, nextToken } = await getClient().models.Invoice.list({
       limit: options?.limit || 20,
       nextToken: options?.nextToken,
     });
 
     if (errors) {
       console.error('Errors fetching invoices:', errors);
-      return { data: [], errors };
+      return { data: [], errors, nextToken: undefined };
     }
 
     const filtered = options?.status
       ? (data || []).filter((invoice) => invoice.status === options.status)
       : (data || []);
 
-    return { data: filtered, errors };
+    return { data: filtered, errors, nextToken: nextToken ?? undefined };
   } catch (error) {
     console.error('Error listing invoices:', error);
-    return { data: [], errors: [error] };
+    return { data: [], errors: [error], nextToken: undefined };
   }
 }
 
@@ -488,6 +490,9 @@ export async function updateRoute(
     overrideRate: number;
     overrideAmount: number;
     notes: string;
+    customerInstructions: string;
+    drivingModeEnabled: boolean;
+    vanCount: number;
     scheduleS3Key: string;
   }>
 ) {
@@ -527,6 +532,15 @@ export interface RouteExecutionUpdateInput {
  */
 export async function updateRouteExecution(routeId: string, updates: RouteExecutionUpdateInput) {
   return updateRoute(routeId, updates);
+}
+
+/**
+ * Customer-facing update: lets a customer user (account_owner or read_only) add or
+ * change their instructions for a route. Scoped to this one field by convention — the
+ * underlying `Route` authorization grant is coarse (see amplify/data/resource.ts).
+ */
+export async function updateRouteCustomerInstructions(routeId: string, customerInstructions: string) {
+  return updateRoute(routeId, { customerInstructions });
 }
 
 export async function deleteRoute(routeId: string) {
@@ -636,9 +650,10 @@ export async function createInvoice(input: {
   periodStartDate?: string;
   periodEndDate?: string;
   totalAmount: number;
-  status: 'draft' | 'finalized' | 'sent' | 'paid';
+  status: 'draft' | 'sent' | 'paid';
   routeId?: string;
   pdfS3Key?: string;
+  importedAt?: string;
 }) {
   try {
     const { data, errors } = await getClient().models.Invoice.create(input);
@@ -665,10 +680,11 @@ export async function updateInvoice(
     periodStartDate: string;
     periodEndDate: string;
     totalAmount: number;
-    status: 'draft' | 'finalized' | 'sent' | 'paid';
+    status: 'draft' | 'sent' | 'paid';
     routeId: string | null;
     pdfS3Key: string;
-    emailSentAt: string;
+    emailSentAt: string | null;
+    importedAt: string | null;
   }>
 ) {
   try {

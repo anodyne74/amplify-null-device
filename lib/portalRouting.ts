@@ -9,6 +9,7 @@ export type PortalRole = keyof typeof PORTAL_PATHS;
 export type PortalOption = {
   key: PortalRole;
   title: string;
+  description: string;
   path: string;
 };
 
@@ -16,6 +17,12 @@ const PORTAL_TITLES: Record<PortalRole, string> = {
   administrator: 'Administrator Portal',
   operator: 'Operator Portal',
   customer: 'Customer Portal',
+};
+
+const PORTAL_DESCRIPTIONS: Record<PortalRole, string> = {
+  administrator: 'Manage customers, invoices, users, and routes from a desktop.',
+  operator: 'Run routes in the field with maps and stop tracking, mobile-first.',
+  customer: 'View your routes, deliveries, and invoices.',
 };
 
 export function buildPortalOptions(groups: string[]): PortalOption[] {
@@ -26,6 +33,7 @@ export function buildPortalOptions(groups: string[]): PortalOption[] {
       options.push({
         key: role,
         title: PORTAL_TITLES[role],
+        description: PORTAL_DESCRIPTIONS[role],
         path: PORTAL_PATHS[role],
       });
     }

@@ -24,6 +24,9 @@ interface AddressAutocompleteInputProps {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  onBlur?: () => void;
+  ariaDescribedBy?: string;
+  ariaInvalid?: boolean;
 }
 
 export function AddressAutocompleteInput({
@@ -36,6 +39,9 @@ export function AddressAutocompleteInput({
   disabled,
   placeholder,
   className,
+  onBlur,
+  ariaDescribedBy,
+  ariaInvalid,
 }: AddressAutocompleteInputProps) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const [predictions, setPredictions] = useState<Prediction[]>([]);
@@ -260,10 +266,13 @@ export function AddressAutocompleteInput({
           if (predictions.length > 0) setShowDropdown(true);
         }}
         onKeyDown={handleInputKeyDown}
+        onBlur={onBlur}
         disabled={disabled}
         placeholder={placeholder}
         className={className}
         autoComplete="off"
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid || undefined}
         aria-autocomplete="list"
         aria-expanded={showDropdown}
         aria-haspopup="listbox"

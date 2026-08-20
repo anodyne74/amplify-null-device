@@ -3,11 +3,11 @@ const config = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
   roots: ['<rootDir>'],
-  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx', '**/*.test.ts', '**/*.test.tsx'],
+  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx', '**/__tests__/**/*.test.js', '**/*.test.ts', '**/*.test.tsx'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/$1',
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
+    '^@/(.*)$': '<rootDir>/$1',
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.cjs'],
   collectCoverageFrom: [
@@ -31,6 +31,9 @@ const config = {
     '!app/components/AuthApp.tsx',
     '!app/components/DataApp.tsx',
     '!app/customer/components/RouteCard.tsx',
+    // Ported presentational primitive library (app/components/ui/**) — additive and
+    // unused by any page yet; excluded like other heavy UI components until wired up.
+    '!app/components/ui/**',
   ],
   coverageThreshold: {
     global: {
@@ -51,9 +54,15 @@ const config = {
         allowSyntheticDefaultImports: true,
       },
     }],
+    '^.+\\.js$': ['ts-jest', {
+      useESM: true,
+      tsconfig: {
+        allowJs: true,
+        esModuleInterop: true,
+        allowSyntheticDefaultImports: true,
+      },
+    }],
   },
 };
-
-module.exports = config;
 
 module.exports = config;

@@ -149,6 +149,7 @@ describe('RoutesListContent', () => {
       deletingRouteId: 'route-99',
     });
 
+    fireEvent.click(screen.getByRole('button', { name: /more actions for route w19-26-001/i }));
     const deleteButton = screen.getByRole('button', { name: 'Deleting...' });
     expect(deleteButton).toBeDisabled();
 
@@ -156,13 +157,18 @@ describe('RoutesListContent', () => {
     expect(onDeleteRoute).not.toHaveBeenCalled();
   });
 
-  it('calls delete callback when delete is enabled', () => {
+  it('keeps delete route inside a row actions menu while view and edit stay visible', () => {
     const route = makeRoute({ id: 'route-100' });
     const { onDeleteRoute } = renderSubject({
       filteredRoutes: [route],
       deletingRouteId: null,
     });
 
+    expect(screen.getByRole('link', { name: 'View' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /more actions for route w19-26-001/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     expect(onDeleteRoute).toHaveBeenCalledWith(route);
   });

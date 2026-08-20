@@ -3,13 +3,13 @@
   background-color: var(--nd-bg-surface);
   border: 1px solid var(--nd-border-default);
   border-radius: var(--nd-radius-lg);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--nd-shadow-sm);
   cursor: pointer;
   transition: all var(--nd-transition-base);
 }
 
 .card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--nd-shadow-md);
   border-color: var(--nd-border-strong);
 }
 

@@ -4,8 +4,12 @@ import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useRouter } from 'next/navigation';
 import { getInvoiceDetail, type InvoiceDetail } from '@/lib/queries/GetInvoiceDetail';
+import { getCustomerPortalContext } from '@/lib/queries';
 import InvoiceLineItems from '@/app/customer/components/InvoiceLineItems';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import Breadcrumbs from '@/app/components/Breadcrumbs';
+import { useToast } from '@/app/components/ToastProvider';
+import { getInvoiceStatusTone, type InvoiceStatusTone } from '@/lib/invoiceStatusHelpers';
 import styles from './_InvoiceDetailContent.module.css';
 
 interface InvoiceDetailContentProps {
@@ -21,49 +25,71 @@ interface InvoiceDetailContentProps {
 export default function InvoiceDetailContent({ params }: InvoiceDetailContentProps) {
   const { user } = useAuthenticator();
   const router = useRouter();
+  const { showToast } = useToast();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [readOnly, setReadOnly] = useState(false);
   const [pdfActionLoading, setPdfActionLoading] = useState(false);
 
-  // Guard: redirect reviewers away from invoice pages
   useEffect(() => {
     if (!user?.userId) return;
-    import('@/lib/queries').then(({ getCustomerPortalContext }) => {
-      getCustomerPortalContext(user.userId).then(({ role }) => {
-        if (role === 'read_only') {
-          router.replace('/customer/dashboard');
-        }
-      });
-    });
-  }, [user?.userId, router]);
-
-  useEffect(() => {
-    if (!user?.userId) return;
+    let cancelled = false;
 
     const fetchInvoice = async () => {
       setLoading(true);
       setError(null);
 
-      const result = await getInvoiceDetail({
-        invoiceId: params.id,
-        customerId: user.userId,
-        userSub: user.userId,
-      });
+      try {
+        const context = await getCustomerPortalContext(user.userId);
 
-      if (result.errors && result.errors.length > 0) {
-        setError('Failed to load invoice');
-        console.error('Error fetching invoice:', result.errors);
-      } else if (!result.data) {
-        setError('Invoice not found');
-      } else {
-        setInvoice(result.data);
+        if (context.role === 'read_only') {
+          if (!cancelled) {
+            setReadOnly(true);
+          }
+          return;
+        }
+
+        if (!context.customerId) {
+          if (!cancelled) {
+            setError('Could not resolve your customer account');
+          }
+          return;
+        }
+
+        const result = await getInvoiceDetail({
+          invoiceId: params.id,
+          customerId: context.customerId,
+          userSub: user.userId,
+        });
+
+        if (cancelled) return;
+
+        if (result.errors && result.errors.length > 0) {
+          setError('Failed to load invoice');
+          console.error('Error fetching invoice:', result.errors);
+        } else if (!result.data) {
+          setError('Invoice not found');
+        } else {
+          setInvoice(result.data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError('Failed to load invoice');
+          console.error('Error fetching invoice:', err);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-
-      setLoading(false);
     };
 
     fetchInvoice();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user?.userId, params.id]);
 
   const handlePdfAction = async (action: 'view' | 'download') => {
@@ -71,7 +97,10 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
     setPdfActionLoading(true);
     try {
       const { getUrl } = await import('aws-amplify/storage');
-      const { url } = await getUrl({ path: invoice.pdfS3Key });
+      const { url } = await getUrl({
+        path: invoice.pdfS3Key,
+        options: { validateObjectExistence: false },
+      });
       const urlString = url.toString();
 
       if (action === 'view') {
@@ -87,7 +116,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
       document.body.removeChild(link);
     } catch (err) {
       console.error('Download error:', err);
-      setError('Failed to generate invoice PDF link');
+      showToast('Could not download the invoice PDF. Please try again.', 'error');
     } finally {
       setPdfActionLoading(false);
     }
@@ -100,12 +129,45 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
   };
 
   if (loading) {
-    return <LoadingSpinner />;
+    return <LoadingSpinner message="Loading invoice..." />;
+  }
+
+  if (readOnly) {
+    return (
+      <div className={styles.errorWrapper}>
+        <Breadcrumbs
+          items={[
+            { label: 'Invoices', href: '/customer/invoices' },
+            { label: 'Invoice' },
+          ]}
+        />
+        <div className={styles.accessPanel}>
+          <p className={styles.accessPanelTitle}>
+            Invoices are available to account owners
+          </p>
+          <p className={styles.accessPanelText}>
+            Contact your account owner for access.
+          </p>
+          <button
+            onClick={() => router.back()}
+            className={styles.backBtn}
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (error || !invoice) {
     return (
       <div className={styles.errorWrapper}>
+        <Breadcrumbs
+          items={[
+            { label: 'Invoices', href: '/customer/invoices' },
+            { label: 'Invoice' },
+          ]}
+        />
         <div className={styles.errorBox}>
           <p className={styles.errorMessage}>{error || 'Invoice not found'}</p>
           <button
@@ -119,18 +181,25 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
     );
   }
 
-  const statusClass = { paid: styles.statusPaid, overdue: styles.statusOverdue, pending: styles.statusPending }[invoice.status ?? 'pending'] ?? styles.statusPending;
+  const toneClasses: Record<InvoiceStatusTone, string> = {
+    success: styles.statusPaid,
+    danger: styles.statusOverdue,
+    warning: styles.statusPending,
+    neutral: styles.statusPending,
+  };
+  const statusClass = toneClasses[getInvoiceStatusTone(invoice.status)];
 
   return (
     <div className={styles.container}>
-      {/* Header with Back Button */}
+      <Breadcrumbs
+        items={[
+          { label: 'Invoices', href: '/customer/invoices' },
+          { label: `Invoice ${invoice.invoiceNumber || invoice.id}` },
+        ]}
+      />
+
+      {/* Header */}
       <div className={styles.pageHeader}>
-        <button
-          onClick={() => router.back()}
-          className={styles.backBtn}
-        >
-          ← Back
-        </button>
         <h1 className={styles.pageTitle}>
           Invoice {invoice.invoiceNumber || invoice.id}
         </h1>

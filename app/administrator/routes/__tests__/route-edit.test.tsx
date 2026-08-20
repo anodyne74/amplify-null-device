@@ -152,7 +152,9 @@ describe('Administrator Route Edit Page', () => {
     });
 
     // Defaults to first stop when list loads.
-    expect(screen.getByTestId('map-active-stop')).toHaveTextContent('stop-1');
+    await waitFor(() => {
+      expect(screen.getByTestId('map-active-stop')).toHaveTextContent('stop-1');
+    });
 
     const secondAddress = screen.getByText('200 Second Ave');
     const secondRow = secondAddress.closest('.stopRow');

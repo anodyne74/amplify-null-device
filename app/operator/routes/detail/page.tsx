@@ -9,6 +9,9 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import Breadcrumbs from '@/app/components/Breadcrumbs';
+import ConfirmDialog from '@/app/components/ConfirmDialog';
+import { useToast } from '@/app/components/ToastProvider';
 import { StopForm } from '@/app/operator/components/StopForm';
 import { isAdmin } from '@/lib/amplify-config';
 import { generateAgentInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
@@ -226,6 +229,7 @@ function RouteDetailContent() {
   const id = searchParams.get('id') ?? '';
   const { user } = useAuthenticator();
   const canManagePlanning = isAdmin(user);
+  const { showToast } = useToast();
 
   const [route, setRoute] = useState<Route | null>(null);
   const [customerName, setCustomerName] = useState<string>('');
@@ -255,6 +259,7 @@ function RouteDetailContent() {
   const [reorderError, setReorderError] = useState<string | null>(null);
 
   const [transitioning, setTransitioning] = useState(false);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [deletingRoute, setDeletingRoute] = useState(false);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [transitionError, setTransitionError] = useState<string | null>(null);
@@ -299,7 +304,7 @@ function RouteDetailContent() {
     signs_picked_up: 0,
   });
   const [currentPosition, setCurrentPosition] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [mapTheme, setMapTheme] = useState<MapTheme>('light');
+  const [mapTheme, setMapTheme] = useState<MapTheme>('dark');
 
   // Persist theme selection in localStorage for user convenience
   useEffect(() => {
@@ -361,11 +366,15 @@ function RouteDetailContent() {
             : s
         );
         setStops(updatedStops);
-
+        showToast('Stop completed', 'success');
+      } else {
+        showToast('Failed to complete stop. Please try again.', 'error');
       }
-    } catch { /* ignore */ }
+    } catch {
+      showToast('Failed to complete stop. Please try again.', 'error');
+    }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [route, stops]);
+  }, [route, stops, showToast]);
 
   const handleSkipStop = useCallback(async (stopId: string) => {
     if (!route || route.status !== 'in_progress' || !route.executionPhase) return;
@@ -392,10 +401,15 @@ function RouteDetailContent() {
               : s
           )
         );
+        showToast('Stop skipped', 'success');
+      } else {
+        showToast('Failed to skip stop. Please try again.', 'error');
       }
-    } catch { /* ignore */ }
+    } catch {
+      showToast('Failed to skip stop. Please try again.', 'error');
+    }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [route, stops]);
+  }, [route, stops, showToast]);
 
   const persistStopOrder = useCallback(
     async (orderedStops: Stop[]) => {
@@ -499,7 +513,7 @@ function RouteDetailContent() {
         setMapTheme(result.data.mapTheme as MapTheme);
       })
       .catch(() => {
-        // Non-blocking: map defaults to light.
+        // Non-blocking: map defaults to dark for field use.
       });
 
     return () => {
@@ -508,24 +522,35 @@ function RouteDetailContent() {
   }, [user?.userId]);
 
   useEffect(() => {
-    if (!route || route.status !== 'in_progress' || !route.executionPhase) {
-      if (gpsWatchIdRef.current !== null && typeof navigator !== 'undefined' && navigator.geolocation) {
-        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
-      }
-      gpsWatchIdRef.current = null;
-      lastGpsPointRef.current = null;
-      return;
-    }
-
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       return;
     }
 
+    if (!route || route.status !== 'in_progress' || !route.executionPhase) {
+      // Defensive: previous cleanup should already have cleared any watch,
+      // but never leave a stale watch running outside execution mode.
+      if (gpsWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+        gpsWatchIdRef.current = null;
+      }
+      lastGpsPointRef.current = null;
+      return;
+    }
+
+    // Guards against position callbacks firing after cleanup (e.g. a callback
+    // already queued when clearWatch runs on unmount).
+    let cancelled = false;
+
     lastGpsPointRef.current = null;
+    setCurrentPosition(null);
     const activePhase = route.executionPhase === 'pickup' ? 'signs_picked_up' : 'signs_placed';
 
-    gpsWatchIdRef.current = navigator.geolocation.watchPosition(
+    const watchId = navigator.geolocation.watchPosition(
       (position) => {
+        if (cancelled) {
+          return;
+        }
+
         const nextPoint = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
@@ -563,13 +588,16 @@ function RouteDetailContent() {
         timeout: 15000,
       }
     );
+    gpsWatchIdRef.current = watchId;
 
-      setCurrentPosition(null);
     return () => {
-      if (gpsWatchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+      cancelled = true;
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchId);
       }
-      gpsWatchIdRef.current = null;
+      if (gpsWatchIdRef.current === watchId) {
+        gpsWatchIdRef.current = null;
+      }
       lastGpsPointRef.current = null;
     };
   }, [route]);
@@ -612,9 +640,21 @@ function RouteDetailContent() {
       try {
         const sentinel = await wakeLockApi.request('screen');
 
+        // The async request can resolve after cleanup (unmount or status
+        // change) — release immediately instead of holding a stale lock.
         if (cancelled) {
           await sentinel.release();
           return;
+        }
+
+        // Release any previous sentinel before replacing it (e.g. when the
+        // browser auto-released it on tab hide but did not fire 'release').
+        if (wakeLockRef.current && wakeLockRef.current !== sentinel) {
+          try {
+            await wakeLockRef.current.release();
+          } catch {
+            // Ignore release failures on the stale sentinel.
+          }
         }
 
         wakeLockRef.current = sentinel;
@@ -859,6 +899,7 @@ function RouteDetailContent() {
 
   const handleConfirmCompletion = async () => {
     if (!route) return;
+
     setTransitioning(true);
     setTransitionError(null);
     try {
@@ -872,6 +913,7 @@ function RouteDetailContent() {
       setTransitionError('Failed to confirm route completion.');
     }
     setTransitioning(false);
+    setShowArchiveConfirm(false);
   };
 
   const handleSaveDistanceOverride = async () => {
@@ -1144,8 +1186,12 @@ function RouteDetailContent() {
     return stops;
   })();
   const topVisibleStopId = visibleStops[0]?.id ?? null;
+  const allPlacementStopsCompleted =
+    placementPhaseStops.length === 0 || placementPhaseStops.every((stop) => isStopCompletedForPhase(stop, 'placement'));
   const allPickupStopsCompleted =
     pickupPhaseStops.length === 0 || pickupPhaseStops.every((stop) => isStopCompletedForPhase(stop, 'pickup'));
+  const canEndCurrentPhase =
+    currentExecutionPhase === 'pickup' ? allPickupStopsCompleted : allPlacementStopsCompleted;
   const completedStops = stops.filter((stop) => isStopCompleted(stop));
   const summaryStops = route?.status === 'completed' || route?.status === 'archived'
     ? completedStops.length > 0
@@ -1177,6 +1223,9 @@ function RouteDetailContent() {
   const pickupDistance = phaseDistanceKm.signs_picked_up;
   const isPickupExecutionPhase = route?.status === 'in_progress' && route.executionPhase === 'pickup';
   const phaseLabelPrefix = isPickupExecutionPhase ? 'Pickup' : 'Placement';
+  const nextExecutionStop = isExecutionMode ? visibleStops[0] : null;
+  const upcomingExecutionStops = isExecutionMode ? visibleStops.slice(1, 3) : [];
+  const upcomingExecutionStopIds = upcomingExecutionStops.map((stop) => stop.id);
 
   useEffect(() => {
     if (!route || route.status !== 'in_progress' || !route.executionPhase) {
@@ -1214,10 +1263,12 @@ function RouteDetailContent() {
 
   return (
     <div className={styles.container}>
-      {/* Back link */}
-      <Link href="/operator/routes" className={styles.backLink}>
-        ← Back to Routes
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: 'Routes', href: '/operator/routes' },
+          { label: route ? `Route ${route.routeCode || route.id.slice(0, 8)}` : 'Route' },
+        ]}
+      />
 
       {error && (
         <div className={styles.errorBanner}>
@@ -1228,6 +1279,7 @@ function RouteDetailContent() {
       {route && (
         <>
           {/* Route Header */}
+          {!isExecutionMode && (
           <div className={styles.routeCard}>
             <div className={styles.routeCardHeader}>
               <h1 className={styles.routeTitle}>
@@ -1269,94 +1321,96 @@ function RouteDetailContent() {
                 <div className={styles.infoLabel}>Kilometers</div>
                 <div className={styles.infoValue}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</div>
               </div>
-              <label className={styles.phaseCompletionField}>
-                <span className={styles.infoLabel}>Placement Distance (km)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className={styles.phaseCompletionInput}
-                  value={phaseMetricOverrides.placementDistanceKm}
-                  onChange={(event) =>
-                    setPhaseMetricOverrides((prev) => ({ ...prev, placementDistanceKm: event.target.value }))
-                  }
-                  disabled={transitioning}
-                />
-              </label>
-              <label className={styles.phaseCompletionField}>
-                <span className={styles.infoLabel}>Placement Time</span>
-                <div className={styles.phaseDurationSpinnerRow}>
-                  <label className={styles.phaseDurationUnit}>
-                    <span className={styles.phaseDurationUnitLabel}>h</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      className={styles.phaseCompletionInput}
-                      value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) / 60)}
-                      onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'hours', event.target.value)}
-                      disabled={transitioning}
-                    />
-                  </label>
-                  <label className={styles.phaseDurationUnit}>
-                    <span className={styles.phaseDurationUnitLabel}>m</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="55"
-                      step="5"
-                      className={styles.phaseCompletionInput}
-                      value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) % 60)}
-                      onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'minutes', event.target.value)}
-                      disabled={transitioning}
-                    />
-                  </label>
-                </div>
-              </label>
-              <label className={styles.phaseCompletionField}>
-                <span className={styles.infoLabel}>Pickup Distance (km)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className={styles.phaseCompletionInput}
-                  value={phaseMetricOverrides.pickupDistanceKm}
-                  onChange={(event) =>
-                    setPhaseMetricOverrides((prev) => ({ ...prev, pickupDistanceKm: event.target.value }))
-                  }
-                  disabled={transitioning}
-                />
-              </label>
-              <label className={styles.phaseCompletionField}>
-                <span className={styles.infoLabel}>Pickup Time</span>
-                <div className={styles.phaseDurationSpinnerRow}>
-                  <label className={styles.phaseDurationUnit}>
-                    <span className={styles.phaseDurationUnitLabel}>h</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      className={styles.phaseCompletionInput}
-                      value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) / 60)}
-                      onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'hours', event.target.value)}
-                      disabled={transitioning}
-                    />
-                  </label>
-                  <label className={styles.phaseDurationUnit}>
-                    <span className={styles.phaseDurationUnitLabel}>m</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="55"
-                      step="5"
-                      className={styles.phaseCompletionInput}
-                      value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) % 60)}
-                      onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'minutes', event.target.value)}
-                      disabled={transitioning}
-                    />
-                  </label>
-                </div>
-              </label>
+              <div className={styles.phaseCompletionControls}>
+                <label className={styles.phaseCompletionField}>
+                  <span className={styles.infoLabel}>Placement Distance (km)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className={styles.phaseCompletionInput}
+                    value={phaseMetricOverrides.placementDistanceKm}
+                    onChange={(event) =>
+                      setPhaseMetricOverrides((prev) => ({ ...prev, placementDistanceKm: event.target.value }))
+                    }
+                    disabled={transitioning}
+                  />
+                </label>
+                <label className={styles.phaseCompletionField}>
+                  <span className={styles.infoLabel}>Placement Time</span>
+                  <div className={styles.phaseDurationSpinnerRow}>
+                    <label className={styles.phaseDurationUnit}>
+                      <span className={styles.phaseDurationUnitLabel}>h</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className={styles.phaseCompletionInput}
+                        value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) / 60)}
+                        onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'hours', event.target.value)}
+                        disabled={transitioning}
+                      />
+                    </label>
+                    <label className={styles.phaseDurationUnit}>
+                      <span className={styles.phaseDurationUnitLabel}>m</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="55"
+                        step="5"
+                        className={styles.phaseCompletionInput}
+                        value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) % 60)}
+                        onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'minutes', event.target.value)}
+                        disabled={transitioning}
+                      />
+                    </label>
+                  </div>
+                </label>
+                <label className={styles.phaseCompletionField}>
+                  <span className={styles.infoLabel}>Pickup Distance (km)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className={styles.phaseCompletionInput}
+                    value={phaseMetricOverrides.pickupDistanceKm}
+                    onChange={(event) =>
+                      setPhaseMetricOverrides((prev) => ({ ...prev, pickupDistanceKm: event.target.value }))
+                    }
+                    disabled={transitioning}
+                  />
+                </label>
+                <label className={styles.phaseCompletionField}>
+                  <span className={styles.infoLabel}>Pickup Time</span>
+                  <div className={styles.phaseDurationSpinnerRow}>
+                    <label className={styles.phaseDurationUnit}>
+                      <span className={styles.phaseDurationUnitLabel}>h</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className={styles.phaseCompletionInput}
+                        value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) / 60)}
+                        onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'hours', event.target.value)}
+                        disabled={transitioning}
+                      />
+                    </label>
+                    <label className={styles.phaseDurationUnit}>
+                      <span className={styles.phaseDurationUnitLabel}>m</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="55"
+                        step="5"
+                        className={styles.phaseCompletionInput}
+                        value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) % 60)}
+                        onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'minutes', event.target.value)}
+                        disabled={transitioning}
+                      />
+                    </label>
+                  </div>
+                </label>
+              </div>
             </div>
 
             {route.notes && (
@@ -1383,13 +1437,13 @@ function RouteDetailContent() {
               {route.status === 'in_progress' && (
                 <button
                   onClick={handleEndRoute}
-                  disabled={transitioning || (route.executionPhase === 'pickup' && !allPickupStopsCompleted)}
+                  disabled={transitioning || !canEndCurrentPhase}
                   className={styles.btnComplete}
                 >
                   {transitioning
                     ? 'Updating…'
-                    : route.executionPhase === 'pickup' && !allPickupStopsCompleted
-                    ? 'Awaiting Pickups'
+                    : !canEndCurrentPhase
+                    ? 'Action Stops First'
                     : 'End Route'}
                 </button>
               )}
@@ -1413,7 +1467,7 @@ function RouteDetailContent() {
               )}
               {canManagePlanning && route.status === 'completed' && (
                 <button
-                  onClick={handleConfirmCompletion}
+                  onClick={() => setShowArchiveConfirm(true)}
                   disabled={transitioning}
                   className={styles.btnComplete}
                 >
@@ -1500,8 +1554,150 @@ function RouteDetailContent() {
               </div>
             )}
           </div>
+          )}
 
           {/* Stops Section */}
+          {isExecutionMode ? (
+            <section role="region" aria-label="Operator field mode" className={styles.fieldMode}>
+              <div className={styles.fieldModeHeader}>
+                <div>
+                  <p className={styles.fieldModeEyebrow}>{phaseLabelPrefix} phase</p>
+                  <h1 className={styles.fieldModeTitle}>
+                    Route {route.routeCode || route.id.slice(0, 8)}
+                  </h1>
+                </div>
+                <StatusBadge status={route.status} />
+              </div>
+
+              <div className={styles.fieldModeTelemetry}>
+                <div>
+                  <span className={styles.infoLabel}>Vehicle location</span>
+                  <span className={styles.fieldModeTelemetryValue}>
+                    {currentPosition ? 'Live GPS active' : 'Waiting for GPS'}
+                  </span>
+                </div>
+                <div>
+                  <span className={styles.infoLabel}>Phase distance</span>
+                  <span className={styles.fieldModeTelemetryValue}>
+                    {`${(currentExecutionPhase === 'pickup' ? pickupDistance : placementDistance).toFixed(2)} km`}
+                  </span>
+                </div>
+                <div>
+                  <span className={styles.infoLabel}>Remaining stops</span>
+                  <span className={styles.fieldModeTelemetryValue}>{visibleStops.length}</span>
+                </div>
+              </div>
+
+              <div className={styles.fieldModeMapPanel}>
+                <div className={styles.fieldModeSectionHeader}>
+                  <h2>Navigation</h2>
+                  <span>Next stop highlighted</span>
+                </div>
+                <RouteStopsMap
+                  stops={stops}
+                  activeStopId={topVisibleStopId}
+                  upcomingStopIds={upcomingExecutionStopIds}
+                  currentPosition={currentPosition}
+                  mapTheme={mapTheme}
+                  presentation="field"
+                />
+              </div>
+
+              <div className={styles.fieldModeGrid}>
+                <article className={styles.fieldNextStopPanel}>
+                  <div className={styles.fieldModeSectionHeader}>
+                    <h2>Next stop</h2>
+                    {nextExecutionStop && (
+                      <span>{getStopStatusLabel(nextExecutionStop, currentExecutionPhase)}</span>
+                    )}
+                  </div>
+
+                  {nextExecutionStop ? (
+                    <>
+                      <div className={styles.fieldStopAddress}>
+                        {getPrimaryAddressLine(nextExecutionStop.formattedAddress || nextExecutionStop.address)}
+                      </div>
+                      <div className={styles.fieldStopMetaGrid}>
+                        <div>
+                          <span className={styles.infoLabel}>Sequence</span>
+                          <span className={styles.fieldModeTelemetryValue}>{nextExecutionStop.sequence ?? '-'}</span>
+                        </div>
+                        <div>
+                          <span className={styles.infoLabel}>Signs</span>
+                          <span className={styles.fieldModeTelemetryValue}>{nextExecutionStop.numberOfSigns ?? '-'}</span>
+                        </div>
+                        <div>
+                          <span className={styles.infoLabel}>Agent</span>
+                          <span className={styles.fieldModeTelemetryValue}>{nextExecutionStop.agent?.trim() || 'Unassigned'}</span>
+                        </div>
+                      </div>
+                      <div className={styles.fieldPrimaryActions}>
+                        <button
+                          type="button"
+                          onClick={() => { void handleStopCompleted(nextExecutionStop.id); }}
+                          className={styles.btnFieldPrimary}
+                          disabled={!!stopExecuting[nextExecutionStop.id]}
+                        >
+                          {stopExecuting[nextExecutionStop.id]
+                            ? 'Saving...'
+                            : currentExecutionPhase === 'pickup'
+                            ? 'Signs Picked Up'
+                            : 'Signs Placed'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { void handleSkipStop(nextExecutionStop.id); }}
+                          className={styles.btnFieldSecondary}
+                          disabled={!!stopExecuting[nextExecutionStop.id]}
+                        >
+                          Skip Stop
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className={styles.fieldEmptyText}>
+                      {currentExecutionPhase === 'pickup'
+                        ? 'All pickup stops are actioned. End the route when final checks are complete.'
+                        : 'All placement stops are actioned. End this phase to prepare pickup.'}
+                    </p>
+                  )}
+                </article>
+
+                <aside className={styles.fieldUpcomingPanel}>
+                  <div className={styles.fieldModeSectionHeader}>
+                    <h2>Upcoming stops</h2>
+                    <span>Next two</span>
+                  </div>
+                  {upcomingExecutionStops.length > 0 ? (
+                    <ol className={styles.fieldUpcomingList}>
+                      {upcomingExecutionStops.map((stop) => (
+                        <li key={stop.id} className={styles.fieldUpcomingItem}>
+                          <span className={styles.fieldUpcomingSequence}>{stop.sequence ?? '-'}</span>
+                          <span>{getPrimaryAddressLine(stop.formattedAddress || stop.address)}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className={styles.fieldEmptyText}>No further stops in this phase.</p>
+                  )}
+                </aside>
+              </div>
+
+              <div className={styles.fieldModeFooter}>
+                <button
+                  type="button"
+                  onClick={handleEndRoute}
+                  disabled={transitioning || !canEndCurrentPhase}
+                  className={styles.btnFieldComplete}
+                >
+                  {transitioning ? 'Updating...' : !canEndCurrentPhase ? 'Action Stops First' : 'End Route'}
+                </button>
+                {transitionError && (
+                  <span className={styles.transitionError}>{transitionError}</span>
+                )}
+              </div>
+            </section>
+          ) : (
           <div className={styles.stopsSection}>
             <div className={styles.stopsHeader}>
               <h2 className={styles.stopsHeading}>
@@ -1766,6 +1962,22 @@ function RouteDetailContent() {
               })}
             </div>
           </div>
+          )}
+
+          <ConfirmDialog
+            open={showArchiveConfirm}
+            title="Archive Route"
+            message={`Archive route ${route.routeCode || route.id.slice(0, 8)}? Archived routes are no longer active.`}
+            confirmLabel="Archive Route"
+            tone="danger"
+            busy={transitioning}
+            onConfirm={() => {
+              void handleConfirmCompletion();
+            }}
+            onCancel={() => {
+              if (!transitioning) setShowArchiveConfirm(false);
+            }}
+          />
         </>
       )}
     </div>

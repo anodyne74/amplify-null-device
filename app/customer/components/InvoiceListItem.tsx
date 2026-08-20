@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { getUrl } from 'aws-amplify/storage';
 import type { Invoice } from '@/amplify/types';
+import { formatInvoiceCurrency } from '@/lib/format';
+import { getInvoiceStatusTone, type InvoiceStatusTone } from '@/lib/invoiceStatusHelpers';
 import styles from './InvoiceListItem.module.css';
 
 interface InvoiceListItemProps {
@@ -16,15 +18,6 @@ interface InvoiceListItemProps {
 export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
   const [pdfLoading, setPdfLoading] = useState(false);
 
-  // Format currency
-  const formatCurrency = (amount?: number | null) => {
-    if (amount === null || amount === undefined) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  };
-
   // Format date
   const formatDate = (dateString?: string | null) => {
     if (!dateString) return 'N/A';
@@ -37,15 +30,23 @@ export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
     return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
   };
 
-  const statusClass =
-    (({ paid: styles.badgeCompleted, pending: styles.badgePlanned, overdue: styles.badgeDanger, cancelled: styles.badgeDanger, draft: styles.badgeArchived, sent: styles.badgePlanned, viewed: styles.badgePlanned } as Record<string, string>)[invoice.status ?? '']) ?? styles.badgeArchived;
+  const toneClasses: Record<InvoiceStatusTone, string> = {
+    success: styles.badgeCompleted,
+    warning: styles.badgePlanned,
+    danger: styles.badgeDanger,
+    neutral: styles.badgeArchived,
+  };
+  const statusClass = toneClasses[getInvoiceStatusTone(invoice.status)];
 
   const handlePdfAction = async (action: 'view' | 'download') => {
     if (!invoice.pdfS3Key) return;
 
     setPdfLoading(true);
     try {
-      const { url } = await getUrl({ path: invoice.pdfS3Key });
+      const { url } = await getUrl({
+        path: invoice.pdfS3Key,
+        options: { validateObjectExistence: false },
+      });
       const urlString = url.toString();
 
       if (action === 'view') {
@@ -94,7 +95,7 @@ export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
 
       {/* Total Amount */}
       <div className={styles.colAmount}>
-        {formatCurrency(invoice.totalAmount)}
+        {formatInvoiceCurrency(invoice.totalAmount)}
       </div>
 
       {/* Status Badge */}

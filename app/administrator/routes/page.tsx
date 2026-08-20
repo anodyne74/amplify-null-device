@@ -3,15 +3,24 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import AdminActionButton from '@/app/components/AdminActionButton';
-import AdminSectionHeader from '@/app/components/AdminSectionHeader';
 import AsyncState from '@/app/components/AsyncState';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import RoutesListContent from '@/app/components/RoutesListContent';
 import { isAdmin } from '@/lib/amplify-config';
-import { useRoutesList } from '@/lib/useRoutesList';
-import dashboardStyles from '@/app/dashboard.module.css';
+import { useRoutesList, ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
+import { formatRouteDate, formatRouteDuration } from '@/lib/routeListHelpers';
+import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
+import PageHeader from '@/app/administrator/components/PageHeader';
+import { Card } from '@/app/components/ui/core/Card';
+import { Field } from '@/app/components/ui/forms/Field';
+import { Input } from '@/app/components/ui/forms/Input';
+import { Button } from '@/app/components/ui/core/Button';
+import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
+import type { Route } from '@/amplify/types';
 import styles from './page.module.css';
+
+function formatStatusFilterLabel(status: StatusFilter) {
+  return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
+}
 
 interface RoutesListSectionProps {
   canDeleteRoutes: boolean;
@@ -73,8 +82,73 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   }
 
   // Only treat the unfiltered list as "empty" — when a status filter is active,
-  // RoutesListContent renders its own empty message below the filter row.
+  // the inline table renders its own empty message below the filter row.
   const isEmpty = !loading && !error && statusFilter === 'all' && filteredRoutes.length === 0;
+
+  const columns: DataColumn<Route>[] = [
+    {
+      key: 'routeCode',
+      header: 'Route ID',
+      render: (route) => (
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-heading)' }}>
+          {route.routeCode || `${route.id.slice(0, 8)}...`}
+        </span>
+      ),
+    },
+    {
+      key: 'customer',
+      header: 'Customer',
+      render: (route) => customersById[route.customerId] || 'Unknown customer',
+    },
+    { key: 'status', header: 'Status', render: (route) => <RouteStatusPill status={route.status} /> },
+    { key: 'created', header: 'Created', render: (route) => formatRouteDate(route.createdAt) },
+    {
+      key: 'duration',
+      header: 'Duration',
+      render: (route) => (
+        <div>
+          {formatRouteDuration(route)}
+          {route.notes && (
+            <div className={styles.notesPreview}>
+              {route.notes.slice(0, 60)}
+              {route.notes.length > 60 ? '…' : ''}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'action',
+      header: '',
+      width: canDeleteRoutes ? 220 : 90,
+      render: (route) => {
+        const routeLabel = route.routeCode || route.id.slice(0, 8);
+        return (
+          <div className={styles.actionsCell}>
+            <a href={`/administrator/routes/detail?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
+              View
+            </a>
+            {canDeleteRoutes && (
+              <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
+                Edit
+              </a>
+            )}
+            {canDeleteRoutes && (
+              <Button
+                size="sm"
+                variant="danger"
+                loading={deletingRouteId === route.id}
+                onClick={() => void handleDeleteRoute(route)}
+                aria-label={`Delete route ${routeLabel}`}
+              >
+                {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
+              </Button>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
     <AsyncState
@@ -91,45 +165,33 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       onRetry={onRetry}
     >
       <div className={styles.searchFilterRow}>
-        <div className={styles.searchField}>
-          <label htmlFor="routes-search" className={styles.filterFieldLabel}>
-            Search
-          </label>
-          <input
+        <Field label="Search" htmlFor="routes-search" className={styles.searchField}>
+          <Input
             id="routes-search"
             type="search"
-            className={styles.searchInput}
             placeholder="Route code, ID, or customer"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
           />
-        </div>
-        <div className={styles.dateField}>
-          <label htmlFor="routes-date-from" className={styles.filterFieldLabel}>
-            Created from
-          </label>
-          <input
+        </Field>
+        <Field label="Created from" htmlFor="routes-date-from" className={styles.dateField}>
+          <Input
             id="routes-date-from"
             type="date"
-            className={styles.dateInput}
             value={dateFrom}
             max={dateTo || undefined}
             onChange={(event) => setDateFrom(event.target.value)}
           />
-        </div>
-        <div className={styles.dateField}>
-          <label htmlFor="routes-date-to" className={styles.filterFieldLabel}>
-            Created to
-          </label>
-          <input
+        </Field>
+        <Field label="Created to" htmlFor="routes-date-to" className={styles.dateField}>
+          <Input
             id="routes-date-to"
             type="date"
-            className={styles.dateInput}
             value={dateTo}
             min={dateFrom || undefined}
             onChange={(event) => setDateTo(event.target.value)}
           />
-        </div>
+        </Field>
         {hasRefinements && (
           <button type="button" className={styles.clearFiltersBtn} onClick={clearRefinements}>
             Clear filters
@@ -143,23 +205,29 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
         </p>
       )}
 
-      <RoutesListContent
-        canDeleteRoutes={canDeleteRoutes}
-        classes={styles}
-        customersById={customersById}
-        deletingRouteId={deletingRouteId}
-        error={null}
-        filteredRoutes={visibleRoutes}
-        getDetailHref={(route) => `/administrator/routes/detail?id=${route.id}`}
-        getEditHref={(route) => `/administrator/routes/edit?id=${route.id}`}
-        loading={false}
-        onDeleteRoute={(route) => {
-          void handleDeleteRoute(route);
-        }}
-        onStatusFilterChange={setStatusFilter}
-        showEditLink={true}
-        statusFilter={statusFilter}
-      />
+      <div className={styles.filterRow}>
+        <span className={styles.filterLabel}>Status:</span>
+        {ROUTE_STATUS_FILTERS.map((status) => (
+          <button
+            key={status}
+            type="button"
+            onClick={() => setStatusFilter(status)}
+            className={`${styles.filterBtn} ${statusFilter === status ? styles.filterBtnActive : ''}`}
+          >
+            {formatStatusFilterLabel(status)}
+          </button>
+        ))}
+      </div>
+
+      {visibleRoutes.length === 0 ? (
+        <p className={styles.resultCount}>No routes found.</p>
+      ) : (
+        <Card padded={false}>
+          <div className={styles.tableWrap}>
+            <DataTable columns={columns} rows={visibleRoutes} wrapped={false} />
+          </div>
+        </Card>
+      )}
     </AsyncState>
   );
 }
@@ -171,26 +239,22 @@ export default function AdministratorRoutesPage() {
 
   return (
     <OperatorRoute requireAdmin>
-      <div className={dashboardStyles.page}>
-        <h1 className={dashboardStyles.heading}>Routes</h1>
+      <div className={styles.page}>
+        <PageHeader
+          title="Routes"
+          subtitle="Plan and manage delivery routes across all customers."
+          actions={
+            <Link href="/administrator/routes/new" className="nd-btn nd-btn--primary">
+              Create New Route
+            </Link>
+          }
+        />
 
-        <div className={dashboardStyles.infoPanel}>
-          <AdminSectionHeader
-            title="Route List"
-            description="Plan and manage delivery routes across all customers."
-            actions={(
-              <Link href="/administrator/routes/new" className={styles.createRouteLink}>
-                <AdminActionButton variant="primary">Create New Route</AdminActionButton>
-              </Link>
-            )}
-          />
-
-          <RoutesListSection
-            key={retryKey}
-            canDeleteRoutes={canDeleteRoutes}
-            onRetry={() => setRetryKey((value) => value + 1)}
-          />
-        </div>
+        <RoutesListSection
+          key={retryKey}
+          canDeleteRoutes={canDeleteRoutes}
+          onRetry={() => setRetryKey((value) => value + 1)}
+        />
       </div>
     </OperatorRoute>
   );

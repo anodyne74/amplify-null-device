@@ -60,9 +60,9 @@ describe('InvoiceListTable', () => {
   it('applies expected variants to visible actions when PDF is attached', () => {
     renderTable([createInvoice()]);
 
-    expect(screen.getByRole('button', { name: 'View PDF for invoice INV-001' })).toHaveClass('adminBtnGhost');
-    expect(screen.getByRole('button', { name: 'Mark invoice INV-001 as paid' })).toHaveClass('adminBtnPrimary');
-    expect(screen.getByRole('button', { name: 'Email invoice INV-001' })).toHaveClass('adminBtnSecondary');
+    expect(screen.getByRole('button', { name: 'View PDF for invoice INV-001' })).toHaveClass('nd-btn--ghost');
+    expect(screen.getByRole('button', { name: 'Mark invoice INV-001 as paid' })).toHaveClass('nd-btn--primary');
+    expect(screen.getByRole('button', { name: 'Email invoice INV-001' })).toHaveClass('nd-btn--secondary');
   });
 
   it('shows generate action as primary and hides mark-paid when invoice is already paid', () => {
@@ -75,7 +75,7 @@ describe('InvoiceListTable', () => {
       }),
     ]);
 
-    expect(screen.getByRole('button', { name: 'Generate PDF for invoice INV-002' })).toHaveClass('adminBtnPrimary');
+    expect(screen.getByRole('button', { name: 'Generate PDF for invoice INV-002' })).toHaveClass('nd-btn--primary');
     expect(screen.queryByRole('button', { name: 'Mark invoice INV-002 as paid' })).not.toBeInTheDocument();
   });
 
@@ -90,7 +90,7 @@ describe('InvoiceListTable', () => {
     ]);
 
     const sentStatusChips = screen.getAllByText('Sent');
-    expect(sentStatusChips.some((node) => node.className.includes('statusChipSent'))).toBe(true);
+    expect(sentStatusChips.some((node) => node.className.includes('nd-badge--info'))).toBe(true);
   });
 
   it('does not render generate or regenerate actions for imported invoices', () => {

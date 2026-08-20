@@ -1,7 +1,9 @@
-import AdminActionButton from '@/app/components/AdminActionButton';
+import { Button } from '@/app/components/ui/core/Button';
+import { Input } from '@/app/components/ui/forms/Input';
+import { Select } from '@/app/components/ui/forms/Select';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import type { Customer, CustomerStatus } from '@/app/administrator/customers/types';
-import styles from '@/app/dashboard.module.css';
+import styles from '../page.module.css';
 
 interface CustomerEditPanelProps {
   customer: Customer;
@@ -69,34 +71,26 @@ export default function CustomerEditPanel({
   onCancel,
 }: CustomerEditPanelProps) {
   return (
-    <div className={styles.infoPanel}>
-      <h4>Edit Customer — {customer.name}</h4>
-      {editError && (
-        <p className={styles.inlineErrorText} role="alert" aria-live="assertive">
-          {editError}
-        </p>
-      )}
-      {editSuccess && (
-        <p className={styles.inlineSuccessText} role="status" aria-live="polite">
-          {editSuccess}
-        </p>
-      )}
-      <p className={styles.welcome}>Address is validated via Google address lookup before saving.</p>
-      <div className={styles.twoColumnGrid}>
-        <input
+    <div className={styles.subPanel}>
+      <h4 className={styles.subPanelHeading}>Edit Customer — {customer.name}</h4>
+      {editError && <div className={styles.errorBanner} role="alert" aria-live="assertive">{editError}</div>}
+      {editSuccess && <div className={styles.successBanner} role="status" aria-live="polite">{editSuccess}</div>}
+      <p className={styles.mutedText}>Address is validated via Google address lookup before saving.</p>
+      <div className={styles.fieldsGrid}>
+        <Input
           value={editName}
           onChange={(event) => onEditNameChange(event.target.value)}
           placeholder="Name"
           disabled={editSaving}
           required
         />
-        <input
+        <Input
           value={editCompanyName}
           onChange={(event) => onEditCompanyNameChange(event.target.value)}
           placeholder="Company Name"
           disabled={editSaving}
         />
-        <input
+        <Input
           value={editEmail}
           onChange={(event) => onEditEmailChange(event.target.value)}
           placeholder="Correspondence Email"
@@ -104,7 +98,7 @@ export default function CustomerEditPanel({
           disabled={editSaving}
           required
         />
-        <input
+        <Input
           value={editBillingRatePerHour}
           onChange={(event) => onEditBillingRatePerHourChange(event.target.value)}
           onBlur={(event) => onEditBillingRatePerHourBlur(event.target.value)}
@@ -114,7 +108,7 @@ export default function CustomerEditPanel({
           disabled={editSaving}
           required
         />
-        <select
+        <Select
           value={editStatus}
           onChange={(event) => onEditStatusChange(event.target.value as CustomerStatus)}
           disabled={editSaving}
@@ -122,8 +116,8 @@ export default function CustomerEditPanel({
           <option value="active">active</option>
           <option value="inactive">inactive</option>
           <option value="suspended">suspended</option>
-        </select>
-        <input
+        </Select>
+        <Input
           value={editDefaultNumberOfSigns}
           onChange={(event) => onEditDefaultNumberOfSignsChange(event.target.value)}
           placeholder="Default number of signs"
@@ -131,20 +125,20 @@ export default function CustomerEditPanel({
           min={0}
           disabled={editSaving}
         />
-        <input
+        <Input
           value={editDefaultAgentName}
           onChange={(event) => onEditDefaultAgentNameChange(event.target.value)}
           placeholder="Default agent name"
           disabled={editSaving}
         />
-        <input
+        <Input
           value={editDefaultAgentInitials}
           onChange={(event) => onEditDefaultAgentInitialsChange(event.target.value)}
           placeholder="Default agent initials (e.g., BO)"
           maxLength={4}
           disabled={editSaving}
         />
-        <div className={styles.fullWidth}>
+        <div className={styles.fieldsGridFull}>
           <AddressAutocompleteInput
             id={`customer-address-${customer.id}`}
             value={editAddressLine1}
@@ -154,45 +148,38 @@ export default function CustomerEditPanel({
             onResolved={onEditResolvedAddressChange}
             disabled={editSaving}
             placeholder="Address"
-            className={styles.input}
+            className="nd-input"
           />
         </div>
-        <textarea
+        <Input
           value={editAgentOptionsText}
           onChange={(event) => onEditAgentOptionsTextChange(event.target.value)}
           placeholder="Agent options, one per line"
           disabled={editSaving}
-          className={styles.fullWidth}
+          multiline
+          className={styles.fieldsGridFull}
         />
-        <textarea
+        <Input
           value={editStandingInstructions}
           onChange={(event) => onEditStandingInstructionsChange(event.target.value)}
           placeholder="Standing instructions for operators"
           disabled={editSaving}
-          className={styles.fullWidth}
+          multiline
+          className={styles.fieldsGridFull}
         />
         {customer.defaultAgentInitials && (
-          <p className={`${styles.welcome} ${styles.fullWidth}`}>
+          <p className={`${styles.mutedText} ${styles.fieldsGridFull}`}>
             Current default initials: {customer.defaultAgentInitials}
           </p>
         )}
       </div>
       <div className={styles.actionsRow}>
-        <AdminActionButton
-          onClick={onSave}
-          variant="primary"
-          isLoading={editSaving}
-          loadingLabel="Saving..."
-        >
-          Save Customer
-        </AdminActionButton>
-        <AdminActionButton
-          onClick={onCancel}
-          variant="ghost"
-          disabled={editSaving}
-        >
+        <Button type="button" variant="primary" loading={editSaving} onClick={onSave}>
+          {editSaving ? 'Saving...' : 'Save Customer'}
+        </Button>
+        <Button type="button" variant="ghost" disabled={editSaving} onClick={onCancel}>
           Cancel
-        </AdminActionButton>
+        </Button>
       </div>
     </div>
   );

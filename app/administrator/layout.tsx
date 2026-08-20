@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import PortalLayout from '@/app/components/PortalLayout';
+import AdminShell from '@/app/administrator/components/AdminShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { getUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/queries';
@@ -59,16 +59,9 @@ export default function AdministratorLayout({ children }: { children: React.Reac
 
   return (
     <OperatorRoute requireAdmin>
-      <PortalLayout
-        variant="operator"
-        portalTitle="Administrator Portal"
-        navItems={ADMIN_NAV}
-        userEmail={userDisplayName}
-        onLogout={signOut}
-        role="admin"
-      >
+      <AdminShell navItems={ADMIN_NAV} userEmail={userDisplayName} onLogout={signOut}>
         {children}
-      </PortalLayout>
+      </AdminShell>
     </OperatorRoute>
   );
 }

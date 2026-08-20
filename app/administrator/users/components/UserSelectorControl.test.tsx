@@ -28,7 +28,7 @@ describe('UserSelectorControl', () => {
     expect(onEmailInputChange).toHaveBeenCalledWith('user@example.com');
 
     const loadButton = screen.getByRole('button', { name: 'Load Groups' });
-    expect(loadButton).toHaveClass('adminBtnSecondary');
+    expect(loadButton).toHaveClass('nd-btn--secondary');
     expect(loadButton).toBeDisabled();
   });
 
@@ -86,7 +86,7 @@ describe('UserSelectorControl', () => {
     expect(onSelectUsername).toHaveBeenCalledWith('bob');
 
     const refreshButton = screen.getByRole('button', { name: 'Refresh Users' });
-    expect(refreshButton).toHaveClass('adminBtnGhost');
+    expect(refreshButton).toHaveClass('nd-btn--ghost');
     fireEvent.click(refreshButton);
     expect(onRefreshUsers).toHaveBeenCalledTimes(1);
   });

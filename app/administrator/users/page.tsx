@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
-import AdminActionButton from '@/app/components/AdminActionButton';
-import AdminFeedbackBanner from '@/app/components/AdminFeedbackBanner';
-import AdminFormField from '@/app/components/AdminFormField';
-import AdminSectionHeader from '@/app/components/AdminSectionHeader';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import AdminListState from '@/app/components/AdminListState';
 import AdminRowMenu from '@/app/components/AdminRowMenu';
+import PageHeader from '@/app/administrator/components/PageHeader';
+import { Card } from '@/app/components/ui/core/Card';
+import { Button } from '@/app/components/ui/core/Button';
+import { Field } from '@/app/components/ui/forms/Field';
+import { Input } from '@/app/components/ui/forms/Input';
+import { Select } from '@/app/components/ui/forms/Select';
+import { Badge } from '@/app/components/ui/core/Badge';
 import {
   createCustomerUser,
   deleteCustomerUser,
@@ -17,9 +19,9 @@ import {
   listCustomers,
   syncViewerSubsForCustomer,
 } from '@/lib/queries';
-import styles from '@/app/dashboard.module.css';
 import UserSelectorControl from '@/app/administrator/users/components/UserSelectorControl';
 import GroupMembershipSection from '@/app/administrator/users/components/GroupMembershipSection';
+import styles from './page.module.css';
 
 type CognitoUser = {
   id?: string;
@@ -546,7 +548,7 @@ export default function UsersAdminPage() {
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
-        <h1 className={styles.heading}>Users</h1>
+        <PageHeader title="Users" />
         <ConfirmDialog
           open={removalTarget !== null}
           title="Remove customer access?"
@@ -561,36 +563,28 @@ export default function UsersAdminPage() {
             if (!accessPending) setRemovalTarget(null);
           }}
         />
-        <div className={styles.infoPanel}>
-          <AdminSectionHeader
-            title="Manage User Groups"
-            description="Assign and revoke customer, operator, and administrator groups by user email."
-            secondaryDescription="Users must sign up via Request Access and set their own password during sign-up."
-          />
 
-          <AdminFeedbackBanner
-            message={error}
-            tone="error"
-            messageClassName={styles.inlineErrorText}
-          />
+        <Card
+          title="Manage User Groups"
+          subtitle="Assign and revoke customer, operator, and administrator groups by user email. Users must sign up via Request Access and set their own password during sign-up."
+        >
+          {error && <div className={styles.errorBanner} role="alert" aria-live="assertive">{error}</div>}
           {error && !listUsersDenied && (
-            <div className={styles.actionsRow}>
-              <AdminActionButton
-                onClick={() => void loadUsers()}
+            <div className={styles.sectionRow} style={{ marginTop: 'var(--space-3)' }}>
+              <Button
+                type="button"
                 variant="secondary"
-                isLoading={loading}
-                loadingLabel="Retrying..."
+                loading={loading}
                 aria-label="Retry loading users"
+                onClick={() => void loadUsers()}
               >
-                Retry
-              </AdminActionButton>
+                {loading ? 'Retrying...' : 'Retry'}
+              </Button>
             </div>
           )}
-          <AdminFeedbackBanner
-            message={successMessage}
-            tone="success"
-            messageClassName={styles.inlineSuccessText}
-          />
+          {successMessage && (
+            <div className={styles.successBanner} role="status" aria-live="polite">{successMessage}</div>
+          )}
 
           <UserSelectorControl
             listUsersDenied={listUsersDenied}
@@ -616,28 +610,20 @@ export default function UsersAdminPage() {
             groupOptions={GROUPS}
             onToggleGroup={handleToggleGroup}
           />
-        </div>
+        </Card>
 
         {/* ── Customer Access ── */}
-        <div className={styles.infoPanel}>
-          <AdminSectionHeader
-            title="Customer Access"
-            description="Customer-group users must be assigned to a customer. Assign each user by email as either primary contact (account owner) or read-only."
-          />
+        <Card
+          title="Customer Access"
+          subtitle="Customer-group users must be assigned to a customer. Assign each user by email as either primary contact (account owner) or read-only."
+        >
+          {accessError && <div className={styles.errorBanner} role="alert" aria-live="assertive">{accessError}</div>}
+          {accessSuccess && (
+            <div className={styles.successBanner} role="status" aria-live="polite">{accessSuccess}</div>
+          )}
 
-          <AdminFeedbackBanner
-            message={accessError}
-            tone="error"
-            messageClassName={styles.inlineErrorText}
-          />
-          <AdminFeedbackBanner
-            message={accessSuccess}
-            tone="success"
-            messageClassName={styles.inlineSuccessText}
-          />
-
-          <AdminFormField label="Customer" htmlFor="customerSelect" className={styles.inlineGrid}>
-            <select
+          <Field label="Customer" htmlFor="customerSelect">
+            <Select
               id="customerSelect"
               value={selectedCustomerId}
               onChange={(e) => setSelectedCustomerId(e.target.value)}
@@ -647,24 +633,24 @@ export default function UsersAdminPage() {
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
-            </select>
-          </AdminFormField>
+            </Select>
+          </Field>
 
           {selectedCustomerId && (
             <div>
-              <h4>Users for this customer</h4>
+              <h4 className={styles.subheading}>Users for this customer</h4>
               {customerUsers.length === 0 ? (
-                <AdminListState empty emptyMessage="No users assigned yet." />
+                <p className={styles.mutedText}>No users assigned yet.</p>
               ) : (
-                <ul className={styles.accessUserList}>
+                <ul className={styles.userList}>
                   {customerUsers.map((cu) => (
-                    <li key={cu.id} className={styles.accessUserRow}>
-                      <div className={styles.accessUserIdentity}>
-                        <span className={`${styles.statusChip} ${cu.role === 'account_owner' ? styles.statusChipActive : styles.statusChipMuted}`}>
+                    <li key={cu.id} className={styles.userRow}>
+                      <div className={styles.userIdentity}>
+                        <Badge tone={cu.role === 'account_owner' ? 'brand' : 'neutral'}>
                           {cu.role === 'account_owner' ? 'Primary' : 'Read-only'}
-                        </span>
-                        <span className={styles.accessUserName}>{cu.name ?? cu.email ?? 'Unnamed user'}</span>
-                        {cu.email && <span className={styles.accessUserMeta}>{cu.email}</span>}
+                        </Badge>
+                        <span className={styles.userName}>{cu.name ?? cu.email ?? 'Unnamed user'}</span>
+                        {cu.email && <span className={styles.userMeta}>{cu.email}</span>}
                       </div>
                       {cu.role !== 'account_owner' && (
                         <AdminRowMenu
@@ -672,37 +658,35 @@ export default function UsersAdminPage() {
                           ariaLabel={`More customer access actions for ${cu.name ?? cu.email ?? 'user'}`}
                           align="end"
                         >
-                          <AdminActionButton
-                            onClick={() => setRemovalTarget(cu)}
+                          <Button
+                            type="button"
                             variant="danger"
-                            isLoading={accessPending}
-                            loadingLabel="Removing..."
+                            loading={accessPending}
                             aria-label={`Remove ${cu.name ?? cu.email ?? 'user'} from customer access`}
+                            onClick={() => setRemovalTarget(cu)}
                           >
-                            Remove User
-                          </AdminActionButton>
+                            {accessPending ? 'Removing...' : 'Remove User'}
+                          </Button>
                         </AdminRowMenu>
                       )}
-                      {cu.role === 'account_owner' && (
-                        <span className={`${styles.statusChip} ${styles.statusChipSent}`}>Owner</span>
-                      )}
+                      {cu.role === 'account_owner' && <Badge tone="success">Owner</Badge>}
                     </li>
                   ))}
                 </ul>
               )}
 
-              <h4>Add customer user</h4>
-              <p className={styles.welcome}>
+              <h4 className={styles.subheading}>Add customer user</h4>
+              <p className={styles.mutedText}>
                 Enter the user email. Users in the customer group must be assigned to a customer.
               </p>
               {!hasAccountOwner && (
-                <p className={styles.welcome}>
+                <p className={styles.mutedText}>
                   This customer has no primary contact yet. Assign a primary contact first before adding read-only users.
                 </p>
               )}
-              <div className={styles.inlineGrid}>
-                <AdminFormField label="Role" htmlFor="newCustomerRole" className={styles.inlineGrid}>
-                  <select
+              <div className={styles.addUserForm}>
+                <Field label="Role" htmlFor="newCustomerRole" className={styles.addUserField}>
+                  <Select
                     id="newCustomerRole"
                     value={newUserRole}
                     onChange={(e) => setNewUserRole(e.target.value as 'account_owner' | 'read_only')}
@@ -711,10 +695,10 @@ export default function UsersAdminPage() {
                   >
                     <option value="account_owner">Primary contact (account owner)</option>
                     <option value="read_only" disabled={!hasAccountOwner}>Read-only</option>
-                  </select>
-                </AdminFormField>
-                <AdminFormField label="Email" htmlFor="newCustomerEmail" className={styles.inlineGrid}>
-                  <input
+                  </Select>
+                </Field>
+                <Field label="Email" htmlFor="newCustomerEmail" className={styles.addUserField}>
+                  <Input
                     id="newCustomerEmail"
                     value={newUserEmail}
                     onChange={(e) => setNewUserEmail(e.target.value)}
@@ -723,9 +707,9 @@ export default function UsersAdminPage() {
                     type="email"
                     aria-label="Email for new customer user"
                   />
-                </AdminFormField>
-                <AdminFormField label="Display Name" htmlFor="newCustomerName" className={styles.inlineGrid}>
-                  <input
+                </Field>
+                <Field label="Display Name" htmlFor="newCustomerName" className={styles.addUserField}>
+                  <Input
                     id="newCustomerName"
                     value={newUserName}
                     onChange={(e) => setNewUserName(e.target.value)}
@@ -733,21 +717,21 @@ export default function UsersAdminPage() {
                     disabled={accessPending}
                     aria-label="Optional display name for new customer user"
                   />
-                </AdminFormField>
-                <AdminActionButton
-                  onClick={() => void handleAddCustomerUser()}
+                </Field>
+                <Button
+                  type="button"
                   variant="primary"
-                  isLoading={accessPending}
-                  loadingLabel="Saving..."
+                  loading={accessPending}
                   disabled={!newUserEmail.trim()}
                   aria-label="Add customer user"
+                  onClick={() => void handleAddCustomerUser()}
                 >
-                  Add Customer User
-                </AdminActionButton>
+                  {accessPending ? 'Saving...' : 'Add Customer User'}
+                </Button>
               </div>
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </OperatorRoute>
   );

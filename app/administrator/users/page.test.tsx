@@ -93,7 +93,7 @@ describe('UsersAdminPage customer access actions', () => {
     });
 
     const addButton = screen.getByRole('button', { name: 'Add customer user' });
-    expect(addButton).toHaveClass('adminBtnPrimary');
+    expect(addButton).toHaveClass('nd-btn--primary');
 
     await waitFor(() => {
       expect(screen.getByText('Read User')).toBeInTheDocument();
@@ -104,7 +104,7 @@ describe('UsersAdminPage customer access actions', () => {
     fireEvent.click(screen.getByRole('button', { name: /more customer access actions for read user/i }));
 
     const removeButton = screen.getByRole('button', { name: 'Remove Read User from customer access' });
-    expect(removeButton).toHaveClass('adminBtnDanger');
+    expect(removeButton).toHaveClass('nd-btn--danger');
   });
 
   it('requires confirmation before removing a customer user', async () => {

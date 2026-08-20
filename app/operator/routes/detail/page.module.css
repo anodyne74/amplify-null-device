@@ -1,1445 +1,323 @@
 .container {
-  padding: var(--nd-space-lg);
-  max-width: 900px;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
 }
 
 .errorBanner {
-  padding: var(--nd-space-md);
-  background-color: var(--nd-status-danger-dim);
-  color: var(--nd-status-danger);
-  border-radius: var(--nd-radius-md);
-  margin-top: var(--nd-space-md);
-  font-size: 14px;
-  border: 1px solid var(--nd-status-danger);
+  padding: var(--space-4);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  border: var(--border-hairline) solid var(--status-danger-fg);
 }
 
-.transitionError {
-  color: var(--nd-status-danger);
-  font-size: 14px;
+.successText {
+  padding: var(--space-3) var(--space-4);
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.mutedText {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 /* Route header card */
-.routeCard {
-  margin-top: 20px;
-  padding: 20px;
-  background-color: var(--nd-bg-surface);
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-lg);
-}
 
 .routeCardHeader {
   display: flex;
   align-items: center;
-  gap: var(--nd-space-md);
-  margin-bottom: var(--nd-space-md);
-}
-
-.btnRouteEdit {
-  margin-left: auto;
-  min-height: 44px;
-  padding: 10px 14px;
-  border: 1px solid var(--nd-operator-accent);
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-operator-accent);
-  display: inline-flex;
-  align-items: center;
-  text-decoration: none;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.btnRouteEdit:hover {
-  opacity: 0.85;
-}
-
-.btnRouteDelete {
-  min-height: 44px;
-  padding: 10px 14px;
-  border: 1px solid var(--nd-status-danger);
-  border-radius: var(--nd-radius-sm);
-  background: transparent;
-  color: var(--nd-status-danger);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btnRouteDelete:hover {
-  opacity: 0.85;
-}
-
-.btnRouteDelete:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 
 .routeTitle {
   margin: 0;
-  font-size: 22px;
-  color: var(--nd-operator-accent);
+  font-size: var(--text-2xl);
+  font-family: var(--font-display);
+  color: var(--text-heading);
 }
 
-.routeInfoGrid {
+.headerActions {
+  display: flex;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+.factsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--nd-space-md);
-  font-size: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
 }
 
-.infoLabel {
-  color: var(--nd-text-muted);
-  font-size: 12px;
+.phaseOverrideGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: var(--border-hairline) solid var(--border-subtle);
+  margin-bottom: var(--space-5);
 }
 
-.infoValueMono {
-  font-family: var(--nd-font-mono);
-  color: var(--nd-text-primary);
+.durationField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
-.infoValue {
-  color: var(--nd-text-primary);
+.durationRow {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.durationUnit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 80px;
+}
+
+.durationUnitLabel {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-subtle);
 }
 
 .routeNotes {
-  margin-top: 12px;
-  font-size: 14px;
-  color: var(--nd-text-secondary);
+  padding: var(--space-4);
+  background: var(--surface-hover);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--text-body);
+  margin-bottom: var(--space-5);
 }
 
-.routeNotesBold {
-  font-weight: 600;
-  color: var(--nd-text-primary);
+.transitionRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
 }
 
-.summaryCard {
-  margin-top: var(--nd-space-md);
-  padding: var(--nd-space-md);
-  background: var(--nd-bg-elevated);
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-lg);
+.transitionError {
+  color: var(--status-danger-fg);
+  font-size: var(--text-sm);
+}
+
+.summaryPanel {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: var(--border-hairline) solid var(--border-subtle);
 }
 
 .summaryHeading {
-  margin: 0 0 var(--nd-space-md) 0;
-  font-size: 16px;
-  color: var(--nd-text-primary);
-}
-
-.summaryGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--nd-space-md);
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-lg);
+  font-family: var(--font-display);
+  color: var(--text-heading);
 }
 
 .distanceOverrideSection {
-  margin-top: var(--nd-space-md);
-  padding-top: var(--nd-space-md);
-  border-top: 1px solid var(--nd-border-subtle);
-}
-
-.distanceOverrideHeading {
-  margin: 0 0 var(--nd-space-sm) 0;
-  font-size: 15px;
-  color: var(--nd-text-primary);
+  margin-top: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 360px;
 }
 
 .distanceOverrideRow {
-  display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(120px, 180px) auto;
-  gap: var(--nd-space-sm);
-  align-items: center;
-}
-
-.distanceOverrideLabel {
-  color: var(--nd-text-secondary);
-  font-size: 13px;
-}
-
-.distanceOverrideInput {
-  width: 100%;
-  min-height: 44px;
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg-surface);
-  color: var(--nd-text-primary);
-  padding: 8px 10px;
-  box-sizing: border-box;
-}
-
-.btnSaveDistanceOverride {
-  min-height: 44px;
-  padding: 10px 14px;
-  border: none;
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btnSaveDistanceOverride:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-
-.distanceOverrideSuccess {
-  margin-top: var(--nd-space-sm);
-  color: var(--nd-status-active);
-  font-size: 13px;
-}
-
-/* Status transition buttons */
-.transitionRow {
-  margin-top: var(--nd-space-md);
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
   align-items: center;
 }
 
-.phaseCompletionControls {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--nd-space-sm);
-  align-items: end;
-}
+/* Stops section */
 
-.phaseCompletionField {
+.stopsSection {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-6);
+}
+
+.mapShell {
   min-width: 0;
+  min-height: 320px;
 }
 
-.phaseCompletionLabel {
-  color: var(--nd-text-secondary);
-  font-size: 12px;
-}
-
-.phaseCompletionInput {
-  width: 100%;
-  min-height: 44px;
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg-surface);
-  color: var(--nd-text-primary);
-  padding: 6px 8px;
-  box-sizing: border-box;
-}
-
-.phaseDurationSpinnerRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--nd-space-xs);
-}
-
-.phaseDurationUnit {
+.mapLoading {
+  min-height: 320px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
+  justify-content: center;
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
+  background: var(--surface-hover);
+  border-radius: var(--radius-md);
 }
 
-.phaseDurationUnitLabel {
-  color: var(--nd-text-muted);
-  font-size: 12px;
-  min-width: 10px;
-  text-transform: lowercase;
+.reorderHint,
+.reorderStatus {
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
 }
 
-.btnStart {
-  min-height: 44px;
-  padding: 10px 20px;
-  background-color: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-  border: none;
-  border-radius: var(--nd-radius-sm);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity var(--nd-transition-fast);
+.emptyState {
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
 }
 
-.btnStart:hover {
-  opacity: 0.9;
+.formHeading {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-base);
+  font-family: var(--font-display);
+  color: var(--text-heading);
 }
 
-.btnStart:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
+.editFormWrap {
+  padding: var(--space-5);
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
 }
 
-.btnComplete {
-  min-height: 44px;
-  padding: 10px 20px;
-  background-color: var(--nd-status-active);
-  color: var(--nd-text-inverse);
-  border: none;
-  border-radius: var(--nd-radius-sm);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity var(--nd-transition-fast);
+.stopsList {
+  display: flex;
+  flex-direction: column;
 }
 
-.btnComplete:hover {
-  opacity: 0.9;
+.stopActionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
 }
 
-.btnComplete:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
+/* Field / execution mode */
 
-/* Active operator field mode */
 .fieldMode {
-  margin-top: var(--nd-space-md);
   display: flex;
   flex-direction: column;
-  gap: var(--nd-space-md);
-}
-
-.fieldModeHeader,
-.fieldModeTelemetry,
-.fieldModeMapPanel,
-.fieldNextStopPanel,
-.fieldUpcomingPanel,
-.fieldModeFooter {
-  background: var(--nd-bg-surface);
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-lg);
+  gap: var(--space-6);
 }
 
 .fieldModeHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--nd-space-md);
-  padding: var(--nd-space-md);
+  gap: var(--space-4);
+  flex-wrap: wrap;
 }
 
 .fieldModeEyebrow {
-  margin: 0 0 4px 0;
-  color: var(--nd-operator-accent);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0;
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-2xs);
   text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-brand);
+  font-weight: var(--fw-semibold);
 }
 
 .fieldModeTitle {
   margin: 0;
-  color: var(--nd-text-primary);
-  font-size: clamp(1.25rem, 5vw, 1.9rem);
-  line-height: 1.1;
+  font-size: var(--text-2xl);
+  font-family: var(--font-display);
+  color: var(--text-heading);
 }
 
-.fieldModeTelemetry {
+.telemetryGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--nd-space-sm);
-  padding: var(--nd-space-sm);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-5);
 }
 
-.fieldModeTelemetry > div {
-  min-width: 0;
-  padding: var(--nd-space-sm);
-  background: var(--nd-bg-elevated);
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-md);
-}
-
-.fieldModeTelemetryValue {
-  display: block;
-  margin-top: 4px;
-  color: var(--nd-text-primary);
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.fieldModeMapPanel,
-.fieldNextStopPanel,
-.fieldUpcomingPanel {
-  padding: var(--nd-space-md);
-}
-
-.fieldModeSectionHeader {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--nd-space-sm);
-  margin-bottom: var(--nd-space-sm);
-}
-
-.fieldModeSectionHeader h2 {
-  margin: 0;
-  color: var(--nd-text-primary);
-  font-size: 18px;
-  line-height: 1.2;
-}
-
-.fieldModeSectionHeader span {
-  color: var(--nd-text-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.fieldModeGrid {
+.fieldGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
-  gap: var(--nd-space-md);
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.fieldSectionSpan {
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
 }
 
 .fieldStopAddress {
-  color: var(--nd-text-primary);
-  font-size: clamp(1.55rem, 7vw, 2.45rem);
-  font-weight: 850;
-  line-height: 1.1;
-  overflow-wrap: anywhere;
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-xl);
+  font-family: var(--font-display);
+  color: var(--text-heading);
 }
 
 .fieldStopMetaGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--nd-space-sm);
-  margin-top: var(--nd-space-md);
-}
-
-.fieldStopMetaGrid > div {
-  min-width: 0;
-  padding: var(--nd-space-sm);
-  background: var(--nd-bg-elevated);
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-md);
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 
 .fieldPrimaryActions {
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(112px, 0.8fr);
-  gap: var(--nd-space-sm);
-  margin-top: var(--nd-space-md);
-}
-
-.btnFieldPrimary,
-.btnFieldSecondary,
-.btnFieldComplete {
-  min-height: 58px;
-  border-radius: var(--nd-radius-md);
-  font-size: 16px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.btnFieldPrimary {
-  border: none;
-  background: var(--nd-status-active);
-  color: var(--nd-text-inverse);
-}
-
-.btnFieldSecondary {
-  border: 1px solid var(--nd-border-default);
-  background: var(--nd-bg-elevated);
-  color: var(--nd-text-secondary);
-}
-
-.btnFieldComplete {
-  min-width: 180px;
-  border: none;
-  background: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-}
-
-.btnFieldPrimary:disabled,
-.btnFieldSecondary:disabled,
-.btnFieldComplete:disabled {
-  opacity: 0.58;
-  cursor: not-allowed;
-}
-
-.fieldUpcomingList {
   display: flex;
   flex-direction: column;
-  gap: var(--nd-space-sm);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.fieldUpcomingItem {
-  display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
-  gap: var(--nd-space-sm);
-  align-items: center;
-  min-height: 54px;
-  color: var(--nd-text-primary);
-  font-weight: 700;
-  line-height: 1.25;
-}
-
-.fieldUpcomingSequence {
-  width: 34px;
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: var(--nd-operator-accent-dim);
-  color: var(--nd-operator-accent);
-  border: 1px solid color-mix(in srgb, var(--nd-operator-accent) 35%, transparent);
-  font-size: 13px;
-  font-weight: 800;
+  gap: var(--space-3);
 }
 
 .fieldEmptyText {
   margin: 0;
-  color: var(--nd-text-secondary);
-  font-size: 15px;
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
+}
+
+.fieldUpcomingList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.fieldUpcomingItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-hover);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--text-body);
+}
+
+.fieldUpcomingSequence {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-circle);
+  background: var(--surface-brand-subtle);
+  color: var(--text-brand);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  flex-shrink: 0;
 }
 
 .fieldModeFooter {
   display: flex;
-  justify-content: flex-end;
   align-items: center;
-  gap: var(--nd-space-md);
-  padding: var(--nd-space-md);
-}
-
-/* Stops section */
-.stopsSection {
-  margin-top: var(--nd-space-lg);
-}
-
-.mapSection {
-  margin-bottom: var(--nd-space-md);
-}
-
-.mapSectionExecutionMobile {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: var(--nd-bg-surface);
-}
-
-.mapHeading {
-  margin: 0 0 var(--nd-space-sm) 0;
-  font-size: 15px;
-  color: var(--nd-text-primary);
-}
-
-.mapLoading {
-  padding: var(--nd-space-lg);
-  border: 1px dashed var(--nd-border-default);
-  border-radius: var(--nd-radius-lg);
-  color: var(--nd-text-secondary);
-}
-
-.reorderHint {
-  margin-bottom: var(--nd-space-sm);
-  color: var(--nd-text-muted);
-  font-size: 12px;
-}
-
-.reorderStatus {
-  margin-bottom: var(--nd-space-sm);
-  color: var(--nd-operator-accent);
-  font-size: 12px;
-}
-
-.stopsHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--nd-space-md);
-}
-
-.stopsHeading {
-  margin: 0;
-  font-size: 18px;
-  color: var(--nd-operator-accent);
-}
-
-.btnAddStop {
-  min-height: 44px;
-  padding: 10px 16px;
-  background-color: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-  border: none;
-  border-radius: var(--nd-radius-sm);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity var(--nd-transition-fast);
-}
-
-.btnAddStop:hover {
-  opacity: 0.9;
-}
-
-.formContainer {
-  padding: 20px;
-  background-color: var(--nd-bg-elevated);
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-lg);
-  margin-bottom: var(--nd-space-md);
-}
-
-.formHeading {
-  margin: 0 0 var(--nd-space-md) 0;
-  font-size: 16px;
-  color: var(--nd-text-primary);
-}
-
-.emptyState {
-  padding: var(--nd-space-xl);
-  text-align: center;
-  color: var(--nd-text-secondary);
-  border: 1px dashed var(--nd-border-default);
-  border-radius: var(--nd-radius-lg);
-}
-
-.stopsList {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.stopsListExecutionMobile {
-  --nd-exec-visible-stops: 2;
-  --nd-exec-stop-card-height: 132px;
-  max-height: 44dvh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  padding-right: 4px;
-}
-
-/* Stop cards with service type variants */
-.stopCard {
-  padding: 0;
-  background-color: var(--nd-bg-surface);
-  border: 2px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-lg);
-  display: grid;
-  grid-template-columns: 76px minmax(220px, 1.2fr) minmax(180px, 0.8fr) minmax(250px, 1fr);
-  gap: 0;
-  align-items: stretch;
-  overflow: hidden;
-  transition: opacity var(--nd-transition-fast), transform var(--nd-transition-fast), box-shadow var(--nd-transition-fast), border-color var(--nd-transition-fast);
-}
-
-@media (max-width: 700px) {
-  .stopCard {
-    display: block;
-    padding-bottom: 8px;
-    overflow: visible;
-  }
-
-  .stopCardExecutionCompact {
-    min-height: auto;
-  }
-
-  .stopSegment {
-    display: block;
-    width: 100%;
-    min-width: 0;
-    padding: 6px 8px;
-  }
-  .stopSegmentAddress {
-    margin-bottom: 6px;
-  }
-  .stopSegmentMeta {
-    gap: 4px;
-  }
-  .stopActions {
-    width: 100%;
-    justify-content: flex-start;
-    margin-top: 6px;
-    gap: 6px;
-  }
-
-  .execActionRow {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 6px;
-  }
-
-  .btnExecComplete,
-  .btnSkip {
-    padding: 10px 14px;
-    font-size: 13px;
-    flex: 1;
-    min-width: 90px;
-  }
-}
-
-.stopCardExecutionCompact {
-  grid-template-columns: 70px minmax(210px, 1.15fr) minmax(170px, 0.75fr) minmax(235px, 1fr);
-}
-
-.stopSegment {
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.stopSegment + .stopSegment {
-  border-left: 1px solid color-mix(in srgb, var(--nd-border-subtle) 70%, transparent);
-}
-
-.stopSegmentNumber {
-  justify-content: center;
-}
-
-.stopSegmentAddress {
-  align-items: center;
-}
-
-.stopSegmentMeta {
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 6px;
-}
-
-.stopSegmentAction {
-  justify-content: flex-end;
-  overflow: visible;
-}
-
-.stopCardDragging {
-  opacity: 0.72;
-}
-
-.stopCardTop {
-  transform: translateY(-1px);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--nd-operator-accent) 80%, transparent), var(--nd-shadow-lg);
-}
-
-.stopCardCompleted {
-  opacity: 0.48;
-  filter: saturate(0.6);
-}
-
-.cardDelivery {
-  border-color: var(--nd-status-active);
-}
-
-.cardPickup {
-  border-color: var(--nd-operator-accent);
-}
-
-.cardInspection {
-  border-color: var(--nd-customer-accent);
-}
-
-/* Sequence circle */
-.circle {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background-color: var(--nd-border-default);
-  color: var(--nd-text-inverse);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 16px;
-  flex-shrink: 0;
-}
-
-.stopCardExecutionCompact .circle {
-  width: 32px;
-  height: 32px;
-  font-size: 13px;
-}
-
-.circleDelivery {
-  background-color: var(--nd-status-active);
-  color: var(--nd-text-inverse);
-}
-
-.circlePickup {
-  background-color: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-}
-
-.circleInspection {
-  background-color: var(--nd-customer-accent);
-  color: var(--nd-text-inverse);
-}
-
-/* Stop details */
-.stopAddress {
-  font-weight: 600;
-  margin-bottom: 0;
-  color: var(--nd-text-primary);
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  font-size: 19px;
-  line-height: 1.42;
-  letter-spacing: 0;
-}
-
-.stopCardExecutionCompact .stopAddress {
-  font-size: 20px;
-  line-height: 1.45;
-}
-
-.stopStatus {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--nd-text-secondary);
-}
-
-.stopCardExecutionCompact .stopStatus {
-  font-size: 13px;
-}
-
-.stopAgentBadge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 34px;
-  height: 34px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0;
-  background-color: var(--nd-agent-badge-bg-override, var(--nd-agent-badge-bg, var(--nd-border-default)));
-  color: var(--nd-agent-badge-fg-override, var(--nd-agent-badge-fg, var(--nd-text-primary)));
-  border: 1px solid color-mix(in srgb, var(--nd-color-border-default) 90%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nd-color-bg-canvas) 16%, transparent);
-  white-space: nowrap;
-  box-sizing: border-box;
-}
-
-.stopAgentBadgeCircle {
-  width: 34px;
-  min-width: 34px;
-  padding: 0;
-}
-
-/* Stop action buttons */
-.stopActions {
-  display: flex;
-  gap: var(--nd-space-sm);
+  gap: var(--space-4);
   flex-wrap: wrap;
-  justify-content: flex-end;
-  width: 100%;
 }
 
-.stopCardExecutionCompact .stopActions {
-  gap: 6px;
-}
-
-.btnReorder {
-  min-height: 44px;
-  padding: 10px 12px;
-  background-color: transparent;
-  color: var(--nd-text-secondary);
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  font-size: 12px;
-  cursor: pointer;
-  transition: opacity var(--nd-transition-fast);
-}
-
-.stopCardExecutionCompact .btnReorder,
-.stopCardExecutionCompact .btnEdit,
-.stopCardExecutionCompact .btnDelete {
-  min-height: 40px;
-  padding: 8px 10px;
-  font-size: 11px;
-}
-
-.btnReorder:hover {
-  opacity: 0.8;
-}
-
-.btnReorder:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.btnEdit {
-  min-height: 44px;
-  padding: 10px 14px;
-  background-color: transparent;
-  color: var(--nd-operator-accent);
-  border: 1px solid var(--nd-operator-accent);
-  border-radius: var(--nd-radius-sm);
-  font-size: 12px;
-  cursor: pointer;
-  transition: opacity var(--nd-transition-fast);
-}
-
-.btnEdit:hover {
-  opacity: 0.8;
-}
-
-.btnEdit:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.btnDelete {
-  min-height: 44px;
-  padding: 10px 14px;
-  background-color: transparent;
-  color: var(--nd-status-danger);
-  border: 1px solid var(--nd-status-danger);
-  border-radius: var(--nd-radius-sm);
-  font-size: 12px;
-  cursor: pointer;
-  transition: opacity var(--nd-transition-fast);
-}
-
-.btnDelete:hover {
-  opacity: 0.8;
-}
-
-.btnDelete:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* Badge pattern */
-.badge {
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  display: inline-block;
-  text-transform: uppercase;
-  border: 1px solid;
-}
-
-.badgePlanned {
-  color: var(--nd-status-planned);
-  border-color: var(--nd-status-planned);
-  background-color: var(--nd-operator-accent-dim);
-}
-
-.badgeActive {
-  color: var(--nd-status-active);
-  border-color: var(--nd-status-active);
-  background-color: var(--nd-accent-primary-dim);
-}
-
-.badgeCompleted {
-  color: var(--nd-status-completed);
-  border-color: var(--nd-status-completed);
-  background-color: var(--nd-customer-accent-dim);
-}
-
-.badgeArchived {
-  color: var(--nd-status-archived);
-  border-color: var(--nd-status-archived);
-  background-color: transparent;
-}
-
-.stopCardExecutionCompact .btnExecComplete,
-.stopCardExecutionCompact .btnSkip {
-  min-height: 44px;
-  padding: 8px 12px;
-  font-size: 13px;
-}
-
-.execTimestamp {
-  font-size: 12px;
-  color: var(--nd-text-muted);
-}
-
-.btnExecComplete {
-  padding: 12px 20px;
-  background-color: var(--nd-status-active);
-  color: var(--nd-text-inverse);
-  border: none;
-  border-radius: var(--nd-radius-sm);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity var(--nd-transition-fast);
-  min-height: 44px;
-}
-
-.btnExecComplete:hover {
-  opacity: 0.9;
-}
-
-.btnExecComplete:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.execDone {
-  display: flex;
-  gap: var(--nd-space-md);
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--nd-status-active);
-  font-weight: 500;
-}
-
-/* Mobile-first execution action rows */
-.execActionRow {
-  display: flex;
-  gap: var(--nd-space-sm);
-  flex-wrap: wrap;
-  width: 100%;
-  justify-content: flex-end;
-  align-items: center;
-}
-
-.execActionRowSingle {
-  justify-content: flex-start;
-}
-
-.btnSkip {
-  padding: 12px 20px;
-  background-color: transparent;
-  color: var(--nd-text-secondary);
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity var(--nd-transition-fast);
-  min-height: 48px;
-}
-
-.btnSkip:hover {
-  opacity: 0.8;
-}
-
-.btnSkip:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.execSkippedBadge {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--nd-text-muted);
-  padding: 2px 8px;
-  border-radius: 8px;
-  border: 1px solid var(--nd-border-default);
-}
-
-@media (max-width: 1024px) {
-  .fieldModeGrid {
+@media (max-width: 900px) {
+  .fieldGrid {
     grid-template-columns: 1fr;
-  }
-
-  .fieldModeTelemetry {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .mapSectionExecutionMobile {
-    background: var(--nd-bg-surface);
-    margin-inline: calc(-1 * var(--nd-space-lg));
-    padding: 8px var(--nd-space-lg) 10px;
-    border-bottom: 1px solid var(--nd-border-subtle);
-    position: static;
-    top: auto;
-    z-index: auto;
-  }
-
-  .mapSectionExecutionMobile > div > div {
-    height: 42vh;
-    min-height: 280px;
-    border-radius: var(--nd-radius-md);
-  }
-
-  .stopsListExecutionMobile {
-    max-height: none;
-    overflow-y: visible;
-    overscroll-behavior: contain;
-    padding-right: 0;
-  }
-
-  .stopsListExecutionMobile::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .stopsListExecutionMobile::-webkit-scrollbar-thumb {
-    background: var(--nd-border-default);
-    border-radius: 999px;
-  }
-
-  .stopCard {
-    grid-template-columns: 48px minmax(128px, 1fr) minmax(92px, 0.72fr) minmax(146px, 0.9fr);
-  }
-
-  .stopSegment {
-    padding: 8px 6px;
-  }
-
-  .stopSegment + .stopSegment {
-    border-left-color: color-mix(in srgb, var(--nd-border-subtle) 55%, transparent);
-  }
-
-  .stopCardExecutionCompact .circle {
-    width: 30px;
-    height: 30px;
-    font-size: 12px;
-  }
-
-  .stopCardExecutionCompact {
-    min-height: var(--nd-exec-stop-card-height);
-  }
-
-  .stopActions {
-    justify-content: flex-end;
-    gap: 6px;
-  }
-
-  .stopCardExecutionCompact .stopAddress {
-    font-size: 18px;
-    line-height: 1.35;
-  }
-
-  .stopCardExecutionCompact .stopStatus {
-    font-size: 12px;
-    line-height: 1.2;
-  }
-
-  .stopAgentBadge {
-    width: 30px;
-    height: 30px;
-    font-size: 12px;
-  }
-
-  .stopActions {
-    gap: 4px;
-  }
-
-  .stopCardExecutionCompact .stopSegmentAction {
-    align-items: stretch;
-  }
-
-  .stopCardExecutionCompact .stopActions {
-    justify-content: stretch;
-    align-items: stretch;
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .stopCardExecutionCompact .stopActions > button,
-  .stopCardExecutionCompact .stopActions > a {
-    width: 100%;
-  }
-
-  .stopCardExecutionCompact .btnReorder,
-  .stopCardExecutionCompact .btnEdit,
-  .stopCardExecutionCompact .btnDelete {
-    padding: 4px 6px;
-    font-size: 10px;
-  }
-
-  .btnExecComplete,
-  .btnSkip {
-    flex: 0 1 auto;
-    min-height: 44px;
-    font-size: 12px;
-    padding: 8px 12px;
-    white-space: nowrap;
-  }
-
-  .execActionRow {
-    gap: 6px;
-  }
-
-  .execActionRowSingle {
-    flex-wrap: nowrap;
-    width: 100%;
-  }
-
-  .execActionRowSingle .btnExecComplete {
-    width: 100%;
-  }
-
-  .transitionRow .btnStart,
-  .transitionRow .btnComplete {
-    width: 100%;
-    min-height: 52px;
-    font-size: 16px;
-  }
-
-  .transitionRow {
-    flex-direction: column;
-  }
-
-  .phaseCompletionControls {
-    grid-template-columns: 1fr;
-    width: 100%;
-  }
-
-  .routeCardHeader {
-    flex-wrap: wrap;
-    align-items: flex-start;
-  }
-
-  .routeTitle {
-    width: 100%;
-    font-size: 20px;
-  }
-
-  .btnRouteEdit,
-  .btnRouteDelete {
-    margin-left: 0;
-    width: 100%;
-  }
-
-  .stopsHeader {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .btnAddStop {
-    width: 100%;
-  }
-
-  .formContainer {
-    padding: 16px;
-  }
-}
-
-@media (max-width: 640px) {
-  .container {
-    padding: var(--nd-space-sm);
-  }
-
-  .fieldModeHeader {
-    align-items: flex-start;
-  }
-
-  .fieldModeTelemetry {
-    grid-template-columns: 1fr;
-  }
-
-  .fieldModeMapPanel,
-  .fieldNextStopPanel,
-  .fieldUpcomingPanel,
-  .fieldModeFooter {
-    padding: var(--nd-space-sm);
-  }
-
-  .fieldModeSectionHeader {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .fieldStopMetaGrid,
-  .fieldPrimaryActions {
-    grid-template-columns: 1fr;
-  }
-
-  .fieldModeFooter {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .btnFieldComplete {
-    width: 100%;
-  }
-
-  .stopCardExecutionCompact {
-    display: grid;
-    grid-template-columns: 48px minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
-    min-height: auto;
-  }
-
-  .stopSegmentNumber {
-    grid-column: 1;
-    grid-row: 1;
-    align-items: center;
-    justify-content: flex-start;
-    padding-top: 10px;
-    padding-bottom: 8px;
-  }
-
-  .stopSegmentAddress {
-    grid-column: 2;
-    grid-row: 1;
-    align-items: center;
-    padding-top: 10px;
-    padding-bottom: 8px;
-  }
-
-  .stopSegmentMeta {
-    grid-column: 3;
-    grid-row: 1;
-    align-items: center;
-    justify-content: center;
-    padding-top: 10px;
-    padding-bottom: 8px;
-    padding-left: 4px;
-    padding-right: 8px;
-  }
-
-  .stopSegmentAction {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    align-items: stretch;
-    padding-top: 4px;
-    padding-bottom: 8px;
-  }
-
-  .stopCardExecutionCompact .stopAddress {
-    font-size: 17px;
-    line-height: 1.38;
-  }
-
-  .stopCardExecutionCompact .stopStatus {
-    display: none;
-  }
-
-  .stopAgentBadge {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    font-size: 12px;
-  }
-
-  .stopCardExecutionCompact .circle {
-    width: 30px;
-    height: 30px;
-    font-size: 12px;
-  }
-
-  .stopCardExecutionCompact .execActionRow {
-    width: 100%;
-    justify-content: stretch;
-    align-items: stretch;
-    display: grid;
-    grid-template-columns: 3fr 1fr;
-    gap: 8px;
-  }
-
-  .stopCardExecutionCompact .execActionRow > button {
-    width: 100%;
-    min-width: 0;
-    margin: 0;
-  }
-
-  .stopCardExecutionCompact .stopActions {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .stopCardExecutionCompact .stopActions > button,
-  .stopCardExecutionCompact .stopActions > a {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .stopCardExecutionCompact .btnReorder,
-  .stopCardExecutionCompact .btnEdit,
-  .stopCardExecutionCompact .btnDelete {
-    width: 100%;
-  }
-
-  .stopCardExecutionCompact .execActionRowSingle {
-    grid-template-columns: 1fr;
-  }
-
-  .routeCard,
-  .summaryCard,
-  .formContainer {
-    padding: 16px;
-  }
-
-  .routeInfoGrid,
-  .summaryGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .transitionRow .btnStart,
-  .transitionRow .btnComplete,
-  .btnAddStop {
-    width: 100%;
-  }
-
-  .distanceOverrideRow {
-    grid-template-columns: 1fr;
-  }
-
-  .phaseCompletionControls {
-    grid-template-columns: 1fr;
-  }
-
-  .btnSaveDistanceOverride {
-    width: 100%;
-  }
-}
-
-@media (min-width: 390px) and (max-width: 430px) and (max-height: 940px) {
-  .mapSectionExecutionMobile > div > div {
-    height: 46vh;
-    height: 46dvh;
-    min-height: 332px;
-    max-height: 420px;
-  }
-
-  .stopsListExecutionMobile {
-    --nd-exec-stop-card-height: 122px;
-    max-height: none;
-  }
-
-  .stopCard {
-    grid-template-columns: 50px minmax(128px, 0.92fr) minmax(90px, 0.65fr) minmax(190px, 1.15fr);
-  }
-
-  .stopSegment {
-    padding: 9px 7px;
-  }
-
-  .stopCardExecutionCompact .stopAddress {
-    font-size: 18px;
-    line-height: 1.35;
-  }
-
-  .stopCardExecutionCompact .stopStatus {
-    font-size: 12px;
-  }
-
-  .btnExecComplete,
-  .btnSkip {
-    min-height: 44px;
-    font-size: 12px;
-    padding: 9px 12px;
-  }
-
-  .execActionRow {
-    gap: 8px;
-  }
-
-  .execActionRowSingle {
-    gap: 8px;
-  }
-
-  .stopSegmentAction {
-    justify-content: stretch;
-  }
-
-  .stopSegmentAction .execActionRow {
-    justify-content: stretch;
-  }
-
-  .stopSegmentAction .execActionRow > .btnExecComplete,
-  .stopSegmentAction .execActionRow > .btnSkip {
-    flex: 1 1 0;
-  }
-
-  .stopCardExecutionCompact .stopActions {
-    gap: 6px;
   }
 }

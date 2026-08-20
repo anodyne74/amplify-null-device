@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { generateClient } from 'aws-amplify/data';
@@ -13,6 +12,13 @@ import Breadcrumbs from '@/app/components/Breadcrumbs';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { useToast } from '@/app/components/ToastProvider';
 import { StopForm } from '@/app/operator/components/StopForm';
+import StopCard from '@/app/operator/components/StopCard';
+import { RouteStatusPill } from '@/app/operator/components/RouteStatusPill';
+import { Card } from '@/app/components/ui/core/Card';
+import { Button } from '@/app/components/ui/core/Button';
+import { Field } from '@/app/components/ui/forms/Field';
+import { Input } from '@/app/components/ui/forms/Input';
+import { StatTile } from '@/app/components/ui/data/StatTile';
 import { isAdmin } from '@/lib/amplify-config';
 import { generateAgentInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
@@ -21,10 +27,8 @@ import {
   formatCurrency,
   formatElapsedMinutes,
   formatRouteDate,
-  formatRouteDateTime,
   getRouteDurationMinutes,
 } from '@/lib/routeDetailHelpers';
-import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
 import {
   createStop,
@@ -49,22 +53,6 @@ const RouteStopsMap = dynamic(
     loading: () => <div className={styles.mapLoading}>Loading map preview...</div>,
   }
 );
-
-function StatusBadge({ status }: { status?: string | null }) {
-  const presentation = getRouteStatusPresentation(status);
-  const badgeClass = {
-    planned: styles.badgePlanned,
-    active: styles.badgeActive,
-    completed: styles.badgeCompleted,
-    archived: styles.badgeArchived,
-  }[presentation.badgeKey] ?? styles.badgePlanned;
-
-  return (
-    <span className={`${styles.badge} ${badgeClass}`}>
-      {presentation.label}
-    </span>
-  );
-}
 
 function getAgentBadgeInitials(agentName: string) {
   const compact = agentName.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -169,20 +157,6 @@ function isStopCompletedForPhase(stop: Stop, phase: ExecutionPhase) {
     Boolean(getMarkerTimestamp(stop.notes, PICKUP_DONE_MARKER)) ||
     Boolean(getMarkerTimestamp(stop.notes, PICKUP_SKIPPED_MARKER)) ||
     (stop.serviceType === 'pickup' && Boolean(stop.actualDepartureTime))
-  );
-}
-
-function getPhaseCompletionTime(stop: Stop, phase: ExecutionPhase) {
-  if (phase === 'placement') {
-    return (
-      getMarkerTimestamp(stop.notes, PLACEMENT_DONE_MARKER) ||
-      getMarkerTimestamp(stop.notes, PLACEMENT_SKIPPED_MARKER)
-    );
-  }
-
-  return (
-    getMarkerTimestamp(stop.notes, PICKUP_DONE_MARKER) ||
-    getMarkerTimestamp(stop.notes, PICKUP_SKIPPED_MARKER)
   );
 }
 
@@ -1280,142 +1254,136 @@ function RouteDetailContent() {
         <>
           {/* Route Header */}
           {!isExecutionMode && (
-          <div className={styles.routeCard}>
+          <Card>
             <div className={styles.routeCardHeader}>
               <h1 className={styles.routeTitle}>
                 Route {route.routeCode || route.id.slice(0, 8)}
               </h1>
-              <StatusBadge status={route.status} />
+              <RouteStatusPill status={route.status} />
               {canManagePlanning && (
-                <Link href={`/administrator/routes/edit?id=${route.id}`} className={styles.btnRouteEdit}>
-                  Edit Route
-                </Link>
-              )}
-              {canManagePlanning && (
-                <button
-                  onClick={() => {
-                    void handleDeleteRoute();
-                  }}
-                  className={styles.btnRouteDelete}
-                  disabled={deletingRoute}
-                >
-                  {deletingRoute ? 'Deleting...' : 'Delete Route'}
-                </button>
+                <div className={styles.headerActions}>
+                  <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
+                    Edit Route
+                  </a>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    loading={deletingRoute}
+                    onClick={() => {
+                      void handleDeleteRoute();
+                    }}
+                  >
+                    {deletingRoute ? 'Deleting...' : 'Delete Route'}
+                  </Button>
+                </div>
               )}
             </div>
 
-            <div className={styles.routeInfoGrid}>
-              <div>
-                <div className={styles.infoLabel}>Customer</div>
-                <div className={styles.infoValue}>{customerName || 'Unknown customer'}</div>
+            <div className={styles.factsGrid}>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Customer</span>
+                <span className="nd-stat__value" style={{ fontSize: 16 }}>{customerName || 'Unknown customer'}</span>
               </div>
-              <div>
-                <div className={styles.infoLabel}>Created</div>
-                <div className={styles.infoValue}>{formatRouteDate(route.createdAt)}</div>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Created</span>
+                <span className="nd-stat__value" style={{ fontSize: 16 }}>{formatRouteDate(route.createdAt)}</span>
               </div>
-              <div>
-                <div className={styles.infoLabel}>Time Taken</div>
-                <div className={styles.infoValue}>{formatElapsedMinutes(routeDurationMinutes)}</div>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Time Taken</span>
+                <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{formatElapsedMinutes(routeDurationMinutes)}</span>
               </div>
-              <div>
-                <div className={styles.infoLabel}>Kilometers</div>
-                <div className={styles.infoValue}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</div>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Kilometers</span>
+                <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</span>
               </div>
-              <div className={styles.phaseCompletionControls}>
-                <label className={styles.phaseCompletionField}>
-                  <span className={styles.infoLabel}>Placement Distance (km)</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className={styles.phaseCompletionInput}
-                    value={phaseMetricOverrides.placementDistanceKm}
-                    onChange={(event) =>
-                      setPhaseMetricOverrides((prev) => ({ ...prev, placementDistanceKm: event.target.value }))
-                    }
-                    disabled={transitioning}
-                  />
-                </label>
-                <label className={styles.phaseCompletionField}>
-                  <span className={styles.infoLabel}>Placement Time</span>
-                  <div className={styles.phaseDurationSpinnerRow}>
-                    <label className={styles.phaseDurationUnit}>
-                      <span className={styles.phaseDurationUnitLabel}>h</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        className={styles.phaseCompletionInput}
-                        value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) / 60)}
-                        onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'hours', event.target.value)}
-                        disabled={transitioning}
-                      />
-                    </label>
-                    <label className={styles.phaseDurationUnit}>
-                      <span className={styles.phaseDurationUnitLabel}>m</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="55"
-                        step="5"
-                        className={styles.phaseCompletionInput}
-                        value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) % 60)}
-                        onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'minutes', event.target.value)}
-                        disabled={transitioning}
-                      />
-                    </label>
-                  </div>
-                </label>
-                <label className={styles.phaseCompletionField}>
-                  <span className={styles.infoLabel}>Pickup Distance (km)</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className={styles.phaseCompletionInput}
-                    value={phaseMetricOverrides.pickupDistanceKm}
-                    onChange={(event) =>
-                      setPhaseMetricOverrides((prev) => ({ ...prev, pickupDistanceKm: event.target.value }))
-                    }
-                    disabled={transitioning}
-                  />
-                </label>
-                <label className={styles.phaseCompletionField}>
-                  <span className={styles.infoLabel}>Pickup Time</span>
-                  <div className={styles.phaseDurationSpinnerRow}>
-                    <label className={styles.phaseDurationUnit}>
-                      <span className={styles.phaseDurationUnitLabel}>h</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        className={styles.phaseCompletionInput}
-                        value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) / 60)}
-                        onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'hours', event.target.value)}
-                        disabled={transitioning}
-                      />
-                    </label>
-                    <label className={styles.phaseDurationUnit}>
-                      <span className={styles.phaseDurationUnitLabel}>m</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="55"
-                        step="5"
-                        className={styles.phaseCompletionInput}
-                        value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) % 60)}
-                        onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'minutes', event.target.value)}
-                        disabled={transitioning}
-                      />
-                    </label>
-                  </div>
-                </label>
+            </div>
+
+            <div className={styles.phaseOverrideGrid}>
+              <Field label="Placement Distance (km)">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={phaseMetricOverrides.placementDistanceKm}
+                  onChange={(event) =>
+                    setPhaseMetricOverrides((prev) => ({ ...prev, placementDistanceKm: event.target.value }))
+                  }
+                  disabled={transitioning}
+                />
+              </Field>
+              <div className={styles.durationField}>
+                <span className="nd-field__label">Placement Time</span>
+                <div className={styles.durationRow}>
+                  <label className={styles.durationUnit}>
+                    <span className={styles.durationUnitLabel}>h</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) / 60)}
+                      onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'hours', event.target.value)}
+                      disabled={transitioning}
+                    />
+                  </label>
+                  <label className={styles.durationUnit}>
+                    <span className={styles.durationUnitLabel}>m</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="55"
+                      step="5"
+                      value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.placementDurationMinutes) % 60)}
+                      onChange={(event) => updatePhaseDurationFromSpinner('placementDurationMinutes', 'minutes', event.target.value)}
+                      disabled={transitioning}
+                    />
+                  </label>
+                </div>
+              </div>
+              <Field label="Pickup Distance (km)">
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={phaseMetricOverrides.pickupDistanceKm}
+                  onChange={(event) =>
+                    setPhaseMetricOverrides((prev) => ({ ...prev, pickupDistanceKm: event.target.value }))
+                  }
+                  disabled={transitioning}
+                />
+              </Field>
+              <div className={styles.durationField}>
+                <span className="nd-field__label">Pickup Time</span>
+                <div className={styles.durationRow}>
+                  <label className={styles.durationUnit}>
+                    <span className={styles.durationUnitLabel}>h</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={Math.floor(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) / 60)}
+                      onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'hours', event.target.value)}
+                      disabled={transitioning}
+                    />
+                  </label>
+                  <label className={styles.durationUnit}>
+                    <span className={styles.durationUnitLabel}>m</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="55"
+                      step="5"
+                      value={roundToNearestFive(parseNonNegativeInt(phaseMetricOverrides.pickupDurationMinutes) % 60)}
+                      onChange={(event) => updatePhaseDurationFromSpinner('pickupDurationMinutes', 'minutes', event.target.value)}
+                      disabled={transitioning}
+                    />
+                  </label>
+                </div>
               </div>
             </div>
 
             {route.notes && (
               <div className={styles.routeNotes}>
-                <span className={styles.routeNotesBold}>Notes: </span>
+                <strong>Notes: </strong>
                 {route.notes}
               </div>
             )}
@@ -1423,56 +1391,40 @@ function RouteDetailContent() {
             {/* Status transitions */}
             <div className={styles.transitionRow}>
               {route.status === 'in_progress' && (
-                <div className={styles.infoLabel}>{`Ending ${phaseLabelPrefix} phase using header metrics`}</div>
+                <span className={styles.mutedText}>{`Ending ${phaseLabelPrefix} phase using header metrics`}</span>
               )}
               {route.status === 'planned' && (
-                <button
-                  onClick={handleStartRoute}
-                  disabled={transitioning}
-                  className={styles.btnStart}
-                >
+                <Button onClick={handleStartRoute} loading={transitioning} disabled={transitioning}>
                   {transitioning ? 'Starting…' : 'Start Route'}
-                </button>
+                </Button>
               )}
               {route.status === 'in_progress' && (
-                <button
+                <Button
                   onClick={handleEndRoute}
                   disabled={transitioning || !canEndCurrentPhase}
-                  className={styles.btnComplete}
+                  loading={transitioning}
                 >
                   {transitioning
                     ? 'Updating…'
                     : !canEndCurrentPhase
                     ? 'Action Stops First'
                     : 'End Route'}
-                </button>
+                </Button>
               )}
               {route.status === 'signs_placed' && (
-                <button
-                  onClick={handleStartRoute}
-                  disabled={transitioning}
-                  className={styles.btnStart}
-                >
+                <Button onClick={handleStartRoute} loading={transitioning} disabled={transitioning}>
                   {transitioning ? 'Starting…' : 'Start Route'}
-                </button>
+                </Button>
               )}
               {canManagePlanning && route.status === 'signs_picked_up' && (
-                <button
-                  onClick={handleCompleteRoute}
-                  disabled={transitioning}
-                  className={styles.btnComplete}
-                >
+                <Button onClick={handleCompleteRoute} loading={transitioning} disabled={transitioning}>
                   {transitioning ? 'Completing…' : 'Complete Route'}
-                </button>
+                </Button>
               )}
               {canManagePlanning && route.status === 'completed' && (
-                <button
-                  onClick={() => setShowArchiveConfirm(true)}
-                  disabled={transitioning}
-                  className={styles.btnComplete}
-                >
+                <Button onClick={() => setShowArchiveConfirm(true)} loading={transitioning} disabled={transitioning}>
                   {transitioning ? 'Confirming…' : 'Confirm Completion'}
-                </button>
+                </Button>
               )}
               {transitionError && (
                 <span className={styles.transitionError}>{transitionError}</span>
@@ -1480,80 +1432,78 @@ function RouteDetailContent() {
             </div>
 
             {(route.status === 'completed' || route.status === 'archived') && (
-              <div className={styles.summaryCard}>
+              <div className={styles.summaryPanel}>
                 <h3 className={styles.summaryHeading}>Final Route Summary</h3>
-                <div className={styles.summaryGrid}>
-                  <div>
-                    <div className={styles.infoLabel}>Kilometers Travelled</div>
-                    <div className={styles.infoValue}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</div>
+                <div className={styles.factsGrid}>
+                  <div className="nd-stat">
+                    <span className="nd-stat__label">Kilometers Travelled</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</span>
                   </div>
-                  <div>
-                    <div className={styles.infoLabel}>Placement Distance</div>
-                    <div className={styles.infoValue}>{`${placementDistance.toFixed(2)} km`}</div>
+                  <div className="nd-stat">
+                    <span className="nd-stat__label">Placement Distance</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${placementDistance.toFixed(2)} km`}</span>
                   </div>
-                  <div>
-                    <div className={styles.infoLabel}>Pickup Distance</div>
-                    <div className={styles.infoValue}>{`${pickupDistance.toFixed(2)} km`}</div>
+                  <div className="nd-stat">
+                    <span className="nd-stat__label">Pickup Distance</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${pickupDistance.toFixed(2)} km`}</span>
                   </div>
-                  <div>
-                    <div className={styles.infoLabel}>Time Taken</div>
-                    <div className={styles.infoValue}>{formatElapsedMinutes(routeDurationMinutes)}</div>
+                  <div className="nd-stat">
+                    <span className="nd-stat__label">Time Taken</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{formatElapsedMinutes(routeDurationMinutes)}</span>
                   </div>
-                  <div>
-                    <div className={styles.infoLabel}>Stops</div>
-                    <div className={styles.infoValue}>{totalStops}</div>
+                  <div className="nd-stat">
+                    <span className="nd-stat__label">Stops</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{totalStops}</span>
                   </div>
-                  <div>
-                    <div className={styles.infoLabel}>Total Number of Signs</div>
-                    <div className={styles.infoValue}>{totalSigns}</div>
+                  <div className="nd-stat">
+                    <span className="nd-stat__label">Total Number of Signs</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{totalSigns}</span>
                   </div>
-                  <div>
-                    <div className={styles.infoLabel}>Customer Rate</div>
-                    <div className={styles.infoValue}>
+                  <div className="nd-stat">
+                    <span className="nd-stat__label">Customer Rate</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16 }}>
                       {customerRatePerHour === null ? '—' : formatCurrency(customerRatePerHour)} / hr
-                    </div>
+                    </span>
                   </div>
-                  <div>
-                    <div className={styles.infoLabel}>Amount</div>
-                    <div className={styles.infoValue}>{formatCurrency(completionAmount)}</div>
+                  <div className="nd-stat">
+                    <span className="nd-stat__label">Amount</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{formatCurrency(completionAmount)}</span>
                   </div>
                 </div>
 
                 {canManagePlanning && route.status === 'completed' && (
                   <div className={styles.distanceOverrideSection}>
-                    <h4 className={styles.distanceOverrideHeading}>Distance Override</h4>
-                    <div className={styles.distanceOverrideRow}>
-                      <label className={styles.distanceOverrideLabel} htmlFor="distanceOverrideKm">
-                        Kilometers Travelled
-                      </label>
-                      <input
-                        id="distanceOverrideKm"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className={styles.distanceOverrideInput}
-                        value={distanceOverrideKm}
-                        onChange={(event) => setDistanceOverrideKm(event.target.value)}
-                        disabled={savingDistanceOverride}
-                      />
-                      <button
-                        type="button"
-                        className={styles.btnSaveDistanceOverride}
-                        onClick={() => {
-                          void handleSaveDistanceOverride();
-                        }}
-                        disabled={savingDistanceOverride}
-                      >
-                        {savingDistanceOverride ? 'Saving…' : 'Save Distance'}
-                      </button>
-                    </div>
+                    <Field label="Kilometers Travelled" htmlFor="distanceOverrideKm">
+                      <div className={styles.distanceOverrideRow}>
+                        <Input
+                          id="distanceOverrideKm"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={distanceOverrideKm}
+                          onChange={(event) => setDistanceOverrideKm(event.target.value)}
+                          disabled={savingDistanceOverride}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          loading={savingDistanceOverride}
+                          onClick={() => {
+                            void handleSaveDistanceOverride();
+                          }}
+                          disabled={savingDistanceOverride}
+                        >
+                          {savingDistanceOverride ? 'Saving…' : 'Save Distance'}
+                        </Button>
+                      </div>
+                    </Field>
                     {distanceOverrideError && <div className={styles.errorBanner}>{distanceOverrideError}</div>}
-                    {distanceOverrideSuccess && <div className={styles.distanceOverrideSuccess}>{distanceOverrideSuccess}</div>}
+                    {distanceOverrideSuccess && <div className={styles.successText}>{distanceOverrideSuccess}</div>}
                   </div>
                 )}
               </div>
             )}
-          </div>
+          </Card>
           )}
 
           {/* Stops Section */}
@@ -1566,33 +1516,28 @@ function RouteDetailContent() {
                     Route {route.routeCode || route.id.slice(0, 8)}
                   </h1>
                 </div>
-                <StatusBadge status={route.status} />
+                <RouteStatusPill status={route.status} />
               </div>
 
-              <div className={styles.fieldModeTelemetry}>
-                <div>
-                  <span className={styles.infoLabel}>Vehicle location</span>
-                  <span className={styles.fieldModeTelemetryValue}>
-                    {currentPosition ? 'Live GPS active' : 'Waiting for GPS'}
-                  </span>
-                </div>
-                <div>
-                  <span className={styles.infoLabel}>Phase distance</span>
-                  <span className={styles.fieldModeTelemetryValue}>
-                    {`${(currentExecutionPhase === 'pickup' ? pickupDistance : placementDistance).toFixed(2)} km`}
-                  </span>
-                </div>
-                <div>
-                  <span className={styles.infoLabel}>Remaining stops</span>
-                  <span className={styles.fieldModeTelemetryValue}>{visibleStops.length}</span>
-                </div>
+              <div className={styles.telemetryGrid}>
+                <StatTile
+                  label="Vehicle location"
+                  value={currentPosition ? 'Live GPS active' : 'Waiting for GPS'}
+                  icon="map-pin"
+                />
+                <StatTile
+                  label="Phase distance"
+                  value={`${(currentExecutionPhase === 'pickup' ? pickupDistance : placementDistance).toFixed(2)} km`}
+                  icon="route"
+                />
+                <StatTile
+                  label="Remaining stops"
+                  value={visibleStops.length}
+                  icon="clipboard-list"
+                />
               </div>
 
-              <div className={styles.fieldModeMapPanel}>
-                <div className={styles.fieldModeSectionHeader}>
-                  <h2>Navigation</h2>
-                  <span>Next stop highlighted</span>
-                </div>
+              <Card title="Navigation" subtitle="Next stop highlighted" padded={false}>
                 <RouteStopsMap
                   stops={stops}
                   activeStopId={topVisibleStopId}
@@ -1601,41 +1546,38 @@ function RouteDetailContent() {
                   mapTheme={mapTheme}
                   presentation="field"
                 />
-              </div>
+              </Card>
 
-              <div className={styles.fieldModeGrid}>
-                <article className={styles.fieldNextStopPanel}>
-                  <div className={styles.fieldModeSectionHeader}>
-                    <h2>Next stop</h2>
-                    {nextExecutionStop && (
-                      <span>{getStopStatusLabel(nextExecutionStop, currentExecutionPhase)}</span>
-                    )}
-                  </div>
-
+              <div className={styles.fieldGrid}>
+                <Card
+                  title="Next stop"
+                  subtitle={nextExecutionStop ? getStopStatusLabel(nextExecutionStop, currentExecutionPhase) : undefined}
+                >
                   {nextExecutionStop ? (
                     <>
                       <div className={styles.fieldStopAddress}>
                         {getPrimaryAddressLine(nextExecutionStop.formattedAddress || nextExecutionStop.address)}
                       </div>
                       <div className={styles.fieldStopMetaGrid}>
-                        <div>
-                          <span className={styles.infoLabel}>Sequence</span>
-                          <span className={styles.fieldModeTelemetryValue}>{nextExecutionStop.sequence ?? '-'}</span>
+                        <div className="nd-stat">
+                          <span className="nd-stat__label">Sequence</span>
+                          <span className="nd-stat__value" style={{ fontSize: 18 }}>{nextExecutionStop.sequence ?? '-'}</span>
                         </div>
-                        <div>
-                          <span className={styles.infoLabel}>Signs</span>
-                          <span className={styles.fieldModeTelemetryValue}>{nextExecutionStop.numberOfSigns ?? '-'}</span>
+                        <div className="nd-stat">
+                          <span className="nd-stat__label">Signs</span>
+                          <span className="nd-stat__value" style={{ fontSize: 18 }}>{nextExecutionStop.numberOfSigns ?? '-'}</span>
                         </div>
-                        <div>
-                          <span className={styles.infoLabel}>Agent</span>
-                          <span className={styles.fieldModeTelemetryValue}>{nextExecutionStop.agent?.trim() || 'Unassigned'}</span>
+                        <div className="nd-stat">
+                          <span className="nd-stat__label">Agent</span>
+                          <span className="nd-stat__value" style={{ fontSize: 15 }}>{nextExecutionStop.agent?.trim() || 'Unassigned'}</span>
                         </div>
                       </div>
                       <div className={styles.fieldPrimaryActions}>
-                        <button
-                          type="button"
+                        <Button
+                          size="lg"
+                          block
                           onClick={() => { void handleStopCompleted(nextExecutionStop.id); }}
-                          className={styles.btnFieldPrimary}
+                          loading={!!stopExecuting[nextExecutionStop.id]}
                           disabled={!!stopExecuting[nextExecutionStop.id]}
                         >
                           {stopExecuting[nextExecutionStop.id]
@@ -1643,15 +1585,16 @@ function RouteDetailContent() {
                             : currentExecutionPhase === 'pickup'
                             ? 'Signs Picked Up'
                             : 'Signs Placed'}
-                        </button>
-                        <button
-                          type="button"
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="lg"
+                          block
                           onClick={() => { void handleSkipStop(nextExecutionStop.id); }}
-                          className={styles.btnFieldSecondary}
                           disabled={!!stopExecuting[nextExecutionStop.id]}
                         >
                           Skip Stop
-                        </button>
+                        </Button>
                       </div>
                     </>
                   ) : (
@@ -1661,13 +1604,9 @@ function RouteDetailContent() {
                         : 'All placement stops are actioned. End this phase to prepare pickup.'}
                     </p>
                   )}
-                </article>
+                </Card>
 
-                <aside className={styles.fieldUpcomingPanel}>
-                  <div className={styles.fieldModeSectionHeader}>
-                    <h2>Upcoming stops</h2>
-                    <span>Next two</span>
-                  </div>
+                <Card title="Upcoming stops" subtitle="Next two">
                   {upcomingExecutionStops.length > 0 ? (
                     <ol className={styles.fieldUpcomingList}>
                       {upcomingExecutionStops.map((stop) => (
@@ -1680,18 +1619,17 @@ function RouteDetailContent() {
                   ) : (
                     <p className={styles.fieldEmptyText}>No further stops in this phase.</p>
                   )}
-                </aside>
+                </Card>
               </div>
 
               <div className={styles.fieldModeFooter}>
-                <button
-                  type="button"
+                <Button
                   onClick={handleEndRoute}
                   disabled={transitioning || !canEndCurrentPhase}
-                  className={styles.btnFieldComplete}
+                  loading={transitioning}
                 >
                   {transitioning ? 'Updating...' : !canEndCurrentPhase ? 'Action Stops First' : 'End Route'}
-                </button>
+                </Button>
                 {transitionError && (
                   <span className={styles.transitionError}>{transitionError}</span>
                 )}
@@ -1699,29 +1637,16 @@ function RouteDetailContent() {
             </section>
           ) : (
           <div className={styles.stopsSection}>
-            <div className={styles.stopsHeader}>
-              <h2 className={styles.stopsHeading}>
-                Stops ({visibleStops.length})
-              </h2>
-              {canManagePlanning && !planningLocked && !showAddStop && (
-                <button
-                  onClick={() => setShowAddStop(true)}
-                  className={styles.btnAddStop}
-                >
-                  Add Stop
-                </button>
-              )}
-            </div>
-
-            <div className={`${styles.mapSection} ${isExecutionMode ? styles.mapSectionExecutionMobile : ''}`}>
-              <h3 className={styles.mapHeading}>Route Map</h3>
-              <RouteStopsMap
-                stops={stops}
-                activeStopId={topVisibleStopId}
-                currentPosition={currentPosition}
-                mapTheme={mapTheme}
-              />
-            </div>
+            <Card title="Route Map" padded={false}>
+              <div className={styles.mapShell}>
+                <RouteStopsMap
+                  stops={stops}
+                  activeStopId={topVisibleStopId}
+                  currentPosition={currentPosition}
+                  mapTheme={mapTheme}
+                />
+              </div>
+            </Card>
 
             {canManagePlanning && !planningLocked && (
               <div className={styles.reorderHint}>Drag and drop stop cards to change sequence.</div>
@@ -1731,8 +1656,7 @@ function RouteDetailContent() {
 
             {/* Add Stop Form */}
             {showAddStop && !planningLocked && (
-              <div className={styles.formContainer}>
-                <h3 className={styles.formHeading}>Add Stop</h3>
+              <Card title="Add Stop">
                 <StopForm
                   onSubmit={handleAddStop}
                   onCancel={() => {
@@ -1748,7 +1672,7 @@ function RouteDetailContent() {
                   error={addStopError}
                   submitLabel="Add Stop"
                 />
-              </div>
+              </Card>
             )}
 
             {visibleStops.length === 0 && !showAddStop && (route?.status === 'in_progress' || route?.status === 'signs_placed') && (
@@ -1769,198 +1693,143 @@ function RouteDetailContent() {
               </div>
             )}
 
-            <div className={`${styles.stopsList} ${isExecutionMode ? styles.stopsListExecutionMobile : ''}`}>
-              {visibleStops.map((stop, index) => {
-                if (editingStopId === stop.id) {
-                  return (
-                    <div key={stop.id} className={styles.formContainer}>
-                      <h3 className={styles.formHeading}>Edit Stop</h3>
-                      <StopForm
-                        initialValues={{
-                          address: stop.address,
-                          serviceType: stop.serviceType as 'delivery' | 'pickup' | 'inspection' | undefined,
-                          numberOfSigns: stop.numberOfSigns ?? undefined,
-                          agent: stop.agent ?? undefined,
-                          isAuction: Boolean(stop.isAuction),
-                          notes: stop.notes,
-                        }}
-                        onSubmit={handleEditStop}
-                        onCancel={() => {
-                          setEditingStopId(null);
-                          setEditStopError(null);
-                        }}
-                        addressSearchOrigin={customerAddressOrigin}
-                        standingInstructions={customerDefaults?.standingInstructions ?? undefined}
-                        defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
-                        defaultAgentName={defaultAgentForStops}
-                        availableAgents={availableAgentsForStops}
-                        isSubmitting={editingStop}
-                        error={editStopError}
-                        submitLabel="Save Changes"
-                      />
-                    </div>
-                  );
-                }
-
-                const svcKey = (stop.serviceType as string) || 'delivery';
-                const stopCardClass = { delivery: styles.cardDelivery, pickup: styles.cardPickup, inspection: styles.cardInspection }[svcKey] ?? '';
-                const stopCircleClass = { delivery: styles.circleDelivery, pickup: styles.circlePickup, inspection: styles.circleInspection }[svcKey] ?? '';
-                const agentName = stop.agent?.trim() || 'Unassigned';
-                const agentInitials = getAgentBadgeInitials(agentName);
-                const agentBadgeTone = getAgentBadgeTone(agentName);
-                const isTopVisibleStop = stop.id === topVisibleStopId;
-                const completedStop = isStopCompletedForPhase(stop, currentExecutionPhase);
-                const executionActive = route?.status === 'in_progress';
-                const phaseComplete = isStopCompletedForPhase(stop, currentExecutionPhase);
-                const phaseSkipped = isStopSkippedForPhase(stop, currentExecutionPhase);
-                const phaseCompletedAt = getPhaseCompletionTime(stop, currentExecutionPhase) ?? stop.actualDepartureTime;
-                return (
-                  <div
-                    key={stop.id}
-                    className={`${styles.stopCard} ${stopCardClass} ${isTopVisibleStop ? styles.stopCardTop : ''} ${completedStop ? styles.stopCardCompleted : ''} ${draggingStopId === stop.id ? styles.stopCardDragging : ''} ${isExecutionMode ? styles.stopCardExecutionCompact : ''}`}
-                    draggable={canManagePlanning && !planningLocked && !reordering}
-                    onDragStart={() => setDraggingStopId(stop.id)}
-                    onDragOver={(event) => {
-                      if (canManagePlanning && !planningLocked) {
-                        event.preventDefault();
-                      }
-                    }}
-                    onDrop={() => {
-                      void handleDropStop(stop.id);
-                    }}
-                    onDragEnd={() => setDraggingStopId(null)}
-                  >
-                    <div className={`${styles.stopSegment} ${styles.stopSegmentNumber}`}>
-                      <div className={`${styles.circle} ${stopCircleClass}`}>
-                        {stop.sequence ?? '?'}
+            <Card
+              title={`Stops (${visibleStops.length})`}
+              action={
+                canManagePlanning && !planningLocked && !showAddStop ? (
+                  <Button size="sm" onClick={() => setShowAddStop(true)}>
+                    Add Stop
+                  </Button>
+                ) : undefined
+              }
+              padded={false}
+            >
+              <div className={styles.stopsList}>
+                {visibleStops.map((stop, index) => {
+                  if (editingStopId === stop.id) {
+                    return (
+                      <div key={stop.id} className={styles.editFormWrap}>
+                        <h3 className={styles.formHeading}>Edit Stop</h3>
+                        <StopForm
+                          initialValues={{
+                            address: stop.address,
+                            serviceType: stop.serviceType as 'delivery' | 'pickup' | 'inspection' | undefined,
+                            numberOfSigns: stop.numberOfSigns ?? undefined,
+                            agent: stop.agent ?? undefined,
+                            isAuction: Boolean(stop.isAuction),
+                            notes: stop.notes,
+                          }}
+                          onSubmit={handleEditStop}
+                          onCancel={() => {
+                            setEditingStopId(null);
+                            setEditStopError(null);
+                          }}
+                          addressSearchOrigin={customerAddressOrigin}
+                          standingInstructions={customerDefaults?.standingInstructions ?? undefined}
+                          defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
+                          defaultAgentName={defaultAgentForStops}
+                          availableAgents={availableAgentsForStops}
+                          isSubmitting={editingStop}
+                          error={editStopError}
+                          submitLabel="Save Changes"
+                        />
                       </div>
-                    </div>
+                    );
+                  }
 
-                    <div className={`${styles.stopSegment} ${styles.stopSegmentAddress}`}>
-                      <div className={styles.stopAddress}>
-                        {getPrimaryAddressLine(stop.formattedAddress || stop.address)}
-                      </div>
-                    </div>
+                  const agentName = stop.agent?.trim() || 'Unassigned';
+                  const agentInitials = getAgentBadgeInitials(agentName);
+                  const agentBadgeTone = getAgentBadgeTone(agentName);
+                  const isTopVisibleStop = stop.id === topVisibleStopId;
+                  const completedStop = isStopCompletedForPhase(stop, currentExecutionPhase);
 
-                    <div className={`${styles.stopSegment} ${styles.stopSegmentMeta}`}>
-                      <div className={styles.stopStatus}>{getStopStatusLabel(stop, currentExecutionPhase)}</div>
-                      <span
-                        className={`${styles.stopAgentBadge} ${styles.stopAgentBadgeCircle}`}
-                        aria-label={agentName}
-                        title={agentName}
-                        style={{
-                          '--nd-agent-badge-bg': agentBadgeTone.backgroundColor,
-                          '--nd-agent-badge-fg': agentBadgeTone.color,
-                        } as React.CSSProperties}
+                  const stopActions = canManagePlanning && !planningLocked ? (
+                    <div className={styles.stopActionsRow}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => { void handleMoveStop(stop.id, 'up'); }}
+                        disabled={index === 0 || reordering}
                       >
-                        {agentInitials}
-                      </span>
-                    </div>
-
-                    <div className={`${styles.stopSegment} ${styles.stopSegmentAction}`}>
-                      {canManagePlanning && !planningLocked && !executionActive && (
-                        <div className={styles.stopActions}>
-                          <button
-                            onClick={() => {
-                              void handleMoveStop(stop.id, 'up');
-                            }}
-                            className={styles.btnReorder}
-                            disabled={index === 0 || reordering}
-                          >
-                            Move Up
-                          </button>
-                          <button
-                            onClick={() => {
-                              void handleMoveStop(stop.id, 'down');
-                            }}
-                            className={styles.btnReorder}
-                            disabled={index === visibleStops.length - 1 || reordering}
-                          >
-                            Move Down
-                          </button>
-                          <button
-                            onClick={() => setEditingStopId(stop.id)}
-                            className={styles.btnEdit}
+                        Move Up
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => { void handleMoveStop(stop.id, 'down'); }}
+                        disabled={index === visibleStops.length - 1 || reordering}
+                      >
+                        Move Down
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setEditingStopId(stop.id)}
+                        disabled={reordering || !!deletingStopId}
+                      >
+                        Edit
+                      </Button>
+                      {pendingDeleteStopId === stop.id ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            loading={deletingStopId === stop.id}
+                            onClick={() => { void handleDeleteStop(stop.id); }}
                             disabled={reordering || !!deletingStopId}
                           >
-                            Edit
-                          </button>
-                          {pendingDeleteStopId === stop.id ? (
-                            <>
-                              <button
-                                onClick={() => {
-                                  void handleDeleteStop(stop.id);
-                                }}
-                                className={styles.btnDelete}
-                                disabled={reordering || !!deletingStopId}
-                              >
-                                {deletingStopId === stop.id ? 'Deleting...' : 'Confirm Delete'}
-                              </button>
-                              <button
-                                onClick={() => setPendingDeleteStopId(null)}
-                                className={styles.btnReorder}
-                                disabled={reordering || !!deletingStopId}
-                              >
-                                Cancel
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              onClick={() => setPendingDeleteStopId(stop.id)}
-                              className={styles.btnDelete}
-                              disabled={reordering || !!deletingStopId}
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {executionActive && (
-                        <>
-                          {!phaseComplete && (
-                            <div className={styles.execActionRow}>
-                              <button
-                                onClick={() => { void handleStopCompleted(stop.id); }}
-                                className={styles.btnExecComplete}
-                                disabled={!!stopExecuting[stop.id]}
-                              >
-                                {stopExecuting[stop.id]
-                                  ? 'Saving…'
-                                  : currentExecutionPhase === 'pickup'
-                                  ? 'Signs Picked Up'
-                                  : 'Signs Placed'}
-                              </button>
-                              <button
-                                onClick={() => { void handleSkipStop(stop.id); }}
-                                className={styles.btnSkip}
-                                disabled={!!stopExecuting[stop.id]}
-                              >
-                                Skip Stop
-                              </button>
-                            </div>
-                          )}
-                          {phaseComplete && (
-                            <div className={styles.execDone}>
-                              {phaseSkipped ? (
-                                <span className={styles.execSkippedBadge}>⏭ Skipped</span>
-                              ) : (
-                                <>
-                                  <span>
-                                    ✓ {currentExecutionPhase === 'pickup' ? 'Collected' : 'Placed'}:{' '}
-                                    {formatRouteDateTime(phaseCompletedAt)}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          )}
+                            {deletingStopId === stop.id ? 'Deleting...' : 'Confirm Delete'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setPendingDeleteStopId(null)}
+                            disabled={reordering || !!deletingStopId}
+                          >
+                            Cancel
+                          </Button>
                         </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={() => setPendingDeleteStopId(stop.id)}
+                          disabled={reordering || !!deletingStopId}
+                        >
+                          Delete
+                        </Button>
                       )}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  ) : null;
+
+                  return (
+                    <StopCard
+                      key={stop.id}
+                      sequence={stop.sequence ?? '?'}
+                      serviceType={stop.serviceType}
+                      address={getPrimaryAddressLine(stop.formattedAddress || stop.address)}
+                      statusLabel={getStopStatusLabel(stop, currentExecutionPhase)}
+                      agentInitials={agentInitials}
+                      agentName={agentName}
+                      agentBadgeTone={agentBadgeTone}
+                      isTop={isTopVisibleStop}
+                      isCompleted={completedStop}
+                      isDragging={draggingStopId === stop.id}
+                      draggable={canManagePlanning && !planningLocked && !reordering}
+                      onDragStart={() => setDraggingStopId(stop.id)}
+                      onDragOver={(event) => {
+                        if (canManagePlanning && !planningLocked) {
+                          event.preventDefault();
+                        }
+                      }}
+                      onDrop={() => { void handleDropStop(stop.id); }}
+                      onDragEnd={() => setDraggingStopId(null)}
+                      actions={stopActions}
+                    />
+                  );
+                })}
+              </div>
+            </Card>
           </div>
           )}
 

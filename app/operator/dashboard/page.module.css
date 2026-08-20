@@ -1,0 +1,62 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-5);
+}
+
+.trackerList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.trackerCard {
+  display: block;
+  padding: var(--space-5);
+  border: var(--border-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: var(--transition-control);
+}
+
+.trackerCard:hover {
+  border-color: var(--border-brand);
+  background: var(--surface-hover);
+}
+
+.trackerTopRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.trackerTopRow strong {
+  font-family: var(--font-mono);
+  color: var(--text-heading);
+  font-size: var(--text-sm);
+}
+
+.trackerMeta {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
+.trackerAction {
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-brand);
+}
+
+.mutedText {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}

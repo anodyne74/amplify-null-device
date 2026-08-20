@@ -19,7 +19,15 @@ jobs:
           cache: 'npm'
       
       - name: Install dependencies
-        run: npm ci
+        # npm ci currently fails on this repo's dependency tree (aws-cdk-lib's large,
+        # deeply-nested graph appears to trigger a known npm lockfileVersion 3 writer
+        # edge case: npm install succeeds and writes a lockfile that npm ci — even
+        # the same npm version — then rejects as incomplete for a shifting set of
+        # deep transitive packages). Reproduced independently of any app code change,
+        # confirmed on GitHub Actions' own runners as well as locally across multiple
+        # npm versions. npm install is slightly less strict about lockfile-exactness
+        # but has installed reliably every time in testing.
+        run: npm install
 
       - name: Generate Amplify config
         run: npm run generate:config

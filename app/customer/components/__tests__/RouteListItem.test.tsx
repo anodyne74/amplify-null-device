@@ -1,37 +1,19 @@
 import { render, screen } from '@testing-library/react';
-import RouteListItem from '../RouteListItem';
-import type { Route } from '@/amplify/types';
+import { RouteStatusPill } from '../RouteListItem';
 
-describe('RouteListItem', () => {
-  const mockRoute: Route = {
-    id: 'route-1',
-    customerId: 'customer-1',
-    status: 'signs_placed',
-    estimatedDurationMinutes: 120,
-    createdAt: '2024-01-15T10:00:00Z',
-  };
-
-  it('renders route data correctly', () => {
-    render(
-      <RouteListItem route={mockRoute} />
-    );
-
-    expect(screen.getByText(/route-1/i)).toBeInTheDocument();
+describe('RouteStatusPill', () => {
+  it('renders the raw status label for an active-bucket status', () => {
+    render(<RouteStatusPill status="signs_placed" />);
+    expect(screen.getByText(/signs placed/i)).toBeInTheDocument();
   });
 
-  it('displays status label', () => {
-    render(
-      <RouteListItem route={mockRoute} />
-    );
-
-    expect(screen.getByText(/Signs placed|Planned|Completed|Archived/i)).toBeInTheDocument();
+  it('renders planned status', () => {
+    render(<RouteStatusPill status="planned" />);
+    expect(screen.getByText(/planned/i)).toBeInTheDocument();
   });
 
-  it('handles routes with no duration', () => {
-    const { container } = render(
-      <RouteListItem route={{ ...mockRoute, estimatedDurationMinutes: undefined }} />
-    );
-
+  it('handles a missing status gracefully', () => {
+    const { container } = render(<RouteStatusPill status={null} />);
     expect(container).toBeInTheDocument();
   });
 });

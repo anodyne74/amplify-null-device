@@ -1,99 +1,42 @@
-.container {
-  padding: var(--nd-space-md);
-}
-
 .heading {
-  margin: 0 0 var(--nd-space-md) 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--nd-text-primary);
+  font-size: var(--text-xs);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  font-weight: var(--fw-bold);
+  margin: 0 0 var(--space-4);
 }
 
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  border-top: 1px solid var(--nd-border-default);
-  border-bottom: 2px solid var(--nd-accent-primary);
-}
-
-.thead tr {
-  background-color: var(--nd-bg-elevated);
-  border-bottom: 1px solid var(--nd-border-default);
-}
-
-.th {
-  padding: 12px 8px;
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--nd-text-secondary);
-}
-
-.thLeft {
-  text-align: left;
-}
-
-.thCenter {
+.empty {
+  padding: var(--space-8);
   text-align: center;
-  width: 100px;
-}
-
-.thRight {
-  text-align: right;
-  width: 120px;
-}
-
-.tbody tr {
-  border-bottom: 1px solid var(--nd-border-subtle);
-}
-
-.tbody tr:nth-child(even) {
-  background-color: var(--nd-bg-elevated);
-}
-
-.td {
-  padding: 12px 8px;
-  font-size: 14px;
-  color: var(--nd-text-primary);
-}
-
-.tdCenter {
-  text-align: center;
-}
-
-.tdRight {
-  text-align: right;
-}
-
-.tdAmount {
-  font-weight: 600;
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
 }
 
 .totalsRow {
   display: flex;
   justify-content: flex-end;
-  padding: var(--nd-space-md) 8px;
-  border-top: 2px solid var(--nd-accent-primary);
+  padding-top: var(--space-6);
 }
 
 .totalsInner {
-  text-align: right;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: var(--border-hairline) solid var(--border-subtle);
 }
 
 .totalsLabel {
-  font-size: 12px;
-  color: var(--nd-text-secondary);
-  margin-bottom: 4px;
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold);
+  color: var(--text-heading);
 }
 
 .totalsAmount {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--nd-accent-primary);
-}
-
-.empty {
-  padding: var(--nd-space-2xl) 8px;
-  text-align: center;
-  color: var(--nd-text-muted);
-  font-size: 14px;
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: var(--fw-bold);
+  color: var(--text-heading);
 }

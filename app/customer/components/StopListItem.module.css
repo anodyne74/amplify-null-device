@@ -1,105 +1,74 @@
 .card {
-  padding: var(--nd-space-md);
-  background-color: var(--nd-bg-surface);
-  border: 2px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-lg);
-  display: grid;
-  grid-template-columns: 50px 1fr auto;
-  gap: var(--nd-space-md);
-  align-items: start;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
 }
 
-.cardDelivery {
-  border-color: var(--nd-status-active);
-}
-
-.cardPickup {
-  border-color: var(--nd-operator-accent);
-}
-
-.cardInspection {
-  border-color: var(--nd-customer-accent);
+.card:last-child {
+  border-bottom: none;
 }
 
 .sequenceCircle {
-  width: 40px;
-  height: 40px;
+  flex: none;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--nd-border-default);
-  color: var(--nd-text-primary);
-  font-weight: bold;
-  font-size: 16px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-bold);
 }
 
 .circleDelivery {
-  background-color: var(--nd-status-active);
-  color: var(--nd-text-inverse);
+  background: var(--indigo-600);
 }
 
 .circlePickup {
-  background-color: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
+  background: var(--amber-600);
 }
 
 .circleInspection {
-  background-color: var(--nd-customer-accent);
-  color: var(--nd-text-inverse);
+  background: var(--neutral-600);
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
 }
 
 .stopTitle {
-  margin: 0 0 4px 0;
-  color: var(--nd-text-primary);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+  margin: 0;
 }
 
 .address {
-  margin: 4px 0;
-  font-size: 14px;
-  color: var(--nd-text-secondary);
+  font-size: var(--text-sm);
+  color: var(--text-body);
+  margin: 2px 0 0;
 }
 
 .notes {
-  margin: 8px 0 0 0;
-  font-size: 13px;
-  color: var(--nd-text-muted);
-  font-style: italic;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin: var(--space-2) 0 0;
 }
 
 .metaColumn {
+  flex: none;
   text-align: right;
-  min-width: 120px;
 }
 
-.serviceLabel {
-  margin: 0 0 4px 0;
-  font-size: 12px;
-  font-weight: bold;
-  text-transform: uppercase;
-  color: var(--nd-text-muted);
-}
-
-.labelDelivery {
-  color: var(--nd-status-active);
-}
-
-.labelPickup {
-  color: var(--nd-operator-accent);
-}
-
-.labelInspection {
-  color: var(--nd-customer-accent);
-}
-
-.departureTime {
-  margin: 4px 0;
-  font-size: 12px;
-  color: var(--nd-text-secondary);
-}
-
+.departureTime,
 .etaTime {
-  margin: 4px 0;
-  font-size: 12px;
-  color: var(--nd-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  margin: var(--space-2) 0 0;
 }

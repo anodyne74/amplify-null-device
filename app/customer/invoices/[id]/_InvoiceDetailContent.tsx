@@ -9,7 +9,9 @@ import InvoiceLineItems from '@/app/customer/components/InvoiceLineItems';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import { useToast } from '@/app/components/ToastProvider';
-import { getInvoiceStatusTone, type InvoiceStatusTone } from '@/lib/invoiceStatusHelpers';
+import { InvoiceStatusPill } from '@/app/customer/components/InvoiceListItem';
+import { Card } from '@/app/components/ui/core/Card';
+import { Button } from '@/app/components/ui/core/Button';
 import styles from './_InvoiceDetailContent.module.css';
 
 interface InvoiceDetailContentProps {
@@ -141,20 +143,13 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
             { label: 'Invoice' },
           ]}
         />
-        <div className={styles.accessPanel}>
-          <p className={styles.accessPanelTitle}>
-            Invoices are available to account owners
-          </p>
-          <p className={styles.accessPanelText}>
-            Contact your account owner for access.
-          </p>
-          <button
-            onClick={() => router.back()}
-            className={styles.backBtn}
-          >
+        <Card>
+          <p className={styles.accessPanelTitle}>Invoices are available to account owners</p>
+          <p className={styles.accessPanelText}>Contact your account owner for access.</p>
+          <Button variant="secondary" onClick={() => router.back()}>
             Go Back
-          </button>
-        </div>
+          </Button>
+        </Card>
       </div>
     );
   }
@@ -170,24 +165,13 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
         />
         <div className={styles.errorBox}>
           <p className={styles.errorMessage}>{error || 'Invoice not found'}</p>
-          <button
-            onClick={() => router.back()}
-            className={styles.goBackBtn}
-          >
+          <Button variant="danger" onClick={() => router.back()}>
             Go Back
-          </button>
+          </Button>
         </div>
       </div>
     );
   }
-
-  const toneClasses: Record<InvoiceStatusTone, string> = {
-    success: styles.statusPaid,
-    danger: styles.statusOverdue,
-    warning: styles.statusPending,
-    neutral: styles.statusPending,
-  };
-  const statusClass = toneClasses[getInvoiceStatusTone(invoice.status)];
 
   return (
     <div className={styles.container}>
@@ -198,101 +182,71 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
         ]}
       />
 
-      {/* Header */}
-      <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>
-          Invoice {invoice.invoiceNumber || invoice.id}
-        </h1>
-      </div>
+      <h1 className={styles.pageTitle}>Invoice {invoice.invoiceNumber || invoice.id}</h1>
 
-      {/* Invoice Info Card */}
-      <div className={styles.infoCard}>
-        <div className={styles.infoGrid}>
-          {/* Invoice Number */}
-          <div>
-            <p className={styles.infoLabel}>
-              Invoice Number
-            </p>
-            <p className={styles.infoValueBold}>
-              {invoice.invoiceNumber || invoice.id}
-            </p>
-          </div>
+      <div className={styles.layout}>
+        <Card padded={false}>
+          <div style={{ padding: 'var(--space-8)' }}>
+            <div className={styles.infoGrid}>
+              <div>
+                <p className={styles.infoLabel}>Invoice Number</p>
+                <p className={styles.infoValueBold}>{invoice.invoiceNumber || invoice.id}</p>
+              </div>
 
-          {/* Invoice Date */}
-          <div>
-            <p className={styles.infoLabel}>
-              Invoice Date
-            </p>
-            <p className={styles.infoValue}>
-              {formatDate(invoice.invoiceDate)}
-            </p>
-          </div>
+              <div>
+                <p className={styles.infoLabel}>Invoice Date</p>
+                <p className={styles.infoValue}>{formatDate(invoice.invoiceDate)}</p>
+              </div>
 
-          {/* Period */}
-          <div>
-            <p className={styles.infoLabel}>
-              Period
-            </p>
-            <p className={styles.infoValue}>
-              {formatDate(invoice.periodStartDate)} - {formatDate(invoice.periodEndDate)}
-            </p>
-          </div>
+              <div>
+                <p className={styles.infoLabel}>Period</p>
+                <p className={styles.infoValue}>
+                  {formatDate(invoice.periodStartDate)} - {formatDate(invoice.periodEndDate)}
+                </p>
+              </div>
 
-          {/* Status */}
-          <div>
-            <p className={styles.infoLabel}>
-              Status
-            </p>
-            <p className={`${styles.infoValueBold} ${statusClass}`}>
-              {invoice.status?.charAt(0).toUpperCase() + (invoice.status?.slice(1) || '')}
-            </p>
-          </div>
+              <div>
+                <p className={styles.infoLabel}>Status</p>
+                <InvoiceStatusPill status={invoice.status} />
+              </div>
 
-          {/* Linked Route */}
-          {invoice.routeId && (
-            <div>
-              <p className={styles.infoLabel}>Route</p>
-              <a
-                href={`/customer/routes/${invoice.routeId}`}
-                className={styles.routeLink}
-              >
-                View Route →
-              </a>
+              {invoice.routeId && (
+                <div>
+                  <p className={styles.infoLabel}>Route</p>
+                  <a href={`/customer/routes/${invoice.routeId}`} className={styles.routeLink}>
+                    View Route →
+                  </a>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-
-        {/* PDF Actions */}
-        {invoice.pdfS3Key && (
-          <div className={styles.pdfActions}>
-            <button
-              onClick={() => {
-                void handlePdfAction('view');
-              }}
-              disabled={pdfActionLoading}
-              className={styles.downloadBtn}
-            >
-              {pdfActionLoading ? 'Loading...' : 'View PDF'}
-            </button>
-            <button
-              onClick={() => {
-                void handlePdfAction('download');
-              }}
-              disabled={pdfActionLoading}
-              className={styles.downloadBtn}
-            >
-              {pdfActionLoading ? 'Loading...' : 'Download PDF'}
-            </button>
           </div>
-        )}
-      </div>
 
-      {/* Line Items */}
-      <div className={styles.lineItemsCard}>
-        <InvoiceLineItems
-          lineItems={invoice.lineItems || []}
-          totalAmount={invoice.totalAmount}
-        />
+          <div style={{ padding: '0 var(--space-8) var(--space-8)' }}>
+            <InvoiceLineItems lineItems={invoice.lineItems || []} totalAmount={invoice.totalAmount} />
+          </div>
+        </Card>
+
+        <div className={styles.sidebar}>
+          <Card title="Document">
+            <div className={styles.sidebarActions}>
+              <Button block iconLeft="file-text" disabled={!invoice.pdfS3Key || pdfActionLoading} onClick={() => void handlePdfAction('view')}>
+                {pdfActionLoading ? 'Loading…' : 'View PDF'}
+              </Button>
+              <Button
+                block
+                variant="secondary"
+                disabled={!invoice.pdfS3Key || pdfActionLoading}
+                onClick={() => void handlePdfAction('download')}
+              >
+                {pdfActionLoading ? 'Loading…' : 'Download PDF'}
+              </Button>
+            </div>
+          </Card>
+
+          <Card title="Access">
+            <p className={styles.accessText}>Only the account owner can see invoices. Read-only users are redirected to the dashboard.</p>
+          </Card>
+        </div>
       </div>
     </div>
   );

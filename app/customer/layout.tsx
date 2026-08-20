@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
-import PortalLayout from '@/app/components/PortalLayout';
+import CustomerShell from '@/app/customer/components/CustomerShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { getUserDisplayName } from '@/lib/amplify-config';
 import { getCustomerPortalContext, getUserSettings } from '@/lib/queries';
 import { useSessionTimeout, useLogout } from '@/app/auth/sessionManager';
 
 const CUSTOMER_NAV = [
-  { href: '/customer/dashboard', label: 'Dashboard', icon: 'home' },
+  { href: '/customer/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
   { href: '/customer/routes', label: 'Routes', icon: 'route' },
   { href: '/customer/invoices', label: 'Invoices', icon: 'file-text' },
   { href: '/customer/settings', label: 'Settings', icon: 'settings' },
@@ -84,17 +84,9 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 
   return (
     <ProtectedRoute requireCustomer={true}>
-      <PortalLayout
-        variant="customer"
-        portalTitle="Customer Portal"
-        navItems={navItems}
-        userEmail={userDisplayName}
-        onLogout={logout}
-        confirmLogout={true}
-        role="customer"
-      >
+      <CustomerShell navItems={navItems} userEmail={userDisplayName} onLogout={logout}>
         {children}
-      </PortalLayout>
+      </CustomerShell>
     </ProtectedRoute>
   );
 }

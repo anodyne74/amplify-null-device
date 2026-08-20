@@ -102,7 +102,7 @@ describe('Customer Routes List Page', () => {
       expect(screen.queryByText(/Loading routes/i)).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText(/Your Routes/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Routes$/i)).toBeInTheDocument();
   });
 
   it('displays error message when fetch fails', async () => {
@@ -131,7 +131,7 @@ describe('Customer Routes List Page', () => {
     });
 
     // Routes page should handle filtering
-    expect(screen.getByText(/Your Routes/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Routes$/i)).toBeInTheDocument();
   });
 
   it('displays correct route count for each filter', async () => {
@@ -183,7 +183,7 @@ describe('Customer Routes List Page', () => {
       expect(screen.queryByText(/Loading routes/i)).not.toBeInTheDocument();
     });
 
-    const sortSelect = screen.getAllByRole('combobox')[1];
+    const sortSelect = screen.getAllByRole('combobox')[0];
 
     fireEvent.change(sortSelect, {
       target: { value: 'status' },

@@ -23,66 +23,40 @@ interface InvoiceLineItemsProps {
  */
 export default function InvoiceLineItems({ lineItems = [], totalAmount }: InvoiceLineItemsProps) {
   return (
-    <div className={styles.container}>
-      <h3 className={styles.heading}>
-        Itemized Charges
-      </h3>
+    <div>
+      <h3 className={styles.heading}>Itemised charges</h3>
 
-      <table className={styles.table}>
-        <thead className={styles.thead}>
+      <table className="nd-table">
+        <thead>
           <tr>
-            <th className={`${styles.th} ${styles.thLeft}`}>
-              Description
-            </th>
-            <th className={`${styles.th} ${styles.thCenter}`}>
-              Quantity
-            </th>
-            <th className={`${styles.th} ${styles.thRight}`}>
-              Rate
-            </th>
-            <th className={`${styles.th} ${styles.thRight}`}>
-              Amount
-            </th>
+            <th>Description</th>
+            <th style={{ textAlign: 'center' }}>Quantity</th>
+            <th style={{ textAlign: 'right' }}>Rate</th>
+            <th style={{ textAlign: 'right' }}>Amount</th>
           </tr>
         </thead>
-        <tbody className={styles.tbody}>
+        <tbody>
           {lineItems.map((item, index) => (
             <tr key={item.id || index}>
-              <td className={styles.td}>
-                {item.description || `Service ${index + 1}`}
-              </td>
-              <td className={`${styles.td} ${styles.tdCenter}`}>
+              <td>{item.description || `Service ${index + 1}`}</td>
+              <td className="nd-table__num" style={{ textAlign: 'center' }}>
                 {item.quantity || 0}
               </td>
-              <td className={`${styles.td} ${styles.tdRight}`}>
-                {formatInvoiceCurrency(item.ratePerUnit)}
-              </td>
-              <td className={`${styles.td} ${styles.tdRight} ${styles.tdAmount}`}>
-                {formatInvoiceCurrency(item.amount)}
-              </td>
+              <td className="nd-table__num">{formatInvoiceCurrency(item.ratePerUnit)}</td>
+              <td className="nd-table__num">{formatInvoiceCurrency(item.amount)}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* Total Row */}
+      {lineItems.length === 0 && <div className={styles.empty}>No line items found for this invoice.</div>}
+
       <div className={styles.totalsRow}>
         <div className={styles.totalsInner}>
-          <div className={styles.totalsLabel}>
-            Total Amount:
-          </div>
-          <div className={styles.totalsAmount}>
-            {formatInvoiceCurrency(totalAmount)}
-          </div>
+          <span className={styles.totalsLabel}>Total amount</span>
+          <span className={styles.totalsAmount}>{formatInvoiceCurrency(totalAmount)}</span>
         </div>
       </div>
-
-      {/* No Items Message */}
-      {lineItems.length === 0 && (
-        <div className={styles.empty}>
-          No line items found for this invoice.
-        </div>
-      )}
     </div>
   );
 }

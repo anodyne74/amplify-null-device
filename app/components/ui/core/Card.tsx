@@ -39,7 +39,7 @@ export function Card({
       {(title || action) && (
         <div className="nd-card__header">
           <div>
-            {title && <div className="nd-card__title">{title}</div>}
+            {title && <h3 className="nd-card__title">{title}</h3>}
             {subtitle && <div className="nd-card__subtitle">{subtitle}</div>}
           </div>
           {action}

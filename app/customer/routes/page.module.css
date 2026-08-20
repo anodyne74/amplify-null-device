@@ -1,68 +1,42 @@
 .errorBanner {
-  padding: var(--nd-space-md);
-  background-color: var(--nd-status-danger-dim);
-  color: var(--nd-status-danger);
-  border-radius: var(--nd-radius-md);
-  margin-bottom: var(--nd-space-md);
-  font-size: 14px;
-  border: 1px solid var(--nd-status-danger);
+  padding: var(--space-4);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-6);
+  font-size: var(--text-sm);
+  border: var(--border-hairline) solid var(--status-danger-fg);
 }
 
 .filtersRow {
-  margin-bottom: var(--nd-space-lg);
+  margin-bottom: var(--space-6);
   display: flex;
-  gap: var(--nd-space-md);
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-5);
   flex-wrap: wrap;
 }
 
-.filterLabel {
-  display: block;
-  margin-bottom: var(--nd-space-sm);
-  font-weight: bold;
-  color: var(--nd-text-primary);
-}
-
-.select {
-  padding: 8px 12px;
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  font-size: 14px;
-  background-color: var(--nd-bg-surface);
-  color: var(--nd-text-primary);
-}
-
-.select option,
-.select optgroup {
-  background-color: var(--nd-bg-surface);
-  color: var(--nd-text-primary);
-}
-
-.emptyState {
-  padding: var(--nd-space-xl);
-  text-align: center;
-  color: var(--nd-text-secondary);
-}
-
-.routesList {
+.chips {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .summary {
-  margin-top: var(--nd-space-lg);
-  padding: var(--nd-space-md);
-  background-color: var(--nd-bg-elevated);
-  border-radius: var(--nd-radius-sm);
+  margin-top: var(--space-6);
+  padding: var(--space-5);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
 }
 
-.summaryText {
-  margin: 0 0 8px 0;
-  color: var(--nd-text-primary);
+.summary p {
+  margin: 0;
+  color: var(--text-body);
 }
 
 .summarySubtext {
-  margin: 0;
-  font-size: 14px;
-  color: var(--nd-text-secondary);
+  margin-top: var(--space-2) !important;
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
 }

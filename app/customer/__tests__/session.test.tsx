@@ -115,7 +115,7 @@ describe('Customer Session Management Integration', () => {
       await user.click(logoutButton);
     });
 
-    expect(screen.getByText(/Are you sure you want to logout/i)).toBeInTheDocument();
+    expect(screen.getByText(/Log out\?/i)).toBeInTheDocument();
   });
 
   it('confirms logout and calls signOut', async () => {
@@ -134,7 +134,7 @@ describe('Customer Session Management Integration', () => {
     });
 
     // Click confirm
-    const confirmButton = screen.getByText(/Yes, Logout/);
+    const confirmButton = screen.getByText(/Yes, logout/i);
     await act(async () => {
       await user.click(confirmButton);
     });

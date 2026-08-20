@@ -54,6 +54,13 @@ function getStatusChipClass(status?: InvoiceStatus | string | null) {
   }
 }
 
+function inferInvoiceStatus(invoice: Invoice): InvoiceStatus {
+  const normalized = String(invoice.status ?? '').trim().toLowerCase();
+  if (normalized === 'paid') return 'paid';
+  if (invoice.emailSentAt || normalized === 'sent') return 'sent';
+  return 'draft';
+}
+
 export function formatLocalDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   return new Intl.DateTimeFormat('en-AU', {
@@ -118,7 +125,7 @@ export default function InvoiceListTable({
         case 'totalAmount':
           return invoice.totalAmount ?? 0;
         case 'status':
-          return String(invoice.status ?? 'draft');
+          return inferInvoiceStatus(invoice);
         case 'sent': {
           const parsed = Date.parse(invoice.emailSentAt ?? '');
           return Number.isFinite(parsed) ? parsed : 0;
@@ -142,11 +149,11 @@ export default function InvoiceListTable({
 
   // Selection is only meaningful for invoices that can still be marked paid.
   const selectedEligible = useMemo(
-    () => invoices.filter((invoice) => selectedIds.has(invoice.id) && !isInvoicePaid(invoice.status)),
+    () => invoices.filter((invoice) => selectedIds.has(invoice.id) && !isInvoicePaid(inferInvoiceStatus(invoice))),
     [invoices, selectedIds, isInvoicePaid]
   );
   const pageEligibleIds = pageInvoices
-    .filter((invoice) => !isInvoicePaid(invoice.status))
+    .filter((invoice) => !isInvoicePaid(inferInvoiceStatus(invoice)))
     .map((invoice) => invoice.id);
   const allPageSelected =
     pageEligibleIds.length > 0 && pageEligibleIds.every((id) => selectedIds.has(id));
@@ -357,7 +364,7 @@ export default function InvoiceListTable({
                         type="checkbox"
                         checked={selectedIds.has(invoice.id)}
                         onChange={() => toggleInvoiceSelected(invoice.id)}
-                        disabled={bulkBusy || isInvoicePaid(invoice.status)}
+                        disabled={bulkBusy || isInvoicePaid(inferInvoiceStatus(invoice))}
                         aria-label={`Select invoice ${invoice.invoiceNumber}`}
                       />
                     </td>
@@ -388,8 +395,8 @@ export default function InvoiceListTable({
                   </td>
                   <td className={invoiceStyles.cellNumeric}>${invoice.totalAmount.toFixed(2)}</td>
                   <td>
-                    <span className={`${invoiceStyles.statusChip} ${getStatusChipClass(invoice.status)}`}>
-                      {toTitleCase(invoice.status ?? 'draft')}
+                    <span className={`${invoiceStyles.statusChip} ${getStatusChipClass(inferInvoiceStatus(invoice))}`}>
+                      {toTitleCase(inferInvoiceStatus(invoice))}
                     </span>
                   </td>
                   <td>
@@ -478,7 +485,7 @@ export default function InvoiceListTable({
                   </td>
                   <td>
                     <div className={invoiceStyles.actionButtons}>
-                      {!isInvoicePaid(invoice.status) && (
+                      {!isInvoicePaid(inferInvoiceStatus(invoice)) && (
                         <AdminActionButton
                           className={invoiceStyles.markPaidButton}
                           variant="primary"

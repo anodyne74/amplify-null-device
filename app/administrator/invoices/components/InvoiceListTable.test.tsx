@@ -79,6 +79,35 @@ describe('InvoiceListTable', () => {
     expect(screen.queryByRole('button', { name: 'Mark invoice INV-002 as paid' })).not.toBeInTheDocument();
   });
 
+  it('infers sent status from email timestamp', () => {
+    renderTable([
+      createInvoice({
+        id: 'inv-4',
+        invoiceNumber: 'INV-004',
+        status: 'draft',
+        emailSentAt: '2026-06-03T10:00:00.000Z',
+      }),
+    ]);
+
+    const sentStatusChips = screen.getAllByText('Sent');
+    expect(sentStatusChips.some((node) => node.className.includes('statusChipSent'))).toBe(true);
+  });
+
+  it('does not render generate or regenerate actions for imported invoices', () => {
+    renderTable([
+      createInvoice({
+        id: 'inv-5',
+        invoiceNumber: 'INV-005',
+        importedAt: '2026-06-03T10:00:00.000Z',
+      }),
+    ]);
+
+    expect(screen.queryByRole('button', { name: 'Generate PDF for invoice INV-005' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /more pdf actions for invoice inv-005/i }));
+    expect(screen.queryByRole('button', { name: 'Regenerate PDF for invoice INV-005' })).not.toBeInTheDocument();
+  });
+
   it('requires confirmation before regenerating an attached invoice PDF', () => {
     const onGeneratePdf = jest.fn();
 

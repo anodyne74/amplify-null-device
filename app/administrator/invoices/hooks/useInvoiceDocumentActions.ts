@@ -201,6 +201,7 @@ export function useInvoiceDocumentActions({
       if (keyResult.errors && keyResult.errors.length > 0) {
         setUploadError('Uploaded to S3 but failed to save key on invoice.');
       } else {
+        const uploadedAt = new Date().toISOString();
         try {
           const parsedText = await extractScheduleText(file);
           const parsed = parseInvoiceText(parsedText);
@@ -216,6 +217,7 @@ export function useInvoiceDocumentActions({
 
           const parsedUpdates: Parameters<typeof updateInvoice>[1] = {
             pdfS3Key: s3Key,
+            importedAt: uploadedAt,
           };
 
           if (parsed.invoiceNumber) parsedUpdates.invoiceNumber = parsed.invoiceNumber;
@@ -228,11 +230,11 @@ export function useInvoiceDocumentActions({
           setSuccessMessage('Invoice PDF uploaded and invoice metadata updated.');
         } catch (parseError) {
           console.warn('PDF uploaded but auto-parse failed:', parseError);
+          await updateInvoice(invoiceId, { importedAt: uploadedAt });
+          updateInvoiceInState(invoiceId, { pdfS3Key: s3Key, importedAt: uploadedAt });
           setUploadError('PDF uploaded, but automatic invoice parsing failed. You can still use the uploaded PDF.');
           setSuccessMessage('Invoice PDF uploaded successfully.');
         }
-
-        updateInvoiceInState(invoiceId, { pdfS3Key: s3Key });
       }
     } catch (err) {
       console.error('Upload error:', err);
@@ -284,6 +286,11 @@ export function useInvoiceDocumentActions({
   };
 
   const handleGeneratePdf = async (invoice: Invoice) => {
+    if (invoice.importedAt) {
+      setUploadError('PDF generation is disabled for manually uploaded invoices.');
+      return;
+    }
+
     setUploadingId(invoice.id);
     setUploadError(null);
     setSuccessMessage(null);
@@ -595,7 +602,7 @@ export function useInvoiceDocumentActions({
       if (keyResult.errors && keyResult.errors.length > 0) {
         setUploadError('Generated PDF uploaded but failed to save key on invoice.');
       } else {
-        updateInvoiceInState(invoice.id, { pdfS3Key: s3Key });
+        updateInvoiceInState(invoice.id, { pdfS3Key: s3Key, importedAt: null });
         setSuccessMessage(`Invoice ${invoice.invoiceNumber} PDF generated successfully.`);
       }
     } catch (err) {
@@ -657,9 +664,21 @@ export function useInvoiceDocumentActions({
       setError(null);
       setSuccessMessage(`Invoice ${invoice.invoiceNumber} emailed to ${result.sentTo}.`);
 
+      const sentAt = new Date().toISOString();
+      const nextStatus = String(invoice.status ?? '').trim().toLowerCase() === 'paid' ? 'paid' : 'sent';
+      const updateResult = await updateInvoice(invoice.id, {
+        status: nextStatus,
+        emailSentAt: sentAt,
+      });
+
+      if (updateResult.errors && updateResult.errors.length > 0) {
+        setError('Invoice email sent, but status timestamp update failed. Refresh to confirm latest state.');
+        return;
+      }
+
       updateInvoiceInState(invoice.id, {
-        status: 'sent',
-        emailSentAt: new Date().toISOString(),
+        status: nextStatus,
+        emailSentAt: sentAt,
       });
     } catch (err) {
       console.error('Email invoice action failed:', err);

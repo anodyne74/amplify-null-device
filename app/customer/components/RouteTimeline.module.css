@@ -1,24 +1,6 @@
-.container {
-  padding: var(--nd-space-md);
-  background-color: var(--nd-bg-elevated);
-  border-radius: var(--nd-radius-lg);
-  border: 1px solid var(--nd-border-default);
-}
-
-.heading {
-  margin: 0 0 var(--nd-space-md) 0;
-  font-size: 14px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--nd-text-muted);
-  font-family: var(--nd-font-mono);
-  letter-spacing: 0.08em;
-}
-
 .steps {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  gap: 0;
 }
 
 .step {
@@ -26,77 +8,66 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: var(--space-3);
   position: relative;
-}
-
-.circle {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: var(--nd-space-sm);
-  background-color: var(--nd-border-default);
-  color: var(--nd-text-muted);
-  font-weight: bold;
-  font-size: 14px;
-}
-
-.circleActive {
-  background-color: var(--nd-accent-primary);
-  color: var(--nd-text-inverse);
-}
-
-.circleCompleted {
-  background-color: var(--nd-status-completed);
-  color: var(--nd-text-inverse);
-}
-
-.stepLabel {
-  margin: 0 0 4px 0;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--nd-text-secondary);
-  text-align: center;
-}
-
-.stepLabelActive {
-  font-weight: bold;
-  color: var(--nd-accent-primary);
-}
-
-.stepTimestamp {
-  margin: 0;
-  font-size: 10px;
-  color: var(--nd-text-muted);
-  text-align: center;
 }
 
 .connector {
   position: absolute;
+  top: 13px;
   left: 50%;
-  /* half circle width + 8px gap; vertically centered on the circle */
-  margin-left: 30px;
-  margin-top: 21px;
-  width: calc(100% - 60px);
+  right: -50%;
   height: 2px;
-  background-color: var(--nd-border-default);
+  background: var(--border-subtle);
 }
 
 .connectorCompleted {
-  background-color: var(--nd-status-completed);
+  background: var(--indigo-600);
 }
 
-@media (max-width: 640px) {
-  .circle {
-    width: 40px;
-    height: 40px;
-  }
+.circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border-default);
+  background: var(--surface-card);
+  color: var(--text-disabled);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-bold);
+  position: relative;
+  z-index: 1;
+}
 
-  .connector {
-    margin-left: 28px;
-    margin-top: 19px;
-    width: calc(100% - 56px);
-  }
+.circleActive {
+  border-color: var(--indigo-600);
+  color: var(--indigo-700);
+}
+
+.circleCompleted {
+  border-color: var(--indigo-600);
+  background: var(--indigo-600);
+  color: #fff;
+}
+
+.stepLabel {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0;
+}
+
+.stepLabelActive {
+  font-weight: var(--fw-bold);
+  color: var(--text-heading);
+}
+
+.stepTimestamp {
+  font-size: var(--text-2xs);
+  font-family: var(--font-mono);
+  color: var(--text-subtle);
+  margin: 0;
 }

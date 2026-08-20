@@ -12,9 +12,16 @@ import { getCustomer, getCustomerPortalContext, getUserSettings, updateCustomer 
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import { formatCurrency, formatDuration } from '@/lib/dashboardAnalytics';
-import styles from '@/app/dashboard.module.css';
+import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
+import PageHeader from '@/app/customer/components/PageHeader';
+import { Card } from '@/app/components/ui/core/Card';
+import { StatTile } from '@/app/components/ui/data/StatTile';
+import { Field } from '@/app/components/ui/forms/Field';
+import { Input } from '@/app/components/ui/forms/Input';
+import { Button } from '@/app/components/ui/core/Button';
 import MetricsVisualization, { type MetricsPeriod } from '../../components/MetricsVisualization';
 import { aggregateRouteData } from '@/lib/aggregateRouteData';
+import styles from './page.module.css';
 
 type CustomerInvoice = {
   totalAmount?: number | null;
@@ -303,159 +310,134 @@ export default function CustomerDashboard() {
   );
 
   return (
-    <div className={styles.page} data-role="customer">
-      <div>
-        <h1 className={styles.heading}>Customer Portal</h1>
-        <p className={styles.welcome}>
-          Welcome,{displayName ? ` ${displayName}` : ''} · {isAccountOwner ? 'Owner' : 'Reviewer'}
-        </p>
-      </div>
+    <div className={styles.page}>
+      <PageHeader
+        title="Dashboard"
+        subtitle={`Welcome,${displayName ? ` ${displayName}` : ''} · ${isAccountOwner ? 'Owner' : 'Reviewer'}`}
+      />
 
       <div className={styles.statsGrid}>
-        <div className={styles.statCard}>
-          <p className={styles.statLabel}>Active Routes</p>
-          <p className={`${styles.statValue} ${styles.cyan}`}>{statsLoading ? '…' : activeRoutes}</p>
-        </div>
+        <StatTile label="Active routes" value={statsLoading ? '…' : activeRoutes} icon="route" />
         {isAccountOwner ? (
           <>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Pending Invoices</p>
-              <p className={`${styles.statValue} ${styles.amber}`}>{statsLoading ? '…' : pendingInvoices}</p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Outstanding Balance</p>
-              <p className={`${styles.statValue} ${styles.danger}`}>{statsLoading ? '…' : formatCurrency(outstandingAmount)}</p>
-            </div>
+            <StatTile label="Pending invoices" value={statsLoading ? '…' : pendingInvoices} icon="receipt" />
+            <StatTile
+              label="Outstanding balance"
+              value={statsLoading ? '…' : formatCurrency(outstandingAmount)}
+              icon="triangle-alert"
+            />
           </>
         ) : (
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Route Stops</p>
-            <p className={`${styles.statValue} ${styles.green}`}>{statsLoading ? '…' : totalStops}</p>
-          </div>
+          <StatTile label="Route stops" value={statsLoading ? '…' : totalStops} icon="map-pin" />
         )}
       </div>
 
       {!isAccountOwner && (
-        <div className={styles.infoPanel}>
-          <h3>Route Tracker</h3>
+        <Card title="Route Tracker">
           {trackerRoutes.length === 0 ? (
-            <p className={styles.welcome}>No routes are available for review.</p>
+            <p className={styles.mutedText}>No routes are available for review.</p>
           ) : (
-            <div className={styles.mobileRouteList}>
+            <div className={styles.trackerList}>
               {trackerRoutes.map((route) => {
                 const routeLabel = route.routeCode || route.id.slice(0, 8);
-                const statusLabel = String(route.status || 'planned').replace(/_/g, ' ');
-                const statusClass =
-                  route.status === 'in_progress' || route.status === 'signs_placed' || route.status === 'signs_picked_up'
-                    ? styles.routeStatusActive
-                    : styles.routeStatusPlanned;
+                const { label: statusLabel } = getRouteStatusPresentation(route.status);
 
                 return (
                   <Link
                     key={route.id}
                     href={`/customer/routes/${route.id}`}
-                    className={styles.mobileRouteCard}
+                    className={styles.trackerCard}
                     aria-label={`Review route ${routeLabel}`}
                   >
-                    <div className={styles.mobileRouteTopRow}>
+                    <div className={styles.trackerTopRow}>
                       <strong>Route {routeLabel}</strong>
-                      <span className={statusClass}>{statusLabel}</span>
+                      <span className="nd-badge nd-badge--sm nd-badge--info">{statusLabel}</span>
                     </div>
-                    <div className={styles.mobileRouteMeta}>
-                      {route.createdAt ? new Date(route.createdAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      }) : 'Date unavailable'}
+                    <div className={styles.trackerMeta}>
+                      {route.createdAt
+                        ? new Date(route.createdAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })
+                        : 'Date unavailable'}
                     </div>
-                    <div className={styles.mobileRouteAction}>Review route {routeLabel}</div>
+                    <div className={styles.trackerAction}>Review route {routeLabel}</div>
                   </Link>
                 );
               })}
             </div>
           )}
-        </div>
+        </Card>
       )}
 
-      <div className={styles.infoPanel}>
-        <h3>Customer Totals</h3>
-        <div className={styles.statsGrid}>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Jobs Completed</p>
-            <p className={`${styles.statValue} ${styles.green}`}>{statsLoading ? '…' : totalCompletedRoutes}</p>
+      <Card title="Customer Totals">
+        <div className={styles.ndStatGrid}>
+          <div className="nd-stat">
+            <span className="nd-stat__label">Jobs completed</span>
+            <span className="nd-stat__value">{statsLoading ? '…' : totalCompletedRoutes}</span>
           </div>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Total Distance</p>
-            <p className={`${styles.statValue} ${styles.amber}`}>
-              {statsLoading ? '…' : `${totalDistance.toFixed(1)} km`}
-            </p>
+          <div className="nd-stat">
+            <span className="nd-stat__label">Total distance</span>
+            <span className="nd-stat__value">{statsLoading ? '…' : `${totalDistance.toFixed(1)} km`}</span>
           </div>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Total Stops</p>
-            <p className={`${styles.statValue} ${styles.cyan}`}>{statsLoading ? '…' : totalStops}</p>
+          <div className="nd-stat">
+            <span className="nd-stat__label">Total stops</span>
+            <span className="nd-stat__value">{statsLoading ? '…' : totalStops}</span>
           </div>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Total Signs</p>
-            <p className={`${styles.statValue} ${styles.danger}`}>{statsLoading ? '…' : totalSigns}</p>
+          <div className="nd-stat">
+            <span className="nd-stat__label">Total signs</span>
+            <span className="nd-stat__value">{statsLoading ? '…' : totalSigns}</span>
           </div>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Total Hours</p>
-            <p className={`${styles.statValue} ${styles.green}`}>
-              {statsLoading ? '…' : formatDuration(totalHours)}
-            </p>
+          <div className="nd-stat">
+            <span className="nd-stat__label">Total hours</span>
+            <span className="nd-stat__value">{statsLoading ? '…' : formatDuration(totalHours)}</span>
           </div>
-          <div className={styles.statCard}>
-            <p className={styles.statLabel}>Average Signs Per Hour</p>
-            <p className={`${styles.statValue} ${styles.danger}`}>
-              {statsLoading ? '…' : averageSignsPerHour}
-            </p>
+          <div className="nd-stat">
+            <span className="nd-stat__label">Average signs per hour</span>
+            <span className="nd-stat__value">{statsLoading ? '…' : averageSignsPerHour}</span>
           </div>
           {isAccountOwner && (
             <>
-              <div className={styles.statCard}>
-                <p className={styles.statLabel}>Total Invoiced Amount</p>
-                <p className={`${styles.statValue} ${styles.cyan}`}>
-                  {statsLoading ? '…' : formatCurrency(totalInvoicedAmount)}
-                </p>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Total invoiced amount</span>
+                <span className="nd-stat__value">{statsLoading ? '…' : formatCurrency(totalInvoicedAmount)}</span>
               </div>
-              <div className={styles.statCard}>
-                <p className={styles.statLabel}>Outstanding Amount</p>
-                <p className={`${styles.statValue} ${styles.danger}`}>
-                  {statsLoading ? '…' : formatCurrency(outstandingAmount)}
-                </p>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Outstanding amount</span>
+                <span className="nd-stat__value">{statsLoading ? '…' : formatCurrency(outstandingAmount)}</span>
               </div>
-              <div className={styles.statCard}>
-                <p className={styles.statLabel}>Average Per Job</p>
-                <p className={`${styles.statValue} ${styles.amber}`}>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Average per job</span>
+                <span className="nd-stat__value">
                   {statsLoading || totalCompletedRoutes === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalCompletedRoutes)}
-                </p>
+                </span>
               </div>
-              <div className={styles.statCard}>
-                <p className={styles.statLabel}>Average Per Stop</p>
-                <p className={`${styles.statValue} ${styles.cyan}`}>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Average per stop</span>
+                <span className="nd-stat__value">
                   {statsLoading || totalStops === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalStops)}
-                </p>
+                </span>
               </div>
-              <div className={styles.statCard}>
-                <p className={styles.statLabel}>Average Per Sign</p>
-                <p className={`${styles.statValue} ${styles.green}`}>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Average per sign</span>
+                <span className="nd-stat__value">
                   {statsLoading || totalSigns === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalSigns)}
-                </p>
+                </span>
               </div>
-              <div className={styles.statCard}>
-                <p className={styles.statLabel}>Average Per Kilometer</p>
-                <p className={`${styles.statValue} ${styles.amber}`}>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Average per kilometer</span>
+                <span className="nd-stat__value">
                   {statsLoading || totalDistance === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalDistance)}
-                </p>
+                </span>
               </div>
             </>
           )}
         </div>
-      </div>
+      </Card>
 
-      <div className={styles.infoPanel}>
-        <h3>{isAccountOwner ? 'Owner Capabilities' : 'Reviewer Capabilities'}</h3>
-        <ul>
+      <Card title={isAccountOwner ? 'Owner Capabilities' : 'Reviewer Capabilities'}>
+        <ul className={styles.capabilitiesList}>
           <li>View your active routes in the Routes section</li>
           {isAccountOwner ? (
             <>
@@ -469,63 +451,79 @@ export default function CustomerDashboard() {
             </>
           )}
         </ul>
-      </div>
+      </Card>
 
-      <div className={styles.infoPanel}>
-        <h3>Standing Instructions</h3>
+      <Card title="Standing Instructions">
         {isAccountOwner ? (
-          <div className={styles.customerSettingsForm}>
-            {settingsError && <p>{settingsError}</p>}
-            {settingsSuccess && <p>{settingsSuccess}</p>}
-            <textarea
-              value={standingInstructions}
-              onChange={(event) => setStandingInstructions(event.target.value)}
-              placeholder="Instructions operators should see by default"
-              disabled={savingSettings}
-            />
-            <div className={styles.customerSettingsGrid}>
-              <input
-                value={defaultNumberOfSigns}
-                onChange={(event) => setDefaultNumberOfSigns(event.target.value)}
-                type="number"
-                min={0}
-                placeholder="Default number of signs"
+          <div className={styles.settingsForm}>
+            {settingsError && <p className="nd-badge nd-badge--danger">{settingsError}</p>}
+            {settingsSuccess && <p className="nd-badge nd-badge--success">{settingsSuccess}</p>}
+
+            <Field label="Instructions operators should see by default" htmlFor="standingInstructions">
+              <Input
+                id="standingInstructions"
+                multiline
+                value={standingInstructions}
+                onChange={(event) => setStandingInstructions(event.target.value)}
+                placeholder="Instructions operators should see by default"
                 disabled={savingSettings}
               />
-              <input
-                value={defaultAgentName}
-                onChange={(event) => setDefaultAgentName(event.target.value)}
-                placeholder="Default agent name"
-                disabled={savingSettings}
-              />
+            </Field>
+
+            <div className={styles.settingsGrid}>
+              <Field label="Default number of signs" htmlFor="defaultSigns">
+                <Input
+                  id="defaultSigns"
+                  value={defaultNumberOfSigns}
+                  onChange={(event) => setDefaultNumberOfSigns(event.target.value)}
+                  type="number"
+                  min={0}
+                  disabled={savingSettings}
+                />
+              </Field>
+              <Field label="Default agent name" htmlFor="defaultAgentName">
+                <Input
+                  id="defaultAgentName"
+                  value={defaultAgentName}
+                  onChange={(event) => setDefaultAgentName(event.target.value)}
+                  disabled={savingSettings}
+                />
+              </Field>
             </div>
-            <textarea
-              value={agentOptionsText}
-              onChange={(event) => setAgentOptionsText(event.target.value)}
-              placeholder="Agent options, one per line"
-              disabled={savingSettings}
-            />
-            <p className={styles.welcome}>
+
+            <Field label="Agent options, one per line" htmlFor="agentOptions">
+              <Input
+                id="agentOptions"
+                multiline
+                value={agentOptionsText}
+                onChange={(event) => setAgentOptionsText(event.target.value)}
+                placeholder="Agent options, one per line"
+                disabled={savingSettings}
+              />
+            </Field>
+
+            <p className={styles.mutedText}>
               {customer?.defaultAgentInitials
                 ? `Current default initials: ${customer.defaultAgentInitials}`
                 : 'Initials are generated automatically from the default agent name.'}
             </p>
-            <button type="button" onClick={() => void handleSaveSettings()} disabled={savingSettings || !customerId}>
-              {savingSettings ? 'Saving...' : 'Save Standing Instructions'}
-            </button>
+
+            <Button onClick={() => void handleSaveSettings()} disabled={savingSettings || !customerId}>
+              {savingSettings ? 'Saving…' : 'Save Standing Instructions'}
+            </Button>
           </div>
         ) : (
-          <div className={styles.customerSettingsForm}>
-            <p className={styles.welcome}>Only the account owner can edit these defaults.</p>
+          <div className={styles.staticInstructions}>
+            <p className={styles.mutedText}>Only the account owner can edit these defaults.</p>
             <p>{customer?.standingInstructions || 'No standing instructions configured.'}</p>
-            <p className={styles.welcome}>
+            <p className={styles.mutedText}>
               Default signs: {typeof customer?.defaultNumberOfSigns === 'number' ? customer.defaultNumberOfSigns : '—'}
               {' · '}
               Default agent: {customer?.defaultAgentName || '—'}
             </p>
           </div>
         )}
-      </div>
+      </Card>
 
       <MetricsVisualization
         data={groupedAnalytics}

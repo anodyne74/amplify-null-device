@@ -129,15 +129,15 @@ describe('Customer Dashboard standing instructions', () => {
       expect(screen.getByDisplayValue('Call before arrival')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('heading', { name: /customer portal/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^dashboard$/i })).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText('Instructions operators should see by default'), {
       target: { value: 'Leave signs at side gate' },
     });
-    fireEvent.change(screen.getByPlaceholderText('Default number of signs'), {
+    fireEvent.change(screen.getByLabelText('Default number of signs'), {
       target: { value: '5' },
     });
-    fireEvent.change(screen.getByPlaceholderText('Default agent name'), {
+    fireEvent.change(screen.getByLabelText('Default agent name'), {
       target: { value: 'Pat Doe' },
     });
     fireEvent.change(screen.getByPlaceholderText('Agent options, one per line'), {
@@ -175,7 +175,7 @@ describe('Customer Dashboard standing instructions', () => {
     render(<CustomerDashboard />);
 
     expect(await screen.findByText(/only the account owner can edit these defaults/i)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /customer portal/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^dashboard$/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /save standing instructions/i })).not.toBeInTheDocument();
     expect(screen.getByText(/call before arrival/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /route tracker/i })).toBeInTheDocument();
@@ -239,10 +239,10 @@ describe('Customer Dashboard standing instructions', () => {
     render(<CustomerDashboard />);
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Default number of signs')).toBeInTheDocument();
+      expect(screen.getByLabelText('Default number of signs')).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByPlaceholderText('Default number of signs'), {
+    fireEvent.change(screen.getByLabelText('Default number of signs'), {
       target: { value: '-1' },
     });
     fireEvent.click(screen.getByRole('button', { name: /save standing instructions/i }));

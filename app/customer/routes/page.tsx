@@ -6,19 +6,27 @@ import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import { getCustomerPortalContext } from '@/lib/queries';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
-import RouteListItem from '@/app/customer/components/RouteListItem';
+import PageHeader from '@/app/customer/components/PageHeader';
+import { RouteStatusPill } from '@/app/customer/components/RouteListItem';
+import { Card } from '@/app/components/ui/core/Card';
+import { Tag } from '@/app/components/ui/core/Tag';
+import { Select } from '@/app/components/ui/forms/Select';
+import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import type { Route } from '@/amplify/types';
-import { compareRouteIdDesc, compareRouteStatusAsc } from '@/lib/routeListHelpers';
-import { ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
+import { compareRouteIdDesc, compareRouteStatusAsc, formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
+import { formatRouteDate } from '@/lib/routeDetailHelpers';
+import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 import styles from './page.module.css';
 
-function formatStatusFilterLabel(status: StatusFilter) {
-  if (status === 'all') return 'All Statuses';
-  return status
-    .split('_')
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(' ');
-}
+type ChipFilter = 'all' | 'planned' | 'active' | 'completed' | 'archived';
+
+const STATUS_CHIPS: { id: ChipFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'planned', label: 'Planned' },
+  { id: 'active', label: 'Active' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'archived', label: 'Archived' },
+];
 
 /**
  * Customer Routes List Page
@@ -27,12 +35,12 @@ function formatStatusFilterLabel(status: StatusFilter) {
 export default function CustomerRoutesPage() {
   const { user } = useAuthenticator();
   const userId = user?.userId;
-  
+
   const [routes, setRoutes] = useState<Route[]>([]);
   const [filteredRoutes, setFilteredRoutes] = useState<Route[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<ChipFilter>('all');
   const [sortBy, setSortBy] = useState<'routeId' | 'status'>('routeId');
 
   useEffect(() => {
@@ -86,12 +94,10 @@ export default function CustomerRoutesPage() {
   useEffect(() => {
     let filtered = [...routes];
 
-    // Apply status filter
     if (statusFilter !== 'all') {
-      filtered = filtered.filter((route) => route.status === statusFilter);
+      filtered = filtered.filter((route) => getRouteStatusPresentation(route.status).badgeKey === statusFilter);
     }
 
-    // Apply sorting
     if (sortBy === 'routeId') {
       filtered.sort(compareRouteIdDesc);
     } else {
@@ -105,65 +111,72 @@ export default function CustomerRoutesPage() {
     return <LoadingSpinner message="Loading routes..." />;
   }
 
+  const columns: DataColumn<Route>[] = [
+    {
+      key: 'routeCode',
+      header: 'Route ID',
+      render: (route) => (
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-heading)' }}>
+          {route.routeCode || `${route.id.slice(0, 8)}...`}
+        </span>
+      ),
+    },
+    { key: 'status', header: 'Status', render: (route) => <RouteStatusPill status={route.status} /> },
+    { key: 'created', header: 'Created', render: (route) => formatRouteDate(route.createdAt) },
+    {
+      key: 'duration',
+      header: 'Duration',
+      align: 'right',
+      render: (route) => formatEstimatedDurationMinutes(route.estimatedDurationMinutes as number | undefined),
+    },
+    {
+      key: 'action',
+      header: '',
+      width: 90,
+      render: (route) => (
+        <div style={{ textAlign: 'right' }}>
+          <a href={`/customer/routes/${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
+            View
+          </a>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <ProtectedRoute>
       <div>
-        <h1>Your Routes</h1>
+        <PageHeader title="Routes" />
 
-        {error && (
-          <div className={styles.errorBanner}>
-            {error}
-          </div>
-        )}
+        {error && <div className={styles.errorBanner}>{error}</div>}
 
-        {/* Filters */}
         <div className={styles.filtersRow}>
-          <div>
-            <label className={styles.filterLabel}>Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-              className={styles.select}
-            >
-              {ROUTE_STATUS_FILTERS.map((status) => (
-                <option key={status} value={status}>
-                  {formatStatusFilterLabel(status)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className={styles.filterLabel}>Sort By</label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'routeId' | 'status')}
-              className={styles.select}
-            >
-              <option value="routeId">Route ID (Desc)</option>
-              <option value="status">Status</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Routes List */}
-        {filteredRoutes.length === 0 ? (
-          <div className={styles.emptyState}>
-            <p>No routes found</p>
-          </div>
-        ) : (
-          <div className={styles.routesList}>
-            {filteredRoutes.map((route) => (
-              <RouteListItem key={route.id} route={route} />
+          <div className={styles.chips}>
+            {STATUS_CHIPS.map((chip) => (
+              <Tag key={chip.id} selected={statusFilter === chip.id} onClick={() => setStatusFilter(chip.id)}>
+                {chip.label}
+              </Tag>
             ))}
           </div>
-        )}
+
+          <Select
+            aria-label="Sort by"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'routeId' | 'status')}
+            options={[
+              { value: 'routeId', label: 'Route ID (Desc)' },
+              { value: 'status', label: 'Status' },
+            ]}
+          />
+        </div>
+
+        <Card padded={false}>
+          <DataTable columns={columns} rows={filteredRoutes} wrapped={false} empty="No routes found." />
+        </Card>
 
         <div className={styles.summary}>
-          <p className={styles.summaryText}>Showing {filteredRoutes.length} routes</p>
-          <p className={styles.summarySubtext}>
-            Click on any route to view details and stops
-          </p>
+          <p>Showing {filteredRoutes.length} routes</p>
+          <p className={styles.summarySubtext}>Click on any route to view details and stops</p>
         </div>
       </div>
     </ProtectedRoute>

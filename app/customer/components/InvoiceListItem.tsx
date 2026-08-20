@@ -2,41 +2,27 @@
 
 import { useState } from 'react';
 import { getUrl } from 'aws-amplify/storage';
+import { Badge } from '@/app/components/ui/core/Badge';
+import { Button } from '@/app/components/ui/core/Button';
 import type { Invoice } from '@/amplify/types';
-import { formatInvoiceCurrency } from '@/lib/format';
-import { getInvoiceStatusTone, type InvoiceStatusTone } from '@/lib/invoiceStatusHelpers';
-import styles from './InvoiceListItem.module.css';
+import { getInvoiceStatusTone } from '@/lib/invoiceStatusHelpers';
 
-interface InvoiceListItemProps {
-  invoice: Invoice;
+function getStatusLabel(status?: string | null) {
+  return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
 }
 
-/**
- * InvoiceListItem component
- * Displays individual invoice in list format
- */
-export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
+/** Status pill for an invoice, reused by the invoices table. */
+export function InvoiceStatusPill({ status }: { status?: string | null }) {
+  return (
+    <Badge tone={getInvoiceStatusTone(status)} dot>
+      {getStatusLabel(status)}
+    </Badge>
+  );
+}
+
+/** PDF view/download actions (or a plain "View" link when no PDF exists yet), reused by the invoices table. */
+export function InvoiceActions({ invoice }: { invoice: Pick<Invoice, 'id' | 'invoiceNumber' | 'pdfS3Key'> }) {
   const [pdfLoading, setPdfLoading] = useState(false);
-
-  // Format date
-  const formatDate = (dateString?: string | null) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-  };
-
-  // Get status label
-  const getStatusLabel = (status?: string | null) => {
-    return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
-  };
-
-  const toneClasses: Record<InvoiceStatusTone, string> = {
-    success: styles.badgeCompleted,
-    warning: styles.badgePlanned,
-    danger: styles.badgeDanger,
-    neutral: styles.badgeArchived,
-  };
-  const statusClass = toneClasses[getInvoiceStatusTone(invoice.status)];
 
   const handlePdfAction = async (action: 'view' | 'download') => {
     if (!invoice.pdfS3Key) return;
@@ -65,80 +51,33 @@ export default function InvoiceListItem({ invoice }: InvoiceListItemProps) {
     }
   };
 
+  if (!invoice.pdfS3Key) {
+    return (
+      <a href={`/customer/invoices/${invoice.id}`} className="nd-btn nd-btn--ghost nd-btn--sm">
+        View
+      </a>
+    );
+  }
+
   return (
-    <div className={styles.row}>
-      {/* Invoice Number */}
-      <div className={styles.colId}>
-        {invoice.invoiceNumber || invoice.id}
-      </div>
-
-      {/* Route Link */}
-      <div className={styles.colRoute}>
-        {invoice.routeId ? (
-          <a href={`/customer/routes/${invoice.routeId}`} className={styles.routeLink}>
-            View Route
-          </a>
-        ) : (
-          <span className={styles.routeMuted}>—</span>
-        )}
-      </div>
-
-      {/* Invoice Date */}
-      <div className={styles.colDate}>
-        {formatDate(invoice.invoiceDate)}
-      </div>
-
-      {/* Period */}
-      <div className={styles.colPeriod}>
-        {formatDate(invoice.periodStartDate)} to {formatDate(invoice.periodEndDate)}
-      </div>
-
-      {/* Total Amount */}
-      <div className={styles.colAmount}>
-        {formatInvoiceCurrency(invoice.totalAmount)}
-      </div>
-
-      {/* Status Badge */}
-      <div className={styles.colStatus}>
-        <span className={`${styles.badge} ${statusClass}`}>
-          {getStatusLabel(invoice.status)}
-        </span>
-      </div>
-
-      {/* View Button */}
-      <div className={styles.colAction}>
-        {invoice.pdfS3Key ? (
-          <div className={styles.actionGroup}>
-            <button
-              type="button"
-              className={styles.secondaryAction}
-              onClick={() => {
-                void handlePdfAction('view');
-              }}
-              disabled={pdfLoading}
-            >
-              View PDF
-            </button>
-            <button
-              type="button"
-              className={styles.secondaryAction}
-              onClick={() => {
-                void handlePdfAction('download');
-              }}
-              disabled={pdfLoading}
-            >
-              Download
-            </button>
-          </div>
-        ) : (
-          <a
-            href={`/customer/invoices/${invoice.id}`}
-            className={styles.viewLink}
-          >
-            View
-          </a>
-        )}
-      </div>
+    <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
+      <Button
+        size="sm"
+        variant="secondary"
+        iconLeft="file-text"
+        disabled={pdfLoading}
+        onClick={() => void handlePdfAction('view')}
+      >
+        View PDF
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={pdfLoading}
+        onClick={() => void handlePdfAction('download')}
+      >
+        Download
+      </Button>
     </div>
   );
 }

@@ -44,11 +44,6 @@ describe('RouteTimeline', () => {
     expect(screen.getByText(/Completed/i)).toBeInTheDocument();
   });
 
-  it('shows route status header', () => {
-    render(<RouteTimeline route={mockRoute} />);
-    expect(screen.getByText(/Route Status/i)).toBeInTheDocument();
-  });
-
   it('handles routes with missing timestamps gracefully', () => {
     const routeNoTimes: Route = {
       ...mockRoute,

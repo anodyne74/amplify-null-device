@@ -1,147 +1,54 @@
-.errorPage {
-  padding: 20px;
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
 }
 
 .errorBanner {
-  padding: var(--nd-space-md);
-  background-color: var(--nd-status-danger-dim);
-  color: var(--nd-status-danger);
-  border-radius: var(--nd-radius-md);
-  margin-top: var(--nd-space-md);
-  font-size: 14px;
-  border: 1px solid var(--nd-status-danger);
+  padding: var(--space-4);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+  border: var(--border-hairline) solid var(--status-danger-fg);
 }
 
 .pageTitle {
-  margin-top: var(--nd-space-md);
-  color: var(--nd-text-primary);
-}
-
-.timelineWrapper {
-  margin-bottom: var(--nd-space-2xl);
-}
-
-.trackerPanel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
-  gap: var(--nd-space-md);
-  align-items: stretch;
-  margin-bottom: var(--nd-space-2xl);
-}
-
-.mapShell {
-  min-width: 0;
-}
-
-.nextStopPanel {
-  padding: var(--nd-space-lg);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--nd-customer-accent) 10%, transparent), transparent 68%),
-    var(--nd-bg-surface);
-  border: 1px solid color-mix(in srgb, var(--nd-customer-accent) 26%, var(--nd-border-subtle));
-  border-radius: var(--nd-radius-lg);
-  display: grid;
-  align-content: start;
-  gap: var(--nd-space-sm);
-}
-
-.nextStopTitle {
   margin: 0;
-  color: var(--nd-text-primary);
-  font-family: var(--nd-font-display);
-  font-size: 1.25rem;
-  font-weight: 700;
-}
-
-.nextStopAddress {
-  margin: 0;
-  color: var(--nd-text-secondary);
-  font-size: 0.95rem;
-  line-height: 1.45;
+  font-size: var(--text-3xl);
 }
 
 .detailsGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--nd-space-md);
-  margin-bottom: var(--nd-space-2xl);
+  gap: var(--space-5);
 }
 
-.detailCard {
-  padding: var(--nd-space-md);
-  background-color: var(--nd-bg-elevated);
-  border-radius: var(--nd-radius-lg);
-  border: 1px solid var(--nd-border-subtle);
+.mapShell {
+  min-width: 0;
+  min-height: 320px;
 }
 
-.detailLabel {
-  margin: 0 0 8px 0;
-  font-size: 12px;
-  color: var(--nd-text-secondary);
-  text-transform: uppercase;
-}
-
-.detailValue {
-  margin: 0;
-  font-size: 18px;
-  font-weight: bold;
-  color: var(--nd-text-primary);
-}
-
-.detailValueSmall {
-  margin: 0;
-  font-size: 14px;
-  font-weight: bold;
-  color: var(--nd-text-primary);
-}
-
-.notesSection {
-  margin-bottom: var(--nd-space-2xl);
-}
-
-.notesText {
-  padding: 12px;
-  background-color: var(--nd-bg-elevated);
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-text-primary);
-}
-
-.noStopsText {
-  color: var(--nd-text-secondary);
+.stopsAndMap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 1fr);
+  gap: var(--space-6);
+  align-items: start;
 }
 
 .stopsList {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+}
+
+.noStopsText {
+  color: var(--text-subtle);
+  padding: var(--space-6);
 }
 
 @media (max-width: 820px) {
-  .trackerPanel {
+  .stopsAndMap {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 640px) {
-  .detailsGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 480px) {
-  .detailsGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .nextStopPanel {
-    padding: var(--nd-space-md);
-  }
-
-  .nextStopTitle {
-    font-size: 1.1rem;
-  }
-
-  .detailValue {
-    font-size: 16px;
   }
 }

@@ -29,6 +29,7 @@ import {
   TrendingDown,
   Minus,
   Info,
+  Menu,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -65,6 +66,7 @@ const ICONS: Record<string, LucideIcon> = {
   'trending-down': TrendingDown,
   minus: Minus,
   info: Info,
+  menu: Menu,
 };
 
 export interface IconProps extends Omit<React.SVGProps<SVGSVGElement>, 'name'> {

@@ -1,6 +1,7 @@
 'use client';
 
 import type { Route } from '@/amplify/types';
+import { Icon } from '@/app/components/ui/core/Icon';
 import styles from './RouteTimeline.module.css';
 
 interface RouteTimelineProps {
@@ -37,50 +38,44 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
                 : 0;
 
   return (
-    <div className={styles.container}>
-      <h3 className={styles.heading}>
-        Route Status
-      </h3>
+    <div className={styles.steps}>
+      {statuses.map((status, index) => {
+        const isActive = index === currentStatusIndex;
+        const isCompleted = index < currentStatusIndex;
 
-      <div className={styles.steps}>
-        {statuses.map((status, index) => {
-          const isActive = index === currentStatusIndex;
-          const isCompleted = index < currentStatusIndex;
-
-          return (
-            <div key={status.id} className={styles.step}>
-              {/* Status Circle */}
-              <div
-                className={`${styles.circle} ${isActive ? styles.circleActive : ''} ${isCompleted ? styles.circleCompleted : ''}`}
-              >
-                {isCompleted ? '✓' : isActive ? '●' : index + 1}
-              </div>
-
-              {/* Status Label */}
-              <p className={`${styles.stepLabel} ${isActive ? styles.stepLabelActive : ''}`}>
-                {status.label}
-              </p>
-
-              {/* Timestamp */}
-              {status.timestamp && (
-                <p className={styles.stepTimestamp}>
-                  {new Date(status.timestamp).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </p>
-              )}
-
-              {/* Connector Line */}
-              {index < statuses.length - 1 && (
-                <div className={`${styles.connector} ${isCompleted ? styles.connectorCompleted : ''}`} />
-              )}
+        return (
+          <div key={status.id} className={styles.step}>
+            {/* Status Circle */}
+            <div
+              className={`${styles.circle} ${isActive ? styles.circleActive : ''} ${isCompleted ? styles.circleCompleted : ''}`}
+            >
+              {isCompleted ? <Icon name="check" size={14} /> : index + 1}
             </div>
-          );
-        })}
-      </div>
+
+            {/* Status Label */}
+            <p className={`${styles.stepLabel} ${isActive ? styles.stepLabelActive : ''}`}>
+              {status.label}
+            </p>
+
+            {/* Timestamp */}
+            {status.timestamp && (
+              <p className={styles.stepTimestamp}>
+                {new Date(status.timestamp).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+            )}
+
+            {/* Connector Line */}
+            {index < statuses.length - 1 && (
+              <div className={`${styles.connector} ${isCompleted ? styles.connectorCompleted : ''}`} />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

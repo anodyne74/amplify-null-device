@@ -9,6 +9,7 @@ import Breadcrumbs from '@/app/components/Breadcrumbs';
 import RouteTimeline from '@/app/customer/components/RouteTimeline';
 import StopListItem from '@/app/customer/components/StopListItem';
 import { RouteStopsMap } from '@/app/operator/components/RouteStopsMap';
+import { Card } from '@/app/components/ui/core/Card';
 import type { Route, Stop } from '@/amplify/types';
 import { formatDurationHoursMinutes } from '@/lib/format';
 import styles from './_RouteDetailContent.module.css';
@@ -86,16 +87,14 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   if (error || !route) {
     return (
       <ProtectedRoute>
-        <div className={styles.errorPage}>
+        <div>
           <Breadcrumbs
             items={[
               { label: 'Routes', href: '/customer/routes' },
               { label: 'Route' },
             ]}
           />
-          <div className={styles.errorBanner}>
-            {error || 'Route not found'}
-          </div>
+          <div className={styles.errorBanner}>{error || 'Route not found'}</div>
         </div>
       </ProtectedRoute>
     );
@@ -126,7 +125,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
 
   return (
     <ProtectedRoute>
-      <div>
+      <div className={styles.page}>
         <Breadcrumbs
           items={[
             { label: 'Routes', href: '/customer/routes' },
@@ -136,94 +135,83 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
 
         <h1 className={styles.pageTitle}>Route {routeLabel}</h1>
 
-        {/* Status and Timeline */}
-        <div className={styles.timelineWrapper}>
+        <Card title="Route status" subtitle="Placement then pickup">
           <RouteTimeline route={route} />
-        </div>
+        </Card>
 
-        <section className={styles.trackerPanel} aria-label="Route map and next stop">
-          <div className={styles.mapShell}>
-            <RouteStopsMap
-              stops={stops}
-              activeStopId={nextStop?.id ?? null}
-              upcomingStopIds={upcomingStopIds}
-              mapTheme="dark"
-              presentation="field"
-            />
-          </div>
-          <div className={styles.nextStopPanel}>
-            <p className={styles.detailLabel}>Next Stop</p>
-            <p className={styles.nextStopTitle}>
-              {nextStop ? `Stop ${nextStop.sequence ?? nextStopIndex + 1}` : 'No stop scheduled'}
-            </p>
-            <p className={styles.nextStopAddress}>
-              {nextStop?.formattedAddress || nextStop?.address || 'No address available'}
-            </p>
-          </div>
-        </section>
-
-        {/* Route Details Grid */}
         <div className={styles.detailsGrid}>
-          <div className={styles.detailCard}>
-            <p className={styles.detailLabel}>
-              Status
-            </p>
-            <p className={styles.detailValue}>
+          <div className="nd-stat">
+            <span className="nd-stat__label">Status</span>
+            <span className="nd-stat__value" style={{ fontSize: 20 }}>
               {(route.status || 'unknown').replace(/_/g, ' ')}
-            </p>
+            </span>
           </div>
 
-          <div className={styles.detailCard}>
-            <p className={styles.detailLabel}>
-              Estimated Duration
-            </p>
-            <p className={styles.detailValue}>
+          <div className="nd-stat">
+            <span className="nd-stat__label">Estimated duration</span>
+            <span className="nd-stat__value" style={{ fontSize: 20, fontFamily: 'var(--font-mono)' }}>
               {formatDurationHoursMinutes(route.estimatedDurationMinutes as number | undefined)}
-            </p>
+            </span>
           </div>
 
           {route.actualDurationMinutes && (
-            <div className={styles.detailCard}>
-              <p className={styles.detailLabel}>
-                Actual Duration
-              </p>
-              <p className={styles.detailValue}>
+            <div className="nd-stat">
+              <span className="nd-stat__label">Actual duration</span>
+              <span className="nd-stat__value" style={{ fontSize: 20, fontFamily: 'var(--font-mono)' }}>
                 {formatDurationHoursMinutes(route.actualDurationMinutes as number | undefined)}
-              </p>
+              </span>
             </div>
           )}
 
-          <div className={styles.detailCard}>
-            <p className={styles.detailLabel}>
-              Created
-            </p>
-            <p className={styles.detailValueSmall}>
+          <div className="nd-stat">
+            <span className="nd-stat__label">Created</span>
+            <span className="nd-stat__value" style={{ fontSize: 15 }}>
               {formatDate(route.createdAt)}
-            </p>
+            </span>
           </div>
         </div>
 
-        {/* Notes */}
         {route.notes && (
-          <div className={styles.notesSection}>
-            <h3>Notes</h3>
-            <p className={styles.notesText}>{route.notes}</p>
-          </div>
+          <Card title="Notes">
+            <p style={{ margin: 0, color: 'var(--text-body)' }}>{route.notes}</p>
+          </Card>
         )}
 
-        {/* Stops */}
-        <div>
-          <h3>Delivery Stops ({stops.length})</h3>
+        {nextStop && (
+          <Card title="Next stop">
+            <p style={{ margin: 0, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--text-lg)', color: 'var(--text-heading)' }}>
+              {`Stop ${nextStop.sequence ?? nextStopIndex + 1}`}
+            </p>
+            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)' }}>
+              {nextStop.formattedAddress || nextStop.address || 'No address available'}
+            </p>
+          </Card>
+        )}
 
-          {stops.length === 0 ? (
-            <p className={styles.noStopsText}>No stops scheduled for this route</p>
-          ) : (
-            <div className={styles.stopsList}>
-              {stops.map((stop, index) => (
-                <StopListItem key={stop.id} stop={stop} sequence={index + 1} />
-              ))}
+        <div className={styles.stopsAndMap}>
+          <Card title={`Stops (${stops.length})`} subtitle="Tap a stop to highlight it on the map" padded={false}>
+            {stops.length === 0 ? (
+              <p className={styles.noStopsText}>No stops scheduled for this route</p>
+            ) : (
+              <div className={styles.stopsList}>
+                {stops.map((stop, index) => (
+                  <StopListItem key={stop.id} stop={stop} sequence={index + 1} />
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card title="Route map" subtitle="Numbered stops in service order">
+            <div className={styles.mapShell}>
+              <RouteStopsMap
+                stops={stops}
+                activeStopId={nextStop?.id ?? null}
+                upcomingStopIds={upcomingStopIds}
+                mapTheme="dark"
+                presentation="field"
+              />
             </div>
-          )}
+          </Card>
         </div>
       </div>
     </ProtectedRoute>

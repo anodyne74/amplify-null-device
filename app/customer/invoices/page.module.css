@@ -1,183 +1,55 @@
-.container {
-  padding: var(--nd-space-lg);
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.header {
-  margin-bottom: var(--nd-space-lg);
-}
-
-.headerTitle {
-  margin: 0 0 8px 0;
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--nd-text-primary);
-}
-
-.headerSubtitle {
-  margin: 0;
-  color: var(--nd-text-secondary);
-  font-size: 14px;
-}
-
 .filterSection {
-  padding: var(--nd-space-md);
-  background-color: var(--nd-bg-elevated);
-  border-radius: var(--nd-radius-lg);
-  margin-bottom: var(--nd-space-lg);
+  padding: var(--space-5);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-6);
   display: flex;
-  gap: var(--nd-space-md);
+  gap: var(--space-5);
   align-items: flex-end;
   flex-wrap: wrap;
 }
 
-.filterField {
-  flex: 1;
-  min-width: 200px;
-}
-
-.filterLabel {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: var(--nd-space-sm);
-  color: var(--nd-text-primary);
-}
-
-.filterInput {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  font-size: 14px;
-  background-color: var(--nd-bg-surface);
-  color: var(--nd-text-primary);
-  box-sizing: border-box;
-}
-
-.clearBtn {
-  padding: 8px 16px;
-  background-color: transparent;
-  color: var(--nd-text-secondary);
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color var(--nd-transition-fast);
-}
-
-.clearBtn:hover {
-  border-color: var(--nd-border-strong);
-  color: var(--nd-text-primary);
+.filterSection > * {
+  min-width: 190px;
 }
 
 .errorBanner {
-  padding: var(--nd-space-md);
-  background-color: var(--nd-status-danger-dim);
-  color: var(--nd-status-danger);
-  border-radius: var(--nd-radius-md);
-  margin-bottom: var(--nd-space-lg);
-  font-size: 14px;
-  border: 1px solid var(--nd-status-danger);
-}
-
-.listContainer {
-  background-color: var(--nd-bg-surface);
-  border-radius: var(--nd-radius-lg);
-  border: 1px solid var(--nd-border-default);
-}
-
-.emptyState {
-  padding: 48px 24px;
-  text-align: center;
-  color: var(--nd-text-muted);
+  padding: var(--space-4);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-6);
+  font-size: var(--text-sm);
+  border: var(--border-hairline) solid var(--status-danger-fg);
 }
 
 .emptyStateTitle {
-  margin: 0 0 8px 0;
-  font-size: 16px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+  color: var(--text-heading);
 }
 
 .emptyStateHint {
   margin: 0;
-  font-size: 14px;
-}
-
-.tableHeader {
-  display: flex;
-  padding: 12px 16px;
-  background-color: var(--nd-bg-elevated);
-  border-bottom: 1px solid var(--nd-border-subtle);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--nd-text-secondary);
-}
-
-.colInvoiceNum {
-  flex: 0.8;
-}
-
-.colRoute {
-  flex: 0.9;
-}
-
-.colDate {
-  flex: 0.8;
-}
-
-.colPeriod {
-  flex: 1.1;
-}
-
-.colAmount {
-  flex: 0.8;
-  text-align: right;
-}
-
-.colStatus {
-  flex: 0.6;
-  text-align: center;
-}
-
-.colAction {
-  flex: 0.6;
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
 }
 
 .footerSummary {
-  margin-top: var(--nd-space-lg);
-  color: var(--nd-text-secondary);
-  font-size: 14px;
-}
-
-.accessPanel {
-  padding: var(--nd-space-lg);
-  background-color: var(--nd-bg-elevated);
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-lg);
+  margin-top: var(--space-6);
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
 }
 
 .accessPanelTitle {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--nd-text-primary);
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
 }
 
 .accessPanelText {
   margin: 0;
-  font-size: 14px;
-  color: var(--nd-text-secondary);
-}
-
-@media (max-width: 768px) {
-  .container {
-    padding: var(--nd-space-md);
-  }
-
-  /* Rows render as stacked cards on small screens; the column header is meaningless there */
-  .tableHeader {
-    display: none;
-  }
+  font-size: var(--text-sm);
+  color: var(--text-muted);
 }

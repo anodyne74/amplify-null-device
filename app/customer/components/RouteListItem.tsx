@@ -1,57 +1,19 @@
-'use client';
+import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
+import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 
-import Link from 'next/link';
-import RouteStatusBadge from '@/app/components/RouteStatusBadge';
-import type { Route } from '@/amplify/types';
-import { formatRouteDate } from '@/lib/routeDetailHelpers';
-import { formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
-import styles from './RouteListItem.module.css';
+const ROUTE_STATUS_TONE: Record<string, BadgeProps['tone']> = {
+  planned: 'warning',
+  active: 'info',
+  completed: 'success',
+  archived: 'neutral',
+};
 
-interface RouteListItemProps {
-  route: Route;
-}
-
-/**
- * RouteListItem Component
- * Displays a single route in the list view
- */
-export default function RouteListItem({ route }: RouteListItemProps) {
-  const createdDate = formatRouteDate(route.createdAt);
-
+/** Status pill for a route, reused by the routes table and the dashboard's route tracker. */
+export function RouteStatusPill({ status }: { status?: string | null }) {
+  const { badgeKey, label } = getRouteStatusPresentation(status);
   return (
-    <Link href={`/customer/routes/${route.id}`}>
-      <div className={styles.item}>
-        {/* Route ID and Notes */}
-        <div>
-          <p className={styles.routeTitle}>
-            Route {route.id.slice(0, 8)}...
-          </p>
-          <p className={styles.routeNotes}>
-            {route.notes || 'No notes'}
-          </p>
-        </div>
-
-        {/* Status Badge */}
-        <div>
-          <RouteStatusBadge status={route.status} classes={styles} />
-        </div>
-
-        {/* Date */}
-        <div>
-          <p className={styles.metaLabel}>Created</p>
-          <p className={styles.metaValue}>
-            {createdDate === '—' ? 'N/A' : createdDate}
-          </p>
-        </div>
-
-        {/* Duration */}
-        <div>
-          <p className={styles.metaLabel}>Duration</p>
-          <p className={styles.metaValue}>
-            {formatEstimatedDurationMinutes(route.estimatedDurationMinutes as number | undefined)}
-          </p>
-        </div>
-      </div>
-    </Link>
+    <Badge tone={ROUTE_STATUS_TONE[badgeKey] ?? 'neutral'} dot>
+      {label}
+    </Badge>
   );
 }

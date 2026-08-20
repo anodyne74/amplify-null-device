@@ -7,6 +7,12 @@ import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { StopForm } from '@/app/operator/components/StopForm';
+import PageHeader from '@/app/administrator/components/PageHeader';
+import { Card } from '@/app/components/ui/core/Card';
+import { Button } from '@/app/components/ui/core/Button';
+import { Field } from '@/app/components/ui/forms/Field';
+import { Input } from '@/app/components/ui/forms/Input';
+import { Select } from '@/app/components/ui/forms/Select';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
@@ -397,66 +403,69 @@ function RouteEditContent() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.heading}>Edit Route</h1>
+      <PageHeader title="Edit Route" />
 
-      <form className={styles.card} onSubmit={handleSave}>
-        <div className={styles.routeCode}>Route Code: {routeCode}</div>
-        <div className={styles.internalId}>Internal ID: {routeId}</div>
+      <Card>
+        <form onSubmit={handleSave}>
+          <div className={styles.metaRow}>
+            <span>Route Code: <strong>{routeCode}</strong></span>
+            <span>Internal ID: <strong>{routeId}</strong></span>
+          </div>
 
-        {error && <div className={styles.error}>{error}</div>}
+          {error && <div className={styles.errorBanner}>{error}</div>}
 
-        <div className={styles.field}>
-          <label htmlFor="customerId" className={styles.label}>Customer</label>
-          <select
-            id="customerId"
-            className={styles.select}
-            value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
-            disabled={saving}
-            required
-          >
-            <option value="">Select a customer…</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.name}
-              </option>
-            ))}
-          </select>
-        </div>
+          <div className={styles.fieldsGrid}>
+            <Field label="Customer" htmlFor="customerId">
+              <Select
+                id="customerId"
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                disabled={saving}
+                required
+              >
+                <option value="">Select a customer…</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
 
-        <div className={styles.field}>
-          <label htmlFor="notes" className={styles.label}>Notes</label>
-          <textarea
-            id="notes"
-            className={styles.textarea}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            disabled={saving}
-            placeholder="Optional notes"
-          />
-        </div>
+            <Field label="Notes" htmlFor="notes">
+              <Input
+                id="notes"
+                multiline
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                disabled={saving}
+                placeholder="Optional notes"
+              />
+            </Field>
+          </div>
 
-        <div className={styles.actions}>
-          <button type="submit" className={styles.btnSave} disabled={saving}>
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-          <button
+          <div className={styles.actionsRow}>
+            <Button type="submit" loading={saving} disabled={saving}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => router.push(`/administrator/routes/detail?id=${routeId}`)}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      <Card>
+        <div className={styles.stopsHeaderRow}>
+          <h2 className={styles.stopsHeading}>Stops ({stops.length})</h2>
+          <Button
             type="button"
-            className={styles.btnCancel}
-            onClick={() => router.push(`/administrator/routes/detail?id=${routeId}`)}
-            disabled={saving}
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-
-      <section className={styles.card}>
-        <div className={styles.stopsHeader}>
-          <h2 className={styles.stopsTitle}>Stops ({stops.length})</h2>
-          <button
-            type="button"
-            className={styles.btnAddStop}
+            variant="secondary"
             onClick={() => {
               setShowAddStop((v) => !v);
               setEditingStopId(null);
@@ -464,21 +473,20 @@ function RouteEditContent() {
             disabled={stopSaving}
           >
             {showAddStop ? 'Close Stop Form' : 'Add Stop'}
-          </button>
+          </Button>
         </div>
 
-        {stopError && <div className={styles.error}>{stopError}</div>}
-        {reordering && <div className={styles.reordering}>Saving stop order...</div>}
+        {stopError && <div className={styles.errorBanner}>{stopError}</div>}
+        {reordering && <p className={styles.reorderingText}>Saving stop order...</p>}
         {!reordering && stops.length > 1 && (
           <p className={styles.dragHint}>Drag cards to reorder stops</p>
         )}
 
         <div className={styles.stopsLayout}>
-          <div className={styles.stopsPane}>
-
+          <div>
             {showAddStop && (
               <div className={styles.stopFormWrap}>
-                <h3 className={styles.formTitle}>Add Stop</h3>
+                <h3 className={styles.formHeading}>Add Stop</h3>
                 <StopForm
                   onSubmit={handleAddStop}
                   onCancel={() => setShowAddStop(false)}
@@ -498,32 +506,32 @@ function RouteEditContent() {
             ) : (
               <div className={styles.stopList}>
                 {stops.map((stop, index) => {
-              if (editingStopId === stop.id) {
-                return (
-                  <div key={stop.id} className={styles.stopFormWrap}>
-                    <h3 className={styles.formTitle}>Edit Stop</h3>
-                    <StopForm
-                      initialValues={{
-                        address: stop.address,
-                        serviceType: stop.serviceType as 'delivery' | 'pickup' | 'inspection' | undefined,
-                        numberOfSigns: stop.numberOfSigns ?? undefined,
-                        agent: stop.agent ?? undefined,
-                        isAuction: Boolean(stop.isAuction),
-                        notes: stop.notes ?? undefined,
-                      }}
-                      onSubmit={handleEditStop}
-                      onCancel={() => setEditingStopId(null)}
-                      addressSearchOrigin={customerAddressOrigin}
-                      standingInstructions={selectedCustomer?.standingInstructions ?? undefined}
-                      defaultNumberOfSigns={selectedCustomer?.defaultNumberOfSigns ?? undefined}
-                      defaultAgentName={defaultAgentForStops}
-                      availableAgents={availableAgentsForStops}
-                      isSubmitting={stopSaving}
-                      submitLabel="Save Stop"
-                    />
-                  </div>
-                );
-              }
+                  if (editingStopId === stop.id) {
+                    return (
+                      <div key={stop.id} className={styles.stopFormWrap}>
+                        <h3 className={styles.formHeading}>Edit Stop</h3>
+                        <StopForm
+                          initialValues={{
+                            address: stop.address,
+                            serviceType: stop.serviceType as 'delivery' | 'pickup' | 'inspection' | undefined,
+                            numberOfSigns: stop.numberOfSigns ?? undefined,
+                            agent: stop.agent ?? undefined,
+                            isAuction: Boolean(stop.isAuction),
+                            notes: stop.notes ?? undefined,
+                          }}
+                          onSubmit={handleEditStop}
+                          onCancel={() => setEditingStopId(null)}
+                          addressSearchOrigin={customerAddressOrigin}
+                          standingInstructions={selectedCustomer?.standingInstructions ?? undefined}
+                          defaultNumberOfSigns={selectedCustomer?.defaultNumberOfSigns ?? undefined}
+                          defaultAgentName={defaultAgentForStops}
+                          availableAgents={availableAgentsForStops}
+                          isSubmitting={stopSaving}
+                          submitLabel="Save Stop"
+                        />
+                      </div>
+                    );
+                  }
 
                   return (
                     <div
@@ -536,85 +544,95 @@ function RouteEditContent() {
                       onDrop={() => { void handleDropStop(stop.id); }}
                       onDragEnd={() => setDraggingStopId(null)}
                     >
-                  <div className={styles.stopSequence}>{stop.sequence ?? index + 1}</div>
-                  <div className={styles.stopBody}>
-                    <div className={styles.stopAddress}>{stop.formattedAddress || stop.address || 'Unknown address'}</div>
-                    <div className={styles.stopMeta}>{stop.serviceType || 'delivery'}</div>
-                    {typeof stop.numberOfSigns === 'number' && (
-                      <div className={styles.stopDetail}>Signs: {stop.numberOfSigns}</div>
-                    )}
-                    {stop.agent && (
-                      <div className={styles.stopDetail}>Agent: {stop.agent}</div>
-                    )}
-                    {stop.isAuction && (
-                      <span className={styles.auctionBadge}>Auction</span>
-                    )}
-                  </div>
-                  <div className={styles.stopActions}>
-                    <button
-                      type="button"
-                      className={styles.btnMove}
-                      onClick={() => {
-                        void handleMoveStop(stop.id, 'up');
-                      }}
-                      disabled={index === 0 || reordering || stopSaving}
-                    >
-                      Up
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.btnMove}
-                      onClick={() => {
-                        void handleMoveStop(stop.id, 'down');
-                      }}
-                      disabled={index === stops.length - 1 || reordering || stopSaving}
-                    >
-                      Down
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.btnEdit}
-                      onClick={() => {
-                        setEditingStopId(stop.id);
-                        setShowAddStop(false);
-                        setPendingDeleteStopId(null);
-                      }}
-                      disabled={stopSaving}
-                    >
-                      Edit
-                    </button>
-                    {pendingDeleteStopId === stop.id ? (
-                      <>
-                        <button
+                      <div className={styles.stopSequence}>{stop.sequence ?? index + 1}</div>
+                      <div className={styles.stopBody}>
+                        <div className={styles.stopAddress}>{stop.formattedAddress || stop.address || 'Unknown address'}</div>
+                        <div className={styles.stopMeta}>{stop.serviceType || 'delivery'}</div>
+                        {typeof stop.numberOfSigns === 'number' && (
+                          <div className={styles.stopDetail}>Signs: {stop.numberOfSigns}</div>
+                        )}
+                        {stop.agent && (
+                          <div className={styles.stopDetail}>Agent: {stop.agent}</div>
+                        )}
+                        {stop.isAuction && (
+                          <span className={styles.auctionBadge}>Auction</span>
+                        )}
+                      </div>
+                      <div className={styles.stopActionsRow}>
+                        <Button
                           type="button"
-                          className={styles.btnDelete}
+                          size="sm"
+                          variant="ghost"
                           onClick={() => {
-                            void handleDeleteStop(stop.id);
+                            void handleMoveStop(stop.id, 'up');
+                          }}
+                          disabled={index === 0 || reordering || stopSaving}
+                        >
+                          Up
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            void handleMoveStop(stop.id, 'down');
+                          }}
+                          disabled={index === stops.length - 1 || reordering || stopSaving}
+                        >
+                          Down
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => {
+                            setEditingStopId(stop.id);
+                            setShowAddStop(false);
+                            setPendingDeleteStopId(null);
                           }}
                           disabled={stopSaving}
                         >
-                          {stopSaving ? 'Deleting...' : 'Confirm Delete'}
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.btnMove}
-                          onClick={() => setPendingDeleteStopId(null)}
-                          disabled={stopSaving}
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        className={styles.btnDelete}
-                        onClick={() => setPendingDeleteStopId(stop.id)}
-                        disabled={stopSaving}
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
+                          Edit
+                        </Button>
+                        {pendingDeleteStopId === stop.id ? (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="danger"
+                              onClick={() => {
+                                void handleDeleteStop(stop.id);
+                              }}
+                              disabled={stopSaving}
+                            >
+                              {stopSaving ? 'Deleting...' : 'Confirm Delete'}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setPendingDeleteStopId(null);
+                              }}
+                              disabled={stopSaving}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="danger"
+                            onClick={() => {
+                              setPendingDeleteStopId(stop.id);
+                            }}
+                            disabled={stopSaving}
+                          >
+                            Delete
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -622,19 +640,17 @@ function RouteEditContent() {
             )}
           </div>
 
-          <aside className={styles.mapPane}>
-            <div className={styles.mapWrap}>
-              <h3 className={styles.mapTitle}>Route Map</h3>
-              <RouteStopsMap
-                stops={stops}
-                mapTheme={mapTheme}
-                activeStopId={selectedStopId}
-                onStopSelect={(stopId) => setSelectedStopId(stopId)}
-              />
-            </div>
+          <aside className={styles.mapWrap}>
+            <h3 className={styles.mapTitle}>Route Map</h3>
+            <RouteStopsMap
+              stops={stops}
+              mapTheme={mapTheme}
+              activeStopId={selectedStopId}
+              onStopSelect={(stopId) => setSelectedStopId(stopId)}
+            />
           </aside>
         </div>
-      </section>
+      </Card>
     </div>
   );
 }

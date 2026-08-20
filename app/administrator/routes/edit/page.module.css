@@ -1,318 +1,216 @@
 .container {
-  padding: var(--nd-space-lg);
-  max-width: 1320px;
-  margin: 0 auto;
-}
-
-.heading {
-  color: var(--nd-operator-accent);
-  margin-bottom: var(--nd-space-lg);
-}
-
-.card {
-  padding: var(--nd-space-lg);
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-lg);
-  background: var(--nd-bg-surface);
   display: flex;
   flex-direction: column;
-  gap: var(--nd-space-md);
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.label {
-  font-size: 13px;
-  color: var(--nd-text-secondary);
-}
-
-.select,
-.textarea {
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg-elevated);
-  color: var(--nd-text-primary);
-  font-size: 14px;
-  padding: 10px 12px;
-}
-
-.select option,
-.select optgroup {
-  background: var(--nd-bg-elevated);
-  color: var(--nd-text-primary);
-}
-
-.textarea {
-  resize: vertical;
-  min-height: 96px;
-}
-
-.actions {
-  display: flex;
-  gap: 10px;
-}
-
-.btnSave {
-  padding: 10px 18px;
-  border: none;
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-operator-accent);
-  color: var(--nd-color-text-on-accent);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btnCancel {
-  padding: 10px 18px;
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  background: transparent;
-  color: var(--nd-text-primary);
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.error {
-  padding: var(--nd-space-sm);
-  border: 1px solid var(--nd-status-danger);
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-status-danger);
-  background: var(--nd-status-danger-dim);
-}
-
-.routeCode {
-  font-family: var(--nd-font-mono);
-  color: var(--nd-text-muted);
-  font-size: 12px;
-}
-
-.internalId {
-  font-family: var(--nd-font-mono);
-  color: var(--nd-text-secondary);
-  font-size: 12px;
-}
-
-.stopsHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.stopsTitle {
-  margin: 0;
-  color: var(--nd-text-primary);
-  font-size: 18px;
-}
-
-.btnAddStop {
-  padding: 8px 14px;
-  border: none;
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.mapWrap {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.mapTitle {
-  margin: 0;
-  color: var(--nd-text-primary);
-  font-size: 14px;
+  gap: var(--space-6);
 }
 
 .mapLoading {
-  padding: 16px;
-  border: 1px dashed var(--nd-border-default);
-  border-radius: var(--nd-radius-md);
-  color: var(--nd-text-secondary);
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
+  background: var(--surface-hover);
+  border-radius: var(--radius-md);
 }
 
-.reordering {
-  color: var(--nd-text-muted);
-  font-size: 12px;
+.metaRow {
+  display: flex;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
+}
+
+.metaRow strong {
+  color: var(--text-heading);
+  font-family: var(--font-mono);
+}
+
+.errorBanner {
+  padding: var(--space-4);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  border: var(--border-hairline) solid var(--status-danger-fg);
+  margin-bottom: var(--space-5);
+}
+
+.fieldsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+  max-width: 480px;
+}
+
+.actionsRow {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.stopsHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.stopsHeading {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-family: var(--font-display);
+  color: var(--text-heading);
+}
+
+.dragHint,
+.reorderingText {
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
+  margin-bottom: var(--space-4);
+}
+
+.stopsLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.formHeading {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-base);
+  font-family: var(--font-display);
+  color: var(--text-heading);
 }
 
 .stopFormWrap {
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-md);
-  background: var(--nd-bg-elevated);
-  padding: 12px;
-}
-
-.formTitle {
-  margin: 0 0 8px;
-  font-size: 14px;
-  color: var(--nd-text-primary);
+  padding: var(--space-5);
+  border: var(--border-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
 }
 
 .emptyStops {
-  margin: 0;
-  color: var(--nd-text-secondary);
-  font-size: 14px;
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
 }
 
 .stopList {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
-.stopsLayout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 420px;
-  gap: 14px;
-  align-items: start;
-}
-
-.stopsPane {
-  min-width: 0;
-}
-
-.mapPane {
-  position: sticky;
-  top: var(--nd-space-lg);
-  align-self: start;
-}
-
+/* NOTE: stopRow / stopRowDragging / stopRowSelected class names are asserted
+   on literally by route-edit.test.tsx via .closest('.stopRow') + toHaveClass —
+   keep these three names stable even though the rest of the page is reskinned. */
 .stopRow {
-  display: grid;
-  grid-template-columns: 36px 1fr auto;
-  gap: 12px;
-  align-items: center;
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-md);
-  background: var(--nd-bg-elevated);
-  padding: 10px 12px;
-  cursor: grab;
-  transition: border-color var(--nd-transition-fast), box-shadow var(--nd-transition-fast);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: var(--border-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition-control);
 }
 
-.stopRowSelected {
-  border-color: var(--nd-operator-accent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--nd-operator-accent) 60%, transparent);
+.stopRow:hover {
+  border-color: var(--border-brand);
+  background: var(--surface-hover);
 }
 
 .stopRowDragging {
   opacity: 0.4;
-  cursor: grabbing;
 }
 
-.dragHint {
-  font-size: 12px;
-  color: var(--nd-text-muted);
-  margin: 0 0 8px;
+.stopRowSelected {
+  border-color: var(--border-brand);
+  background: var(--surface-brand-subtle);
+}
+
+.stopSequence {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--radius-circle);
+  background: var(--surface-brand-subtle);
+  color: var(--text-brand);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-sm);
+}
+
+.stopBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.stopAddress {
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+  font-size: var(--text-sm);
+}
+
+.stopMeta {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  text-transform: capitalize;
 }
 
 .stopDetail {
-  font-size: 12px;
-  color: var(--nd-text-secondary);
-  margin-top: 2px;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
 }
 
 .auctionBadge {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: bold;
+  margin-top: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
   text-transform: uppercase;
-  background-color: var(--nd-status-danger);
-  color: var(--nd-color-text-on-accent);
-  margin-top: 4px;
 }
 
-.stopSequence {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.stopBody {
+.stopActionsRow {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.stopAddress {
-  color: var(--nd-text-primary);
-  font-size: 14px;
-}
-
-.stopMeta {
-  color: var(--nd-text-muted);
-  font-size: 12px;
-  text-transform: capitalize;
-}
-
-.stopActions {
-  display: flex;
-  gap: 8px;
   flex-wrap: wrap;
+  gap: var(--space-2);
   justify-content: flex-end;
+  flex-shrink: 0;
 }
 
-.btnMove,
-.btnEdit,
-.btnDelete {
-  padding: 6px 10px;
-  border-radius: var(--nd-radius-sm);
-  font-size: 12px;
-  cursor: pointer;
+.mapWrap {
+  position: sticky;
+  top: var(--space-6);
 }
 
-.btnMove {
-  border: 1px solid var(--nd-border-default);
-  background: transparent;
-  color: var(--nd-text-secondary);
+.mapTitle {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-base);
+  font-family: var(--font-display);
+  color: var(--text-heading);
 }
 
-.btnEdit {
-  border: 1px solid var(--nd-operator-accent);
-  background: transparent;
-  color: var(--nd-operator-accent);
-}
-
-.btnDelete {
-  border: 1px solid var(--nd-status-danger);
-  background: transparent;
-  color: var(--nd-status-danger);
-}
-
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .stopsLayout {
     grid-template-columns: 1fr;
   }
 
-  .mapPane {
+  .mapWrap {
     position: static;
-  }
-
-  .stopRow {
-    grid-template-columns: 30px 1fr;
-  }
-
-  .stopActions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
   }
 }

@@ -1,7 +1,9 @@
 import './globals.css';
+import './components/ui/tokens.css';
+import './components/ui/components.css';
 import '@aws-amplify/ui-react/styles.css';
 import 'leaflet/dist/leaflet.css';
-import { JetBrains_Mono, Inter, Comfortaa } from 'next/font/google';
+import { JetBrains_Mono, Manrope, Comfortaa } from 'next/font/google';
 import ErrorBoundary from '@/app/components/ErrorBoundary';
 import AmplifyBootstrap from '@/app/components/AmplifyBootstrap';
 import AmplifyAuthProvider from '@/app/components/AmplifyAuthProvider';
@@ -14,9 +16,9 @@ const jetbrainsMono = JetBrains_Mono({
   display: 'swap',
 });
 
-const inter = Inter({
+const manrope = Manrope({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-manrope',
   display: 'swap',
 });
 
@@ -29,7 +31,7 @@ const comfortaa = Comfortaa({
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${jetbrainsMono.variable} ${inter.variable} ${comfortaa.variable}`}>
+    <html lang="en" className={`${jetbrainsMono.variable} ${manrope.variable} ${comfortaa.variable}`}>
       <body>
         <ErrorBoundary>
           <AmplifyBootstrap>

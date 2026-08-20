@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { faHome, faRoad, faFileInvoice, faGear } from '@fortawesome/free-solid-svg-icons';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import PortalLayout from '@/app/components/PortalLayout';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
@@ -11,10 +10,10 @@ import { getCustomerPortalContext, getUserSettings } from '@/lib/queries';
 import { useSessionTimeout, useLogout } from '@/app/auth/sessionManager';
 
 const CUSTOMER_NAV = [
-  { href: '/customer/dashboard', label: 'Dashboard', icon: faHome },
-  { href: '/customer/routes', label: 'Routes', icon: faRoad },
-  { href: '/customer/invoices', label: 'Invoices', icon: faFileInvoice },
-  { href: '/customer/settings', label: 'Settings', icon: faGear },
+  { href: '/customer/dashboard', label: 'Dashboard', icon: 'home' },
+  { href: '/customer/routes', label: 'Routes', icon: 'route' },
+  { href: '/customer/invoices', label: 'Invoices', icon: 'file-text' },
+  { href: '/customer/settings', label: 'Settings', icon: 'settings' },
 ];
 
 /**

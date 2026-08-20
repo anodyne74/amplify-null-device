@@ -41,12 +41,20 @@ export interface Customer {
   agentOptions?: string[] | null;
   status: CustomerStatus;
   billingRatePerHour: number;
+  gstRegistered?: boolean | null;
+  gstAbn?: string;
+  directDebitAccountName?: string;
+  directDebitBsb?: string;
+  directDebitAccountNumber?: string;
+  directDebitAuthorizedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
   routes?: Route[];
   invoices?: Invoice[];
   paymentRecords?: PaymentRecord[];
   users?: CustomerUser[];
+  operatorAvailabilityBlocks?: OperatorAvailabilityBlock[];
+  customerClosureBlocks?: CustomerClosureBlock[];
 }
 
 export interface Operator {
@@ -82,6 +90,9 @@ export interface Route {
   overrideRate?: number | null;
   overrideAmount?: number | null;
   notes?: string;
+  customerInstructions?: string;
+  drivingModeEnabled?: boolean | null;
+  vanCount?: number | null;
   scheduleS3Key?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -207,6 +218,28 @@ export interface UserSettings {
   updatedAt?: string;
 }
 
+export interface OperatorAvailabilityBlock {
+  id: string;
+  customerId: string;
+  date: string;
+  reason?: string;
+  createdByOperatorId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  customer?: Customer;
+}
+
+export interface CustomerClosureBlock {
+  id: string;
+  customerId: string;
+  date: string;
+  reason?: string;
+  createdByUserSub?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  customer?: Customer;
+}
+
 /**
  * Enums and union types from schema
  */
@@ -242,6 +275,12 @@ export interface CreateCustomerInput {
   agentOptions?: string[];
   status: CustomerStatus;
   billingRatePerHour: number;
+  gstRegistered?: boolean;
+  gstAbn?: string;
+  directDebitAccountName?: string;
+  directDebitBsb?: string;
+  directDebitAccountNumber?: string;
+  directDebitAuthorizedAt?: string;
 }
 
 export interface UpdateCustomerInput {
@@ -257,6 +296,12 @@ export interface UpdateCustomerInput {
   agentOptions?: string[];
   status?: CustomerStatus;
   billingRatePerHour?: number;
+  gstRegistered?: boolean;
+  gstAbn?: string;
+  directDebitAccountName?: string;
+  directDebitBsb?: string;
+  directDebitAccountNumber?: string;
+  directDebitAuthorizedAt?: string;
 }
 
 export interface CreateRouteInput {
@@ -284,6 +329,9 @@ export interface UpdateRouteInput {
   signsPlacedDistanceKm?: number;
   signsPickedUpDistanceKm?: number;
   notes?: string;
+  customerInstructions?: string;
+  drivingModeEnabled?: boolean;
+  vanCount?: number;
 }
 
 export interface CreateStopInput {
@@ -355,6 +403,20 @@ export interface CreatePaymentRecordInput {
   referenceNumber: string;
   status: PaymentStatus;
   notes?: string;
+}
+
+export interface CreateOperatorAvailabilityBlockInput {
+  customerId: string;
+  date: string;
+  reason?: string;
+  createdByOperatorId?: string;
+}
+
+export interface CreateCustomerClosureBlockInput {
+  customerId: string;
+  date: string;
+  reason?: string;
+  createdByUserSub?: string;
 }
 
 export interface CreateAuditLogInput {

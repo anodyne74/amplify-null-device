@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { faGauge, faRoad, faUsers, faFileInvoice, faUser, faGear } from '@fortawesome/free-solid-svg-icons';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PortalLayout from '@/app/components/PortalLayout';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
@@ -10,12 +9,12 @@ import { getUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/queries';
 
 const ADMIN_NAV = [
-  { href: '/administrator', label: 'Admin Home', icon: faGauge },
-  { href: '/administrator/routes', label: 'Routes', icon: faRoad },
-  { href: '/administrator/customers', label: 'Customers', icon: faUsers },
-  { href: '/administrator/invoices', label: 'Invoices', icon: faFileInvoice },
-  { href: '/administrator/users', label: 'Users', icon: faUser },
-  { href: '/administrator/settings', label: 'Settings', icon: faGear },
+  { href: '/administrator', label: 'Admin Home', icon: 'layout-dashboard' },
+  { href: '/administrator/routes', label: 'Routes', icon: 'route' },
+  { href: '/administrator/customers', label: 'Customers', icon: 'users' },
+  { href: '/administrator/invoices', label: 'Invoices', icon: 'file-text' },
+  { href: '/administrator/users', label: 'Users', icon: 'user' },
+  { href: '/administrator/settings', label: 'Settings', icon: 'settings' },
 ];
 
 /**

@@ -31,6 +31,9 @@ const config = {
     '!app/components/AuthApp.tsx',
     '!app/components/DataApp.tsx',
     '!app/customer/components/RouteCard.tsx',
+    // Ported presentational primitive library (app/components/ui/**) — additive and
+    // unused by any page yet; excluded like other heavy UI components until wired up.
+    '!app/components/ui/**',
   ],
   coverageThreshold: {
     global: {

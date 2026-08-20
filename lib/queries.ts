@@ -490,6 +490,9 @@ export async function updateRoute(
     overrideRate: number;
     overrideAmount: number;
     notes: string;
+    customerInstructions: string;
+    drivingModeEnabled: boolean;
+    vanCount: number;
     scheduleS3Key: string;
   }>
 ) {
@@ -529,6 +532,15 @@ export interface RouteExecutionUpdateInput {
  */
 export async function updateRouteExecution(routeId: string, updates: RouteExecutionUpdateInput) {
   return updateRoute(routeId, updates);
+}
+
+/**
+ * Customer-facing update: lets a customer user (account_owner or read_only) add or
+ * change their instructions for a route. Scoped to this one field by convention — the
+ * underlying `Route` authorization grant is coarse (see amplify/data/resource.ts).
+ */
+export async function updateRouteCustomerInstructions(routeId: string, customerInstructions: string) {
+  return updateRoute(routeId, { customerInstructions });
 }
 
 export async function deleteRoute(routeId: string) {

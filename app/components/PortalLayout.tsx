@@ -4,15 +4,14 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
+import { Icon } from '@/app/components/ui/core/Icon';
 import ThemeModeSelect from '@/app/components/ThemeModeSelect';
 import styles from './PortalLayout.module.css';
 
 export interface NavItem {
   href: string;
   label: string;
-  icon: IconDefinition;
+  icon: string;
 }
 
 interface PortalLayoutProps {
@@ -124,7 +123,7 @@ export default function PortalLayout({
                     title={item.label}
                     aria-current={isActive ? 'page' : undefined}
                   >
-                    <FontAwesomeIcon icon={item.icon} className={styles.navIcon} />
+                    <Icon name={item.icon} className={styles.navIcon} />
                     <span className={styles.navLabel}>{item.label}</span>
                   </Link>
                 </li>

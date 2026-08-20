@@ -1,7 +1,6 @@
 import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { faGauge, faRoad } from '@fortawesome/free-solid-svg-icons';
 import PortalLayout from '@/app/components/PortalLayout';
 
 const usePathnameMock = jest.fn();
@@ -25,8 +24,8 @@ describe('PortalLayout navigation state', () => {
         variant="operator"
         portalTitle="Administrator Portal"
         navItems={[
-          { href: '/administrator', label: 'Admin Home', icon: faGauge },
-          { href: '/administrator/routes', label: 'Routes', icon: faRoad },
+          { href: '/administrator', label: 'Admin Home', icon: 'layout-dashboard' },
+          { href: '/administrator/routes', label: 'Routes', icon: 'route' },
         ]}
         userEmail=""
         onLogout={jest.fn()}

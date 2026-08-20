@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { faGauge, faRoad, faGear } from '@fortawesome/free-solid-svg-icons';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PortalLayout from '@/app/components/PortalLayout';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
@@ -10,9 +9,9 @@ import { getUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/queries';
 
 const OPERATOR_NAV = [
-  { href: '/operator/dashboard', label: 'Dashboard', icon: faGauge },
-  { href: '/operator/routes', label: 'Routes', icon: faRoad },
-  { href: '/operator/settings', label: 'Settings', icon: faGear },
+  { href: '/operator/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
+  { href: '/operator/routes', label: 'Routes', icon: 'route' },
+  { href: '/operator/settings', label: 'Settings', icon: 'settings' },
 ];
 
 /**

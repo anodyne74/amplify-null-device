@@ -141,7 +141,10 @@
 }
 
 .navIcon {
-  font-size: 2.5rem;
+  /* Lucide icons size via width/height (SVG), not font-size like the FontAwesome
+     glyphs this replaced. */
+  width: 2.5rem;
+  height: 2.5rem;
   flex-shrink: 0;
 }
 

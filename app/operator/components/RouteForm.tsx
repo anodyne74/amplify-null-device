@@ -5,6 +5,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/app/components/ToastProvider';
 import { StopForm } from '@/app/operator/components/StopForm';
 import { geocodeAddress } from '@/lib/googleMaps';
+import { Card } from '@/app/components/ui/core/Card';
+import { Button } from '@/app/components/ui/core/Button';
+import { Field } from '@/app/components/ui/forms/Field';
+import { Input } from '@/app/components/ui/forms/Input';
+import { Select } from '@/app/components/ui/forms/Select';
 import type { Stop } from '@/amplify/types';
 import styles from './RouteForm.module.css';
 
@@ -251,177 +256,159 @@ export function RouteForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
-      {(validationError || error || stopError || copyError) && (
-        <div className={styles.errorBanner}>
-          {validationError || error || stopError || copyError}
-        </div>
-      )}
-
-      <div className={styles.field}>
-        <label htmlFor="routeCode" className={styles.label}>
-          Route ID <span className={styles.required}>*</span>
-        </label>
-        <input
-          id="routeCode"
-          value={routeCode}
-          onChange={(e) => setRouteCode(e.target.value)}
-          className={styles.input}
-          disabled={isSubmitting}
-          placeholder="e.g. W18-26-001"
-        />
-      </div>
-
-      <div className={styles.field}>
-        <label htmlFor="customerId" className={styles.label}>
-          Customer <span className={styles.required}>*</span>
-        </label>
-        <select
-          id="customerId"
-          value={customerId}
-          onChange={(e) => setCustomerId(e.target.value)}
-          className={styles.select}
-          disabled={isSubmitting}
-        >
-          <option value="">Select a customer…</option>
-          {customers.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name} ({c.email})
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className={styles.field}>
-        <label htmlFor="notes" className={styles.label}>
-          Notes
-        </label>
-        <textarea
-          id="notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          className={styles.textarea}
-          disabled={isSubmitting}
-          placeholder="Optional notes…"
-        />
-      </div>
-
-      <div className={styles.stopsSection}>
-        <div className={styles.stopsHeaderRow}>
-          <h2 className={styles.stopsHeading}>Stops</h2>
-          <button
-            type="button"
-            className={styles.btnAddStop}
-            onClick={() => setShowAddStop((v) => !v)}
-            disabled={isSubmitting || addingStop}
-          >
-            {showAddStop ? 'Close Stop Form' : 'Add Stop'}
-          </button>
-        </div>
-
-        {canCopyStops && (
-          <div className={styles.copyStopsRow}>
-            <label htmlFor="copyRouteId" className={styles.copyStopsLabel}>
-              Copy stops from previous route
-            </label>
-            <div className={styles.copyStopsControls}>
-              <select
-                id="copyRouteId"
-                value={selectedCopySourceId}
-                onChange={(e) => {
-                  setSelectedCopySourceId(e.target.value);
-                  setCopyError(null);
-                }}
-                className={styles.select}
-                disabled={!customerId || isSubmitting || copyingStops || copySourcesForCustomer.length === 0}
-              >
-                <option value="">
-                  {!customerId
-                    ? 'Select a customer first...'
-                    : copySourcesForCustomer.length === 0
-                      ? 'No previous routes available'
-                      : 'Choose a route...'}
-                </option>
-                {copySourcesForCustomer.map((route) => (
-                  <option key={route.id} value={route.id}>
-                    {route.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className={styles.btnCopyStops}
-                onClick={handleCopyStops}
-                disabled={isSubmitting || copyingStops || !customerId || !selectedCopySourceId}
-              >
-                {copyingStops ? 'Copying...' : 'Copy Stops'}
-              </button>
-            </div>
+    <Card>
+      <form onSubmit={handleSubmit} noValidate>
+        {(validationError || error || stopError || copyError) && (
+          <div className={styles.errorBanner}>
+            {validationError || error || stopError || copyError}
           </div>
         )}
 
-        {showAddStop && (
-          <div className={styles.stopFormCard}>
-            <StopForm
-              onSubmit={handleAddStop}
-              onCancel={() => setShowAddStop(false)}
-              addressSearchOrigin={customerAddressOrigin}
-              standingInstructions={selectedCustomer?.standingInstructions ?? undefined}
-              defaultNumberOfSigns={selectedCustomer?.defaultNumberOfSigns ?? undefined}
-              defaultAgentName={selectedCustomer?.defaultAgentName ?? undefined}
-              availableAgents={selectedCustomer?.agentOptions ?? undefined}
-              isSubmitting={addingStop}
-              submitLabel="Add Stop to Route"
+        <div className={styles.fieldsStack}>
+          <Field label="Route ID" htmlFor="routeCode" required>
+            <Input
+              id="routeCode"
+              value={routeCode}
+              onChange={(e) => setRouteCode(e.target.value)}
+              disabled={isSubmitting}
+              placeholder="e.g. W18-26-001"
             />
-          </div>
-        )}
+          </Field>
 
-        {stops.length === 0 ? (
-          <p className={styles.emptyStops}>No stops added yet.</p>
-        ) : (
-          <div className={styles.stopsList}>
-            {stops.map((stop, index) => (
-              <div key={`${stop.address}-${index}`} className={styles.stopRow}>
-                <div className={styles.stopSequence}>{index + 1}</div>
-                <div className={styles.stopContent}>
-                  <div className={styles.stopAddress}>{stop.formattedAddress || stop.address}</div>
-                  <div className={styles.stopMeta}>{stop.serviceType}</div>
-                </div>
-                <button
-                  type="button"
-                  className={styles.btnRemoveStop}
-                  onClick={() => removeStop(index)}
-                  disabled={isSubmitting}
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+          <Field label="Customer" htmlFor="customerId" required>
+            <Select
+              id="customerId"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+              disabled={isSubmitting}
+            >
+              <option value="">Select a customer…</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.email})
+                </option>
+              ))}
+            </Select>
+          </Field>
 
-        <div className={styles.mapSection}>
-          <RouteStopsMap stops={mapStops} />
+          <Field label="Notes" htmlFor="notes">
+            <Input
+              id="notes"
+              multiline
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              disabled={isSubmitting}
+              placeholder="Optional notes…"
+            />
+          </Field>
         </div>
-      </div>
 
-      <div className={styles.actions}>
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className={styles.btnSubmit}
-        >
-          {isSubmitting ? 'Creating…' : 'Create Route'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={isSubmitting}
-          className={styles.btnCancel}
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
+        <div className={styles.stopsSection}>
+          <div className={styles.stopsHeaderRow}>
+            <h2 className={styles.stopsHeading}>Stops</h2>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setShowAddStop((v) => !v)}
+              disabled={isSubmitting || addingStop}
+            >
+              {showAddStop ? 'Close Stop Form' : 'Add Stop'}
+            </Button>
+          </div>
+
+          {canCopyStops && (
+            <Field label="Copy stops from previous route" htmlFor="copyRouteId" className={styles.copyStopsRow}>
+              <div className={styles.copyStopsControls}>
+                <Select
+                  id="copyRouteId"
+                  value={selectedCopySourceId}
+                  onChange={(e) => {
+                    setSelectedCopySourceId(e.target.value);
+                    setCopyError(null);
+                  }}
+                  disabled={!customerId || isSubmitting || copyingStops || copySourcesForCustomer.length === 0}
+                >
+                  <option value="">
+                    {!customerId
+                      ? 'Select a customer first...'
+                      : copySourcesForCustomer.length === 0
+                        ? 'No previous routes available'
+                        : 'Choose a route...'}
+                  </option>
+                  {copySourcesForCustomer.map((route) => (
+                    <option key={route.id} value={route.id}>
+                      {route.label}
+                    </option>
+                  ))}
+                </Select>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  loading={copyingStops}
+                  onClick={handleCopyStops}
+                  disabled={isSubmitting || copyingStops || !customerId || !selectedCopySourceId}
+                >
+                  {copyingStops ? 'Copying...' : 'Copy Stops'}
+                </Button>
+              </div>
+            </Field>
+          )}
+
+          {showAddStop && (
+            <div className={styles.stopFormCard}>
+              <StopForm
+                onSubmit={handleAddStop}
+                onCancel={() => setShowAddStop(false)}
+                addressSearchOrigin={customerAddressOrigin}
+                standingInstructions={selectedCustomer?.standingInstructions ?? undefined}
+                defaultNumberOfSigns={selectedCustomer?.defaultNumberOfSigns ?? undefined}
+                defaultAgentName={selectedCustomer?.defaultAgentName ?? undefined}
+                availableAgents={selectedCustomer?.agentOptions ?? undefined}
+                isSubmitting={addingStop}
+                submitLabel="Add Stop to Route"
+              />
+            </div>
+          )}
+
+          {stops.length === 0 ? (
+            <p className={styles.emptyStops}>No stops added yet.</p>
+          ) : (
+            <div className={styles.stopsList}>
+              {stops.map((stop, index) => (
+                <div key={`${stop.address}-${index}`} className={styles.stopRow}>
+                  <div className={styles.stopSequence}>{index + 1}</div>
+                  <div className={styles.stopContent}>
+                    <div className={styles.stopAddress}>{stop.formattedAddress || stop.address}</div>
+                    <div className={styles.stopMeta}>{stop.serviceType}</div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    onClick={() => removeStop(index)}
+                    disabled={isSubmitting}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className={styles.mapSection}>
+            <RouteStopsMap stops={mapStops} />
+          </div>
+        </div>
+
+        <div className={styles.actions}>
+          <Button type="submit" loading={isSubmitting} disabled={isSubmitting}>
+            {isSubmitting ? 'Creating…' : 'Create Route'}
+          </Button>
+          <Button type="button" variant="secondary" onClick={onCancel} disabled={isSubmitting}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Card>
   );
 }

@@ -6,7 +6,11 @@ import { useAuthenticator } from '@aws-amplify/ui-react';
 import { getUserDisplayName } from '@/lib/amplify-config';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import type { Route } from '@/amplify/types';
-import styles from '@/app/dashboard.module.css';
+import PageHeader from '@/app/operator/components/PageHeader';
+import { RouteStatusPill } from '@/app/operator/components/RouteStatusPill';
+import { Card } from '@/app/components/ui/core/Card';
+import { StatTile } from '@/app/components/ui/data/StatTile';
+import styles from './page.module.css';
 
 function formatDate(dateString?: string | null) {
   if (!dateString) return '—';
@@ -57,57 +61,37 @@ export default function OperatorDashboard() {
 
   return (
     <div className={styles.page}>
-      <div>
-        <h1 className={styles.heading}>Operator Portal</h1>
-        <p className={styles.welcome}>
-          Welcome,{userDisplayName ? ` ${userDisplayName}.` : ''} Review active work and pick up the next route.
-        </p>
-      </div>
+      <PageHeader
+        title="Operator Portal"
+        subtitle={`Welcome,${userDisplayName ? ` ${userDisplayName}.` : ''} Review active work and pick up the next route.`}
+      />
 
       <div className={styles.statsGrid}>
-        <div className={styles.statCard}>
-          <p className={styles.statLabel}>Active Routes</p>
-          <p className={`${styles.statValue} ${styles.green}`}>{activeRoutes.length}</p>
-        </div>
-        <div className={styles.statCard}>
-          <p className={styles.statLabel}>Planned Routes</p>
-          <p className={`${styles.statValue} ${styles.cyan}`}>{plannedRoutes.length}</p>
-        </div>
-        <div className={styles.statCard}>
-          <p className={styles.statLabel}>Execution Queue</p>
-          <p className={`${styles.statValue} ${styles.amber}`}>{priorityRoutes.length}</p>
-        </div>
+        <StatTile label="Active routes" value={loading ? '…' : activeRoutes.length} icon="route" />
+        <StatTile label="Planned routes" value={loading ? '…' : plannedRoutes.length} icon="clipboard-list" />
+        <StatTile label="Execution queue" value={loading ? '…' : priorityRoutes.length} icon="timer" />
       </div>
 
-      <div className={styles.infoPanel}>
-        <h3>Route Execution</h3>
-        <p className={styles.welcome}>Optimized for phone usage. Tap a route to continue stop progression.</p>
-
+      <Card title="Route Execution" subtitle="Optimized for phone usage. Tap a route to continue stop progression.">
         {loading ? (
-          <p className={styles.welcome}>Loading routes...</p>
+          <p className={styles.mutedText}>Loading routes...</p>
         ) : priorityRoutes.length === 0 ? (
-          <p className={styles.welcome}>No planned or active routes available.</p>
+          <p className={styles.mutedText}>No planned or active routes available.</p>
         ) : (
-          <div className={styles.mobileRouteList}>
+          <div className={styles.trackerList}>
             {priorityRoutes.map((route) => (
-              <Link
-                key={route.id}
-                href={`/operator/routes/detail?id=${route.id}`}
-                className={styles.mobileRouteCard}
-              >
-                <div className={styles.mobileRouteTopRow}>
+              <Link key={route.id} href={`/operator/routes/detail?id=${route.id}`} className={styles.trackerCard}>
+                <div className={styles.trackerTopRow}>
                   <strong>{route.routeCode || route.id.slice(0, 8)}</strong>
-                  <span className={route.status === 'in_progress' || route.status === 'signs_placed' || route.status === 'signs_picked_up' ? styles.routeStatusActive : styles.routeStatusPlanned}>
-                    {(route.status || 'planned').replace(/_/g, ' ')}
-                  </span>
+                  <RouteStatusPill status={route.status} />
                 </div>
-                <div className={styles.mobileRouteMeta}>Created: {formatDate(route.createdAt)}</div>
-                <div className={styles.mobileRouteAction}>Open Route</div>
+                <div className={styles.trackerMeta}>Created: {formatDate(route.createdAt)}</div>
+                <div className={styles.trackerAction}>Open Route</div>
               </Link>
             ))}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

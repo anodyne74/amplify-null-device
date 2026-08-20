@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import PortalLayout from '@/app/components/PortalLayout';
+import OperatorShell from '@/app/operator/components/OperatorShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { getUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/queries';
@@ -56,17 +56,9 @@ export default function OperatorLayout({ children }: { children: React.ReactNode
 
   return (
     <OperatorRoute>
-      <PortalLayout
-        variant="operator"
-        portalTitle="Operator Portal"
-        navItems={OPERATOR_NAV}
-        userEmail={userDisplayName}
-        onLogout={signOut}
-        confirmLogout
-        role="operator"
-      >
+      <OperatorShell navItems={OPERATOR_NAV} userEmail={userDisplayName} onLogout={signOut}>
         {children}
-      </PortalLayout>
+      </OperatorShell>
     </OperatorRoute>
   );
 }

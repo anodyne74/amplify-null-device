@@ -1,0 +1,24 @@
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+  margin-bottom: var(--space-7);
+}
+
+.title {
+  font-size: var(--text-3xl);
+}
+
+.subtitle {
+  color: var(--text-muted);
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.actions {
+  flex: none;
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-4);
+  padding-top: var(--space-2);
+}

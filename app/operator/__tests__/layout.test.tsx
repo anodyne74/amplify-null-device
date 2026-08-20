@@ -20,21 +20,18 @@ jest.mock('@/app/components/OperatorRoute', () => {
   };
 });
 
-jest.mock('@/app/components/PortalLayout', () => {
-  return function MockPortalLayout({
-    portalTitle,
+jest.mock('@/app/operator/components/OperatorShell', () => {
+  return function MockOperatorShell({
     navItems,
     userEmail,
     children,
   }: {
-    portalTitle: string;
     navItems: Array<{ href: string; label: string; icon: unknown }>;
     userEmail: string;
     children: React.ReactNode;
   }) {
     return (
       <div>
-        <div data-testid="portal-title">{portalTitle}</div>
         <div data-testid="user-email">{userEmail}</div>
         <nav data-testid="nav">
           {navItems.map((item) => (
@@ -56,16 +53,6 @@ describe('OperatorLayout', () => {
       signOut: jest.fn(),
       user: null,
     });
-  });
-
-  it('renders operator portal title', () => {
-    render(
-      <OperatorLayout>
-        <div>Test content</div>
-      </OperatorLayout>
-    );
-
-    expect(screen.getByTestId('portal-title')).toHaveTextContent('Operator Portal');
   });
 
   it('shows operator navigation only', () => {

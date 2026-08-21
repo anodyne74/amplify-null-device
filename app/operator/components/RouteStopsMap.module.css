@@ -1,36 +1,30 @@
 .wrapper {
   display: flex;
   flex-direction: column;
-  gap: var(--nd-space-md);
+  gap: var(--space-4);
 }
 
 .map {
   width: 100%;
   height: 360px;
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-lg);
+  border: var(--border-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
 .mapField {
   height: min(48dvh, 520px);
   min-height: 360px;
-  border-color: color-mix(in srgb, var(--nd-operator-accent) 34%, var(--nd-border-subtle));
+  border-color: color-mix(in srgb, var(--indigo-500) 34%, var(--border-subtle));
 }
 
 .emptyState {
-  padding: var(--nd-space-xl);
-  border: 1px dashed var(--nd-border-default);
-  border-radius: var(--nd-radius-lg);
-  color: var(--nd-text-secondary);
+  padding: var(--space-9);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-lg);
+  color: var(--text-muted);
   text-align: center;
-  background: var(--nd-bg-surface);
-}
-
-.sequenceLabel {
-  color: var(--nd-color-text-on-accent);
-  font-size: 11px;
-  font-weight: 700;
+  background: var(--surface-hover);
 }
 
 .stopMarkerIcon {
@@ -45,13 +39,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--nd-color-text-on-accent);
+  color: var(--text-on-brand);
   font-weight: 800;
   font-size: 12px;
   line-height: 1;
   box-sizing: border-box;
-  border: 2px solid color-mix(in srgb, var(--nd-color-bg-canvas) 22%, transparent);
-  transition: transform var(--nd-transition-fast), box-shadow var(--nd-transition-fast);
+  border: 2px solid color-mix(in srgb, var(--surface-page) 22%, transparent);
+  transition: var(--transition-control);
 }
 
 .stopMarkerLabel {
@@ -60,24 +54,24 @@
 }
 
 .stopMarkerDelivery {
-  background: var(--nd-status-active);
+  background: var(--indigo-400);
 }
 
 .stopMarkerPickup {
-  background: var(--nd-operator-accent);
+  background: var(--amber-400);
 }
 
 .stopMarkerInspection {
-  background: var(--nd-customer-accent);
+  background: var(--violet-500);
 }
 
 .stopMarkerActive {
   transform: scale(1.18);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--nd-operator-accent) 92%, transparent), var(--nd-shadow-md);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--map-marker-selected) 92%, transparent), var(--shadow-md);
 }
 
 .stopMarkerUpcoming {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nd-text-primary) 28%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-heading) 28%, transparent);
 }
 
 .stopMarkerCompleted {
@@ -86,7 +80,7 @@
 }
 
 .deviceLabel {
-  color: var(--nd-text-primary);
+  color: var(--text-heading);
   font-size: 12px;
   font-weight: 600;
 }

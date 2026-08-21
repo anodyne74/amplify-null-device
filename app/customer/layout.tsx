@@ -14,6 +14,7 @@ const CUSTOMER_NAV = [
   { href: '/customer/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
   { href: '/customer/routes', label: 'Routes', icon: 'route' },
   { href: '/customer/invoices', label: 'Invoices', icon: 'file-text' },
+  { href: '/customer/calendar', label: 'Calendar', icon: 'calendar' },
   { href: '/customer/orders', label: 'Standing Orders', icon: 'clipboard-list' },
   { href: '/customer/billing-details', label: 'Billing Details', icon: 'receipt' },
   { href: '/customer/settings', label: 'Settings', icon: 'settings' },

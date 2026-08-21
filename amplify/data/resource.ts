@@ -349,6 +349,10 @@ const schema = a.schema({
       date: a.date().required(),
       reason: a.string(),
       createdByOperatorId: a.id(),
+      // Cognito subs of the target customer's users — stamped at creation from
+      // Customer.viewerSubs, grants read access. customerId itself can't be used
+      // with ownerDefinedIn since it's a foreign key, not a Cognito sub.
+      viewerSubs: a.string().array(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
@@ -357,7 +361,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']), // customer views, can't write
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']), // customer views, can't write
     ]),
 
   /**
@@ -371,15 +375,21 @@ const schema = a.schema({
       date: a.date().required(),
       reason: a.string(),
       createdByUserSub: a.string(),
+      // account_owner's sub, stamped at creation — grants that user read/write.
+      // customerId itself can't be used with ownerDefinedIn since it's a foreign
+      // key, not a Cognito sub.
+      accountOwnerSub: a.string(),
+      // Every customer user's sub for this customer, stamped at creation from
+      // Customer.viewerSubs — grants read access to read_only users too.
+      viewerSubs: a.string().array(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
       customer: a.belongsTo('Customer', 'customerId'),
     })
     .authorization((allow) => [
-      // Coarse across both account_owner and read_only CustomerUser sub-roles — not
-      // distinguishable at this layer, same limitation as elsewhere in this schema.
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read', 'create', 'update', 'delete']),
+      allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read', 'create', 'update', 'delete']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read']),
       allow.groups(['operator']).to(['read']),
     ]),

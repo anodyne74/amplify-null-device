@@ -239,6 +239,7 @@ export interface OperatorAvailabilityBlock {
   date: string;
   reason?: string;
   createdByOperatorId?: string;
+  viewerSubs?: string[] | null;
   createdAt?: string;
   updatedAt?: string;
   customer?: Customer;
@@ -250,6 +251,8 @@ export interface CustomerClosureBlock {
   date: string;
   reason?: string;
   createdByUserSub?: string;
+  accountOwnerSub?: string | null;
+  viewerSubs?: string[] | null;
   createdAt?: string;
   updatedAt?: string;
   customer?: Customer;

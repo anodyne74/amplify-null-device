@@ -51,6 +51,16 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     Users?: UserType[];
   }
 
+  export interface ListUsersInGroupCommandInput {
+    UserPoolId: string;
+    GroupName: string;
+    Limit?: number;
+  }
+
+  export interface ListUsersInGroupCommandOutput {
+    Users?: UserType[];
+  }
+
   export class AdminAddUserToGroupCommand {
     readonly __brand_AdminAddUserToGroupCommand?: true;
     constructor(input: AdminAddUserToGroupCommandInput);
@@ -71,11 +81,17 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     constructor(input: ListUsersCommandInput);
   }
 
+  export class ListUsersInGroupCommand {
+    readonly __brand_ListUsersInGroupCommand?: true;
+    constructor(input: ListUsersInGroupCommandInput);
+  }
+
   export class CognitoIdentityProviderClient {
     constructor(config?: Record<string, unknown>);
     send(command: AdminAddUserToGroupCommand): Promise<void>;
     send(command: AdminRemoveUserFromGroupCommand): Promise<void>;
     send(command: AdminListGroupsForUserCommand): Promise<AdminListGroupsForUserCommandOutput>;
     send(command: ListUsersCommand): Promise<ListUsersCommandOutput>;
+    send(command: ListUsersInGroupCommand): Promise<ListUsersInGroupCommandOutput>;
   }
 }

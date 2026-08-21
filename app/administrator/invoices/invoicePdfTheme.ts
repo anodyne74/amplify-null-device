@@ -2,14 +2,14 @@ export type PdfRgb = [number, number, number];
 
 export const CUSTOMER_PORTAL_INVOICE_PDF_THEME = {
   colors: {
-    header: [0, 77, 96] as PdfRgb,
-    headerText: [241, 253, 255] as PdfRgb,
-    text: [15, 23, 42] as PdfRgb,
-    muted: [71, 85, 105] as PdfRgb,
-    border: [203, 213, 225] as PdfRgb,
-    secondary: [248, 250, 252] as PdfRgb,
-    accent: [230, 250, 253] as PdfRgb,
-    accentStrong: [204, 245, 250] as PdfRgb,
+    header: [20, 27, 56] as PdfRgb, // navy #141B38
+    headerText: [255, 255, 255] as PdfRgb,
+    text: [43, 49, 80] as PdfRgb, // neutral-800 #2B3150
+    muted: [90, 97, 128] as PdfRgb, // neutral-600 #5A6180
+    border: [223, 226, 238] as PdfRgb, // neutral-200 #DFE2EE
+    secondary: [246, 247, 251] as PdfRgb, // neutral-50 #F6F7FB
+    accent: [238, 240, 254] as PdfRgb, // indigo-50 #EEF0FE
+    accentStrong: [223, 226, 253] as PdfRgb, // indigo-100 #DFE2FD
   },
   fonts: {
     regular: 'helvetica',

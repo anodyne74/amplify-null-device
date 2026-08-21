@@ -52,6 +52,12 @@
   gap: var(--space-3);
 }
 
+.successText {
+  font-size: var(--text-sm);
+  color: var(--status-success-fg);
+  margin-top: var(--space-3);
+}
+
 .stopsHeaderRow {
   display: flex;
   align-items: center;

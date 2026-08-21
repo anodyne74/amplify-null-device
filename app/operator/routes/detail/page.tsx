@@ -1296,6 +1296,10 @@ function RouteDetailContent() {
                 <span className="nd-stat__label">Kilometers</span>
                 <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</span>
               </div>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Assigned Operator</span>
+                <span className="nd-stat__value" style={{ fontSize: 16 }}>{route.assignedOperatorName || 'Unassigned'}</span>
+              </div>
             </div>
 
             <div className={styles.phaseOverrideGrid}>

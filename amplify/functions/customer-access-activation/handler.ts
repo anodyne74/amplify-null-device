@@ -7,10 +7,51 @@ import {
   AdminListGroupsForUserCommand,
   CognitoIdentityProviderClient,
 } from '@aws-sdk/client-cognito-identity-provider';
+import { SendTemplatedEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import type { Schema } from '../../data/resource';
 
 const PENDING_SUB_PREFIX = 'pending:';
 const cognitoClient = new CognitoIdentityProviderClient({});
+const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
+
+function sanitizeNamePart(value: string, fallback: string) {
+  const cleaned = value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return cleaned || fallback;
+}
+
+const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || '', '');
+const defaultWelcomeTemplateName = branchName
+  ? `NullDeviceWelcomeTemplate-${branchName}`
+  : 'NullDeviceWelcomeTemplate';
+const welcomeTemplateName = process.env.SES_WELCOME_TEMPLATE_NAME || defaultWelcomeTemplateName;
+
+async function sendWelcomeEmail(recipientEmail: string, customerName: string) {
+  const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nulldevice.dev').replace(/\/$/, '');
+  const senderEmail = process.env.SES_SENDER_EMAIL || 'no-reply.nulldevice.dev';
+
+  try {
+    await sesClient.send(
+      new SendTemplatedEmailCommand({
+        Source: senderEmail,
+        Destination: { ToAddresses: [recipientEmail] },
+        Template: welcomeTemplateName,
+        TemplateData: JSON.stringify({
+          customerName,
+          logoUrl: `${appBaseUrl}/logo.svg`,
+          portalUrl: `${appBaseUrl}/customer`,
+          year: String(new Date().getFullYear()),
+        }),
+      })
+    );
+  } catch (error) {
+    // Non-blocking: activation must succeed even if the welcome email fails to send.
+    console.error('Error sending welcome email:', error);
+  }
+}
 type RuntimeDataEnv = {
   AWS_ACCESS_KEY_ID: string;
   AWS_SECRET_ACCESS_KEY: string;
@@ -150,6 +191,12 @@ export const handler: PostConfirmationTriggerHandler = async (event) => {
         updatedAt: new Date().toISOString(),
       });
     }
+  }
+
+  if (ownerSubRekeys.size > 0) {
+    const [customerId] = ownerSubRekeys.keys();
+    const { data: customer } = await client.models.Customer.get({ id: customerId });
+    await sendWelcomeEmail(email, customer?.companyName || customer?.name || 'there');
   }
 
   for (const customerId of affectedCustomerIds) {

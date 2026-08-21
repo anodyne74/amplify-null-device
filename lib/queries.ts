@@ -494,6 +494,10 @@ export async function updateRoute(
     drivingModeEnabled: boolean;
     vanCount: number;
     scheduleS3Key: string;
+    assignedOperatorSub: string | null;
+    assignedOperatorName: string | null;
+    assignedOperatorEmail: string | null;
+    assignedAt: string | null;
   }>
 ) {
   try {

@@ -120,6 +120,33 @@ async function syncViewerSubsForCustomer(customerId: string, viewerSubs: string[
       await client.models.Stop.update({ id: stop.id, viewerSubs });
     }
   }
+
+  const { data: invoices } = await client.models.Invoice.list({
+    filter: { customerId: { eq: customerId } },
+    limit: 1000,
+  });
+  for (const invoice of invoices || []) {
+    if (!invoice?.id) continue;
+    await client.models.Invoice.update({ id: invoice.id, viewerSubs });
+  }
+
+  const { data: lineItems } = await client.models.LineItem.list({
+    filter: { customerId: { eq: customerId } },
+    limit: 1000,
+  });
+  for (const lineItem of lineItems || []) {
+    if (!lineItem?.id) continue;
+    await client.models.LineItem.update({ id: lineItem.id, viewerSubs });
+  }
+
+  const { data: paymentRecords } = await client.models.PaymentRecord.list({
+    filter: { customerId: { eq: customerId } },
+    limit: 1000,
+  });
+  for (const paymentRecord of paymentRecords || []) {
+    if (!paymentRecord?.id) continue;
+    await client.models.PaymentRecord.update({ id: paymentRecord.id, viewerSubs });
+  }
 }
 
 export const handler: PostConfirmationTriggerHandler = async (event) => {

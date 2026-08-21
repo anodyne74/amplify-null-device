@@ -1,8 +1,8 @@
 import '@testing-library/jest-dom';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Route, Stop } from '@/amplify/types';
 import RouteDetailContent from '../[id]/_RouteDetailContent';
-import { getCustomerPortalContext, getRouteWithStops } from '@/lib/queries';
+import { getCustomerPortalContext, getRouteWithStops, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
 
 jest.mock('@aws-amplify/ui-react', () => ({
   useAuthenticator: () => ({
@@ -36,6 +36,8 @@ jest.mock('@/lib/queries/GetRouteDetail', () => ({
 jest.mock('@/lib/queries', () => ({
   getCustomerPortalContext: jest.fn(),
   getRouteWithStops: jest.fn(),
+  updateRouteCustomerInstructions: jest.fn(),
+  updateRoute: jest.fn(),
 }));
 
 jest.mock('@/app/operator/components/RouteStopsMap', () => ({
@@ -78,6 +80,8 @@ describe('Customer route detail tracker', () => {
       address: '100 First St',
       latitude: -37.8136,
       longitude: 144.9631,
+      serviceType: 'delivery',
+      numberOfSigns: 5,
       actualDepartureTime: '2024-01-15T11:00:00Z',
     },
     {
@@ -87,6 +91,8 @@ describe('Customer route detail tracker', () => {
       address: '200 Second St',
       latitude: -37.8236,
       longitude: 144.9731,
+      serviceType: 'delivery',
+      numberOfSigns: 3,
     },
     {
       id: 'stop-3',
@@ -95,6 +101,8 @@ describe('Customer route detail tracker', () => {
       address: '300 Third St',
       latitude: -37.8336,
       longitude: 144.9831,
+      serviceType: 'delivery',
+      numberOfSigns: 4,
     },
   ] as Stop[];
 
@@ -109,6 +117,8 @@ describe('Customer route detail tracker', () => {
       stops,
       errors: [],
     });
+    (updateRouteCustomerInstructions as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
+    (updateRoute as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
   });
 
   it('lets a read-only customer user view their route tracker with map and stops', async () => {
@@ -126,5 +136,59 @@ describe('Customer route detail tracker', () => {
     await waitFor(() => {
       expect(getRouteWithStops).toHaveBeenCalledWith('route-1');
     });
+
+    expect(screen.getByText('Signs out')).toBeInTheDocument();
+    expect(screen.getByText('12')).toBeInTheDocument();
+    expect(screen.getByText('1/3')).toBeInTheDocument();
+  });
+
+  it('lets a customer save special instructions for the route', async () => {
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+
+    const instructionsField = screen.getByLabelText(/special instructions for this route/i);
+    fireEvent.change(instructionsField, { target: { value: 'Leave signs at side gate' } });
+    fireEvent.click(screen.getByRole('button', { name: /save instructions/i }));
+
+    await waitFor(() => {
+      expect(updateRouteCustomerInstructions).toHaveBeenCalledWith('route-1', 'Leave signs at side gate');
+    });
+
+    expect(await screen.findByText(/instructions saved/i)).toBeInTheDocument();
+  });
+
+  it('only shows the feedback card for a completed route, and lets a customer send it', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: { ...route, status: 'completed' },
+      stops,
+      errors: [],
+    });
+
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+
+    expect(screen.getByRole('heading', { name: /how did this route go\?/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^all good$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /send feedback/i }));
+
+    await waitFor(() => {
+      expect(updateRoute).toHaveBeenCalledWith('route-1', {
+        customerFeedbackTone: 'good',
+        customerFeedbackNote: '',
+      });
+    });
+
+    expect(await screen.findByText(/feedback sent/i)).toBeInTheDocument();
+  });
+
+  it('hides the feedback card for a route that is not completed', async () => {
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+
+    expect(screen.queryByRole('heading', { name: /how did this route go\?/i })).not.toBeInTheDocument();
   });
 });

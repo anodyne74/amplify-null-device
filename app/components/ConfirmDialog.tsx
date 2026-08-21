@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { Button } from '@/app/components/ui/core/Button';
 import styles from './ConfirmDialog.module.css';
 
 interface ConfirmDialogProps {
@@ -79,43 +80,50 @@ export default function ConfirmDialog({
 
   return (
     <div
-      className={styles.backdrop}
+      className="nd-dialog__scrim"
       onClick={(event) => {
         if (event.target === event.currentTarget && !busy) onCancel();
       }}
     >
       <div
         ref={dialogRef}
-        className={styles.dialog}
+        className="nd-dialog"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-message"
       >
-        <h2 id="confirm-dialog-title" className={styles.title}>
-          {title}
-        </h2>
-        <p id="confirm-dialog-message" className={styles.message}>
-          {message}
-        </p>
-        <div className={styles.actions}>
+        <div className="nd-dialog__header">
+          <div>
+            <h2 id="confirm-dialog-title" className="nd-dialog__title">
+              {title}
+            </h2>
+            <p id="confirm-dialog-message" className="nd-dialog__desc">
+              {message}
+            </p>
+          </div>
+        </div>
+        <div className={`nd-dialog__footer ${styles.actions}`}>
+          {/* Plain button (not the Button primitive, which doesn't forward refs) —
+              this ref drives the open/close focus management above. */}
           <button
             ref={cancelButtonRef}
             type="button"
-            className={styles.cancelButton}
+            className="nd-btn nd-btn--secondary nd-btn--md"
             onClick={onCancel}
             disabled={busy}
           >
             {cancelLabel}
           </button>
-          <button
+          <Button
             type="button"
-            className={tone === 'danger' ? styles.dangerButton : styles.confirmButton}
+            variant={tone === 'danger' ? 'danger' : 'primary'}
+            loading={busy}
             onClick={onConfirm}
             disabled={busy}
           >
             {busy ? 'Working…' : confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

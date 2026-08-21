@@ -1,6 +1,7 @@
 'use client';
 
 import React, { ReactNode } from 'react';
+import { Button } from '@/app/components/ui/core/Button';
 import styles from './ErrorBoundary.module.css';
 
 interface Props {
@@ -38,9 +39,9 @@ export default class ErrorBoundary extends React.Component<Props, State> {
           <p className={styles.message}>
             {this.state.error?.message || 'An unexpected error occurred. Please try refreshing the page.'}
           </p>
-          <button className={styles.refreshButton} onClick={() => window.location.reload()}>
+          <Button type="button" onClick={() => window.location.reload()}>
             Refresh Page
-          </button>
+          </Button>
         </div>
       );
     }

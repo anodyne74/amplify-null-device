@@ -49,7 +49,7 @@ describe('ToastProvider', () => {
     });
     expect(screen.getByRole('alert')).toHaveTextContent('Failed');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss notification' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 

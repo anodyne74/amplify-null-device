@@ -2,6 +2,7 @@
 
 import { useId } from 'react';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
+import { Select } from '@/app/components/ui/forms/Select';
 import styles from './ThemeModeSelect.module.css';
 
 interface ThemeModeSelectProps {
@@ -18,9 +19,9 @@ export default function ThemeModeSelect({ className, label = 'Theme' }: ThemeMod
       <label className={styles.label} htmlFor={id}>
         {label}
       </label>
-      <select
+      <Select
         id={id}
-        className={styles.select}
+        size="sm"
         value={mode}
         onChange={(event) => {
           setMode(event.target.value as 'system' | 'light' | 'dark');
@@ -29,7 +30,7 @@ export default function ThemeModeSelect({ className, label = 'Theme' }: ThemeMod
         <option value="system">System</option>
         <option value="dark">Dark</option>
         <option value="light">Light</option>
-      </select>
+      </Select>
     </div>
   );
 }

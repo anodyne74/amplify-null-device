@@ -1,32 +1,14 @@
 .wrapper {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .label {
   margin: 0;
-  font-size: 0.65rem;
-  font-family: var(--nd-font-mono);
-  letter-spacing: 0.1em;
+  font-size: var(--text-2xs);
+  letter-spacing: var(--ls-caps);
   text-transform: uppercase;
-  color: var(--nd-text-muted);
-}
-
-.select {
-  width: 100%;
-  background: var(--nd-bg-elevated);
-  color: var(--nd-text-primary);
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  padding: 7px 9px;
-  font-family: var(--nd-font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.03em;
-}
-
-.select option,
-.select optgroup {
-  background: var(--nd-bg-elevated);
-  color: var(--nd-text-primary);
+  color: var(--text-subtle);
+  font-weight: var(--fw-semibold);
 }

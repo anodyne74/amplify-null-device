@@ -1,85 +1,45 @@
 .field {
-  margin-bottom: var(--nd-space-md);
-}
-
-.label {
-  display: block;
-  margin-bottom: var(--nd-space-xs);
-  font-family: var(--nd-font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--nd-text-muted);
-}
-
-.required {
-  color: var(--nd-status-danger);
-}
-
-.input,
-.select,
-.textarea {
-  width: 100%;
-  padding: 8px 12px;
-  background-color: var(--nd-bg-elevated);
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-md);
-  font-size: 14px;
-  color: var(--nd-text-primary);
-  box-sizing: border-box;
-  transition: border-color var(--nd-transition-fast);
-}
-
-.input:focus,
-.select:focus,
-.textarea:focus {
-  outline: none;
-  border-color: var(--nd-accent-primary);
-  box-shadow: var(--nd-accent-primary-glow);
-}
-
-.input:disabled,
-.select:disabled,
-.textarea:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.textarea {
-  min-height: 80px;
-  resize: vertical;
+  margin-bottom: var(--space-5);
 }
 
 .instructionsBox {
-  margin-bottom: var(--nd-space-md);
-  padding: 12px;
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-md);
-  background: color-mix(in srgb, var(--nd-bg-elevated) 85%, var(--nd-customer-accent) 15%);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  border: var(--border-hairline) solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-brand-subtle);
 }
 
 .instructionsLabel {
-  margin-bottom: 6px;
-  font-family: var(--nd-font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
   text-transform: uppercase;
-  color: var(--nd-text-muted);
+  color: var(--text-subtle);
 }
 
 .instructionsText {
   margin: 0;
-  color: var(--nd-text-primary);
-  font-size: 14px;
+  color: var(--text-body);
+  font-size: var(--text-sm);
   line-height: 1.5;
+}
+
+.agentLabel {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-subtle);
 }
 
 .agentBadgeGroup {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .agentBadge {
@@ -88,14 +48,16 @@
   justify-content: center;
   min-width: 34px;
   height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--nd-border-default);
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
+  padding: 0 var(--space-3);
+  border: var(--border-hairline) solid var(--border-default);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-bold);
   letter-spacing: 0.04em;
   cursor: pointer;
-  transition: border-color var(--nd-transition-fast), transform var(--nd-transition-fast), color var(--nd-transition-fast);
+  background: var(--surface-card);
+  color: var(--text-body);
+  transition: var(--transition-control);
   white-space: nowrap;
   box-sizing: border-box;
 }
@@ -107,92 +69,48 @@
 }
 
 .agentBadgeSelected {
-  border-color: var(--nd-accent-primary);
+  border-color: var(--border-brand);
   transform: translateY(-1px);
-  box-shadow: var(--nd-accent-primary-glow);
+  box-shadow: var(--focus-ring);
 }
 
 .agentHint {
   margin: 0;
-  color: var(--nd-text-muted);
-  font-size: 13px;
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
 }
 
 .actions {
   display: flex;
-  gap: 12px;
-}
-
-.btnSubmit {
-  padding: 10px 24px;
-  background-color: var(--nd-accent-primary);
-  color: var(--nd-text-inverse);
-  border: none;
-  border-radius: var(--nd-radius-md);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity var(--nd-transition-fast);
-}
-
-.btnSubmit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btnCancel {
-  padding: 10px 24px;
-  background-color: transparent;
-  color: var(--nd-text-secondary);
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-md);
-  font-size: 14px;
-  cursor: pointer;
-  transition: border-color var(--nd-transition-fast);
-}
-
-.btnCancel:hover {
-  border-color: var(--nd-border-strong);
-}
-
-.btnCancel:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  gap: var(--space-4);
 }
 
 .fieldError {
-  margin: var(--nd-space-xs) 0 0;
-  font-size: 13px;
-  color: var(--nd-status-danger);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--status-danger-fg);
 }
 
 .errorBanner {
-  padding: 12px;
-  background-color: var(--nd-status-danger-dim);
-  color: var(--nd-status-danger);
-  border-radius: var(--nd-radius-md);
-  margin-bottom: var(--nd-space-md);
-  font-size: 14px;
-  border: 1px solid var(--nd-status-danger);
+  padding: var(--space-4);
+  background-color: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-5);
+  font-size: var(--text-sm);
+  border: var(--border-hairline) solid var(--status-danger-fg);
 }
 
 @media (max-width: 640px) {
   .agentBadgeGroup {
-    gap: 8px;
+    gap: var(--space-2);
   }
 
   .actions {
     flex-direction: column;
   }
 
-  .btnSubmit,
-  .btnCancel {
+  .actions button {
     width: 100%;
-  }
-
-  .input,
-  .select,
-  .textarea {
-    font-size: 16px;
   }
 }

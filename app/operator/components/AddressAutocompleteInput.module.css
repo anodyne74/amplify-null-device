@@ -12,20 +12,20 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  background-color: var(--nd-bg-elevated);
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-md);
-  box-shadow: var(--nd-shadow-md);
+  background-color: var(--surface-card);
+  border: var(--border-hairline) solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
   max-height: 240px;
   overflow-y: auto;
 }
 
 .option {
-  padding: 10px 14px;
-  font-size: 0.85rem;
-  color: var(--nd-text-secondary);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
   cursor: pointer;
-  border-bottom: 1px solid var(--nd-border-subtle);
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
 }
 
 .option:last-child {
@@ -33,24 +33,24 @@
 }
 
 .option:hover {
-  background-color: var(--nd-bg-surface);
-  color: var(--nd-text-primary);
+  background-color: var(--surface-hover);
+  color: var(--text-heading);
 }
 
 .optionActive {
-  background-color: var(--nd-bg-surface);
-  color: var(--nd-text-primary);
+  background-color: var(--surface-hover);
+  color: var(--text-heading);
 }
 
 .statusOption {
-  padding: 10px 14px;
-  font-size: 0.8rem;
-  color: var(--nd-text-muted);
-  border-bottom: 1px solid var(--nd-border-subtle);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
 }
 
 .loadError {
-  margin-top: 4px;
-  font-size: 0.75rem;
-  color: var(--nd-status-danger);
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--status-danger-fg);
 }

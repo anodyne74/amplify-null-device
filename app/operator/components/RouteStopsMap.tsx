@@ -248,17 +248,17 @@ export function RouteStopsMap({
       if (displayPosition) {
         const accuracyCircle = L.circle([displayPosition.latitude, displayPosition.longitude], {
           radius: Math.max(displayPosition.accuracy ?? 20, 20),
-          color: 'var(--nd-role-accent, var(--nd-customer-accent))',
+          color: 'var(--indigo-500)',
           weight: 1,
-          fillColor: 'var(--nd-role-accent, var(--nd-customer-accent))',
+          fillColor: 'var(--indigo-500)',
           fillOpacity: 0.12,
         }).addTo(map);
 
         const positionMarker = L.circleMarker([displayPosition.latitude, displayPosition.longitude], {
           radius: 8,
-          color: 'var(--nd-color-text-on-accent)',
+          color: 'var(--text-on-brand)',
           weight: 2,
-          fillColor: 'var(--nd-role-accent, var(--nd-customer-accent))',
+          fillColor: 'var(--indigo-500)',
           fillOpacity: 1,
         })
           .addTo(map)
@@ -330,9 +330,9 @@ export function RouteStopsMap({
     if (!deviceAccuracyRef.current) {
       deviceAccuracyRef.current = L.circle(latLng, {
         radius: Math.max(displayPosition.accuracy ?? 20, 20),
-        color: 'var(--nd-role-accent, var(--nd-customer-accent))',
+        color: 'var(--indigo-500)',
         weight: 1,
-        fillColor: 'var(--nd-role-accent, var(--nd-customer-accent))',
+        fillColor: 'var(--indigo-500)',
         fillOpacity: 0.12,
       }).addTo(mapRef.current);
     } else {
@@ -343,9 +343,9 @@ export function RouteStopsMap({
     if (!deviceMarkerRef.current) {
       deviceMarkerRef.current = L.circleMarker(latLng, {
         radius: 8,
-        color: 'var(--nd-color-text-on-accent)',
+        color: 'var(--text-on-brand)',
         weight: 2,
-        fillColor: 'var(--nd-role-accent, var(--nd-customer-accent))',
+        fillColor: 'var(--indigo-500)',
         fillOpacity: 1,
       })
         .addTo(mapRef.current)

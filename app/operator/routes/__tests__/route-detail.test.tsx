@@ -4,6 +4,7 @@ import { render, screen, waitFor, within, fireEvent } from '@testing-library/rea
 import RouteDetailPage from '../detail/page';
 import * as getRouteDetailModule from '@/lib/queries/GetRouteDetail';
 import * as deleteStopModule from '@/lib/queries/DeleteStop';
+import { updateStopExecution } from '@/lib/queries';
 import type { Route, Stop } from '@/amplify/types';
 
 // Mock Next.js navigation
@@ -71,6 +72,7 @@ jest.mock('@/lib/queries', () => ({
   }),
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+  updateStopExecution: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));
 jest.mock('@/lib/queries/UpdateStop', () => ({
   updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
@@ -311,5 +313,89 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByText('200 Second Ave')).toBeInTheDocument();
     expect(screen.getByText('300 Third Rd')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^start route$/i })).not.toBeInTheDocument();
+  });
+
+  it('completes an upcoming stop out of order via the tap-to-sheet dialog', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
+      data: {
+        ...mockRoute,
+        status: 'in_progress',
+        executionPhase: 'placement',
+        actualStartTime: '2024-03-01T10:00:00Z',
+        placementStartTime: '2024-03-01T10:00:00Z',
+      },
+      errors: undefined,
+    });
+    mockStopList.mockResolvedValue({ data: mockStopsWithUpcoming, errors: undefined });
+
+    render(<RouteDetailPage />);
+
+    fireEvent.click(await screen.findByText('200 Second Ave'));
+
+    expect(await screen.findByText('200 Second Ave, Melbourne VIC')).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: /signs placed/i }));
+
+    await waitFor(() => {
+      expect(updateStopExecution).toHaveBeenCalledWith(
+        'stop-2',
+        expect.objectContaining({ notes: expect.stringContaining('[PLACEMENT_DONE:') })
+      );
+    });
+  });
+
+  it('records a reason when skipping a stop from the sheet', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
+      data: {
+        ...mockRoute,
+        status: 'in_progress',
+        executionPhase: 'placement',
+        actualStartTime: '2024-03-01T10:00:00Z',
+        placementStartTime: '2024-03-01T10:00:00Z',
+      },
+      errors: undefined,
+    });
+    mockStopList.mockResolvedValue({ data: mockStopsWithUpcoming, errors: undefined });
+
+    render(<RouteDetailPage />);
+
+    fireEvent.click(await screen.findByText('200 Second Ave'));
+    await screen.findByText('200 Second Ave, Melbourne VIC');
+
+    fireEvent.click(screen.getByRole('button', { name: /^skip$/i }));
+
+    expect(await screen.findByText('Why is this stop skipped?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Gate locked / no access' }));
+
+    await waitFor(() => {
+      expect(updateStopExecution).toHaveBeenCalledWith(
+        'stop-2',
+        expect.objectContaining({ notes: expect.stringContaining('[PLACEMENT_SKIPPED:') })
+      );
+      expect(updateStopExecution).toHaveBeenCalledWith(
+        'stop-2',
+        expect.objectContaining({ notes: expect.stringContaining('|Gate locked / no access]') })
+      );
+    });
+  });
+
+  it('opens the sheet directly on the reason step from the next-stop Skip Stop button', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
+      data: {
+        ...mockRoute,
+        status: 'in_progress',
+        executionPhase: 'placement',
+        actualStartTime: '2024-03-01T10:00:00Z',
+        placementStartTime: '2024-03-01T10:00:00Z',
+      },
+      errors: undefined,
+    });
+    mockStopList.mockResolvedValue({ data: mockStopsWithUpcoming, errors: undefined });
+
+    render(<RouteDetailPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /^skip stop$/i }));
+
+    expect(await screen.findByText('Why is this stop skipped?')).toBeInTheDocument();
   });
 });

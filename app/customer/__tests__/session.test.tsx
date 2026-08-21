@@ -19,6 +19,16 @@ jest.mock('@aws-amplify/ui-react', () => ({
   Authenticator: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+jest.mock('aws-amplify/auth', () => ({
+  fetchAuthSession: jest.fn(async () => ({
+    tokens: {
+      idToken: {
+        toString: () => 'test-token',
+      },
+    },
+  })),
+}));
+
 // Mock the ProtectedRoute component
 jest.mock('@/app/components/ProtectedRoute', () => {
   return function MockProtectedRoute({ children }: { children: React.ReactNode }) {

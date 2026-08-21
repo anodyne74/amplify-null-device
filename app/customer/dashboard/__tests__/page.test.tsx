@@ -1,11 +1,10 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import CustomerDashboard from '../page';
 import {
   getCustomer,
   getCustomerPortalContext,
-  updateCustomer,
 } from '@/lib/queries';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
@@ -26,7 +25,6 @@ jest.mock('@/lib/amplify-config', () => ({
 jest.mock('@/lib/queries', () => ({
   getCustomer: jest.fn(),
   getCustomerPortalContext: jest.fn(),
-  updateCustomer: jest.fn(),
 }));
 
 jest.mock('@/lib/queries/ListMyRoutes', () => ({
@@ -48,7 +46,7 @@ jest.mock('aws-amplify/data', () => ({
   }),
 }));
 
-describe('Customer Dashboard standing instructions', () => {
+describe('Customer Dashboard', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (getCustomer as jest.Mock).mockResolvedValue({
@@ -60,10 +58,6 @@ describe('Customer Dashboard standing instructions', () => {
         defaultAgentInitials: 'JL',
         agentOptions: ['Jamie Lee', 'Pat Doe'],
       },
-      errors: undefined,
-    });
-    (updateCustomer as jest.Mock).mockResolvedValue({
-      data: { id: 'cust-1' },
       errors: undefined,
     });
     (listMyRoutes as jest.Mock).mockResolvedValue({
@@ -115,7 +109,7 @@ describe('Customer Dashboard standing instructions', () => {
     });
   });
 
-  it('allows account owner to save standing instructions defaults', async () => {
+  it('shows customer totals and performance metrics for account owner', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({
       role: 'account_owner',
       customerId: 'cust-1',
@@ -124,62 +118,16 @@ describe('Customer Dashboard standing instructions', () => {
     render(<CustomerDashboard />);
 
     expect(await screen.findByText(/welcome, owner name · owner/i)).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('Call before arrival')).toBeInTheDocument();
-    });
-
     expect(screen.getByRole('heading', { name: /^dashboard$/i })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText('Instructions operators should see by default'), {
-      target: { value: 'Leave signs at side gate' },
-    });
-    fireEvent.change(screen.getByLabelText('Default number of signs'), {
-      target: { value: '5' },
-    });
-    fireEvent.change(screen.getByLabelText('Default agent name'), {
-      target: { value: 'Pat Doe' },
-    });
-    fireEvent.change(screen.getByPlaceholderText('Agent options, one per line'), {
-      target: { value: 'Pat Doe\nAlex Roe' },
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /save standing instructions/i }));
-
     await waitFor(() => {
-      expect(updateCustomer).toHaveBeenCalledWith(
-        'cust-1',
-        {
-          standingInstructions: 'Leave signs at side gate',
-          defaultNumberOfSigns: 5,
-          defaultAgentName: 'Pat Doe',
-          agentOptions: ['Pat Doe', 'Alex Roe'],
-        }
-      );
+      expect(screen.getByRole('heading', { name: /customer totals/i })).toBeInTheDocument();
     });
 
-    expect(await screen.findByText(/standing instructions updated/i)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /customer totals/i })).toBeInTheDocument();
     expect(screen.getByText(/total invoiced amount/i)).toBeInTheDocument();
     expect(screen.getByText(/outstanding amount/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /performance metrics/i })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: /revenue trend/i })).toBeInTheDocument();
-  });
-
-  it('shows read-only standing instructions for reviewer role', async () => {
-    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
-      role: 'read_only',
-      customerId: 'cust-1',
-    });
-
-    render(<CustomerDashboard />);
-
-    expect(await screen.findByText(/only the account owner can edit these defaults/i)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /^dashboard$/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /save standing instructions/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/call before arrival/i)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /route tracker/i })).toBeInTheDocument();
-    expect(screen.queryByText('Restricted')).not.toBeInTheDocument();
   });
 
   it('hides financial dashboard surfaces for reviewer role', async () => {
@@ -230,24 +178,4 @@ describe('Customer Dashboard standing instructions', () => {
     expect(screen.queryByText(/pending invoices/i)).not.toBeInTheDocument();
   });
 
-  it('validates non-negative default signs before save', async () => {
-    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
-      role: 'account_owner',
-      customerId: 'cust-1',
-    });
-
-    render(<CustomerDashboard />);
-
-    await waitFor(() => {
-      expect(screen.getByLabelText('Default number of signs')).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText('Default number of signs'), {
-      target: { value: '-1' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /save standing instructions/i }));
-
-    expect(await screen.findByText(/default number of signs must be 0 or greater/i)).toBeInTheDocument();
-    expect(updateCustomer).not.toHaveBeenCalled();
-  });
 });

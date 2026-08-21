@@ -31,6 +31,7 @@ export type { Schema };
 export interface Customer {
   id: string;
   name: string;
+  companyName?: string;
   email: string;
   contactPhone?: string;
   addressLine1?: string;
@@ -47,6 +48,14 @@ export interface Customer {
   directDebitBsb?: string;
   directDebitAccountNumber?: string;
   directDebitAuthorizedAt?: string | null;
+  standingPickupDay?: StandingPickupDay | null;
+  notifyOnLowSigns?: boolean | null;
+  sendMissingSignsReport?: boolean | null;
+  billingCcEmails?: string[] | null;
+  attachAgentBreakdown?: boolean | null;
+  sendPaymentReminder?: boolean | null;
+  accountOwnerSub?: string | null;
+  viewerSubs?: string[] | null;
   createdAt?: string;
   updatedAt?: string;
   routes?: Route[];
@@ -56,6 +65,8 @@ export interface Customer {
   operatorAvailabilityBlocks?: OperatorAvailabilityBlock[];
   customerClosureBlocks?: CustomerClosureBlock[];
 }
+
+export type StandingPickupDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
 export interface Operator {
   id: string;

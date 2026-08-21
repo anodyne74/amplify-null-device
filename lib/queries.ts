@@ -249,6 +249,13 @@ export async function updateCustomer(
     agentOptions: string[];
     status: 'active' | 'inactive' | 'suspended';
     billingRatePerHour: number;
+    gstAbn: string;
+    standingPickupDay: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+    notifyOnLowSigns: boolean;
+    sendMissingSignsReport: boolean;
+    billingCcEmails: string[];
+    attachAgentBreakdown: boolean;
+    sendPaymentReminder: boolean;
   }>
 ) {
   try {

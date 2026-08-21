@@ -54,6 +54,12 @@ const schema = a.schema({
       directDebitBsb: a.string(),
       directDebitAccountNumber: a.string(),
       directDebitAuthorizedAt: a.datetime(),
+      // Billing cycle & tax — administrator-configured
+      billingCycle: a.enum(['weekly', 'fortnightly', 'monthly']),
+      paymentTermsDays: a.integer(),
+      groupLineItemsByAgent: a.boolean(),
+      autoSendInvoiceOnPeriodClose: a.boolean(),
+      gstExclusive: a.boolean(), // Rates are ex GST — 10% is added at invoice time (see Invoice.gstAmount)
       // Standing orders — the customer's own default placement preferences (account_owner-editable)
       standingPickupDay: a.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
       notifyOnLowSigns: a.boolean(),
@@ -212,6 +218,7 @@ const schema = a.schema({
       periodStartDate: a.date(),
       periodEndDate: a.date(),
       totalAmount: a.float().required(),
+      gstAmount: a.float(), // GST applied at issue time (Customer.gstExclusive) — stored so historical invoices stay accurate if the toggle changes later
       status: a.enum(['draft', 'sent', 'paid']),
       importedAt: a.datetime(),
       routeId: a.id(),        // linked route

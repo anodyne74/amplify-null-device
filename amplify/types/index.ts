@@ -48,6 +48,11 @@ export interface Customer {
   directDebitBsb?: string;
   directDebitAccountNumber?: string;
   directDebitAuthorizedAt?: string | null;
+  billingCycle?: BillingCycle | null;
+  paymentTermsDays?: number | null;
+  groupLineItemsByAgent?: boolean | null;
+  autoSendInvoiceOnPeriodClose?: boolean | null;
+  gstExclusive?: boolean | null;
   standingPickupDay?: StandingPickupDay | null;
   notifyOnLowSigns?: boolean | null;
   sendMissingSignsReport?: boolean | null;
@@ -67,6 +72,8 @@ export interface Customer {
 }
 
 export type StandingPickupDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+
+export type BillingCycle = 'weekly' | 'fortnightly' | 'monthly';
 
 export interface Operator {
   id: string;
@@ -149,6 +156,7 @@ export interface Invoice {
   periodStartDate: string;
   periodEndDate: string;
   totalAmount: number;
+  gstAmount?: number | null;
   status: InvoiceStatus;
   routeId?: string;
   pdfS3Key?: string;

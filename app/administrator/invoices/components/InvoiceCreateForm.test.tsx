@@ -30,6 +30,7 @@ describe('InvoiceCreateForm', () => {
         invoiceNumber="INV-1"
         totalHours="2"
         totalAmount="200"
+        gstAmount="0"
         saving={false}
         customers={customers}
         customerRoutes={customerRoutes}
@@ -69,6 +70,7 @@ describe('InvoiceCreateForm', () => {
         invoiceNumber="INV-1"
         totalHours="2"
         totalAmount="200"
+        gstAmount="0"
         saving
         customers={customers}
         customerRoutes={customerRoutes}
@@ -83,5 +85,29 @@ describe('InvoiceCreateForm', () => {
 
     const submitButton = screen.getByRole('button', { name: 'Creating...' });
     expect(submitButton).toBeDisabled();
+  });
+
+  it('shows a GST hint under Total Amount when gstAmount is set', () => {
+    render(
+      <InvoiceCreateForm
+        customerId="cust-1"
+        routeId=""
+        invoiceNumber="INV-1"
+        totalHours="2"
+        totalAmount="220"
+        gstAmount="20.00"
+        saving={false}
+        customers={customers}
+        customerRoutes={customerRoutes}
+        onCustomerChange={jest.fn()}
+        onRouteChange={jest.fn()}
+        onInvoiceNumberChange={jest.fn()}
+        onTotalHoursChange={jest.fn()}
+        onTotalAmountChange={jest.fn()}
+        onSubmit={jest.fn()}
+      />
+    );
+
+    expect(screen.getByText('Includes GST of $20.00')).toBeInTheDocument();
   });
 });

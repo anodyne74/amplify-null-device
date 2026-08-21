@@ -11,6 +11,7 @@ import { RouteStatusPill } from '@/app/customer/components/RouteListItem';
 import { Card } from '@/app/components/ui/core/Card';
 import { Tag } from '@/app/components/ui/core/Tag';
 import { Select } from '@/app/components/ui/forms/Select';
+import { Input } from '@/app/components/ui/forms/Input';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import type { Route } from '@/amplify/types';
 import { compareRouteIdDesc, compareRouteStatusAsc, formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
@@ -42,6 +43,7 @@ export default function CustomerRoutesPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ChipFilter>('all');
   const [sortBy, setSortBy] = useState<'routeId' | 'status'>('routeId');
+  const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
     if (!userId) return;
@@ -98,6 +100,13 @@ export default function CustomerRoutesPage() {
       filtered = filtered.filter((route) => getRouteStatusPresentation(route.status).badgeKey === statusFilter);
     }
 
+    const trimmedSearch = searchText.trim().toLowerCase();
+    if (trimmedSearch) {
+      filtered = filtered.filter((route) =>
+        (route.routeCode || route.id).toLowerCase().includes(trimmedSearch)
+      );
+    }
+
     if (sortBy === 'routeId') {
       filtered.sort(compareRouteIdDesc);
     } else {
@@ -105,7 +114,7 @@ export default function CustomerRoutesPage() {
     }
 
     setFilteredRoutes(filtered);
-  }, [routes, statusFilter, sortBy]);
+  }, [routes, statusFilter, sortBy, searchText]);
 
   if (loading) {
     return <LoadingSpinner message="Loading routes..." />;
@@ -159,15 +168,24 @@ export default function CustomerRoutesPage() {
             ))}
           </div>
 
-          <Select
-            aria-label="Sort by"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'routeId' | 'status')}
-            options={[
-              { value: 'routeId', label: 'Route ID (Desc)' },
-              { value: 'status', label: 'Status' },
-            ]}
-          />
+          <div className={styles.filtersRowEnd}>
+            <Input
+              aria-label="Search route code"
+              iconLeft="search"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search route code"
+            />
+            <Select
+              aria-label="Sort by"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'routeId' | 'status')}
+              options={[
+                { value: 'routeId', label: 'Route ID (Desc)' },
+                { value: 'status', label: 'Status' },
+              ]}
+            />
+          </div>
         </div>
 
         <Card padded={false}>

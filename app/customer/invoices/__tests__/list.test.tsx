@@ -1,6 +1,6 @@
 'use client';
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import InvoicesPage from '../page';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import * as listMyInvoicesModule from '@/lib/queries/ListMyInvoices';
@@ -157,5 +157,41 @@ describe('Invoice List Page Integration', () => {
     await waitFor(() => {
       expect(screen.getByText(/Showing 2 invoices/i)).toBeInTheDocument();
     });
+  });
+
+  it('filters the invoice list by status chip', async () => {
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/INV-2024-001/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByText('Paid')[0]);
+
+    expect(screen.getByText(/INV-2024-001/i)).toBeInTheDocument();
+    expect(screen.queryByText(/INV-2024-002/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Showing 1 invoice$/i)).toBeInTheDocument();
+  });
+
+  it('exports the currently filtered invoices as a CSV download', async () => {
+    const createObjectURL = jest.fn(() => 'blob:mock-url');
+    const revokeObjectURL = jest.fn();
+    (global as any).URL.createObjectURL = createObjectURL;
+    (global as any).URL.revokeObjectURL = revokeObjectURL;
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    render(<InvoicesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/INV-2024-001/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /export csv/i }));
+
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
+
+    clickSpy.mockRestore();
   });
 });

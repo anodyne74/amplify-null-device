@@ -1,3 +1,15 @@
+.chipsRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.chipsSpacer {
+  flex: 1;
+}
+
 .filterSection {
   padding: var(--space-5);
   background: var(--surface-sunken);

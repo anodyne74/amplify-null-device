@@ -4,6 +4,12 @@
   gap: var(--space-6);
 }
 
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-5);
+}
+
 .sectionRow {
   display: flex;
   align-items: center;

@@ -5,6 +5,7 @@ import {
   AdminRemoveUserFromGroupCommand,
   CognitoIdentityProviderClient,
   ListUsersCommand,
+  ListUsersInGroupCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import outputs from '@/amplify_outputs.json';
@@ -17,6 +18,7 @@ const ALLOWED_GROUPS = ['customer', 'operator', 'administrator'] as const;
 
 type AdminUserAction =
   | 'listUsers'
+  | 'listUsersInGroup'
   | 'listGroupsForUser'
   | 'addUserToGroup'
   | 'removeUserFromGroup'
@@ -290,6 +292,39 @@ export async function POST(request: NextRequest) {
         resourceType: 'operator',
         resourceId: authResult.claims.sub || 'unknown',
         action: 'list_users',
+        status: 'success',
+        ipAddress: request.headers.get('x-forwarded-for') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+      });
+
+      return NextResponse.json({ users });
+    }
+
+    if (body.action === 'listUsersInGroup') {
+      if (!body.groupName) {
+        return NextResponse.json({ error: 'groupName is required.' }, { status: 400 });
+      }
+
+      if (!ALLOWED_GROUPS.includes(body.groupName)) {
+        return NextResponse.json({ error: 'Invalid groupName.' }, { status: 400 });
+      }
+
+      const response = await cognitoClient.send(
+        new ListUsersInGroupCommand({
+          UserPoolId: userPoolId,
+          GroupName: body.groupName,
+          Limit: 60,
+        })
+      );
+
+      const users = (response.Users || []).map((user) => mapListedUser(user));
+
+      await writeAuditLog(authResult.token, {
+        operatorId: authResult.claims.sub,
+        eventType: 'data_access',
+        resourceType: 'operator',
+        resourceId: authResult.claims.sub || 'unknown',
+        action: `list_users_in_group:${body.groupName}`,
         status: 'success',
         ipAddress: request.headers.get('x-forwarded-for') || undefined,
         userAgent: request.headers.get('user-agent') || undefined,

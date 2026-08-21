@@ -122,6 +122,14 @@ const schema = a.schema({
       drivingModeEnabled: a.boolean(), // Renders the operator app's simplified in-vehicle driving mode for this route
       vanCount: a.integer(), // Number of vans/vehicles assigned to this route
       scheduleS3Key: a.string(), // S3 key for the uploaded schedule file
+      // Operator assignment — display/notification tag only, not an authorization scope.
+      // Denormalized (no FK) since the Operator model is never populated; operators are
+      // managed as Cognito group membership only. Every operator group member keeps full
+      // Route access regardless of assignment, per the existing authorization rules below.
+      assignedOperatorSub: a.string(), // Cognito sub of the assigned operator
+      assignedOperatorName: a.string(),
+      assignedOperatorEmail: a.string(),
+      assignedAt: a.datetime(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships

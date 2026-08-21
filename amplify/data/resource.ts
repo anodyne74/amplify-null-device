@@ -85,6 +85,7 @@ const schema = a.schema({
       users: a.hasMany('CustomerUser', 'customerId'),
       operatorAvailabilityBlocks: a.hasMany('OperatorAvailabilityBlock', 'customerId'),
       customerClosureBlocks: a.hasMany('CustomerClosureBlock', 'customerId'),
+      rateLines: a.hasMany('RateLine', 'customerId'),
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read', 'update']),
@@ -268,6 +269,29 @@ const schema = a.schema({
       allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
+    ]),
+
+  /**
+   * RateLine - A named, priced line on a customer's rate card (e.g. "Placement",
+   * "After-hours surcharge"). Internal pricing config, not customer-facing — unlike
+   * every other model touched this series, there's no viewerSubs bug to avoid here
+   * since customers were never meant to read this.
+   */
+  RateLine: a
+    .model({
+      customerId: a.id().required(),
+      label: a.string().required(),
+      unit: a.enum(['per_hour', 'per_stop', 'per_sign']),
+      ratePerUnit: a.float().required(),
+      sortOrder: a.integer(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+      // Relationships
+      customer: a.belongsTo('Customer', 'customerId'),
+    })
+    .authorization((allow) => [
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+      allow.groups(['operator']).to(['read']),
     ]),
 
   /**

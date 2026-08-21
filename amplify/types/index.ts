@@ -69,6 +69,7 @@ export interface Customer {
   users?: CustomerUser[];
   operatorAvailabilityBlocks?: OperatorAvailabilityBlock[];
   customerClosureBlocks?: CustomerClosureBlock[];
+  rateLines?: RateLine[];
 }
 
 export type StandingPickupDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
@@ -181,6 +182,20 @@ export interface LineItem {
   createdAt?: string;
   invoice?: Invoice;
   route?: Route;
+}
+
+export type RateLineUnit = 'per_hour' | 'per_stop' | 'per_sign';
+
+export interface RateLine {
+  id: string;
+  customerId: string;
+  label: string;
+  unit?: RateLineUnit | null;
+  ratePerUnit: number;
+  sortOrder?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+  customer?: Customer;
 }
 
 export interface PaymentRecord {

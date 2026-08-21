@@ -55,6 +55,7 @@ export function useInvoicesDataState({
         addressLine1?: string;
         billingRatePerHour?: number;
         gstExclusive?: boolean | null;
+        viewerSubs?: string[] | null;
       }> = [];
       let nextToken: string | undefined;
 
@@ -72,6 +73,7 @@ export function useInvoicesDataState({
             addressLine1?: string;
             billingRatePerHour?: number;
             gstExclusive?: boolean | null;
+            viewerSubs?: string[] | null;
           }>) || [])
         );
         nextToken = result.nextToken ?? undefined;
@@ -130,6 +132,7 @@ export function useInvoicesDataState({
         addressLine1?: string;
         billingRatePerHour?: number;
         gstExclusive?: boolean | null;
+        viewerSubs?: string[] | null;
       }>) || []).map((customer) => ({
         id: customer.id,
         name: customer.name,
@@ -137,6 +140,7 @@ export function useInvoicesDataState({
         addressLine1: customer.addressLine1,
         billingRatePerHour: customer.billingRatePerHour,
         gstExclusive: customer.gstExclusive,
+        viewerSubs: customer.viewerSubs,
       }));
 
       const customersWithPrimary = await Promise.all(

@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import type { Route } from '@/amplify/types';
+import type { RateLine, Route } from '@/amplify/types';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
@@ -18,11 +18,14 @@ interface InvoiceCreateFormProps {
   saving: boolean;
   customers: CustomerOption[];
   customerRoutes: Route[];
+  rateLines: RateLine[];
+  rateLineQuantities: Record<string, string>;
   onCustomerChange: (value: string) => void;
   onRouteChange: (value: string) => void;
   onInvoiceNumberChange: (value: string) => void;
   onTotalHoursChange: (value: string) => void;
   onTotalAmountChange: (value: string) => void;
+  onRateLineQuantityChange: (rateLineId: string, value: string) => void;
   onSubmit: (event: FormEvent) => void;
 }
 
@@ -36,13 +39,17 @@ export default function InvoiceCreateForm({
   saving,
   customers,
   customerRoutes,
+  rateLines,
+  rateLineQuantities,
   onCustomerChange,
   onRouteChange,
   onInvoiceNumberChange,
   onTotalHoursChange,
   onTotalAmountChange,
+  onRateLineQuantityChange,
   onSubmit,
 }: InvoiceCreateFormProps) {
+  const hasRateLines = rateLines.length > 0;
   return (
     <Card>
       <form onSubmit={onSubmit}>
@@ -89,17 +96,40 @@ export default function InvoiceCreateForm({
             />
           </Field>
 
-          <Field label="Total Hours" htmlFor="invoice-hours">
-            <Input
-              id="invoice-hours"
-              value={totalHours}
-              onChange={(event) => onTotalHoursChange(event.target.value)}
-              type="number"
-              min="0"
-              step="0.01"
-              required
-            />
-          </Field>
+          {hasRateLines ? (
+            <div className={styles.fieldsGridFull}>
+              <span className={styles.rateCardLabel}>Rate card lines</span>
+              <div className={styles.rateLineRows}>
+                {rateLines.map((line) => (
+                  <div key={line.id} className={styles.rateLineRow}>
+                    <span className={styles.rateLineName}>{line.label}</span>
+                    <span className={styles.rateLineRate}>${line.ratePerUnit.toFixed(2)}</span>
+                    <Input
+                      aria-label={`Quantity for ${line.label}`}
+                      value={rateLineQuantities[line.id] ?? ''}
+                      onChange={(event) => onRateLineQuantityChange(line.id, event.target.value)}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <Field label="Total Hours" htmlFor="invoice-hours">
+              <Input
+                id="invoice-hours"
+                value={totalHours}
+                onChange={(event) => onTotalHoursChange(event.target.value)}
+                type="number"
+                min="0"
+                step="0.01"
+                required
+              />
+            </Field>
+          )}
 
           <Field
             label="Total Amount"

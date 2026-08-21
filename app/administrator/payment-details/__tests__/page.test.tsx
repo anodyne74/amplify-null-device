@@ -3,6 +3,9 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AdministratorPaymentDetailsPage from '../page';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
+import { listRateLines } from '@/lib/queries/ListRateLines';
+import { createRateLine } from '@/lib/queries/CreateRateLine';
+import { deleteRateLine } from '@/lib/queries/DeleteRateLine';
 import { getCustomer, updateCustomer } from '@/lib/queries';
 
 jest.mock('@/app/components/OperatorRoute', () => ({
@@ -12,6 +15,18 @@ jest.mock('@/app/components/OperatorRoute', () => ({
 
 jest.mock('@/lib/queries/ListAllCustomers', () => ({
   listAllCustomers: jest.fn(),
+}));
+
+jest.mock('@/lib/queries/ListRateLines', () => ({
+  listRateLines: jest.fn(),
+}));
+
+jest.mock('@/lib/queries/CreateRateLine', () => ({
+  createRateLine: jest.fn(),
+}));
+
+jest.mock('@/lib/queries/DeleteRateLine', () => ({
+  deleteRateLine: jest.fn(),
 }));
 
 jest.mock('@/lib/queries', () => ({
@@ -47,6 +62,9 @@ describe('Administrator Payment Details page', () => {
       errors: undefined,
     });
     (updateCustomer as jest.Mock).mockResolvedValue({ data: { id: 'cust-1' }, errors: undefined });
+    (listRateLines as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (createRateLine as jest.Mock).mockResolvedValue({ data: { id: 'line-new' }, errors: undefined });
+    (deleteRateLine as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
   });
 
   it('loads the first customer and shows their billing cycle & tax settings', async () => {
@@ -113,5 +131,116 @@ describe('Administrator Payment Details page', () => {
     render(<AdministratorPaymentDetailsPage />);
 
     expect(await screen.findByText(/no customers found/i)).toBeInTheDocument();
+  });
+
+  it('shows a message when the customer has no rate lines yet', async () => {
+    render(<AdministratorPaymentDetailsPage />);
+
+    await waitFor(() => {
+      expect(getCustomer).toHaveBeenCalled();
+    });
+
+    expect(await screen.findByText(/this customer uses the flat billing rate/i)).toBeInTheDocument();
+  });
+
+  it('renders rate lines for the selected customer', async () => {
+    (listRateLines as jest.Mock).mockResolvedValue({
+      data: [{ id: 'line-1', customerId: 'cust-1', label: 'Placement', unit: 'per_hour', ratePerUnit: 30 }],
+      errors: undefined,
+    });
+
+    render(<AdministratorPaymentDetailsPage />);
+
+    await waitFor(() => {
+      expect(getCustomer).toHaveBeenCalled();
+    });
+
+    expect(await screen.findByText('Placement')).toBeInTheDocument();
+    expect(screen.getByText('$30.00')).toBeInTheDocument();
+    expect(screen.getAllByText('per hour')[0]).toBeInTheDocument();
+  });
+
+  it('adds a new rate line', async () => {
+    render(<AdministratorPaymentDetailsPage />);
+
+    await waitFor(() => {
+      expect(getCustomer).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Label')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'After-hours surcharge' } });
+    fireEvent.change(screen.getByLabelText('Rate'), { target: { value: '95' } });
+    fireEvent.click(screen.getByRole('button', { name: /add rate line/i }));
+
+    await waitFor(() => {
+      expect(createRateLine).toHaveBeenCalledWith({
+        customerId: 'cust-1',
+        label: 'After-hours surcharge',
+        unit: 'per_hour',
+        ratePerUnit: 95,
+        sortOrder: 0,
+      });
+    });
+  });
+
+  it('removes a rate line', async () => {
+    (listRateLines as jest.Mock).mockResolvedValue({
+      data: [{ id: 'line-1', customerId: 'cust-1', label: 'Placement', unit: 'per_hour', ratePerUnit: 30 }],
+      errors: undefined,
+    });
+
+    render(<AdministratorPaymentDetailsPage />);
+
+    await waitFor(() => {
+      expect(getCustomer).toHaveBeenCalled();
+    });
+
+    await screen.findByText('Placement');
+    fireEvent.click(screen.getByRole('button', { name: /remove/i }));
+
+    await waitFor(() => {
+      expect(deleteRateLine).toHaveBeenCalledWith('line-1');
+    });
+  });
+
+  it('copies rate lines from another customer', async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue({
+      data: [
+        { id: 'cust-1', name: 'Harcourts Epping' },
+        { id: 'cust-2', name: 'Ray White Eastwood' },
+      ],
+      errors: undefined,
+    });
+
+    (listRateLines as jest.Mock).mockImplementation((customerId: string) => {
+      if (customerId === 'cust-2') {
+        return Promise.resolve({
+          data: [{ id: 'line-src', customerId: 'cust-2', label: 'Placement', unit: 'per_hour', ratePerUnit: 30 }],
+          errors: undefined,
+        });
+      }
+      return Promise.resolve({ data: [], errors: undefined });
+    });
+
+    render(<AdministratorPaymentDetailsPage />);
+
+    await waitFor(() => {
+      expect(getCustomer).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Copy from another customer')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Copy from another customer'), { target: { value: 'cust-2' } });
+    fireEvent.click(screen.getByRole('button', { name: /copy rate lines/i }));
+
+    await waitFor(() => {
+      expect(createRateLine).toHaveBeenCalledWith(
+        expect.objectContaining({ customerId: 'cust-1', label: 'Placement', ratePerUnit: 30 })
+      );
+    });
   });
 });

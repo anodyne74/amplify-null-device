@@ -749,6 +749,7 @@ export async function createLineItem(input: {
   quantity?: number;
   ratePerUnit: number;
   amount: number;
+  viewerSubs?: string[];
 }) {
   try {
     const { data, errors } = await getClient().models.LineItem.create(input);

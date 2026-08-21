@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { Route } from '@/amplify/types';
+import type { RateLine, Route } from '@/amplify/types';
 import type { CustomerOption } from '@/app/administrator/invoices/types';
 import InvoiceCreateForm from '@/app/administrator/invoices/components/InvoiceCreateForm';
 
@@ -12,6 +12,11 @@ const customers: CustomerOption[] = [
 const customerRoutes: Route[] = [
   { id: 'route-1', customerId: 'cust-1', routeCode: 'R-100' },
   { id: 'route-2', customerId: 'cust-1' },
+];
+
+const rateLines: RateLine[] = [
+  { id: 'line-1', customerId: 'cust-1', label: 'Placement', ratePerUnit: 30 } as RateLine,
+  { id: 'line-2', customerId: 'cust-1', label: 'Pickup', ratePerUnit: 10 } as RateLine,
 ];
 
 describe('InvoiceCreateForm', () => {
@@ -34,11 +39,14 @@ describe('InvoiceCreateForm', () => {
         saving={false}
         customers={customers}
         customerRoutes={customerRoutes}
+        rateLines={[]}
+        rateLineQuantities={{}}
         onCustomerChange={onCustomerChange}
         onRouteChange={onRouteChange}
         onInvoiceNumberChange={onInvoiceNumberChange}
         onTotalHoursChange={onTotalHoursChange}
         onTotalAmountChange={onTotalAmountChange}
+        onRateLineQuantityChange={jest.fn()}
         onSubmit={onSubmit}
       />
     );
@@ -74,11 +82,14 @@ describe('InvoiceCreateForm', () => {
         saving
         customers={customers}
         customerRoutes={customerRoutes}
+        rateLines={[]}
+        rateLineQuantities={{}}
         onCustomerChange={jest.fn()}
         onRouteChange={jest.fn()}
         onInvoiceNumberChange={jest.fn()}
         onTotalHoursChange={jest.fn()}
         onTotalAmountChange={jest.fn()}
+        onRateLineQuantityChange={jest.fn()}
         onSubmit={jest.fn()}
       />
     );
@@ -99,15 +110,55 @@ describe('InvoiceCreateForm', () => {
         saving={false}
         customers={customers}
         customerRoutes={customerRoutes}
+        rateLines={[]}
+        rateLineQuantities={{}}
         onCustomerChange={jest.fn()}
         onRouteChange={jest.fn()}
         onInvoiceNumberChange={jest.fn()}
         onTotalHoursChange={jest.fn()}
         onTotalAmountChange={jest.fn()}
+        onRateLineQuantityChange={jest.fn()}
         onSubmit={jest.fn()}
       />
     );
 
     expect(screen.getByText('Includes GST of $20.00')).toBeInTheDocument();
+  });
+
+  it('shows a rate-line picker instead of Total Hours when the customer has rate lines', () => {
+    const onRateLineQuantityChange = jest.fn();
+
+    render(
+      <InvoiceCreateForm
+        customerId="cust-1"
+        routeId=""
+        invoiceNumber="INV-1"
+        totalHours="0"
+        totalAmount="540"
+        gstAmount="0"
+        saving={false}
+        customers={customers}
+        customerRoutes={customerRoutes}
+        rateLines={rateLines}
+        rateLineQuantities={{ 'line-1': '18' }}
+        onCustomerChange={jest.fn()}
+        onRouteChange={jest.fn()}
+        onInvoiceNumberChange={jest.fn()}
+        onTotalHoursChange={jest.fn()}
+        onTotalAmountChange={jest.fn()}
+        onRateLineQuantityChange={onRateLineQuantityChange}
+        onSubmit={jest.fn()}
+      />
+    );
+
+    expect(screen.queryByLabelText('Total Hours')).not.toBeInTheDocument();
+    expect(screen.getByText('Placement')).toBeInTheDocument();
+    expect(screen.getByText('Pickup')).toBeInTheDocument();
+
+    const placementQuantity = screen.getByLabelText('Quantity for Placement');
+    expect(placementQuantity).toHaveValue(18);
+
+    fireEvent.change(screen.getByLabelText('Quantity for Pickup'), { target: { value: '5' } });
+    expect(onRateLineQuantityChange).toHaveBeenCalledWith('line-2', '5');
   });
 });

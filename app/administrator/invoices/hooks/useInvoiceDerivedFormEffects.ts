@@ -14,11 +14,14 @@ type UseInvoiceDerivedFormEffectsParams = {
   setTotalAmount: (value: string) => void;
   setGstAmount: (value: string) => void;
   totalHours: string;
+  // When the selected customer has rate-card lines, the rate-line picker (not this
+  // hook) owns totalAmount/gstAmount — see useRateLineTotals.
+  hasRateLines?: boolean;
 };
 
-const GST_RATE = 0.1;
+export const GST_RATE = 0.1;
 
-function applyGst(subtotal: number, gstExclusive: boolean | null | undefined) {
+export function applyGst(subtotal: number, gstExclusive: boolean | null | undefined) {
   const gstAmount = gstExclusive ? subtotal * GST_RATE : 0;
   return { gstAmount, total: subtotal + gstAmount };
 }
@@ -66,6 +69,7 @@ export function useInvoiceDerivedFormEffects({
   setTotalAmount,
   setGstAmount,
   totalHours,
+  hasRateLines = false,
 }: UseInvoiceDerivedFormEffectsParams) {
   useEffect(() => {
     if (invoiceNumberOverridden) return;
@@ -85,7 +89,7 @@ export function useInvoiceDerivedFormEffects({
     const routeHours = getRouteDurationHours(selectedRoute);
     setTotalHours(routeHours.toFixed(2));
 
-    if (totalAmountOverridden) {
+    if (totalAmountOverridden || hasRateLines) {
       return;
     }
 
@@ -95,10 +99,10 @@ export function useInvoiceDerivedFormEffects({
     const { gstAmount, total } = applyGst(subtotal, customer?.gstExclusive);
     setGstAmount(gstAmount.toFixed(2));
     setTotalAmount(total.toFixed(2));
-  }, [routeId, routes, customers, setTotalAmount, setGstAmount, setTotalHours, totalAmountOverridden]);
+  }, [routeId, routes, customers, setTotalAmount, setGstAmount, setTotalHours, totalAmountOverridden, hasRateLines]);
 
   useEffect(() => {
-    if (totalAmountOverridden) return;
+    if (totalAmountOverridden || hasRateLines) return;
     const selectedRoute = routes.find((route) => route.id === routeId);
     if (!selectedRoute) return;
 
@@ -111,5 +115,5 @@ export function useInvoiceDerivedFormEffects({
     const { gstAmount, total } = applyGst(subtotal, customer?.gstExclusive);
     setGstAmount(gstAmount.toFixed(2));
     setTotalAmount(total.toFixed(2));
-  }, [totalHours, routeId, routes, customers, setTotalAmount, setGstAmount, totalAmountOverridden]);
+  }, [totalHours, routeId, routes, customers, setTotalAmount, setGstAmount, totalAmountOverridden, hasRateLines]);
 }

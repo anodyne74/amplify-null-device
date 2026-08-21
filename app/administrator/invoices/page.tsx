@@ -6,6 +6,7 @@ import OperatorRoute from '@/app/components/OperatorRoute';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import {
   createInvoice,
+  createLineItem,
   updateInvoice,
 } from '@/lib/queries';
 import InvoiceCreateForm from '@/app/administrator/invoices/components/InvoiceCreateForm';
@@ -13,10 +14,13 @@ import { useInvoiceBillingSettings } from '@/app/administrator/invoices/hooks/us
 import InvoiceListTable from '@/app/administrator/invoices/components/InvoiceListTable';
 import { useInvoiceCreateState } from '@/app/administrator/invoices/hooks/useInvoiceCreateState';
 import { useInvoiceDerivedFormEffects } from '@/app/administrator/invoices/hooks/useInvoiceDerivedFormEffects';
+import { useCustomerRateLines } from '@/app/administrator/invoices/hooks/useCustomerRateLines';
+import { useRateLineTotals } from '@/app/administrator/invoices/hooks/useRateLineTotals';
 import { useInvoiceDocumentActions } from '@/app/administrator/invoices/hooks/useInvoiceDocumentActions';
 import { useInvoiceUiState } from '@/app/administrator/invoices/hooks/useInvoiceUiState';
 import { useInvoicesDataState } from '@/app/administrator/invoices/hooks/useInvoicesDataState';
 import type { Invoice } from '@/app/administrator/invoices/types';
+import { buildLineItemInputs } from '@/app/administrator/invoices/rateLineHelpers';
 import styles from './page.module.css';
 
 function normalizeInvoiceStatus(status?: Invoice['status'] | string | null) {
@@ -64,12 +68,16 @@ export default function InvoicesAdminPage() {
     totalAmount,
     gstAmount,
     setGstAmount,
+    rateLineQuantities,
     handleCustomerChange,
     handleRouteChange,
     handleInvoiceNumberChange,
     handleTotalAmountChange,
+    handleRateLineQuantityChange,
     resetAfterCreate,
   } = useInvoiceCreateState();
+
+  const { rateLines } = useCustomerRateLines(customerId);
 
   const {
     customers,
@@ -79,6 +87,8 @@ export default function InvoicesAdminPage() {
     fetchData,
     updateInvoiceInState,
   } = useInvoicesDataState({ customerId, setCustomerId, setError, setLoading });
+
+  const selectedCustomer = customers.find((entry) => entry.id === customerId);
 
   const {
     billingCompanyName,
@@ -139,6 +149,16 @@ export default function InvoicesAdminPage() {
     setTotalAmount,
     setGstAmount,
     totalHours,
+    hasRateLines: rateLines.length > 0,
+  });
+
+  useRateLineTotals({
+    rateLines,
+    quantities: rateLineQuantities,
+    customer: selectedCustomer,
+    totalAmountOverridden,
+    setTotalAmount,
+    setGstAmount,
   });
 
   const handleCreate = async (event: FormEvent) => {
@@ -159,11 +179,26 @@ export default function InvoicesAdminPage() {
     });
     if (result.errors && result.errors.length > 0) {
       setError('Failed to create invoice.');
-    } else {
-      resetAfterCreate();
-      setSuccessMessage('Invoice created successfully.');
-      await fetchData();
+      setSaving(false);
+      return;
     }
+
+    const newInvoiceId = (result.data as { id?: string } | null)?.id;
+    if (newInvoiceId && rateLines.length > 0) {
+      const lineItemInputs = buildLineItemInputs({
+        rateLines,
+        quantities: rateLineQuantities,
+        invoiceId: newInvoiceId,
+        customerId,
+        routeId: routeId || undefined,
+        viewerSubs: selectedCustomer?.viewerSubs || [],
+      });
+      await Promise.all(lineItemInputs.map((input) => createLineItem(input)));
+    }
+
+    resetAfterCreate();
+    setSuccessMessage('Invoice created successfully.');
+    await fetchData();
     setSaving(false);
   };
 
@@ -222,11 +257,14 @@ export default function InvoicesAdminPage() {
           saving={saving}
           customers={customers}
           customerRoutes={customerRoutes}
+          rateLines={rateLines}
+          rateLineQuantities={rateLineQuantities}
           onCustomerChange={handleCustomerChange}
           onRouteChange={handleRouteChange}
           onInvoiceNumberChange={handleInvoiceNumberChange}
           onTotalHoursChange={setTotalHours}
           onTotalAmountChange={handleTotalAmountChange}
+          onRateLineQuantityChange={handleRateLineQuantityChange}
           onSubmit={handleCreate}
         />
 

@@ -9,10 +9,17 @@ export function useInvoiceCreateState() {
   const [totalAmountOverridden, setTotalAmountOverridden] = useState(false);
   const [totalAmount, setTotalAmount] = useState('0');
   const [gstAmount, setGstAmount] = useState('0');
+  const [rateLineQuantities, setRateLineQuantities] = useState<Record<string, string>>({});
 
   const handleCustomerChange = (value: string) => {
     setCustomerId(value);
     setRouteId('');
+    setTotalAmountOverridden(false);
+    setRateLineQuantities({});
+  };
+
+  const handleRateLineQuantityChange = (rateLineId: string, value: string) => {
+    setRateLineQuantities((prev) => ({ ...prev, [rateLineId]: value }));
     setTotalAmountOverridden(false);
   };
 
@@ -41,6 +48,7 @@ export function useInvoiceCreateState() {
     setTotalAmount('0');
     setGstAmount('0');
     setRouteId('');
+    setRateLineQuantities({});
   };
 
   return {
@@ -60,10 +68,12 @@ export function useInvoiceCreateState() {
     setTotalAmount,
     gstAmount,
     setGstAmount,
+    rateLineQuantities,
     handleCustomerChange,
     handleRouteChange,
     handleInvoiceNumberChange,
     handleTotalAmountChange,
+    handleRateLineQuantityChange,
     resetAfterCreate,
   };
 }

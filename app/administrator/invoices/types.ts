@@ -5,6 +5,7 @@ export type CustomerOption = {
   primaryEmail?: string;
   addressLine1?: string;
   billingRatePerHour?: number;
+  gstExclusive?: boolean | null;
 };
 
 export type InvoiceStatus = 'draft' | 'sent' | 'paid';
@@ -18,6 +19,7 @@ export type Invoice = {
   routeId?: string | null;
   pdfS3Key?: string | null;
   totalAmount: number;
+  gstAmount?: number | null;
   status?: InvoiceStatus | null;
   emailSentAt?: string | null;
   importedAt?: string | null;

@@ -8,6 +8,7 @@ export function useInvoiceCreateState() {
   const [totalHours, setTotalHours] = useState('0');
   const [totalAmountOverridden, setTotalAmountOverridden] = useState(false);
   const [totalAmount, setTotalAmount] = useState('0');
+  const [gstAmount, setGstAmount] = useState('0');
 
   const handleCustomerChange = (value: string) => {
     setCustomerId(value);
@@ -28,6 +29,8 @@ export function useInvoiceCreateState() {
   const handleTotalAmountChange = (value: string) => {
     setTotalAmount(value);
     setTotalAmountOverridden(true);
+    // A manually-typed total can't be reliably split back into subtotal + GST.
+    setGstAmount('0');
   };
 
   const resetAfterCreate = () => {
@@ -36,6 +39,7 @@ export function useInvoiceCreateState() {
     setInvoiceNumber('');
     setTotalHours('0');
     setTotalAmount('0');
+    setGstAmount('0');
     setRouteId('');
   };
 
@@ -54,6 +58,8 @@ export function useInvoiceCreateState() {
     setTotalAmountOverridden,
     totalAmount,
     setTotalAmount,
+    gstAmount,
+    setGstAmount,
     handleCustomerChange,
     handleRouteChange,
     handleInvoiceNumberChange,

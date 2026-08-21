@@ -62,6 +62,8 @@ export default function InvoicesAdminPage() {
     totalAmountOverridden,
     setTotalAmount,
     totalAmount,
+    gstAmount,
+    setGstAmount,
     handleCustomerChange,
     handleRouteChange,
     handleInvoiceNumberChange,
@@ -135,6 +137,7 @@ export default function InvoicesAdminPage() {
     totalAmountOverridden,
     setTotalHours,
     setTotalAmount,
+    setGstAmount,
     totalHours,
   });
 
@@ -151,6 +154,7 @@ export default function InvoicesAdminPage() {
       invoiceNumber: invoiceNumber.trim(),
       invoiceDate: today,
       totalAmount: Number(totalAmount),
+      gstAmount: Number(gstAmount) || undefined,
       status: 'draft',
     });
     if (result.errors && result.errors.length > 0) {
@@ -214,6 +218,7 @@ export default function InvoicesAdminPage() {
           invoiceNumber={invoiceNumber}
           totalHours={totalHours}
           totalAmount={totalAmount}
+          gstAmount={gstAmount}
           saving={saving}
           customers={customers}
           customerRoutes={customerRoutes}

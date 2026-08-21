@@ -249,7 +249,17 @@ export async function updateCustomer(
     agentOptions: string[];
     status: 'active' | 'inactive' | 'suspended';
     billingRatePerHour: number;
+    gstRegistered: boolean;
     gstAbn: string;
+    directDebitAccountName: string;
+    directDebitBsb: string;
+    directDebitAccountNumber: string;
+    directDebitAuthorizedAt: string;
+    billingCycle: 'weekly' | 'fortnightly' | 'monthly';
+    paymentTermsDays: number;
+    groupLineItemsByAgent: boolean;
+    autoSendInvoiceOnPeriodClose: boolean;
+    gstExclusive: boolean;
     standingPickupDay: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
     notifyOnLowSigns: boolean;
     sendMissingSignsReport: boolean;
@@ -663,6 +673,7 @@ export async function createInvoice(input: {
   periodStartDate?: string;
   periodEndDate?: string;
   totalAmount: number;
+  gstAmount?: number;
   status: 'draft' | 'sent' | 'paid';
   routeId?: string;
   pdfS3Key?: string;
@@ -693,6 +704,7 @@ export async function updateInvoice(
     periodStartDate: string;
     periodEndDate: string;
     totalAmount: number;
+    gstAmount: number;
     status: 'draft' | 'sent' | 'paid';
     routeId: string | null;
     pdfS3Key: string;

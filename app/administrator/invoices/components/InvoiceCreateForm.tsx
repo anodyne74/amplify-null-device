@@ -14,6 +14,7 @@ interface InvoiceCreateFormProps {
   invoiceNumber: string;
   totalHours: string;
   totalAmount: string;
+  gstAmount: string;
   saving: boolean;
   customers: CustomerOption[];
   customerRoutes: Route[];
@@ -31,6 +32,7 @@ export default function InvoiceCreateForm({
   invoiceNumber,
   totalHours,
   totalAmount,
+  gstAmount,
   saving,
   customers,
   customerRoutes,
@@ -99,7 +101,11 @@ export default function InvoiceCreateForm({
             />
           </Field>
 
-          <Field label="Total Amount" htmlFor="invoice-total">
+          <Field
+            label="Total Amount"
+            htmlFor="invoice-total"
+            hint={Number(gstAmount) > 0 ? `Includes GST of $${gstAmount}` : undefined}
+          >
             <Input
               id="invoice-total"
               value={totalAmount}

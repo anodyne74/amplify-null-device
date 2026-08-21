@@ -2,8 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { signOut } from 'aws-amplify/auth';
-import styles from '@/app/dashboard.module.css';
-import pageStyles from '@/app/pending-approval/page.module.css';
+import { Card } from '@/app/components/ui/core/Card';
+import { Button } from '@/app/components/ui/core/Button';
+import styles from './page.module.css';
 
 export default function PendingApprovalPage() {
   const router = useRouter();
@@ -14,22 +15,21 @@ export default function PendingApprovalPage() {
   };
 
   return (
-    <div className={styles.page}>
-      <div className={pageStyles.headerRow}>
+    <div className={styles.wrapper}>
+      <Card className={styles.card}>
         <h1 className={styles.heading}>Account Pending Approval</h1>
-      </div>
-      <div className={styles.infoPanel}>
-        <h3>Request Received</h3>
-        <p className={styles.welcome}>
+        <p className={styles.text}>
           Your account has been created, but access is pending administrator approval.
         </p>
-        <p className={styles.welcome}>
+        <p className={styles.text}>
           You will be able to access the portal once an administrator assigns your account role.
         </p>
-        <button type="button" onClick={() => void handleSignOut()}>
-          Sign Out
-        </button>
-      </div>
+        <div className={styles.actions}>
+          <Button type="button" variant="secondary" onClick={() => void handleSignOut()}>
+            Sign Out
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }

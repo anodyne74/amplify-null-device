@@ -1,185 +1,131 @@
-/* Multi-role selection styles */
+/* Multi-role selection + pending/loading states */
 .wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background-color: var(--nd-bg-void);
+  background: var(--surface-page);
   width: 100%;
-  padding: var(--nd-space-md);
+  padding: var(--space-6);
 }
 
 .card {
   width: 100%;
   max-width: 420px;
-  padding: clamp(1.5rem, 5vw, 2.5rem);
-  background-color: var(--nd-bg-surface);
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-lg);
+  padding: clamp(var(--space-7), 5vw, var(--space-9));
+  background: var(--surface-card);
+  border: var(--border-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
 }
 
 .heading {
   text-align: center;
-  margin-bottom: var(--nd-space-sm);
-  color: var(--nd-accent-primary);
-  font-family: var(--nd-font-mono);
-  letter-spacing: 0.04em;
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-2xl);
+  font-family: var(--font-display);
+  color: var(--text-heading);
 }
 
 .subtitle {
   text-align: center;
-  color: var(--nd-text-muted);
-  margin-bottom: var(--nd-space-lg);
-  font-size: 0.85rem;
-  font-family: var(--nd-font-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-7);
+  font-size: var(--text-sm);
 }
 
 .roleButtons {
   display: grid;
-  gap: var(--nd-space-sm);
+  gap: var(--space-4);
 }
 
 .roleButton {
   width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-md);
-  background: var(--nd-bg-elevated);
-  color: var(--nd-text-primary);
-  font-family: var(--nd-font-mono);
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  text-align: left;
+  padding: var(--space-5);
+  border: var(--border-hairline) solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-heading);
   cursor: pointer;
-  transition: border-color var(--nd-transition-fast), transform var(--nd-transition-fast);
+  transition: var(--transition-control);
 }
 
 .roleButton:hover {
-  border-color: var(--nd-accent-primary);
-  transform: translateY(-1px);
+  border-color: var(--border-brand);
+  background: var(--surface-hover);
 }
 
 .roleButtonTitle {
   display: block;
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-base);
 }
 
 .roleButtonDescription {
   display: block;
-  margin-top: var(--nd-space-xs);
-  font-family: var(--nd-font-body);
-  font-size: 0.8rem;
-  text-transform: none;
-  letter-spacing: normal;
-  color: var(--nd-text-secondary);
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
 }
 
-/* Login Page Styles */
-.loginPage {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  width: 100%;
-  height: 100vh;
+/* Auth page shell — 50/50 split, form left / hero panel right */
+.authPage {
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--nd-color-bg-canvas) 0%, var(--nd-color-bg-surface) 100%);
-  padding: clamp(1.25rem, 4vh, 3rem) var(--nd-space-lg);
-  font-family: inherit;
-  overflow-y: auto;
+  background: var(--surface-page);
 }
 
-.loginContainer {
-  width: 100%;
-  max-width: 554px;
+.authGrid {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.formColumn {
   display: flex;
   flex-direction: column;
-  gap: var(--nd-space-md);
-}
-
-.publicThemeToggle {
-  align-self: flex-end;
-  width: min(180px, 100%);
-}
-
-/* Branding Section */
-.brandingSection {
-  text-align: center;
-  padding: var(--nd-space-sm) 0;
-}
-
-.logoLockup {
-  display: inline-flex;
-  align-items: center;
   justify-content: center;
-  gap: clamp(0.75rem, 2vw, 1.1rem);
-  min-width: 0;
+  padding: var(--space-9) 8vw;
 }
 
-.logoMark {
-  width: clamp(58px, 9vw, 82px);
-  height: clamp(58px, 9vw, 82px);
-  flex: 0 0 auto;
-  object-fit: contain;
+.formInner {
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
 }
 
-.logoWordmark {
-  color: var(--nd-logo-wordmark);
-  font-family: var(--nd-font-display);
-  font-size: clamp(2rem, 5vw, 3rem);
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-9);
+}
+
+.brandLogo {
+  width: 44px;
+  height: 44px;
+  flex: none;
+}
+
+.brandWordmark {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
   font-weight: 500;
-  line-height: 1;
-  letter-spacing: 0;
-  white-space: nowrap;
-}
-
-.brandTitle {
-  margin: 0 0 var(--nd-space-xs) 0;
-  font-size: 32px;
-  font-family: var(--nd-font-display);
-  font-weight: 700;
-  color: var(--nd-text-primary);
-  letter-spacing: -0.5px;
-}
-
-.brandSubtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--nd-text-secondary);
-  font-weight: 400;
-}
-
-/* Welcome Section */
-.welcomeSection {
-  text-align: center;
-  padding: var(--nd-space-md) 0;
+  color: var(--text-heading);
 }
 
 .welcomeTitle {
-  margin: 0 0 var(--nd-space-sm) 0;
-  font-size: 24px;
-  font-weight: 600;
-  font-family: var(--nd-font-display);
-  color: var(--nd-text-primary);
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-3xl);
+  font-family: var(--font-display);
+  color: var(--text-heading);
 }
 
 .welcomeText {
-  margin: 0;
-  font-size: 14px;
-  color: var(--nd-text-secondary);
+  margin: 0 0 var(--space-8);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
   line-height: 1.6;
-}
-
-/* Authenticator Card */
-.authCard {
-  padding: var(--nd-space-lg);
-  display: flex;
-  flex-direction: column;
-  caret-color: white;
-}
-
-.authCard > * {
-  width: 100%;
 }
 
 .authCard :global([data-amplify-authenticator]) {
@@ -187,157 +133,116 @@
 }
 
 .authCard :global([data-amplify-router]) {
-  background-color: var(--nd-bg-surface);
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-lg);
+  border: none;
   box-shadow: none;
+  background: transparent;
+}
+
+.authCard :global(.amplify-tabs) {
+  margin-bottom: var(--space-6);
 }
 
 .authCard :global(form) {
   display: flex;
   flex-direction: column;
-  gap: var(--nd-space-sm);
+  gap: var(--space-4);
 }
 
 .authCard :global(.amplify-field) {
   margin-bottom: 0;
 }
 
-.authCard :global(.amplify-button) {
-  font-family: var(--nd-font-mono);
-}
-
-.authCard :global(.amplify-button[data-variation='primary']) {
-  background-color: var(--nd-interactive-primary-bg);
-  color: var(--nd-interactive-primary-fg);
-  border-color: var(--nd-interactive-primary-bg);
-}
-
-.authCard :global(.amplify-button[data-variation='primary']:hover) {
-  background-color: var(--nd-interactive-primary-bg-hover);
-  border-color: var(--nd-interactive-primary-bg-hover);
-}
-
-.authCard :global(.amplify-input),
-.authCard :global(.amplify-input--focus) {
-  background-color: var(--nd-bg-elevated);
-  color: var(--nd-text-primary);
-  border-color: var(--nd-border-default);
-}
-
-.authCard :global(.amplify-input:focus),
-.authCard :global(.amplify-input--focus:focus) {
-  border-color: var(--nd-operator-accent);
-  box-shadow: 0 0 0 1px var(--nd-operator-accent);
-}
-
-.authCard :global(.amplify-label),
-.authCard :global(.amplify-heading),
-.authCard :global(.amplify-text) {
-  color: var(--nd-text-primary);
-}
-
-.authCard :global(.amplify-button:hover) {
-  background-color: var(--nd-logo-secondary);
-}
-
-.authCard :global(.amplify-alert) {
-  background: var(--nd-alert-warning-bg);
-  border-left: 4px solid var(--nd-alert-warning-border);
-  color: var(--nd-alert-warning-fg);
-}
-
 .signupHeader {
-  margin-bottom: 0.75rem;
-  padding: 0 1.75rem;
-  background-color: var(--nd-bg-elevated);
-  border-radius: var(--nd-radius-md);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-brand-subtle);
+  border-radius: var(--radius-md);
 }
 
 .signupHeaderTitle {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
+  color: var(--text-heading);
 }
 
 .signupHeaderText {
-  margin-top: 0.4rem;
-  opacity: 0.8;
-  font-size: 0.85rem;
-}
-
-/* Footer Section */
-.footerSection {
-  text-align: center;
-  padding: var(--nd-space-md) 0;
-  border-top: 1px solid var(--nd-border-subtle);
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
 }
 
 .footerText {
-  margin: 0;
-  font-size: 12px;
-  color: var(--nd-text-secondary);
+  margin: var(--space-9) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
   line-height: 1.6;
 }
 
 .footerText strong {
-  color: var(--nd-logo-secondary);
-  font-weight: 600;
+  color: var(--text-brand);
+  font-weight: var(--fw-semibold);
 }
 
-/* Responsive Design */
-@media (max-width: 640px) {
-  .loginPage {
-    padding: var(--nd-space-md);
-  }
-
-  .loginContainer {
-    gap: var(--nd-space-lg);
-  }
-
-  .brandTitle {
-    font-size: 28px;
-  }
-
-  .welcomeTitle {
-    font-size: 20px;
-  }
-
-  .authCard {
-    padding: var(--nd-space-md);
-  }
+/* Hero panel */
+.heroColumn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: var(--space-9) 5vw;
+  background: var(--gradient-hero);
+  overflow: hidden;
 }
 
-@media (max-width: 480px) {
-  .loginPage {
-    padding: var(--nd-space-sm);
+.heroOrb {
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  right: -160px;
+  top: -120px;
+  border-radius: 50%;
+  background: var(--gradient-logo);
+  opacity: 0.28;
+  filter: blur(8px);
+}
+
+.heroContent {
+  position: relative;
+  color: #fff;
+  max-width: 420px;
+}
+
+.heroHeadline {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-4xl);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.heroList {
+  margin-top: var(--space-7);
+  display: grid;
+  gap: var(--space-4);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: var(--text-base);
+}
+
+.heroListItem {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .authGrid {
+    grid-template-columns: 1fr;
   }
 
-  .brandingSection {
-    padding: var(--nd-space-md) 0;
+  .heroColumn {
+    display: none;
   }
 
-  .logoLockup {
-    gap: 0.65rem;
-  }
-
-  .logoMark {
-    width: 58px;
-    height: 58px;
-  }
-
-  .logoWordmark {
-    font-size: clamp(1.9rem, 10vw, 2.55rem);
-  }
-
-  .brandTitle {
-    font-size: 24px;
-  }
-
-  .welcomeTitle {
-    font-size: 18px;
-  }
-
-  .authCard {
-    padding: var(--nd-space-sm);
+  .formColumn {
+    padding: var(--space-8) var(--space-6);
   }
 }

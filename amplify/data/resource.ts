@@ -134,6 +134,8 @@ const schema = a.schema({
       overrideAmount: a.float(),
       notes: a.string(),
       customerInstructions: a.string(), // Customer-authored, distinct from the operator's own `notes`
+      customerFeedbackTone: a.enum(['good', 'issue']), // Customer-authored, asked once the route is completed
+      customerFeedbackNote: a.string(),
       drivingModeEnabled: a.boolean(), // Renders the operator app's simplified in-vehicle driving mode for this route
       vanCount: a.integer(), // Number of vans/vehicles assigned to this route
       scheduleS3Key: a.string(), // S3 key for the uploaded schedule file
@@ -158,8 +160,7 @@ const schema = a.schema({
       // updateRouteCustomerInstructions) — Amplify Gen 2 has no field-level authorization,
       // so this is a coarse grant like the rest of this schema. Covers both account_owner
       // and read_only CustomerUser sub-roles (not distinguishable at this layer).
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read', 'update']),
-      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read', 'update']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'update']),
     ]),
@@ -193,7 +194,6 @@ const schema = a.schema({
       customer: a.belongsTo('Customer', 'customerId'),
     })
     .authorization((allow) => [
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
       allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'update']),
@@ -217,6 +217,9 @@ const schema = a.schema({
       routeId: a.id(),        // linked route
       pdfS3Key: a.string(),   // S3 key for uploaded PDF e.g. invoices/{id}.pdf
       emailSentAt: a.datetime(), // timestamp of last SES email send
+      // Cognito subs of all customer users — grants read access. customerId itself
+      // can't be used with ownerDefinedIn since it's a foreign key, not a Cognito sub.
+      viewerSubs: a.string().array(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       customer: a.belongsTo('Customer', 'customerId'),
@@ -225,7 +228,7 @@ const schema = a.schema({
       payment: a.hasOne('PaymentRecord', 'invoiceId'),
     })
     .authorization((allow) => [
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
@@ -244,6 +247,9 @@ const schema = a.schema({
       quantity: a.float(),
       ratePerUnit: a.float().required(),
       amount: a.float().required(),
+      // Cognito subs of all customer users — grants read access. customerId itself
+      // can't be used with ownerDefinedIn since it's a foreign key, not a Cognito sub.
+      viewerSubs: a.string().array(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
@@ -252,7 +258,7 @@ const schema = a.schema({
       customer: a.belongsTo('Customer', 'customerId'),
     })
     .authorization((allow) => [
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
@@ -271,6 +277,9 @@ const schema = a.schema({
       referenceNumber: a.string(),
       status: a.enum(['pending', 'completed', 'failed', 'refunded']),
       notes: a.string(),
+      // Cognito subs of all customer users — grants read access. customerId itself
+      // can't be used with ownerDefinedIn since it's a foreign key, not a Cognito sub.
+      viewerSubs: a.string().array(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
@@ -278,7 +287,7 @@ const schema = a.schema({
       invoice: a.belongsTo('Invoice', 'invoiceId'),
     })
     .authorization((allow) => [
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),

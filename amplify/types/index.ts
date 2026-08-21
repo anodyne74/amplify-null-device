@@ -102,6 +102,8 @@ export interface Route {
   overrideAmount?: number | null;
   notes?: string;
   customerInstructions?: string;
+  customerFeedbackTone?: 'good' | 'issue' | null;
+  customerFeedbackNote?: string;
   drivingModeEnabled?: boolean | null;
   vanCount?: number | null;
   scheduleS3Key?: string | null;
@@ -150,6 +152,7 @@ export interface Invoice {
   status: InvoiceStatus;
   routeId?: string;
   pdfS3Key?: string;
+  viewerSubs?: string[] | null;
   createdAt?: string;
   updatedAt?: string;
   customer?: Customer;
@@ -166,6 +169,7 @@ export interface LineItem {
   quantity: number;
   ratePerUnit: number;
   amount: number;
+  viewerSubs?: string[] | null;
   createdAt?: string;
   invoice?: Invoice;
   route?: Route;
@@ -181,6 +185,7 @@ export interface PaymentRecord {
   referenceNumber: string;
   status: PaymentStatus;
   notes?: string;
+  viewerSubs?: string[] | null;
   createdAt?: string;
   customer?: Customer;
   invoice?: Invoice;

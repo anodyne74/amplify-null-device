@@ -36,15 +36,65 @@ function getBearerToken(request: NextRequest): string | null {
 
 const PENDING_SUB_PREFIX = 'pending:';
 
+async function syncViewerSubsForCustomer(customerId: string, viewerSubs: string[]) {
+  const client = getDataClient();
+
+  const { data: routes } = await client.models.Route.list({
+    filter: { customerId: { eq: customerId } },
+    limit: 1000,
+  });
+  for (const route of routes || []) {
+    if (!route?.id) continue;
+    await client.models.Route.update({ id: route.id, viewerSubs });
+
+    const { data: stops } = await client.models.Stop.list({
+      filter: { routeId: { eq: route.id } },
+      limit: 1000,
+    });
+    for (const stop of stops || []) {
+      if (!stop?.id) continue;
+      await client.models.Stop.update({ id: stop.id, viewerSubs });
+    }
+  }
+
+  const { data: invoices } = await client.models.Invoice.list({
+    filter: { customerId: { eq: customerId } },
+    limit: 1000,
+  });
+  for (const invoice of invoices || []) {
+    if (!invoice?.id) continue;
+    await client.models.Invoice.update({ id: invoice.id, viewerSubs });
+  }
+
+  const { data: lineItems } = await client.models.LineItem.list({
+    filter: { customerId: { eq: customerId } },
+    limit: 1000,
+  });
+  for (const lineItem of lineItems || []) {
+    if (!lineItem?.id) continue;
+    await client.models.LineItem.update({ id: lineItem.id, viewerSubs });
+  }
+
+  const { data: paymentRecords } = await client.models.PaymentRecord.list({
+    filter: { customerId: { eq: customerId } },
+    limit: 1000,
+  });
+  for (const paymentRecord of paymentRecords || []) {
+    if (!paymentRecord?.id) continue;
+    await client.models.PaymentRecord.update({ id: paymentRecord.id, viewerSubs });
+  }
+}
+
 /**
- * Backfills Customer.viewerSubs/accountOwnerSub for the calling customer's account.
+ * Backfills viewerSubs/accountOwnerSub across Customer, Route, Stop, Invoice, LineItem
+ * and PaymentRecord for the calling customer's account.
  *
  * These fields are normally synced by the customer-access-activation Lambda at signup
  * time, but that trigger only fires on new sign-ups — accounts that were already active
  * before the fields existed never get them set. This route lets any already-active
  * customer self-heal on next portal visit: it runs with the SSR compute role's elevated
- * data access (same pattern as the admin API routes), so it can read/write Customer
- * before accountOwnerSub/viewerSubs are populated, which the caller's own session cannot.
+ * data access (same pattern as the admin API routes), so it can read/write these records
+ * before viewerSubs/accountOwnerSub are populated, which the caller's own session cannot.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -99,6 +149,8 @@ export async function POST(request: NextRequest) {
       viewerSubs,
       accountOwnerSub: accountOwnerRow?.userSub || undefined,
     });
+
+    await syncViewerSubsForCustomer(customerId, viewerSubs);
 
     return NextResponse.json({ success: true, customerId });
   } catch (err) {

@@ -498,6 +498,8 @@ export async function updateRoute(
     overrideAmount: number;
     notes: string;
     customerInstructions: string;
+    customerFeedbackTone: 'good' | 'issue';
+    customerFeedbackNote: string;
     drivingModeEnabled: boolean;
     vanCount: number;
     scheduleS3Key: string;

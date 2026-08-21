@@ -10,11 +10,13 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { Switch } from '@/app/components/ui/forms/Switch';
+import { StatTile } from '@/app/components/ui/data/StatTile';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listRateLines } from '@/lib/queries/ListRateLines';
 import { createRateLine } from '@/lib/queries/CreateRateLine';
 import { deleteRateLine } from '@/lib/queries/DeleteRateLine';
 import { getCustomer, updateCustomer } from '@/lib/queries';
+import { computeDriverSplit, type DriverSplitResult } from '@/lib/driverSplit';
 import type { BillingCycle, Customer, RateLine, RateLineUnit } from '@/amplify/types';
 import styles from './page.module.css';
 
@@ -43,6 +45,12 @@ function formatUnit(unit?: RateLineUnit | null) {
 function formatDate(value?: string | null) {
   if (!value) return null;
   return new Date(value).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function getCurrentMonthRange() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  return { start: start.toISOString().slice(0, 10), end: now.toISOString().slice(0, 10) };
 }
 
 export default function AdministratorPaymentDetailsPage() {
@@ -82,6 +90,16 @@ export default function AdministratorPaymentDetailsPage() {
   const [copySourceId, setCopySourceId] = useState('');
   const [copyingLines, setCopyingLines] = useState(false);
 
+  const [driverSplitPercent, setDriverSplitPercent] = useState('0');
+  const [hideDriverSplitFromCustomer, setHideDriverSplitFromCustomer] = useState(false);
+  const [paySplitOnCompletedStopsOnly, setPaySplitOnCompletedStopsOnly] = useState(false);
+  const [savingDriverSplit, setSavingDriverSplit] = useState(false);
+  const [driverSplitError, setDriverSplitError] = useState<string | null>(null);
+  const [driverSplitSuccess, setDriverSplitSuccess] = useState<string | null>(null);
+
+  const [splitPreview, setSplitPreview] = useState<DriverSplitResult | null>(null);
+  const [loadingSplitPreview, setLoadingSplitPreview] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -119,10 +137,17 @@ export default function AdministratorPaymentDetailsPage() {
       setDirectDebitAccountName(nextCustomer?.directDebitAccountName ?? '');
       setDirectDebitBsb(nextCustomer?.directDebitBsb ?? '');
       setDirectDebitAccountNumber(nextCustomer?.directDebitAccountNumber ?? '');
+      setDriverSplitPercent(
+        typeof nextCustomer?.driverSplitPercent === 'number' ? String(nextCustomer.driverSplitPercent) : '0'
+      );
+      setHideDriverSplitFromCustomer(nextCustomer?.hideDriverSplitFromCustomer ?? false);
+      setPaySplitOnCompletedStopsOnly(nextCustomer?.paySplitOnCompletedStopsOnly ?? false);
       setTaxError(null);
       setTaxSuccess(null);
       setDirectDebitError(null);
       setDirectDebitSuccess(null);
+      setDriverSplitError(null);
+      setDriverSplitSuccess(null);
       setLoadingCustomer(false);
     });
 
@@ -130,6 +155,33 @@ export default function AdministratorPaymentDetailsPage() {
       cancelled = true;
     };
   }, [selectedCustomerId]);
+
+  useEffect(() => {
+    if (!customer || !selectedCustomerId) {
+      setSplitPreview(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingSplitPreview(true);
+
+    const { start, end } = getCurrentMonthRange();
+    void computeDriverSplit({
+      customerId: selectedCustomerId,
+      billingRatePerHour: customer.billingRatePerHour || 0,
+      driverSplitPercent: customer.driverSplitPercent || 0,
+      paySplitOnCompletedStopsOnly: customer.paySplitOnCompletedStopsOnly ?? false,
+      periodStartDate: start,
+      periodEndDate: end,
+    }).then((result) => {
+      if (cancelled) return;
+      setSplitPreview(result);
+      setLoadingSplitPreview(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customer, selectedCustomerId]);
 
   const refetchRateLines = async () => {
     const result = await listRateLines(selectedCustomerId);
@@ -280,6 +332,33 @@ export default function AdministratorPaymentDetailsPage() {
 
     setDirectDebitSuccess('Direct debit details saved.');
     setSavingDirectDebit(false);
+  };
+
+  const handleSaveDriverSplit = async () => {
+    setSavingDriverSplit(true);
+    setDriverSplitError(null);
+    setDriverSplitSuccess(null);
+
+    const parsedPercent = Number(driverSplitPercent);
+    const result = await updateCustomer(selectedCustomerId, {
+      driverSplitPercent: Number.isFinite(parsedPercent) ? parsedPercent : 0,
+      driverSplitBasis: 'percentage_of_line_rate',
+      hideDriverSplitFromCustomer,
+      paySplitOnCompletedStopsOnly,
+    });
+
+    if (result.errors && result.errors.length > 0) {
+      setDriverSplitError('Could not save driver split settings.');
+      setSavingDriverSplit(false);
+      return;
+    }
+
+    const refreshed = await getCustomer(selectedCustomerId);
+    const nextCustomer = refreshed.data as Customer | null;
+    if (nextCustomer) setCustomer(nextCustomer);
+
+    setDriverSplitSuccess('Driver split settings saved.');
+    setSavingDriverSplit(false);
   };
 
   const mandateSignedLabel = formatDate(customer?.directDebitAuthorizedAt);
@@ -541,6 +620,71 @@ export default function AdministratorPaymentDetailsPage() {
                   </Button>
                   {mandateSignedLabel && <span className={styles.mandateNote}>Mandate signed {mandateSignedLabel}</span>}
                 </div>
+              </div>
+            </Card>
+
+            <Card title="Driver split" subtitle="Share of this period's billed amount paid to the assigned operator">
+              <div className={styles.form}>
+                {driverSplitError && <p className="nd-badge nd-badge--danger">{driverSplitError}</p>}
+                {driverSplitSuccess && <p className="nd-badge nd-badge--success">{driverSplitSuccess}</p>}
+
+                <Field label="Split %" htmlFor="pd-split-percent">
+                  <Input
+                    id="pd-split-percent"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={driverSplitPercent}
+                    onChange={(e) => setDriverSplitPercent(e.target.value)}
+                    disabled={savingDriverSplit}
+                  />
+                </Field>
+
+                <Switch
+                  checked={paySplitOnCompletedStopsOnly}
+                  onChange={(e) => setPaySplitOnCompletedStopsOnly(e.target.checked)}
+                  label="Only pay split on fully completed stops"
+                  disabled={savingDriverSplit}
+                />
+                <Switch
+                  checked={hideDriverSplitFromCustomer}
+                  onChange={(e) => setHideDriverSplitFromCustomer(e.target.checked)}
+                  label="Hide driver split from customer-facing documents"
+                  disabled={savingDriverSplit}
+                />
+
+                <div className={styles.actions}>
+                  <Button
+                    type="button"
+                    loading={savingDriverSplit}
+                    disabled={savingDriverSplit}
+                    onClick={() => void handleSaveDriverSplit()}
+                  >
+                    {savingDriverSplit ? 'Saving…' : 'Save driver split'}
+                  </Button>
+                </div>
+
+                {loadingSplitPreview ? (
+                  <p className={styles.rateCardEmpty}>Calculating this period…</p>
+                ) : splitPreview ? (
+                  <div className={styles.splitStats}>
+                    <StatTile
+                      label="Driver share (this period)"
+                      value={`$${splitPreview.totalDriverShare.toFixed(2)}`}
+                      caption={`across ${splitPreview.totalStopCount} stop${splitPreview.totalStopCount === 1 ? '' : 's'}`}
+                    />
+                    <StatTile
+                      label="Retained"
+                      value={`$${splitPreview.retained.toFixed(2)}`}
+                      caption={
+                        splitPreview.totalBilled > 0
+                          ? `${((splitPreview.retained / splitPreview.totalBilled) * 100).toFixed(1)}% of $${splitPreview.totalBilled.toFixed(2)} billed`
+                          : 'No billed activity this period'
+                      }
+                    />
+                  </div>
+                ) : null}
               </div>
             </Card>
             </div>

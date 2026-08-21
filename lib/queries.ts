@@ -266,6 +266,10 @@ export async function updateCustomer(
     billingCcEmails: string[];
     attachAgentBreakdown: boolean;
     sendPaymentReminder: boolean;
+    driverSplitPercent: number;
+    driverSplitBasis: 'percentage_of_line_rate';
+    hideDriverSplitFromCustomer: boolean;
+    paySplitOnCompletedStopsOnly: boolean;
   }>
 ) {
   try {

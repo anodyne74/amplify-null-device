@@ -33,6 +33,7 @@ import {
   Minus,
   Info,
   Menu,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -73,6 +74,7 @@ const ICONS: Record<string, LucideIcon> = {
   minus: Minus,
   info: Info,
   menu: Menu,
+  wallet: Wallet,
 };
 
 export interface IconProps extends Omit<React.SVGProps<SVGSVGElement>, 'name'> {

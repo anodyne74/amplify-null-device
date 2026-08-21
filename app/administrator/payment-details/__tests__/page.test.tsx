@@ -7,6 +7,7 @@ import { listRateLines } from '@/lib/queries/ListRateLines';
 import { createRateLine } from '@/lib/queries/CreateRateLine';
 import { deleteRateLine } from '@/lib/queries/DeleteRateLine';
 import { getCustomer, updateCustomer } from '@/lib/queries';
+import { computeDriverSplit } from '@/lib/driverSplit';
 
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
@@ -34,6 +35,10 @@ jest.mock('@/lib/queries', () => ({
   updateCustomer: jest.fn(),
 }));
 
+jest.mock('@/lib/driverSplit', () => ({
+  computeDriverSplit: jest.fn(),
+}));
+
 describe('Administrator Payment Details page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -58,6 +63,10 @@ describe('Administrator Payment Details page', () => {
         directDebitBsb: '062-217',
         directDebitAccountNumber: '4192',
         directDebitAuthorizedAt: '2026-07-04T00:00:00Z',
+        billingRatePerHour: 30,
+        driverSplitPercent: 40,
+        hideDriverSplitFromCustomer: false,
+        paySplitOnCompletedStopsOnly: false,
       },
       errors: undefined,
     });
@@ -65,6 +74,15 @@ describe('Administrator Payment Details page', () => {
     (listRateLines as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
     (createRateLine as jest.Mock).mockResolvedValue({ data: { id: 'line-new' }, errors: undefined });
     (deleteRateLine as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
+    (computeDriverSplit as jest.Mock).mockResolvedValue({
+      periodStartDate: '2026-08-01',
+      periodEndDate: '2026-08-20',
+      totalBilled: 100,
+      totalStopCount: 4,
+      totalDriverShare: 40,
+      retained: 60,
+      byOperator: [],
+    });
   });
 
   it('loads the first customer and shows their billing cycle & tax settings', async () => {
@@ -242,5 +260,45 @@ describe('Administrator Payment Details page', () => {
         expect.objectContaining({ customerId: 'cust-1', label: 'Placement', ratePerUnit: 30 })
       );
     });
+  });
+
+  it('loads the driver split percent and shows the computed period preview', async () => {
+    render(<AdministratorPaymentDetailsPage />);
+
+    await waitFor(() => {
+      expect(getCustomer).toHaveBeenCalled();
+    });
+
+    expect(await screen.findByDisplayValue('40')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(computeDriverSplit).toHaveBeenCalledWith(
+        expect.objectContaining({ customerId: 'cust-1', driverSplitPercent: 40, billingRatePerHour: 30 })
+      );
+    });
+
+    expect(await screen.findByText('$40.00')).toBeInTheDocument();
+    expect(screen.getByText('$60.00')).toBeInTheDocument();
+  });
+
+  it('saves driver split settings', async () => {
+    render(<AdministratorPaymentDetailsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('40')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /save driver split/i }));
+
+    await waitFor(() => {
+      expect(updateCustomer).toHaveBeenCalledWith('cust-1', {
+        driverSplitPercent: 40,
+        driverSplitBasis: 'percentage_of_line_rate',
+        hideDriverSplitFromCustomer: false,
+        paySplitOnCompletedStopsOnly: false,
+      });
+    });
+
+    expect(await screen.findByText(/driver split settings saved/i)).toBeInTheDocument();
   });
 });

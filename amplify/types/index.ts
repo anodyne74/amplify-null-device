@@ -59,6 +59,10 @@ export interface Customer {
   billingCcEmails?: string[] | null;
   attachAgentBreakdown?: boolean | null;
   sendPaymentReminder?: boolean | null;
+  driverSplitPercent?: number | null;
+  driverSplitBasis?: DriverSplitBasis | null;
+  hideDriverSplitFromCustomer?: boolean | null;
+  paySplitOnCompletedStopsOnly?: boolean | null;
   accountOwnerSub?: string | null;
   viewerSubs?: string[] | null;
   createdAt?: string;
@@ -70,7 +74,10 @@ export interface Customer {
   operatorAvailabilityBlocks?: OperatorAvailabilityBlock[];
   customerClosureBlocks?: CustomerClosureBlock[];
   rateLines?: RateLine[];
+  payouts?: OperatorPayout[];
 }
+
+export type DriverSplitBasis = 'percentage_of_line_rate';
 
 export type StandingPickupDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
@@ -124,6 +131,7 @@ export interface Route {
   customer?: Customer;
   stops?: Stop[];
   lineItems?: LineItem[];
+  payouts?: OperatorPayout[];
 }
 
 export interface Stop {
@@ -196,6 +204,25 @@ export interface RateLine {
   createdAt?: string;
   updatedAt?: string;
   customer?: Customer;
+}
+
+export type OperatorPayoutStatus = 'pending' | 'paid';
+
+export interface OperatorPayout {
+  id: string;
+  operatorSub: string;
+  customerId: string;
+  routeId?: string | null;
+  periodStartDate?: string | null;
+  periodEndDate?: string | null;
+  amount: number;
+  status?: OperatorPayoutStatus | null;
+  paidAt?: string | null;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  customer?: Customer;
+  route?: Route;
 }
 
 export interface PaymentRecord {

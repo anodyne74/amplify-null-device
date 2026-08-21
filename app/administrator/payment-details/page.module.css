@@ -124,3 +124,10 @@
   font-size: var(--text-xs);
   color: var(--text-subtle);
 }
+
+.splitStats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}

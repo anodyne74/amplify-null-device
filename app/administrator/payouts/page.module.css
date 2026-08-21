@@ -1,0 +1,73 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.errorBanner {
+  padding: var(--space-4);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  border: var(--border-hairline) solid var(--status-danger-fg);
+}
+
+.createForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.createFormGrid {
+  display: flex;
+  gap: var(--space-4);
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.createFormGrid > * {
+  min-width: 160px;
+}
+
+.previewTable {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: var(--border-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.previewRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--space-4);
+  align-items: center;
+  font-size: var(--text-sm);
+}
+
+.previewRowLabel {
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+}
+
+.previewRowMeta {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+}
+
+.previewRowAmount {
+  font-family: var(--font-mono);
+  color: var(--text-heading);
+}
+
+.createActions {
+  padding-top: var(--space-2);
+}
+
+.filters {
+  display: flex;
+  gap: var(--space-2);
+}

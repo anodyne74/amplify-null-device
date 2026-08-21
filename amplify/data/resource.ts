@@ -18,6 +18,8 @@ import { customerAccessActivation } from '../functions/customer-access-activatio
  * - UserSettings: Per-user UI preferences and Null Device's own invoice remittance details
  * - OperatorAvailabilityBlock: Days Null Device has no drivers available for a customer
  * - CustomerClosureBlock: Days a customer's agency is closed
+ * - RateLine: Named, priced lines on a customer's rate card
+ * - OperatorPayout: Driver-split payouts owed to operators for a customer's billing period
  *
  * Authorization Rules:
  * - Customers can only access their own data (routes, invoices, payments)
@@ -68,6 +70,13 @@ const schema = a.schema({
       billingCcEmails: a.string().array(),
       attachAgentBreakdown: a.boolean(),
       sendPaymentReminder: a.boolean(),
+      // Driver split — the share of this customer's billed amount paid out to the
+      // operator assigned on each route (Route.assignedOperatorSub). Computed and
+      // tracked via the OperatorPayout model.
+      driverSplitPercent: a.float(),
+      driverSplitBasis: a.enum(['percentage_of_line_rate']),
+      hideDriverSplitFromCustomer: a.boolean(),
+      paySplitOnCompletedStopsOnly: a.boolean(),
       // Owner/viewer subs — same pattern as Route/Stop, synced by the customer-access-activation
       // Lambda. accountOwnerSub grants the account owner read/write to their own Customer record;
       // viewerSubs grants every customer user (owner + read_only) read access.
@@ -86,6 +95,7 @@ const schema = a.schema({
       operatorAvailabilityBlocks: a.hasMany('OperatorAvailabilityBlock', 'customerId'),
       customerClosureBlocks: a.hasMany('CustomerClosureBlock', 'customerId'),
       rateLines: a.hasMany('RateLine', 'customerId'),
+      payouts: a.hasMany('OperatorPayout', 'customerId'),
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read', 'update']),
@@ -161,6 +171,7 @@ const schema = a.schema({
       stops: a.hasMany('Stop', 'routeId'),
       lineItems: a.hasMany('LineItem', 'routeId'),
       invoices: a.hasMany('Invoice', 'routeId'),
+      payouts: a.hasMany('OperatorPayout', 'routeId'),
     })
     .authorization((allow) => [
       // 'update' scoped in practice to customerInstructions by the client (lib/queries.ts
@@ -292,6 +303,34 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read']),
+    ]),
+
+  /**
+   * OperatorPayout - Tracks a driver-split payout owed to the operator assigned on a
+   * customer's routes for a billing period. operatorSub is a genuine Cognito sub (unlike
+   * the customerId-as-FK mistake fixed repeatedly elsewhere in this schema), so it can
+   * be used directly with ownerDefinedIn for the operator's own read access.
+   */
+  OperatorPayout: a
+    .model({
+      operatorSub: a.string().required(),
+      customerId: a.id().required(),
+      routeId: a.id(),
+      periodStartDate: a.date(),
+      periodEndDate: a.date(),
+      amount: a.float().required(),
+      status: a.enum(['pending', 'paid']),
+      paidAt: a.datetime(),
+      notes: a.string(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+      // Relationships
+      customer: a.belongsTo('Customer', 'customerId'),
+      route: a.belongsTo('Route', 'routeId'),
+    })
+    .authorization((allow) => [
+      allow.ownerDefinedIn('operatorSub').identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
   /**

@@ -11,6 +11,7 @@ import { getUserSettings } from '@/lib/queries';
 const OPERATOR_NAV = [
   { href: '/operator/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
   { href: '/operator/routes', label: 'Routes', icon: 'route' },
+  { href: '/operator/calendar', label: 'Service Calendar', icon: 'calendar' },
   { href: '/operator/settings', label: 'Settings', icon: 'settings' },
 ];
 

@@ -1,0 +1,9 @@
+.customerPicker {
+  width: 260px;
+}
+
+.emptyState {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--text-muted);
+}

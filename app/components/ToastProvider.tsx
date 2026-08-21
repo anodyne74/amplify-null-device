@@ -1,11 +1,12 @@
 'use client';
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { Toast } from '@/app/components/ui/feedback/Toast';
 import styles from './ToastProvider.module.css';
 
 export type ToastTone = 'success' | 'error' | 'info';
 
-interface Toast {
+interface ToastItem {
   id: number;
   tone: ToastTone;
   message: string;
@@ -20,14 +21,8 @@ const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 
 const AUTO_DISMISS_MS = 5000;
 
-const TONE_CLASS: Record<ToastTone, string> = {
-  success: styles.success,
-  error: styles.error,
-  info: styles.info,
-};
-
 export default function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const nextIdRef = useRef(1);
 
   const dismissToast = useCallback((id: number) => {
@@ -52,21 +47,13 @@ export default function ToastProvider({ children }: { children: React.ReactNode 
       {children}
       <div className={styles.viewport} aria-live="polite" aria-label="Notifications">
         {toasts.map((toast) => (
-          <div
+          <Toast
             key={toast.id}
-            className={`${styles.toast} ${TONE_CLASS[toast.tone]}`}
+            tone={toast.tone}
+            title={toast.message}
             role={toast.tone === 'error' ? 'alert' : 'status'}
-          >
-            <span className={styles.message}>{toast.message}</span>
-            <button
-              type="button"
-              className={styles.dismissButton}
-              onClick={() => dismissToast(toast.id)}
-              aria-label="Dismiss notification"
-            >
-              ×
-            </button>
-          </div>
+            onDismiss={() => dismissToast(toast.id)}
+          />
         ))}
       </div>
     </ToastContext.Provider>

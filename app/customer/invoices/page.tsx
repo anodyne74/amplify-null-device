@@ -9,6 +9,7 @@ import PageHeader from '@/app/customer/components/PageHeader';
 import { InvoiceStatusPill, InvoiceActions } from '@/app/customer/components/InvoiceListItem';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
+import { Tag } from '@/app/components/ui/core/Tag';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
@@ -19,6 +20,43 @@ import styles from './page.module.css';
 function formatDate(dateString?: string | null) {
   if (!dateString) return 'N/A';
   return new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+type StatusFilter = 'all' | 'draft' | 'sent' | 'paid';
+
+const STATUS_CHIPS: { id: StatusFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'draft', label: 'Draft' },
+  { id: 'sent', label: 'Sent' },
+  { id: 'paid', label: 'Paid' },
+];
+
+function csvEscape(value: string) {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function downloadInvoicesCsv(invoices: Invoice[]) {
+  const header = ['Invoice #', 'Route ID', 'Date', 'Period start', 'Period end', 'Amount', 'Status'];
+  const rows = invoices.map((invoice) => [
+    invoice.invoiceNumber || invoice.id,
+    invoice.routeId || '',
+    formatDate(invoice.invoiceDate),
+    formatDate(invoice.periodStartDate),
+    formatDate(invoice.periodEndDate),
+    formatInvoiceCurrency(invoice.totalAmount),
+    invoice.status || '',
+  ]);
+
+  const csv = [header, ...rows].map((row) => row.map((cell) => csvEscape(String(cell))).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `invoices-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 /**
@@ -33,6 +71,7 @@ export default function InvoicesPage() {
   const [readOnly, setReadOnly] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   useEffect(() => {
     if (!user?.userId) return;
@@ -118,6 +157,8 @@ export default function InvoicesPage() {
     );
   }
 
+  const filteredInvoices = invoices.filter((invoice) => statusFilter === 'all' || invoice.status === statusFilter);
+
   const columns: DataColumn<Invoice>[] = [
     {
       key: 'id',
@@ -158,6 +199,23 @@ export default function InvoicesPage() {
     <div>
       <PageHeader title="Invoices" subtitle="View and download your invoices" />
 
+      <div className={styles.chipsRow}>
+        {STATUS_CHIPS.map((chip) => (
+          <Tag key={chip.id} selected={statusFilter === chip.id} onClick={() => setStatusFilter(chip.id)}>
+            {chip.label}
+          </Tag>
+        ))}
+        <div className={styles.chipsSpacer} />
+        <Button
+          variant="secondary"
+          iconLeft="file-text"
+          disabled={filteredInvoices.length === 0}
+          onClick={() => downloadInvoicesCsv(filteredInvoices)}
+        >
+          Export CSV
+        </Button>
+      </div>
+
       <div className={styles.filterSection}>
         <Field label="Start date" htmlFor="sd">
           <Input id="sd" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
@@ -175,7 +233,7 @@ export default function InvoicesPage() {
       <Card padded={false}>
         <DataTable
           columns={columns}
-          rows={invoices}
+          rows={filteredInvoices}
           wrapped={false}
           empty={
             <div>
@@ -188,9 +246,9 @@ export default function InvoicesPage() {
         />
       </Card>
 
-      {invoices.length > 0 && (
+      {filteredInvoices.length > 0 && (
         <div className={styles.footerSummary}>
-          Showing {invoices.length} invoice{invoices.length !== 1 ? 's' : ''}
+          Showing {filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? 's' : ''}
         </div>
       )}
     </div>

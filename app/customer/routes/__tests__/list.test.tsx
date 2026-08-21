@@ -214,6 +214,28 @@ describe('Customer Routes List Page', () => {
     expect(screen.getByText(/No routes found/i)).toBeInTheDocument();
   });
 
+  it('filters routes by route code search text', async () => {
+    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
+      data: mockRoutes,
+      errors: undefined,
+    });
+
+    render(<RoutesPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading routes/i)).not.toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/search route code/i), { target: { value: 'route-2' } });
+
+    await waitFor(() => {
+      const routeLinks = screen.getAllByRole('link');
+      expect(routeLinks.map((link) => link.getAttribute('href'))).toEqual(['/customer/routes/route-2']);
+    });
+
+    expect(screen.getByText(/Showing 1 routes/i)).toBeInTheDocument();
+  });
+
   it('calls listMyRoutes with the portal context customer ID instead of the user sub', async () => {
     (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
       data: mockRoutes,

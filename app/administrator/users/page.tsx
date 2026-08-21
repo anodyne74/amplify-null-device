@@ -12,6 +12,7 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { Badge } from '@/app/components/ui/core/Badge';
+import { StatTile } from '@/app/components/ui/data/StatTile';
 import {
   createCustomerUser,
   deleteCustomerUser,
@@ -549,6 +550,13 @@ export default function UsersAdminPage() {
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
         <PageHeader title="Users" />
+
+        <div className={styles.statsGrid}>
+          <StatTile label="Total users" value={users.length} icon="users" />
+          <StatTile label="Customer accounts" value={customers.length} icon="building-2" />
+          <StatTile label="Customer's users" value={customerUsers.length} icon="user" />
+          <StatTile label="Primary contact" value={hasAccountOwner ? 'Assigned' : 'Missing'} icon="user" />
+        </div>
         <ConfirmDialog
           open={removalTarget !== null}
           title="Remove customer access?"

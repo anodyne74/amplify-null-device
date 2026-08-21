@@ -23,6 +23,17 @@
   flex-wrap: wrap;
 }
 
+.filtersRowEnd {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filtersRowEnd input {
+  min-width: 220px;
+}
+
 .summary {
   margin-top: var(--space-6);
   padding: var(--space-5);

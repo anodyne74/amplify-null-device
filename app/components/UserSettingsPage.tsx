@@ -14,6 +14,12 @@ import {
 } from '@/lib/queries';
 import { DEFAULT_COMPANY_BILLING_DETAILS } from '@/lib/companyBilling';
 import { MAP_THEMES } from '@/lib/mapThemes';
+import { Card } from '@/app/components/ui/core/Card';
+import { Button } from '@/app/components/ui/core/Button';
+import { Field } from '@/app/components/ui/forms/Field';
+import { Input } from '@/app/components/ui/forms/Input';
+import { Select } from '@/app/components/ui/forms/Select';
+import { Tabs } from '@/app/components/ui/navigation/Tabs';
 import styles from './UserSettingsPage.module.css';
 
 type RoleVariant = 'administrator' | 'operator' | 'customer';
@@ -174,66 +180,48 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.heading}>{title}</h1>
-      <p className={styles.subtext}>{roleLabel} profile and preferences.</p>
+      <div>
+        <h1 className={styles.heading}>{title}</h1>
+        <p className={styles.subtext}>{roleLabel} profile and preferences.</p>
+      </div>
 
-      <div className={styles.panel}>
+      <Card>
         {availableTabs.length > 1 && (
-          <div className={styles.tabs} role="tablist" aria-label="Settings sections">
-            {availableTabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === tab.id}
-                className={`${styles.tabButton} ${activeTab === tab.id ? styles.tabButtonActive : ''}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <Tabs
+            items={availableTabs.map((tab) => ({ id: tab.id, label: tab.label }))}
+            value={activeTab}
+            onChange={(id) => setActiveTab(id as SettingsTab)}
+            aria-label="Settings sections"
+          />
         )}
 
         {activeTab === 'user' && (
           <>
             <div className={styles.grid}>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="settings-name">
-                  Name
-                </label>
-                <input
+              <Field label="Name" htmlFor="settings-name">
+                <Input
                   id="settings-name"
-                  className={styles.input}
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   placeholder="Your display name"
                 />
-              </div>
+              </Field>
 
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="settings-theme">
-                  Default Theme
-                </label>
-                <select
+              <Field label="Default Theme" htmlFor="settings-theme">
+                <Select
                   id="settings-theme"
-                  className={styles.select}
                   value={defaultTheme}
                   onChange={(event) => setDefaultTheme(event.target.value as ThemeModeSetting)}
                 >
                   <option value="system">System</option>
                   <option value="dark">Dark</option>
                   <option value="light">Light</option>
-                </select>
-              </div>
+                </Select>
+              </Field>
 
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="settings-map-theme">
-                  Map Theme
-                </label>
-                <select
+              <Field label="Map Theme" htmlFor="settings-map-theme">
+                <Select
                   id="settings-map-theme"
-                  className={styles.select}
                   value={mapTheme}
                   onChange={(event) => setMapTheme(event.target.value as MapThemeSetting)}
                 >
@@ -242,18 +230,18 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
                       {theme.label}
                     </option>
                   ))}
-                </select>
-              </div>
+                </Select>
+              </Field>
             </div>
 
             <div className={styles.actions}>
-              <button type="button" className={styles.button} disabled={pending} onClick={() => void handleSave()}>
+              <Button type="button" loading={pending} disabled={pending} onClick={() => void handleSave()}>
                 {pending ? 'Saving...' : 'Save Settings'}
-              </button>
+              </Button>
               {message && <p className={styles.message}>{message}</p>}
             </div>
 
-            <p className={styles.subtext}>
+            <p className={styles.currentTheme}>
               Current theme in app: {mode}
             </p>
           </>
@@ -262,102 +250,74 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
         {activeTab === 'administrator' && roleVariant === 'administrator' && (
           <>
             <div className={styles.grid}>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="settings-billing-company-name">
-                  Billing Company Name
-                </label>
-                <input
+              <Field label="Billing Company Name" htmlFor="settings-billing-company-name">
+                <Input
                   id="settings-billing-company-name"
-                  className={styles.input}
                   value={billingCompanyName}
                   onChange={(event) => setBillingCompanyName(event.target.value)}
                   placeholder="Company name"
                 />
-              </div>
+              </Field>
 
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="settings-billing-abn">
-                  Billing ABN
-                </label>
-                <input
+              <Field label="Billing ABN" htmlFor="settings-billing-abn">
+                <Input
                   id="settings-billing-abn"
-                  className={styles.input}
                   value={billingAbn}
                   onChange={(event) => setBillingAbn(event.target.value)}
                   placeholder="ABN"
                 />
-              </div>
+              </Field>
 
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="settings-billing-phone">
-                  Billing Phone
-                </label>
-                <input
+              <Field label="Billing Phone" htmlFor="settings-billing-phone">
+                <Input
                   id="settings-billing-phone"
-                  className={styles.input}
                   value={billingPhone}
                   onChange={(event) => setBillingPhone(event.target.value)}
                   placeholder="Phone"
                 />
-              </div>
+              </Field>
 
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="settings-billing-company-address">
-                  Billing Company Address
-                </label>
-                <input
+              <Field label="Billing Company Address" htmlFor="settings-billing-company-address">
+                <Input
                   id="settings-billing-company-address"
-                  className={styles.input}
                   value={billingCompanyAddress}
                   onChange={(event) => setBillingCompanyAddress(event.target.value)}
                   placeholder="Address"
                 />
-              </div>
+              </Field>
 
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="settings-billing-payment-account-name">
-                  Payment Account Name
-                </label>
-                <input
+              <Field label="Payment Account Name" htmlFor="settings-billing-payment-account-name">
+                <Input
                   id="settings-billing-payment-account-name"
-                  className={styles.input}
                   value={billingPaymentAccountName}
                   onChange={(event) => setBillingPaymentAccountName(event.target.value)}
                   placeholder="Account name"
                 />
-              </div>
+              </Field>
 
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="settings-billing-bsb">
-                  Payment BSB
-                </label>
-                <input
+              <Field label="Payment BSB" htmlFor="settings-billing-bsb">
+                <Input
                   id="settings-billing-bsb"
-                  className={styles.input}
                   value={billingBsb}
                   onChange={(event) => setBillingBsb(event.target.value)}
                   placeholder="BSB"
                 />
-              </div>
+              </Field>
 
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="settings-billing-account-number">
-                  Payment Account Number
-                </label>
-                <input
+              <Field label="Payment Account Number" htmlFor="settings-billing-account-number">
+                <Input
                   id="settings-billing-account-number"
-                  className={styles.input}
                   value={billingAccountNumber}
                   onChange={(event) => setBillingAccountNumber(event.target.value)}
                   placeholder="Account number"
                 />
-              </div>
+              </Field>
             </div>
 
             <div className={styles.actions}>
-              <button type="button" className={styles.button} disabled={pending} onClick={() => void handleSave()}>
+              <Button type="button" loading={pending} disabled={pending} onClick={() => void handleSave()}>
                 {pending ? 'Saving...' : 'Save Settings'}
-              </button>
+              </Button>
               {message && <p className={styles.message}>{message}</p>}
             </div>
           </>
@@ -392,7 +352,7 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
             </section>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

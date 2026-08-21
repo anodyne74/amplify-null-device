@@ -1,284 +1,94 @@
-/* Header action: push the create button to the right edge of the section header row. */
-.createRouteLink {
-  margin-left: auto;
-  text-decoration: none;
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
 }
 
-/* CTA link rendered inside the AsyncState empty state. */
-.emptyStateCta {
-  color: var(--nd-operator-accent);
-  font-weight: 600;
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.emptyStateCta:hover {
-  text-decoration: underline;
-}
-
-/* Search + date-range refinements row. Wraps on narrow viewports. */
 .searchFilterRow {
   display: flex;
+  gap: var(--space-4);
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: var(--nd-space-md);
-  margin-bottom: 16px;
+  margin-bottom: var(--space-5);
 }
 
 .searchField {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1 1 240px;
-  min-width: 180px;
+  flex: 1;
+  min-width: 220px;
 }
 
 .dateField {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 0 1 170px;
-  min-width: 150px;
+  min-width: 160px;
 }
 
-.filterFieldLabel {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--nd-text-secondary);
-}
-
-.searchInput,
-.dateInput {
-  min-height: 38px;
-  padding: 8px 10px;
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg-surface);
-  color: var(--nd-text-primary);
+.clearFiltersBtn {
+  background: none;
+  border: none;
+  color: var(--text-brand);
   font: inherit;
-  font-size: 13px;
-}
-
-.searchInput:focus-visible,
-.dateInput:focus-visible {
-  outline: 2px solid var(--nd-operator-accent);
-  outline-offset: 2px;
-}
-
-/* Scoped under .searchFilterRow so it wins over the generic
-   `.infoPanel button` styling from dashboard.module.css. */
-.searchFilterRow .clearFiltersBtn {
-  min-height: 38px;
-  padding: 8px 14px;
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  background: transparent;
-  color: var(--nd-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  transition: border-color var(--nd-transition-fast), color var(--nd-transition-fast);
-}
-
-.searchFilterRow .clearFiltersBtn:hover {
-  border-color: var(--nd-border-strong);
-  color: var(--nd-text-primary);
+  padding: var(--space-3) 0;
 }
 
 .resultCount {
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: var(--nd-text-secondary);
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
 }
 
 .filterRow {
-  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
 }
 
 .filterLabel {
-  margin-right: var(--nd-space-sm);
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--nd-text-primary);
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
+  font-weight: var(--fw-semibold);
 }
 
-/* Selectors are scoped under .filterRow so they win over the generic
-   `.infoPanel button` styling from dashboard.module.css. */
-.filterRow .filterBtn {
-  min-height: 0;
-  margin-right: var(--nd-space-sm);
-  padding: 6px 14px;
-  border-radius: var(--nd-radius-sm);
-  border: 1px solid var(--nd-border-default);
-  background-color: transparent;
-  color: var(--nd-text-secondary);
+.filterBtn {
+  background: var(--surface-hover);
+  border: var(--border-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-body);
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 400;
-  transition: border-color var(--nd-transition-fast), color var(--nd-transition-fast);
 }
 
-.filterRow .filterBtn:hover {
-  border-color: var(--nd-border-strong);
-  color: var(--nd-text-primary);
+.filterBtnActive {
+  background: var(--surface-brand-subtle);
+  border-color: var(--border-brand);
+  color: var(--text-brand);
 }
 
-.filterRow .filterBtnActive {
-  background-color: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-  border-color: var(--nd-operator-accent);
-  font-weight: 600;
+.emptyStateCta {
+  color: var(--text-brand);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
 }
 
-.filterRow .filterBtnActive:hover {
-  border-color: var(--nd-operator-accent);
-  color: var(--nd-text-inverse);
-  opacity: 0.9;
-}
-
-.emptyState {
-  padding: 48px;
-  text-align: center;
-  color: var(--nd-text-secondary);
-  border: 1px dashed var(--nd-border-default);
-  border-radius: var(--nd-radius-lg);
-}
-
-.emptyStateText {
-  margin: 0;
-}
-
-.routesList {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.routeRow {
-  padding: var(--nd-space-md);
-  background-color: var(--nd-bg-surface);
-  border: 1px solid var(--nd-border-subtle);
-  border-radius: var(--nd-radius-lg);
-  display: grid;
-  grid-template-columns: 130px 180px 120px 120px 1fr 120px;
-  gap: var(--nd-space-md);
-  align-items: center;
-}
-
-.cellLabel {
-  font-size: 11px;
-  color: var(--nd-text-muted);
-  margin-bottom: 2px;
-}
-
-.cellValueMono {
-  font-weight: 600;
-  font-family: var(--nd-font-mono);
-  font-size: 13px;
-  color: var(--nd-text-primary);
-}
-
-.cellValueMonoNormal {
-  font-family: var(--nd-font-mono);
-  font-size: 13px;
-  color: var(--nd-text-primary);
-}
-
-.cellValue {
-  font-size: 13px;
-  color: var(--nd-text-primary);
+.tableWrap {
+  overflow-x: auto;
 }
 
 .notesPreview {
-  font-size: 12px;
-  color: var(--nd-text-secondary);
-  margin-top: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
 }
 
-.cellRight {
-  text-align: right;
+.actionsCell {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-}
-
-.viewLink {
-  color: var(--nd-operator-accent);
-  font-weight: 600;
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.viewLink:hover {
-  text-decoration: underline;
-}
-
-.editLink {
-  color: var(--nd-operator-accent);
-  font-weight: 600;
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.editLink:hover {
-  text-decoration: underline;
-}
-
-.deleteBtn {
-  border: 1px solid var(--nd-status-danger);
-  border-radius: var(--nd-radius-sm);
-  background: transparent;
-  color: var(--nd-status-danger);
-  font-weight: 600;
-  font-size: 13px;
-  padding: 4px 8px;
-  cursor: pointer;
-}
-
-.deleteBtn:hover {
-  opacity: 0.85;
-}
-
-.deleteBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Badge pattern */
-.badge {
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  display: inline-block;
-  text-transform: uppercase;
-  border: 1px solid;
-}
-
-.badgePlanned {
-  color: var(--nd-status-planned);
-  border-color: var(--nd-status-planned);
-  background-color: var(--nd-operator-accent-dim);
-}
-
-.badgeActive {
-  color: var(--nd-status-active);
-  border-color: var(--nd-status-active);
-  background-color: var(--nd-accent-primary-dim);
-}
-
-.badgeCompleted {
-  color: var(--nd-status-completed);
-  border-color: var(--nd-status-completed);
-  background-color: var(--nd-customer-accent-dim);
-}
-
-.badgeArchived {
-  color: var(--nd-status-archived);
-  border-color: var(--nd-status-archived);
-  background-color: transparent;
+  gap: var(--space-3);
+  justify-content: flex-end;
+  align-items: center;
 }

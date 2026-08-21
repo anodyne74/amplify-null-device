@@ -1,10 +1,12 @@
 import type { FormEvent } from 'react';
 import type { Route } from '@/amplify/types';
-import AdminFormField from '@/app/components/AdminFormField';
-import AdminSectionHeader from '@/app/components/AdminSectionHeader';
+import { Card } from '@/app/components/ui/core/Card';
+import { Button } from '@/app/components/ui/core/Button';
+import { Field } from '@/app/components/ui/forms/Field';
+import { Input } from '@/app/components/ui/forms/Input';
+import { Select } from '@/app/components/ui/forms/Select';
 import type { CustomerOption } from '@/app/administrator/invoices/types';
-import styles from '@/app/dashboard.module.css';
-import invoiceStyles from '@/app/administrator/invoices/page.module.css';
+import styles from '../page.module.css';
 
 interface InvoiceCreateFormProps {
   customerId: string;
@@ -40,80 +42,80 @@ export default function InvoiceCreateForm({
   onSubmit,
 }: InvoiceCreateFormProps) {
   return (
-    <form className={`${styles.infoPanel} ${invoiceStyles.createForm}`} onSubmit={onSubmit}>
-      <AdminSectionHeader title="Create Invoice" titleClassName={invoiceStyles.panelHeading} />
+    <Card>
+      <form onSubmit={onSubmit}>
+        <h3 className={styles.formHeading}>Create Invoice</h3>
 
-      <div className={invoiceStyles.createGrid}>
-        <AdminFormField label="Customer" htmlFor="invoice-customer" className={invoiceStyles.fieldGroup}>
-          <select
-            id="invoice-customer"
-            value={customerId}
-            onChange={(event) => onCustomerChange(event.target.value)}
-            required
-          >
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.name}
-              </option>
-            ))}
-          </select>
-        </AdminFormField>
+        <div className={styles.fieldsGrid}>
+          <Field label="Customer" htmlFor="invoice-customer">
+            <Select
+              id="invoice-customer"
+              value={customerId}
+              onChange={(event) => onCustomerChange(event.target.value)}
+              required
+            >
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
 
-        <AdminFormField label="Linked Route" htmlFor="invoice-route" className={invoiceStyles.fieldGroup}>
-          <select
-            id="invoice-route"
-            value={routeId}
-            onChange={(event) => onRouteChange(event.target.value)}
-          >
-            <option value="">— None —</option>
-            {customerRoutes.map((route) => (
-              <option key={route.id} value={route.id}>
-                {route.routeCode ?? route.id.slice(0, 8)}
-              </option>
-            ))}
-          </select>
-        </AdminFormField>
+          <Field label="Linked Route" htmlFor="invoice-route">
+            <Select
+              id="invoice-route"
+              value={routeId}
+              onChange={(event) => onRouteChange(event.target.value)}
+            >
+              <option value="">— None —</option>
+              {customerRoutes.map((route) => (
+                <option key={route.id} value={route.id}>
+                  {route.routeCode ?? route.id.slice(0, 8)}
+                </option>
+              ))}
+            </Select>
+          </Field>
 
-        <AdminFormField label="Invoice Number" htmlFor="invoice-number" className={invoiceStyles.fieldGroup}>
-          <input
-            id="invoice-number"
-            value={invoiceNumber}
-            onChange={(event) => onInvoiceNumberChange(event.target.value)}
-            placeholder="INV-001"
-            required
-          />
-        </AdminFormField>
+          <Field label="Invoice Number" htmlFor="invoice-number">
+            <Input
+              id="invoice-number"
+              value={invoiceNumber}
+              onChange={(event) => onInvoiceNumberChange(event.target.value)}
+              placeholder="INV-001"
+              required
+            />
+          </Field>
 
-        <AdminFormField label="Total Hours" htmlFor="invoice-hours" className={invoiceStyles.fieldGroup}>
-          <input
-            id="invoice-hours"
-            value={totalHours}
-            onChange={(event) => onTotalHoursChange(event.target.value)}
-            type="number"
-            min="0"
-            step="0.01"
-            required
-          />
-        </AdminFormField>
+          <Field label="Total Hours" htmlFor="invoice-hours">
+            <Input
+              id="invoice-hours"
+              value={totalHours}
+              onChange={(event) => onTotalHoursChange(event.target.value)}
+              type="number"
+              min="0"
+              step="0.01"
+              required
+            />
+          </Field>
 
-        <AdminFormField label="Total Amount" htmlFor="invoice-total" className={invoiceStyles.fieldGroup}>
-          <input
-            id="invoice-total"
-            value={totalAmount}
-            onChange={(event) => onTotalAmountChange(event.target.value)}
-            type="number"
-            min="0"
-            step="0.01"
-            required
-          />
-        </AdminFormField>
+          <Field label="Total Amount" htmlFor="invoice-total">
+            <Input
+              id="invoice-total"
+              value={totalAmount}
+              onChange={(event) => onTotalAmountChange(event.target.value)}
+              type="number"
+              min="0"
+              step="0.01"
+              required
+            />
+          </Field>
 
-        <div className={`${invoiceStyles.fieldGroup} ${invoiceStyles.submitGroup}`}>
-          <button type="submit" className={invoiceStyles.primaryButton} disabled={saving}>
+          <Button type="submit" variant="primary" loading={saving} disabled={saving}>
             {saving ? 'Creating...' : 'Create Invoice'}
-          </button>
+          </Button>
         </div>
-      </div>
-    </form>
+      </form>
+    </Card>
   );
 }

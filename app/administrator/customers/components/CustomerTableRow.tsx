@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react';
-import type { Customer, CustomerStatus } from '@/app/administrator/customers/types';
-import styles from '@/app/dashboard.module.css';
+import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
+import { Button } from '@/app/components/ui/core/Button';
+import type { Customer } from '@/app/administrator/customers/types';
+import styles from '../page.module.css';
 
 interface CustomerTableRowProps {
   customer: Customer;
@@ -20,16 +22,11 @@ function toTitleCase(value?: string | null) {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
-function getCustomerStatusChipClass(status?: CustomerStatus | null) {
-  switch (String(status ?? '').toLowerCase()) {
-    case 'inactive':
-      return styles.statusChipMuted;
-    case 'suspended':
-      return styles.statusChipDanger;
-    default:
-      return styles.statusChipActive;
-  }
-}
+const STATUS_TONE: Record<string, BadgeProps['tone']> = {
+  inactive: 'neutral',
+  suspended: 'danger',
+  active: 'success',
+};
 
 export default function CustomerTableRow({
   customer,
@@ -43,6 +40,7 @@ export default function CustomerTableRow({
   ownerPanel,
 }: CustomerTableRowProps) {
   const [actionsOpen, setActionsOpen] = useState(false);
+  const statusKey = String(customer.status ?? 'active').toLowerCase();
 
   return (
     <>
@@ -52,52 +50,55 @@ export default function CustomerTableRow({
         <td>{customer.email}</td>
         <td>{formattedRate}</td>
         <td>
-          <div className={styles.statusCellStack}>
-            <span className={`${styles.statusChip} ${getCustomerStatusChipClass(customer.status ?? 'active')}`}>
-              {toTitleCase(customer.status)}
-            </span>
-          </div>
+          <Badge tone={STATUS_TONE[statusKey] ?? 'success'} dot>
+            {toTitleCase(customer.status)}
+          </Badge>
         </td>
-        <td>
-          <div className={styles.actionsRow}>
-            <button
-              type="button"
-              className={styles.rowMenuTrigger}
-              aria-expanded={actionsOpen}
-              aria-controls={`customer-actions-${customer.id}`}
-              aria-label={`More customer actions for ${customer.name}`}
-              onClick={() => setActionsOpen((open) => !open)}
-            >
-              Manage
-            </button>
-          </div>
+        <td className={styles.manageCell}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            aria-expanded={actionsOpen}
+            aria-controls={`customer-actions-${customer.id}`}
+            aria-label={`More customer actions for ${customer.name}`}
+            onClick={() => setActionsOpen((open) => !open)}
+          >
+            Manage
+          </Button>
         </td>
       </tr>
       {actionsOpen && (
-        <tr className={styles.customerActionsExpandedRow}>
+        <tr className={styles.expandedRow}>
           <td colSpan={6}>
-            <div className={styles.customerActionsPanel} id={`customer-actions-${customer.id}`}>
-              <button
+            <div className={styles.expandedPanel} id={`customer-actions-${customer.id}`}>
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={onToggleEdit}
                 aria-label={`${isEditOpen ? 'Close edit panel for' : 'Edit'} customer ${customer.name}`}
               >
                 {isEditOpen ? 'Close Edit' : 'Edit'}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={onToggleOwner}
                 aria-label={`${isOwnerOpen ? 'Close owner management for' : 'Manage owner for'} customer ${customer.name}`}
               >
                 {isOwnerOpen ? 'Close Owner' : 'Manage Owner'}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="danger"
+                size="sm"
                 onClick={onDelete}
                 aria-label={`Delete customer ${customer.name}`}
               >
                 Delete
-              </button>
+              </Button>
             </div>
           </td>
         </tr>

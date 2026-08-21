@@ -3,21 +3,32 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--nd-space-sm);
-  padding: var(--nd-space-xl) var(--nd-space-md);
+  gap: var(--space-4);
+  padding: var(--space-9) var(--space-5);
   text-align: center;
 }
 
 .errorMessage {
   margin: 0;
-  color: var(--nd-status-danger);
+  color: var(--status-danger-fg);
 }
 
 .emptyMessage {
   margin: 0;
-  color: var(--nd-text-secondary);
+  color: var(--text-muted);
 }
 
 .retryButton {
-  background: var(--nd-bg-elevated);
+  background: var(--surface-card);
+  border: var(--border-hairline) solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-5);
+  font: inherit;
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+  cursor: pointer;
+}
+
+.retryButton:hover {
+  background: var(--surface-hover);
 }

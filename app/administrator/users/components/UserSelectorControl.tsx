@@ -1,6 +1,8 @@
-import styles from '@/app/dashboard.module.css';
-import AdminActionButton from '@/app/components/AdminActionButton';
-import AdminFormField from '@/app/components/AdminFormField';
+import { Field } from '@/app/components/ui/forms/Field';
+import { Input } from '@/app/components/ui/forms/Input';
+import { Select } from '@/app/components/ui/forms/Select';
+import { Button } from '@/app/components/ui/core/Button';
+import styles from '../page.module.css';
 
 type UserOption = {
   username?: string;
@@ -35,10 +37,10 @@ export default function UserSelectorControl({
   onRefreshUsers,
 }: UserSelectorControlProps) {
   return (
-    <AdminFormField label="User" htmlFor="userSelect" className={styles.inlineGrid}>
+    <Field label="User" htmlFor="userSelect">
       {listUsersDenied ? (
-        <div className={styles.actionsRow}>
-          <input
+        <div className={styles.sectionRow}>
+          <Input
             id="userSelect"
             type="text"
             value={selectedEmailInput}
@@ -47,21 +49,21 @@ export default function UserSelectorControl({
             disabled={pending}
             aria-label="User email for loading groups"
           />
-          <AdminActionButton
+          <Button
+            type="button"
+            variant="secondary"
+            loading={pending}
+            disabled={!selectedEmailInput}
             onClick={() => {
               void onLoadGroupsByEmail();
             }}
-            variant="secondary"
-            isLoading={pending}
-            loadingLabel="Loading..."
-            disabled={!selectedEmailInput}
           >
-            Load Groups
-          </AdminActionButton>
+            {pending ? 'Loading...' : 'Load Groups'}
+          </Button>
         </div>
       ) : (
-        <div className={styles.actionsRow}>
-          <select
+        <div className={styles.sectionRow}>
+          <Select
             id="userSelect"
             value={selectedUsername}
             onChange={(event) => {
@@ -77,20 +79,20 @@ export default function UserSelectorControl({
                 {user.status ? ` (${user.status})` : ''}
               </option>
             ))}
-          </select>
-          <AdminActionButton
+          </Select>
+          <Button
+            type="button"
+            variant="ghost"
+            loading={loading}
+            disabled={pending}
             onClick={() => {
               onRefreshUsers();
             }}
-            variant="ghost"
-            isLoading={loading}
-            loadingLabel="Refreshing..."
-            disabled={pending}
           >
-            Refresh Users
-          </AdminActionButton>
+            {loading ? 'Refreshing...' : 'Refresh Users'}
+          </Button>
         </div>
       )}
-    </AdminFormField>
+    </Field>
   );
 }

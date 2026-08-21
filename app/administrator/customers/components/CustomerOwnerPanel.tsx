@@ -1,6 +1,7 @@
-import AdminActionButton from '@/app/components/AdminActionButton';
+import { Button } from '@/app/components/ui/core/Button';
+import { Select } from '@/app/components/ui/forms/Select';
 import type { Customer, CustomerUser } from '@/app/administrator/customers/types';
-import styles from '@/app/dashboard.module.css';
+import styles from '../page.module.css';
 
 interface CustomerOwnerPanelProps {
   customer: Customer;
@@ -30,18 +31,10 @@ export default function CustomerOwnerPanel({
   onAssignOwner,
 }: CustomerOwnerPanelProps) {
   return (
-    <div className={styles.infoPanel}>
-      <h4>Account Owner — {customer.name}</h4>
-      {ownerError && (
-        <p className={styles.inlineErrorText} role="alert" aria-live="assertive">
-          {ownerError}
-        </p>
-      )}
-      {ownerSuccess && (
-        <p className={styles.inlineSuccessText} role="status" aria-live="polite">
-          {ownerSuccess}
-        </p>
-      )}
+    <div className={styles.subPanel}>
+      <h4 className={styles.subPanelHeading}>Account Owner — {customer.name}</h4>
+      {ownerError && <div className={styles.errorBanner} role="alert" aria-live="assertive">{ownerError}</div>}
+      {ownerSuccess && <div className={styles.successBanner} role="status" aria-live="polite">{ownerSuccess}</div>}
 
       {existingOwner ? (
         <div>
@@ -49,26 +42,25 @@ export default function CustomerOwnerPanel({
             <strong>Owner assigned:</strong>{' '}
             {existingOwner.name ?? '—'} ({existingOwner.email ?? existingOwner.userSub})
           </p>
-          <p className={styles.welcome}>
+          <p className={styles.mutedText}>
             To change the account owner, remove the existing CustomerUser record
             from the Users admin page, then assign a new one here.
           </p>
         </div>
       ) : (
         <div>
-          <p className={styles.welcome}>
+          <p className={styles.mutedText}>
             Select a user from the customer group to assign as account owner. The owner can
             view invoices and the customer user list.
           </p>
           {usersForCustomer.length === 0 ? (
-            <p className={styles.welcome}>No users in this customer group yet.</p>
+            <p className={styles.mutedText}>No users in this customer group yet.</p>
           ) : (
             <>
-              <select
+              <Select
                 value={ownerUserSub}
                 onChange={(event) => onOwnerUserSubChange(event.target.value)}
                 disabled={ownerSaving}
-                className={styles.fullWidth}
               >
                 <option value="">— Select a user —</option>
                 {usersForCustomer
@@ -78,24 +70,24 @@ export default function CustomerOwnerPanel({
                       {user.name || user.email || user.userSub}
                     </option>
                   ))}
-              </select>
+              </Select>
               {ownerUserSub && (
                 <div className={styles.selectionPreview}>
-                  <p className={styles.selectionPreviewTitle}>
+                  <p>
                     <strong>Selected:</strong> {ownerName || '—'}
                   </p>
                   <p className={styles.selectionPreviewSubtitle}>{ownerEmail || ownerUserSub}</p>
                 </div>
               )}
-              <AdminActionButton
-                onClick={onAssignOwner}
+              <Button
+                type="button"
                 variant="primary"
-                isLoading={ownerSaving}
-                loadingLabel="Assigning..."
+                loading={ownerSaving}
                 disabled={!ownerUserSub.trim()}
+                onClick={onAssignOwner}
               >
-                Assign as Account Owner
-              </AdminActionButton>
+                {ownerSaving ? 'Assigning...' : 'Assign as Account Owner'}
+              </Button>
             </>
           )}
         </div>

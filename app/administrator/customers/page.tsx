@@ -1,15 +1,14 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import AdminActionButton from '@/app/components/AdminActionButton';
-import AdminFeedbackBanner from '@/app/components/AdminFeedbackBanner';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import AdminDataTable, { AdminSortableHeader, useAdminTableSort } from '@/app/components/AdminDataTable';
-import AdminPagination, { ADMIN_PAGE_SIZE, getPageSlice } from '@/app/components/AdminPagination';
-import AdminListState from '@/app/components/AdminListState';
-import AdminSectionHeader from '@/app/components/AdminSectionHeader';
+import { useAdminTableSort, type SortDirection } from '@/app/components/AdminDataTable';
+import { ADMIN_PAGE_SIZE, getPageSlice } from '@/app/components/AdminPagination';
 import type { ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
+import PageHeader from '@/app/administrator/components/PageHeader';
+import { Card } from '@/app/components/ui/core/Card';
+import { Button } from '@/app/components/ui/core/Button';
 import CustomerCreateForm from '@/app/administrator/customers/components/CustomerCreateForm';
 import CustomerEditPanel from '@/app/administrator/customers/components/CustomerEditPanel';
 import CustomerOwnerPanel from '@/app/administrator/customers/components/CustomerOwnerPanel';
@@ -29,7 +28,7 @@ import {
   updateCustomer,
 } from '@/lib/queries';
 import { useToast } from '@/app/components/ToastProvider';
-import styles from '@/app/dashboard.module.css';
+import styles from './page.module.css';
 
 const usdFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -48,6 +47,34 @@ function formatCurrency(value: string): string {
   const parsed = parseCurrency(value);
   if (Number.isNaN(parsed)) return value;
   return usdFormatter.format(parsed);
+}
+
+function SortableHeader<K extends string>({
+  label,
+  sortKey,
+  sortBy,
+  sortDirection,
+  onSort,
+}: {
+  label: string;
+  sortKey: K;
+  sortBy: K | null;
+  sortDirection: SortDirection;
+  onSort: (key: K) => void;
+}) {
+  const active = sortBy === sortKey;
+  const ariaSort = active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none';
+
+  return (
+    <th scope="col" aria-sort={ariaSort}>
+      <button type="button" className={styles.sortButton} onClick={() => onSort(sortKey)} aria-label={`Sort by ${label}`}>
+        <span>{label}</span>
+        <span className={styles.sortIndicator} aria-hidden="true">
+          {active ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
+        </span>
+      </button>
+    </th>
+  );
 }
 
 export default function CustomersAdminPage() {
@@ -80,7 +107,7 @@ export default function CustomersAdminPage() {
     return sorted;
   }, [customers, sortBy, sortDirection]);
 
-  const { currentPage, pageRows: pageCustomers } = getPageSlice(sortedCustomers, page, ADMIN_PAGE_SIZE);
+  const { currentPage, totalPages, pageRows: pageCustomers } = getPageSlice(sortedCustomers, page, ADMIN_PAGE_SIZE);
 
   // Create customer form state
   const [name, setName] = useState('');
@@ -416,7 +443,7 @@ export default function CustomersAdminPage() {
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
-        <h1 className={styles.heading}>Customers</h1>
+        <PageHeader title="Customers" />
 
         <ConfirmDialog
           open={deleteTarget !== null}
@@ -466,155 +493,149 @@ export default function CustomersAdminPage() {
           onStandingInstructionsChange={setStandingInstructions}
         />
 
-        <AdminFeedbackBanner
-          message={error}
-          tone="error"
-          className={styles.infoPanel}
-          messageClassName={styles.inlineErrorText}
-        />
+        {error && <div className={styles.errorBanner} role="alert" aria-live="assertive">{error}</div>}
 
-        <div className={styles.infoPanel}>
-          <AdminSectionHeader title="Customer List" />
+        <Card title="Customer List" padded={!loading && !loadError && customers.length > 0 ? false : true}>
           {!loading && loadError ? (
             <>
-              <AdminFeedbackBanner
-                message={loadError}
-                tone="error"
-                messageClassName={styles.inlineErrorText}
-              />
-              <div className={styles.actionsRow}>
-                <AdminActionButton
+              <div className={styles.errorBanner} role="alert" aria-live="assertive">{loadError}</div>
+              <div className={`${styles.actionsRow} ${styles.retryRow}`}>
+                <Button
+                  type="button"
+                  variant="secondary"
                   onClick={() => {
                     void fetchCustomers();
                   }}
-                  variant="secondary"
                   aria-label="Retry loading customers"
                 >
                   Retry
-                </AdminActionButton>
+                </Button>
               </div>
             </>
           ) : loading || customers.length === 0 ? (
-            <AdminListState
-              loading={loading}
-              empty={!loading && customers.length === 0}
-              loadingMessage="Loading customers..."
-              emptyMessage="No customers yet."
-            />
+            <p className={styles.mutedText}>{loading ? 'Loading customers...' : 'No customers yet.'}</p>
           ) : (
-            <AdminDataTable
-              hint="On smaller screens, swipe horizontally to see all customer columns."
-              ariaLabel="Customer list"
-            >
-              <thead>
-                <tr>
-                  <AdminSortableHeader
-                    label="Name"
-                    sortKey="name"
-                    sortBy={sortBy}
-                    sortDirection={sortDirection}
-                    onSort={toggleSort}
-                  />
-                  <th scope="col">Company Name</th>
-                  <th scope="col">Correspondence Email</th>
-                  <th scope="col">Rate/hr</th>
-                  <AdminSortableHeader
-                    label="Status"
-                    sortKey="status"
-                    sortBy={sortBy}
-                    sortDirection={sortDirection}
-                    onSort={toggleSort}
-                  />
-                  <th scope="col">Manage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageCustomers.map((customer) => (
-                  <CustomerTableRow
-                    key={customer.id}
-                    customer={customer}
-                    formattedRate={usdFormatter.format(customer.billingRatePerHour ?? 0)}
-                    isEditOpen={expandedEditPanel === customer.id}
-                    isOwnerOpen={expandedOwnerPanel === customer.id}
-                    onToggleEdit={() => toggleEditPanel(customer)}
-                    onToggleOwner={() => {
-                      void toggleOwnerPanel(customer.id);
-                    }}
-                    onDelete={() => setDeleteTarget(customer)}
-                    editPanel={(
-                      <CustomerEditPanel
-                        customer={customer}
-                        editName={editName}
-                        editCompanyName={editCompanyName}
-                        editEmail={editEmail}
-                        editBillingRatePerHour={editBillingRatePerHour}
-                        editStatus={editStatus}
-                        editAddressLine1={editAddressLine1}
-                        editStandingInstructions={editStandingInstructions}
-                        editDefaultNumberOfSigns={editDefaultNumberOfSigns}
-                        editDefaultAgentName={editDefaultAgentName}
-                        editDefaultAgentInitials={editDefaultAgentInitials}
-                        editAgentOptionsText={editAgentOptionsText}
-                        editSaving={editSaving}
-                        editError={editError}
-                        editSuccess={editSuccess}
-                        onEditNameChange={setEditName}
-                        onEditCompanyNameChange={setEditCompanyName}
-                        onEditEmailChange={setEditEmail}
-                        onEditBillingRatePerHourChange={setEditBillingRatePerHour}
-                        onEditBillingRatePerHourBlur={(value) => setEditBillingRatePerHour(formatCurrency(value))}
-                        onEditStatusChange={setEditStatus}
-                        onEditDefaultNumberOfSignsChange={setEditDefaultNumberOfSigns}
-                        onEditDefaultAgentNameChange={setEditDefaultAgentName}
-                        onEditDefaultAgentInitialsChange={setEditDefaultAgentInitials}
-                        onEditAddressLine1Change={setEditAddressLine1}
-                        onEditResolvedAddressChange={(resolved) => {
-                          setEditResolvedAddress(resolved);
-                          if (resolved) {
-                            setEditAddressLine1(resolved.formattedAddress);
-                          }
-                        }}
-                        onEditAgentOptionsTextChange={setEditAgentOptionsText}
-                        onEditStandingInstructionsChange={setEditStandingInstructions}
-                        onSave={() => {
-                          void handleUpdateCustomer(customer.id);
-                        }}
-                        onCancel={() => toggleEditPanel(customer)}
-                      />
-                    )}
-                    ownerPanel={(
-                      <CustomerOwnerPanel
-                        customer={customer}
-                        ownerError={ownerError}
-                        ownerSuccess={ownerSuccess}
-                        ownerSaving={ownerSaving}
-                        ownerUserSub={ownerUserSub}
-                        ownerName={ownerName}
-                        ownerEmail={ownerEmail}
-                        usersForCustomer={customerUsers[customer.id] ?? []}
-                        existingOwner={existingOwner(customer.id)}
-                        onOwnerUserSubChange={(selectedUserSub) => {
-                          selectOwnerUserSub(selectedUserSub, customerUsers[customer.id] ?? []);
-                        }}
-                        onAssignOwner={() => {
-                          void handleAssignOwner(customer.id);
-                        }}
-                      />
-                    )}
-                  />
-                ))}
-              </tbody>
-            </AdminDataTable>
+            <div className={styles.tableWrap}>
+              <table className="nd-table nd-table--hoverable" aria-label="Customer list">
+                <thead>
+                  <tr>
+                    <SortableHeader label="Name" sortKey="name" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
+                    <th scope="col">Company Name</th>
+                    <th scope="col">Correspondence Email</th>
+                    <th scope="col">Rate/hr</th>
+                    <SortableHeader label="Status" sortKey="status" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
+                    <th scope="col">Manage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageCustomers.map((customer) => (
+                    <CustomerTableRow
+                      key={customer.id}
+                      customer={customer}
+                      formattedRate={usdFormatter.format(customer.billingRatePerHour ?? 0)}
+                      isEditOpen={expandedEditPanel === customer.id}
+                      isOwnerOpen={expandedOwnerPanel === customer.id}
+                      onToggleEdit={() => toggleEditPanel(customer)}
+                      onToggleOwner={() => {
+                        void toggleOwnerPanel(customer.id);
+                      }}
+                      onDelete={() => setDeleteTarget(customer)}
+                      editPanel={(
+                        <CustomerEditPanel
+                          customer={customer}
+                          editName={editName}
+                          editCompanyName={editCompanyName}
+                          editEmail={editEmail}
+                          editBillingRatePerHour={editBillingRatePerHour}
+                          editStatus={editStatus}
+                          editAddressLine1={editAddressLine1}
+                          editStandingInstructions={editStandingInstructions}
+                          editDefaultNumberOfSigns={editDefaultNumberOfSigns}
+                          editDefaultAgentName={editDefaultAgentName}
+                          editDefaultAgentInitials={editDefaultAgentInitials}
+                          editAgentOptionsText={editAgentOptionsText}
+                          editSaving={editSaving}
+                          editError={editError}
+                          editSuccess={editSuccess}
+                          onEditNameChange={setEditName}
+                          onEditCompanyNameChange={setEditCompanyName}
+                          onEditEmailChange={setEditEmail}
+                          onEditBillingRatePerHourChange={setEditBillingRatePerHour}
+                          onEditBillingRatePerHourBlur={(value) => setEditBillingRatePerHour(formatCurrency(value))}
+                          onEditStatusChange={setEditStatus}
+                          onEditDefaultNumberOfSignsChange={setEditDefaultNumberOfSigns}
+                          onEditDefaultAgentNameChange={setEditDefaultAgentName}
+                          onEditDefaultAgentInitialsChange={setEditDefaultAgentInitials}
+                          onEditAddressLine1Change={setEditAddressLine1}
+                          onEditResolvedAddressChange={(resolved) => {
+                            setEditResolvedAddress(resolved);
+                            if (resolved) {
+                              setEditAddressLine1(resolved.formattedAddress);
+                            }
+                          }}
+                          onEditAgentOptionsTextChange={setEditAgentOptionsText}
+                          onEditStandingInstructionsChange={setEditStandingInstructions}
+                          onSave={() => {
+                            void handleUpdateCustomer(customer.id);
+                          }}
+                          onCancel={() => toggleEditPanel(customer)}
+                        />
+                      )}
+                      ownerPanel={(
+                        <CustomerOwnerPanel
+                          customer={customer}
+                          ownerError={ownerError}
+                          ownerSuccess={ownerSuccess}
+                          ownerSaving={ownerSaving}
+                          ownerUserSub={ownerUserSub}
+                          ownerName={ownerName}
+                          ownerEmail={ownerEmail}
+                          usersForCustomer={customerUsers[customer.id] ?? []}
+                          existingOwner={existingOwner(customer.id)}
+                          onOwnerUserSubChange={(selectedUserSub) => {
+                            selectOwnerUserSub(selectedUserSub, customerUsers[customer.id] ?? []);
+                          }}
+                          onAssignOwner={() => {
+                            void handleAssignOwner(customer.id);
+                          }}
+                        />
+                      )}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
           {!loading && !loadError && customers.length > 0 && (
-            <AdminPagination
-              page={currentPage}
-              totalItems={sortedCustomers.length}
-              onPageChange={setPage}
-              itemsLabel="customers"
-            />
+            <nav className={styles.paginationBar} aria-label="customers pagination">
+              <p className={styles.paginationSummary} aria-live="polite">
+                {`Showing ${(currentPage - 1) * ADMIN_PAGE_SIZE + 1}–${Math.min(sortedCustomers.length, currentPage * ADMIN_PAGE_SIZE)} of ${sortedCustomers.length} customers`}
+              </p>
+              <div className={styles.paginationControls}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage(currentPage - 1)}
+                  aria-label="Previous page of customers"
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage(currentPage + 1)}
+                  aria-label="Next page of customers"
+                >
+                  Next
+                </Button>
+              </div>
+            </nav>
           )}
-        </div>
+        </Card>
       </div>
     </OperatorRoute>
   );

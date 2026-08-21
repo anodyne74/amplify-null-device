@@ -2,8 +2,8 @@
 
 import { FormEvent, useEffect, useRef } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import AdminFeedbackBanner from '@/app/components/AdminFeedbackBanner';
 import OperatorRoute from '@/app/components/OperatorRoute';
+import PageHeader from '@/app/administrator/components/PageHeader';
 import {
   createInvoice,
   updateInvoice,
@@ -17,8 +17,7 @@ import { useInvoiceDocumentActions } from '@/app/administrator/invoices/hooks/us
 import { useInvoiceUiState } from '@/app/administrator/invoices/hooks/useInvoiceUiState';
 import { useInvoicesDataState } from '@/app/administrator/invoices/hooks/useInvoicesDataState';
 import type { Invoice } from '@/app/administrator/invoices/types';
-import styles from '@/app/dashboard.module.css';
-import invoiceStyles from '@/app/administrator/invoices/page.module.css';
+import styles from './page.module.css';
 
 function normalizeInvoiceStatus(status?: Invoice['status'] | string | null) {
   return String(status ?? '').trim().toLowerCase();
@@ -198,7 +197,7 @@ export default function InvoicesAdminPage() {
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
-        <h1 className={styles.heading}>Invoices</h1>
+        <PageHeader title="Invoices" />
 
         {/* Hidden file input for PDF upload */}
         <input
@@ -226,28 +225,21 @@ export default function InvoicesAdminPage() {
           onSubmit={handleCreate}
         />
 
-        <AdminFeedbackBanner
-          message={error}
-          tone="error"
-          className={`${styles.infoPanel} ${invoiceStyles.alertPanel}`}
-          messageClassName={invoiceStyles.errorText}
-        />
-        <AdminFeedbackBanner
-          message={successMessage}
-          tone="success"
-          className={`${styles.infoPanel} ${invoiceStyles.alertPanel}`}
-          contentClassName={invoiceStyles.successBanner}
-          messageClassName={invoiceStyles.successText}
-          dismissButtonClassName={invoiceStyles.dismissSuccessButton}
-          dismissAriaLabel="Dismiss success message"
-          onDismiss={() => setSuccessMessage(null)}
-        />
-        <AdminFeedbackBanner
-          message={uploadError}
-          tone="warning"
-          className={`${styles.infoPanel} ${invoiceStyles.alertPanel}`}
-          messageClassName={invoiceStyles.warningText}
-        />
+        {error && <div className={styles.errorBanner} role="alert" aria-live="assertive">{error}</div>}
+        {successMessage && (
+          <div className={styles.successBanner} role="status" aria-live="polite">
+            <span>{successMessage}</span>
+            <button
+              type="button"
+              className="nd-btn nd-btn--ghost nd-btn--sm"
+              onClick={() => setSuccessMessage(null)}
+              aria-label="Dismiss success message"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+        {uploadError && <div className={styles.warningBanner} role="alert" aria-live="assertive">{uploadError}</div>}
 
         <InvoiceListTable
           loading={loading}

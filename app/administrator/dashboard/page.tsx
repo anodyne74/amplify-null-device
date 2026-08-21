@@ -7,9 +7,13 @@ import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { listInvoices } from '@/lib/queries';
 import type { Route } from '@/amplify/types';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import styles from '@/app/dashboard.module.css';
+import PageHeader from '@/app/administrator/components/PageHeader';
+import { Field } from '@/app/components/ui/forms/Field';
+import { Select } from '@/app/components/ui/forms/Select';
+import { StatTile } from '@/app/components/ui/data/StatTile';
 import MetricsVisualization, { type MetricsPeriod } from '../../components/MetricsVisualization';
 import { aggregateRouteData } from '@/lib/aggregateRouteData';
+import styles from './page.module.css';
 
 type Invoice = {
   id: string;
@@ -165,28 +169,25 @@ export default function AdminHomePage() {
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
-        <div className={styles.pageHeaderStack}>
-          <h1 className={styles.heading}>Administrator Portal</h1>
-          <p className={styles.welcome}>Manage customers, invoices, users, and route operations. Send invoices via email directly to customers.</p>
-        </div>
+        <PageHeader
+          title="Administrator Portal"
+          subtitle="Manage customers, invoices, users, and route operations. Send invoices via email directly to customers."
+        />
 
-        <div className={styles.pageToolbar}>
-          <label className={styles.scopeField} htmlFor="admin-dashboard-scope">
-            <span>Dashboard scope</span>
-            <select
-              id="admin-dashboard-scope"
-              value={selectedCustomerId}
-              onChange={(event) => setSelectedCustomerId(event.target.value)}
-            >
-              <option value="all">All customers</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name || customer.id}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <Field label="Dashboard scope" htmlFor="admin-dashboard-scope" className={styles.filterRow}>
+          <Select
+            id="admin-dashboard-scope"
+            value={selectedCustomerId}
+            onChange={(event) => setSelectedCustomerId(event.target.value)}
+          >
+            <option value="all">All customers</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>
+                {customer.name || customer.id}
+              </option>
+            ))}
+          </Select>
+        </Field>
 
         <MetricsVisualization
           data={groupedAnalytics}
@@ -197,77 +198,16 @@ export default function AdminHomePage() {
           scopeLabel={selectedCustomerName}
         />
 
-        {/* Dashboard cards grid */}
         <div className={styles.statsGrid}>
-          {/* Active Routes + All Routes */}
-          <div className={styles.cardColumn}>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Active Routes</p>
-              <p className={`${styles.statValue} ${styles.green}`}>
-                {statsLoading ? '…' : activeRoutes.length}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Total Routes</p>
-              <p className={`${styles.statValue} ${styles.amber}`}>
-                {statsLoading ? '…' : scopedRoutes.length}
-              </p>
-            </div>
-          </div>
-
-          {/* Planned Routes + Generate Invoices */}
-          <div className={styles.cardColumn}>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Planned Routes</p>
-              <p className={`${styles.statValue} ${styles.cyan}`}>
-                {statsLoading ? '…' : plannedRoutes.length}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Total Invoices</p>
-              <p className={`${styles.statValue} ${styles.green}`}>
-                {statsLoading ? '…' : scopedInvoices.length}
-              </p>
-            </div>
-          </div>
-
-          {/* Completed Today + Manage Users */}
-          <div className={styles.cardColumn}>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Completed Today</p>
-              <p className={`${styles.statValue} ${styles.amber}`}>
-                {statsLoading ? '…' : completedToday.length}
-              </p>
-            </div>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Completed Routes</p>
-              <p className={`${styles.statValue} ${styles.danger}`}>
-                {statsLoading ? '…' : completedRoutes.length}
-              </p>
-            </div>
-          </div>
-
-          {/* Customers + Define Customers */}
-          <div className={styles.cardColumn}>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Customers</p>
-              <p className={`${styles.statValue} ${styles.cyan}`}>
-                {statsLoading ? '…' : scopedCustomerCount}
-              </p>
-            </div>
-          </div>
-
-          {/* Unsent Invoices */}
-          <div className={styles.cardColumn}>
-            <div className={styles.statCard}>
-              <p className={styles.statLabel}>Unsent Invoices</p>
-              <p className={`${styles.statValue} ${styles.danger}`}>
-                {statsLoading ? '…' : unsentInvoices.length}
-              </p>
-            </div>
-          </div>
+          <StatTile label="Active Routes" value={statsLoading ? '…' : activeRoutes.length} icon="route" />
+          <StatTile label="Total Routes" value={statsLoading ? '…' : scopedRoutes.length} icon="route" />
+          <StatTile label="Planned Routes" value={statsLoading ? '…' : plannedRoutes.length} icon="clipboard-list" />
+          <StatTile label="Total Invoices" value={statsLoading ? '…' : scopedInvoices.length} icon="file-text" />
+          <StatTile label="Completed Today" value={statsLoading ? '…' : completedToday.length} icon="timer" />
+          <StatTile label="Completed Routes" value={statsLoading ? '…' : completedRoutes.length} icon="route" />
+          <StatTile label="Customers" value={statsLoading ? '…' : scopedCustomerCount} icon="users" />
+          <StatTile label="Unsent Invoices" value={statsLoading ? '…' : unsentInvoices.length} icon="file-text" />
         </div>
-
       </div>
     </OperatorRoute>
   );

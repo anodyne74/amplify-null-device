@@ -1,0 +1,104 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.sectionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.errorBanner {
+  padding: var(--space-4);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  border: var(--border-hairline) solid var(--status-danger-fg);
+}
+
+.successBanner {
+  padding: var(--space-3) var(--space-4);
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.mutedText {
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+.subheading {
+  margin: var(--space-6) 0 var(--space-3);
+  font-size: var(--text-base);
+  font-family: var(--font-display);
+  color: var(--text-heading);
+}
+
+.chipsRow {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.groupsGrid {
+  display: flex;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.userList {
+  list-style: none;
+  margin: 0 0 var(--space-6);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.userRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-hover);
+  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+}
+
+.userIdentity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.userName {
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+}
+
+.userMeta {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
+.addUserForm {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.addUserField {
+  min-width: 200px;
+  flex: 1;
+}

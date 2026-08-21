@@ -5,6 +5,14 @@ import { useRouter } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
+import PageHeader from '@/app/administrator/components/PageHeader';
+import { Card } from '@/app/components/ui/core/Card';
+import { Button } from '@/app/components/ui/core/Button';
+import { Field } from '@/app/components/ui/forms/Field';
+import { Input } from '@/app/components/ui/forms/Input';
+import { Select } from '@/app/components/ui/forms/Select';
+import { Tabs } from '@/app/components/ui/navigation/Tabs';
+import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { RouteForm, type RouteDraftStop } from '@/app/operator/components/RouteForm';
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
@@ -481,6 +489,19 @@ export default function NewRoutePage() {
     }
   };
 
+  const previewColumns: DataColumn<RouteDraftStop & { id: number; seq: number }>[] = [
+    { key: 'seq', header: '#', render: (stop) => stop.seq },
+    { key: 'address', header: 'Address', render: (stop) => stop.address },
+    { key: 'signs', header: 'Signs', render: (stop) => stop.numberOfSigns },
+    { key: 'agent', header: 'Agent', render: (stop) => stop.agent },
+    { key: 'type', header: 'Type', render: (stop) => stop.serviceType },
+    {
+      key: 'flags',
+      header: 'Flags',
+      render: (stop) => (stop.isAuction ? <span className={styles.auctionBadge}>Auction</span> : null),
+    },
+  ];
+
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.container}>
@@ -490,195 +511,167 @@ export default function NewRoutePage() {
             { label: 'New Route' },
           ]}
         />
-        <h1 className={styles.heading}>Create New Route</h1>
+        <PageHeader title="Create New Route" />
 
         {loadingCustomers ? (
           <LoadingSpinner message="Loading customers..." />
         ) : (
           <>
-            {/* Tab switcher */}
-            <div className={styles.tabs}>
-              <button
-                className={`${styles.tab} ${activeTab === 'import' ? styles.tabActive : ''}`}
-                onClick={() => setActiveTab('import')}
-              >
-                Import from Schedule
-              </button>
-              <button
-                className={`${styles.tab} ${activeTab === 'manual' ? styles.tabActive : ''}`}
-                onClick={() => setActiveTab('manual')}
-              >
-                Manual Entry
-              </button>
-            </div>
+            <Tabs
+              items={[
+                { id: 'import', label: 'Import from Schedule' },
+                { id: 'manual', label: 'Manual Entry' },
+              ]}
+              value={activeTab}
+              onChange={(id) => setActiveTab(id as 'import' | 'manual')}
+            />
 
             {/* Import tab */}
             {activeTab === 'import' && (
-              <div className={styles.importPanel}>
+              <Card>
                 <p className={styles.importHint}>
                   Copy stops from a previous route first. Uploading a schedule file is optional and will only be used when copied stops are not active.
                 </p>
 
-                <label className={styles.fieldLabel}>Customer</label>
-                <select
-                  className={styles.select}
-                  value={importCustomerId}
-                  onChange={(e) => handleImportCustomerChange(e.target.value)}
-                >
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-
-                <label className={styles.fieldLabel}>Copy Stops From Previous Route</label>
-                <div className={styles.fileRow}>
-                  <select
-                    className={`${styles.select} ${styles.copyRouteSelect}`}
-                    value={importCopySourceRouteId}
-                    onChange={(e) => {
-                      const nextRouteId = e.target.value;
-                      setImportCopySourceRouteId(nextRouteId);
-                      if (!nextRouteId && importDraftSource === 'copy') {
-                        setImportDraftStops(null);
-                        setImportDraftSource(null);
-                      }
-                      setImportError(null);
-                    }}
-                    disabled={!importCustomerId || importCopySourcesForCustomer.length === 0 || isUploading || copyingImportStops}
-                  >
-                    <option value="">
-                      {importCopySourcesForCustomer.length > 0 ? 'Choose a route...' : 'No previous routes available'}
-                    </option>
-                    {importCopySourcesForCustomer.map((route) => (
-                      <option key={route.id} value={route.id}>{route.label}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className={styles.btnSecondary}
-                    onClick={handleCopyStopsToImport}
-                    disabled={!importCopySourceRouteId || isUploading || copyingImportStops}
-                  >
-                    {copyingImportStops ? 'Copying...' : 'Copy Stops'}
-                  </button>
-                </div>
-
-                <label className={styles.fieldLabel}>Route Notes (optional)</label>
-                <input
-                  className={styles.input}
-                  value={importNotes}
-                  onChange={(e) => setImportNotes(e.target.value)}
-                  placeholder="e.g. Open houses 28 March 2026"
-                />
-
-                <label className={styles.fieldLabel}>Route ID</label>
-                <input
-                  className={styles.input}
-                  value={importRouteCode}
-                  onChange={(e) => setImportRouteCode(e.target.value)}
-                  placeholder="e.g. W18-26-001"
-                />
-
-                <label className={styles.fieldLabel}>
-                  Upload Schedule File
-                  <span className={styles.fieldHint}> (PDF, CSV, TXT — stored and linked to route)</span>
-                </label>
-                <div className={styles.fileRow}>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf,.csv,.txt"
-                    style={{ display: 'none' }}
-                    onChange={handleFileSelected}
-                  />
-                  <button
-                    type="button"
-                    className={styles.btnSecondary}
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    {importFile ? importFile.name : 'Choose File'}
-                  </button>
-                  {importFile && (
-                    <button
-                      type="button"
-                      className={styles.btnClear}
-                      onClick={() => {
-                        setImportFile(null);
-                        setImportText('');
-                        if (importDraftSource === 'upload') {
-                          setImportDraftStops(null);
-                          setImportDraftSource(null);
-                        }
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
+                <div className={styles.fieldsStack}>
+                  <Field label="Customer" htmlFor="import-customer">
+                    <Select
+                      id="import-customer"
+                      value={importCustomerId}
+                      onChange={(e) => handleImportCustomerChange(e.target.value)}
                     >
-                      Remove
-                    </button>
-                  )}
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </Select>
+                  </Field>
+
+                  <Field label="Copy Stops From Previous Route" htmlFor="import-copy-source">
+                    <div className={styles.fileRow}>
+                      <Select
+                        id="import-copy-source"
+                        value={importCopySourceRouteId}
+                        onChange={(e) => {
+                          const nextRouteId = e.target.value;
+                          setImportCopySourceRouteId(nextRouteId);
+                          if (!nextRouteId && importDraftSource === 'copy') {
+                            setImportDraftStops(null);
+                            setImportDraftSource(null);
+                          }
+                          setImportError(null);
+                        }}
+                        disabled={!importCustomerId || importCopySourcesForCustomer.length === 0 || isUploading || copyingImportStops}
+                      >
+                        <option value="">
+                          {importCopySourcesForCustomer.length > 0 ? 'Choose a route...' : 'No previous routes available'}
+                        </option>
+                        {importCopySourcesForCustomer.map((route) => (
+                          <option key={route.id} value={route.id}>{route.label}</option>
+                        ))}
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        loading={copyingImportStops}
+                        onClick={handleCopyStopsToImport}
+                        disabled={!importCopySourceRouteId || isUploading || copyingImportStops}
+                      >
+                        {copyingImportStops ? 'Copying...' : 'Copy Stops'}
+                      </Button>
+                    </div>
+                  </Field>
+
+                  <Field label="Route Notes (optional)" htmlFor="import-notes">
+                    <Input
+                      id="import-notes"
+                      value={importNotes}
+                      onChange={(e) => setImportNotes(e.target.value)}
+                      placeholder="e.g. Open houses 28 March 2026"
+                    />
+                  </Field>
+
+                  <Field label="Route ID" htmlFor="import-route-code">
+                    <Input
+                      id="import-route-code"
+                      value={importRouteCode}
+                      onChange={(e) => setImportRouteCode(e.target.value)}
+                      placeholder="e.g. W18-26-001"
+                    />
+                  </Field>
+
+                  <Field label="Upload Schedule File" hint="PDF, CSV, TXT — stored and linked to route">
+                    <div className={styles.fileRow}>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".pdf,.csv,.txt"
+                        style={{ display: 'none' }}
+                        onChange={handleFileSelected}
+                      />
+                      <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                        {importFile ? importFile.name : 'Choose File'}
+                      </Button>
+                      {importFile && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => {
+                            setImportFile(null);
+                            setImportText('');
+                            if (importDraftSource === 'upload') {
+                              setImportDraftStops(null);
+                              setImportDraftSource(null);
+                            }
+                            if (fileInputRef.current) fileInputRef.current.value = '';
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                    {importFile && importText.trim() && (
+                      <p className={styles.mutedText}>File text extracted. Preview stops to parse and review.</p>
+                    )}
+                  </Field>
+
+                  <Button
+                    type="button"
+                    onClick={handleParse}
+                    disabled={!importText.trim() || isUploading || copyingImportStops || importDraftSource === 'copy'}
+                  >
+                    Preview Stops
+                  </Button>
                 </div>
-
-                {importFile && importText.trim() && (
-                  <p className={styles.fieldHint}>File text extracted. Preview stops to parse and review.</p>
-                )}
-
-                <button
-                  type="button"
-                  className={styles.btnParse}
-                  onClick={handleParse}
-                  disabled={!importText.trim() || isUploading || copyingImportStops || importDraftSource === 'copy'}
-                >
-                  Preview Stops
-                </button>
 
                 {parseWarnings.length > 0 && (
-                  <div className={styles.warnings}>
+                  <div className={styles.warningsBanner}>
                     {parseWarnings.map((w, i) => <p key={i}>{w}</p>)}
                   </div>
                 )}
 
-                {importError && <div className={styles.error}>{importError}</div>}
+                {importError && <div className={styles.errorBanner}>{importError}</div>}
 
                 {importDraftStops && importDraftStops.length > 0 && (
                   <div>
                     <p className={styles.previewHeader}>
-                      <strong>{importDraftStops.length} stops ready</strong>
-                      <span className={styles.fieldHint}> — review before creating route</span>
+                      <strong>{importDraftStops.length} stops ready</strong> — review before creating route
                     </p>
-                    <div className={styles.previewTable}>
-                      <div className={styles.previewRowHeader}>
-                        <span>#</span>
-                        <span>Address</span>
-                        <span>Signs</span>
-                        <span>Agent</span>
-                        <span>Type</span>
-                        <span>Flags</span>
-                      </div>
-                      {importDraftStops.map((stop, i) => (
-                        <div key={i} className={styles.previewRow}>
-                          <span className={styles.previewSeq}>{i + 1}</span>
-                          <span className={styles.previewAddress}>{stop.address}</span>
-                          <span>{stop.numberOfSigns}</span>
-                          <span>{stop.agent}</span>
-                          <span className={styles.previewSlot}>{stop.serviceType}</span>
-                          <span>
-                            {stop.isAuction && (
-                              <span className={styles.auctionBadge}>Auction</span>
-                            )}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <button
+                    <DataTable<RouteDraftStop & { id: number; seq: number }>
+                      columns={previewColumns}
+                      rows={importDraftStops.map((stop, i) => ({ ...stop, id: i, seq: i + 1 }))}
+                    />
+                    <Button
                       type="button"
-                      className={styles.btnCreate}
+                      loading={isUploading}
                       onClick={handleImportSubmit}
                       disabled={isUploading}
+                      style={{ marginTop: 'var(--space-5)' }}
                     >
                       {isUploading ? 'Creating Route...' : `Create Route (${importDraftStops.length} stops)`}
-                    </button>
+                    </Button>
                   </div>
                 )}
-              </div>
+              </Card>
             )}
 
             {/* Manual entry tab */}

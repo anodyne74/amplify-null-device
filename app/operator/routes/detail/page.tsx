@@ -14,6 +14,7 @@ import { useToast } from '@/app/components/ToastProvider';
 import { StopForm } from '@/app/operator/components/StopForm';
 import StopCard from '@/app/operator/components/StopCard';
 import { RouteStatusPill } from '@/app/operator/components/RouteStatusPill';
+import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
@@ -126,15 +127,23 @@ function removeMarker(notes: string, marker: string) {
   return notes.replace(new RegExp(`(?:^|\\s)\\[${marker}:[^\\]]*\\]`, 'g'), ' ').replace(/\s+/g, ' ').trim();
 }
 
-function upsertMarker(notes: string | null | undefined, marker: string, atIso: string) {
+function upsertMarker(notes: string | null | undefined, marker: string, atIso: string, reason?: string) {
   const base = removeMarker(notes ?? '', marker);
-  return `${base}${base ? ' ' : ''}[${marker}:${atIso}]`;
+  const value = reason ? `${atIso}|${reason}` : atIso;
+  return `${base}${base ? ' ' : ''}[${marker}:${value}]`;
 }
 
 function getMarkerTimestamp(notes: string | null | undefined, marker: string) {
   if (!notes) return null;
   const match = notes.match(new RegExp(`\\[${marker}:([^\\]]+)\\]`));
-  return match?.[1] ?? null;
+  return match?.[1]?.split('|')[0] ?? null;
+}
+
+function getMarkerReason(notes: string | null | undefined, marker: string) {
+  if (!notes) return null;
+  const match = notes.match(new RegExp(`\\[${marker}:([^\\]]+)\\]`));
+  const [, reason] = match?.[1]?.split('|') ?? [];
+  return reason || null;
 }
 
 function isStopSkippedForPhase(stop: Stop, phase: ExecutionPhase) {
@@ -167,7 +176,10 @@ function isStopCompleted(stop: Stop) {
 function getStopStatusLabel(stop: Stop, executionPhase?: ExecutionPhase | null) {
   if (executionPhase) {
     if (isStopSkippedForPhase(stop, executionPhase)) {
-      return executionPhase === 'pickup' ? 'Pickup skipped' : 'Placement skipped';
+      const marker = executionPhase === 'pickup' ? PICKUP_SKIPPED_MARKER : PLACEMENT_SKIPPED_MARKER;
+      const reason = getMarkerReason(stop.notes, marker);
+      const base = executionPhase === 'pickup' ? 'Pickup skipped' : 'Placement skipped';
+      return reason ? `${base} · ${reason}` : base;
     }
     if (isStopCompletedForPhase(stop, executionPhase)) {
       return executionPhase === 'pickup' ? 'Signs collected' : 'Signs placed';
@@ -236,6 +248,8 @@ function RouteDetailContent() {
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [deletingRoute, setDeletingRoute] = useState(false);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
+  const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
+  const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
   const [transitionError, setTransitionError] = useState<string | null>(null);
   const [phaseMetricOverrides, setPhaseMetricOverrides] = useState({
     placementDistanceKm: '0.00',
@@ -311,9 +325,10 @@ function RouteDetailContent() {
   }, [id]);
 
   const handleStopCompleted = useCallback(async (stopId: string) => {
-    if (!route || route.status !== 'in_progress' || !route.executionPhase) return;
+    if (!route || route.status !== 'in_progress' || !route.executionPhase) return false;
 
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
+    let succeeded = false;
     try {
       const completedAt = new Date().toISOString();
       const phase = route.executionPhase as ExecutionPhase;
@@ -341,6 +356,7 @@ function RouteDetailContent() {
         );
         setStops(updatedStops);
         showToast('Stop completed', 'success');
+        succeeded = true;
       } else {
         showToast('Failed to complete stop. Please try again.', 'error');
       }
@@ -348,19 +364,21 @@ function RouteDetailContent() {
       showToast('Failed to complete stop. Please try again.', 'error');
     }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
+    return succeeded;
   }, [route, stops, showToast]);
 
-  const handleSkipStop = useCallback(async (stopId: string) => {
-    if (!route || route.status !== 'in_progress' || !route.executionPhase) return;
+  const handleSkipStop = useCallback(async (stopId: string, reason: string) => {
+    if (!route || route.status !== 'in_progress' || !route.executionPhase) return false;
 
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
+    let succeeded = false;
     try {
       const now = new Date().toISOString();
       const phase = route.executionPhase as ExecutionPhase;
       const skipMarker = phase === 'pickup' ? PICKUP_SKIPPED_MARKER : PLACEMENT_SKIPPED_MARKER;
       const doneMarker = phase === 'pickup' ? PICKUP_DONE_MARKER : PLACEMENT_DONE_MARKER;
       const existingStop = stops.find((s) => s.id === stopId);
-      const withSkipMarker = upsertMarker(existingStop?.notes, skipMarker, now);
+      const withSkipMarker = upsertMarker(existingStop?.notes, skipMarker, now, reason);
       const skippedNotes = removeMarker(withSkipMarker, doneMarker);
       const { errors } = await updateStopExecution(stopId, {
         actualArrivalTime: now,
@@ -376,6 +394,7 @@ function RouteDetailContent() {
           )
         );
         showToast('Stop skipped', 'success');
+        succeeded = true;
       } else {
         showToast('Failed to skip stop. Please try again.', 'error');
       }
@@ -383,6 +402,7 @@ function RouteDetailContent() {
       showToast('Failed to skip stop. Please try again.', 'error');
     }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
+    return succeeded;
   }, [route, stops, showToast]);
 
   const persistStopOrder = useCallback(
@@ -1198,8 +1218,15 @@ function RouteDetailContent() {
   const isPickupExecutionPhase = route?.status === 'in_progress' && route.executionPhase === 'pickup';
   const phaseLabelPrefix = isPickupExecutionPhase ? 'Pickup' : 'Placement';
   const nextExecutionStop = isExecutionMode ? visibleStops[0] : null;
-  const upcomingExecutionStops = isExecutionMode ? visibleStops.slice(1, 3) : [];
-  const upcomingExecutionStopIds = upcomingExecutionStops.map((stop) => stop.id);
+  const upcomingExecutionStops = isExecutionMode ? visibleStops.slice(1) : [];
+  const upcomingExecutionStopIds = upcomingExecutionStops.slice(0, 2).map((stop) => stop.id);
+  const actionSheetStop = stops.find((stop) => stop.id === actionSheetStopId) ?? null;
+
+  const openStopSheet = (stopId: string, step: 'action' | 'reason' = 'action') => {
+    setActionSheetStopId(stopId);
+    setActionSheetStep(step);
+  };
+  const closeStopSheet = () => setActionSheetStopId(null);
 
   useEffect(() => {
     if (!route || route.status !== 'in_progress' || !route.executionPhase) {
@@ -1594,7 +1621,7 @@ function RouteDetailContent() {
                           variant="secondary"
                           size="lg"
                           block
-                          onClick={() => { void handleSkipStop(nextExecutionStop.id); }}
+                          onClick={() => openStopSheet(nextExecutionStop.id, 'reason')}
                           disabled={!!stopExecuting[nextExecutionStop.id]}
                         >
                           Skip Stop
@@ -1610,13 +1637,21 @@ function RouteDetailContent() {
                   )}
                 </Card>
 
-                <Card title="Upcoming stops" subtitle="Next two">
+                <Card title="Upcoming stops" subtitle="Tap a stop to complete out of order">
                   {upcomingExecutionStops.length > 0 ? (
                     <ol className={styles.fieldUpcomingList}>
                       {upcomingExecutionStops.map((stop) => (
-                        <li key={stop.id} className={styles.fieldUpcomingItem}>
-                          <span className={styles.fieldUpcomingSequence}>{stop.sequence ?? '-'}</span>
-                          <span>{getPrimaryAddressLine(stop.formattedAddress || stop.address)}</span>
+                        <li key={stop.id}>
+                          <button
+                            type="button"
+                            className={styles.fieldUpcomingItem}
+                            onClick={() => openStopSheet(stop.id)}
+                          >
+                            <span className={styles.fieldUpcomingSequence}>{stop.sequence ?? '-'}</span>
+                            <span className={styles.fieldUpcomingAddress}>
+                              {getPrimaryAddressLine(stop.formattedAddress || stop.address)}
+                            </span>
+                          </button>
                         </li>
                       ))}
                     </ol>
@@ -1850,6 +1885,26 @@ function RouteDetailContent() {
             onCancel={() => {
               if (!transitioning) setShowArchiveConfirm(false);
             }}
+          />
+
+          <StopCompletionDialog
+            stop={actionSheetStop}
+            phase={currentExecutionPhase}
+            busy={!!actionSheetStop && !!stopExecuting[actionSheetStop.id]}
+            initialStep={actionSheetStep}
+            onComplete={() => {
+              if (!actionSheetStop) return;
+              void handleStopCompleted(actionSheetStop.id).then((ok) => {
+                if (ok) closeStopSheet();
+              });
+            }}
+            onSkip={(reason) => {
+              if (!actionSheetStop) return;
+              void handleSkipStop(actionSheetStop.id, reason).then((ok) => {
+                if (ok) closeStopSheet();
+              });
+            }}
+            onClose={closeStopSheet}
           />
         </>
       )}

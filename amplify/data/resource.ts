@@ -28,7 +28,8 @@ import { customerAccessActivation } from '../functions/customer-access-activatio
 const schema = a.schema({
   /**
    * Customer - Represents a business customer using the delivery service
-   * Authorization: Owner (customer) can read/update own profile; Operators have full access
+   * Authorization: account_owner CustomerUser (via accountOwnerSub) can read/update their own
+   * profile; every CustomerUser (via viewerSubs) can read it; Operators/Administrators have full access.
    */
   Customer: a
     .model({
@@ -53,6 +54,19 @@ const schema = a.schema({
       directDebitBsb: a.string(),
       directDebitAccountNumber: a.string(),
       directDebitAuthorizedAt: a.datetime(),
+      // Standing orders — the customer's own default placement preferences (account_owner-editable)
+      standingPickupDay: a.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+      notifyOnLowSigns: a.boolean(),
+      sendMissingSignsReport: a.boolean(),
+      // Billing details — self-service, account_owner-editable
+      billingCcEmails: a.string().array(),
+      attachAgentBreakdown: a.boolean(),
+      sendPaymentReminder: a.boolean(),
+      // Owner/viewer subs — same pattern as Route/Stop, synced by the customer-access-activation
+      // Lambda. accountOwnerSub grants the account owner read/write to their own Customer record;
+      // viewerSubs grants every customer user (owner + read_only) read access.
+      accountOwnerSub: a.string(),
+      viewerSubs: a.string().array(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
@@ -67,7 +81,8 @@ const schema = a.schema({
       customerClosureBlocks: a.hasMany('CustomerClosureBlock', 'customerId'),
     })
     .authorization((allow) => [
-      allow.owner().identityClaim('sub').to(['create', 'read', 'update']),
+      allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read', 'update']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),

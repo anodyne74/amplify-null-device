@@ -76,20 +76,3 @@
   gap: var(--space-2);
 }
 
-.settingsForm {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-.settingsGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--space-5);
-}
-
-.staticInstructions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}

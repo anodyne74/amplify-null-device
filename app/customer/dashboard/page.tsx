@@ -7,8 +7,7 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import type { Customer, Stop, Route } from '@/amplify/types';
 import { getUserDisplayName } from '@/lib/amplify-config';
-import { parseAgentOptionsInput, stringifyAgentOptions } from '@/lib/customerDefaults';
-import { getCustomer, getCustomerPortalContext, getUserSettings, updateCustomer } from '@/lib/queries';
+import { getCustomer, getCustomerPortalContext, getUserSettings } from '@/lib/queries';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import { formatCurrency, formatDuration } from '@/lib/dashboardAnalytics';
@@ -16,9 +15,6 @@ import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { StatTile } from '@/app/components/ui/data/StatTile';
-import { Field } from '@/app/components/ui/forms/Field';
-import { Input } from '@/app/components/ui/forms/Input';
-import { Button } from '@/app/components/ui/core/Button';
 import MetricsVisualization, { type MetricsPeriod } from '../../components/MetricsVisualization';
 import { aggregateRouteData } from '@/lib/aggregateRouteData';
 import styles from './page.module.css';
@@ -39,15 +35,8 @@ export default function CustomerDashboard() {
   const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
   const [displayName, setDisplayName] = useState(fallbackDisplayName);
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
-  const [customerId, setCustomerId] = useState<string | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [standingInstructions, setStandingInstructions] = useState('');
-  const [defaultNumberOfSigns, setDefaultNumberOfSigns] = useState('');
-  const [defaultAgentName, setDefaultAgentName] = useState('');
-  const [agentOptionsText, setAgentOptionsText] = useState('');
-  const [settingsError, setSettingsError] = useState<string | null>(null);
-  const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
-  const [savingSettings, setSavingSettings] = useState(false);
+  const [customerLoadError, setCustomerLoadError] = useState<string | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [activeRoutes, setActiveRoutes] = useState(0);
   const [pendingInvoices, setPendingInvoices] = useState(0);
@@ -106,12 +95,11 @@ export default function CustomerDashboard() {
       .then(async (context) => {
         if (!cancelled) {
           setCustomerRole(context.role);
-          setCustomerId(context.customerId);
         }
 
         if (!context.customerId) {
           if (!cancelled) {
-            setSettingsError('Could not resolve your customer account.');
+            setCustomerLoadError('Could not resolve your customer account.');
           }
           return;
         }
@@ -120,7 +108,7 @@ export default function CustomerDashboard() {
         if (cancelled || (customerResult.errors && customerResult.errors.length > 0)) {
           if (!cancelled) {
             const firstError = customerResult.errors?.[0] as { message?: string } | undefined;
-            setSettingsError(firstError?.message ?? 'Could not load customer defaults.');
+            setCustomerLoadError(firstError?.message ?? 'Could not load customer defaults.');
           }
           return;
         }
@@ -131,12 +119,6 @@ export default function CustomerDashboard() {
         }
 
         setCustomer(nextCustomer);
-        setStandingInstructions(nextCustomer.standingInstructions ?? '');
-        setDefaultNumberOfSigns(
-          typeof nextCustomer.defaultNumberOfSigns === 'number' ? String(nextCustomer.defaultNumberOfSigns) : ''
-        );
-        setDefaultAgentName(nextCustomer.defaultAgentName ?? '');
-        setAgentOptionsText(stringifyAgentOptions(nextCustomer.agentOptions));
 
         setStatsLoading(true);
         const routesResult = await listMyRoutes({ customerId: context.customerId, limit: 500 });
@@ -225,69 +207,6 @@ export default function CustomerDashboard() {
     };
   }, [user?.userId]);
 
-  const handleSaveSettings = async () => {
-    if (!user?.userId) {
-      setSettingsError('User session is unavailable.');
-      return;
-    }
-
-    if (customerRole !== 'account_owner') {
-      setSettingsError('Only the account owner can edit these defaults.');
-      return;
-    }
-
-    if (!customerId) {
-      setSettingsError('Customer account could not be resolved.');
-      return;
-    }
-
-    const parsedDefaultNumberOfSigns = defaultNumberOfSigns.trim()
-      ? Number(defaultNumberOfSigns)
-      : undefined;
-    if (
-      defaultNumberOfSigns.trim() &&
-      (Number.isNaN(parsedDefaultNumberOfSigns) || parsedDefaultNumberOfSigns! < 0)
-    ) {
-      setSettingsError('Default number of signs must be 0 or greater.');
-      return;
-    }
-
-    setSavingSettings(true);
-    setSettingsError(null);
-    setSettingsSuccess(null);
-
-    const result = await updateCustomer(customerId, {
-      standingInstructions,
-      defaultNumberOfSigns: parsedDefaultNumberOfSigns,
-      defaultAgentName,
-      agentOptions: parseAgentOptionsInput(agentOptionsText),
-    });
-
-    if (result.errors && result.errors.length > 0) {
-      const firstError = result.errors[0] as { message?: string } | undefined;
-      setSettingsError(firstError?.message ?? 'Could not save standing instructions.');
-      setSavingSettings(false);
-      return;
-    }
-
-    if (customer?.id) {
-      const refreshed = await getCustomer(customer.id);
-      const nextCustomer = refreshed.data as Customer | null;
-      if (nextCustomer) {
-        setCustomer(nextCustomer);
-        setStandingInstructions(nextCustomer.standingInstructions ?? '');
-        setDefaultNumberOfSigns(
-          typeof nextCustomer.defaultNumberOfSigns === 'number' ? String(nextCustomer.defaultNumberOfSigns) : ''
-        );
-        setDefaultAgentName(nextCustomer.defaultAgentName ?? '');
-        setAgentOptionsText(stringifyAgentOptions(nextCustomer.agentOptions));
-      }
-    }
-
-    setSettingsSuccess('Standing instructions updated.');
-    setSavingSettings(false);
-  };
-
   const isAccountOwner = customerRole === 'account_owner';
   const averageSignsPerHour = totalHours > 0 ? (totalSigns / (totalHours / 60)).toFixed(2) : '…';
   const trackerRoutes = useMemo(
@@ -315,6 +234,8 @@ export default function CustomerDashboard() {
         title="Dashboard"
         subtitle={`Welcome,${displayName ? ` ${displayName}` : ''} · ${isAccountOwner ? 'Owner' : 'Reviewer'}`}
       />
+
+      {customerLoadError && <p className="nd-badge nd-badge--danger">{customerLoadError}</p>}
 
       <div className={styles.statsGrid}>
         <StatTile label="Active routes" value={statsLoading ? '…' : activeRoutes} icon="route" />
@@ -451,78 +372,6 @@ export default function CustomerDashboard() {
             </>
           )}
         </ul>
-      </Card>
-
-      <Card title="Standing Instructions">
-        {isAccountOwner ? (
-          <div className={styles.settingsForm}>
-            {settingsError && <p className="nd-badge nd-badge--danger">{settingsError}</p>}
-            {settingsSuccess && <p className="nd-badge nd-badge--success">{settingsSuccess}</p>}
-
-            <Field label="Instructions operators should see by default" htmlFor="standingInstructions">
-              <Input
-                id="standingInstructions"
-                multiline
-                value={standingInstructions}
-                onChange={(event) => setStandingInstructions(event.target.value)}
-                placeholder="Instructions operators should see by default"
-                disabled={savingSettings}
-              />
-            </Field>
-
-            <div className={styles.settingsGrid}>
-              <Field label="Default number of signs" htmlFor="defaultSigns">
-                <Input
-                  id="defaultSigns"
-                  value={defaultNumberOfSigns}
-                  onChange={(event) => setDefaultNumberOfSigns(event.target.value)}
-                  type="number"
-                  min={0}
-                  disabled={savingSettings}
-                />
-              </Field>
-              <Field label="Default agent name" htmlFor="defaultAgentName">
-                <Input
-                  id="defaultAgentName"
-                  value={defaultAgentName}
-                  onChange={(event) => setDefaultAgentName(event.target.value)}
-                  disabled={savingSettings}
-                />
-              </Field>
-            </div>
-
-            <Field label="Agent options, one per line" htmlFor="agentOptions">
-              <Input
-                id="agentOptions"
-                multiline
-                value={agentOptionsText}
-                onChange={(event) => setAgentOptionsText(event.target.value)}
-                placeholder="Agent options, one per line"
-                disabled={savingSettings}
-              />
-            </Field>
-
-            <p className={styles.mutedText}>
-              {customer?.defaultAgentInitials
-                ? `Current default initials: ${customer.defaultAgentInitials}`
-                : 'Initials are generated automatically from the default agent name.'}
-            </p>
-
-            <Button onClick={() => void handleSaveSettings()} disabled={savingSettings || !customerId}>
-              {savingSettings ? 'Saving…' : 'Save Standing Instructions'}
-            </Button>
-          </div>
-        ) : (
-          <div className={styles.staticInstructions}>
-            <p className={styles.mutedText}>Only the account owner can edit these defaults.</p>
-            <p>{customer?.standingInstructions || 'No standing instructions configured.'}</p>
-            <p className={styles.mutedText}>
-              Default signs: {typeof customer?.defaultNumberOfSigns === 'number' ? customer.defaultNumberOfSigns : '—'}
-              {' · '}
-              Default agent: {customer?.defaultAgentName || '—'}
-            </p>
-          </div>
-        )}
       </Card>
 
       <MetricsVisualization

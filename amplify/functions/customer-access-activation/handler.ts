@@ -213,7 +213,16 @@ export const handler: PostConfirmationTriggerHandler = async (event) => {
       ),
     ];
 
+    const accountOwnerRow = (rows || []).find(
+      (row) => row.role === 'account_owner' && !isPendingSub(row.userSub)
+    );
+
     await syncViewerSubsForCustomer(customerId, viewerSubs);
+    await client.models.Customer.update({
+      id: customerId,
+      viewerSubs,
+      accountOwnerSub: accountOwnerRow?.userSub || undefined,
+    });
   }
 
   return event;

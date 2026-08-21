@@ -1,5 +1,8 @@
 import React, { useMemo } from 'react';
-import styles from '@/app/dashboard.module.css';
+import { Card } from '@/app/components/ui/core/Card';
+import { Badge } from '@/app/components/ui/core/Badge';
+import { StatTile } from '@/app/components/ui/data/StatTile';
+import styles from './MetricsVisualization.module.css';
 import type { AggregatedData } from '@/lib/aggregateRouteData';
 import { formatCurrency, formatPeriodDisplay } from '@/lib/dashboardAnalytics';
 import PeriodSelector from './PeriodSelector';
@@ -69,14 +72,14 @@ function BarChart({
 
   return (
     <svg
-      className={styles.metricsChartSvg}
+      className={styles.chartSvg}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-label={title}
       preserveAspectRatio="none"
     >
       <title>{title}</title>
-      <line className={styles.metricsChartAxis} x1={leftPadding} y1={chartBottom} x2={width - rightPadding} y2={chartBottom} />
+      <line className={styles.chartAxis} x1={leftPadding} y1={chartBottom} x2={width - rightPadding} y2={chartBottom} />
       {points.map((point, index) => {
         const barHeight = Math.max(3, ((point.value / maxValue) * (chartBottom - chartTop)));
         const x = leftPadding + index * slotWidth + (slotWidth - barWidth) / 2;
@@ -92,7 +95,7 @@ function BarChart({
               height={barHeight}
               rx={4}
             />
-            <text className={styles.metricsChartLabel} x={x + barWidth / 2} y={190} textAnchor="middle">
+            <text className={styles.chartLabel} x={x + barWidth / 2} y={190} textAnchor="middle">
               {point.label}
             </text>
           </g>
@@ -123,19 +126,19 @@ function LineChart({ title, points }: { title: string; points: ChartPoint[] }) {
 
   return (
     <svg
-      className={styles.metricsChartSvg}
+      className={styles.chartSvg}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-label={title}
       preserveAspectRatio="none"
     >
       <title>{title}</title>
-      <line className={styles.metricsChartAxis} x1={leftPadding} y1={chartBottom} x2={width - rightPadding} y2={chartBottom} />
-      {linePath && <path className={styles.metricsDistanceLine} d={linePath} />}
+      <line className={styles.chartAxis} x1={leftPadding} y1={chartBottom} x2={width - rightPadding} y2={chartBottom} />
+      {linePath && <path className={styles.distanceLine} d={linePath} />}
       {coordinates.map((point) => (
         <g key={point.key}>
-          <circle className={styles.metricsDistancePoint} cx={point.x} cy={point.y} r={4.5} />
-          <text className={styles.metricsChartLabel} x={point.x} y={190} textAnchor="middle">
+          <circle className={styles.distancePoint} cx={point.x} cy={point.y} r={4.5} />
+          <text className={styles.chartLabel} x={point.x} y={190} textAnchor="middle">
             {point.label}
           </text>
         </g>
@@ -158,14 +161,14 @@ function GroupedBarChart({ title, points }: { title: string; points: ChartPoint[
 
   return (
     <svg
-      className={styles.metricsChartSvg}
+      className={styles.chartSvg}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-label={title}
       preserveAspectRatio="none"
     >
       <title>{title}</title>
-      <line className={styles.metricsChartAxis} x1={leftPadding} y1={chartBottom} x2={width - rightPadding} y2={chartBottom} />
+      <line className={styles.chartAxis} x1={leftPadding} y1={chartBottom} x2={width - rightPadding} y2={chartBottom} />
       {points.map((point, index) => {
         const primaryHeight = Math.max(3, (point.value / maxValue) * (chartBottom - chartTop));
         const secondaryHeight = Math.max(3, ((point.secondaryValue ?? 0) / maxValue) * (chartBottom - chartTop));
@@ -176,7 +179,7 @@ function GroupedBarChart({ title, points }: { title: string; points: ChartPoint[
         return (
           <g key={point.key}>
             <rect
-              className={styles.metricsSignPlaced}
+              className={styles.signPlaced}
               x={primaryX}
               y={chartBottom - primaryHeight}
               width={barWidth}
@@ -184,40 +187,20 @@ function GroupedBarChart({ title, points }: { title: string; points: ChartPoint[
               rx={4}
             />
             <rect
-              className={styles.metricsSignPickedUp}
+              className={styles.signPickedUp}
               x={secondaryX}
               y={chartBottom - secondaryHeight}
               width={barWidth}
               height={secondaryHeight}
               rx={4}
             />
-            <text className={styles.metricsChartLabel} x={centerX} y={190} textAnchor="middle">
+            <text className={styles.chartLabel} x={centerX} y={190} textAnchor="middle">
               {point.label}
             </text>
           </g>
         );
       })}
     </svg>
-  );
-}
-
-function ChartCard({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <article className={styles.metricsChartCard}>
-      <div className={styles.metricsChartHeader}>
-        <h3 className={styles.metricsChartTitle}>{title}</h3>
-        <p className={styles.metricsChartSubtitle}>{subtitle}</p>
-      </div>
-      {children}
-    </article>
   );
 }
 
@@ -255,44 +238,36 @@ export default function MetricsVisualization({
     secondaryValue: item.totalSignsPickedUp,
   }));
 
+  const header = (
+    <div className={styles.header}>
+      <div className={styles.titleGroup}>
+        <p className={styles.eyebrow}>Metrics</p>
+        <h2 id="metrics-visualisation-heading">Performance Metrics</h2>
+        <Badge tone="info">{scopeLabel}</Badge>
+      </div>
+      <PeriodSelector
+        selectedPeriod={period}
+        onChange={onPeriodChange}
+        periods={METRICS_PERIODS}
+        label="Metrics period"
+      />
+    </div>
+  );
+
   if (loading) {
     return (
-      <section className={styles.metricsPanel} aria-labelledby="metrics-visualisation-heading">
-        <div className={styles.metricsHeader}>
-          <div className={styles.metricsTitleGroup}>
-            <p className={styles.metricsEyebrow}>Metrics</p>
-            <h2 id="metrics-visualisation-heading">Performance Metrics</h2>
-            <span className={styles.metricsScopePill}>{scopeLabel}</span>
-          </div>
-          <PeriodSelector
-            selectedPeriod={period}
-            onChange={onPeriodChange}
-            periods={METRICS_PERIODS}
-            label="Metrics period"
-          />
-        </div>
-        <p className={styles.metricsEmptyState}>Loading metrics...</p>
+      <section className={styles.panel} aria-labelledby="metrics-visualisation-heading">
+        {header}
+        <p className={styles.emptyState}>Loading metrics...</p>
       </section>
     );
   }
 
   if (!latest) {
     return (
-      <section className={styles.metricsPanel} aria-labelledby="metrics-visualisation-heading">
-        <div className={styles.metricsHeader}>
-          <div className={styles.metricsTitleGroup}>
-            <p className={styles.metricsEyebrow}>Metrics</p>
-            <h2 id="metrics-visualisation-heading">Performance Metrics</h2>
-            <span className={styles.metricsScopePill}>{scopeLabel}</span>
-          </div>
-          <PeriodSelector
-            selectedPeriod={period}
-            onChange={onPeriodChange}
-            periods={METRICS_PERIODS}
-            label="Metrics period"
-          />
-        </div>
-        <p className={styles.metricsEmptyState}>No metrics available yet.</p>
+      <section className={styles.panel} aria-labelledby="metrics-visualisation-heading">
+        {header}
+        <p className={styles.emptyState}>No metrics available yet.</p>
       </section>
     );
   }
@@ -301,76 +276,50 @@ export default function MetricsVisualization({
   const chartSubtitle = `Latest period ${latestLabel}`;
 
   return (
-    <section className={styles.metricsPanel} aria-labelledby="metrics-visualisation-heading">
-      <div className={styles.metricsHeader}>
-        <div className={styles.metricsTitleGroup}>
-          <p className={styles.metricsEyebrow}>Metrics</p>
-          <h2 id="metrics-visualisation-heading">Performance Metrics</h2>
-          <span className={styles.metricsScopePill}>{scopeLabel}</span>
-        </div>
-        <PeriodSelector
-          selectedPeriod={period}
-          onChange={onPeriodChange}
-          periods={METRICS_PERIODS}
-          label="Metrics period"
+    <section className={styles.panel} aria-labelledby="metrics-visualisation-heading">
+      {header}
+
+      <div className={styles.headlineGrid}>
+        <StatTile label="Routes Completed" value={latest.routesCompleted} caption={latestLabel} icon="route" />
+        {canShowFinancials && (
+          <StatTile label="Revenue" value={formatCurrency(latest.totalRevenue)} caption={latestLabel} icon="receipt" />
+        )}
+        <StatTile label="Distance" value={`${latest.totalDistanceKm.toFixed(1)} km`} caption={latestLabel} icon="map-pin" />
+        <StatTile
+          label="Signs Handled"
+          value={formatCompactNumber(signsHandled)}
+          caption={`${formatCompactNumber(latest.totalSignsPlaced)} placed / ${formatCompactNumber(latest.totalSignsPickedUp)} picked up`}
         />
       </div>
 
-      <div className={styles.metricsHeadlineGrid}>
-        <article className={styles.metricsHeadlineCard}>
-          <p className={styles.metricsHeadlineLabel}>Routes Completed</p>
-          <p className={styles.metricsHeadlineValue}>{latest.routesCompleted}</p>
-          <p className={styles.metricsHeadlineMeta}>{latestLabel}</p>
-        </article>
-        {canShowFinancials && (
-          <article className={styles.metricsHeadlineCard}>
-            <p className={styles.metricsHeadlineLabel}>Revenue</p>
-            <p className={styles.metricsHeadlineValue}>{formatCurrency(latest.totalRevenue)}</p>
-            <p className={styles.metricsHeadlineMeta}>{latestLabel}</p>
-          </article>
-        )}
-        <article className={styles.metricsHeadlineCard}>
-          <p className={styles.metricsHeadlineLabel}>Distance</p>
-          <p className={styles.metricsHeadlineValue}>{latest.totalDistanceKm.toFixed(1)} km</p>
-          <p className={styles.metricsHeadlineMeta}>{latestLabel}</p>
-        </article>
-        <article className={styles.metricsHeadlineCard}>
-          <p className={styles.metricsHeadlineLabel}>Signs Handled</p>
-          <p className={styles.metricsHeadlineValue}>{formatCompactNumber(signsHandled)}</p>
-          <p className={styles.metricsHeadlineMeta}>
-            {formatCompactNumber(latest.totalSignsPlaced)} placed / {formatCompactNumber(latest.totalSignsPickedUp)} picked up
-          </p>
-        </article>
-      </div>
-
-      <div className={styles.metricsChartsGrid}>
-        <ChartCard title="Routes Completed" subtitle={chartSubtitle}>
-          <BarChart title="Routes completed trend" points={routesPoints} className={styles.metricsRoutesBar} />
-        </ChartCard>
+      <div className={styles.chartsGrid}>
+        <Card title="Routes Completed" subtitle={chartSubtitle}>
+          <BarChart title="Routes completed trend" points={routesPoints} className={styles.routesBar} />
+        </Card>
 
         {canShowFinancials && (
-          <ChartCard title="Revenue" subtitle={chartSubtitle}>
-            <BarChart title="Revenue trend" points={revenuePoints} className={styles.metricsRevenueBar} />
-          </ChartCard>
+          <Card title="Revenue" subtitle={chartSubtitle}>
+            <BarChart title="Revenue trend" points={revenuePoints} className={styles.revenueBar} />
+          </Card>
         )}
 
-        <ChartCard title="Distance" subtitle={chartSubtitle}>
+        <Card title="Distance" subtitle={chartSubtitle}>
           <LineChart title="Distance trend" points={distancePoints} />
-        </ChartCard>
+        </Card>
 
-        <ChartCard title="Sign Activity" subtitle={chartSubtitle}>
+        <Card title="Sign Activity" subtitle={chartSubtitle}>
           <GroupedBarChart title="Sign activity trend" points={signsPoints} />
-          <div className={styles.metricsLegend} aria-hidden="true">
-            <span className={styles.metricsLegendItem}>
-              <span className={styles.metricsLegendSwatchPlaced} />
+          <div className={styles.legend} aria-hidden="true">
+            <span className={styles.legendItem}>
+              <span className={styles.legendSwatchPlaced} />
               Placed
             </span>
-            <span className={styles.metricsLegendItem}>
-              <span className={styles.metricsLegendSwatchPickedUp} />
+            <span className={styles.legendItem}>
+              <span className={styles.legendSwatchPickedUp} />
               Picked up
             </span>
           </div>
-        </ChartCard>
+        </Card>
       </div>
     </section>
   );

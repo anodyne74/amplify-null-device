@@ -6,6 +6,7 @@ export type CustomerOption = {
   addressLine1?: string;
   billingRatePerHour?: number;
   gstExclusive?: boolean | null;
+  viewerSubs?: string[] | null;
 };
 
 export type InvoiceStatus = 'draft' | 'sent' | 'paid';

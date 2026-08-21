@@ -11,8 +11,11 @@ import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { Switch } from '@/app/components/ui/forms/Switch';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
+import { listRateLines } from '@/lib/queries/ListRateLines';
+import { createRateLine } from '@/lib/queries/CreateRateLine';
+import { deleteRateLine } from '@/lib/queries/DeleteRateLine';
 import { getCustomer, updateCustomer } from '@/lib/queries';
-import type { BillingCycle, Customer } from '@/amplify/types';
+import type { BillingCycle, Customer, RateLine, RateLineUnit } from '@/amplify/types';
 import styles from './page.module.css';
 
 const CYCLE_OPTIONS: { value: BillingCycle; label: string }[] = [
@@ -26,6 +29,16 @@ const TERM_OPTIONS = [
   { value: '14', label: 'Net 14 days' },
   { value: '30', label: 'Net 30 days' },
 ];
+
+const UNIT_OPTIONS: { value: RateLineUnit; label: string }[] = [
+  { value: 'per_hour', label: 'per hour' },
+  { value: 'per_stop', label: 'per stop' },
+  { value: 'per_sign', label: 'per sign' },
+];
+
+function formatUnit(unit?: RateLineUnit | null) {
+  return UNIT_OPTIONS.find((option) => option.value === unit)?.label ?? 'per hour';
+}
 
 function formatDate(value?: string | null) {
   if (!value) return null;
@@ -57,6 +70,17 @@ export default function AdministratorPaymentDetailsPage() {
   const [savingDirectDebit, setSavingDirectDebit] = useState(false);
   const [directDebitError, setDirectDebitError] = useState<string | null>(null);
   const [directDebitSuccess, setDirectDebitSuccess] = useState<string | null>(null);
+
+  const [rateLines, setRateLines] = useState<RateLine[]>([]);
+  const [loadingRateLines, setLoadingRateLines] = useState(false);
+  const [rateLineError, setRateLineError] = useState<string | null>(null);
+  const [newLineLabel, setNewLineLabel] = useState('');
+  const [newLineUnit, setNewLineUnit] = useState<RateLineUnit>('per_hour');
+  const [newLineRate, setNewLineRate] = useState('');
+  const [addingLine, setAddingLine] = useState(false);
+  const [removingLineId, setRemovingLineId] = useState<string | null>(null);
+  const [copySourceId, setCopySourceId] = useState('');
+  const [copyingLines, setCopyingLines] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +130,105 @@ export default function AdministratorPaymentDetailsPage() {
       cancelled = true;
     };
   }, [selectedCustomerId]);
+
+  const refetchRateLines = async () => {
+    const result = await listRateLines(selectedCustomerId);
+    setRateLines((result.data as RateLine[]) || []);
+  };
+
+  useEffect(() => {
+    if (!selectedCustomerId) {
+      setRateLines([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingRateLines(true);
+    setRateLineError(null);
+
+    void listRateLines(selectedCustomerId).then((result) => {
+      if (cancelled) return;
+      setRateLines((result.data as RateLine[]) || []);
+      setLoadingRateLines(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCustomerId]);
+
+  const handleAddRateLine = async () => {
+    if (!newLineLabel.trim() || !newLineRate.trim()) return;
+    setAddingLine(true);
+    setRateLineError(null);
+
+    const result = await createRateLine({
+      customerId: selectedCustomerId,
+      label: newLineLabel.trim(),
+      unit: newLineUnit,
+      ratePerUnit: Number(newLineRate),
+      sortOrder: rateLines.length,
+    });
+
+    if (result.errors && result.errors.length > 0) {
+      setRateLineError('Could not add rate line.');
+      setAddingLine(false);
+      return;
+    }
+
+    setNewLineLabel('');
+    setNewLineRate('');
+    await refetchRateLines();
+    setAddingLine(false);
+  };
+
+  const handleDeleteRateLine = async (id: string) => {
+    setRemovingLineId(id);
+    setRateLineError(null);
+
+    const result = await deleteRateLine(id);
+    if (result.errors && result.errors.length > 0) {
+      setRateLineError('Could not remove rate line.');
+      setRemovingLineId(null);
+      return;
+    }
+
+    await refetchRateLines();
+    setRemovingLineId(null);
+  };
+
+  const handleCopyRateLines = async () => {
+    if (!copySourceId) return;
+    setCopyingLines(true);
+    setRateLineError(null);
+
+    const source = await listRateLines(copySourceId);
+    const sourceLines = (source.data as RateLine[]) || [];
+
+    if (sourceLines.length === 0) {
+      setRateLineError('That customer has no rate lines to copy.');
+      setCopyingLines(false);
+      return;
+    }
+
+    const results = await Promise.all(
+      sourceLines.map((line, index) =>
+        createRateLine({
+          customerId: selectedCustomerId,
+          label: line.label,
+          unit: line.unit || undefined,
+          ratePerUnit: line.ratePerUnit,
+          sortOrder: rateLines.length + index,
+        })
+      )
+    );
+
+    if (results.some((result) => result.errors && result.errors.length > 0)) {
+      setRateLineError('Some rate lines could not be copied.');
+    }
+
+    await refetchRateLines();
+    setCopyingLines(false);
+  };
 
   const handleSaveTax = async () => {
     setSavingTax(true);
@@ -195,6 +318,113 @@ export default function AdministratorPaymentDetailsPage() {
           <LoadingSpinner message="Loading payment details..." />
         ) : (
           <div className={styles.layout}>
+            <Card title="Rate card" subtitle={`${customer?.name ?? ''} · ex GST`} padded={false}>
+              {rateLineError && <p className={`nd-badge nd-badge--danger ${styles.rateCardBanner}`}>{rateLineError}</p>}
+
+              {loadingRateLines ? (
+                <p className={styles.rateCardEmpty}>Loading rate lines…</p>
+              ) : rateLines.length === 0 ? (
+                <p className={styles.rateCardEmpty}>No rate lines yet — this customer uses the flat billing rate.</p>
+              ) : (
+                <div className={styles.rateCardTable}>
+                  {rateLines.map((line) => (
+                    <div key={line.id} className={styles.rateCardRow}>
+                      <span className={styles.rateCardRowLabel}>{line.label}</span>
+                      <span className={styles.rateCardRowUnit}>{formatUnit(line.unit)}</span>
+                      <span className={styles.rateCardRowRate}>${line.ratePerUnit.toFixed(2)}</span>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        loading={removingLineId === line.id}
+                        disabled={removingLineId === line.id}
+                        onClick={() => void handleDeleteRateLine(line.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className={styles.rateCardAddRow}>
+                <Field label="Label" htmlFor="rl-label">
+                  <Input
+                    id="rl-label"
+                    value={newLineLabel}
+                    onChange={(e) => setNewLineLabel(e.target.value)}
+                    placeholder="Placement"
+                    disabled={addingLine}
+                  />
+                </Field>
+                <Field label="Unit" htmlFor="rl-unit">
+                  <Select
+                    id="rl-unit"
+                    value={newLineUnit}
+                    onChange={(e) => setNewLineUnit(e.target.value as RateLineUnit)}
+                    disabled={addingLine}
+                  >
+                    {UNIT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Rate" htmlFor="rl-rate">
+                  <Input
+                    id="rl-rate"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newLineRate}
+                    onChange={(e) => setNewLineRate(e.target.value)}
+                    placeholder="30.00"
+                    disabled={addingLine}
+                  />
+                </Field>
+                <Button
+                  type="button"
+                  size="sm"
+                  iconLeft="plus"
+                  loading={addingLine}
+                  disabled={addingLine || !newLineLabel.trim() || !newLineRate.trim()}
+                  onClick={() => void handleAddRateLine()}
+                >
+                  Add rate line
+                </Button>
+              </div>
+
+              <div className={styles.rateCardCopyRow}>
+                <Field label="Copy from another customer" htmlFor="rl-copy-source">
+                  <Select
+                    id="rl-copy-source"
+                    value={copySourceId}
+                    onChange={(e) => setCopySourceId(e.target.value)}
+                    disabled={copyingLines}
+                  >
+                    <option value="">Select a customer…</option>
+                    {customers.filter((c) => c.id !== selectedCustomerId).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  loading={copyingLines}
+                  disabled={copyingLines || !copySourceId}
+                  onClick={() => void handleCopyRateLines()}
+                >
+                  Copy rate lines
+                </Button>
+              </div>
+            </Card>
+
+            <div className={styles.sidebar}>
             <Card title="Billing cycle & tax">
               <div className={styles.form}>
                 {taxError && <p className="nd-badge nd-badge--danger">{taxError}</p>}
@@ -313,6 +543,7 @@ export default function AdministratorPaymentDetailsPage() {
                 </div>
               </div>
             </Card>
+            </div>
           </div>
         )}
       </div>

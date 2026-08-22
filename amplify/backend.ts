@@ -29,6 +29,7 @@ const invoiceTemplateName = withMaxLength(`NullDeviceInvoiceTemplate-${branchNam
 const jobAssignedTemplateName = withMaxLength(`NullDeviceJobAssignedTemplate-${branchName}`, 64);
 const welcomeTemplateName = withMaxLength(`NullDeviceWelcomeTemplate-${branchName}`, 64);
 const accountRequestNotifyTemplateName = withMaxLength(`NullDeviceAccountRequestNotifyTemplate-${branchName}`, 64);
+const accountRequestRejectedTemplateName = withMaxLength(`NullDeviceAccountRequestRejectedTemplate-${branchName}`, 64);
 const inboundBucketName = withMaxLength(`ses-inbound-nulldevice-${branchName}`, 63);
 const forwarderFunctionName = withMaxLength(`ses-forwarder-nulldevice-${branchName}`, 64);
 const inboundRuleSetName = withMaxLength(`inbound-rule-set-nulldevice-${branchName}`, 64);
@@ -292,6 +293,57 @@ New account request
 {{requesterName}} ({{requesterEmail}}) has asked to join {{customerName}} on NullDevice as {{requestedRole}}.
 
 Review request: {{reviewUrl}}
+
+This is an automated message. Please do not reply.
+`.trim(),
+	},
+});
+
+new CfnTemplate(sesStack, 'AccountRequestRejectedTemplate', {
+	template: {
+		templateName: accountRequestRejectedTemplateName,
+		subjectPart: 'Your request to join {{customerName}} was not approved',
+		htmlPart: `
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Request not approved</title>
+	</head>
+	<body style="margin:0;padding:0;background:#F6F7FB;color:#2B3150;font-family:'Segoe UI',Arial,sans-serif;">
+		<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#F6F7FB;padding:28px 0;">
+			<tr>
+				<td align="center">
+					<table role="presentation" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;background:#FFFFFF;border:1px solid #DFE2EE;border-radius:16px;overflow:hidden;">
+						<tr>
+							<td style="padding:22px 28px;background:#141B38;">
+								<img src="{{logoUrl}}" alt="NullDevice" width="146" style="display:block;width:146px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;" />
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:28px 28px 8px 28px;">
+								<div style="font-family:'Comfortaa','Trebuchet MS',sans-serif;font-weight:700;font-size:22px;color:#141B38;">Request not approved</div>
+								<p style="margin:12px 0 0 0;color:#5A6180;font-size:15px;line-height:1.6;">Your request to join <strong>{{customerName}}</strong> on NullDevice was not approved.</p>
+								<p style="margin:12px 0 0 0;color:#5A6180;font-size:15px;line-height:1.6;">{{decisionNote}}</p>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:20px 28px;background:#F6F7FB;border-top:1px solid #DFE2EE;font-size:12px;color:#818AA4;line-height:1.7;">&copy; {{year}} NullDevice. All rights reserved.</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>
+`.trim(),
+		textPart: `
+Request not approved
+
+Your request to join {{customerName}} on NullDevice was not approved.
+
+{{decisionNote}}
 
 This is an automated message. Please do not reply.
 `.trim(),

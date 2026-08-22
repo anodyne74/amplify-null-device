@@ -21,6 +21,7 @@ import { customerAccessActivation } from '../functions/customer-access-activatio
  * - RateLine: Named, priced lines on a customer's rate card
  * - OperatorPayout: Driver-split payouts owed to operators for a customer's billing period
  * - VanSignCount: An operator's daily count of signs on their van
+ * - AccountRequest: A self-service request for portal access, pending approval
  *
  * Authorization Rules:
  * - Customers can only access their own data (routes, invoices, payments)
@@ -97,6 +98,7 @@ const schema = a.schema({
       customerClosureBlocks: a.hasMany('CustomerClosureBlock', 'customerId'),
       rateLines: a.hasMany('RateLine', 'customerId'),
       payouts: a.hasMany('OperatorPayout', 'customerId'),
+      accountRequests: a.hasMany('AccountRequest', 'customerId'),
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read', 'update']),
@@ -437,6 +439,40 @@ const schema = a.schema({
       allow.ownerDefinedIn('userSub').identityClaim('sub').to(['read']),           // each user reads own record
       allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read']),   // account owner reads all for their customer
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),  // only admins manage users
+    ]),
+
+  /**
+   * AccountRequest - A self-service request for portal access, submitted by an
+   * already-confirmed-but-groupless Cognito user (someone who signed up but was never
+   * invited by an administrator). requesterSub is the requester's own genuine Cognito
+   * sub, so ownerDefinedIn works correctly here — unlike CustomerUser, there's no
+   * customerId-as-owner mistake to make. Deciding a request (approve/reject) requires
+   * elevated server-side access scoped to "caller is this customer's account owner or
+   * an administrator" — that check can't be expressed as a simple field-level rule
+   * here since it depends on a *different* record (Customer.accountOwnerSub), so
+   * approval runs through a privileged API route, not direct write access from the
+   * account owner's own session.
+   */
+  AccountRequest: a
+    .model({
+      requesterSub: a.string().required(),
+      email: a.email().required(),
+      name: a.string(),
+      customerId: a.id().required(),
+      role: a.enum(['account_owner', 'read_only']),
+      status: a.enum(['pending', 'approved', 'rejected']),
+      requestedAt: a.datetime(),
+      decidedAt: a.datetime(),
+      decidedByUserSub: a.string(),
+      decisionNote: a.string(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+      // Relationships
+      customer: a.belongsTo('Customer', 'customerId'),
+    })
+    .authorization((allow) => [
+      allow.ownerDefinedIn('requesterSub').identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
   /**

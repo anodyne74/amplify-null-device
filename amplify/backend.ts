@@ -28,6 +28,7 @@ const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIF
 const invoiceTemplateName = withMaxLength(`NullDeviceInvoiceTemplate-${branchName}`, 64);
 const jobAssignedTemplateName = withMaxLength(`NullDeviceJobAssignedTemplate-${branchName}`, 64);
 const welcomeTemplateName = withMaxLength(`NullDeviceWelcomeTemplate-${branchName}`, 64);
+const accountRequestNotifyTemplateName = withMaxLength(`NullDeviceAccountRequestNotifyTemplate-${branchName}`, 64);
 const inboundBucketName = withMaxLength(`ses-inbound-nulldevice-${branchName}`, 63);
 const forwarderFunctionName = withMaxLength(`ses-forwarder-nulldevice-${branchName}`, 64);
 const inboundRuleSetName = withMaxLength(`inbound-rule-set-nulldevice-${branchName}`, 64);
@@ -236,6 +237,61 @@ Your portal is live
 Welcome, {{customerName}}. Track your routes, sign placements and pickups, and invoices in one place.
 
 Open my portal: {{portalUrl}}
+
+This is an automated message. Please do not reply.
+`.trim(),
+	},
+});
+
+new CfnTemplate(sesStack, 'AccountRequestNotifyTemplate', {
+	template: {
+		templateName: accountRequestNotifyTemplateName,
+		subjectPart: 'New account request for {{customerName}}',
+		htmlPart: `
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>New account request</title>
+	</head>
+	<body style="margin:0;padding:0;background:#F6F7FB;color:#2B3150;font-family:'Segoe UI',Arial,sans-serif;">
+		<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#F6F7FB;padding:28px 0;">
+			<tr>
+				<td align="center">
+					<table role="presentation" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;background:#FFFFFF;border:1px solid #DFE2EE;border-radius:16px;overflow:hidden;">
+						<tr>
+							<td style="padding:22px 28px;background:#141B38;">
+								<img src="{{logoUrl}}" alt="NullDevice" width="146" style="display:block;width:146px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;" />
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:28px 28px 8px 28px;">
+								<div style="font-family:'Comfortaa','Trebuchet MS',sans-serif;font-weight:700;font-size:22px;color:#141B38;">New account request</div>
+								<p style="margin:12px 0 0 0;color:#5A6180;font-size:15px;line-height:1.6;"><strong>{{requesterName}}</strong> ({{requesterEmail}}) has asked to join {{customerName}} on NullDevice as {{requestedRole}}. Review the request to grant or decline access.</p>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:24px 28px 32px 28px;">
+								<a href="{{reviewUrl}}" style="display:inline-block;padding:13px 26px;border-radius:999px;background:#5D65E6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;">Review request</a>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:20px 28px;background:#F6F7FB;border-top:1px solid #DFE2EE;font-size:12px;color:#818AA4;line-height:1.7;">&copy; {{year}} NullDevice. All rights reserved.</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>
+`.trim(),
+		textPart: `
+New account request
+
+{{requesterName}} ({{requesterEmail}}) has asked to join {{customerName}} on NullDevice as {{requestedRole}}.
+
+Review request: {{reviewUrl}}
 
 This is an automated message. Please do not reply.
 `.trim(),

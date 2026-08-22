@@ -35,3 +35,11 @@
 .actions {
   margin-top: var(--space-7);
 }
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin-top: var(--space-6);
+  text-align: left;
+}

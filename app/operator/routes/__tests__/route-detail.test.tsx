@@ -4,7 +4,7 @@ import { render, screen, waitFor, within, fireEvent } from '@testing-library/rea
 import RouteDetailPage from '../detail/page';
 import * as getRouteDetailModule from '@/lib/queries/GetRouteDetail';
 import * as deleteStopModule from '@/lib/queries/DeleteStop';
-import { updateStopExecution } from '@/lib/queries';
+import { updateStopExecution, updateRouteExecution } from '@/lib/queries';
 import type { Route, Stop } from '@/amplify/types';
 
 // Mock Next.js navigation
@@ -73,6 +73,8 @@ jest.mock('@/lib/queries', () => ({
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateStopExecution: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+  updateRouteExecution: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+  updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));
 jest.mock('@/lib/queries/UpdateStop', () => ({
   updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
@@ -419,5 +421,65 @@ describe('Operator Route Detail Page', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^skip stop$/i }));
 
     expect(await screen.findByText('Why is this stop skipped?')).toBeInTheDocument();
+  });
+
+  const settledStops: Stop[] = [
+    {
+      id: 'stop-1',
+      routeId: 'route-test-id-1234',
+      sequence: 1,
+      address: '100 First St',
+      serviceType: 'delivery',
+      numberOfSigns: 4,
+      actualDepartureTime: '2024-03-01T11:00:00Z',
+      notes: '[PLACEMENT_DONE:2024-03-01T11:00:00.000Z]',
+    },
+    {
+      id: 'stop-2',
+      routeId: 'route-test-id-1234',
+      sequence: 2,
+      address: '200 Second Ave',
+      serviceType: 'delivery',
+      numberOfSigns: 3,
+      actualDepartureTime: '2024-03-01T11:05:00Z',
+      notes: '[PLACEMENT_SKIPPED:2024-03-01T11:05:00.000Z|Gate locked / no access]',
+    },
+  ];
+
+  it('shows a phase summary with skipped-stop reasons after ending the route, and returns to the route on Back', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
+      data: {
+        ...mockRoute,
+        status: 'in_progress',
+        executionPhase: 'placement',
+        actualStartTime: '2024-03-01T10:00:00Z',
+        placementStartTime: '2024-03-01T10:00:00Z',
+      },
+      errors: undefined,
+    });
+    mockStopList.mockResolvedValue({ data: settledStops, errors: undefined });
+
+    render(<RouteDetailPage />);
+
+    const endRouteButton = await screen.findByRole('button', { name: /^end route$/i });
+    expect(endRouteButton).not.toBeDisabled();
+    fireEvent.click(endRouteButton);
+
+    await waitFor(() => {
+      expect(updateRouteExecution).toHaveBeenCalledWith(
+        'route-test-id-1234',
+        expect.objectContaining({ status: 'signs_placed' })
+      );
+    });
+
+    const summary = await screen.findByRole('region', { name: /phase summary/i });
+    expect(within(summary).getByText('1 of 2 stops done')).toBeInTheDocument();
+    expect(within(summary).getByText('Not done')).toBeInTheDocument();
+    expect(within(summary).getByText(/200 Second Ave/)).toBeInTheDocument();
+    expect(within(summary).getByText(/Gate locked \/ no access/)).toBeInTheDocument();
+
+    fireEvent.click(within(summary).getByRole('button', { name: /back to route/i }));
+
+    expect(screen.queryByRole('region', { name: /phase summary/i })).not.toBeInTheDocument();
   });
 });

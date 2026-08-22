@@ -258,6 +258,7 @@ function RouteDetailContent() {
   const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
   const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
   const [transitionError, setTransitionError] = useState<string | null>(null);
+  const [showPhaseSummary, setShowPhaseSummary] = useState(false);
   const [phaseMetricOverrides, setPhaseMetricOverrides] = useState({
     placementDistanceKm: '0.00',
     placementDurationMinutes: '0',
@@ -887,6 +888,7 @@ function RouteDetailContent() {
           signs_placed: placementDistanceKm,
           signs_picked_up: pickupDistanceKm,
         });
+        setShowPhaseSummary(true);
       }
     } catch {
       setTransitionError('Failed to end route phase.');
@@ -1246,6 +1248,40 @@ function RouteDetailContent() {
   const completedPhaseStops = Math.max(0, totalPhaseStops - visibleStops.length);
   const nextStopCounter = totalPhaseStops > 0 ? `STOP ${Math.min(totalPhaseStops, completedPhaseStops + 1)} OF ${totalPhaseStops}` : null;
 
+  const justEndedPhase: ExecutionPhase | null = !showPhaseSummary
+    ? null
+    : route?.status === 'signs_placed'
+    ? 'placement'
+    : route?.status === 'signs_picked_up'
+    ? 'pickup'
+    : null;
+
+  const phaseSummary = (() => {
+    if (!justEndedPhase) return null;
+    const phaseStops = justEndedPhase === 'placement' ? placementPhaseStops : pickupPhaseStops;
+    const doneMarker = justEndedPhase === 'pickup' ? PICKUP_DONE_MARKER : PLACEMENT_DONE_MARKER;
+    const skipMarker = justEndedPhase === 'pickup' ? PICKUP_SKIPPED_MARKER : PLACEMENT_SKIPPED_MARKER;
+
+    const doneStops = phaseStops.filter((stop) => Boolean(getMarkerTimestamp(stop.notes, doneMarker)));
+    const skippedStops = phaseStops.filter((stop) => isStopSkippedForPhase(stop, justEndedPhase));
+    const notAttemptedCount = phaseStops.filter((stop) => !isStopCompletedForPhase(stop, justEndedPhase)).length;
+
+    return {
+      phase: justEndedPhase,
+      totalStops: phaseStops.length,
+      doneCount: doneStops.length,
+      signsTotal: doneStops.reduce((sum, stop) => sum + (stop.numberOfSigns ?? 0), 0),
+      distanceKm: justEndedPhase === 'pickup' ? pickupDistance : placementDistance,
+      notAttemptedCount,
+      skippedStops: skippedStops.map((stop) => ({
+        id: stop.id,
+        sequence: stop.sequence,
+        address: getPrimaryAddressLine(stop.formattedAddress || stop.address),
+        reason: getMarkerReason(stop.notes, skipMarker),
+      })),
+    };
+  })();
+
   const openStopSheet = (stopId: string, step: 'action' | 'reason' = 'action') => {
     setActionSheetStopId(stopId);
     setActionSheetStep(step);
@@ -1562,7 +1598,59 @@ function RouteDetailContent() {
           )}
 
           {/* Stops Section */}
-          {isExecutionMode ? (
+          {phaseSummary ? (
+            <section role="region" aria-label="Phase summary" className={styles.phaseSummary}>
+              <p className={styles.phaseSummaryKicker}>
+                {phaseSummary.phase === 'pickup' ? 'Pickup' : 'Placement'} phase · Route {route.routeCode || route.id.slice(0, 8)}
+              </p>
+              <h1 className={styles.fieldModeTitle}>
+                {phaseSummary.notAttemptedCount > 0
+                  ? `Phase ended early · ${phaseSummary.doneCount} of ${phaseSummary.totalStops} stops`
+                  : phaseSummary.skippedStops.length > 0
+                  ? `${phaseSummary.doneCount} of ${phaseSummary.totalStops} stops done`
+                  : 'Phase complete'}
+              </h1>
+              <p className={styles.phaseSummarySub}>
+                {phaseSummary.notAttemptedCount > 0
+                  ? `${phaseSummary.notAttemptedCount} stop${phaseSummary.notAttemptedCount === 1 ? '' : 's'} weren't attempted and stay open on this route.`
+                  : phaseSummary.phase === 'pickup'
+                  ? 'Signs are back on the van. The office invoices from these times.'
+                  : "Placement is recorded. Start the pickup phase from this route when you're ready to collect signs."}
+              </p>
+
+              <div className={styles.telemetryGrid}>
+                <StatTile
+                  label="Stops completed"
+                  value={`${phaseSummary.doneCount} / ${phaseSummary.totalStops}`}
+                  icon="clipboard-list"
+                />
+                <StatTile
+                  label={phaseSummary.phase === 'pickup' ? 'Signs collected' : 'Signs placed'}
+                  value={phaseSummary.signsTotal}
+                  icon="route"
+                />
+                <StatTile label="Distance" value={`${phaseSummary.distanceKm.toFixed(2)} km`} icon="map-pin" />
+                <StatTile label="Skipped" value={phaseSummary.skippedStops.length} icon="triangle-alert" />
+              </div>
+
+              {phaseSummary.skippedStops.length > 0 && (
+                <div className={styles.phaseSummarySkipPanel}>
+                  <p className={styles.phaseSummarySkipHeading}>Not done</p>
+                  {phaseSummary.skippedStops.map((stop) => (
+                    <p key={stop.id} className={styles.phaseSummarySkipRow}>
+                      <span className={styles.phaseSummarySkipSeq}>{stop.sequence ?? '-'}</span>
+                      {stop.address}
+                      {stop.reason ? ` — ${stop.reason}` : ''}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              <Button size="lg" onClick={() => setShowPhaseSummary(false)}>
+                Back to route
+              </Button>
+            </section>
+          ) : isExecutionMode ? (
             <section role="region" aria-label="Operator field mode" className={styles.fieldMode}>
               <div className={styles.fieldModeHeader}>
                 <div>

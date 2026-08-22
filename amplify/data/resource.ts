@@ -462,6 +462,7 @@ const schema = a.schema({
       role: a.enum(['account_owner', 'read_only']),
       status: a.enum(['pending', 'approved', 'rejected']),
       requestedAt: a.datetime(),
+      lastNotifiedAt: a.datetime(),
       decidedAt: a.datetime(),
       decidedByUserSub: a.string(),
       decisionNote: a.string(),

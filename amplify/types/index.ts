@@ -294,6 +294,7 @@ export interface AccountRequest {
   role?: CustomerUserRole | null;
   status?: AccountRequestStatus | null;
   requestedAt?: string | null;
+  lastNotifiedAt?: string | null;
   decidedAt?: string | null;
   decidedByUserSub?: string | null;
   decisionNote?: string | null;

@@ -68,6 +68,7 @@ describe('PendingApprovalPage', () => {
         customerId: 'cust-1',
         role: 'account_owner',
         status: 'pending',
+        requestedAt: '2026-02-01T00:00:00Z',
       },
     });
 
@@ -83,36 +84,52 @@ describe('PendingApprovalPage', () => {
       );
     });
 
-    expect(await screen.findByText('Request sent — nothing more to do')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Request sent' })).toBeInTheDocument();
   });
 
-  it('shows the waiting-on-approval status when a pending request already exists', async () => {
+  it('shows the waiting-on-approval status with a timeline and the account owner name', async () => {
     mockFetchOnce({
-      request: { id: 'req-1', status: 'pending' },
+      request: {
+        id: 'req-1',
+        status: 'pending',
+        requestedAt: '2026-02-01T00:00:00Z',
+        customerName: 'Range Property',
+        accountOwnerName: 'Jordan Lee',
+      },
       customers: [],
     });
 
     render(<PendingApprovalPage />);
 
     expect(await screen.findByText('Waiting on approval')).toBeInTheDocument();
-    expect(screen.getByText('Request sent — nothing more to do')).toBeInTheDocument();
+    expect(screen.getAllByText('Request sent').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Jordan Lee for Range Property has been notified/)).toBeInTheDocument();
+    expect(screen.getByText('Reviewed by Jordan Lee')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /chase it up/i })).toBeInTheDocument();
     expect(screen.queryByLabelText('Company')).not.toBeInTheDocument();
   });
 
   it('shows the approved status', async () => {
     mockFetchOnce({
-      request: { id: 'req-1', status: 'approved' },
+      request: { id: 'req-1', status: 'approved', requestedAt: '2026-02-01T00:00:00Z', decidedAt: '2026-02-02T00:00:00Z' },
       customers: [],
     });
 
     render(<PendingApprovalPage />);
 
     expect(await screen.findByText('Access is ready')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /chase it up/i })).not.toBeInTheDocument();
   });
 
   it('shows the rejected status with a decision note', async () => {
     mockFetchOnce({
-      request: { id: 'req-1', status: 'rejected', decisionNote: 'Could not verify this company.' },
+      request: {
+        id: 'req-1',
+        status: 'rejected',
+        requestedAt: '2026-02-01T00:00:00Z',
+        decidedAt: '2026-02-02T00:00:00Z',
+        decisionNote: 'Could not verify this company.',
+      },
       customers: [],
     });
 
@@ -120,10 +137,46 @@ describe('PendingApprovalPage', () => {
 
     expect(await screen.findByText('Request not approved')).toBeInTheDocument();
     expect(screen.getByText('Could not verify this company.')).toBeInTheDocument();
+    expect(screen.getAllByText('Not approved').length).toBeGreaterThan(0);
+  });
+
+  it('resends the notification when "Chase it up" is clicked', async () => {
+    mockFetchOnce({
+      request: { id: 'req-1', status: 'pending', requestedAt: '2026-02-01T00:00:00Z' },
+      customers: [],
+    });
+
+    render(<PendingApprovalPage />);
+    await screen.findByText('Waiting on approval');
+
+    mockFetchOnce({ request: { id: 'req-1', status: 'pending', lastNotifiedAt: '2026-02-01T01:00:00Z' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /chase it up/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenLastCalledWith('/api/account-requests/resend', expect.objectContaining({ method: 'POST' }));
+    });
+    expect(await screen.findByText(/nudged them again/i)).toBeInTheDocument();
+  });
+
+  it('shows an error when the resend is rate-limited', async () => {
+    mockFetchOnce({
+      request: { id: 'req-1', status: 'pending', requestedAt: '2026-02-01T00:00:00Z' },
+      customers: [],
+    });
+
+    render(<PendingApprovalPage />);
+    await screen.findByText('Waiting on approval');
+
+    mockFetchOnce({ error: 'Please wait 12 more minutes before chasing this up again.' }, false);
+
+    fireEvent.click(screen.getByRole('button', { name: /chase it up/i }));
+
+    expect(await screen.findByText(/please wait 12 more minutes/i)).toBeInTheDocument();
   });
 
   it('signs out and redirects home', async () => {
-    mockFetchOnce({ request: { id: 'req-1', status: 'pending' }, customers: [] });
+    mockFetchOnce({ request: { id: 'req-1', status: 'pending', requestedAt: '2026-02-01T00:00:00Z' }, customers: [] });
 
     render(<PendingApprovalPage />);
     await screen.findByText('Waiting on approval');

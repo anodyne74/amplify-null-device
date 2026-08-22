@@ -120,9 +120,28 @@ export async function GET(request: NextRequest) {
   const sorted = [...(myRequests || [])].sort(
     (a, b) => (b.requestedAt || '').localeCompare(a.requestedAt || '')
   );
+  const latest = sorted[0] || null;
+
+  let enrichedRequest: Record<string, unknown> | null = null;
+  if (latest) {
+    const [{ data: customer }, { data: ownerRows }] = await Promise.all([
+      client.models.Customer.get({ id: latest.customerId }),
+      client.models.CustomerUser.list({
+        filter: { customerId: { eq: latest.customerId }, role: { eq: 'account_owner' } },
+        limit: 10,
+      }),
+    ]);
+    const owner = (ownerRows || []).find((row) => row?.email);
+
+    enrichedRequest = {
+      ...latest,
+      customerName: customer?.companyName || customer?.name || null,
+      accountOwnerName: owner?.name || owner?.email || null,
+    };
+  }
 
   return NextResponse.json({
-    request: sorted[0] || null,
+    request: enrichedRequest,
     customers: (customers || []).map((c) => ({ id: c.id, name: c.name })),
   });
 }

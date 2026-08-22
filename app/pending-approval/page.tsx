@@ -17,14 +17,19 @@ interface CustomerOption {
   name: string;
 }
 
-async function callAccountRequestsApi(method: 'GET' | 'POST', body?: Record<string, unknown>) {
+interface AccountRequestWithMeta extends AccountRequest {
+  customerName?: string | null;
+  accountOwnerName?: string | null;
+}
+
+async function callAccountRequestsApi(path: string, method: 'GET' | 'POST', body?: Record<string, unknown>) {
   const session = await fetchAuthSession();
   const idToken = session.tokens?.idToken?.toString();
   if (!idToken) {
     throw new Error('No session token found. Please sign in again.');
   }
 
-  const response = await fetch('/api/account-requests', {
+  const response = await fetch(path, {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -46,11 +51,52 @@ function getStatusLabel(status?: string | null) {
   return 'Waiting on approval';
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) return null;
+  return new Date(value).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+type TimelineStepState = 'done' | 'current' | 'upcoming' | 'stopped';
+
+function TimelineStep({ state, title, detail }: { state: TimelineStepState; title: string; detail?: string | null }) {
+  return (
+    <div className={styles.timelineStep} data-state={state}>
+      <span className={styles.timelineDot} aria-hidden="true" />
+      <div>
+        <p className={styles.timelineTitle}>{title}</p>
+        {detail && <p className={styles.timelineDetail}>{detail}</p>}
+      </div>
+    </div>
+  );
+}
+
+function RequestTimeline({ request }: { request: AccountRequestWithMeta }) {
+  const ownerLabel = request.accountOwnerName ? `by ${request.accountOwnerName}` : 'by the account owner';
+  const isRejected = request.status === 'rejected';
+  const isApproved = request.status === 'approved';
+
+  return (
+    <div className={styles.timeline}>
+      <TimelineStep state="done" title="Request sent" detail={formatDateTime(request.requestedAt)} />
+      <TimelineStep
+        state={isRejected || isApproved ? 'done' : 'current'}
+        title={`Reviewed ${ownerLabel}`}
+        detail={formatDateTime(request.decidedAt) || (isApproved || isRejected ? undefined : 'Pending review')}
+      />
+      <TimelineStep
+        state={isApproved ? 'done' : isRejected ? 'stopped' : 'upcoming'}
+        title={isRejected ? 'Not approved' : 'Access granted'}
+        detail={isApproved ? formatDateTime(request.decidedAt) : undefined}
+      />
+    </div>
+  );
+}
+
 export default function PendingApprovalPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
-  const [accountRequest, setAccountRequest] = useState<AccountRequest | null>(null);
+  const [accountRequest, setAccountRequest] = useState<AccountRequestWithMeta | null>(null);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
 
   const [customerId, setCustomerId] = useState('');
@@ -59,10 +105,14 @@ export default function PendingApprovalPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [resending, setResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
+  const [resendError, setResendError] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
 
-    callAccountRequestsApi('GET')
+    callAccountRequestsApi('/api/account-requests', 'GET')
       .then((payload) => {
         if (cancelled) return;
         setAccountRequest(payload.request);
@@ -97,12 +147,30 @@ export default function PendingApprovalPage() {
     setError(null);
 
     try {
-      const payload = await callAccountRequestsApi('POST', { customerId, role, name: name.trim() || undefined });
+      const payload = await callAccountRequestsApi('/api/account-requests', 'POST', {
+        customerId,
+        role,
+        name: name.trim() || undefined,
+      });
       setAccountRequest(payload.request);
     } catch {
       setError('Could not submit your request. Please try again.');
     }
     setSubmitting(false);
+  };
+
+  const handleChaseUp = async () => {
+    setResending(true);
+    setResendMessage(null);
+    setResendError(null);
+    try {
+      const payload = await callAccountRequestsApi('/api/account-requests/resend', 'POST');
+      setAccountRequest((prev) => (prev ? { ...prev, lastNotifiedAt: payload.request?.lastNotifiedAt } : prev));
+      setResendMessage("We've nudged them again.");
+    } catch (e) {
+      setResendError(e instanceof Error ? e.message : 'Could not resend the notification.');
+    }
+    setResending(false);
   };
 
   return (
@@ -120,16 +188,28 @@ export default function PendingApprovalPage() {
                 ? 'Access is ready'
                 : accountRequest.status === 'rejected'
                 ? 'Request not approved'
-                : 'Request sent — nothing more to do'}
+                : 'Request sent'}
             </h1>
             <p className={styles.text}>
               {accountRequest.status === 'pending' &&
-                "The account owner for this company has been notified. You'll get an email the moment your access is switched on."}
+                `${accountRequest.accountOwnerName || 'The account owner'} for ${accountRequest.customerName || 'this company'} has been notified. You'll get an email the moment your access is switched on.`}
               {accountRequest.status === 'approved' &&
                 'Your access has been switched on. Sign out and back in to pick it up.'}
               {accountRequest.status === 'rejected' &&
                 (accountRequest.decisionNote || 'This request was not approved. Contact the company you requested access to for details.')}
             </p>
+
+            <RequestTimeline request={accountRequest} />
+
+            {accountRequest.status === 'pending' && (
+              <div className={styles.chaseUp}>
+                {resendMessage && <p className={styles.resendMessage}>{resendMessage}</p>}
+                {resendError && <p className={styles.resendError}>{resendError}</p>}
+                <Button type="button" variant="ghost" size="sm" loading={resending} disabled={resending} onClick={() => void handleChaseUp()}>
+                  Chase it up
+                </Button>
+              </div>
+            )}
           </>
         ) : (
           <>

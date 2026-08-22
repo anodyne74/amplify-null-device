@@ -75,6 +75,7 @@ export interface Customer {
   customerClosureBlocks?: CustomerClosureBlock[];
   rateLines?: RateLine[];
   payouts?: OperatorPayout[];
+  accountRequests?: AccountRequest[];
 }
 
 export type DriverSplitBasis = 'percentage_of_line_rate';
@@ -277,6 +278,25 @@ export interface CustomerUser {
   name?: string;
   email?: string;
   role: CustomerUserRole;
+  createdAt?: string;
+  updatedAt?: string;
+  customer?: Customer;
+}
+
+export type AccountRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface AccountRequest {
+  id: string;
+  requesterSub: string;
+  email: string;
+  name?: string | null;
+  customerId: string;
+  role?: CustomerUserRole | null;
+  status?: AccountRequestStatus | null;
+  requestedAt?: string | null;
+  decidedAt?: string | null;
+  decidedByUserSub?: string | null;
+  decisionNote?: string | null;
   createdAt?: string;
   updatedAt?: string;
   customer?: Customer;

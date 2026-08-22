@@ -286,7 +286,7 @@ describe('Operator Route Detail Page', () => {
     });
   });
 
-  it('renders active route as dedicated field mode with next stop and two upcoming stops', async () => {
+  it('renders active route as dedicated field mode with next stop and all upcoming stops', async () => {
     (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
       data: {
         ...mockRoute,
@@ -307,9 +307,10 @@ describe('Operator Route Detail Page', () => {
     const fieldMode = await screen.findByRole('region', { name: /operator field mode/i });
     expect(fieldMode).toBeInTheDocument();
     expect(screen.getByText(/placement phase/i)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /next stop/i })).toBeInTheDocument();
+    expect(screen.getByText('Online')).toBeInTheDocument();
+    expect(screen.getByText('STOP 1 OF 3')).toBeInTheDocument();
     expect(screen.getByText('100 First St')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /upcoming stops/i })).toBeInTheDocument();
+    expect(screen.getByText('Then')).toBeInTheDocument();
     expect(screen.getByText('200 Second Ave')).toBeInTheDocument();
     expect(screen.getByText('300 Third Rd')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^start route$/i })).not.toBeInTheDocument();
@@ -377,6 +378,27 @@ describe('Operator Route Detail Page', () => {
         expect.objectContaining({ notes: expect.stringContaining('|Gate locked / no access]') })
       );
     });
+  });
+
+  it('shows an Offline badge when the browser is offline', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
+      data: {
+        ...mockRoute,
+        status: 'in_progress',
+        executionPhase: 'placement',
+        actualStartTime: '2024-03-01T10:00:00Z',
+        placementStartTime: '2024-03-01T10:00:00Z',
+      },
+      errors: undefined,
+    });
+    mockStopList.mockResolvedValue({ data: mockStopsWithUpcoming, errors: undefined });
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true });
+
+    render(<RouteDetailPage />);
+
+    expect(await screen.findByText('Offline')).toBeInTheDocument();
+
+    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true });
   });
 
   it('opens the sheet directly on the reason step from the next-stop Skip Stop button', async () => {

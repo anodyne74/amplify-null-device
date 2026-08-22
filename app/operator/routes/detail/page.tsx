@@ -16,6 +16,7 @@ import StopCard from '@/app/operator/components/StopCard';
 import { RouteStatusPill } from '@/app/operator/components/RouteStatusPill';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
 import { Card } from '@/app/components/ui/core/Card';
+import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
@@ -201,6 +202,12 @@ function getPrimaryAddressLine(address?: string | null) {
   return firstSegment || address;
 }
 
+function getSecondaryAddressLine(address?: string | null) {
+  if (!address) return '';
+  const [, ...rest] = address.split(',');
+  return rest.join(',').trim();
+}
+
 function isPlacementPhase(status?: string | null, executionPhase?: string | null) {
   return status === 'in_progress' && executionPhase === 'placement';
 }
@@ -293,6 +300,20 @@ function RouteDetailContent() {
   });
   const [currentPosition, setCurrentPosition] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapTheme, setMapTheme] = useState<MapTheme>('dark');
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setIsOnline(navigator.onLine);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Persist theme selection in localStorage for user convenience
   useEffect(() => {
@@ -1221,6 +1242,9 @@ function RouteDetailContent() {
   const upcomingExecutionStops = isExecutionMode ? visibleStops.slice(1) : [];
   const upcomingExecutionStopIds = upcomingExecutionStops.slice(0, 2).map((stop) => stop.id);
   const actionSheetStop = stops.find((stop) => stop.id === actionSheetStopId) ?? null;
+  const totalPhaseStops = currentExecutionPhase === 'pickup' ? pickupPhaseStops.length : placementPhaseStops.length;
+  const completedPhaseStops = Math.max(0, totalPhaseStops - visibleStops.length);
+  const nextStopCounter = totalPhaseStops > 0 ? `STOP ${Math.min(totalPhaseStops, completedPhaseStops + 1)} OF ${totalPhaseStops}` : null;
 
   const openStopSheet = (stopId: string, step: 'action' | 'reason' = 'action') => {
     setActionSheetStopId(stopId);
@@ -1547,7 +1571,12 @@ function RouteDetailContent() {
                     Route {route.routeCode || route.id.slice(0, 8)}
                   </h1>
                 </div>
-                <RouteStatusPill status={route.status} />
+                <div className={styles.fieldModeHeaderBadges}>
+                  <Badge tone={isOnline ? 'brand' : 'neutral'} size="sm" dot>
+                    {isOnline ? 'Online' : 'Offline'}
+                  </Badge>
+                  <RouteStatusPill status={route.status} />
+                </div>
               </div>
 
               <div className={styles.telemetryGrid}>
@@ -1568,97 +1597,97 @@ function RouteDetailContent() {
                 />
               </div>
 
-              <Card title="Navigation" subtitle="Next stop highlighted" padded={false}>
-                <RouteStopsMap
-                  stops={stops}
-                  activeStopId={topVisibleStopId}
-                  upcomingStopIds={upcomingExecutionStopIds}
-                  currentPosition={currentPosition}
-                  mapTheme={mapTheme}
-                  presentation="field"
-                />
-              </Card>
-
-              <div className={styles.fieldGrid}>
-                <Card
-                  title="Next stop"
-                  subtitle={nextExecutionStop ? getStopStatusLabel(nextExecutionStop, currentExecutionPhase) : undefined}
-                >
-                  {nextExecutionStop ? (
-                    <>
-                      <div className={styles.fieldStopAddress}>
+              <Card padded={false}>
+                <div className={styles.navShell}>
+                  <RouteStopsMap
+                    stops={stops}
+                    activeStopId={topVisibleStopId}
+                    upcomingStopIds={upcomingExecutionStopIds}
+                    currentPosition={currentPosition}
+                    mapTheme={mapTheme}
+                    presentation="field"
+                  />
+                  {nextExecutionStop && (
+                    <div className={styles.navGlassPanel}>
+                      <div className={styles.navGlassTopRow}>
+                        {nextStopCounter && <span className={styles.navCounter}>{nextStopCounter}</span>}
+                        <span className={styles.navPhase}>{phaseLabelPrefix.toUpperCase()}</span>
+                      </div>
+                      <div className={styles.navStreet}>
                         {getPrimaryAddressLine(nextExecutionStop.formattedAddress || nextExecutionStop.address)}
                       </div>
-                      <div className={styles.fieldStopMetaGrid}>
-                        <div className="nd-stat">
-                          <span className="nd-stat__label">Sequence</span>
-                          <span className="nd-stat__value" style={{ fontSize: 18 }}>{nextExecutionStop.sequence ?? '-'}</span>
+                      {getSecondaryAddressLine(nextExecutionStop.formattedAddress || nextExecutionStop.address) && (
+                        <div className={styles.navSuburb}>
+                          {getSecondaryAddressLine(nextExecutionStop.formattedAddress || nextExecutionStop.address)}
                         </div>
-                        <div className="nd-stat">
-                          <span className="nd-stat__label">Signs</span>
-                          <span className="nd-stat__value" style={{ fontSize: 18 }}>{nextExecutionStop.numberOfSigns ?? '-'}</span>
-                        </div>
-                        <div className="nd-stat">
-                          <span className="nd-stat__label">Agent</span>
-                          <span className="nd-stat__value" style={{ fontSize: 15 }}>{nextExecutionStop.agent?.trim() || 'Unassigned'}</span>
-                        </div>
+                      )}
+                      <div className={styles.navFacts}>
+                        <span>{nextExecutionStop.numberOfSigns ?? '-'} signs</span>
+                        <span>Agent {nextExecutionStop.agent?.trim() || 'Unassigned'}</span>
                       </div>
-                      <div className={styles.fieldPrimaryActions}>
-                        <Button
-                          size="lg"
-                          block
-                          onClick={() => { void handleStopCompleted(nextExecutionStop.id); }}
-                          loading={!!stopExecuting[nextExecutionStop.id]}
-                          disabled={!!stopExecuting[nextExecutionStop.id]}
-                        >
-                          {stopExecuting[nextExecutionStop.id]
-                            ? 'Saving...'
-                            : currentExecutionPhase === 'pickup'
-                            ? 'Signs Picked Up'
-                            : 'Signs Placed'}
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="lg"
-                          block
-                          onClick={() => openStopSheet(nextExecutionStop.id, 'reason')}
-                          disabled={!!stopExecuting[nextExecutionStop.id]}
-                        >
-                          Skip Stop
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <p className={styles.fieldEmptyText}>
-                      {currentExecutionPhase === 'pickup'
-                        ? 'All pickup stops are actioned. End the route when final checks are complete.'
-                        : 'All placement stops are actioned. End this phase to prepare pickup.'}
-                    </p>
+                    </div>
                   )}
-                </Card>
+                </div>
+              </Card>
 
-                <Card title="Upcoming stops" subtitle="Tap a stop to complete out of order">
-                  {upcomingExecutionStops.length > 0 ? (
-                    <ol className={styles.fieldUpcomingList}>
-                      {upcomingExecutionStops.map((stop) => (
-                        <li key={stop.id}>
-                          <button
-                            type="button"
-                            className={styles.fieldUpcomingItem}
-                            onClick={() => openStopSheet(stop.id)}
-                          >
-                            <span className={styles.fieldUpcomingSequence}>{stop.sequence ?? '-'}</span>
-                            <span className={styles.fieldUpcomingAddress}>
-                              {getPrimaryAddressLine(stop.formattedAddress || stop.address)}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <p className={styles.fieldEmptyText}>No further stops in this phase.</p>
-                  )}
-                </Card>
+              {nextExecutionStop ? (
+                <div className={styles.fieldPrimaryActions}>
+                  <Button
+                    size="lg"
+                    block
+                    onClick={() => { void handleStopCompleted(nextExecutionStop.id); }}
+                    loading={!!stopExecuting[nextExecutionStop.id]}
+                    disabled={!!stopExecuting[nextExecutionStop.id]}
+                  >
+                    {stopExecuting[nextExecutionStop.id]
+                      ? 'Saving...'
+                      : currentExecutionPhase === 'pickup'
+                      ? 'Signs Picked Up'
+                      : 'Signs Placed'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="lg"
+                    block
+                    onClick={() => openStopSheet(nextExecutionStop.id, 'reason')}
+                    disabled={!!stopExecuting[nextExecutionStop.id]}
+                  >
+                    Skip Stop
+                  </Button>
+                </div>
+              ) : (
+                <p className={styles.fieldEmptyText}>
+                  {currentExecutionPhase === 'pickup'
+                    ? 'All pickup stops are actioned. End the route when final checks are complete.'
+                    : 'All placement stops are actioned. End this phase to prepare pickup.'}
+                </p>
+              )}
+
+              <div>
+                <div className={styles.fieldUpcomingHeader}>
+                  <span className={styles.fieldUpcomingLabel}>Then</span>
+                  <span className={styles.fieldUpcomingHint}>Tap a stop to complete out of order</span>
+                </div>
+                {upcomingExecutionStops.length > 0 ? (
+                  <ol className={styles.fieldUpcomingList}>
+                    {upcomingExecutionStops.map((stop) => (
+                      <li key={stop.id}>
+                        <button
+                          type="button"
+                          className={styles.fieldUpcomingItem}
+                          onClick={() => openStopSheet(stop.id)}
+                        >
+                          <span className={styles.fieldUpcomingSequence}>{stop.sequence ?? '-'}</span>
+                          <span className={styles.fieldUpcomingAddress}>
+                            {getPrimaryAddressLine(stop.formattedAddress || stop.address)}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className={styles.fieldEmptyText}>No further stops in this phase.</p>
+                )}
               </div>
 
               <div className={styles.fieldModeFooter}>

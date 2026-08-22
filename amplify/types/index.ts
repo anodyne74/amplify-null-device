@@ -225,6 +225,18 @@ export interface OperatorPayout {
   route?: Route;
 }
 
+export interface VanSignCount {
+  id: string;
+  operatorSub: string;
+  countDate: string;
+  standardCount: number;
+  auctionCount: number;
+  frameCount: number;
+  countedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface PaymentRecord {
   id: string;
   customerId: string;

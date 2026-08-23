@@ -333,7 +333,8 @@ export function useInvoiceDocumentActions({
       const hourlyRate = Number((customer?.billingRatePerHour ?? 0).toFixed(2));
       const gstAmount = Number((invoice.gstAmount ?? 0).toFixed(2));
       // Amount before GST — invoice.totalAmount is GST-inclusive when gstAmount is set.
-      const preGstAmount = Number((invoice.totalAmount - gstAmount).toFixed(2));
+      const totalAmount = Number((invoice.totalAmount ?? 0).toFixed(2));
+      const preGstAmount = Number((totalAmount - gstAmount).toFixed(2));
       const fallbackHours = routeDurationHours > 0
         ? routeDurationHours
         : hourlyRate > 0
@@ -458,7 +459,7 @@ export function useInvoiceDocumentActions({
       doc.setFontSize(13);
       doc.text('Total Amount Due', config.margins.left + 12, y + 6);
       doc.setFontSize(19);
-      doc.text(`$${invoice.totalAmount.toFixed(2)}`, 500, y + 8, { align: 'right' });
+      doc.text(`$${totalAmount.toFixed(2)}`, 500, y + 8, { align: 'right' });
 
       y += 56;
 

@@ -301,4 +301,23 @@ describe('Administrator Payment Details page', () => {
 
     expect(await screen.findByText(/driver split settings saved/i)).toBeInTheDocument();
   });
+
+  it('scrolls back to the top when switching customers (#66)', async () => {
+    const scrollToMock = jest.fn();
+    window.scrollTo = scrollToMock;
+
+    render(<AdministratorPaymentDetailsPage />);
+
+    await waitFor(() => {
+      expect(getCustomer).toHaveBeenCalledWith('cust-1');
+    });
+    scrollToMock.mockClear();
+
+    fireEvent.change(screen.getByLabelText('Customer'), { target: { value: 'cust-2' } });
+
+    await waitFor(() => {
+      expect(getCustomer).toHaveBeenCalledWith('cust-2');
+    });
+    expect(scrollToMock).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
+  });
 });

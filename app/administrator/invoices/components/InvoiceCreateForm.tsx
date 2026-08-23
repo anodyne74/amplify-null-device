@@ -76,8 +76,9 @@ export default function InvoiceCreateForm({
               id="invoice-route"
               value={routeId}
               onChange={(event) => onRouteChange(event.target.value)}
+              required
             >
-              <option value="">— None —</option>
+              <option value="">— Select a route —</option>
               {customerRoutes.map((route) => (
                 <option key={route.id} value={route.id}>
                   {route.routeCode ?? route.id.slice(0, 8)}
@@ -141,7 +142,7 @@ export default function InvoiceCreateForm({
               value={totalAmount}
               onChange={(event) => onTotalAmountChange(event.target.value)}
               type="number"
-              min="0"
+              min="0.01"
               step="0.01"
               required
             />

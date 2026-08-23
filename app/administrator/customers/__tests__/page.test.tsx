@@ -177,6 +177,56 @@ describe('Operator Customers Page', () => {
     expect(screen.getByText(/edit customer/i)).toBeInTheDocument();
   });
 
+  it('does not re-geocode an unchanged address when saving other edits (#58)', async () => {
+    (listCustomers as jest.Mock).mockResolvedValue({
+      data: [
+        {
+          id: 'c-1',
+          name: 'Acme Corp',
+          email: 'acme@example.com',
+          billingRatePerHour: 95,
+          status: 'active',
+          addressLine1: '11 Old St',
+          standingInstructions: 'Legacy instructions',
+          defaultNumberOfSigns: 2,
+          defaultAgentName: 'Pat Doe',
+          defaultAgentInitials: 'PD',
+          agentOptions: ['Pat Doe', 'Jamie Lee'],
+        },
+      ],
+      errors: undefined,
+    });
+
+    render(<CustomersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+    });
+
+    const customerRow = screen.getByText('Acme Corp').closest('tr');
+    fireEvent.click(within(customerRow as HTMLElement).getByRole('button', { name: /more customer actions for acme corp/i }));
+    fireEvent.click(screen.getByRole('button', { name: /edit customer acme corp/i }));
+
+    const editPanelHeading = await screen.findByText(/edit customer/i);
+    const scoped = within(editPanelHeading.closest('div') as HTMLElement);
+
+    // Only touch a non-address field — the address input is left exactly as loaded.
+    fireEvent.change(scoped.getByPlaceholderText('Default number of signs'), { target: { value: '6' } });
+
+    fireEvent.click(scoped.getByRole('button', { name: /save customer/i }));
+
+    await waitFor(() => {
+      expect(updateCustomer).toHaveBeenCalledWith(
+        'c-1',
+        expect.objectContaining({ addressLine1: '11 Old St', defaultNumberOfSigns: 6 })
+      );
+    });
+
+    // A genuine live re-validation of an unchanged address was the hang vector in #58.
+    expect(geocodeAddress).not.toHaveBeenCalled();
+    expect(await screen.findByText('Customer updated.')).toBeInTheDocument();
+  });
+
   it('deletes a customer after confirmation and refreshes the list', async () => {
     (listCustomers as jest.Mock).mockResolvedValue({
       data: [

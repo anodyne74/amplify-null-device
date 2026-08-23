@@ -37,6 +37,36 @@ describe('useCustomerEditState', () => {
     expect(result.current.editDefaultAgentName).toBe('');
     expect(result.current.editDefaultAgentInitials).toBe('');
     expect(result.current.editAgentOptionsText).toBe('Jamie\nPat');
+    expect(result.current.editOriginalAddressLine1).toBe('');
+  });
+
+  it('tracks the address the customer was opened with, for change detection (#58)', () => {
+    const { result } = renderHook(() => useCustomerEditState());
+
+    act(() => {
+      result.current.openEditPanel({
+        customer: {
+          id: 'cust-3',
+          name: 'Gamma',
+          email: 'gamma@example.com',
+          billingRatePerHour: 50,
+          addressLine1: '11 Old St',
+        },
+        billingRateDisplay: '$50.00',
+        agentOptionsText: '',
+      });
+    });
+
+    expect(result.current.editAddressLine1).toBe('11 Old St');
+    expect(result.current.editOriginalAddressLine1).toBe('11 Old St');
+
+    act(() => {
+      result.current.setEditAddressLine1('22 New Rd');
+    });
+
+    // Editing the field doesn't move the "original" marker — only re-opening the panel does.
+    expect(result.current.editAddressLine1).toBe('22 New Rd');
+    expect(result.current.editOriginalAddressLine1).toBe('11 Old St');
   });
 
   it('maps numeric defaults and resets feedback on close', () => {

@@ -734,6 +734,46 @@ export async function updateInvoice(
 }
 
 /**
+ * Deletes an invoice and its LineItems. Callers are expected to only allow
+ * this for invoices that haven't been sent (draft, no emailSentAt) — a sent
+ * or paid invoice is a record that shouldn't disappear from history.
+ */
+export async function deleteInvoice(invoiceId: string) {
+  try {
+    const client = getClient();
+    const { data: lineItems, errors: lineItemListErrors } = await client.models.LineItem.list({
+      filter: { invoiceId: { eq: invoiceId } },
+    });
+
+    if (lineItemListErrors && lineItemListErrors.length > 0) {
+      console.error('Errors fetching invoice line items for deletion:', lineItemListErrors);
+      return { data: null, errors: lineItemListErrors };
+    }
+
+    const lineItemDeletes = await Promise.all(
+      ((lineItems as Array<{ id: string }>) || []).map((lineItem) => client.models.LineItem.delete({ id: lineItem.id }))
+    );
+
+    const childErrors = lineItemDeletes.flatMap((result) => result.errors || []);
+    if (childErrors.length > 0) {
+      console.error('Errors deleting invoice line items:', childErrors);
+      return { data: null, errors: childErrors };
+    }
+
+    const { data, errors } = await client.models.Invoice.delete({ id: invoiceId });
+
+    if (errors) {
+      console.error('Errors deleting invoice:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error deleting invoice:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
  * Convenience helper — saves the S3 key of an uploaded PDF to the invoice record.
  */
 export async function updateInvoicePdfKey(invoiceId: string, pdfS3Key: string) {

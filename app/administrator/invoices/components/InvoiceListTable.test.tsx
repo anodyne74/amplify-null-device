@@ -43,6 +43,7 @@ function renderTable(invoices: Invoice[], overrides: Partial<ComponentProps<type
     onPdfAction: jest.fn(),
     onUploadClick: jest.fn(),
     onMarkPaid: jest.fn(),
+    onDeleteInvoice: jest.fn(),
     onEmailInvoiceToPrimary: jest.fn(),
     ...overrides,
   };
@@ -298,6 +299,38 @@ describe('InvoiceListTable', () => {
     renderTable([createInvoice()]);
 
     expect(screen.queryByRole('checkbox', { name: /select/i })).not.toBeInTheDocument();
+  });
+
+  it('shows delete only for draft invoices, and requires confirmation (#63)', () => {
+    const onDeleteInvoice = jest.fn();
+
+    renderTable(
+      [
+        createInvoice({ id: 'inv-1', invoiceNumber: 'INV-001', status: 'draft' }),
+        createInvoice({ id: 'inv-2', invoiceNumber: 'INV-002', status: 'sent', emailSentAt: '2026-06-03T10:00:00.000Z' }),
+        createInvoice({ id: 'inv-3', invoiceNumber: 'INV-003', status: 'paid' }),
+      ],
+      { onDeleteInvoice }
+    );
+
+    expect(screen.getByRole('button', { name: 'Delete invoice INV-001' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete invoice INV-002' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete invoice INV-003' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete invoice INV-001' }));
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete invoice?' });
+    expect(dialog).toHaveTextContent('Permanently delete invoice INV-001? This cannot be undone.');
+    expect(onDeleteInvoice).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(onDeleteInvoice).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete invoice INV-001' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(onDeleteInvoice).toHaveBeenCalledWith('inv-1');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 
   it('keeps replacement and download PDF actions inside an accessible row menu', () => {

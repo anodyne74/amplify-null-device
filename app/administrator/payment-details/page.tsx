@@ -117,6 +117,16 @@ export default function AdministratorPaymentDetailsPage() {
   }, []);
 
   useEffect(() => {
+    // Switching customers swaps in a differently-sized panel below the page
+    // header (rate card, stacked settings cards). Without resetting scroll,
+    // picking a customer while scrolled down leaves the header/customer
+    // picker off-screen for the newly loaded content.
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+  }, [selectedCustomerId]);
+
+  useEffect(() => {
     if (!selectedCustomerId) return;
     let cancelled = false;
     setLoadingCustomer(true);

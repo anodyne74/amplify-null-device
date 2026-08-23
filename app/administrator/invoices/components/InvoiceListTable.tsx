@@ -29,6 +29,7 @@ interface InvoiceListTableProps {
   onPdfAction: (invoice: Invoice, action: 'view' | 'download') => void;
   onUploadClick: (invoiceId: string) => void;
   onMarkPaid: (invoiceId: string) => void;
+  onDeleteInvoice: (invoiceId: string) => void;
   onEmailInvoiceToPrimary: (invoice: Invoice) => void;
   /**
    * Per-invoice mark-paid mutation used by the bulk action; resolves true on
@@ -74,7 +75,7 @@ function pluralizeInvoices(count: number) {
 }
 
 type ConfirmAction =
-  | { type: 'regenerate' | 'markPaid'; invoice: Invoice }
+  | { type: 'regenerate' | 'markPaid' | 'delete'; invoice: Invoice }
   | { type: 'bulkMarkPaid'; invoiceIds: string[] };
 
 function SortableHeader({
@@ -120,6 +121,7 @@ export default function InvoiceListTable({
   onPdfAction,
   onUploadClick,
   onMarkPaid,
+  onDeleteInvoice,
   onEmailInvoiceToPrimary,
   onBulkMarkPaidInvoice,
 }: InvoiceListTableProps) {
@@ -236,6 +238,8 @@ export default function InvoiceListTable({
     }
     if (confirmAction.type === 'regenerate') {
       onGeneratePdf(confirmAction.invoice);
+    } else if (confirmAction.type === 'delete') {
+      onDeleteInvoice(confirmAction.invoice.id);
     } else {
       onMarkPaid(confirmAction.invoice.id);
     }
@@ -257,6 +261,13 @@ export default function InvoiceListTable({
         title: 'Mark invoice as paid?',
         message: `Mark invoice ${confirmAction.invoice.invoiceNumber} as paid? This cannot be undone from this screen.`,
         confirmLabel: 'Mark Paid',
+      };
+    }
+    if (confirmAction.type === 'delete') {
+      return {
+        title: 'Delete invoice?',
+        message: `Permanently delete invoice ${confirmAction.invoice.invoiceNumber}? This cannot be undone.`,
+        confirmLabel: 'Delete',
       };
     }
     return {
@@ -498,6 +509,17 @@ export default function InvoiceListTable({
                         >
                           {emailingInvoiceId === invoice.id ? 'Preparing...' : invoice.emailSentAt ? 'Resend' : 'Email'}
                         </Button>
+                        {inferInvoiceStatus(invoice) === 'draft' && (
+                          <Button
+                            type="button"
+                            variant="danger"
+                            size="sm"
+                            onClick={() => setConfirmAction({ type: 'delete', invoice })}
+                            aria-label={`Delete invoice ${invoice.invoiceNumber}`}
+                          >
+                            Delete
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>

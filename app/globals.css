@@ -318,6 +318,35 @@ body {
   border-radius: 999px;
 }
 
+/* App-wide themed scrollbars — otherwise every scroll container (page body,
+   horizontally-scrolling tables, modals) falls back to the OS default
+   scrollbar, which clashes with dark mode. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--nd-color-border-default) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--nd-color-border-default);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--nd-color-border-strong);
+  background-clip: content-box;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Typography
    ───────────────────────────────────────────────────────────────────────────── */

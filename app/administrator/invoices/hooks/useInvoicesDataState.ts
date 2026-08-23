@@ -43,6 +43,10 @@ export function useInvoicesDataState({
     );
   }, []);
 
+  const removeInvoiceFromState = useCallback((invoiceId: string) => {
+    setInvoices((prev) => prev.filter((invoice) => invoice.id !== invoiceId));
+  }, []);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -179,5 +183,6 @@ export function useInvoicesDataState({
     sortedInvoices,
     fetchData,
     updateInvoiceInState,
+    removeInvoiceFromState,
   };
 }

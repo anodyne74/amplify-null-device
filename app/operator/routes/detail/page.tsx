@@ -467,55 +467,65 @@ function RouteDetailContent() {
       setLoading(true);
       setError(null);
 
-      const routeResult = await getRouteDetail(id);
-      if (routeResult.errors || !routeResult.data) {
-        setError('Failed to load route.');
-        setLoading(false);
-        return;
-      }
-      const loadedRoute = routeResult.data as unknown as Route;
-      setRoute(loadedRoute);
-      setPhaseDistanceKm({
-        signs_placed: loadedRoute.signsPlacedDistanceKm ?? 0,
-        signs_picked_up: loadedRoute.signsPickedUpDistanceKm ?? 0,
-      });
-
-      const customerResult = await getCustomer(loadedRoute.customerId);
-      if (!customerResult.errors || customerResult.errors.length === 0) {
-        const customer = customerResult.data as {
-          name?: string;
-          addressLine1?: string | null;
-          billingRatePerHour?: number | null;
-          standingInstructions?: string | null;
-          defaultNumberOfSigns?: number | null;
-          defaultAgentName?: string | null;
-          agentOptions?: string[] | null;
-        } | null;
-        setCustomerName(customer?.name || 'Unknown customer');
-        setCustomerRatePerHour(typeof customer?.billingRatePerHour === 'number' ? customer.billingRatePerHour : null);
-        setCustomerDefaults({
-          standingInstructions: customer?.standingInstructions ?? null,
-          defaultNumberOfSigns: customer?.defaultNumberOfSigns ?? null,
-          defaultAgentName: customer?.defaultAgentName ?? null,
-          agentOptions: customer?.agentOptions ?? null,
+      try {
+        const routeResult = await getRouteDetail(id);
+        if (routeResult.errors || !routeResult.data) {
+          setError('Failed to load route.');
+          return;
+        }
+        const loadedRoute = routeResult.data as unknown as Route;
+        setRoute(loadedRoute);
+        setPhaseDistanceKm({
+          signs_placed: loadedRoute.signsPlacedDistanceKm ?? 0,
+          signs_picked_up: loadedRoute.signsPickedUpDistanceKm ?? 0,
         });
 
-        if (customer?.addressLine1) {
-          try {
-            const resolved = await geocodeAddress(customer.addressLine1);
-            setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
-          } catch {
+        const customerResult = await getCustomer(loadedRoute.customerId);
+        if (!customerResult.errors || customerResult.errors.length === 0) {
+          const customer = customerResult.data as {
+            name?: string;
+            addressLine1?: string | null;
+            billingRatePerHour?: number | null;
+            standingInstructions?: string | null;
+            defaultNumberOfSigns?: number | null;
+            defaultAgentName?: string | null;
+            agentOptions?: string[] | null;
+          } | null;
+          setCustomerName(customer?.name || 'Unknown customer');
+          setCustomerRatePerHour(typeof customer?.billingRatePerHour === 'number' ? customer.billingRatePerHour : null);
+          setCustomerDefaults({
+            standingInstructions: customer?.standingInstructions ?? null,
+            defaultNumberOfSigns: customer?.defaultNumberOfSigns ?? null,
+            defaultAgentName: customer?.defaultAgentName ?? null,
+            agentOptions: customer?.agentOptions ?? null,
+          });
+
+          if (customer?.addressLine1) {
+            try {
+              const resolved = await geocodeAddress(customer.addressLine1);
+              setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
+            } catch {
+              setCustomerAddressOrigin(null);
+            }
+          } else {
             setCustomerAddressOrigin(null);
           }
-        } else {
-          setCustomerAddressOrigin(null);
         }
-      }
 
-      await fetchStops();
+        await fetchStops();
+      } catch (err) {
+        console.error('Error loading route detail:', err);
+        setError('Failed to load route.');
+      } finally {
+        setLoading(false);
+      }
+    }
+    if (id) {
+      fetchAll();
+    } else {
+      setError('No route was specified.');
       setLoading(false);
     }
-    if (id) fetchAll();
   }, [id, fetchStops]);
 
   useEffect(() => {

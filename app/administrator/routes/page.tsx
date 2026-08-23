@@ -244,7 +244,7 @@ export default function AdministratorRoutesPage() {
           title="Routes"
           subtitle="Plan and manage delivery routes across all customers."
           actions={
-            <Link href="/administrator/routes/new" className="nd-btn nd-btn--primary">
+            <Link href="/administrator/routes/new" className="nd-btn nd-btn--primary nd-btn--md">
               Create New Route
             </Link>
           }

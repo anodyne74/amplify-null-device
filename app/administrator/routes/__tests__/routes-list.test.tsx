@@ -109,6 +109,8 @@ describe('Operator Routes List Page', () => {
     });
 
     expect(screen.getByText(/create new route/i)).toBeInTheDocument();
+    // #62: was missing a size modifier class, leaving the pill with no horizontal padding.
+    expect(screen.getByText(/create new route/i)).toHaveClass('nd-btn--md');
   });
 
   it('shows empty state when no routes', async () => {

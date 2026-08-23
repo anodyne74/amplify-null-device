@@ -16,6 +16,7 @@ export function useCustomerEditState() {
   const [editBillingRatePerHour, setEditBillingRatePerHour] = useState('$0.00');
   const [editStatus, setEditStatus] = useState<CustomerStatus>('active');
   const [editAddressLine1, setEditAddressLine1] = useState('');
+  const [editOriginalAddressLine1, setEditOriginalAddressLine1] = useState('');
   const [editStandingInstructions, setEditStandingInstructions] = useState('');
   const [editDefaultNumberOfSigns, setEditDefaultNumberOfSigns] = useState('');
   const [editDefaultAgentName, setEditDefaultAgentName] = useState('');
@@ -47,6 +48,7 @@ export function useCustomerEditState() {
     setEditBillingRatePerHour(billingRateDisplay);
     setEditStatus(customer.status ?? 'active');
     setEditAddressLine1(customer.addressLine1 ?? '');
+    setEditOriginalAddressLine1(customer.addressLine1 ?? '');
     setEditStandingInstructions(customer.standingInstructions ?? '');
     setEditDefaultNumberOfSigns(
       typeof customer.defaultNumberOfSigns === 'number' ? String(customer.defaultNumberOfSigns) : ''
@@ -71,6 +73,7 @@ export function useCustomerEditState() {
     setEditStatus,
     editAddressLine1,
     setEditAddressLine1,
+    editOriginalAddressLine1,
     editStandingInstructions,
     setEditStandingInstructions,
     editDefaultNumberOfSigns,

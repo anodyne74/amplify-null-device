@@ -18,6 +18,24 @@ interface GeocodeResponse {
   }>;
 }
 
+const GEOCODE_TIMEOUT_MS = 15000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
 let _mapsScriptPromise: Promise<void> | null = null;
 
 /**
@@ -59,7 +77,11 @@ export async function geocodeAddress(address: string): Promise<GeocodedAddress> 
   }
 
   if (typeof window !== 'undefined') {
-    await loadGoogleMapsScript();
+    await withTimeout(
+      loadGoogleMapsScript(),
+      GEOCODE_TIMEOUT_MS,
+      'Google Maps script timed out loading. Check your network connection or ad-blocker and try again.'
+    );
 
     const googleMaps = (window as Window & { google?: any }).google;
     const mapsApi = googleMaps?.maps;
@@ -81,27 +103,31 @@ export async function geocodeAddress(address: string): Promise<GeocodedAddress> 
       throw new Error('Google Maps geocoder is unavailable.');
     }
 
-    const result = await new Promise<GeocodeResponse>((resolve, reject) => {
-      geocoder.geocode({ address: trimmedAddress }, (results: any[], status: string) => {
-        if (status === mapsApi.GeocoderStatus.OK && results) {
-          resolve({
-            status: 'OK',
-            results: results.map((item: any) => ({
-              formatted_address: item.formatted_address,
-              geometry: {
-                location: {
-                  lat: item.geometry?.location?.lat(),
-                  lng: item.geometry?.location?.lng(),
+    const result = await withTimeout(
+      new Promise<GeocodeResponse>((resolve, reject) => {
+        geocoder.geocode({ address: trimmedAddress }, (results: any[], status: string) => {
+          if (status === mapsApi.GeocoderStatus.OK && results) {
+            resolve({
+              status: 'OK',
+              results: results.map((item: any) => ({
+                formatted_address: item.formatted_address,
+                geometry: {
+                  location: {
+                    lat: item.geometry?.location?.lat(),
+                    lng: item.geometry?.location?.lng(),
+                  },
                 },
-              },
-            })),
-          });
-          return;
-        }
+              })),
+            });
+            return;
+          }
 
-        reject(new Error(`Address could not be validated.${status ? ` ${status}` : ''}`.trim()));
-      });
-    });
+          reject(new Error(`Address could not be validated.${status ? ` ${status}` : ''}`.trim()));
+        });
+      }),
+      GEOCODE_TIMEOUT_MS,
+      'Address validation timed out. Please try again.'
+    );
 
     const topResult = result.results?.[0];
     const lat = topResult?.geometry?.location?.lat;

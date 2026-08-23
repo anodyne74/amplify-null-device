@@ -136,6 +136,7 @@ export default function CustomersAdminPage() {
     setEditStatus,
     editAddressLine1,
     setEditAddressLine1,
+    editOriginalAddressLine1,
     editStandingInstructions,
     setEditStandingInstructions,
     editDefaultNumberOfSigns,
@@ -331,7 +332,13 @@ export default function CustomersAdminPage() {
         return;
       }
 
-      const resolved = editResolvedAddress ?? (await geocodeAddress(editAddressLine1.trim()));
+      const trimmedAddress = editAddressLine1.trim();
+      const addressUnchanged = trimmedAddress === editOriginalAddressLine1.trim();
+      const resolved =
+        editResolvedAddress ??
+        (addressUnchanged
+          ? { formattedAddress: trimmedAddress, latitude: 0, longitude: 0 }
+          : await geocodeAddress(trimmedAddress));
 
       const result = await updateCustomer(customerId, {
         name: editName.trim(),

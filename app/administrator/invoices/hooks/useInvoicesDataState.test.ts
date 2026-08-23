@@ -145,4 +145,39 @@ describe('useInvoicesDataState', () => {
     expect(result.current.error).toBe('Failed to load invoices.');
     expect(result.current.invoices).toEqual([]);
   });
+
+  it('removes an invoice from state via removeInvoiceFromState (#63)', async () => {
+    (listCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: null });
+    (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [] });
+    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: null });
+    (listInvoices as jest.Mock).mockResolvedValue({
+      data: [
+        { id: 'invoice-1', invoiceNumber: 'INV-100', customerId: 'customer-1', totalAmount: 100 },
+        { id: 'invoice-2', invoiceNumber: 'INV-101', customerId: 'customer-1', totalAmount: 200 },
+      ],
+      errors: undefined,
+      nextToken: null,
+    });
+
+    const { result } = renderHook(() => {
+      const [customerId, setCustomerId] = useState('');
+      const [error, setError] = useState<string | null>(null);
+      const [loading, setLoading] = useState(false);
+      const hook = useInvoicesDataState({ customerId, setCustomerId, setError, setLoading });
+
+      return { error, loading, ...hook };
+    });
+
+    await act(async () => {
+      await result.current.fetchData();
+    });
+
+    expect(result.current.invoices).toHaveLength(2);
+
+    act(() => {
+      result.current.removeInvoiceFromState('invoice-1');
+    });
+
+    expect(result.current.invoices.map((invoice) => invoice.id)).toEqual(['invoice-2']);
+  });
 });

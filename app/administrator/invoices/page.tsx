@@ -7,6 +7,7 @@ import PageHeader from '@/app/administrator/components/PageHeader';
 import {
   createInvoice,
   createLineItem,
+  deleteInvoice,
   updateInvoice,
 } from '@/lib/queries';
 import InvoiceCreateForm from '@/app/administrator/invoices/components/InvoiceCreateForm';
@@ -86,6 +87,7 @@ export default function InvoicesAdminPage() {
     sortedInvoices,
     fetchData,
     updateInvoiceInState,
+    removeInvoiceFromState,
   } = useInvoicesDataState({ customerId, setCustomerId, setError, setLoading });
 
   const selectedCustomer = customers.find((entry) => entry.id === customerId);
@@ -164,6 +166,8 @@ export default function InvoicesAdminPage() {
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();
     if (!customerId) { setError('Select a customer first.'); return; }
+    if (!routeId) { setError('Select a linked route before creating an invoice.'); return; }
+    if (!Number(totalAmount)) { setError('Total amount must be greater than zero.'); return; }
     setSaving(true);
     setError(null);
     setSuccessMessage(null);
@@ -223,6 +227,16 @@ export default function InvoicesAdminPage() {
   const handleMarkPaid = async (invoiceId: string) => {
     const ok = await markInvoicePaid(invoiceId);
     if (!ok) setError('Failed to update status.');
+  };
+
+  const handleDeleteInvoice = async (invoiceId: string) => {
+    const result = await deleteInvoice(invoiceId);
+    if (result.errors && result.errors.length > 0) {
+      setError('Failed to delete invoice.');
+      return;
+    }
+    removeInvoiceFromState(invoiceId);
+    setSuccessMessage('Invoice deleted.');
   };
 
   // Customer name lookup
@@ -306,6 +320,9 @@ export default function InvoicesAdminPage() {
           onUploadClick={handleUploadClick}
           onMarkPaid={(invoiceId) => {
             void handleMarkPaid(invoiceId);
+          }}
+          onDeleteInvoice={(invoiceId) => {
+            void handleDeleteInvoice(invoiceId);
           }}
           onBulkMarkPaidInvoice={markInvoicePaid}
           onEmailInvoiceToPrimary={(invoice) => {

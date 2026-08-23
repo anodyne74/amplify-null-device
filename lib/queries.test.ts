@@ -16,8 +16,10 @@ const mockInvoiceList = jest.fn();
 const mockInvoiceGet = jest.fn();
 const mockInvoiceCreate = jest.fn();
 const mockInvoiceUpdate = jest.fn();
+const mockInvoiceDelete = jest.fn();
 const mockLineItemList = jest.fn();
 const mockLineItemCreate = jest.fn();
+const mockLineItemDelete = jest.fn();
 const mockUserSettingsList = jest.fn();
 const mockUserSettingsCreate = jest.fn();
 const mockUserSettingsUpdate = jest.fn();
@@ -53,10 +55,12 @@ jest.mock('aws-amplify/data', () => ({
         get: mockInvoiceGet,
         create: mockInvoiceCreate,
         update: mockInvoiceUpdate,
+        delete: mockInvoiceDelete,
       },
       LineItem: {
         list: mockLineItemList,
         create: mockLineItemCreate,
+        delete: mockLineItemDelete,
       },
       UserSettings: {
         list: mockUserSettingsList,
@@ -87,6 +91,7 @@ import {
   getInvoiceWithLineItems,
   createInvoice,
   updateInvoice,
+  deleteInvoice,
   updateInvoicePdfKey,
   createLineItem,
   createRoute,
@@ -511,6 +516,59 @@ describe('queries', () => {
 
       expect(mockInvoiceUpdate).toHaveBeenCalledWith({ id: 'inv-1', pdfS3Key: 'invoices/x.pdf' });
       expect(result.data).toEqual({ id: 'inv-1', pdfS3Key: 'invoices/x.pdf' });
+    });
+
+    it('should delete child line items before deleting the invoice', async () => {
+      mockLineItemList.mockResolvedValue({
+        data: [{ id: 'li-1' }, { id: 'li-2' }],
+        errors: undefined,
+      });
+      mockLineItemDelete.mockResolvedValue({ data: {}, errors: undefined });
+      mockInvoiceDelete.mockResolvedValue({ data: { id: 'inv-1' }, errors: undefined });
+
+      const result = await deleteInvoice('inv-1');
+
+      expect(mockLineItemDelete).toHaveBeenCalledTimes(2);
+      expect(mockInvoiceDelete).toHaveBeenCalledWith({ id: 'inv-1' });
+      expect(result.errors).toBeUndefined();
+    });
+
+    it('should stop deleteInvoice when line item list returns errors', async () => {
+      mockLineItemList.mockResolvedValue({
+        data: [],
+        errors: [{ message: 'cannot list line items' }],
+      });
+
+      const result = await deleteInvoice('inv-1');
+
+      expect(mockInvoiceDelete).not.toHaveBeenCalled();
+      expect(result.data).toBeNull();
+      expect(result.errors).toBeDefined();
+    });
+
+    it('should return child line item delete errors without deleting the invoice', async () => {
+      mockLineItemList.mockResolvedValue({
+        data: [{ id: 'li-1' }],
+        errors: undefined,
+      });
+      mockLineItemDelete.mockResolvedValue({ data: null, errors: [{ message: 'line item delete failed' }] });
+
+      const result = await deleteInvoice('inv-1');
+
+      expect(mockInvoiceDelete).not.toHaveBeenCalled();
+      expect(result.data).toBeNull();
+      expect(result.errors).toEqual([{ message: 'line item delete failed' }]);
+    });
+
+    it('should return wrapped errors when deleteInvoice throws', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockLineItemList.mockRejectedValue(new Error('delete invoice failed'));
+
+      const result = await deleteInvoice('inv-1');
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toHaveLength(1);
+      consoleErrorSpy.mockRestore();
     });
 
     it('should create line item', async () => {

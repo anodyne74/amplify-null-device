@@ -88,6 +88,18 @@ describe('UserSettingsPage', () => {
     expect(screen.getByLabelText('Billing Company Name')).toBeInTheDocument();
   });
 
+  it('labels the remittance account fields as "Pay-To" so admins know they belong to invoices, not customers (#67)', async () => {
+    render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
+
+    await screen.findByDisplayValue('Fallback Name');
+    fireEvent.click(screen.getByRole('tab', { name: /administrator settings/i }));
+
+    expect(screen.getByLabelText('Pay-To Account Name')).toBeInTheDocument();
+    expect(screen.getByLabelText('Pay-To BSB')).toBeInTheDocument();
+    expect(screen.getByLabelText('Pay-To Account Number')).toBeInTheDocument();
+    expect(screen.getAllByText(/shown in the "pay to" section of customer invoices/i).length).toBeGreaterThan(0);
+  });
+
   it('shows customer settings only for account owners', async () => {
     getCustomerPortalContextMock.mockResolvedValue({ role: 'account_owner', customerId: 'customer-1', errors: undefined });
     getCustomerMock.mockResolvedValue({

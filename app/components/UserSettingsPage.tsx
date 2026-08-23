@@ -286,7 +286,11 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
                 />
               </Field>
 
-              <Field label="Payment Account Name" htmlFor="settings-billing-payment-account-name">
+              <Field
+                label="Pay-To Account Name"
+                htmlFor="settings-billing-payment-account-name"
+                hint="Shown in the &quot;Pay to&quot; section of customer invoices — this is Null Device's own account, not the customer's."
+              >
                 <Input
                   id="settings-billing-payment-account-name"
                   value={billingPaymentAccountName}
@@ -295,7 +299,11 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
                 />
               </Field>
 
-              <Field label="Payment BSB" htmlFor="settings-billing-bsb">
+              <Field
+                label="Pay-To BSB"
+                htmlFor="settings-billing-bsb"
+                hint="Shown in the &quot;Pay to&quot; section of customer invoices."
+              >
                 <Input
                   id="settings-billing-bsb"
                   value={billingBsb}
@@ -304,7 +312,11 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
                 />
               </Field>
 
-              <Field label="Payment Account Number" htmlFor="settings-billing-account-number">
+              <Field
+                label="Pay-To Account Number"
+                htmlFor="settings-billing-account-number"
+                hint="Shown in the &quot;Pay to&quot; section of customer invoices."
+              >
                 <Input
                   id="settings-billing-account-number"
                   value={billingAccountNumber}

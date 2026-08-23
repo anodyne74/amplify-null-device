@@ -266,6 +266,10 @@ function RouteEditContent() {
       setError('Customer is required.');
       return;
     }
+    if (!routeCode.trim()) {
+      setError('Route code is required.');
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -501,13 +505,22 @@ function RouteEditContent() {
       <Card>
         <form onSubmit={handleSave}>
           <div className={styles.metaRow}>
-            <span>Route Code: <strong>{routeCode}</strong></span>
             <span>Internal ID: <strong>{routeId}</strong></span>
           </div>
 
           {error && <div className={styles.errorBanner}>{error}</div>}
 
           <div className={styles.fieldsGrid}>
+            <Field label="Route Code" htmlFor="routeCode" required>
+              <Input
+                id="routeCode"
+                value={routeCode}
+                onChange={(e) => setRouteCode(e.target.value)}
+                disabled={saving}
+                placeholder="e.g. W18-26-001"
+              />
+            </Field>
+
             <Field label="Customer" htmlFor="customerId">
               <Select
                 id="customerId"

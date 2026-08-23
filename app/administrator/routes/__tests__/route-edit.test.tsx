@@ -185,4 +185,32 @@ describe('Administrator Route Edit Page', () => {
     const secondRow = screen.getByText('200 Second Ave').closest('.stopRow');
     expect(secondRow).toHaveClass('stopRowSelected');
   });
+
+  it('allows editing and saving the route code (#61)', async () => {
+    render(<RouteEditPage />);
+
+    const routeCodeInput = await screen.findByLabelText(/route code/i);
+    expect(routeCodeInput).toHaveValue('W19-26-001');
+
+    fireEvent.change(routeCodeInput, { target: { value: 'W19-26-999' } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(queriesModule.updateRoute).toHaveBeenCalledWith(
+        'route-test-id-1234',
+        expect.objectContaining({ routeCode: 'W19-26-999' })
+      );
+    });
+  });
+
+  it('rejects saving with an empty route code', async () => {
+    render(<RouteEditPage />);
+
+    const routeCodeInput = await screen.findByLabelText(/route code/i);
+    fireEvent.change(routeCodeInput, { target: { value: '   ' } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    expect(await screen.findByText('Route code is required.')).toBeInTheDocument();
+    expect(queriesModule.updateRoute).not.toHaveBeenCalled();
+  });
 });

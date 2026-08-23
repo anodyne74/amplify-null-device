@@ -56,7 +56,7 @@ describe('UserSettingsPage', () => {
     render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
 
     expect(await screen.findByDisplayValue('Saved Name')).toBeInTheDocument();
-    expect(screen.getByLabelText('Default Theme')).toHaveValue('dark');
+    expect(screen.getByLabelText('Default Theme')).toBeChecked();
     expect(screen.getByLabelText('Map Theme')).toHaveValue('satellite');
 
     expect(screen.queryByLabelText('Billing Company Name')).not.toBeInTheDocument();
@@ -86,6 +86,20 @@ describe('UserSettingsPage', () => {
 
     expect(screen.getByRole('tab', { name: /administrator settings/i })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByLabelText('Billing Company Name')).toBeInTheDocument();
+  });
+
+  it('replaces the theme dropdown with a light/dark toggle, no System option (#56)', async () => {
+    render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
+
+    await screen.findByDisplayValue('Fallback Name');
+
+    const toggle = screen.getByLabelText('Default Theme');
+    expect(toggle).toHaveAttribute('role', 'switch');
+    expect(toggle).toBeChecked(); // defaults to dark
+    expect(screen.queryByText('System')).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(toggle).not.toBeChecked();
   });
 
   it('labels the remittance account fields as "Pay-To" so admins know they belong to invoices, not customers (#67)', async () => {
@@ -142,7 +156,10 @@ describe('UserSettingsPage', () => {
 
     render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
 
-    fireEvent.change(screen.getByLabelText('Default Theme'), { target: { value: 'dark' } });
+    // Defaults to dark (checked); toggling it off selects light.
+    expect(screen.getByLabelText('Default Theme')).toBeChecked();
+    fireEvent.click(screen.getByLabelText('Default Theme'));
+    expect(screen.getByLabelText('Default Theme')).not.toBeChecked();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }));
     expect(await screen.findByText('Failed to save settings. Please try again.')).toBeInTheDocument();
@@ -151,7 +168,7 @@ describe('UserSettingsPage', () => {
     expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(setModeMock).toHaveBeenCalledWith('dark');
+      expect(setModeMock).toHaveBeenCalledWith('light');
     });
   });
 });

@@ -12,8 +12,19 @@ type UseInvoiceDerivedFormEffectsParams = {
   totalAmountOverridden: boolean;
   setTotalHours: (value: string) => void;
   setTotalAmount: (value: string) => void;
+  setGstAmount: (value: string) => void;
   totalHours: string;
+  // When the selected customer has rate-card lines, the rate-line picker (not this
+  // hook) owns totalAmount/gstAmount — see useRateLineTotals.
+  hasRateLines?: boolean;
 };
+
+export const GST_RATE = 0.1;
+
+export function applyGst(subtotal: number, gstExclusive: boolean | null | undefined) {
+  const gstAmount = gstExclusive ? subtotal * GST_RATE : 0;
+  return { gstAmount, total: subtotal + gstAmount };
+}
 
 function getNextInvoiceNumber(invoices: Invoice[]) {
   const matches = invoices
@@ -56,7 +67,9 @@ export function useInvoiceDerivedFormEffects({
   totalAmountOverridden,
   setTotalHours,
   setTotalAmount,
+  setGstAmount,
   totalHours,
+  hasRateLines = false,
 }: UseInvoiceDerivedFormEffectsParams) {
   useEffect(() => {
     if (invoiceNumberOverridden) return;
@@ -76,18 +89,20 @@ export function useInvoiceDerivedFormEffects({
     const routeHours = getRouteDurationHours(selectedRoute);
     setTotalHours(routeHours.toFixed(2));
 
-    if (totalAmountOverridden) {
+    if (totalAmountOverridden || hasRateLines) {
       return;
     }
 
     const customer = customers.find((entry) => entry.id === selectedRoute.customerId);
     const rate = customer?.billingRatePerHour ?? 0;
-    const amount = routeHours * rate;
-    setTotalAmount(Number(amount).toFixed(2));
-  }, [routeId, routes, customers, setTotalAmount, setTotalHours, totalAmountOverridden]);
+    const subtotal = routeHours * rate;
+    const { gstAmount, total } = applyGst(subtotal, customer?.gstExclusive);
+    setGstAmount(gstAmount.toFixed(2));
+    setTotalAmount(total.toFixed(2));
+  }, [routeId, routes, customers, setTotalAmount, setGstAmount, setTotalHours, totalAmountOverridden, hasRateLines]);
 
   useEffect(() => {
-    if (totalAmountOverridden) return;
+    if (totalAmountOverridden || hasRateLines) return;
     const selectedRoute = routes.find((route) => route.id === routeId);
     if (!selectedRoute) return;
 
@@ -96,7 +111,9 @@ export function useInvoiceDerivedFormEffects({
     const parsedHours = Number(totalHours);
     if (!Number.isFinite(parsedHours) || parsedHours < 0) return;
 
-    const amount = parsedHours * rate;
-    setTotalAmount(Number(amount).toFixed(2));
-  }, [totalHours, routeId, routes, customers, setTotalAmount, totalAmountOverridden]);
+    const subtotal = parsedHours * rate;
+    const { gstAmount, total } = applyGst(subtotal, customer?.gstExclusive);
+    setGstAmount(gstAmount.toFixed(2));
+    setTotalAmount(total.toFixed(2));
+  }, [totalHours, routeId, routes, customers, setTotalAmount, setGstAmount, totalAmountOverridden, hasRateLines]);
 }

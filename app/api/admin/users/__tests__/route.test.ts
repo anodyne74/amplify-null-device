@@ -17,6 +17,7 @@ jest.mock('@aws-sdk/client-cognito-identity-provider', () => ({
     send: sendMock,
   })),
   ListUsersCommand: jest.fn((input) => ({ input })),
+  ListUsersInGroupCommand: jest.fn((input) => ({ input })),
   AdminListGroupsForUserCommand: jest.fn((input) => ({ input })),
   AdminAddUserToGroupCommand: jest.fn((input) => ({ input })),
   AdminRemoveUserFromGroupCommand: jest.fn((input) => ({ input })),
@@ -98,6 +99,56 @@ describe('admin users API', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ success: true });
     expect(sendMock).toHaveBeenCalled();
+  });
+
+  it('lists users in a group for operator assignment', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock.mockResolvedValue({
+      Users: [
+        {
+          Username: 'operator-1',
+          Attributes: [
+            { Name: 'email', Value: 'jane@nulldevice.dev' },
+            { Name: 'sub', Value: 'sub-operator-1' },
+            { Name: 'name', Value: 'Jane' },
+          ],
+        },
+      ],
+    });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsersInGroup', groupName: 'operator' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.users).toEqual([
+      expect.objectContaining({ name: 'Jane', email: 'jane@nulldevice.dev', sub: 'sub-operator-1' }),
+    ]);
+  });
+
+  it('rejects listUsersInGroup with an invalid groupName', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsersInGroup', groupName: 'not-a-group' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+    expect(sendMock).not.toHaveBeenCalled();
   });
 
   it('resolves user by email for customer access assignment', async () => {

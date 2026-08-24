@@ -26,6 +26,10 @@ function withMaxLength(value: string, max: number) {
 
 const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || 'dev', 'dev');
 const invoiceTemplateName = withMaxLength(`NullDeviceInvoiceTemplate-${branchName}`, 64);
+const jobAssignedTemplateName = withMaxLength(`NullDeviceJobAssignedTemplate-${branchName}`, 64);
+const welcomeTemplateName = withMaxLength(`NullDeviceWelcomeTemplate-${branchName}`, 64);
+const accountRequestNotifyTemplateName = withMaxLength(`NullDeviceAccountRequestNotifyTemplate-${branchName}`, 64);
+const accountRequestRejectedTemplateName = withMaxLength(`NullDeviceAccountRequestRejectedTemplate-${branchName}`, 64);
 const inboundBucketName = withMaxLength(`ses-inbound-nulldevice-${branchName}`, 63);
 const forwarderFunctionName = withMaxLength(`ses-forwarder-nulldevice-${branchName}`, 64);
 const inboundRuleSetName = withMaxLength(`inbound-rule-set-nulldevice-${branchName}`, 64);
@@ -45,53 +49,52 @@ new CfnTemplate(sesStack, 'InvoiceSummaryTemplate', {
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Invoice {{invoiceNumber}}</title>
 	</head>
-	<body style="margin:0;padding:0;background:#070b14;color:#f5f5f5;font-family:Inter,Arial,sans-serif;">
-		<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#070b14;padding:28px 0;">
+	<body style="margin:0;padding:0;background:#F6F7FB;color:#2B3150;font-family:'Segoe UI',Arial,sans-serif;">
+		<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#F6F7FB;padding:28px 0;">
 			<tr>
 				<td align="center">
-					<table role="presentation" cellpadding="0" cellspacing="0" width="640" style="max-width:640px;background:#101826;border:1px solid rgba(148,163,184,0.28);border-radius:14px;overflow:hidden;">
+					<table role="presentation" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;background:#FFFFFF;border:1px solid #DFE2EE;border-radius:16px;overflow:hidden;">
 						<tr>
-							<td style="padding:18px 24px;background:linear-gradient(135deg,#0f172a,#172554);border-bottom:1px solid rgba(148,163,184,0.35);">
+							<td style="padding:22px 28px;background:#141B38;">
 								<table role="presentation" cellpadding="0" cellspacing="0" width="100%">
 									<tr>
 										<td style="vertical-align:middle;">
-											<img src="{{logoUrl}}" alt="NullDevice" width="156" style="display:block;width:156px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;" />
+											<img src="{{logoUrl}}" alt="NullDevice" width="146" style="display:block;width:146px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;" />
 										</td>
 										<td style="vertical-align:middle;text-align:right;">
-											<div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#38bdf8;">NullDevice</div>
-											<div style="margin-top:4px;font-size:22px;font-weight:700;color:#ffffff;">Invoice Summary</div>
+											<div style="font-family:'Comfortaa','Trebuchet MS',sans-serif;font-weight:700;font-size:20px;color:#ffffff;">Invoice Summary</div>
 										</td>
 									</tr>
 								</table>
 							</td>
 						</tr>
 						<tr>
-							<td style="padding:24px;">
-								<p style="margin:0 0 16px 0;color:rgba(241,245,249,0.96);font-size:15px;line-height:1.6;">Hi {{customerName}},</p>
-								<p style="margin:0 0 22px 0;color:rgba(226,232,240,0.78);font-size:14px;line-height:1.6;">Your latest NullDevice invoice is attached as a PDF and is also available via the secure link below.</p>
+							<td style="padding:28px;">
+								<p style="margin:0 0 16px 0;color:#2B3150;font-size:15px;line-height:1.6;">Hi {{customerName}},</p>
+								<p style="margin:0 0 22px 0;color:#5A6180;font-size:14px;line-height:1.6;">Your latest NullDevice invoice is attached as a PDF and is also available via the secure link below.</p>
 
-								<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid rgba(148,163,184,0.28);border-radius:10px;background:#0b1220;margin-bottom:20px;">
+								<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #DFE2EE;border-radius:12px;margin-bottom:20px;">
 									<tr>
-										<td style="padding:12px 16px;border-bottom:1px solid rgba(148,163,184,0.2);font-size:13px;color:rgba(203,213,225,0.85);">Invoice #</td>
-										<td style="padding:12px 16px;border-bottom:1px solid rgba(148,163,184,0.2);font-size:13px;color:#ffffff;text-align:right;">{{invoiceNumber}}</td>
+										<td style="padding:14px 18px;border-bottom:1px solid #EDEFF6;font-size:14px;color:#5A6180;">Invoice #</td>
+										<td style="padding:14px 18px;border-bottom:1px solid #EDEFF6;font-size:14px;color:#141B38;font-weight:600;text-align:right;">{{invoiceNumber}}</td>
 									</tr>
 									<tr>
-										<td style="padding:12px 16px;border-bottom:1px solid rgba(148,163,184,0.2);font-size:13px;color:rgba(203,213,225,0.85);">Invoice Date</td>
-										<td style="padding:12px 16px;border-bottom:1px solid rgba(148,163,184,0.2);font-size:13px;color:#ffffff;text-align:right;">{{invoiceDate}}</td>
+										<td style="padding:14px 18px;border-bottom:1px solid #EDEFF6;font-size:14px;color:#5A6180;">Invoice Date</td>
+										<td style="padding:14px 18px;border-bottom:1px solid #EDEFF6;font-size:14px;color:#141B38;font-weight:600;text-align:right;">{{invoiceDate}}</td>
 									</tr>
 									<tr>
-										<td style="padding:12px 16px;font-size:13px;color:rgba(203,213,225,0.85);">Amount Due</td>
-										<td style="padding:12px 16px;font-size:20px;font-weight:700;color:#22d3ee;text-align:right;">{{totalAmount}}</td>
+										<td style="padding:14px 18px;font-size:15px;color:#141B38;font-weight:700;font-family:'Comfortaa','Trebuchet MS',sans-serif;">Amount Due</td>
+										<td style="padding:14px 18px;font-size:17px;font-weight:700;color:#141B38;text-align:right;">{{totalAmount}}</td>
 									</tr>
 								</table>
 
-								<a href="{{pdfUrl}}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#22d3ee;color:#0b1120;text-decoration:none;font-size:13px;font-weight:700;">View Invoice Online</a>
+								<a href="{{pdfUrl}}" style="display:inline-block;padding:13px 26px;border-radius:999px;background:#5D65E6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;">View Invoice Online</a>
 
-								<p style="margin:24px 0 0 0;color:rgba(148,163,184,0.9);font-size:12px;line-height:1.5;">This is an automated message. Please do not reply.</p>
+								<p style="margin:24px 0 0 0;color:#9AA0BA;font-size:12px;line-height:1.5;">This is an automated message. Please do not reply.</p>
 							</td>
 						</tr>
 						<tr>
-							<td style="padding:14px 24px;background:#0b1220;border-top:1px solid rgba(148,163,184,0.2);font-size:11px;color:rgba(148,163,184,0.88);">&copy; {{year}} NullDevice. All rights reserved.</td>
+							<td style="padding:20px 28px;background:#F6F7FB;border-top:1px solid #DFE2EE;font-size:12px;color:#818AA4;line-height:1.7;">&copy; {{year}} NullDevice. All rights reserved.</td>
 						</tr>
 					</table>
 				</td>
@@ -117,6 +120,246 @@ This is an automated message. Please do not reply.
 `.trim(),
 	},
 });
+
+new CfnTemplate(sesStack, 'JobAssignedTemplate', {
+	template: {
+		templateName: jobAssignedTemplateName,
+		subjectPart: 'You’ve been assigned route {{routeCode}}',
+		htmlPart: `
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Route {{routeCode}} assigned</title>
+	</head>
+	<body style="margin:0;padding:0;background:#F6F7FB;color:#2B3150;font-family:'Segoe UI',Arial,sans-serif;">
+		<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#F6F7FB;padding:28px 0;">
+			<tr>
+				<td align="center">
+					<table role="presentation" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;background:#FFFFFF;border:1px solid #DFE2EE;border-radius:16px;overflow:hidden;">
+						<tr>
+							<td style="padding:22px 28px;background:#141B38;">
+								<img src="{{logoUrl}}" alt="NullDevice" width="146" style="display:block;width:146px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;" />
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:28px;">
+								<div style="font-family:'Comfortaa','Trebuchet MS',sans-serif;font-weight:700;font-size:22px;color:#141B38;">Route {{routeCode}} is yours</div>
+								<p style="margin:12px 0 0 0;color:#5A6180;font-size:15px;line-height:1.6;">Hi {{operatorName}}, you've been assigned to route {{routeCode}} for {{customerName}} — {{stopCount}} stops.</p>
+
+								<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#EEF0FE;border-radius:12px;margin-top:20px;">
+									<tr>
+										<td style="padding:16px 18px;font-size:14px;color:#3A40A6;line-height:1.7;">
+											<strong style="font-family:'Comfortaa','Trebuchet MS',sans-serif;font-size:15px;color:#141B38;">{{routeCode}}</strong><br />
+											{{customerName}} · {{stopCount}} stops
+										</td>
+									</tr>
+								</table>
+
+								<a href="{{routeUrl}}" style="display:inline-block;margin-top:24px;padding:13px 26px;border-radius:999px;background:#5D65E6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;">View route</a>
+
+								<p style="margin:24px 0 0 0;color:#9AA0BA;font-size:12px;line-height:1.5;">This is an automated message. Please do not reply.</p>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:20px 28px;background:#F6F7FB;border-top:1px solid #DFE2EE;font-size:12px;color:#818AA4;line-height:1.7;">&copy; {{year}} NullDevice. All rights reserved.</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>
+`.trim(),
+		textPart: `
+Route {{routeCode}} is yours
+
+Hi {{operatorName}}, you've been assigned to route {{routeCode}} for {{customerName}} — {{stopCount}} stops.
+
+View route: {{routeUrl}}
+
+This is an automated message. Please do not reply.
+`.trim(),
+	},
+});
+
+new CfnTemplate(sesStack, 'WelcomeTemplate', {
+	template: {
+		templateName: welcomeTemplateName,
+		subjectPart: 'Your NullDevice portal is live',
+		htmlPart: `
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Your portal is live</title>
+	</head>
+	<body style="margin:0;padding:0;background:#F6F7FB;color:#2B3150;font-family:'Segoe UI',Arial,sans-serif;">
+		<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#F6F7FB;padding:28px 0;">
+			<tr>
+				<td align="center">
+					<table role="presentation" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;background:#FFFFFF;border:1px solid #DFE2EE;border-radius:16px;overflow:hidden;">
+						<tr>
+							<td style="padding:22px 28px;background:#141B38;">
+								<img src="{{logoUrl}}" alt="NullDevice" width="146" style="display:block;width:146px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;" />
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:0;">
+								<div style="background:linear-gradient(45deg,#5D65E6,#B181E8);height:88px;"></div>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:28px 28px 8px 28px;">
+								<div style="font-family:'Comfortaa','Trebuchet MS',sans-serif;font-weight:700;font-size:22px;color:#141B38;">Your portal is live</div>
+								<p style="margin:12px 0 0 0;color:#5A6180;font-size:15px;line-height:1.6;">Welcome, {{customerName}}. Track your routes, sign placements and pickups, and invoices in one place — no more waiting on email updates.</p>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:24px 28px 32px 28px;">
+								<a href="{{portalUrl}}" style="display:inline-block;padding:13px 26px;border-radius:999px;background:#5D65E6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;">Open my portal</a>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:20px 28px;background:#F6F7FB;border-top:1px solid #DFE2EE;font-size:12px;color:#818AA4;line-height:1.7;">&copy; {{year}} NullDevice. All rights reserved.</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>
+`.trim(),
+		textPart: `
+Your portal is live
+
+Welcome, {{customerName}}. Track your routes, sign placements and pickups, and invoices in one place.
+
+Open my portal: {{portalUrl}}
+
+This is an automated message. Please do not reply.
+`.trim(),
+	},
+});
+
+new CfnTemplate(sesStack, 'AccountRequestNotifyTemplate', {
+	template: {
+		templateName: accountRequestNotifyTemplateName,
+		subjectPart: 'New account request for {{customerName}}',
+		htmlPart: `
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>New account request</title>
+	</head>
+	<body style="margin:0;padding:0;background:#F6F7FB;color:#2B3150;font-family:'Segoe UI',Arial,sans-serif;">
+		<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#F6F7FB;padding:28px 0;">
+			<tr>
+				<td align="center">
+					<table role="presentation" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;background:#FFFFFF;border:1px solid #DFE2EE;border-radius:16px;overflow:hidden;">
+						<tr>
+							<td style="padding:22px 28px;background:#141B38;">
+								<img src="{{logoUrl}}" alt="NullDevice" width="146" style="display:block;width:146px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;" />
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:28px 28px 8px 28px;">
+								<div style="font-family:'Comfortaa','Trebuchet MS',sans-serif;font-weight:700;font-size:22px;color:#141B38;">New account request</div>
+								<p style="margin:12px 0 0 0;color:#5A6180;font-size:15px;line-height:1.6;"><strong>{{requesterName}}</strong> ({{requesterEmail}}) has asked to join {{customerName}} on NullDevice as {{requestedRole}}. Review the request to grant or decline access.</p>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:24px 28px 32px 28px;">
+								<a href="{{reviewUrl}}" style="display:inline-block;padding:13px 26px;border-radius:999px;background:#5D65E6;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;">Review request</a>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:20px 28px;background:#F6F7FB;border-top:1px solid #DFE2EE;font-size:12px;color:#818AA4;line-height:1.7;">&copy; {{year}} NullDevice. All rights reserved.</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>
+`.trim(),
+		textPart: `
+New account request
+
+{{requesterName}} ({{requesterEmail}}) has asked to join {{customerName}} on NullDevice as {{requestedRole}}.
+
+Review request: {{reviewUrl}}
+
+This is an automated message. Please do not reply.
+`.trim(),
+	},
+});
+
+new CfnTemplate(sesStack, 'AccountRequestRejectedTemplate', {
+	template: {
+		templateName: accountRequestRejectedTemplateName,
+		subjectPart: 'Your request to join {{customerName}} was not approved',
+		htmlPart: `
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Request not approved</title>
+	</head>
+	<body style="margin:0;padding:0;background:#F6F7FB;color:#2B3150;font-family:'Segoe UI',Arial,sans-serif;">
+		<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#F6F7FB;padding:28px 0;">
+			<tr>
+				<td align="center">
+					<table role="presentation" cellpadding="0" cellspacing="0" width="560" style="max-width:560px;background:#FFFFFF;border:1px solid #DFE2EE;border-radius:16px;overflow:hidden;">
+						<tr>
+							<td style="padding:22px 28px;background:#141B38;">
+								<img src="{{logoUrl}}" alt="NullDevice" width="146" style="display:block;width:146px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none;" />
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:28px 28px 8px 28px;">
+								<div style="font-family:'Comfortaa','Trebuchet MS',sans-serif;font-weight:700;font-size:22px;color:#141B38;">Request not approved</div>
+								<p style="margin:12px 0 0 0;color:#5A6180;font-size:15px;line-height:1.6;">Your request to join <strong>{{customerName}}</strong> on NullDevice was not approved.</p>
+								<p style="margin:12px 0 0 0;color:#5A6180;font-size:15px;line-height:1.6;">{{decisionNote}}</p>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding:20px 28px;background:#F6F7FB;border-top:1px solid #DFE2EE;font-size:12px;color:#818AA4;line-height:1.7;">&copy; {{year}} NullDevice. All rights reserved.</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>
+`.trim(),
+		textPart: `
+Request not approved
+
+Your request to join {{customerName}} on NullDevice was not approved.
+
+{{decisionNote}}
+
+This is an automated message. Please do not reply.
+`.trim(),
+	},
+});
+
+// customerAccessActivation sends the welcome email directly (SendTemplatedEmailCommand)
+// on account_owner activation — grant its execution role SES send permission.
+backend.customerAccessActivation.resources.lambda.addToRolePolicy(
+	new PolicyStatement({
+		sid: 'AllowSesSendTemplatedEmail',
+		effect: Effect.ALLOW,
+		actions: ['ses:SendTemplatedEmail'],
+		resources: ['*'],
+	}),
+);
 
 // ── SES inbound email forwarder ──────────────────────────────────────────────
 const forwarderStack = backend.createStack('ses-email-forwarder');

@@ -23,12 +23,17 @@ describe('useInvoiceDerivedFormEffects', () => {
     { id: 'customer-1', name: 'Acme', billingRatePerHour: 100 },
   ];
 
+  const gstCustomers: CustomerOption[] = [
+    { id: 'customer-1', name: 'Acme', billingRatePerHour: 100, gstExclusive: true },
+  ];
+
   it('derives next invoice number and route-based hours/amount defaults', async () => {
     const { result } = renderHook(() => {
       const [invoiceNumber, setInvoiceNumber] = useState('');
       const [routeId, setRouteId] = useState('');
       const [totalHours, setTotalHours] = useState('0');
       const [totalAmount, setTotalAmount] = useState('0');
+      const [gstAmount, setGstAmount] = useState('0');
       const [invoiceNumberOverridden] = useState(false);
       const [totalAmountOverridden] = useState(false);
 
@@ -42,6 +47,7 @@ describe('useInvoiceDerivedFormEffects', () => {
         totalAmountOverridden,
         setTotalHours,
         setTotalAmount,
+        setGstAmount,
         totalHours,
       });
 
@@ -51,6 +57,7 @@ describe('useInvoiceDerivedFormEffects', () => {
         setRouteId,
         totalHours,
         totalAmount,
+        gstAmount,
       };
     });
 
@@ -74,6 +81,7 @@ describe('useInvoiceDerivedFormEffects', () => {
       const [routeId, setRouteId] = useState('route-1');
       const [totalHours, setTotalHours] = useState('2.00');
       const [totalAmount, setTotalAmount] = useState('200.00');
+      const [gstAmount, setGstAmount] = useState('0');
       const [invoiceNumberOverridden] = useState(false);
       const [totalAmountOverridden, setTotalAmountOverridden] = useState(false);
 
@@ -87,6 +95,7 @@ describe('useInvoiceDerivedFormEffects', () => {
         totalAmountOverridden,
         setTotalHours,
         setTotalAmount,
+        setGstAmount,
         totalHours,
       });
 
@@ -99,6 +108,7 @@ describe('useInvoiceDerivedFormEffects', () => {
         totalAmount,
         setTotalAmount,
         setTotalAmountOverridden,
+        gstAmount,
       };
     });
 
@@ -120,5 +130,43 @@ describe('useInvoiceDerivedFormEffects', () => {
       expect(result.current.totalHours).toBe('2.00');
     });
     expect(result.current.totalAmount).toBe('555.00');
+    expect(result.current.gstAmount).toBe('0.00');
+  });
+
+  it('adds GST on top of the subtotal for a GST-exclusive customer', async () => {
+    const { result } = renderHook(() => {
+      const [, setInvoiceNumber] = useState('');
+      const [routeId, setRouteId] = useState('');
+      const [totalHours, setTotalHours] = useState('0');
+      const [totalAmount, setTotalAmount] = useState('0');
+      const [gstAmount, setGstAmount] = useState('0');
+      const [invoiceNumberOverridden] = useState(false);
+      const [totalAmountOverridden] = useState(false);
+
+      useInvoiceDerivedFormEffects({
+        invoices,
+        invoiceNumberOverridden,
+        setInvoiceNumber,
+        routeId,
+        routes,
+        customers: gstCustomers,
+        totalAmountOverridden,
+        setTotalHours,
+        setTotalAmount,
+        setGstAmount,
+        totalHours,
+      });
+
+      return { routeId, setRouteId, totalAmount, gstAmount };
+    });
+
+    act(() => {
+      result.current.setRouteId('route-1');
+    });
+
+    await waitFor(() => {
+      expect(result.current.gstAmount).toBe('20.00');
+      expect(result.current.totalAmount).toBe('220.00');
+    });
   });
 });

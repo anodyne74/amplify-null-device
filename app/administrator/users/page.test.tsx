@@ -138,4 +138,18 @@ describe('UsersAdminPage customer access actions', () => {
     });
     expect(mockSyncViewerSubsForCustomer).toHaveBeenCalledWith('cust-1', []);
   });
+
+  it('shows summary stat tiles computed from the loaded data', async () => {
+    render(<UsersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Read User')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Total users')).toBeInTheDocument();
+    expect(screen.getByText('Customer accounts')).toBeInTheDocument();
+    expect(screen.getByText("Customer's users")).toBeInTheDocument();
+    expect(screen.getByText('Primary contact')).toBeInTheDocument();
+    expect(screen.getByText('Missing')).toBeInTheDocument();
+  });
 });

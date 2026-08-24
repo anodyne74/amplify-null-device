@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { StopForm } from '@/app/operator/components/StopForm';
@@ -33,6 +34,35 @@ type CustomerOption = {
   defaultAgentName?: string | null;
   agentOptions?: string[] | null;
 };
+
+type OperatorOption = {
+  sub: string;
+  name: string;
+  email: string;
+};
+
+async function callAdminApi(body: Record<string, unknown>) {
+  const session = await fetchAuthSession();
+  const idToken = session.tokens?.idToken?.toString();
+  if (!idToken) {
+    throw new Error('No session token found. Please sign in again.');
+  }
+
+  const response = await fetch('/api/admin/users', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Request failed.');
+  }
+  return payload;
+}
 
 const RouteStopsMap = dynamic(
   () => import('@/app/operator/components/RouteStopsMap').then((mod) => mod.RouteStopsMap),
@@ -67,6 +97,14 @@ function RouteEditContent() {
   const [notes, setNotes] = useState('');
   const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapTheme, setMapTheme] = useState<MapTheme>('light');
+
+  const [operators, setOperators] = useState<OperatorOption[]>([]);
+  const [assignedOperatorSub, setAssignedOperatorSub] = useState('');
+  const [initialAssignedOperatorSub, setInitialAssignedOperatorSub] = useState('');
+  const [savedAssignedOperatorEmail, setSavedAssignedOperatorEmail] = useState<string | null>(null);
+  const [notifying, setNotifying] = useState(false);
+  const [notifyError, setNotifyError] = useState<string | null>(null);
+  const [notifySuccess, setNotifySuccess] = useState<string | null>(null);
 
   const fetchStops = useCallback(async () => {
     if (!routeId) return;
@@ -115,9 +153,10 @@ function RouteEditContent() {
       setLoading(true);
       setError(null);
 
-      const [routeResult, customersResult] = await Promise.all([
+      const [routeResult, customersResult, operatorsResult] = await Promise.all([
         getRouteDetail(routeId),
         listAllCustomers({ limit: 200 }),
+        callAdminApi({ action: 'listUsersInGroup', groupName: 'operator' }).catch(() => ({ users: [] })),
       ]);
 
       if (routeResult.errors || !routeResult.data) {
@@ -130,6 +169,16 @@ function RouteEditContent() {
       setRouteCode(route.routeCode || route.id.slice(0, 8));
       setCustomerId(route.customerId);
       setNotes(route.notes || '');
+      setAssignedOperatorSub(route.assignedOperatorSub || '');
+      setInitialAssignedOperatorSub(route.assignedOperatorSub || '');
+      setSavedAssignedOperatorEmail(route.assignedOperatorEmail || null);
+
+      const operatorUsers = (operatorsResult.users as Array<{ sub?: string; name?: string; email?: string }> | undefined) || [];
+      setOperators(
+        operatorUsers
+          .filter((u): u is { sub: string; name: string; email: string } => Boolean(u.sub && u.email))
+          .map((u) => ({ sub: u.sub, name: u.name || u.email, email: u.email }))
+      );
 
       if (!customersResult.errors || customersResult.errors.length === 0) {
         setCustomers(
@@ -217,14 +266,27 @@ function RouteEditContent() {
       setError('Customer is required.');
       return;
     }
+    if (!routeCode.trim()) {
+      setError('Route code is required.');
+      return;
+    }
 
     setSaving(true);
     setError(null);
+
+    const selectedOperator = operators.find((op) => op.sub === assignedOperatorSub);
+    const assignmentChanged = assignedOperatorSub !== initialAssignedOperatorSub;
 
     const result = await updateRoute(routeId, {
       routeCode: routeCode.trim(),
       customerId,
       notes: notes || '',
+      assignedOperatorSub: selectedOperator?.sub || null,
+      assignedOperatorName: selectedOperator?.name || null,
+      assignedOperatorEmail: selectedOperator?.email || null,
+      ...(assignmentChanged
+        ? { assignedAt: selectedOperator ? new Date().toISOString() : null }
+        : {}),
     });
 
     if (result.errors && result.errors.length > 0) {
@@ -234,6 +296,41 @@ function RouteEditContent() {
     }
 
     router.push(`/administrator/routes/detail?id=${routeId}`);
+  };
+
+  const handleNotifyOperator = async () => {
+    if (!routeId) return;
+    setNotifying(true);
+    setNotifyError(null);
+    setNotifySuccess(null);
+
+    try {
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.toString();
+      if (!idToken) {
+        throw new Error('No session token found. Please sign in again.');
+      }
+
+      const response = await fetch('/api/admin/send-job-assigned-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ routeId }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to notify operator.');
+      }
+
+      setNotifySuccess(`Notified ${payload.sentTo}.`);
+    } catch (err) {
+      setNotifyError(err instanceof Error ? err.message : 'Failed to notify operator.');
+    }
+
+    setNotifying(false);
   };
 
   const handleAddStop = async (values: {
@@ -408,13 +505,22 @@ function RouteEditContent() {
       <Card>
         <form onSubmit={handleSave}>
           <div className={styles.metaRow}>
-            <span>Route Code: <strong>{routeCode}</strong></span>
             <span>Internal ID: <strong>{routeId}</strong></span>
           </div>
 
           {error && <div className={styles.errorBanner}>{error}</div>}
 
           <div className={styles.fieldsGrid}>
+            <Field label="Route Code" htmlFor="routeCode" required>
+              <Input
+                id="routeCode"
+                value={routeCode}
+                onChange={(e) => setRouteCode(e.target.value)}
+                disabled={saving}
+                placeholder="e.g. W18-26-001"
+              />
+            </Field>
+
             <Field label="Customer" htmlFor="customerId">
               <Select
                 id="customerId"
@@ -442,6 +548,22 @@ function RouteEditContent() {
                 placeholder="Optional notes"
               />
             </Field>
+
+            <Field label="Assigned Operator" htmlFor="assignedOperatorSub">
+              <Select
+                id="assignedOperatorSub"
+                value={assignedOperatorSub}
+                onChange={(e) => setAssignedOperatorSub(e.target.value)}
+                disabled={saving}
+              >
+                <option value="">Unassigned</option>
+                {operators.map((operator) => (
+                  <option key={operator.sub} value={operator.sub}>
+                    {operator.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
           </div>
 
           <div className={styles.actionsRow}>
@@ -456,7 +578,18 @@ function RouteEditContent() {
             >
               Cancel
             </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => { void handleNotifyOperator(); }}
+              loading={notifying}
+              disabled={notifying || !savedAssignedOperatorEmail}
+            >
+              {notifying ? 'Notifying...' : 'Notify Operator'}
+            </Button>
           </div>
+          {notifyError && <div className={styles.errorBanner}>{notifyError}</div>}
+          {notifySuccess && <p className={styles.successText}>{notifySuccess}</p>}
         </form>
       </Card>
 

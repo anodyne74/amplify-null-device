@@ -331,16 +331,20 @@ export function useInvoiceDocumentActions({
         ? Number((((linkedRoute.overrideDurationMinutes ?? linkedRoute.actualDurationMinutes ?? 0) / 60)).toFixed(2))
         : 0;
       const hourlyRate = Number((customer?.billingRatePerHour ?? 0).toFixed(2));
+      const gstAmount = Number((invoice.gstAmount ?? 0).toFixed(2));
+      // Amount before GST — invoice.totalAmount is GST-inclusive when gstAmount is set.
+      const totalAmount = Number((invoice.totalAmount ?? 0).toFixed(2));
+      const preGstAmount = Number((totalAmount - gstAmount).toFixed(2));
       const fallbackHours = routeDurationHours > 0
         ? routeDurationHours
         : hourlyRate > 0
-          ? Number((invoice.totalAmount / hourlyRate).toFixed(2))
+          ? Number((preGstAmount / hourlyRate).toFixed(2))
           : 1;
       const fallbackRate = hourlyRate > 0
         ? hourlyRate
         : fallbackHours > 0
-          ? Number((invoice.totalAmount / fallbackHours).toFixed(2))
-          : Number(invoice.totalAmount.toFixed(2));
+          ? Number((preGstAmount / fallbackHours).toFixed(2))
+          : preGstAmount;
 
       const invoiceRows = lineItems.length > 0
         ? lineItems.map((item) => {
@@ -363,7 +367,7 @@ export function useInvoiceDocumentActions({
                 : 'General services',
               quantityHours: fallbackHours,
               hourlyRate: fallbackRate,
-              total: Number(invoice.totalAmount.toFixed(2)),
+              total: preGstAmount,
             },
           ];
 
@@ -455,7 +459,7 @@ export function useInvoiceDocumentActions({
       doc.setFontSize(13);
       doc.text('Total Amount Due', config.margins.left + 12, y + 6);
       doc.setFontSize(19);
-      doc.text(`$${invoice.totalAmount.toFixed(2)}`, 500, y + 8, { align: 'right' });
+      doc.text(`$${totalAmount.toFixed(2)}`, 500, y + 8, { align: 'right' });
 
       y += 56;
 
@@ -510,6 +514,12 @@ export function useInvoiceDocumentActions({
       doc.setFont('helvetica', 'bold');
       doc.text('Subtotal', 430, y, { align: 'right' });
       doc.text(`$${subtotal.toFixed(2)}`, 540, y, { align: 'right' });
+
+      if (gstAmount > 0) {
+        y += 16;
+        doc.text('GST (10%)', 430, y, { align: 'right' });
+        doc.text(`$${gstAmount.toFixed(2)}`, 540, y, { align: 'right' });
+      }
 
       ensurePageSpace(84);
       y += 30;

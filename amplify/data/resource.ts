@@ -18,6 +18,10 @@ import { customerAccessActivation } from '../functions/customer-access-activatio
  * - UserSettings: Per-user UI preferences and Null Device's own invoice remittance details
  * - OperatorAvailabilityBlock: Days Null Device has no drivers available for a customer
  * - CustomerClosureBlock: Days a customer's agency is closed
+ * - RateLine: Named, priced lines on a customer's rate card
+ * - OperatorPayout: Driver-split payouts owed to operators for a customer's billing period
+ * - VanSignCount: An operator's daily count of signs on their van
+ * - AccountRequest: A self-service request for portal access, pending approval
  *
  * Authorization Rules:
  * - Customers can only access their own data (routes, invoices, payments)
@@ -28,7 +32,8 @@ import { customerAccessActivation } from '../functions/customer-access-activatio
 const schema = a.schema({
   /**
    * Customer - Represents a business customer using the delivery service
-   * Authorization: Owner (customer) can read/update own profile; Operators have full access
+   * Authorization: account_owner CustomerUser (via accountOwnerSub) can read/update their own
+   * profile; every CustomerUser (via viewerSubs) can read it; Operators/Administrators have full access.
    */
   Customer: a
     .model({
@@ -53,6 +58,32 @@ const schema = a.schema({
       directDebitBsb: a.string(),
       directDebitAccountNumber: a.string(),
       directDebitAuthorizedAt: a.datetime(),
+      // Billing cycle & tax — administrator-configured
+      billingCycle: a.enum(['weekly', 'fortnightly', 'monthly']),
+      paymentTermsDays: a.integer(),
+      groupLineItemsByAgent: a.boolean(),
+      autoSendInvoiceOnPeriodClose: a.boolean(),
+      gstExclusive: a.boolean(), // Rates are ex GST — 10% is added at invoice time (see Invoice.gstAmount)
+      // Standing orders — the customer's own default placement preferences (account_owner-editable)
+      standingPickupDay: a.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+      notifyOnLowSigns: a.boolean(),
+      sendMissingSignsReport: a.boolean(),
+      // Billing details — self-service, account_owner-editable
+      billingCcEmails: a.string().array(),
+      attachAgentBreakdown: a.boolean(),
+      sendPaymentReminder: a.boolean(),
+      // Driver split — the share of this customer's billed amount paid out to the
+      // operator assigned on each route (Route.assignedOperatorSub). Computed and
+      // tracked via the OperatorPayout model.
+      driverSplitPercent: a.float(),
+      driverSplitBasis: a.enum(['percentage_of_line_rate']),
+      hideDriverSplitFromCustomer: a.boolean(),
+      paySplitOnCompletedStopsOnly: a.boolean(),
+      // Owner/viewer subs — same pattern as Route/Stop, synced by the customer-access-activation
+      // Lambda. accountOwnerSub grants the account owner read/write to their own Customer record;
+      // viewerSubs grants every customer user (owner + read_only) read access.
+      accountOwnerSub: a.string(),
+      viewerSubs: a.string().array(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
@@ -65,9 +96,13 @@ const schema = a.schema({
       users: a.hasMany('CustomerUser', 'customerId'),
       operatorAvailabilityBlocks: a.hasMany('OperatorAvailabilityBlock', 'customerId'),
       customerClosureBlocks: a.hasMany('CustomerClosureBlock', 'customerId'),
+      rateLines: a.hasMany('RateLine', 'customerId'),
+      payouts: a.hasMany('OperatorPayout', 'customerId'),
+      accountRequests: a.hasMany('AccountRequest', 'customerId'),
     })
     .authorization((allow) => [
-      allow.owner().identityClaim('sub').to(['create', 'read', 'update']),
+      allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read', 'update']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
@@ -119,9 +154,19 @@ const schema = a.schema({
       overrideAmount: a.float(),
       notes: a.string(),
       customerInstructions: a.string(), // Customer-authored, distinct from the operator's own `notes`
+      customerFeedbackTone: a.enum(['good', 'issue']), // Customer-authored, asked once the route is completed
+      customerFeedbackNote: a.string(),
       drivingModeEnabled: a.boolean(), // Renders the operator app's simplified in-vehicle driving mode for this route
       vanCount: a.integer(), // Number of vans/vehicles assigned to this route
       scheduleS3Key: a.string(), // S3 key for the uploaded schedule file
+      // Operator assignment — display/notification tag only, not an authorization scope.
+      // Denormalized (no FK) since the Operator model is never populated; operators are
+      // managed as Cognito group membership only. Every operator group member keeps full
+      // Route access regardless of assignment, per the existing authorization rules below.
+      assignedOperatorSub: a.string(), // Cognito sub of the assigned operator
+      assignedOperatorName: a.string(),
+      assignedOperatorEmail: a.string(),
+      assignedAt: a.datetime(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
@@ -129,14 +174,14 @@ const schema = a.schema({
       stops: a.hasMany('Stop', 'routeId'),
       lineItems: a.hasMany('LineItem', 'routeId'),
       invoices: a.hasMany('Invoice', 'routeId'),
+      payouts: a.hasMany('OperatorPayout', 'routeId'),
     })
     .authorization((allow) => [
       // 'update' scoped in practice to customerInstructions by the client (lib/queries.ts
       // updateRouteCustomerInstructions) — Amplify Gen 2 has no field-level authorization,
       // so this is a coarse grant like the rest of this schema. Covers both account_owner
       // and read_only CustomerUser sub-roles (not distinguishable at this layer).
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read', 'update']),
-      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read', 'update']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'update']),
     ]),
@@ -170,7 +215,6 @@ const schema = a.schema({
       customer: a.belongsTo('Customer', 'customerId'),
     })
     .authorization((allow) => [
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
       allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'update']),
@@ -189,11 +233,15 @@ const schema = a.schema({
       periodStartDate: a.date(),
       periodEndDate: a.date(),
       totalAmount: a.float().required(),
+      gstAmount: a.float(), // GST applied at issue time (Customer.gstExclusive) — stored so historical invoices stay accurate if the toggle changes later
       status: a.enum(['draft', 'sent', 'paid']),
       importedAt: a.datetime(),
       routeId: a.id(),        // linked route
       pdfS3Key: a.string(),   // S3 key for uploaded PDF e.g. invoices/{id}.pdf
       emailSentAt: a.datetime(), // timestamp of last SES email send
+      // Cognito subs of all customer users — grants read access. customerId itself
+      // can't be used with ownerDefinedIn since it's a foreign key, not a Cognito sub.
+      viewerSubs: a.string().array(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       customer: a.belongsTo('Customer', 'customerId'),
@@ -202,7 +250,7 @@ const schema = a.schema({
       payment: a.hasOne('PaymentRecord', 'invoiceId'),
     })
     .authorization((allow) => [
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
@@ -221,6 +269,9 @@ const schema = a.schema({
       quantity: a.float(),
       ratePerUnit: a.float().required(),
       amount: a.float().required(),
+      // Cognito subs of all customer users — grants read access. customerId itself
+      // can't be used with ownerDefinedIn since it's a foreign key, not a Cognito sub.
+      viewerSubs: a.string().array(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
@@ -229,9 +280,81 @@ const schema = a.schema({
       customer: a.belongsTo('Customer', 'customerId'),
     })
     .authorization((allow) => [
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
+    ]),
+
+  /**
+   * RateLine - A named, priced line on a customer's rate card (e.g. "Placement",
+   * "After-hours surcharge"). Internal pricing config, not customer-facing — unlike
+   * every other model touched this series, there's no viewerSubs bug to avoid here
+   * since customers were never meant to read this.
+   */
+  RateLine: a
+    .model({
+      customerId: a.id().required(),
+      label: a.string().required(),
+      unit: a.enum(['per_hour', 'per_stop', 'per_sign']),
+      ratePerUnit: a.float().required(),
+      sortOrder: a.integer(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+      // Relationships
+      customer: a.belongsTo('Customer', 'customerId'),
+    })
+    .authorization((allow) => [
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+      allow.groups(['operator']).to(['read']),
+    ]),
+
+  /**
+   * OperatorPayout - Tracks a driver-split payout owed to the operator assigned on a
+   * customer's routes for a billing period. operatorSub is a genuine Cognito sub (unlike
+   * the customerId-as-FK mistake fixed repeatedly elsewhere in this schema), so it can
+   * be used directly with ownerDefinedIn for the operator's own read access.
+   */
+  OperatorPayout: a
+    .model({
+      operatorSub: a.string().required(),
+      customerId: a.id().required(),
+      routeId: a.id(),
+      periodStartDate: a.date(),
+      periodEndDate: a.date(),
+      amount: a.float().required(),
+      status: a.enum(['pending', 'paid']),
+      paidAt: a.datetime(),
+      notes: a.string(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+      // Relationships
+      customer: a.belongsTo('Customer', 'customerId'),
+      route: a.belongsTo('Route', 'routeId'),
+    })
+    .authorization((allow) => [
+      allow.ownerDefinedIn('operatorSub').identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+    ]),
+
+  /**
+   * VanSignCount - An operator's count of signs physically on their van, taken once per
+   * day before leaving the yard. operatorSub is a genuine Cognito sub (same pattern as
+   * OperatorPayout above), so each operator only ever reads/writes their own count.
+   */
+  VanSignCount: a
+    .model({
+      operatorSub: a.string().required(),
+      countDate: a.date().required(),
+      standardCount: a.integer().required(),
+      auctionCount: a.integer().required(),
+      frameCount: a.integer().required(),
+      countedAt: a.datetime(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [
+      allow.ownerDefinedIn('operatorSub').identityClaim('sub').to(['read', 'create', 'update']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
   /**
@@ -248,6 +371,9 @@ const schema = a.schema({
       referenceNumber: a.string(),
       status: a.enum(['pending', 'completed', 'failed', 'refunded']),
       notes: a.string(),
+      // Cognito subs of all customer users — grants read access. customerId itself
+      // can't be used with ownerDefinedIn since it's a foreign key, not a Cognito sub.
+      viewerSubs: a.string().array(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
@@ -255,7 +381,7 @@ const schema = a.schema({
       invoice: a.belongsTo('Invoice', 'invoiceId'),
     })
     .authorization((allow) => [
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
@@ -316,6 +442,41 @@ const schema = a.schema({
     ]),
 
   /**
+   * AccountRequest - A self-service request for portal access, submitted by an
+   * already-confirmed-but-groupless Cognito user (someone who signed up but was never
+   * invited by an administrator). requesterSub is the requester's own genuine Cognito
+   * sub, so ownerDefinedIn works correctly here — unlike CustomerUser, there's no
+   * customerId-as-owner mistake to make. Deciding a request (approve/reject) requires
+   * elevated server-side access scoped to "caller is this customer's account owner or
+   * an administrator" — that check can't be expressed as a simple field-level rule
+   * here since it depends on a *different* record (Customer.accountOwnerSub), so
+   * approval runs through a privileged API route, not direct write access from the
+   * account owner's own session.
+   */
+  AccountRequest: a
+    .model({
+      requesterSub: a.string().required(),
+      email: a.email().required(),
+      name: a.string(),
+      customerId: a.id().required(),
+      role: a.enum(['account_owner', 'read_only']),
+      status: a.enum(['pending', 'approved', 'rejected']),
+      requestedAt: a.datetime(),
+      lastNotifiedAt: a.datetime(),
+      decidedAt: a.datetime(),
+      decidedByUserSub: a.string(),
+      decisionNote: a.string(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+      // Relationships
+      customer: a.belongsTo('Customer', 'customerId'),
+    })
+    .authorization((allow) => [
+      allow.ownerDefinedIn('requesterSub').identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+    ]),
+
+  /**
    * OperatorAvailabilityBlock - A day Null Device has no drivers available for a customer.
    * One calendar per customer, written from the Null Device side only.
    * No enforcement against Route creation yet — read/write calendar data only.
@@ -326,6 +487,10 @@ const schema = a.schema({
       date: a.date().required(),
       reason: a.string(),
       createdByOperatorId: a.id(),
+      // Cognito subs of the target customer's users — stamped at creation from
+      // Customer.viewerSubs, grants read access. customerId itself can't be used
+      // with ownerDefinedIn since it's a foreign key, not a Cognito sub.
+      viewerSubs: a.string().array(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
@@ -334,7 +499,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read']), // customer views, can't write
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']), // customer views, can't write
     ]),
 
   /**
@@ -348,15 +513,21 @@ const schema = a.schema({
       date: a.date().required(),
       reason: a.string(),
       createdByUserSub: a.string(),
+      // account_owner's sub, stamped at creation — grants that user read/write.
+      // customerId itself can't be used with ownerDefinedIn since it's a foreign
+      // key, not a Cognito sub.
+      accountOwnerSub: a.string(),
+      // Every customer user's sub for this customer, stamped at creation from
+      // Customer.viewerSubs — grants read access to read_only users too.
+      viewerSubs: a.string().array(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
       customer: a.belongsTo('Customer', 'customerId'),
     })
     .authorization((allow) => [
-      // Coarse across both account_owner and read_only CustomerUser sub-roles — not
-      // distinguishable at this layer, same limitation as elsewhere in this schema.
-      allow.ownerDefinedIn('customerId').identityClaim('sub').to(['read', 'create', 'update', 'delete']),
+      allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read', 'create', 'update', 'delete']),
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read']),
       allow.groups(['operator']).to(['read']),
     ]),

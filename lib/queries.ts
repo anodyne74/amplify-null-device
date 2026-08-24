@@ -249,6 +249,27 @@ export async function updateCustomer(
     agentOptions: string[];
     status: 'active' | 'inactive' | 'suspended';
     billingRatePerHour: number;
+    gstRegistered: boolean;
+    gstAbn: string;
+    directDebitAccountName: string;
+    directDebitBsb: string;
+    directDebitAccountNumber: string;
+    directDebitAuthorizedAt: string;
+    billingCycle: 'weekly' | 'fortnightly' | 'monthly';
+    paymentTermsDays: number;
+    groupLineItemsByAgent: boolean;
+    autoSendInvoiceOnPeriodClose: boolean;
+    gstExclusive: boolean;
+    standingPickupDay: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+    notifyOnLowSigns: boolean;
+    sendMissingSignsReport: boolean;
+    billingCcEmails: string[];
+    attachAgentBreakdown: boolean;
+    sendPaymentReminder: boolean;
+    driverSplitPercent: number;
+    driverSplitBasis: 'percentage_of_line_rate';
+    hideDriverSplitFromCustomer: boolean;
+    paySplitOnCompletedStopsOnly: boolean;
   }>
 ) {
   try {
@@ -491,9 +512,15 @@ export async function updateRoute(
     overrideAmount: number;
     notes: string;
     customerInstructions: string;
+    customerFeedbackTone: 'good' | 'issue';
+    customerFeedbackNote: string;
     drivingModeEnabled: boolean;
     vanCount: number;
     scheduleS3Key: string;
+    assignedOperatorSub: string | null;
+    assignedOperatorName: string | null;
+    assignedOperatorEmail: string | null;
+    assignedAt: string | null;
   }>
 ) {
   try {
@@ -650,6 +677,7 @@ export async function createInvoice(input: {
   periodStartDate?: string;
   periodEndDate?: string;
   totalAmount: number;
+  gstAmount?: number;
   status: 'draft' | 'sent' | 'paid';
   routeId?: string;
   pdfS3Key?: string;
@@ -680,6 +708,7 @@ export async function updateInvoice(
     periodStartDate: string;
     periodEndDate: string;
     totalAmount: number;
+    gstAmount: number;
     status: 'draft' | 'sent' | 'paid';
     routeId: string | null;
     pdfS3Key: string;
@@ -705,6 +734,46 @@ export async function updateInvoice(
 }
 
 /**
+ * Deletes an invoice and its LineItems. Callers are expected to only allow
+ * this for invoices that haven't been sent (draft, no emailSentAt) — a sent
+ * or paid invoice is a record that shouldn't disappear from history.
+ */
+export async function deleteInvoice(invoiceId: string) {
+  try {
+    const client = getClient();
+    const { data: lineItems, errors: lineItemListErrors } = await client.models.LineItem.list({
+      filter: { invoiceId: { eq: invoiceId } },
+    });
+
+    if (lineItemListErrors && lineItemListErrors.length > 0) {
+      console.error('Errors fetching invoice line items for deletion:', lineItemListErrors);
+      return { data: null, errors: lineItemListErrors };
+    }
+
+    const lineItemDeletes = await Promise.all(
+      ((lineItems as Array<{ id: string }>) || []).map((lineItem) => client.models.LineItem.delete({ id: lineItem.id }))
+    );
+
+    const childErrors = lineItemDeletes.flatMap((result) => result.errors || []);
+    if (childErrors.length > 0) {
+      console.error('Errors deleting invoice line items:', childErrors);
+      return { data: null, errors: childErrors };
+    }
+
+    const { data, errors } = await client.models.Invoice.delete({ id: invoiceId });
+
+    if (errors) {
+      console.error('Errors deleting invoice:', errors);
+    }
+
+    return { data, errors };
+  } catch (error) {
+    console.error('Error deleting invoice:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
  * Convenience helper — saves the S3 key of an uploaded PDF to the invoice record.
  */
 export async function updateInvoicePdfKey(invoiceId: string, pdfS3Key: string) {
@@ -724,6 +793,7 @@ export async function createLineItem(input: {
   quantity?: number;
   ratePerUnit: number;
   amount: number;
+  viewerSubs?: string[];
 }) {
   try {
     const { data, errors } = await getClient().models.LineItem.create(input);

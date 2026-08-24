@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import type { Route } from '@/amplify/types';
+import type { RateLine, Route } from '@/amplify/types';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
@@ -14,14 +14,18 @@ interface InvoiceCreateFormProps {
   invoiceNumber: string;
   totalHours: string;
   totalAmount: string;
+  gstAmount: string;
   saving: boolean;
   customers: CustomerOption[];
   customerRoutes: Route[];
+  rateLines: RateLine[];
+  rateLineQuantities: Record<string, string>;
   onCustomerChange: (value: string) => void;
   onRouteChange: (value: string) => void;
   onInvoiceNumberChange: (value: string) => void;
   onTotalHoursChange: (value: string) => void;
   onTotalAmountChange: (value: string) => void;
+  onRateLineQuantityChange: (rateLineId: string, value: string) => void;
   onSubmit: (event: FormEvent) => void;
 }
 
@@ -31,16 +35,21 @@ export default function InvoiceCreateForm({
   invoiceNumber,
   totalHours,
   totalAmount,
+  gstAmount,
   saving,
   customers,
   customerRoutes,
+  rateLines,
+  rateLineQuantities,
   onCustomerChange,
   onRouteChange,
   onInvoiceNumberChange,
   onTotalHoursChange,
   onTotalAmountChange,
+  onRateLineQuantityChange,
   onSubmit,
 }: InvoiceCreateFormProps) {
+  const hasRateLines = rateLines.length > 0;
   return (
     <Card>
       <form onSubmit={onSubmit}>
@@ -67,8 +76,9 @@ export default function InvoiceCreateForm({
               id="invoice-route"
               value={routeId}
               onChange={(event) => onRouteChange(event.target.value)}
+              required
             >
-              <option value="">— None —</option>
+              <option value="">— Select a route —</option>
               {customerRoutes.map((route) => (
                 <option key={route.id} value={route.id}>
                   {route.routeCode ?? route.id.slice(0, 8)}
@@ -87,25 +97,52 @@ export default function InvoiceCreateForm({
             />
           </Field>
 
-          <Field label="Total Hours" htmlFor="invoice-hours">
-            <Input
-              id="invoice-hours"
-              value={totalHours}
-              onChange={(event) => onTotalHoursChange(event.target.value)}
-              type="number"
-              min="0"
-              step="0.01"
-              required
-            />
-          </Field>
+          {hasRateLines ? (
+            <div className={styles.fieldsGridFull}>
+              <span className={styles.rateCardLabel}>Rate card lines</span>
+              <div className={styles.rateLineRows}>
+                {rateLines.map((line) => (
+                  <div key={line.id} className={styles.rateLineRow}>
+                    <span className={styles.rateLineName}>{line.label}</span>
+                    <span className={styles.rateLineRate}>${line.ratePerUnit.toFixed(2)}</span>
+                    <Input
+                      aria-label={`Quantity for ${line.label}`}
+                      value={rateLineQuantities[line.id] ?? ''}
+                      onChange={(event) => onRateLineQuantityChange(line.id, event.target.value)}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <Field label="Total Hours" htmlFor="invoice-hours">
+              <Input
+                id="invoice-hours"
+                value={totalHours}
+                onChange={(event) => onTotalHoursChange(event.target.value)}
+                type="number"
+                min="0"
+                step="0.01"
+                required
+              />
+            </Field>
+          )}
 
-          <Field label="Total Amount" htmlFor="invoice-total">
+          <Field
+            label="Total Amount"
+            htmlFor="invoice-total"
+            hint={Number(gstAmount) > 0 ? `Includes GST of $${gstAmount}` : undefined}
+          >
             <Input
               id="invoice-total"
               value={totalAmount}
               onChange={(event) => onTotalAmountChange(event.target.value)}
               type="number"
-              min="0"
+              min="0.01"
               step="0.01"
               required
             />

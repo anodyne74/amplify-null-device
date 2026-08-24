@@ -237,36 +237,150 @@
   gap: var(--space-5);
 }
 
-.fieldGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 1fr);
-  gap: var(--space-6);
-  align-items: start;
+.fieldModeHeaderBadges {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
-.fieldSectionSpan {
-  color: var(--text-subtle);
+.phaseSummary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.phaseSummaryKicker {
+  margin: 0;
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-brand);
+}
+
+.phaseSummarySub {
+  margin: calc(-1 * var(--space-3)) 0 0;
   font-size: var(--text-sm);
+  color: var(--text-muted);
 }
 
-.fieldStopAddress {
-  margin: 0 0 var(--space-5);
+.phaseSummarySkipPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--status-warning-bg);
+}
+
+.phaseSummarySkipHeading {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--status-warning-fg);
+}
+
+.phaseSummarySkipRow {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--status-warning-fg);
+}
+
+.phaseSummarySkipSeq {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-semibold);
+  margin-right: var(--space-2);
+}
+
+.navShell {
+  position: relative;
+}
+
+.navGlassPanel {
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--surface-glass);
+  backdrop-filter: blur(10px);
+  border: var(--border-hairline) solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.navGlassTopRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.navCounter {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.06em;
+  color: var(--text-brand);
+}
+
+.navPhase {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
+}
+
+.navStreet {
   font-size: var(--text-xl);
   font-family: var(--font-display);
+  letter-spacing: -0.02em;
   color: var(--text-heading);
 }
 
-.fieldStopMetaGrid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+.navSuburb {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.navFacts {
+  display: flex;
   gap: var(--space-4);
-  margin-bottom: var(--space-6);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-body);
 }
 
 .fieldPrimaryActions {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+.fieldUpcomingHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.fieldUpcomingLabel {
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+.fieldUpcomingHint {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
 }
 
 .fieldEmptyText {
@@ -282,17 +396,34 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  max-height: 260px;
+  overflow-y: auto;
 }
 
 .fieldUpcomingItem {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
   background: var(--surface-hover);
+  border: none;
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
+  font-family: var(--font-body);
   color: var(--text-body);
+  cursor: pointer;
+  text-align: left;
+}
+
+.fieldUpcomingItem:hover {
+  background: var(--surface-active);
+}
+
+.fieldUpcomingAddress {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fieldUpcomingSequence {
@@ -314,10 +445,4 @@
   align-items: center;
   gap: var(--space-4);
   flex-wrap: wrap;
-}
-
-@media (max-width: 900px) {
-  .fieldGrid {
-    grid-template-columns: 1fr;
-  }
 }

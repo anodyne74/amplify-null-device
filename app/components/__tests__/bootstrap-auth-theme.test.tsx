@@ -20,6 +20,7 @@ jest.mock('@aws-amplify/ui-react', () => ({
 jest.mock('@/app/components/AmplifyThemeProvider', () => ({
   useThemeMode: () => ({
     mode: 'system',
+    resolvedMode: 'dark',
     setMode: setModeMock,
   }),
 }));
@@ -55,14 +56,16 @@ describe('bootstrap/auth/theme components', () => {
     expect(configureAmplifyMock).toHaveBeenCalled();
   });
 
-  it('renders theme selector and updates mode on change', () => {
+  it('renders theme toggle and updates mode on change (#56)', () => {
     render(<ThemeModeSelect label="Theme mode" className="extra" />);
 
-    const select = screen.getByLabelText('Theme mode');
-    fireEvent.change(select, { target: { value: 'dark' } });
+    const toggle = screen.getByLabelText('Theme mode');
+    expect(toggle).toBeChecked(); // resolvedMode: 'dark'
+    expect(screen.queryByText('System')).not.toBeInTheDocument();
 
-    expect(setModeMock).toHaveBeenCalledWith('dark');
-    expect(select).toHaveValue('system');
+    fireEvent.click(toggle);
+
+    expect(setModeMock).toHaveBeenCalledWith('light');
   });
 
   it('uses default label when custom label is not provided', () => {

@@ -19,6 +19,9 @@ import {
   Plus,
   Ellipsis,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
   ArrowRight,
   Check,
   X,
@@ -30,6 +33,9 @@ import {
   Minus,
   Info,
   Menu,
+  Wallet,
+  Mail,
+  UserPlus,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -56,6 +62,9 @@ const ICONS: Record<string, LucideIcon> = {
   plus: Plus,
   ellipsis: Ellipsis,
   'chevron-down': ChevronDown,
+  'chevron-left': ChevronLeft,
+  'chevron-right': ChevronRight,
+  calendar: Calendar,
   'arrow-right': ArrowRight,
   check: Check,
   x: X,
@@ -67,6 +76,9 @@ const ICONS: Record<string, LucideIcon> = {
   minus: Minus,
   info: Info,
   menu: Menu,
+  wallet: Wallet,
+  mail: Mail,
+  'user-plus': UserPlus,
 };
 
 export interface IconProps extends Omit<React.SVGProps<SVGSVGElement>, 'name'> {

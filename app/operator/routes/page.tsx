@@ -112,7 +112,7 @@ export default function OperatorRoutesPage() {
           title="Routes"
           actions={
             canDeleteRoutes ? (
-              <a href="/administrator/routes/new" className="nd-btn nd-btn--primary">
+              <a href="/administrator/routes/new" className="nd-btn nd-btn--primary nd-btn--md">
                 Create New Route
               </a>
             ) : undefined

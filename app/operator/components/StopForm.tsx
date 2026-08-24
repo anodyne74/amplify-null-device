@@ -2,6 +2,11 @@
 
 import { useState } from 'react';
 import { generateAgentInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
+import { Field } from '@/app/components/ui/forms/Field';
+import { Input } from '@/app/components/ui/forms/Input';
+import { Select } from '@/app/components/ui/forms/Select';
+import { Checkbox } from '@/app/components/ui/forms/Checkbox';
+import { Button } from '@/app/components/ui/core/Button';
 import styles from './StopForm.module.css';
 import { AddressAutocompleteInput, type ResolvedAddress } from './AddressAutocompleteInput';
 
@@ -125,35 +130,34 @@ export function StopForm({
       )}
 
       <div className={styles.field}>
-        <label htmlFor="address" className={styles.label}>
-          Address <span className={styles.required}>*</span>
-        </label>
-        <AddressAutocompleteInput
-          id="address"
-          value={address}
-          onChange={(val) => {
-            setAddress(val);
-            // Re-validate live once the field has been flagged, so the error
-            // clears as soon as the input becomes valid.
-            setFieldErrors((prev) =>
-              prev.address ? { ...prev, address: validateAddress(val) } : prev
-            );
-          }}
-          onResolved={(resolved) => {
-            setResolvedAddress(resolved);
-            if (resolved) setAddress(resolved.formattedAddress);
-          }}
-          onBlur={() =>
-            setFieldErrors((prev) => ({ ...prev, address: validateAddress(address) }))
-          }
-          searchOrigin={addressSearchOrigin}
-          searchRadiusMeters={addressSearchRadiusMeters}
-          className={styles.input}
-          disabled={isSubmitting}
-          placeholder="Start typing an address…"
-          ariaDescribedBy={fieldErrors.address ? 'address-error' : undefined}
-          ariaInvalid={Boolean(fieldErrors.address)}
-        />
+        <Field label="Address" htmlFor="address" required>
+          <AddressAutocompleteInput
+            id="address"
+            value={address}
+            onChange={(val) => {
+              setAddress(val);
+              // Re-validate live once the field has been flagged, so the error
+              // clears as soon as the input becomes valid.
+              setFieldErrors((prev) =>
+                prev.address ? { ...prev, address: validateAddress(val) } : prev
+              );
+            }}
+            onResolved={(resolved) => {
+              setResolvedAddress(resolved);
+              if (resolved) setAddress(resolved.formattedAddress);
+            }}
+            onBlur={() =>
+              setFieldErrors((prev) => ({ ...prev, address: validateAddress(address) }))
+            }
+            searchOrigin={addressSearchOrigin}
+            searchRadiusMeters={addressSearchRadiusMeters}
+            className="nd-input"
+            disabled={isSubmitting}
+            placeholder="Start typing an address…"
+            ariaDescribedBy={fieldErrors.address ? 'address-error' : undefined}
+            ariaInvalid={Boolean(fieldErrors.address)}
+          />
+        </Field>
         {fieldErrors.address && (
           <p id="address-error" className={styles.fieldError} role="alert">
             {fieldErrors.address}
@@ -169,51 +173,47 @@ export function StopForm({
       )}
 
       <div className={styles.field}>
-        <label htmlFor="serviceType" className={styles.label}>
-          Service Type
-        </label>
-        <select
-          id="serviceType"
-          value={serviceType}
-          onChange={(e) => setServiceType(e.target.value as 'delivery' | 'pickup' | 'inspection')}
-          className={styles.select}
-          disabled={isSubmitting}
-        >
-          <option value="delivery">Delivery</option>
-          <option value="pickup">Pickup</option>
-          <option value="inspection">Inspection</option>
-        </select>
+        <Field label="Service Type" htmlFor="serviceType">
+          <Select
+            id="serviceType"
+            value={serviceType}
+            onChange={(e) => setServiceType(e.target.value as 'delivery' | 'pickup' | 'inspection')}
+            disabled={isSubmitting}
+          >
+            <option value="delivery">Delivery</option>
+            <option value="pickup">Pickup</option>
+            <option value="inspection">Inspection</option>
+          </Select>
+        </Field>
       </div>
 
       <div className={styles.field}>
-        <label htmlFor="numberOfSigns" className={styles.label}>
-          Number of Signs
-        </label>
-        <input
-          id="numberOfSigns"
-          type="number"
-          min={0}
-          value={numberOfSigns}
-          onChange={(e) => {
-            setNumberOfSigns(e.target.value);
-            setFieldErrors((prev) =>
-              prev.numberOfSigns
-                ? { ...prev, numberOfSigns: validateNumberOfSigns(e.target.value) }
-                : prev
-            );
-          }}
-          onBlur={() =>
-            setFieldErrors((prev) => ({
-              ...prev,
-              numberOfSigns: validateNumberOfSigns(numberOfSigns),
-            }))
-          }
-          className={styles.input}
-          disabled={isSubmitting}
-          placeholder="e.g. 4"
-          aria-describedby={fieldErrors.numberOfSigns ? 'numberOfSigns-error' : undefined}
-          aria-invalid={fieldErrors.numberOfSigns ? true : undefined}
-        />
+        <Field label="Number of Signs" htmlFor="numberOfSigns">
+          <Input
+            id="numberOfSigns"
+            type="number"
+            min={0}
+            value={numberOfSigns}
+            onChange={(e) => {
+              setNumberOfSigns(e.target.value);
+              setFieldErrors((prev) =>
+                prev.numberOfSigns
+                  ? { ...prev, numberOfSigns: validateNumberOfSigns(e.target.value) }
+                  : prev
+              );
+            }}
+            onBlur={() =>
+              setFieldErrors((prev) => ({
+                ...prev,
+                numberOfSigns: validateNumberOfSigns(numberOfSigns),
+              }))
+            }
+            disabled={isSubmitting}
+            placeholder="e.g. 4"
+            aria-describedby={fieldErrors.numberOfSigns ? 'numberOfSigns-error' : undefined}
+            aria-invalid={fieldErrors.numberOfSigns ? true : undefined}
+          />
+        </Field>
         {fieldErrors.numberOfSigns && (
           <p id="numberOfSigns-error" className={styles.fieldError} role="alert">
             {fieldErrors.numberOfSigns}
@@ -222,9 +222,9 @@ export function StopForm({
       </div>
 
       <div className={styles.field}>
-        <label className={styles.label}>
+        <span className={styles.agentLabel}>
           Listing Agent
-        </label>
+        </span>
         {agentOptions.length > 0 ? (
           <div className={styles.agentBadgeGroup} role="radiogroup" aria-label="Listing Agent">
             {agentOptions.map((option) => {
@@ -253,49 +253,45 @@ export function StopForm({
       </div>
 
       <div className={styles.field}>
-        <label htmlFor="isAuction" className={styles.label}>
-          <input
-            id="isAuction"
-            type="checkbox"
-            checked={isAuction}
-            onChange={(e) => setIsAuction(e.target.checked)}
-            disabled={isSubmitting}
-          />
-          Is Auction
-        </label>
-      </div>
-
-      <div className={styles.field}>
-        <label htmlFor="stopNotes" className={styles.label}>
-          Notes
-        </label>
-        <textarea
-          id="stopNotes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          className={styles.textarea}
+        <Checkbox
+          id="isAuction"
+          checked={isAuction}
+          onChange={(e) => setIsAuction(e.target.checked)}
           disabled={isSubmitting}
-          placeholder="Optional notes…"
+          label="Is Auction"
         />
       </div>
 
+      <div className={styles.field}>
+        <Field label="Notes" htmlFor="stopNotes">
+          <Input
+            id="stopNotes"
+            multiline
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            disabled={isSubmitting}
+            placeholder="Optional notes…"
+          />
+        </Field>
+      </div>
+
       <div className={styles.actions}>
-        <button
+        <Button
           type="button"
           onClick={() => handleSubmit()}
+          loading={isSubmitting}
           disabled={isSubmitting}
-          className={styles.btnSubmit}
         >
           {isSubmitting ? 'Saving…' : submitLabel}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="secondary"
           onClick={onCancel}
           disabled={isSubmitting}
-          className={styles.btnCancel}
         >
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );

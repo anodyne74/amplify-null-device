@@ -19,6 +19,7 @@ import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
+import { Switch } from '@/app/components/ui/forms/Switch';
 import { Tabs } from '@/app/components/ui/navigation/Tabs';
 import styles from './UserSettingsPage.module.css';
 
@@ -44,7 +45,7 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
   const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
 
   const [name, setName] = useState('');
-  const [defaultTheme, setDefaultTheme] = useState<ThemeModeSetting>('system');
+  const [defaultTheme, setDefaultTheme] = useState<ThemeModeSetting>('dark');
   const [mapTheme, setMapTheme] = useState<MapThemeSetting>('light');
   const [billingCompanyName, setBillingCompanyName] = useState(DEFAULT_COMPANY_BILLING_DETAILS.companyName);
   const [billingAbn, setBillingAbn] = useState(DEFAULT_COMPANY_BILLING_DETAILS.abn);
@@ -75,7 +76,7 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
         }
 
         setName(result.data.name?.trim() || fallbackDisplayName);
-        setDefaultTheme((result.data.defaultTheme as ThemeModeSetting | null) || 'system');
+        setDefaultTheme((result.data.defaultTheme as ThemeModeSetting | null) || 'dark');
         setMapTheme((result.data.mapTheme as MapThemeSetting | null) || 'light');
         setBillingCompanyName(result.data.billingCompanyName?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyName);
         setBillingAbn(result.data.billingAbn?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.abn);
@@ -208,15 +209,12 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
               </Field>
 
               <Field label="Default Theme" htmlFor="settings-theme">
-                <Select
+                <Switch
                   id="settings-theme"
-                  value={defaultTheme}
-                  onChange={(event) => setDefaultTheme(event.target.value as ThemeModeSetting)}
-                >
-                  <option value="system">System</option>
-                  <option value="dark">Dark</option>
-                  <option value="light">Light</option>
-                </Select>
+                  checked={defaultTheme !== 'light'}
+                  onChange={(event) => setDefaultTheme(event.target.checked ? 'dark' : 'light')}
+                  label={defaultTheme !== 'light' ? 'Dark' : 'Light'}
+                />
               </Field>
 
               <Field label="Map Theme" htmlFor="settings-map-theme">
@@ -286,7 +284,11 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
                 />
               </Field>
 
-              <Field label="Payment Account Name" htmlFor="settings-billing-payment-account-name">
+              <Field
+                label="Pay-To Account Name"
+                htmlFor="settings-billing-payment-account-name"
+                hint="Shown in the &quot;Pay to&quot; section of customer invoices — this is Null Device's own account, not the customer's."
+              >
                 <Input
                   id="settings-billing-payment-account-name"
                   value={billingPaymentAccountName}
@@ -295,7 +297,11 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
                 />
               </Field>
 
-              <Field label="Payment BSB" htmlFor="settings-billing-bsb">
+              <Field
+                label="Pay-To BSB"
+                htmlFor="settings-billing-bsb"
+                hint="Shown in the &quot;Pay to&quot; section of customer invoices."
+              >
                 <Input
                   id="settings-billing-bsb"
                   value={billingBsb}
@@ -304,7 +310,11 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
                 />
               </Field>
 
-              <Field label="Payment Account Number" htmlFor="settings-billing-account-number">
+              <Field
+                label="Pay-To Account Number"
+                htmlFor="settings-billing-account-number"
+                hint="Shown in the &quot;Pay to&quot; section of customer invoices."
+              >
                 <Input
                   id="settings-billing-account-number"
                   value={billingAccountNumber}

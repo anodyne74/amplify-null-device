@@ -1,63 +1,8 @@
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1300;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--nd-space-md);
-  background: rgba(0, 0, 0, 0.6);
-}
-
-.dialog {
-  width: 100%;
-  max-width: 420px;
-  padding: var(--nd-space-lg);
-  background: var(--nd-bg-elevated);
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-lg);
-  box-shadow: var(--nd-shadow-lg);
-}
-
-.title {
-  margin: 0 0 var(--nd-space-sm);
-  font-size: 1.1rem;
-  color: var(--nd-text-primary);
-}
-
-.message {
-  margin: 0 0 var(--nd-space-lg);
-  color: var(--nd-text-secondary);
-}
-
 .actions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--nd-space-sm);
+  gap: var(--space-4);
   flex-wrap: wrap;
-}
-
-.cancelButton {
-  background: var(--nd-bg-surface);
-}
-
-.confirmButton {
-  background: var(--nd-role-accent, var(--nd-accent-primary));
-  border-color: transparent;
-  color: var(--nd-color-text-on-accent);
-}
-
-.dangerButton {
-  background: var(--nd-status-danger);
-  border-color: transparent;
-  color: var(--nd-color-text-on-danger);
-}
-
-.confirmButton:disabled,
-.dangerButton:disabled,
-.cancelButton:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 @media (max-width: 480px) {

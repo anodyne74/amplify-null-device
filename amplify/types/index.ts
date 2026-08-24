@@ -31,6 +31,7 @@ export type { Schema };
 export interface Customer {
   id: string;
   name: string;
+  companyName?: string;
   email: string;
   contactPhone?: string;
   addressLine1?: string;
@@ -47,6 +48,23 @@ export interface Customer {
   directDebitBsb?: string;
   directDebitAccountNumber?: string;
   directDebitAuthorizedAt?: string | null;
+  billingCycle?: BillingCycle | null;
+  paymentTermsDays?: number | null;
+  groupLineItemsByAgent?: boolean | null;
+  autoSendInvoiceOnPeriodClose?: boolean | null;
+  gstExclusive?: boolean | null;
+  standingPickupDay?: StandingPickupDay | null;
+  notifyOnLowSigns?: boolean | null;
+  sendMissingSignsReport?: boolean | null;
+  billingCcEmails?: string[] | null;
+  attachAgentBreakdown?: boolean | null;
+  sendPaymentReminder?: boolean | null;
+  driverSplitPercent?: number | null;
+  driverSplitBasis?: DriverSplitBasis | null;
+  hideDriverSplitFromCustomer?: boolean | null;
+  paySplitOnCompletedStopsOnly?: boolean | null;
+  accountOwnerSub?: string | null;
+  viewerSubs?: string[] | null;
   createdAt?: string;
   updatedAt?: string;
   routes?: Route[];
@@ -55,7 +73,16 @@ export interface Customer {
   users?: CustomerUser[];
   operatorAvailabilityBlocks?: OperatorAvailabilityBlock[];
   customerClosureBlocks?: CustomerClosureBlock[];
+  rateLines?: RateLine[];
+  payouts?: OperatorPayout[];
+  accountRequests?: AccountRequest[];
 }
+
+export type DriverSplitBasis = 'percentage_of_line_rate';
+
+export type StandingPickupDay = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+
+export type BillingCycle = 'weekly' | 'fortnightly' | 'monthly';
 
 export interface Operator {
   id: string;
@@ -91,14 +118,21 @@ export interface Route {
   overrideAmount?: number | null;
   notes?: string;
   customerInstructions?: string;
+  customerFeedbackTone?: 'good' | 'issue' | null;
+  customerFeedbackNote?: string;
   drivingModeEnabled?: boolean | null;
   vanCount?: number | null;
   scheduleS3Key?: string | null;
+  assignedOperatorSub?: string | null;
+  assignedOperatorName?: string | null;
+  assignedOperatorEmail?: string | null;
+  assignedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
   customer?: Customer;
   stops?: Stop[];
   lineItems?: LineItem[];
+  payouts?: OperatorPayout[];
 }
 
 export interface Stop {
@@ -132,9 +166,11 @@ export interface Invoice {
   periodStartDate: string;
   periodEndDate: string;
   totalAmount: number;
+  gstAmount?: number | null;
   status: InvoiceStatus;
   routeId?: string;
   pdfS3Key?: string;
+  viewerSubs?: string[] | null;
   createdAt?: string;
   updatedAt?: string;
   customer?: Customer;
@@ -151,9 +187,55 @@ export interface LineItem {
   quantity: number;
   ratePerUnit: number;
   amount: number;
+  viewerSubs?: string[] | null;
   createdAt?: string;
   invoice?: Invoice;
   route?: Route;
+}
+
+export type RateLineUnit = 'per_hour' | 'per_stop' | 'per_sign';
+
+export interface RateLine {
+  id: string;
+  customerId: string;
+  label: string;
+  unit?: RateLineUnit | null;
+  ratePerUnit: number;
+  sortOrder?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+  customer?: Customer;
+}
+
+export type OperatorPayoutStatus = 'pending' | 'paid';
+
+export interface OperatorPayout {
+  id: string;
+  operatorSub: string;
+  customerId: string;
+  routeId?: string | null;
+  periodStartDate?: string | null;
+  periodEndDate?: string | null;
+  amount: number;
+  status?: OperatorPayoutStatus | null;
+  paidAt?: string | null;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  customer?: Customer;
+  route?: Route;
+}
+
+export interface VanSignCount {
+  id: string;
+  operatorSub: string;
+  countDate: string;
+  standardCount: number;
+  auctionCount: number;
+  frameCount: number;
+  countedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface PaymentRecord {
@@ -166,6 +248,7 @@ export interface PaymentRecord {
   referenceNumber: string;
   status: PaymentStatus;
   notes?: string;
+  viewerSubs?: string[] | null;
   createdAt?: string;
   customer?: Customer;
   invoice?: Invoice;
@@ -200,6 +283,26 @@ export interface CustomerUser {
   customer?: Customer;
 }
 
+export type AccountRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface AccountRequest {
+  id: string;
+  requesterSub: string;
+  email: string;
+  name?: string | null;
+  customerId: string;
+  role?: CustomerUserRole | null;
+  status?: AccountRequestStatus | null;
+  requestedAt?: string | null;
+  lastNotifiedAt?: string | null;
+  decidedAt?: string | null;
+  decidedByUserSub?: string | null;
+  decisionNote?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  customer?: Customer;
+}
+
 export interface Administrator {
   id: string;
   name: string;
@@ -224,6 +327,7 @@ export interface OperatorAvailabilityBlock {
   date: string;
   reason?: string;
   createdByOperatorId?: string;
+  viewerSubs?: string[] | null;
   createdAt?: string;
   updatedAt?: string;
   customer?: Customer;
@@ -235,6 +339,8 @@ export interface CustomerClosureBlock {
   date: string;
   reason?: string;
   createdByUserSub?: string;
+  accountOwnerSub?: string | null;
+  viewerSubs?: string[] | null;
   createdAt?: string;
   updatedAt?: string;
   customer?: Customer;

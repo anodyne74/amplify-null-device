@@ -1,0 +1,108 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-5);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.savedNote {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  font-family: var(--font-mono);
+}
+
+.readOnly {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.instructionsBlock {
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: var(--text-body);
+  white-space: pre-line;
+}
+
+.readOnlyStats {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.statLabel {
+  color: var(--text-subtle);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  font-weight: var(--fw-semibold);
+}
+
+.statValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  color: var(--text-heading);
+  margin-top: var(--space-1);
+}
+
+.mutedText {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.agentList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.agentRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.agentName {
+  font-size: var(--text-sm);
+  color: var(--text-heading);
+}

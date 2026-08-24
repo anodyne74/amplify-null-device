@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import CustomerShell from '@/app/customer/components/CustomerShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
@@ -13,8 +14,14 @@ const CUSTOMER_NAV = [
   { href: '/customer/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
   { href: '/customer/routes', label: 'Routes', icon: 'route' },
   { href: '/customer/invoices', label: 'Invoices', icon: 'file-text' },
+  { href: '/customer/calendar', label: 'Calendar', icon: 'calendar' },
+  { href: '/customer/orders', label: 'Standing Orders', icon: 'clipboard-list' },
+  { href: '/customer/billing-details', label: 'Billing Details', icon: 'receipt' },
+  { href: '/customer/account-requests', label: 'Team Requests', icon: 'user-plus' },
   { href: '/customer/settings', label: 'Settings', icon: 'settings' },
 ];
+
+const READ_ONLY_HIDDEN_PATHS = ['/customer/invoices', '/customer/billing-details', '/customer/account-requests'];
 
 /**
  * Customer Portal Layout
@@ -77,8 +84,29 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     };
   }, [user?.userId]);
 
+  useEffect(() => {
+    if (!user?.userId) return;
+
+    void fetchAuthSession()
+      .then((session) => {
+        const idToken = session.tokens?.idToken?.toString();
+        if (!idToken) return;
+        return fetch('/api/customer/sync-profile-access', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({}),
+        });
+      })
+      .catch(() => {
+        // Non-blocking: existing accounts self-heal on a later visit if this fails.
+      });
+  }, [user?.userId]);
+
   const navItems = useMemo(
-    () => (customerRole === 'read_only' ? CUSTOMER_NAV.filter((item) => item.href !== '/customer/invoices') : CUSTOMER_NAV),
+    () => (customerRole === 'read_only' ? CUSTOMER_NAV.filter((item) => !READ_ONLY_HIDDEN_PATHS.includes(item.href)) : CUSTOMER_NAV),
     [customerRole]
   );
 

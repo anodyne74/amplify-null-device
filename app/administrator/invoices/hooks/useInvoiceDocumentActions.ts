@@ -9,6 +9,7 @@ import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseInvoiceText } from '@/lib/parseInvoice';
 import { BILLING_EMAIL } from '@/lib/publicAppConfig';
 import { getInvoiceWithLineItems, getRouteWithStops, updateInvoice, updateInvoicePdfKey } from '@/lib/queries';
+import { formatStopProperty, groupStopsByAgent, type StopSummary } from '@/app/administrator/invoices/stopFormatting';
 
 type UseInvoiceDocumentActionsParams = {
   customers: CustomerOption[];
@@ -35,30 +36,6 @@ type UseInvoiceDocumentActionsParams = {
 
 function getInvoicePdfKey(invoice: Invoice) {
   return invoice.pdfS3Key ?? null;
-}
-
-function formatStopProperty(stop: {
-  formattedAddress?: string | null;
-  address?: string | null;
-  sequence?: number | null;
-}) {
-  const baseAddress = (stop.formattedAddress || stop.address || 'Unknown property').trim();
-  const parts = baseAddress
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) =>
-      part
-        .replace(/\b(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\b\s*\d{4}\b/gi, '')
-        .replace(/\bAustralia\b/gi, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-    )
-    .filter(Boolean);
-
-  if (parts.length === 0) return 'Unknown property';
-  if (parts.length === 1) return parts[0];
-  return `${parts[0]}, ${parts[1]}`;
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {
@@ -306,16 +283,12 @@ export function useInvoiceDocumentActions({
         amount?: number | null;
       }>) ?? [];
       const routeStops = invoice.routeId
-        ? ((await getRouteWithStops(invoice.routeId)).stops as Array<{
-            sequence?: number | null;
-            address?: string | null;
-            formattedAddress?: string | null;
-            agent?: string | null;
-            numberOfSigns?: number | null;
+        ? ((await getRouteWithStops(invoice.routeId)).stops as Array<StopSummary & {
             latitude?: number | null;
             longitude?: number | null;
           }>) ?? []
         : [];
+      const groupStopsByAgentForCustomer = Boolean(customer?.groupLineItemsByAgent);
       const { jsPDF } = await import('jspdf');
       const { autoTable } = await import('jspdf-autotable');
       const logoDataUrl = await fetchLogoDataUrl();
@@ -544,14 +517,31 @@ export function useInvoiceDocumentActions({
         doc.text('Route Stop Details', config.margins.left, y);
 
         y += 18;
+        const stopTableBody = groupStopsByAgentForCustomer
+          ? groupStopsByAgent(routeStops).flatMap((group) => [
+              [
+                {
+                  content: `${group.agent} — ${group.signCount} signs`,
+                  colSpan: 3,
+                  styles: { fontStyle: 'bold' as const, fillColor: config.colors.tableHead },
+                },
+              ],
+              ...group.stops.map((stop) => [
+                formatStopProperty(stop),
+                '',
+                typeof stop.numberOfSigns === 'number' ? String(stop.numberOfSigns) : '—',
+              ]),
+            ])
+          : routeStops.map((stop) => [
+              formatStopProperty(stop),
+              stop.agent?.trim() || '—',
+              typeof stop.numberOfSigns === 'number' ? String(stop.numberOfSigns) : '—',
+            ]);
+
         autoTable(doc, {
           startY: y,
           head: [['Property', 'Agent', 'Signs']],
-          body: routeStops.map((stop) => [
-            formatStopProperty(stop),
-            stop.agent?.trim() || '—',
-            typeof stop.numberOfSigns === 'number' ? String(stop.numberOfSigns) : '—',
-          ]),
+          body: stopTableBody,
           theme: 'striped',
           margin: { left: config.margins.left, right: config.margins.right },
           styles: { font: 'helvetica', fontSize: 10, textColor: config.colors.text, fillColor: config.colors.secondary },

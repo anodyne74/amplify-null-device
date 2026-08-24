@@ -1,0 +1,232 @@
+.previewCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6);
+}
+
+.letterhead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding-bottom: var(--space-5);
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
+}
+
+.companyName {
+  font-size: var(--text-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+}
+
+.companyDetail {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.invoiceMeta {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.invoiceNumber {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+}
+
+.metaLine {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
+.threeColumns {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-5);
+}
+
+.payTo {
+  padding-left: var(--space-5);
+  border-left: var(--border-hairline) solid var(--border-subtle);
+}
+
+.columnLabel {
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+.columnHeading {
+  margin-top: var(--space-1);
+  font-size: var(--text-base);
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+}
+
+.columnDetail {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.lineTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.lineTable th {
+  text-align: left;
+  font-size: var(--text-2xs);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  padding: var(--space-2) var(--space-2);
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
+}
+
+.lineTable td {
+  padding: var(--space-2) var(--space-2);
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
+  color: var(--text-body);
+}
+
+.numeric {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.totals {
+  align-self: flex-end;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.totalsRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.totalsGrand {
+  padding-top: var(--space-2);
+  border-top: var(--border-hairline) solid var(--border-strong);
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+  font-size: var(--text-base);
+}
+
+.stopsSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.stopsSectionHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.agentGroups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.agentGroup {
+  border: var(--border-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.agentGroupHeader {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-page);
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+}
+
+.flatStops {
+  border: var(--border-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.stopRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
+  font-size: var(--text-sm);
+}
+
+.stopRow:last-child {
+  border-bottom: none;
+}
+
+.stopAddress {
+  flex: 1;
+  color: var(--text-body);
+}
+
+.stopAgent {
+  width: 120px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.stopSigns {
+  width: 48px;
+  text-align: right;
+  font-family: var(--font-mono);
+  color: var(--text-heading);
+}
+
+.internalPanel {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--indigo-50);
+  border: var(--border-hairline) solid var(--indigo-200);
+}
+
+.splitRow {
+  display: flex;
+  gap: var(--space-6);
+  margin-top: var(--space-2);
+}
+
+.splitAmount {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+}
+
+.sendingPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}

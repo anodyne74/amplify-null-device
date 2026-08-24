@@ -2,7 +2,9 @@ import { act, renderHook } from '@testing-library/react';
 import { useInvoiceDocumentActions } from './useInvoiceDocumentActions';
 import { getInvoiceWithLineItems, getRouteWithStops, updateInvoicePdfKey } from '@/lib/queries';
 import { uploadData } from 'aws-amplify/storage';
+import { autoTable } from 'jspdf-autotable';
 import type { Invoice } from '@/app/administrator/invoices/types';
+import type { CustomerOption } from '@/app/administrator/invoices/types';
 
 // GitHub issue #65: Generate PDF threw because `invoice.totalAmount.toFixed(2)`
 // was called unguarded — any invoice row with a null/undefined totalAmount
@@ -73,10 +75,12 @@ function createInvoice(overrides: Partial<Invoice> = {}): Invoice {
   } as Invoice;
 }
 
-function renderDocumentActions(overrides: { setUploadError?: jest.Mock } = {}) {
+function renderDocumentActions(
+  overrides: { setUploadError?: jest.Mock; customers?: CustomerOption[] } = {}
+) {
   return renderHook(() =>
     useInvoiceDocumentActions({
-      customers: [{ id: 'cust-1', name: 'Acme Corp' } as never],
+      customers: overrides.customers ?? [{ id: 'cust-1', name: 'Acme Corp' } as never],
       routes: [],
       invoices: [],
       fileInputRef: { current: null },
@@ -134,5 +138,62 @@ describe('useInvoiceDocumentActions — handleGeneratePdf (#65)', () => {
 
     expect(docStub.text).toHaveBeenCalledWith('$275.50', 500, expect.any(Number), { align: 'right' });
     expect(updateInvoicePdfKey).toHaveBeenCalledWith('inv-1', 'invoices/inv-1.pdf');
+  });
+});
+
+describe('useInvoiceDocumentActions — stop table agent grouping', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = jest.fn().mockResolvedValue({ ok: false });
+    (getInvoiceWithLineItems as jest.Mock).mockResolvedValue({ invoice: null, lineItems: [], errors: undefined });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: null,
+      stops: [
+        { address: '1 Test St, Epping NSW 2121', agent: "Betty O'Shea", numberOfSigns: 3 },
+        { address: '2 Test St, Epping NSW 2121', agent: 'David Mun', numberOfSigns: 2 },
+      ],
+      errors: undefined,
+    });
+    (uploadData as jest.Mock).mockReturnValue({ result: Promise.resolve({}) });
+    (updateInvoicePdfKey as jest.Mock).mockResolvedValue({ data: { id: 'inv-1' }, errors: undefined });
+  });
+
+  it('keeps the stop table flat when the customer has no grouping preference set', async () => {
+    const { result } = renderDocumentActions({
+      customers: [{ id: 'cust-1', name: 'Acme Corp', groupLineItemsByAgent: false } as never],
+    });
+
+    await act(async () => {
+      await result.current.handleGeneratePdf(createInvoice({ routeId: 'route-1' }));
+    });
+
+    const stopDetailsCall = (autoTable as jest.Mock).mock.calls.find(
+      ([, config]) => config?.head?.[0]?.[0] === 'Property'
+    );
+    expect(stopDetailsCall).toBeDefined();
+    expect(stopDetailsCall![1].body).toEqual([
+      ['1 Test St, Epping', "Betty O'Shea", '3'],
+      ['2 Test St, Epping', 'David Mun', '2'],
+    ]);
+  });
+
+  it('groups the stop table by agent when the customer has that on-charging preference set', async () => {
+    const { result } = renderDocumentActions({
+      customers: [{ id: 'cust-1', name: 'Acme Corp', groupLineItemsByAgent: true } as never],
+    });
+
+    await act(async () => {
+      await result.current.handleGeneratePdf(createInvoice({ routeId: 'route-1' }));
+    });
+
+    const stopDetailsCall = (autoTable as jest.Mock).mock.calls.find(
+      ([, config]) => config?.head?.[0]?.[0] === 'Property'
+    );
+    expect(stopDetailsCall).toBeDefined();
+    const body = stopDetailsCall![1].body as Array<Array<{ content?: string } | string>>;
+    expect(body[0][0]).toMatchObject({ content: "Betty O'Shea — 3 signs" });
+    expect(body[1]).toEqual(['1 Test St, Epping', '', '3']);
+    expect(body[2][0]).toMatchObject({ content: 'David Mun — 2 signs' });
+    expect(body[3]).toEqual(['2 Test St, Epping', '', '2']);
   });
 });

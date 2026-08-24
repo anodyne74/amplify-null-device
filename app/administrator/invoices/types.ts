@@ -7,6 +7,8 @@ export type CustomerOption = {
   billingRatePerHour?: number;
   gstExclusive?: boolean | null;
   viewerSubs?: string[] | null;
+  driverSplitPercent?: number | null;
+  groupLineItemsByAgent?: boolean | null;
 };
 
 export type InvoiceStatus = 'draft' | 'sent' | 'paid';

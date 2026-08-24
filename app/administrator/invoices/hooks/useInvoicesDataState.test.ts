@@ -180,4 +180,38 @@ describe('useInvoicesDataState', () => {
 
     expect(result.current.invoices.map((invoice) => invoice.id)).toEqual(['invoice-2']);
   });
+
+  it('patches one customer in state via updateCustomerInState without touching others', async () => {
+    (listCustomers as jest.Mock).mockResolvedValue({
+      data: [
+        { id: 'customer-1', name: 'Acme', groupLineItemsByAgent: false },
+        { id: 'customer-2', name: 'Beta', groupLineItemsByAgent: false },
+      ],
+      errors: undefined,
+      nextToken: null,
+    });
+    (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [] });
+    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: null });
+    (listInvoices as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: null });
+
+    const { result } = renderHook(() => {
+      const [customerId, setCustomerId] = useState('');
+      const [error, setError] = useState<string | null>(null);
+      const [loading, setLoading] = useState(false);
+      const hook = useInvoicesDataState({ customerId, setCustomerId, setError, setLoading });
+
+      return { error, loading, ...hook };
+    });
+
+    await act(async () => {
+      await result.current.fetchData();
+    });
+
+    act(() => {
+      result.current.updateCustomerInState('customer-1', { groupLineItemsByAgent: true });
+    });
+
+    expect(result.current.customers.find((c) => c.id === 'customer-1')?.groupLineItemsByAgent).toBe(true);
+    expect(result.current.customers.find((c) => c.id === 'customer-2')?.groupLineItemsByAgent).toBe(false);
+  });
 });

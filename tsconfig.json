@@ -9,20 +9,28 @@
     ],
     "module": "ESNext",
     "skipLibCheck": true,
-    /* Node resolution for Next.js */
-    "moduleResolution": "node",
+    /* baseUrl is deprecated as of TS 6.0 and will stop working in TS 7.0.
+       Not migrating off it as part of a dependency bump — silencing for
+       now, migrate deliberately later. */
+    "ignoreDeprecations": "6.0",
+    "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "preserve",
+    "rootDir": ".",
+    "jsx": "react-jsx",
     /* Path mapping for cleaner imports */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"],
-      "$amplify/*": ["./.amplify/generated/*"],
+      "@/*": [
+        "./*"
+      ],
+      "$amplify/*": [
+        "./.amplify/generated/*"
+      ],
       "@aws-amplify/backend/function/runtime": [
         "./node_modules/@aws-amplify/backend/lib/function/runtime/index.d.ts"
       ]
@@ -45,7 +53,8 @@
     "app",
     "next-env.d.ts",
     "src",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

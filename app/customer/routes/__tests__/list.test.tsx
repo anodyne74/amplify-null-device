@@ -159,11 +159,10 @@ describe('Customer Routes List Page', () => {
 
     render(<RoutesPage />);
 
-    await waitFor(() => {
-      expect(screen.queryByText(/Loading routes/i)).not.toBeInTheDocument();
-    });
-
-    const routeLinks = screen.getAllByRole('link');
+    // The route list is derived from fetched data in a second effect, so it
+    // settles one tick after the loading spinner disappears — findAllByRole
+    // waits for that instead of asserting on a possibly-stale render.
+    const routeLinks = await screen.findAllByRole('link');
     expect(routeLinks.map((link) => link.getAttribute('href'))).toEqual([
       '/customer/routes/route-3',
       '/customer/routes/route-2',

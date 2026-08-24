@@ -205,8 +205,13 @@
 .internalPanel {
   padding: var(--space-4);
   border-radius: var(--radius-md);
-  background: var(--indigo-50);
-  border: var(--border-hairline) solid var(--indigo-200);
+  background: var(--surface-brand-subtle);
+  border: var(--border-hairline) solid var(--border-brand);
+}
+
+.internalPanel .columnLabel,
+.internalPanel .metaLine {
+  color: var(--text-brand);
 }
 
 .splitRow {
@@ -219,7 +224,7 @@
   font-family: var(--font-mono);
   font-size: var(--text-lg);
   font-weight: var(--fw-semibold);
-  color: var(--text-heading);
+  color: var(--text-brand);
 }
 
 .sendingPanel {

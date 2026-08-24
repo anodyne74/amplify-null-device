@@ -30,11 +30,11 @@
     "jspdf-autotable": "^5.0.8",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.33.0",
-    "next": "^15.5.9",
-    "pdfjs-dist": "^4.10.38",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-leaflet": "^4.2.1"
+    "next": "^16.3.1",
+    "pdfjs-dist": "^6.2.108",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-leaflet": "^5.0.0"
   },
   "devDependencies": {
     "@aws-amplify/backend": "^1.23.0",
@@ -51,8 +51,8 @@
     "@types/aws-lambda": "^8.10.162",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.9.3",
-    "@types/react": "^18.3.27",
-    "@types/react-dom": "^18.3.7",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "@typescript-eslint/eslint-plugin": "^8.61.0",
     "@typescript-eslint/parser": "^8.61.0",
     "eslint": "^9.39.2",

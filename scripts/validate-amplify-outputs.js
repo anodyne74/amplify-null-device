@@ -39,7 +39,14 @@ const collectPlaceholderPaths = (value, currentPath = '', results = []) => {
   return results;
 };
 
-const isCi = process.env.CI === 'true';
+// CI=true alone isn't a safe signal: GitHub Actions' own quality-gates workflow also
+// sets it, and that workflow deliberately runs with zero AWS credentials (see
+// CLAUDE.md) -- it can never have real backend outputs to validate. Exclude it
+// explicitly via GITHUB_ACTIONS (a var GitHub Actions itself always sets) so the
+// CI=true fallback below still catches *other*, non-GitHub-Actions hosted contexts
+// that fail to set AWS_BRANCH/AWS_APP_ID/AMPLIFY_ENVIRONMENT_NAME.
+const isGitHubActions = process.env.GITHUB_ACTIONS === 'true';
+const isCi = process.env.CI === 'true' && !isGitHubActions;
 const hasAmplifyBranch = Boolean(process.env.AWS_BRANCH);
 const hasAmplifyAppId = Boolean(process.env.AWS_APP_ID);
 const hasAmplifyEnv = Boolean(process.env.AMPLIFY_ENVIRONMENT_NAME);

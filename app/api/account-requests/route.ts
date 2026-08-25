@@ -31,13 +31,19 @@ type VerifiedClaims = {
   email?: string;
 };
 
-const verifier = userPoolId && userPoolClientId
-  ? CognitoJwtVerifier.create({
-      userPoolId,
-      tokenUse: 'id',
-      clientId: userPoolClientId,
-    })
-  : null;
+let _verifier: ReturnType<typeof CognitoJwtVerifier.create> | null | undefined;
+function getVerifier() {
+  if (_verifier === undefined) {
+    _verifier = userPoolId && userPoolClientId
+      ? CognitoJwtVerifier.create({
+          userPoolId,
+          tokenUse: 'id',
+          clientId: userPoolClientId,
+        })
+      : null;
+  }
+  return _verifier;
+}
 
 function getBearerToken(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
@@ -49,6 +55,7 @@ function getBearerToken(request: NextRequest): string | null {
 
 async function verifyCaller(request: NextRequest): Promise<VerifiedClaims | null> {
   const token = getBearerToken(request);
+  const verifier = getVerifier();
   if (!token || !verifier) return null;
   try {
     const claims = (await verifier.verify(token)) as VerifiedClaims;

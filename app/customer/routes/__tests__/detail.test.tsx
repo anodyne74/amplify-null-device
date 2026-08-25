@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Route, Stop } from '@/amplify/types';
 import RouteDetailContent from '../[id]/_RouteDetailContent';
-import { getCustomerPortalContext, getRouteWithStops, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
+import { getCustomer, getCustomerPortalContext, getRouteWithStops, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
 
 jest.mock('@aws-amplify/ui-react', () => ({
   useAuthenticator: () => ({
@@ -34,6 +34,7 @@ jest.mock('@/lib/queries/GetRouteDetail', () => ({
 }));
 
 jest.mock('@/lib/queries', () => ({
+  getCustomer: jest.fn(),
   getCustomerPortalContext: jest.fn(),
   getRouteWithStops: jest.fn(),
   updateRouteCustomerInstructions: jest.fn(),
@@ -119,6 +120,10 @@ describe('Customer route detail tracker', () => {
     });
     (updateRouteCustomerInstructions as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
     (updateRoute as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
+    (getCustomer as jest.Mock).mockResolvedValue({
+      data: { id: 'cust-1', agentOptions: ["Betty O'Shea", 'David Mun'] },
+      errors: undefined,
+    });
   });
 
   it('lets a read-only customer user view their route tracker with map and stops', async () => {
@@ -142,20 +147,49 @@ describe('Customer route detail tracker', () => {
     expect(screen.getByText('1/3')).toBeInTheDocument();
   });
 
-  it('lets a customer save special instructions for the route', async () => {
+  it('lets a customer add a special instruction for the route, attributed to a picked agent', async () => {
     render(<RouteDetailContent params={{ id: 'route-1' }} />);
 
     await screen.findByRole('heading', { name: /route w19-26-001/i });
 
-    const instructionsField = screen.getByLabelText(/special instructions for this route/i);
+    const agentField = await screen.findByLabelText(/posting as/i);
+    fireEvent.change(agentField, { target: { value: 'David Mun' } });
+
+    const instructionsField = screen.getByLabelText(/add an instruction for this route/i);
     fireEvent.change(instructionsField, { target: { value: 'Leave signs at side gate' } });
-    fireEvent.click(screen.getByRole('button', { name: /save instructions/i }));
+    fireEvent.click(screen.getByRole('button', { name: /add instruction/i }));
 
     await waitFor(() => {
-      expect(updateRouteCustomerInstructions).toHaveBeenCalledWith('route-1', 'Leave signs at side gate');
+      expect(updateRouteCustomerInstructions).toHaveBeenCalledWith('route-1', expect.any(String));
     });
 
-    expect(await screen.findByText(/instructions saved/i)).toBeInTheDocument();
+    const [, savedValue] = (updateRouteCustomerInstructions as jest.Mock).mock.calls[0];
+    const saved = JSON.parse(savedValue);
+    expect(saved.entries).toEqual([
+      expect.objectContaining({
+        text: 'Leave signs at side gate',
+        agentLabel: 'David Mun',
+        authorSub: 'viewer-sub-1',
+      }),
+    ]);
+
+    expect(await screen.findByText(/instruction added/i)).toBeInTheDocument();
+    expect(screen.getByText('Leave signs at side gate')).toBeInTheDocument();
+    expect(screen.getByText(/david mun ·/i)).toBeInTheDocument();
+  });
+
+  it('shows a legacy plain-text customerInstructions value as an unattributed feed entry', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: { ...route, customerInstructions: 'Old freeform note from before this feature' },
+      stops,
+      errors: [],
+    });
+
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+
+    expect(screen.getByText('Old freeform note from before this feature')).toBeInTheDocument();
   });
 
   it('only shows the feedback card for a completed route, and lets a customer send it', async () => {

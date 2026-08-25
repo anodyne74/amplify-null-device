@@ -59,7 +59,8 @@ describe('bootstrap/auth/theme components', () => {
   it('renders theme toggle and updates mode on change (#56)', () => {
     render(<ThemeModeSelect label="Theme mode" className="extra" />);
 
-    const toggle = screen.getByLabelText('Theme mode');
+    // Label reflects the active theme, not just the static prefix (#81).
+    const toggle = screen.getByLabelText('Theme mode: Dark');
     expect(toggle).toBeChecked(); // resolvedMode: 'dark'
     expect(screen.queryByText('System')).not.toBeInTheDocument();
 
@@ -68,9 +69,9 @@ describe('bootstrap/auth/theme components', () => {
     expect(setModeMock).toHaveBeenCalledWith('light');
   });
 
-  it('uses default label when custom label is not provided', () => {
+  it('uses default label prefix when custom label is not provided, suffixed with the active theme (#81)', () => {
     render(<ThemeModeSelect />);
 
-    expect(screen.getByLabelText('Theme')).toBeInTheDocument();
+    expect(screen.getByLabelText('Theme: Dark')).toBeInTheDocument();
   });
 });

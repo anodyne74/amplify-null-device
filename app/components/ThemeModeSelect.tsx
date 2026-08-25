@@ -11,13 +11,14 @@ interface ThemeModeSelectProps {
 
 export default function ThemeModeSelect({ className, label = 'Theme' }: ThemeModeSelectProps) {
   const { resolvedMode, setMode } = useThemeMode();
+  const modeName = resolvedMode === 'dark' ? 'Dark' : 'Light';
 
   return (
     <div className={`${styles.wrapper}${className ? ` ${className}` : ''}`}>
       <Switch
         checked={resolvedMode === 'dark'}
         onChange={(event) => setMode(event.target.checked ? 'dark' : 'light')}
-        label={label}
+        label={label ? `${label}: ${modeName}` : modeName}
       />
     </div>
   );

@@ -64,6 +64,27 @@ describe('UserSettingsPage', () => {
     expect(screen.getByDisplayValue('Acme Pty Ltd')).toBeInTheDocument();
   });
 
+  it('applies the saved default theme on load, not just after saving (#80)', async () => {
+    getUserSettingsMock.mockResolvedValue({
+      data: { name: 'Saved Name', defaultTheme: 'light', mapTheme: 'light' },
+      errors: undefined,
+    });
+
+    render(<UserSettingsPage title="Settings" roleVariant="operator" />);
+
+    await screen.findByDisplayValue('Saved Name');
+    expect(setModeMock).toHaveBeenCalledWith('light');
+  });
+
+  it('does not force a theme mode when no settings have been saved yet', async () => {
+    getUserSettingsMock.mockResolvedValue({ data: null, errors: undefined });
+
+    render(<UserSettingsPage title="Settings" roleVariant="operator" />);
+
+    await screen.findByDisplayValue('Fallback Name');
+    expect(setModeMock).not.toHaveBeenCalled();
+  });
+
   it('hides admin billing fields for operator', async () => {
     render(<UserSettingsPage title="Settings" roleVariant="operator" />);
 

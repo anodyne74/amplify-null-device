@@ -87,13 +87,19 @@ type VerifiedClaims = {
   'cognito:groups'?: string[];
 };
 
-const verifier = userPoolId && userPoolClientId
-  ? CognitoJwtVerifier.create({
-      userPoolId,
-      tokenUse: 'id',
-      clientId: userPoolClientId,
-    })
-  : null;
+let _verifier: ReturnType<typeof CognitoJwtVerifier.create> | null | undefined;
+function getVerifier() {
+  if (_verifier === undefined) {
+    _verifier = userPoolId && userPoolClientId
+      ? CognitoJwtVerifier.create({
+          userPoolId,
+          tokenUse: 'id',
+          clientId: userPoolClientId,
+        })
+      : null;
+  }
+  return _verifier;
+}
 
 function getBearerToken(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
@@ -211,6 +217,7 @@ async function syncAdministratorRecords(authToken: string, users: ListedUser[]) 
 }
 
 async function verifyToken(token: string): Promise<VerifiedClaims | null> {
+  const verifier = getVerifier();
   if (!verifier) {
     return null;
   }

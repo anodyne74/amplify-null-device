@@ -22,13 +22,19 @@ type VerifiedClaims = {
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
 const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
 
-const verifier = userPoolId && userPoolClientId
-  ? CognitoJwtVerifier.create({
-      userPoolId,
-      tokenUse: 'id',
-      clientId: userPoolClientId,
-    })
-  : null;
+let _verifier: ReturnType<typeof CognitoJwtVerifier.create> | null | undefined;
+function getVerifier() {
+  if (_verifier === undefined) {
+    _verifier = userPoolId && userPoolClientId
+      ? CognitoJwtVerifier.create({
+          userPoolId,
+          tokenUse: 'id',
+          clientId: userPoolClientId,
+        })
+      : null;
+  }
+  return _verifier;
+}
 
 function getBearerToken(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
@@ -41,6 +47,7 @@ function getBearerToken(request: NextRequest): string | null {
 
 export async function POST(request: NextRequest) {
   const token = getBearerToken(request);
+  const verifier = getVerifier();
   if (!token || !verifier) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

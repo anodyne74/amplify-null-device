@@ -76,7 +76,16 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
         }
 
         setName(result.data.name?.trim() || fallbackDisplayName);
-        setDefaultTheme((result.data.defaultTheme as ThemeModeSetting | null) || 'dark');
+        const loadedTheme = result.data.defaultTheme as ThemeModeSetting | null;
+        setDefaultTheme(loadedTheme || 'dark');
+        // The saved default is only ever applied to the actual rendered theme when the
+        // user hits Save (see handleSave's setMode call) -- it was never re-applied when
+        // settings load on a fresh session, so a saved "Light" default silently reverted
+        // to whatever AmplifyThemeProvider's own localStorage/system fallback was on the
+        // next visit (#80). Apply it here too, once we know what was actually saved.
+        if (loadedTheme) {
+          setMode(loadedTheme);
+        }
         setMapTheme((result.data.mapTheme as MapThemeSetting | null) || 'light');
         setBillingCompanyName(result.data.billingCompanyName?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyName);
         setBillingAbn(result.data.billingAbn?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.abn);
@@ -93,7 +102,7 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
     return () => {
       cancelled = true;
     };
-  }, [fallbackDisplayName, user?.userId]);
+  }, [fallbackDisplayName, user?.userId, setMode]);
 
   useEffect(() => {
     if (roleVariant !== 'customer' || !user?.userId) return;

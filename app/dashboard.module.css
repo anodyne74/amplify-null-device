@@ -447,6 +447,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   min-height: 30px;
   padding: 6px 10px;
   border: 1px solid var(--nd-border-default);
@@ -455,6 +456,18 @@
   color: var(--nd-text-secondary);
   font-size: 0.74rem;
   cursor: pointer;
+}
+
+/* Distinguishes the "More" trigger from a flat action button — without this,
+   it's visually indistinguishable from adjacent buttons and it's unclear
+   it opens a menu rather than performing an action directly (#64). */
+.rowMenuChevron {
+  flex-shrink: 0;
+  transition: transform var(--nd-transition-fast, 0.15s ease);
+}
+
+.rowMenu[data-open='true'] .rowMenuChevron {
+  transform: rotate(180deg);
 }
 
 .rowMenuTrigger::-webkit-details-marker {

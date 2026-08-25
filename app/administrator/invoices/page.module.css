@@ -148,6 +148,14 @@
   flex-wrap: wrap;
 }
 
+/* Visually separates the status actions (Mark Paid / Email / Delete) from the
+   adjacent PDF column's own action group -- without this, the two columns
+   read as one undifferentiated row of buttons (#64). */
+.actionsCellWrap {
+  border-left: var(--border-hairline) solid var(--border-subtle);
+  padding-left: var(--space-4);
+}
+
 .bulkBar {
   display: flex;
   align-items: center;

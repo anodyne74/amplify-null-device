@@ -486,7 +486,7 @@ export default function InvoiceListTable({
                         )}
                       </div>
                     </td>
-                    <td>
+                    <td className={styles.actionsCellWrap}>
                       <div className={styles.actionsCell}>
                         {!isInvoicePaid(inferInvoiceStatus(invoice)) && (
                           <Button

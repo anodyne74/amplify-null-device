@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Icon } from '@/app/components/ui/core/Icon';
 import styles from '@/app/dashboard.module.css';
 
 interface AdminRowMenuProps {
@@ -113,6 +114,7 @@ export default function AdminRowMenu({
         onKeyDown={handleTriggerKeyDown}
       >
         {label}
+        <Icon name="chevron-down" size={14} className={styles.rowMenuChevron} />
       </button>
       {open && (
         <div

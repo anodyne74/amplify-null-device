@@ -6,6 +6,10 @@
   "engines": {
     "node": ">=22"
   },
+  "overrides": {
+    "immutable": "^4.3.9",
+    "lodash": "^4.18.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

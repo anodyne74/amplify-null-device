@@ -8,10 +8,17 @@ import {
 
 const outputsPath = process.env.AMPLIFY_OUTPUTS_PATH || 'amplify_outputs.json';
 
-const REQUIRED_GROUPS = [
-  { name: 'customer', precedence: 0 },
+// Cognito group Precedence is inverted from intuition: LOWER number wins when a user
+// belongs to multiple groups (their Identity Pool role resolves to the lowest-precedence
+// group's IAM role). administrator must therefore have the lowest number so a
+// multi-group account (e.g. a test account in both administrator and customer) still
+// gets the administrator role, not the least-privileged one. Getting this backwards is
+// exactly how #87 happened: customer previously had precedence 0 (highest priority),
+// so any multi-group user silently ran under the read-only customer IAM role.
+export const REQUIRED_GROUPS = [
+  { name: 'administrator', precedence: 0 },
   { name: 'operator', precedence: 1 },
-  { name: 'administrator', precedence: 2 },
+  { name: 'customer', precedence: 2 },
 ];
 
 function loadAmplifyOutputs(path) {
@@ -74,20 +81,22 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  const code = error?.name || error?.Code || error?.__type;
-  const isAccessDenied =
-    code === 'AccessDeniedException' ||
-    (typeof error?.message === 'string' && error.message.includes('not authorized to perform: cognito-idp:'));
+if (process.argv[1]?.endsWith('ensure-cognito-groups.js')) {
+  main().catch((error) => {
+    const code = error?.name || error?.Code || error?.__type;
+    const isAccessDenied =
+      code === 'AccessDeniedException' ||
+      (typeof error?.message === 'string' && error.message.includes('not authorized to perform: cognito-idp:'));
 
-  if (isAccessDenied) {
-    // Amplify Hosting build roles often do not include Cognito admin permissions.
-    // Don't fail deployment in that case: auth groups are still managed by backend IaC.
-    console.warn('Skipping Cognito group ensure due to IAM permissions:', error.message || code);
-    process.exitCode = 0;
-    return;
-  }
+    if (isAccessDenied) {
+      // Amplify Hosting build roles often do not include Cognito admin permissions.
+      // Don't fail deployment in that case: auth groups are still managed by backend IaC.
+      console.warn('Skipping Cognito group ensure due to IAM permissions:', error.message || code);
+      process.exitCode = 0;
+      return;
+    }
 
-  console.error('Failed to ensure Cognito groups:', error);
-  process.exitCode = 1;
-});
+    console.error('Failed to ensure Cognito groups:', error);
+    process.exitCode = 1;
+  });
+}

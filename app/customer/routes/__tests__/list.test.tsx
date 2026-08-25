@@ -251,4 +251,51 @@ describe('Customer Routes List Page', () => {
       );
     });
   });
+
+  describe('narrow viewport', () => {
+    beforeEach(() => {
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        value: jest.fn().mockImplementation((query: string) => ({
+          matches: true,
+          media: query,
+          addEventListener: jest.fn(),
+          removeEventListener: jest.fn(),
+        })),
+      });
+    });
+
+    afterEach(() => {
+      // @ts-expect-error -- cleanup of a property only this describe block defines
+      delete window.matchMedia;
+    });
+
+    it('renders a stacked RouteCard list instead of the DataTable', async () => {
+      (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
+        data: mockRoutes,
+        errors: undefined,
+      });
+
+      render(<RoutesPage />);
+
+      const routeLinks = await screen.findAllByRole('link');
+      expect(routeLinks.map((link) => link.getAttribute('href')).sort()).toEqual(
+        ['/customer/routes/route-1', '/customer/routes/route-2', '/customer/routes/route-3'].sort()
+      );
+      expect(screen.queryByText('Route ID')).not.toBeInTheDocument();
+    });
+
+    it('shows an empty-state message when there are no routes', async () => {
+      (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
+        data: [],
+        errors: undefined,
+      });
+
+      render(<RoutesPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/No routes found/i)).toBeInTheDocument();
+      });
+    });
+  });
 });

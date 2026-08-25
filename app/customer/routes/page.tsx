@@ -8,6 +8,7 @@ import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { RouteStatusPill } from '@/app/customer/components/RouteListItem';
+import RouteCard from '@/app/customer/components/RouteCard';
 import { Card } from '@/app/components/ui/core/Card';
 import { Tag } from '@/app/components/ui/core/Tag';
 import { Select } from '@/app/components/ui/forms/Select';
@@ -17,7 +18,13 @@ import type { Route } from '@/amplify/types';
 import { compareRouteIdDesc, compareRouteStatusAsc, formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
 import { formatRouteDate } from '@/lib/routeDetailHelpers';
 import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
+import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
 import styles from './page.module.css';
+
+// Below this width the DataTable's 5 columns don't fit sensibly (mirrors the
+// breakpoint already used by the orders/billing-details pages for their own
+// mobile layout switch) — show a stacked RouteCard list instead.
+const NARROW_LIST_BREAKPOINT_PX = 900;
 
 type ChipFilter = 'all' | 'planned' | 'active' | 'completed' | 'archived';
 
@@ -44,6 +51,7 @@ export default function CustomerRoutesPage() {
   const [statusFilter, setStatusFilter] = useState<ChipFilter>('all');
   const [sortBy, setSortBy] = useState<'routeId' | 'status'>('routeId');
   const [searchText, setSearchText] = useState('');
+  const isNarrow = useIsNarrowViewport(NARROW_LIST_BREAKPOINT_PX);
 
   useEffect(() => {
     if (!userId) return;
@@ -188,9 +196,23 @@ export default function CustomerRoutesPage() {
           </div>
         </div>
 
-        <Card padded={false}>
-          <DataTable columns={columns} rows={filteredRoutes} wrapped={false} empty="No routes found." />
-        </Card>
+        {isNarrow ? (
+          filteredRoutes.length > 0 ? (
+            <div className={styles.cardList}>
+              {filteredRoutes.map((route) => (
+                <RouteCard key={route.id} route={route} />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <p className={styles.summarySubtext}>No routes found.</p>
+            </Card>
+          )
+        ) : (
+          <Card padded={false}>
+            <DataTable columns={columns} rows={filteredRoutes} wrapped={false} empty="No routes found." />
+          </Card>
+        )}
 
         <div className={styles.summary}>
           <p>Showing {filteredRoutes.length} routes</p>

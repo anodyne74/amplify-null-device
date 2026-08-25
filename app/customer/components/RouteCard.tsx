@@ -17,14 +17,13 @@ interface RouteCardProps {
 export default function RouteCard({ route }: RouteCardProps) {
   const stopCount = route.stops?.length || 0;
   const createdDate = formatRouteDate(route.createdAt);
+  const displayCode = route.routeCode || `${route.id.slice(0, 8)}...`;
 
   return (
-    <div className={styles.card}>
+    <a className={styles.card} href={`/customer/routes/${route.id}`}>
       {/* Header with ID and Status */}
       <div className={styles.header}>
-        <h3 className={styles.title}>
-          Route {route.id.slice(0, 8)}...
-        </h3>
+        <h3 className={styles.title}>{displayCode}</h3>
         <RouteStatusBadge status={route.status} classes={styles} />
       </div>
 
@@ -54,6 +53,6 @@ export default function RouteCard({ route }: RouteCardProps) {
           View Details →
         </p>
       </div>
-    </div>
+    </a>
   );
 }

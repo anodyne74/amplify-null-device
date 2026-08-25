@@ -46,6 +46,7 @@ import { MAP_THEMES } from '@/lib/mapThemes';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import type { Route, Stop } from '@/amplify/types';
+import { parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import styles from './page.module.css';
 
 const RouteStopsMap = dynamic(
@@ -1488,6 +1489,33 @@ function RouteDetailContent() {
                 {route.notes}
               </div>
             )}
+
+            {(() => {
+              const customerInstructionEntries = sortRouteInstructionsNewestFirst(
+                parseRouteInstructions(route.customerInstructions)
+              );
+              if (customerInstructionEntries.length === 0) return null;
+
+              return (
+                <div className={styles.routeNotes}>
+                  <strong>
+                    Special instructions from customer
+                    {customerInstructionEntries.length > 1 ? ` (${customerInstructionEntries.length})` : ''}:
+                  </strong>
+                  {customerInstructionEntries.map((entry, index) => (
+                    <div key={`${entry.createdAt}-${index}`} style={{ marginTop: 'var(--space-2)' }}>
+                      {entry.text}
+                      {(entry.agentLabel || entry.createdAt) && (
+                        <div className={styles.mutedText}>
+                          {entry.agentLabel ? `${entry.agentLabel} · ` : ''}
+                          {entry.createdAt ? formatRouteDate(entry.createdAt) : ''}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* Status transitions */}
             <div className={styles.transitionRow}>

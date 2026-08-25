@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { getCustomerPortalContext, getRouteWithStops, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
+import { getCustomer, getCustomerPortalContext, getRouteWithStops, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
@@ -12,8 +12,10 @@ import { RouteStopsMap } from '@/app/operator/components/RouteStopsMap';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Input } from '@/app/components/ui/forms/Input';
-import type { Route, Stop } from '@/amplify/types';
+import { Select } from '@/app/components/ui/forms/Select';
+import type { Customer, Route, Stop } from '@/amplify/types';
 import { formatDurationHoursMinutes } from '@/lib/format';
+import { appendRouteInstruction, parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import styles from './_RouteDetailContent.module.css';
 
 interface RouteDetailContentProps {
@@ -33,7 +35,9 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const [stops, setStops] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
   const [instructionsDraft, setInstructionsDraft] = useState('');
+  const [instructionsAgent, setInstructionsAgent] = useState('');
   const [savingInstructions, setSavingInstructions] = useState(false);
   const [instructionsError, setInstructionsError] = useState<string | null>(null);
   const [instructionsSuccess, setInstructionsSuccess] = useState<string | null>(null);
@@ -69,9 +73,15 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
             );
             setStops(fetchedStops);
             setRoute({ ...fetchedRoute, stops: fetchedStops } as Route);
-            setInstructionsDraft(fetchedRoute.customerInstructions || '');
             setFeedbackTone((fetchedRoute.customerFeedbackTone as 'good' | 'issue' | null) ?? null);
             setFeedbackNote(fetchedRoute.customerFeedbackNote || '');
+
+            const { data: fetchedCustomer } = await getCustomer(context.customerId);
+            if (!cancelled && fetchedCustomer) {
+              const customerRecord = fetchedCustomer as unknown as Customer;
+              setCustomer(customerRecord);
+              setInstructionsAgent(customerRecord.agentOptions?.[0] ?? '');
+            }
           }
         } else {
           setError('Route not found');
@@ -94,13 +104,19 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
     };
   }, [params.id, userId]);
 
-  const handleSaveInstructions = async () => {
-    if (!route) return;
+  const handleAddInstruction = async () => {
+    if (!route || !instructionsDraft.trim()) return;
     setSavingInstructions(true);
     setInstructionsError(null);
     setInstructionsSuccess(null);
 
-    const result = await updateRouteCustomerInstructions(route.id, instructionsDraft);
+    const nextValue = appendRouteInstruction(route.customerInstructions, {
+      text: instructionsDraft,
+      agentLabel: instructionsAgent || undefined,
+      authorSub: userId,
+    });
+
+    const result = await updateRouteCustomerInstructions(route.id, nextValue);
 
     if (result.errors && result.errors.length > 0) {
       setInstructionsError('Could not save your instructions.');
@@ -108,8 +124,9 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
       return;
     }
 
-    setRoute({ ...route, customerInstructions: instructionsDraft, updatedAt: new Date().toISOString() });
-    setInstructionsSuccess('Instructions saved.');
+    setRoute({ ...route, customerInstructions: nextValue, updatedAt: new Date().toISOString() });
+    setInstructionsDraft('');
+    setInstructionsSuccess('Instruction added.');
     setSavingInstructions(false);
   };
 
@@ -165,6 +182,9 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
       minute: '2-digit',
     });
   };
+
+  const instructionEntries = sortRouteInstructionsNewestFirst(parseRouteInstructions(route.customerInstructions));
+  const agentOptions = customer?.agentOptions ?? [];
 
   const routeLabel = route.routeCode || `${route.id.slice(0, 8)}...`;
   const totalSigns = stops.reduce((sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0), 0);
@@ -262,9 +282,33 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
             {instructionsError && <p className="nd-badge nd-badge--danger">{instructionsError}</p>}
             {instructionsSuccess && <p className="nd-badge nd-badge--success">{instructionsSuccess}</p>}
 
+            {instructionEntries.length > 0 && (
+              <div className={styles.instructionsFeed}>
+                {instructionEntries.map((entry, index) => (
+                  <div key={`${entry.createdAt}-${index}`} className={styles.instructionEntry}>
+                    <p className={styles.instructionText}>{entry.text}</p>
+                    <span className={styles.instructionsMeta}>
+                      {entry.agentLabel ? `${entry.agentLabel} · ` : ''}
+                      {entry.createdAt ? formatDate(entry.createdAt) : 'Before this feature tracked who/when'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {agentOptions.length > 0 && (
+              <Select
+                aria-label="Posting as"
+                value={instructionsAgent}
+                onChange={(e) => setInstructionsAgent(e.target.value)}
+                disabled={savingInstructions}
+                options={agentOptions.map((agent) => ({ value: agent, label: `Posting as ${agent}` }))}
+              />
+            )}
+
             <Input
               multiline
-              aria-label="Special instructions for this route"
+              aria-label="Add an instruction for this route"
               value={instructionsDraft}
               onChange={(e) => setInstructionsDraft(e.target.value)}
               placeholder="Anything specific for this run — access, extra signs, a street to avoid"
@@ -275,14 +319,11 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
               <Button
                 type="button"
                 loading={savingInstructions}
-                disabled={savingInstructions}
-                onClick={() => void handleSaveInstructions()}
+                disabled={savingInstructions || !instructionsDraft.trim()}
+                onClick={() => void handleAddInstruction()}
               >
-                {savingInstructions ? 'Saving…' : 'Save instructions'}
+                {savingInstructions ? 'Adding…' : 'Add instruction'}
               </Button>
-              {route.customerInstructions && (
-                <span className={styles.instructionsMeta}>Last updated {formatDate(route.updatedAt)}</span>
-              )}
             </div>
           </div>
         </Card>

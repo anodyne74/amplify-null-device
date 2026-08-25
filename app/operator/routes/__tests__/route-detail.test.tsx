@@ -210,6 +210,56 @@ describe('Operator Route Detail Page', () => {
     expect(editLink).toHaveAttribute('href', expect.stringContaining('/administrator/routes/edit?id=route-test-id-1234'));
   });
 
+  it('shows customer-posted special instructions read-only, newest first', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
+      data: {
+        ...mockRoute,
+        customerInstructions: JSON.stringify({
+          v: 1,
+          entries: [
+            { text: 'Extra signs at the front', agentLabel: "Betty O'Shea", createdAt: '2026-08-20T01:00:00.000Z' },
+            { text: 'Watch for the dog', agentLabel: 'David Mun', createdAt: '2026-08-21T01:00:00.000Z' },
+          ],
+        }),
+      },
+      errors: undefined,
+    });
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/loading route/i)).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/special instructions from customer \(2\)/i)).toBeInTheDocument();
+    expect(screen.getByText('Watch for the dog')).toBeInTheDocument();
+    expect(screen.getByText('Extra signs at the front')).toBeInTheDocument();
+
+    // Newest first: "Watch for the dog" (Aug 21) should appear before "Extra signs..." (Aug 20)
+    const watchDog = screen.getByText('Watch for the dog');
+    const extraSigns = screen.getByText('Extra signs at the front');
+    expect(watchDog.compareDocumentPosition(extraSigns) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // Read-only: no compose affordance anywhere on this page
+    expect(screen.queryByRole('button', { name: /add instruction/i })).not.toBeInTheDocument();
+  });
+
+  it('shows a legacy plain-text customerInstructions value without a count/agent label', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
+      data: { ...mockRoute, customerInstructions: 'Old freeform note' },
+      errors: undefined,
+    });
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/loading route/i)).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Old freeform note')).toBeInTheDocument();
+    expect(screen.queryByText(/special instructions from customer \(/i)).not.toBeInTheDocument();
+  });
+
   it('renders stops list', async () => {
     render(<RouteDetailPage />);
 

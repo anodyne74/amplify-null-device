@@ -1,4 +1,5 @@
 .card {
+  display: block;
   padding: var(--nd-space-md);
   background-color: var(--nd-bg-surface);
   border: 1px solid var(--nd-border-default);

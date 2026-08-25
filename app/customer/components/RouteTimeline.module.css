@@ -71,3 +71,17 @@
   color: var(--text-subtle);
   margin: 0;
 }
+
+/* Below ~600px, 6 equal-flex columns squeeze multi-word labels ("Signs Placed",
+   "Signs Picked Up") into overlapping wrapped text. Give each step a fixed
+   minimum width and let the strip scroll horizontally instead. */
+@media (max-width: 600px) {
+  .steps {
+    overflow-x: auto;
+    padding-bottom: var(--space-2);
+  }
+
+  .step {
+    flex: 0 0 84px;
+  }
+}

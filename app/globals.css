@@ -280,7 +280,13 @@ body {
   min-height: 100vh;
   background-color: var(--nd-bg-void);
   color: var(--nd-text-primary);
-  justify-content: center;
+  /* "safe center", not plain "center": a plain centered flex column can't be
+     scrolled back to its own top edge once its content grows taller than the
+     viewport (the classic flexbox-overflow-centering trap) -- on a route with
+     many stops that made the page header permanently unreachable (#78).
+     "safe center" keeps the short-content centering (e.g. the sign-in page)
+     but falls back to start-alignment once content overflows. */
+  justify-content: safe center;
 }
 
 /* Shared layout primitives for cross-page consistency */

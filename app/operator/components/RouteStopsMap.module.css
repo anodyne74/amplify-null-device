@@ -10,6 +10,13 @@
   border: var(--border-hairline) solid var(--border-subtle);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  /* Leaflet's own panes/controls use z-index values up to ~1000, which — since
+     neither this element nor .leaflet-container otherwise establishes a stacking
+     context — can escape above app-level dialogs (e.g. the ~z-index:60 dialog
+     scrim in components.css). isolation:isolate bounds all of Leaflet's internal
+     stacking inside this box regardless of its values, so any sibling dialog
+     always wins without needing to chase Leaflet's exact z-index numbers. */
+  isolation: isolate;
 }
 
 .mapField {

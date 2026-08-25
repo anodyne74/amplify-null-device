@@ -1667,7 +1667,17 @@ function RouteDetailContent() {
                   value={phaseSummary.signsTotal}
                   icon="route"
                 />
-                <StatTile label="Distance" value={`${phaseSummary.distanceKm.toFixed(2)} km`} icon="map-pin" />
+                <StatTile
+                  label={phaseSummary.phase === 'pickup' ? 'Pickup Distance' : 'Placement Distance'}
+                  value={`${phaseSummary.distanceKm.toFixed(2)} km`}
+                  icon="map-pin"
+                />
+                {phaseSummary.phase === 'pickup' && (
+                  // The pickup summary only carried its own distance (#79) — placement's
+                  // was already recorded (see handleEndRoute) but never surfaced here once
+                  // pickup finished. Show it alongside for reference.
+                  <StatTile label="Placement Distance" value={`${placementDistance.toFixed(2)} km`} icon="map-pin" />
+                )}
                 <StatTile label="Skipped" value={phaseSummary.skippedStops.length} icon="triangle-alert" />
               </div>
 

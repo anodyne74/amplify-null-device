@@ -8,15 +8,18 @@ import {
   createInvoice,
   createLineItem,
   deleteInvoice,
+  updateCustomer,
   updateInvoice,
 } from '@/lib/queries';
 import InvoiceCreateForm from '@/app/administrator/invoices/components/InvoiceCreateForm';
+import InvoicePreview from '@/app/administrator/invoices/components/InvoicePreview';
 import { useInvoiceBillingSettings } from '@/app/administrator/invoices/hooks/useInvoiceBillingSettings';
 import InvoiceListTable from '@/app/administrator/invoices/components/InvoiceListTable';
 import { useInvoiceCreateState } from '@/app/administrator/invoices/hooks/useInvoiceCreateState';
 import { useInvoiceDerivedFormEffects } from '@/app/administrator/invoices/hooks/useInvoiceDerivedFormEffects';
 import { useCustomerRateLines } from '@/app/administrator/invoices/hooks/useCustomerRateLines';
 import { useRateLineTotals } from '@/app/administrator/invoices/hooks/useRateLineTotals';
+import { useRouteStopsPreview } from '@/app/administrator/invoices/hooks/useRouteStopsPreview';
 import { useInvoiceDocumentActions } from '@/app/administrator/invoices/hooks/useInvoiceDocumentActions';
 import { useInvoiceUiState } from '@/app/administrator/invoices/hooks/useInvoiceUiState';
 import { useInvoicesDataState } from '@/app/administrator/invoices/hooks/useInvoicesDataState';
@@ -88,9 +91,23 @@ export default function InvoicesAdminPage() {
     fetchData,
     updateInvoiceInState,
     removeInvoiceFromState,
+    updateCustomerInState,
   } = useInvoicesDataState({ customerId, setCustomerId, setError, setLoading });
 
   const selectedCustomer = customers.find((entry) => entry.id === customerId);
+  const selectedRoute = routes.find((route) => route.id === routeId);
+  const { stops: previewStops, loading: previewStopsLoading } = useRouteStopsPreview(routeId);
+
+  const handleToggleGroupByAgent = async (nextValue: boolean) => {
+    if (!customerId) return;
+    const previousValue = selectedCustomer?.groupLineItemsByAgent ?? false;
+    updateCustomerInState(customerId, { groupLineItemsByAgent: nextValue });
+    const result = await updateCustomer(customerId, { groupLineItemsByAgent: nextValue });
+    if (result.errors && result.errors.length > 0) {
+      updateCustomerInState(customerId, { groupLineItemsByAgent: previousValue });
+      setError('Failed to update the on-charging grouping setting.');
+    }
+  };
 
   const {
     billingCompanyName,
@@ -281,6 +298,31 @@ export default function InvoicesAdminPage() {
           onRateLineQuantityChange={handleRateLineQuantityChange}
           onSubmit={handleCreate}
         />
+
+        {selectedCustomer && (
+          <InvoicePreview
+            invoiceNumber={invoiceNumber}
+            customer={selectedCustomer}
+            route={selectedRoute}
+            rateLines={rateLines}
+            rateLineQuantities={rateLineQuantities}
+            totalHours={totalHours}
+            totalAmount={totalAmount}
+            gstAmount={gstAmount}
+            stops={previewStops}
+            stopsLoading={previewStopsLoading}
+            billingCompanyName={billingCompanyName}
+            billingAbn={billingAbn}
+            billingPhone={billingPhone}
+            billingCompanyAddress={billingCompanyAddress}
+            billingPaymentAccountName={billingPaymentAccountName}
+            billingBsb={billingBsb}
+            billingAccountNumber={billingAccountNumber}
+            onToggleGroupByAgent={(next) => {
+              void handleToggleGroupByAgent(next);
+            }}
+          />
+        )}
 
         {error && <div className={styles.errorBanner} role="alert" aria-live="assertive">{error}</div>}
         {successMessage && (

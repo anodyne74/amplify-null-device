@@ -43,6 +43,12 @@ export function useInvoicesDataState({
     );
   }, []);
 
+  const updateCustomerInState = useCallback((customerIdToUpdate: string, updates: Partial<CustomerOption>) => {
+    setCustomers((prev) =>
+      prev.map((customer) => (customer.id === customerIdToUpdate ? { ...customer, ...updates } : customer))
+    );
+  }, []);
+
   const removeInvoiceFromState = useCallback((invoiceId: string) => {
     setInvoices((prev) => prev.filter((invoice) => invoice.id !== invoiceId));
   }, []);
@@ -60,6 +66,8 @@ export function useInvoicesDataState({
         billingRatePerHour?: number;
         gstExclusive?: boolean | null;
         viewerSubs?: string[] | null;
+        driverSplitPercent?: number | null;
+        groupLineItemsByAgent?: boolean | null;
       }> = [];
       let nextToken: string | undefined;
 
@@ -78,6 +86,8 @@ export function useInvoicesDataState({
             billingRatePerHour?: number;
             gstExclusive?: boolean | null;
             viewerSubs?: string[] | null;
+            driverSplitPercent?: number | null;
+            groupLineItemsByAgent?: boolean | null;
           }>) || [])
         );
         nextToken = result.nextToken ?? undefined;
@@ -137,6 +147,8 @@ export function useInvoicesDataState({
         billingRatePerHour?: number;
         gstExclusive?: boolean | null;
         viewerSubs?: string[] | null;
+        driverSplitPercent?: number | null;
+        groupLineItemsByAgent?: boolean | null;
       }>) || []).map((customer) => ({
         id: customer.id,
         name: customer.name,
@@ -145,6 +157,8 @@ export function useInvoicesDataState({
         billingRatePerHour: customer.billingRatePerHour,
         gstExclusive: customer.gstExclusive,
         viewerSubs: customer.viewerSubs,
+        driverSplitPercent: customer.driverSplitPercent,
+        groupLineItemsByAgent: customer.groupLineItemsByAgent,
       }));
 
       const customersWithPrimary = await Promise.all(
@@ -184,5 +198,6 @@ export function useInvoicesDataState({
     fetchData,
     updateInvoiceInState,
     removeInvoiceFromState,
+    updateCustomerInState,
   };
 }

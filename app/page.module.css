@@ -86,32 +86,17 @@
   flex-direction: column;
   justify-content: center;
   padding: var(--space-9) 8vw;
+  /* Deliberately fixed light, not theme-following -- see the data-theme="light"
+     note on the [data-theme='light'] token block in tokens.css. The contrast
+     against the gradient hero panel is the whole point of this layout, so it
+     can't flip dark when the visitor's own theme preference is dark. */
+  background: var(--surface-card);
 }
 
 .formInner {
   width: 100%;
   max-width: 380px;
   margin: 0 auto;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  margin-bottom: var(--space-9);
-}
-
-.brandLogo {
-  width: 44px;
-  height: 44px;
-  flex: none;
-}
-
-.brandWordmark {
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  font-weight: 500;
-  color: var(--text-heading);
 }
 
 .welcomeTitle {
@@ -153,23 +138,6 @@
 
 .linkButton:hover {
   color: var(--text-heading);
-}
-
-.divider {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  margin: var(--space-7) 0;
-  color: var(--text-subtle);
-  font-size: var(--text-xs);
-}
-
-.divider::before,
-.divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-subtle);
 }
 
 .backLink {
@@ -214,25 +182,6 @@
   margin-bottom: 0;
 }
 
-.signupHeader {
-  margin-bottom: var(--space-5);
-  padding: var(--space-4) var(--space-5);
-  background: var(--surface-brand-subtle);
-  border-radius: var(--radius-md);
-}
-
-.signupHeaderTitle {
-  margin: 0;
-  font-size: var(--text-lg);
-  color: var(--text-heading);
-}
-
-.signupHeaderText {
-  margin-top: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-
 .footerText {
   margin: var(--space-9) 0 0;
   font-size: var(--text-xs);
@@ -267,6 +216,15 @@
   filter: blur(8px);
 }
 
+.heroWatermark {
+  position: absolute;
+  left: -140px;
+  bottom: -160px;
+  width: 560px;
+  height: 560px;
+  opacity: 0.16;
+}
+
 .heroContent {
   position: relative;
   color: #fff;
@@ -293,6 +251,16 @@
   display: flex;
   gap: var(--space-3);
   align-items: center;
+}
+
+.heroFooter {
+  margin-top: var(--space-9);
+  padding-top: var(--space-5);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .heroBrandMobile {
@@ -323,12 +291,12 @@
     display: none;
   }
 
-  .heroBrandMobile {
-    display: flex;
+  .heroWatermark {
+    display: none;
   }
 
-  .brand {
-    display: none;
+  .heroBrandMobile {
+    display: flex;
   }
 
   .formColumn {

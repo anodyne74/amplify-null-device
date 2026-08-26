@@ -147,6 +147,8 @@ export default function CustomersAdminPage() {
     setEditDefaultAgentInitials,
     editAgentOptionsText,
     setEditAgentOptionsText,
+    editRestrictInvitesToOwnDomain,
+    setEditRestrictInvitesToOwnDomain,
     editResolvedAddress,
     setEditResolvedAddress,
     editSaving,
@@ -352,6 +354,7 @@ export default function CustomersAdminPage() {
         defaultAgentName: editDefaultAgentName,
         defaultAgentInitials: editDefaultAgentInitials,
         agentOptions: parseAgentOptionsInput(editAgentOptionsText),
+        restrictInvitesToOwnDomain: editRestrictInvitesToOwnDomain,
       });
 
       if (result.errors && result.errors.length > 0) {
@@ -374,6 +377,7 @@ export default function CustomersAdminPage() {
                   defaultAgentName: editDefaultAgentName,
                   defaultAgentInitials: editDefaultAgentInitials,
                   agentOptions: normalizedAgentOptions,
+                  restrictInvitesToOwnDomain: editRestrictInvitesToOwnDomain,
                 }
               : customer
           )
@@ -561,6 +565,7 @@ export default function CustomersAdminPage() {
                           editDefaultAgentName={editDefaultAgentName}
                           editDefaultAgentInitials={editDefaultAgentInitials}
                           editAgentOptionsText={editAgentOptionsText}
+                          editRestrictInvitesToOwnDomain={editRestrictInvitesToOwnDomain}
                           editSaving={editSaving}
                           editError={editError}
                           editSuccess={editSuccess}
@@ -582,6 +587,7 @@ export default function CustomersAdminPage() {
                           }}
                           onEditAgentOptionsTextChange={setEditAgentOptionsText}
                           onEditStandingInstructionsChange={setEditStandingInstructions}
+                          onEditRestrictInvitesToOwnDomainChange={setEditRestrictInvitesToOwnDomain}
                           onSave={() => {
                             void handleUpdateCustomer(customer.id);
                           }}

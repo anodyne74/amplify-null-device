@@ -152,4 +152,48 @@ describe('UsersAdminPage customer access actions', () => {
     expect(screen.getByText('Primary contact')).toBeInTheDocument();
     expect(screen.getByText('Missing')).toBeInTheDocument();
   });
+
+  it('creates a real Cognito login (instead of a pending placeholder) when the invited email has no existing account', async () => {
+    global.fetch = jest.fn(async (_url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string) as { action: string };
+      if (body.action === 'getUserByEmail') {
+        return { ok: false, json: async () => ({ error: 'No user found.' }) };
+      }
+      if (body.action === 'createUser') {
+        return {
+          ok: true,
+          json: async () => ({ user: { sub: 'brand-new-sub', username: 'new@agency.com.au' }, created: true }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    }) as jest.Mock;
+
+    render(<UsersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Read User')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Email for new customer user'), {
+      target: { value: 'new@agency.com.au' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add customer user' }));
+
+    await waitFor(() => {
+      expect(mockCreateCustomerUser).toHaveBeenCalledWith(
+        expect.objectContaining({ userSub: 'brand-new-sub', email: 'new@agency.com.au' })
+      );
+    });
+
+    expect(screen.getByText(/invited by email/i)).toBeInTheDocument();
+
+    const calls = (global.fetch as jest.Mock).mock.calls;
+    const createUserCall = calls.find(([, init]) => JSON.parse(init.body).action === 'createUser');
+    expect(createUserCall).toBeTruthy();
+    expect(JSON.parse(createUserCall![1].body)).toMatchObject({
+      action: 'createUser',
+      email: 'new@agency.com.au',
+      groupName: 'customer',
+    });
+  });
 });

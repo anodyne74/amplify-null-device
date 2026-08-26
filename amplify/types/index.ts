@@ -63,6 +63,7 @@ export interface Customer {
   driverSplitBasis?: DriverSplitBasis | null;
   hideDriverSplitFromCustomer?: boolean | null;
   paySplitOnCompletedStopsOnly?: boolean | null;
+  restrictInvitesToOwnDomain?: boolean | null;
   accountOwnerSub?: string | null;
   viewerSubs?: string[] | null;
   createdAt?: string;

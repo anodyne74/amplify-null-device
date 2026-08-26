@@ -270,6 +270,7 @@ export async function updateCustomer(
     driverSplitBasis: 'percentage_of_line_rate';
     hideDriverSplitFromCustomer: boolean;
     paySplitOnCompletedStopsOnly: boolean;
+    restrictInvitesToOwnDomain: boolean;
   }>
 ) {
   try {

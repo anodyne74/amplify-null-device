@@ -1,3 +1,5 @@
+[![CI/CD Pipeline](https://github.com/anodyne74/amplify-null-device/actions/workflows/ci.yml/badge.svg)](https://github.com/anodyne74/amplify-null-device/actions/workflows/ci.yml)
+
 # nd-assets - Delivery Management System
 
 A serverless delivery management platform built with Next.js 15, AWS Amplify Gen 2, and Cognito. It includes role-aware administrator, operator, and customer portals, route planning and execution workflows, customer-specific dashboards, and invoice management with SES email delivery.

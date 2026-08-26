@@ -13,6 +13,7 @@ export type Customer = {
   defaultAgentName?: string | null;
   defaultAgentInitials?: string | null;
   agentOptions?: string[] | null;
+  restrictInvitesToOwnDomain?: boolean | null;
 };
 
 export type CustomerUser = {

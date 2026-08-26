@@ -53,11 +53,10 @@ type CustomerUser = {
 };
 
 const GROUPS = ['customer', 'operator', 'administrator'] as const;
+// Older CustomerUser records may still carry this placeholder prefix from
+// before user creation was synchronous (see handleAddCustomerUser) -- kept
+// only so toViewerSubs continues to filter any such legacy rows out.
 const PENDING_SUB_PREFIX = 'pending:';
-
-function toPendingSub(email: string) {
-  return `${PENDING_SUB_PREFIX}${email.trim().toLowerCase()}`;
-}
 
 function toViewerSubs(users: Array<{ userSub?: string | null }>) {
   return [
@@ -251,16 +250,14 @@ export default function UsersAdminPage() {
     }
 
     const normalizedEmail = newUserEmail.trim().toLowerCase();
-    const pendingUserSub = toPendingSub(normalizedEmail);
     const resolvedUser = await resolveUserByEmail(normalizedEmail).catch(() => null);
-    const assignedUserSub = resolvedUser?.sub || pendingUserSub;
 
     const owner = customerUsers.find((u) => u.role === 'account_owner');
     if (newUserRole === 'read_only' && !owner) {
       setAccessError('No account owner assigned for this customer yet. Assign a primary contact first.');
       return;
     }
-    if (newUserRole === 'account_owner' && owner && owner.userSub !== assignedUserSub) {
+    if (newUserRole === 'account_owner' && owner && owner.userSub !== resolvedUser?.sub) {
       setAccessError('This customer already has a primary contact. Remove the current owner before assigning a new one.');
       return;
     }
@@ -270,9 +267,12 @@ export default function UsersAdminPage() {
     setAccessSuccess(null);
 
     try {
-      // If the Cognito user already exists, ensure they are in the customer group now.
-      // If they do not exist yet, the post-confirmation trigger will apply this automatically.
-      if (resolvedUser?.username) {
+      let assignedUserSub: string;
+      let invited = false;
+
+      if (resolvedUser?.sub && resolvedUser.username) {
+        // Already has a Cognito account -- just make sure they're in the customer group.
+        assignedUserSub = resolvedUser.sub;
         const userGroupsPayload = await callAdminApi({
           action: 'listGroupsForUser',
           username: resolvedUser.username,
@@ -285,6 +285,25 @@ export default function UsersAdminPage() {
             groupName: 'customer',
           });
         }
+      } else {
+        // No existing Cognito account for this email -- create one for real right
+        // now and invite them (Cognito emails a temporary password), rather than
+        // pre-assigning a placeholder record for a self-service signup that no
+        // longer exists.
+        const createPayload = await callAdminApi({
+          action: 'createUser',
+          email: normalizedEmail,
+          name: newUserName || undefined,
+          groupName: 'customer',
+        });
+        const createdUser = (createPayload.user as { sub?: string } | undefined) || {};
+        if (!createdUser.sub) {
+          setAccessError('Could not create a login for this email.');
+          setAccessPending(false);
+          return;
+        }
+        assignedUserSub = createdUser.sub;
+        invited = true;
       }
 
       const existing =
@@ -332,9 +351,9 @@ export default function UsersAdminPage() {
       await syncViewerSubsForCustomer(selectedCustomerId, viewerSubs);
 
       setAccessSuccess(
-        resolvedUser?.sub
-          ? 'User assigned to customer and access synced to all routes and stops.'
-          : 'Customer access is pre-assigned. When this email registers, role access will activate automatically.'
+        invited
+          ? 'Account created and invited by email — Cognito sent them a temporary password. Access is synced.'
+          : 'User assigned to customer and access synced to all routes and stops.'
       );
       setNewUserEmail('');
       setNewUserRole('read_only');
@@ -574,7 +593,7 @@ export default function UsersAdminPage() {
 
         <Card
           title="Manage User Groups"
-          subtitle="Assign and revoke customer, operator, and administrator groups by user email. Users must sign up via Request Access and set their own password during sign-up."
+          subtitle="Assign and revoke customer, operator, and administrator groups by user email."
         >
           {error && <div className={styles.errorBanner} role="alert" aria-live="assertive">{error}</div>}
           {error && !listUsersDenied && (

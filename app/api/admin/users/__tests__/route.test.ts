@@ -12,16 +12,29 @@ const verifyMock = jest.fn();
 
 import { POST } from '@/app/api/admin/users/route';
 
-jest.mock('@aws-sdk/client-cognito-identity-provider', () => ({
-  CognitoIdentityProviderClient: jest.fn(() => ({
-    send: sendMock,
-  })),
-  ListUsersCommand: jest.fn((input) => ({ input })),
-  ListUsersInGroupCommand: jest.fn((input) => ({ input })),
-  AdminListGroupsForUserCommand: jest.fn((input) => ({ input })),
-  AdminAddUserToGroupCommand: jest.fn((input) => ({ input })),
-  AdminRemoveUserFromGroupCommand: jest.fn((input) => ({ input })),
-}));
+jest.mock('@aws-sdk/client-cognito-identity-provider', () => {
+  class UsernameExistsException extends Error {
+    constructor() {
+      super('An account with the given email already exists.');
+      this.name = 'UsernameExistsException';
+    }
+  }
+
+  return {
+    CognitoIdentityProviderClient: jest.fn(() => ({
+      send: sendMock,
+    })),
+    ListUsersCommand: jest.fn((input) => ({ input })),
+    ListUsersInGroupCommand: jest.fn((input) => ({ input })),
+    AdminListGroupsForUserCommand: jest.fn((input) => ({ input })),
+    AdminAddUserToGroupCommand: jest.fn((input) => ({ input })),
+    AdminRemoveUserFromGroupCommand: jest.fn((input) => ({ input })),
+    AdminCreateUserCommand: jest.fn((input) => ({ input })),
+    UsernameExistsException,
+  };
+});
+
+import { UsernameExistsException } from '@aws-sdk/client-cognito-identity-provider';
 
 jest.mock('aws-jwt-verify', () => ({
   CognitoJwtVerifier: {
@@ -190,5 +203,97 @@ describe('admin users API', () => {
       }),
     });
     expect(sendMock).toHaveBeenCalled();
+  });
+
+  it('createUser provisions a real Cognito login and adds it to the given group', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        User: {
+          Username: 'new@agency.com.au',
+          Attributes: [{ Name: 'sub', Value: 'sub-brand-new' }],
+        },
+      })
+      .mockResolvedValueOnce({});
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'createUser',
+        email: 'new@agency.com.au',
+        name: 'New Agent',
+        groupName: 'customer',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      user: { sub: 'sub-brand-new', username: 'new@agency.com.au' },
+      created: true,
+    });
+    expect(sendMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('createUser adds an already-existing Cognito user to the group instead of erroring', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockRejectedValueOnce(new UsernameExistsException())
+      .mockResolvedValueOnce({
+        Users: [
+          {
+            Username: 'existing-user',
+            Attributes: [
+              { Name: 'email', Value: 'already@agency.com.au' },
+              { Name: 'sub', Value: 'sub-existing' },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({});
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'createUser',
+        email: 'already@agency.com.au',
+        groupName: 'customer',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      user: { sub: 'sub-existing', username: 'existing-user' },
+      created: false,
+    });
+    expect(sendMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('rejects createUser with an invalid groupName', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'createUser', email: 'x@y.com', groupName: 'not-a-group' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+    expect(sendMock).not.toHaveBeenCalled();
   });
 });

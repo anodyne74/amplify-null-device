@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   AdminAddUserToGroupCommand,
+  AdminCreateUserCommand,
   AdminListGroupsForUserCommand,
   AdminRemoveUserFromGroupCommand,
   CognitoIdentityProviderClient,
   ListUsersCommand,
   ListUsersInGroupCommand,
+  UsernameExistsException,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import outputs from '@/amplify_outputs.json';
@@ -22,12 +24,14 @@ type AdminUserAction =
   | 'listGroupsForUser'
   | 'addUserToGroup'
   | 'removeUserFromGroup'
-  | 'getUserByEmail';
+  | 'getUserByEmail'
+  | 'createUser';
 
 type AdminUserRequest = {
   action: AdminUserAction;
   username?: string;
   email?: string;
+  name?: string;
   groupName?: (typeof ALLOWED_GROUPS)[number];
 };
 
@@ -77,6 +81,114 @@ function getAttributeValue(
   attributeName: string
 ): string | undefined {
   return attributes?.find((attribute) => attribute.Name === attributeName)?.Value;
+}
+
+type CognitoListedUser = {
+  Username?: string;
+  Enabled?: boolean;
+  UserStatus?: string;
+  UserCreateDate?: Date;
+  UserLastModifiedDate?: Date;
+  Attributes?: { Name?: string; Value?: string }[];
+};
+
+/** Cognito ListUsers doesn't support an exact-match email filter, so this
+ * paginates a `Filter: email = "..."` query and confirms the exact match
+ * client-side (the filter can return case/substring near-matches). */
+async function findUserByEmail(poolId: string, email: string): Promise<CognitoListedUser | undefined> {
+  const escapedEmail = email.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  let paginationToken: string | undefined;
+  let matched: CognitoListedUser | undefined;
+
+  do {
+    const response = await cognitoClient.send(
+      new ListUsersCommand({
+        UserPoolId: poolId,
+        Filter: `email = "${escapedEmail}"`,
+        Limit: 60,
+        PaginationToken: paginationToken,
+      } as any)
+    );
+
+    matched = (response.Users || []).find(
+      (user) => getAttributeValue(user.Attributes, 'email')?.toLowerCase() === email
+    );
+    paginationToken = (response as any).PaginationToken as string | undefined;
+  } while (!matched && paginationToken);
+
+  return matched;
+}
+
+/**
+ * Creates a real Cognito login for `email` (Cognito auto-generates a
+ * temporary password and sends its own built-in invitation email — no
+ * MessageAction/TemporaryPassword override, that's the point) and adds it to
+ * `groupName`. If a user with that email already exists, adds the existing
+ * user to the group instead of erroring (a legitimate case: re-inviting, or
+ * the person already has an account from a different portal context).
+ *
+ * Exported as a plain function (not inlined in the `createUser` action
+ * below) so a future customer-owner-facing invite route can reuse the same
+ * Cognito-user-provisioning logic under its own caller-authorization check,
+ * without duplicating it.
+ */
+export async function createOrGetCognitoUser({
+  poolId,
+  email,
+  name,
+  groupName,
+}: {
+  poolId: string;
+  email: string;
+  name?: string;
+  groupName: (typeof ALLOWED_GROUPS)[number];
+}): Promise<{ sub?: string; username: string; created: boolean }> {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  let username: string;
+  let sub: string | undefined;
+  let created: boolean;
+
+  try {
+    const response = await cognitoClient.send(
+      new AdminCreateUserCommand({
+        UserPoolId: poolId,
+        Username: normalizedEmail,
+        UserAttributes: [
+          { Name: 'email', Value: normalizedEmail },
+          { Name: 'email_verified', Value: 'true' },
+          ...(name ? [{ Name: 'name', Value: name }] : []),
+        ],
+      })
+    );
+
+    username = response.User?.Username || normalizedEmail;
+    sub = getAttributeValue(response.User?.Attributes, 'sub');
+    created = true;
+  } catch (error) {
+    if (!(error instanceof UsernameExistsException)) {
+      throw error;
+    }
+
+    const existing = await findUserByEmail(poolId, normalizedEmail);
+    if (!existing?.Username) {
+      throw error;
+    }
+
+    username = existing.Username;
+    sub = getAttributeValue(existing.Attributes, 'sub');
+    created = false;
+  }
+
+  await cognitoClient.send(
+    new AdminAddUserToGroupCommand({
+      UserPoolId: poolId,
+      Username: username,
+      GroupName: groupName,
+    })
+  );
+
+  return { sub, username, created };
 }
 
 type VerifiedClaims = {
@@ -374,32 +486,7 @@ export async function POST(request: NextRequest) {
       }
 
       const email = body.email.trim().toLowerCase();
-      const escapedEmail = email.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      let paginationToken: string | undefined;
-      let matched: {
-        Username?: string;
-        Enabled?: boolean;
-        UserStatus?: string;
-        UserCreateDate?: Date;
-        UserLastModifiedDate?: Date;
-        Attributes?: { Name?: string; Value?: string }[];
-      } | undefined;
-
-      do {
-        const response = await cognitoClient.send(
-          new ListUsersCommand({
-            UserPoolId: userPoolId,
-            Filter: `email = "${escapedEmail}"`,
-            Limit: 60,
-            PaginationToken: paginationToken,
-          } as any)
-        );
-
-        matched = (response.Users || []).find(
-          (user) => getAttributeValue(user.Attributes, 'email')?.toLowerCase() === email
-        );
-        paginationToken = (response as any).PaginationToken as string | undefined;
-      } while (!matched && paginationToken);
+      const matched = await findUserByEmail(userPoolId, email);
 
       if (!matched) {
         return NextResponse.json({ error: `No user found for email ${email}.` }, { status: 404 });
@@ -420,6 +507,36 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json({ user });
+    }
+
+    if (body.action === 'createUser') {
+      if (!body.email || !body.groupName) {
+        return NextResponse.json({ error: 'email and groupName are required.' }, { status: 400 });
+      }
+
+      if (!ALLOWED_GROUPS.includes(body.groupName)) {
+        return NextResponse.json({ error: 'Invalid groupName.' }, { status: 400 });
+      }
+
+      const { sub, username, created } = await createOrGetCognitoUser({
+        poolId: userPoolId,
+        email: body.email,
+        name: body.name,
+        groupName: body.groupName,
+      });
+
+      await writeAuditLog(authResult.token, {
+        operatorId: authResult.claims.sub,
+        eventType: 'data_modification',
+        resourceType: 'operator',
+        resourceId: username,
+        action: created ? `create_user:${body.groupName}` : `create_user_existing:${body.groupName}`,
+        status: 'success',
+        ipAddress: request.headers.get('x-forwarded-for') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+      });
+
+      return NextResponse.json({ user: { sub, username }, created });
     }
 
     if (body.action === 'addUserToGroup') {

@@ -61,6 +61,20 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     Users?: UserType[];
   }
 
+  export interface AdminCreateUserCommandInput {
+    UserPoolId: string;
+    Username: string;
+    UserAttributes?: AttributeType[];
+  }
+
+  export interface AdminCreateUserCommandOutput {
+    User?: UserType;
+  }
+
+  export class UsernameExistsException extends Error {
+    readonly name: 'UsernameExistsException';
+  }
+
   export class AdminAddUserToGroupCommand {
     readonly __brand_AdminAddUserToGroupCommand?: true;
     constructor(input: AdminAddUserToGroupCommandInput);
@@ -86,6 +100,11 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     constructor(input: ListUsersInGroupCommandInput);
   }
 
+  export class AdminCreateUserCommand {
+    readonly __brand_AdminCreateUserCommand?: true;
+    constructor(input: AdminCreateUserCommandInput);
+  }
+
   export class CognitoIdentityProviderClient {
     constructor(config?: Record<string, unknown>);
     send(command: AdminAddUserToGroupCommand): Promise<void>;
@@ -93,5 +112,6 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     send(command: AdminListGroupsForUserCommand): Promise<AdminListGroupsForUserCommandOutput>;
     send(command: ListUsersCommand): Promise<ListUsersCommandOutput>;
     send(command: ListUsersInGroupCommand): Promise<ListUsersInGroupCommandOutput>;
+    send(command: AdminCreateUserCommand): Promise<AdminCreateUserCommandOutput>;
   }
 }

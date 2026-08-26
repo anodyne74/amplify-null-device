@@ -1,9 +1,14 @@
 import { Button } from '@/app/components/ui/core/Button';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
+import { Checkbox } from '@/app/components/ui/forms/Checkbox';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import type { Customer, CustomerStatus } from '@/app/administrator/customers/types';
 import styles from '../page.module.css';
+
+function emailDomain(email: string) {
+  return email.split('@')[1]?.trim() || 'their domain';
+}
 
 interface CustomerEditPanelProps {
   customer: Customer;
@@ -18,6 +23,7 @@ interface CustomerEditPanelProps {
   editDefaultAgentName: string;
   editDefaultAgentInitials: string;
   editAgentOptionsText: string;
+  editRestrictInvitesToOwnDomain: boolean;
   editSaving: boolean;
   editError: string | null;
   editSuccess: string | null;
@@ -34,6 +40,7 @@ interface CustomerEditPanelProps {
   onEditResolvedAddressChange: (resolved: ResolvedAddress | null) => void;
   onEditAgentOptionsTextChange: (value: string) => void;
   onEditStandingInstructionsChange: (value: string) => void;
+  onEditRestrictInvitesToOwnDomainChange: (value: boolean) => void;
   onSave: () => void;
   onCancel: () => void;
 }
@@ -51,6 +58,7 @@ export default function CustomerEditPanel({
   editDefaultAgentName,
   editDefaultAgentInitials,
   editAgentOptionsText,
+  editRestrictInvitesToOwnDomain,
   editSaving,
   editError,
   editSuccess,
@@ -67,6 +75,7 @@ export default function CustomerEditPanel({
   onEditResolvedAddressChange,
   onEditAgentOptionsTextChange,
   onEditStandingInstructionsChange,
+  onEditRestrictInvitesToOwnDomainChange,
   onSave,
   onCancel,
 }: CustomerEditPanelProps) {
@@ -172,6 +181,14 @@ export default function CustomerEditPanel({
             Current default initials: {customer.defaultAgentInitials}
           </p>
         )}
+        <Checkbox
+          className={styles.fieldsGridFull}
+          checked={editRestrictInvitesToOwnDomain}
+          onChange={(event) => onEditRestrictInvitesToOwnDomainChange(event.target.checked)}
+          disabled={editSaving}
+          label={`Restrict invited users to @${emailDomain(editEmail || customer.email)} email addresses`}
+          description="When on, this customer's account owner can only invite teammates whose email matches this domain."
+        />
       </div>
       <div className={styles.actionsRow}>
         <Button type="button" variant="primary" loading={editSaving} onClick={onSave}>

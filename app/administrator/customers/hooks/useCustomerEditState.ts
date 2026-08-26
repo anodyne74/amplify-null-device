@@ -22,6 +22,7 @@ export function useCustomerEditState() {
   const [editDefaultAgentName, setEditDefaultAgentName] = useState('');
   const [editDefaultAgentInitials, setEditDefaultAgentInitials] = useState('');
   const [editAgentOptionsText, setEditAgentOptionsText] = useState('');
+  const [editRestrictInvitesToOwnDomain, setEditRestrictInvitesToOwnDomain] = useState(false);
   const [editResolvedAddress, setEditResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -56,6 +57,7 @@ export function useCustomerEditState() {
     setEditDefaultAgentName(customer.defaultAgentName ?? '');
     setEditDefaultAgentInitials(customer.defaultAgentInitials ?? '');
     setEditAgentOptionsText(agentOptionsText);
+    setEditRestrictInvitesToOwnDomain(Boolean(customer.restrictInvitesToOwnDomain));
   };
 
   return {
@@ -84,6 +86,8 @@ export function useCustomerEditState() {
     setEditDefaultAgentInitials,
     editAgentOptionsText,
     setEditAgentOptionsText,
+    editRestrictInvitesToOwnDomain,
+    setEditRestrictInvitesToOwnDomain,
     editResolvedAddress,
     setEditResolvedAddress,
     editSaving,

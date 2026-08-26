@@ -78,6 +78,11 @@ const schema = a.schema({
       driverSplitBasis: a.enum(['percentage_of_line_rate']),
       hideDriverSplitFromCustomer: a.boolean(),
       paySplitOnCompletedStopsOnly: a.boolean(),
+      // Administrator-configured: when true, gates a customer-side "invite a
+      // teammate" feature (not yet built) so the account owner can only invite
+      // email addresses on this Customer's own registered email domain
+      // (derived from `email` above, not a separately stored value).
+      restrictInvitesToOwnDomain: a.boolean(),
       // Owner/viewer subs — same pattern as Route/Stop, synced by the customer-access-activation
       // Lambda. accountOwnerSub grants the account owner read/write to their own Customer record;
       // viewerSubs grants every customer user (owner + read_only) read access.

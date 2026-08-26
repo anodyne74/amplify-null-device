@@ -10,7 +10,6 @@ jest.mock('next/navigation', () => ({
 }));
 
 const mockToForgotPassword = jest.fn();
-const mockToSignUp = jest.fn();
 const mockToSignIn = jest.fn();
 
 jest.mock('@aws-amplify/ui-react', () => ({
@@ -257,7 +256,6 @@ describe('Home Redirect', () => {
       (useAuthenticator as jest.Mock).mockReturnValue({
         authStatus: 'unauthenticated',
         toForgotPassword: mockToForgotPassword,
-        toSignUp: mockToSignUp,
         toSignIn: mockToSignIn,
       });
       (useUserGroups as jest.Mock).mockReturnValue({
@@ -275,7 +273,6 @@ describe('Home Redirect', () => {
       expect(screen.getByLabelText('Work email')).toBeInTheDocument();
       expect(screen.getByLabelText('Password')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /request an account/i })).toBeInTheDocument();
       expect(screen.queryByTestId('authenticator')).not.toBeInTheDocument();
     });
 
@@ -310,11 +307,10 @@ describe('Home Redirect', () => {
     it('switches to the embedded Authenticator on forgot password, and back again', () => {
       render(<Home />);
 
-      fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
+      fireEvent.click(screen.getByRole('link', { name: /forgot password/i }));
 
       expect(screen.getByTestId('authenticator')).toBeInTheDocument();
       expect(mockToForgotPassword).toHaveBeenCalledTimes(1);
-      expect(mockToSignUp).not.toHaveBeenCalled();
       expect(screen.queryByLabelText('Work email')).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByRole('button', { name: /back to sign in/i }));
@@ -322,30 +318,6 @@ describe('Home Redirect', () => {
       expect(mockToSignIn).toHaveBeenCalledTimes(1);
       expect(screen.getByLabelText('Work email')).toBeInTheDocument();
       expect(screen.queryByTestId('authenticator')).not.toBeInTheDocument();
-    });
-
-    it('switches to the embedded Authenticator on request an account', () => {
-      render(<Home />);
-
-      fireEvent.click(screen.getByRole('button', { name: /request an account/i }));
-
-      expect(screen.getByTestId('authenticator')).toBeInTheDocument();
-      expect(mockToSignUp).toHaveBeenCalledTimes(1);
-      expect(mockToForgotPassword).not.toHaveBeenCalled();
-    });
-
-    it('calls the correct transition when navigating forgot password → back → request an account', () => {
-      render(<Home />);
-
-      fireEvent.click(screen.getByRole('button', { name: /forgot password/i }));
-      expect(mockToForgotPassword).toHaveBeenCalledTimes(1);
-
-      fireEvent.click(screen.getByRole('button', { name: /back to sign in/i }));
-      expect(mockToSignIn).toHaveBeenCalledTimes(1);
-
-      fireEvent.click(screen.getByRole('button', { name: /request an account/i }));
-
-      expect(mockToSignUp).toHaveBeenCalledTimes(1);
     });
   });
 });

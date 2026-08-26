@@ -97,8 +97,14 @@
   --map-marker-selected: #b181e8;
 }
 
-/* Semantic aliases */
-:root {
+/* Semantic aliases. Also addressable as [data-theme='light'] (not just the
+   :root default) so a subtree can force light styling regardless of an
+   ancestor's data-theme="dark" -- e.g. the login page's white form panel,
+   which must stay light even when the visitor's own theme preference is
+   dark, since its contrast is deliberately fixed against the gradient panel
+   next to it, not theme-following. */
+:root,
+[data-theme='light'] {
   --surface-page: var(--neutral-50);
   --surface-card: var(--neutral-0);
   --surface-raised: var(--neutral-0);

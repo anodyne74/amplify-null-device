@@ -302,7 +302,9 @@ describe('Home Redirect', () => {
       fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrong' } });
       fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
-      expect(await screen.findByText('Incorrect email or password.')).toBeInTheDocument();
+      expect(
+        await screen.findByText("That email or password doesn't match. Try again, or reset your password.")
+      ).toBeInTheDocument();
     });
 
     it('switches to the embedded Authenticator on forgot password, and back again', () => {

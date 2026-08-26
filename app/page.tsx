@@ -59,7 +59,7 @@ const SIGNUP_COMPONENTS = {
 function getSignInErrorMessage(error: unknown): string {
   const name = error && typeof error === 'object' && 'name' in error ? String((error as { name?: unknown }).name) : '';
   if (name === 'NotAuthorizedException' || name === 'UserNotFoundException') {
-    return 'Incorrect email or password.';
+    return "That email or password doesn't match. Try again, or reset your password.";
   }
   if (name === 'UserNotConfirmedException') {
     return 'Confirm your email before signing in.';

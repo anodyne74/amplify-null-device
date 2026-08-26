@@ -6,6 +6,7 @@ import { fetchAuthSession, signOut } from 'aws-amplify/auth';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Badge } from '@/app/components/ui/core/Badge';
+import { Icon } from '@/app/components/ui/core/Icon';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
@@ -58,10 +59,19 @@ function formatDateTime(value?: string | null) {
 
 type TimelineStepState = 'done' | 'current' | 'upcoming' | 'stopped';
 
+const TIMELINE_STEP_ICON: Record<TimelineStepState, string> = {
+  done: 'check',
+  current: 'timer',
+  upcoming: 'key-round',
+  stopped: 'x',
+};
+
 function TimelineStep({ state, title, detail }: { state: TimelineStepState; title: string; detail?: string | null }) {
   return (
     <div className={styles.timelineStep} data-state={state}>
-      <span className={styles.timelineDot} aria-hidden="true" />
+      <span className={styles.timelineIcon} aria-hidden="true">
+        <Icon name={TIMELINE_STEP_ICON[state]} size={14} strokeWidth={2} />
+      </span>
       <div>
         <p className={styles.timelineTitle}>{title}</p>
         {detail && <p className={styles.timelineDetail}>{detail}</p>}

@@ -58,25 +58,31 @@
   gap: var(--space-3);
 }
 
-.timelineDot {
+.timelineIcon {
   flex: 0 0 auto;
-  width: 10px;
-  height: 10px;
-  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: var(--border-subtle);
+  background: var(--status-neutral-bg);
+  color: var(--status-neutral-fg);
 }
 
-.timelineStep[data-state='done'] .timelineDot {
-  background: var(--status-success-fg);
+.timelineStep[data-state='done'] .timelineIcon {
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
 }
 
-.timelineStep[data-state='current'] .timelineDot {
-  background: var(--status-warning-fg);
+.timelineStep[data-state='current'] .timelineIcon {
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
 }
 
-.timelineStep[data-state='stopped'] .timelineDot {
-  background: var(--status-danger-fg);
+.timelineStep[data-state='stopped'] .timelineIcon {
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
 }
 
 .timelineTitle {

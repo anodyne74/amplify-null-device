@@ -1,0 +1,81 @@
+.text {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.errorBanner {
+  padding: var(--space-4);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-5);
+  font-size: var(--text-sm);
+}
+
+.successBanner {
+  padding: var(--space-4);
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-5);
+  font-size: var(--text-sm);
+}
+
+.inviteCard {
+  margin-bottom: var(--space-6);
+}
+
+.listCard {
+  margin-bottom: var(--space-6);
+}
+
+.cardTitle {
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-lg);
+  color: var(--text-heading);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 420px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.listRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-hairline) solid var(--border-subtle);
+}
+
+.listRow:last-child {
+  border-bottom: none;
+}
+
+.listName {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+}
+
+.listEmail {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.listRole {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}

@@ -17,10 +17,11 @@ const CUSTOMER_NAV = [
   { href: '/customer/calendar', label: 'Calendar', icon: 'calendar' },
   { href: '/customer/orders', label: 'Standing Orders', icon: 'clipboard-list' },
   { href: '/customer/billing-details', label: 'Billing Details', icon: 'receipt' },
+  { href: '/customer/users', label: 'Team', icon: 'user-plus' },
   { href: '/customer/settings', label: 'Settings', icon: 'settings' },
 ];
 
-const READ_ONLY_HIDDEN_PATHS = ['/customer/invoices', '/customer/billing-details'];
+const READ_ONLY_HIDDEN_PATHS = ['/customer/invoices', '/customer/billing-details', '/customer/users'];
 
 /**
  * Customer Portal Layout

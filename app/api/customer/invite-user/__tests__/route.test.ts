@@ -23,6 +23,7 @@ const lineItemUpdateMock = jest.fn();
 const paymentRecordListMock = jest.fn();
 const paymentRecordUpdateMock = jest.fn();
 const createOrGetCognitoUserMock = jest.fn();
+const sendInvitationEmailMock = jest.fn();
 
 jest.mock('aws-jwt-verify', () => ({
   CognitoJwtVerifier: {
@@ -48,6 +49,10 @@ jest.mock('@/app/api/admin/users/route', () => ({
   createOrGetCognitoUser: (...args: unknown[]) => createOrGetCognitoUserMock(...args),
 }));
 
+jest.mock('@/lib/emails/invitationEmail', () => ({
+  sendInvitationEmail: (...args: unknown[]) => sendInvitationEmailMock(...args),
+}));
+
 import { POST } from '@/app/api/customer/invite-user/route';
 
 function makeRequest(body: Record<string, unknown>) {
@@ -66,7 +71,13 @@ describe('customer invite-user API', () => {
       ({ filter }: { filter: { userSub?: { eq: string }; customerId?: { eq: string } } }) => {
         if (filter.userSub) {
           return Promise.resolve({
-            data: [{ customerId: 'cust-1', role: 'account_owner', userSub: 'sub-owner-1' }],
+            data: [{
+              customerId: 'cust-1',
+              role: 'account_owner',
+              userSub: 'sub-owner-1',
+              name: 'Range Property Owner',
+              email: 'owner@rangeproperty.com.au',
+            }],
           });
         }
         return Promise.resolve({
@@ -91,7 +102,13 @@ describe('customer invite-user API', () => {
     paymentRecordListMock.mockResolvedValue({ data: [] });
     paymentRecordUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
 
-    createOrGetCognitoUserMock.mockResolvedValue({ sub: 'sub-new-teammate', username: 'teammate@rangeproperty.com.au', created: true });
+    createOrGetCognitoUserMock.mockResolvedValue({
+      sub: 'sub-new-teammate',
+      username: 'teammate@rangeproperty.com.au',
+      created: true,
+      temporaryPassword: 'Temp-Pass-9xKq',
+    });
+    sendInvitationEmailMock.mockResolvedValue(undefined);
   });
 
   it('returns 401 when token is missing', async () => {
@@ -144,7 +161,11 @@ describe('customer invite-user API', () => {
     const response = await POST(makeRequest({ email: 'teammate@rangeproperty.com.au' }));
     expect(response.status).toBe(200);
     expect(createOrGetCognitoUserMock).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'teammate@rangeproperty.com.au', groupName: 'customer' })
+      expect.objectContaining({
+        email: 'teammate@rangeproperty.com.au',
+        groupName: 'customer',
+        sendInvitationEmail: true,
+      })
     );
   });
 
@@ -175,6 +196,7 @@ describe('customer invite-user API', () => {
       email: 'teammate@rangeproperty.com.au',
       name: 'Jamie Teammate',
       groupName: 'customer',
+      sendInvitationEmail: true,
     });
 
     expect(customerUserCreateMock).toHaveBeenCalledWith({
@@ -187,7 +209,30 @@ describe('customer invite-user API', () => {
     });
   });
 
-  it('passes through UsernameExistsException reuse from the shared helper unchanged', async () => {
+  it('sends the branded invitation email with the issued temporary password', async () => {
+    const response = await POST(makeRequest({ email: 'teammate@rangeproperty.com.au', name: 'Jamie Teammate' }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({ success: true, emailSent: true }));
+
+    expect(sendInvitationEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toEmail: 'teammate@rangeproperty.com.au',
+        inviteeName: 'Jamie Teammate',
+        inviterName: 'Range Property Owner',
+        inviterEmail: 'owner@rangeproperty.com.au',
+        temporaryPassword: 'Temp-Pass-9xKq',
+      })
+    );
+  });
+
+  it('still returns 200 when the invitation email fails to send', async () => {
+    sendInvitationEmailMock.mockRejectedValueOnce(new Error('SES unavailable'));
+    const response = await POST(makeRequest({ email: 'teammate@rangeproperty.com.au' }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({ success: true, emailSent: false }));
+  });
+
+  it('passes through UsernameExistsException reuse from the shared helper unchanged, and sends no email', async () => {
     createOrGetCognitoUserMock.mockResolvedValue({ sub: 'sub-existing-user', username: 'teammate@rangeproperty.com.au', created: false });
 
     const response = await POST(makeRequest({ email: 'teammate@rangeproperty.com.au' }));
@@ -195,6 +240,7 @@ describe('customer invite-user API', () => {
     expect(customerUserCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({ userSub: 'sub-existing-user' })
     );
+    expect(sendInvitationEmailMock).not.toHaveBeenCalled();
   });
 
   it('returns 404 when the caller has no customer mapping', async () => {

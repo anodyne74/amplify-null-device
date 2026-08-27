@@ -9,8 +9,13 @@ jest.mock('next/server', () => ({
 
 const sendMock = jest.fn();
 const verifyMock = jest.fn();
+const sendInvitationEmailMock = jest.fn();
 
-import { POST } from '@/app/api/admin/users/route';
+import { POST, generateTemporaryPassword } from '@/app/api/admin/users/route';
+
+jest.mock('@/lib/emails/invitationEmail', () => ({
+  sendInvitationEmail: (...args: unknown[]) => sendInvitationEmailMock(...args),
+}));
 
 jest.mock('@aws-sdk/client-cognito-identity-provider', () => {
   class UsernameExistsException extends Error {
@@ -50,6 +55,7 @@ describe('admin users API', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) } as any);
+    sendInvitationEmailMock.mockResolvedValue(undefined);
   });
 
   afterAll(() => {
@@ -205,9 +211,11 @@ describe('admin users API', () => {
     expect(sendMock).toHaveBeenCalled();
   });
 
-  it('createUser provisions a real Cognito login and adds it to the given group', async () => {
+  it('createUser provisions a real Cognito login, suppresses the Cognito email, and sends the branded invitation', async () => {
     verifyMock.mockResolvedValue({
       sub: 'sub-123',
+      email: 'admin@nulldevice.dev',
+      name: 'Admin Person',
       'cognito:username': 'admin-user',
       'cognito:groups': ['administrator'],
     });
@@ -228,6 +236,7 @@ describe('admin users API', () => {
         email: 'new@agency.com.au',
         name: 'New Agent',
         groupName: 'customer',
+        customerName: 'Agency Co',
       }),
     } as any;
 
@@ -236,8 +245,54 @@ describe('admin users API', () => {
     await expect(response.json()).resolves.toEqual({
       user: { sub: 'sub-brand-new', username: 'new@agency.com.au' },
       created: true,
+      emailSent: true,
     });
     expect(sendMock).toHaveBeenCalledTimes(2);
+
+    const createUserInput = sendMock.mock.calls[0][0].input;
+    expect(createUserInput.MessageAction).toBe('SUPPRESS');
+    expect(typeof createUserInput.TemporaryPassword).toBe('string');
+    expect(createUserInput.TemporaryPassword.length).toBeGreaterThanOrEqual(8);
+
+    expect(sendInvitationEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toEmail: 'new@agency.com.au',
+        inviteeName: 'New Agent',
+        customerName: 'Agency Co',
+        inviterName: 'Admin Person',
+        inviterEmail: 'admin@nulldevice.dev',
+        temporaryPassword: createUserInput.TemporaryPassword,
+      })
+    );
+  });
+
+  it('createUser does not suppress the Cognito email or send a branded invite for non-customer groups', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        User: { Username: 'ops@nulldevice.dev', Attributes: [{ Name: 'sub', Value: 'sub-ops' }] },
+      })
+      .mockResolvedValueOnce({});
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'createUser',
+        email: 'ops@nulldevice.dev',
+        groupName: 'operator',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(sendMock.mock.calls[0][0].input.MessageAction).toBeUndefined();
+    expect(sendMock.mock.calls[0][0].input.TemporaryPassword).toBeUndefined();
+    expect(sendInvitationEmailMock).not.toHaveBeenCalled();
   });
 
   it('createUser adds an already-existing Cognito user to the group instead of erroring', async () => {
@@ -276,8 +331,10 @@ describe('admin users API', () => {
     await expect(response.json()).resolves.toEqual({
       user: { sub: 'sub-existing', username: 'existing-user' },
       created: false,
+      emailSent: false,
     });
     expect(sendMock).toHaveBeenCalledTimes(3);
+    expect(sendInvitationEmailMock).not.toHaveBeenCalled();
   });
 
   it('rejects createUser with an invalid groupName', async () => {
@@ -295,5 +352,24 @@ describe('admin users API', () => {
     const response = await POST(request);
     expect(response.status).toBe(400);
     expect(sendMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('generateTemporaryPassword', () => {
+  it('produces a 16-char password with all four Cognito character classes', () => {
+    for (let i = 0; i < 200; i += 1) {
+      const pw = generateTemporaryPassword();
+      expect(pw).toHaveLength(16);
+      expect(pw).toMatch(/[a-z]/);
+      expect(pw).toMatch(/[A-Z]/);
+      expect(pw).toMatch(/[0-9]/);
+      expect(pw).toMatch(/[^A-Za-z0-9]/);
+    }
+  });
+
+  it('does not return the same password twice', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 100; i += 1) seen.add(generateTemporaryPassword());
+    expect(seen.size).toBe(100);
   });
 });

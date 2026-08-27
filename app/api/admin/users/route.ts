@@ -1,7 +1,9 @@
+import { randomInt } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   AdminAddUserToGroupCommand,
   AdminCreateUserCommand,
+  type AdminCreateUserCommandInput,
   AdminListGroupsForUserCommand,
   AdminRemoveUserFromGroupCommand,
   CognitoIdentityProviderClient,
@@ -11,6 +13,7 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import outputs from '@/amplify_outputs.json';
+import { sendInvitationEmail } from '@/lib/emails/invitationEmail';
 
 const cognitoClient = new CognitoIdentityProviderClient({});
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
@@ -33,6 +36,8 @@ type AdminUserRequest = {
   email?: string;
   name?: string;
   groupName?: (typeof ALLOWED_GROUPS)[number];
+  /** createUser only: the customer account name, for the branded invitation email. */
+  customerName?: string;
 };
 
 type ListedUser = {
@@ -119,48 +124,97 @@ async function findUserByEmail(poolId: string, email: string): Promise<CognitoLi
   return matched;
 }
 
+// Character classes for generateTemporaryPassword. Ambiguous glyphs (0/O, 1/l/I)
+// are left out so a temp password read off a screen isn't mistyped.
+const PW_LOWER = 'abcdefghijkmnpqrstuvwxyz';
+const PW_UPPER = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+const PW_DIGIT = '23456789';
+const PW_SYMBOL = '!@#$%^&*-_=+';
+
+function pickRandom(alphabet: string, count: number): string {
+  let out = '';
+  for (let i = 0; i < count; i += 1) {
+    out += alphabet[randomInt(alphabet.length)];
+  }
+  return out;
+}
+
 /**
- * Creates a real Cognito login for `email` (Cognito auto-generates a
- * temporary password and sends its own built-in invitation email — no
- * MessageAction/TemporaryPassword override, that's the point) and adds it to
- * `groupName`. If a user with that email already exists, adds the existing
- * user to the group instead of erroring (a legitimate case: re-inviting, or
- * the person already has an account from a different portal context).
+ * A 16-char temporary password that satisfies the default Cognito password
+ * policy (>= 8 chars, one each of lower/upper/digit/symbol). The
+ * class-guaranteeing characters are shuffled so they don't sit in fixed
+ * positions. Exported for unit testing.
+ */
+export function generateTemporaryPassword(): string {
+  const chars = (
+    pickRandom(PW_LOWER, 5) +
+    pickRandom(PW_UPPER, 4) +
+    pickRandom(PW_DIGIT, 4) +
+    pickRandom(PW_SYMBOL, 3)
+  ).split('');
+
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+}
+
+/**
+ * Creates a real Cognito login for `email` and adds it to `groupName`. If a user
+ * with that email already exists, adds the existing user to the group instead of
+ * erroring (a legitimate case: re-inviting, or the person already has an account
+ * from a different portal context).
  *
- * Exported as a plain function (not inlined in the `createUser` action
- * below) so a future customer-owner-facing invite route can reuse the same
- * Cognito-user-provisioning logic under its own caller-authorization check,
- * without duplicating it.
+ * By default Cognito auto-generates a temporary password and sends its own
+ * built-in invitation email. Pass `sendInvitationEmail: true` for the customer
+ * portal invite flows: a temporary password is generated here, Cognito's email
+ * is suppressed (`MessageAction: 'SUPPRESS'`), and the returned
+ * `temporaryPassword` is handed to `sendInvitationEmail()` so the branded
+ * template goes out instead. Only set on a fresh create -- an already-existing
+ * user keeps their password and gets no email (same as before).
+ *
+ * Exported as a plain function (not inlined in the `createUser` action below) so
+ * the customer-owner-facing invite route reuses the same Cognito-user
+ * provisioning under its own caller-authorization check.
  */
 export async function createOrGetCognitoUser({
   poolId,
   email,
   name,
   groupName,
+  sendInvitationEmail: suppressCognitoEmail = false,
 }: {
   poolId: string;
   email: string;
   name?: string;
   groupName: (typeof ALLOWED_GROUPS)[number];
-}): Promise<{ sub?: string; username: string; created: boolean }> {
+  sendInvitationEmail?: boolean;
+}): Promise<{ sub?: string; username: string; created: boolean; temporaryPassword?: string }> {
   const normalizedEmail = email.trim().toLowerCase();
 
   let username: string;
   let sub: string | undefined;
   let created: boolean;
+  let temporaryPassword: string | undefined;
 
   try {
-    const response = await cognitoClient.send(
-      new AdminCreateUserCommand({
-        UserPoolId: poolId,
-        Username: normalizedEmail,
-        UserAttributes: [
-          { Name: 'email', Value: normalizedEmail },
-          { Name: 'email_verified', Value: 'true' },
-          ...(name ? [{ Name: 'name', Value: name }] : []),
-        ],
-      })
-    );
+    const input: AdminCreateUserCommandInput = {
+      UserPoolId: poolId,
+      Username: normalizedEmail,
+      UserAttributes: [
+        { Name: 'email', Value: normalizedEmail },
+        { Name: 'email_verified', Value: 'true' },
+        ...(name ? [{ Name: 'name', Value: name }] : []),
+      ],
+    };
+    if (suppressCognitoEmail) {
+      temporaryPassword = generateTemporaryPassword();
+      input.MessageAction = 'SUPPRESS';
+      input.TemporaryPassword = temporaryPassword;
+    }
+
+    const response = await cognitoClient.send(new AdminCreateUserCommand(input));
 
     username = response.User?.Username || normalizedEmail;
     sub = getAttributeValue(response.User?.Attributes, 'sub');
@@ -178,6 +232,8 @@ export async function createOrGetCognitoUser({
     username = existing.Username;
     sub = getAttributeValue(existing.Attributes, 'sub');
     created = false;
+    // Existing user: no new password issued, so no branded email either.
+    temporaryPassword = undefined;
   }
 
   await cognitoClient.send(
@@ -188,12 +244,13 @@ export async function createOrGetCognitoUser({
     })
   );
 
-  return { sub, username, created };
+  return { sub, username, created, temporaryPassword };
 }
 
 type VerifiedClaims = {
   sub?: string;
   email?: string;
+  name?: string;
   username?: string;
   'cognito:username'?: string;
   'cognito:groups'?: string[];
@@ -518,12 +575,34 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid groupName.' }, { status: 400 });
       }
 
-      const { sub, username, created } = await createOrGetCognitoUser({
+      // Customer invites get the branded invitation email (Cognito's built-in one
+      // suppressed); operator/administrator invites keep Cognito's default email.
+      const isCustomerInvite = body.groupName === 'customer';
+      const { sub, username, created, temporaryPassword } = await createOrGetCognitoUser({
         poolId: userPoolId,
         email: body.email,
         name: body.name,
         groupName: body.groupName,
+        sendInvitationEmail: isCustomerInvite,
       });
+
+      let emailSent = false;
+      if (isCustomerInvite && created && temporaryPassword) {
+        try {
+          await sendInvitationEmail({
+            toEmail: body.email.trim().toLowerCase(),
+            inviteeName: body.name,
+            customerName: body.customerName?.trim() || 'your team',
+            inviterName: authResult.claims.name || authResult.claims.email || 'Null Device',
+            inviterEmail: authResult.claims.email || '',
+            temporaryPassword,
+          });
+          emailSent = true;
+        } catch (err) {
+          // Non-blocking: the login exists; an admin can re-send from the console.
+          console.error('Failed to send branded invitation email:', err);
+        }
+      }
 
       await writeAuditLog(authResult.token, {
         operatorId: authResult.claims.sub,
@@ -536,7 +615,7 @@ export async function POST(request: NextRequest) {
         userAgent: request.headers.get('user-agent') || undefined,
       });
 
-      return NextResponse.json({ user: { sub, username }, created });
+      return NextResponse.json({ user: { sub, username }, created, emailSent });
     }
 
     if (body.action === 'addUserToGroup') {

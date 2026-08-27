@@ -4,6 +4,7 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import outputs from '@/amplify_outputs.json';
 import { createOrGetCognitoUser } from '@/app/api/admin/users/route';
+import { sendInvitationEmail } from '@/lib/emails/invitationEmail';
 
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
 const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
@@ -184,11 +185,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'This email has already been invited to your team.' }, { status: 409 });
     }
 
-    const { sub, username } = await createOrGetCognitoUser({
+    const { sub, username, created: cognitoUserCreated, temporaryPassword } = await createOrGetCognitoUser({
       poolId: userPoolId!,
       email: normalizedEmail,
       name,
       groupName: 'customer',
+      sendInvitationEmail: true,
     });
     if (!sub) {
       return NextResponse.json({ error: 'Could not create a login for this email.' }, { status: 500 });
@@ -217,7 +219,25 @@ export async function POST(request: NextRequest) {
     await client.models.Customer.update({ id: customerId, viewerSubs });
     await syncViewerSubsForCustomer(customerId, viewerSubs);
 
-    return NextResponse.json({ success: true, user: { sub, username }, customerUser: created });
+    let emailSent = false;
+    if (cognitoUserCreated && temporaryPassword) {
+      try {
+        await sendInvitationEmail({
+          toEmail: normalizedEmail,
+          inviteeName: name,
+          customerName: customer.companyName || customer.name || 'your team',
+          inviterName: ownRow.name || 'A teammate',
+          inviterEmail: ownRow.email || '',
+          temporaryPassword,
+        });
+        emailSent = true;
+      } catch (err) {
+        // Non-blocking: the teammate's login and access are already set up.
+        console.error('Failed to send branded invitation email:', err);
+      }
+    }
+
+    return NextResponse.json({ success: true, user: { sub, username }, customerUser: created, emailSent });
   } catch (err) {
     console.error('Unexpected error in customer invite-user:', err);
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';

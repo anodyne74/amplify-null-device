@@ -185,7 +185,7 @@ describe('UsersAdminPage customer access actions', () => {
       );
     });
 
-    expect(screen.getByText(/invited by email/i)).toBeInTheDocument();
+    expect(screen.getByText(/branded invitation/i)).toBeInTheDocument();
 
     const calls = (global.fetch as jest.Mock).mock.calls;
     const createUserCall = calls.find(([, init]) => JSON.parse(init.body).action === 'createUser');
@@ -194,6 +194,7 @@ describe('UsersAdminPage customer access actions', () => {
       action: 'createUser',
       email: 'new@agency.com.au',
       groupName: 'customer',
+      customerName: 'Acme Customer',
     });
   });
 });

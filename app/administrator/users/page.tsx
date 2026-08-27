@@ -295,6 +295,7 @@ export default function UsersAdminPage() {
           email: normalizedEmail,
           name: newUserName || undefined,
           groupName: 'customer',
+          customerName: customers.find((c) => c.id === selectedCustomerId)?.name,
         });
         const createdUser = (createPayload.user as { sub?: string } | undefined) || {};
         if (!createdUser.sub) {
@@ -352,7 +353,7 @@ export default function UsersAdminPage() {
 
       setAccessSuccess(
         invited
-          ? 'Account created and invited by email — Cognito sent them a temporary password. Access is synced.'
+          ? 'Account created — we emailed them a branded invitation with a temporary password. Access is synced.'
           : 'User assigned to customer and access synced to all routes and stops.'
       );
       setNewUserEmail('');

@@ -65,6 +65,8 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     UserPoolId: string;
     Username: string;
     UserAttributes?: AttributeType[];
+    MessageAction?: 'RESEND' | 'SUPPRESS';
+    TemporaryPassword?: string;
   }
 
   export interface AdminCreateUserCommandOutput {

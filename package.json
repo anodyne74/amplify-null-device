@@ -45,7 +45,7 @@
     "@aws-amplify/backend-cli": "^1.8.3",
     "@aws-amplify/cli": "^14.5.0",
     "@next/eslint-plugin-next": "^16.3.2",
-    "@eslint/js": "^9.39.2",
+    "@eslint/js": "^10.0.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
@@ -59,7 +59,7 @@
     "@types/react-dom": "^19.2.5",
     "@typescript-eslint/eslint-plugin": "^8.68.0",
     "@typescript-eslint/parser": "^8.68.0",
-    "eslint": "^9.39.2",
+    "eslint": "^10.9.1",
     "eslint-config-next": "^16.3.2",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -67,7 +67,7 @@
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "ts-jest": "^29.4.11",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.68.0"
   }
 }

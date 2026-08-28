@@ -994,20 +994,22 @@ export async function deleteCustomerUser(customerUserId: string) {
 }
 
 /**
- * Sync the viewerSubs array on every Route and Stop belonging to a customer.
- * Must be called after adding or removing a CustomerUser so read-only users
- * gain / lose access to existing records.
+ * Sync the viewerSubs array on every Route, Stop, and CustomerUser belonging
+ * to a customer. Must be called after adding or removing a CustomerUser so
+ * read-only users gain / lose access to existing records -- including the
+ * team directory itself (CustomerUser.viewerSubs).
  *
  * viewerSubs should contain the Cognito subs of ALL CustomerUsers for the customer
- * (both account_owner and read_only) so every user can read every route/stop.
+ * (both account_owner and read_only) so every user can read every route/stop/teammate.
  */
 export async function syncViewerSubsForCustomer(
   customerId: string,
   viewerSubs: string[]
-): Promise<{ updatedRoutes: number; updatedStops: number; errors: unknown[] }> {
+): Promise<{ updatedRoutes: number; updatedStops: number; updatedCustomerUsers: number; errors: unknown[] }> {
   const allErrors: unknown[] = [];
   let updatedRoutes = 0;
   let updatedStops = 0;
+  let updatedCustomerUsers = 0;
 
   try {
     // Fetch all routes for this customer
@@ -1042,6 +1044,23 @@ export async function syncViewerSubsForCustomer(
         else updatedStops++;
       }
     }
+
+    // CustomerUser itself also carries viewerSubs, so every customer user
+    // (not just the account owner) can read the whole team directory.
+    const { data: customerUsers, errors: customerUserListErrors } = await getClient().models.CustomerUser.list({
+      filter: { customerId: { eq: customerId } },
+      limit: 1000,
+    });
+    if (customerUserListErrors) allErrors.push(...customerUserListErrors);
+
+    for (const customerUser of customerUsers || []) {
+      const { errors: customerUserUpdateErrors } = await getClient().models.CustomerUser.update({
+        id: customerUser.id,
+        viewerSubs,
+      });
+      if (customerUserUpdateErrors) allErrors.push(...customerUserUpdateErrors);
+      else updatedCustomerUsers++;
+    }
   } catch (error) {
     console.error('Error syncing viewer subs:', error);
     allErrors.push(error);
@@ -1051,5 +1070,5 @@ export async function syncViewerSubsForCustomer(
     console.error(`syncViewerSubsForCustomer completed with ${allErrors.length} error(s):`, allErrors);
   }
 
-  return { updatedRoutes, updatedStops, errors: allErrors };
+  return { updatedRoutes, updatedStops, updatedCustomerUsers, errors: allErrors };
 }

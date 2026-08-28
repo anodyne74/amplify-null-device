@@ -147,6 +147,17 @@ async function syncViewerSubsForCustomer(customerId: string, viewerSubs: string[
     if (!paymentRecord?.id) continue;
     await client.models.PaymentRecord.update({ id: paymentRecord.id, viewerSubs });
   }
+
+  // CustomerUser itself also carries viewerSubs, so every customer user
+  // (not just the account owner) can read the whole team directory.
+  const { data: customerUsers } = await client.models.CustomerUser.list({
+    filter: { customerId: { eq: customerId } },
+    limit: 1000,
+  });
+  for (const customerUser of customerUsers || []) {
+    if (!customerUser?.id) continue;
+    await client.models.CustomerUser.update({ id: customerUser.id, viewerSubs });
+  }
 }
 
 export const handler: PostConfirmationTriggerHandler = async (event) => {

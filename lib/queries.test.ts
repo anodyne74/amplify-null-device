@@ -26,6 +26,7 @@ const mockUserSettingsUpdate = jest.fn();
 const mockCustomerUserList = jest.fn();
 const mockCustomerUserCreate = jest.fn();
 const mockCustomerUserDelete = jest.fn();
+const mockCustomerUserUpdate = jest.fn();
 
 jest.mock('aws-amplify/data', () => ({
   generateClient: () => ({
@@ -71,6 +72,7 @@ jest.mock('aws-amplify/data', () => ({
         list: mockCustomerUserList,
         create: mockCustomerUserCreate,
         delete: mockCustomerUserDelete,
+        update: mockCustomerUserUpdate,
       },
     },
   }),
@@ -885,7 +887,7 @@ describe('queries', () => {
   });
 
   describe('syncViewerSubsForCustomer', () => {
-    it('should sync viewer subs across routes and stops', async () => {
+    it('should sync viewer subs across routes, stops, and customer users', async () => {
       mockRouteList.mockResolvedValue({
         data: [{ id: 'r1', customerId: 'c1' }],
         errors: undefined,
@@ -896,6 +898,11 @@ describe('queries', () => {
         errors: undefined,
       });
       mockStopUpdate.mockResolvedValue({ data: {}, errors: undefined });
+      mockCustomerUserList.mockResolvedValue({
+        data: [{ id: 'cu1', customerId: 'c1' }, { id: 'cu2', customerId: 'c1' }],
+        errors: undefined,
+      });
+      mockCustomerUserUpdate.mockResolvedValue({ data: {}, errors: undefined });
 
       const result = await syncViewerSubsForCustomer('c1', ['sub-owner', 'sub-read']);
 
@@ -905,8 +912,15 @@ describe('queries', () => {
       });
       expect(mockRouteUpdate).toHaveBeenCalledWith({ id: 'r1', viewerSubs: ['sub-owner', 'sub-read'] });
       expect(mockStopUpdate).toHaveBeenCalledTimes(2);
+      expect(mockCustomerUserList).toHaveBeenCalledWith({
+        filter: { customerId: { eq: 'c1' } },
+        limit: 1000,
+      });
+      expect(mockCustomerUserUpdate).toHaveBeenCalledWith({ id: 'cu1', viewerSubs: ['sub-owner', 'sub-read'] });
+      expect(mockCustomerUserUpdate).toHaveBeenCalledWith({ id: 'cu2', viewerSubs: ['sub-owner', 'sub-read'] });
       expect(result.updatedRoutes).toBe(1);
       expect(result.updatedStops).toBe(2);
+      expect(result.updatedCustomerUsers).toBe(2);
       expect(result.errors).toEqual([]);
     });
 
@@ -923,12 +937,18 @@ describe('queries', () => {
         errors: undefined,
       });
       mockStopUpdate.mockResolvedValue({ data: null, errors: [{ message: 'stop update failed' }] });
+      mockCustomerUserList.mockResolvedValue({
+        data: [{ id: 'cu1', customerId: 'c1' }],
+        errors: undefined,
+      });
+      mockCustomerUserUpdate.mockResolvedValue({ data: null, errors: [{ message: 'customer user update failed' }] });
 
       const result = await syncViewerSubsForCustomer('c1', ['sub-owner']);
 
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.updatedRoutes).toBe(0);
       expect(result.updatedStops).toBe(0);
+      expect(result.updatedCustomerUsers).toBe(0);
 
       consoleErrorSpy.mockRestore();
     });

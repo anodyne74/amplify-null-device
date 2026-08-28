@@ -427,6 +427,10 @@ const schema = a.schema({
    *       read_only can only view routes and stops
    * accountOwnerSub is denormalized on every row so the account owner can read
    * all CustomerUser records for their customer via ownerDefinedIn('accountOwnerSub').
+   * viewerSubs — same convention as Customer/Route/Stop/etc. — grants every
+   * customer user (owner + read_only) read access to the whole team directory,
+   * synced by customer-access-activation's handler and lib/queries.ts's
+   * syncViewerSubsForCustomer whenever CustomerUser membership changes.
    * Only administrators may create, update, or delete CustomerUser records.
    */
   CustomerUser: a
@@ -437,6 +441,7 @@ const schema = a.schema({
       name: a.string(),
       email: a.email(),
       role: a.enum(['account_owner', 'read_only']),
+      viewerSubs: a.string().array(), // Cognito subs of all customer users — grants read access, same as Customer/Route/etc.
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
@@ -445,6 +450,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.ownerDefinedIn('userSub').identityClaim('sub').to(['read']),           // each user reads own record
       allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read']),   // account owner reads all for their customer
+      allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),       // every customer user reads the whole team directory
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),  // only admins manage users
     ]),
 

@@ -6,6 +6,7 @@ import { IconButton } from '@/app/components/ui/core/IconButton';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
+import { Switch } from '@/app/components/ui/forms/Switch';
 import type { OperatorAvailabilityBlock, CustomerClosureBlock } from '@/amplify/types';
 import { listOperatorAvailabilityBlocks } from '@/lib/queries/ListOperatorAvailabilityBlocks';
 import { createOperatorAvailabilityBlock } from '@/lib/queries/CreateOperatorAvailabilityBlock';
@@ -13,6 +14,8 @@ import { deleteOperatorAvailabilityBlock } from '@/lib/queries/DeleteOperatorAva
 import { listCustomerClosureBlocks } from '@/lib/queries/ListCustomerClosureBlocks';
 import { createCustomerClosureBlock } from '@/lib/queries/CreateCustomerClosureBlock';
 import { deleteCustomerClosureBlock } from '@/lib/queries/DeleteCustomerClosureBlock';
+import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
+import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import styles from './ServiceCalendar.module.css';
 
 export type ServiceCalendarRole = 'staff' | 'customer-admin' | 'customer-readonly';
@@ -69,10 +72,12 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [noDriversBlocks, setNoDriversBlocks] = useState<OperatorAvailabilityBlock[]>([]);
   const [closedBlocks, setClosedBlocks] = useState<CustomerClosureBlock[]>([]);
+  const [routes, setRoutes] = useState<{ actualEndTime?: string | null; actualStartTime?: string | null; createdAt?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState<string>(dateKey(today.getFullYear(), today.getMonth(), today.getDate()));
   const [reasonDraft, setReasonDraft] = useState('');
+  const [applyToAllCustomers, setApplyToAllCustomers] = useState(false);
   const [actionPending, setActionPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -80,9 +85,10 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     setLoading(true);
     setLoadError(null);
 
-    const [noDriversResult, closedResult] = await Promise.all([
+    const [noDriversResult, closedResult, routesResult] = await Promise.all([
       listOperatorAvailabilityBlocks(customerId),
       listCustomerClosureBlocks(customerId),
+      listMyRoutes({ customerId, limit: 500 }),
     ]);
 
     if ((noDriversResult.errors && noDriversResult.errors.length > 0) || (closedResult.errors && closedResult.errors.length > 0)) {
@@ -91,6 +97,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
 
     setNoDriversBlocks(noDriversResult.data as OperatorAvailabilityBlock[]);
     setClosedBlocks(closedResult.data as CustomerClosureBlock[]);
+    setRoutes(routesResult.data || []);
     setLoading(false);
   }, [customerId]);
 
@@ -113,6 +120,21 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     }
     return map;
   }, [closedBlocks]);
+
+  const deliveriesByDate = useMemo(() => {
+    // Route has no dedicated "scheduled date" field — same fallback chain as the
+    // admin dashboard's aggregation (lib/aggregateRouteData.ts).
+    const map = new Map<string, number>();
+    for (const route of routes) {
+      const isoDate = route.actualEndTime || route.actualStartTime || route.createdAt;
+      if (!isoDate) continue;
+      const parsed = new Date(isoDate);
+      if (Number.isNaN(parsed.getTime())) continue;
+      const key = dateKey(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return map;
+  }, [routes]);
 
   const todayKey = dateKey(today.getFullYear(), today.getMonth(), today.getDate());
 
@@ -170,15 +192,62 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     setActionPending(true);
     setActionError(null);
 
-    const result = selectedNoDriversBlock
-      ? await deleteOperatorAvailabilityBlock(selectedNoDriversBlock.id)
-      : await createOperatorAvailabilityBlock({
-          customerId,
+    if (selectedNoDriversBlock) {
+      const result = await deleteOperatorAvailabilityBlock(selectedNoDriversBlock.id);
+      if (result.errors && result.errors.length > 0) {
+        setActionError('Could not update the calendar.');
+        setActionPending(false);
+        return;
+      }
+      setReasonDraft('');
+      await refetch();
+      setActionPending(false);
+      return;
+    }
+
+    if (applyToAllCustomers) {
+      const customersResult = await listAllCustomers({ limit: 200 });
+      if (customersResult.errors && customersResult.errors.length > 0) {
+        setActionError('Could not load customers to apply the block to.');
+        setActionPending(false);
+        return;
+      }
+
+      const activeCustomers = (customersResult.data || []).filter((c) => c.status === 'active');
+      const failures: string[] = [];
+
+      for (const activeCustomer of activeCustomers) {
+        const existing = await listOperatorAvailabilityBlocks(activeCustomer.id);
+        const alreadyBlocked = (existing.data as OperatorAvailabilityBlock[]).some((block) => block.date === selectedKey);
+        if (alreadyBlocked) continue;
+
+        const created = await createOperatorAvailabilityBlock({
+          customerId: activeCustomer.id,
           date: selectedKey,
           reason: reasonDraft.trim() || undefined,
           createdByOperatorId: currentUserSub,
-          viewerSubs,
+          viewerSubs: activeCustomer.viewerSubs || [],
         });
+        if (created.errors && created.errors.length > 0) failures.push(activeCustomer.name);
+      }
+
+      if (failures.length > 0) {
+        setActionError(`Could not block this day for: ${failures.join(', ')}.`);
+      }
+
+      setReasonDraft('');
+      await refetch();
+      setActionPending(false);
+      return;
+    }
+
+    const result = await createOperatorAvailabilityBlock({
+      customerId,
+      date: selectedKey,
+      reason: reasonDraft.trim() || undefined,
+      createdByOperatorId: currentUserSub,
+      viewerSubs,
+    });
 
     if (result.errors && result.errors.length > 0) {
       setActionError('Could not update the calendar.');
@@ -311,6 +380,10 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
                     {selectedClosedBlock ? 'Closed' : 'Open'}
                   </span>
                 </div>
+                <div className={styles.statRow}>
+                  <span className={styles.statLabel}>Deliveries</span>
+                  <span className={styles.statGood}>{deliveriesByDate.get(selectedKey) || 0}</span>
+                </div>
 
                 {(selectedNoDriversBlock?.reason || selectedClosedBlock?.reason) && (
                   <div className={styles.reasonNote}>
@@ -323,15 +396,23 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
                 {canWriteNoDrivers && (
                   <div className={styles.editSection}>
                     {!selectedNoDriversBlock && (
-                      <Field label="Reason" htmlFor="cal-no-drivers-reason" hint="Shown to the customer on their calendar">
-                        <Input
-                          id="cal-no-drivers-reason"
-                          value={reasonDraft}
-                          onChange={(e) => setReasonDraft(e.target.value)}
-                          placeholder="Driver vacation, public holiday, depot closed"
+                      <>
+                        <Field label="Reason" htmlFor="cal-no-drivers-reason" hint="Shown to the customer on their calendar">
+                          <Input
+                            id="cal-no-drivers-reason"
+                            value={reasonDraft}
+                            onChange={(e) => setReasonDraft(e.target.value)}
+                            placeholder="Driver vacation, public holiday, depot closed"
+                            disabled={actionPending}
+                          />
+                        </Field>
+                        <Switch
+                          checked={applyToAllCustomers}
+                          onChange={(e) => setApplyToAllCustomers(e.target.checked)}
+                          label="Apply to every customer"
                           disabled={actionPending}
                         />
-                      </Field>
+                      </>
                     )}
                     <Button
                       type="button"
@@ -340,7 +421,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
                       disabled={actionPending}
                       onClick={() => void handleToggleNoDrivers()}
                     >
-                      {selectedNoDriversBlock ? 'Remove block' : 'Block this day'}
+                      {selectedNoDriversBlock ? 'Remove block' : applyToAllCustomers ? 'Block this day for every customer' : 'Block this day'}
                     </Button>
                   </div>
                 )}
@@ -366,6 +447,9 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
                       onClick={() => void handleToggleClosed()}
                     >
                       {selectedClosedBlock ? 'Reopen this day' : 'Mark closed'}
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" disabled title="Coming soon">
+                      Close a date range
                     </Button>
                   </div>
                 )}

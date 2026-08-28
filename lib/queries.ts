@@ -822,7 +822,9 @@ export async function createLineItem(input: {
 
 /**
  * List all CustomerUser records for a given customer.
- * Only accessible by administrators.
+ * Row-level authorization scopes what actually comes back: administrators see
+ * every row; an account owner sees every row for their own customer; a
+ * read_only user only sees their own row (see amplify/data/resource.ts).
  */
 export async function listCustomerUsers(customerId: string) {
   try {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { getCustomer, getCustomerPortalContext, getRouteWithStops, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
+import { getCustomer, getCustomerPortalContext, getRouteWithStops, listCustomerUsers, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
@@ -11,12 +11,26 @@ import StopListItem from '@/app/customer/components/StopListItem';
 import { RouteStopsMap } from '@/app/operator/components/RouteStopsMap';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
+import { IconButton } from '@/app/components/ui/core/IconButton';
+import { Avatar } from '@/app/components/ui/core/Avatar';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
+import { ProgressBar } from '@/app/components/ui/data/ProgressBar';
 import type { Customer, Route, Stop } from '@/amplify/types';
 import { formatDurationHoursMinutes } from '@/lib/format';
 import { appendRouteInstruction, parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
+import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
 import styles from './_RouteDetailContent.module.css';
+
+// Mirrors the existing .stopsAndMap collapse breakpoint in
+// _RouteDetailContent.module.css, so the JS-driven reorder below and the
+// CSS single-column collapse kick in together.
+const NARROW_BREAKPOINT_PX = 820;
+
+interface CustomerUserSummary {
+  userSub: string;
+  name?: string | null;
+}
 
 interface RouteDetailContentProps {
   params: {
@@ -36,6 +50,8 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customerUsers, setCustomerUsers] = useState<CustomerUserSummary[]>([]);
+  const [instructionsExpanded, setInstructionsExpanded] = useState(true);
   const [instructionsDraft, setInstructionsDraft] = useState('');
   const [instructionsAgent, setInstructionsAgent] = useState('');
   const [savingInstructions, setSavingInstructions] = useState(false);
@@ -46,6 +62,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const [savingFeedback, setSavingFeedback] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
+  const isNarrow = useIsNarrowViewport(NARROW_BREAKPOINT_PX);
 
   useEffect(() => {
     if (!params.id || !userId) return;
@@ -81,6 +98,15 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
               const customerRecord = fetchedCustomer as unknown as Customer;
               setCustomer(customerRecord);
               setInstructionsAgent(customerRecord.agentOptions?.[0] ?? '');
+            }
+
+            // Best-effort: resolves authorSub -> name for the instructions feed below.
+            // CustomerUser is only readable by its own owner (self) or the account
+            // owner (all rows) — a read_only viewer gets back just their own record,
+            // so entries authored by a teammate fall back to the stored agentLabel.
+            const { data: fetchedCustomerUsers } = await listCustomerUsers(context.customerId);
+            if (!cancelled && fetchedCustomerUsers) {
+              setCustomerUsers(fetchedCustomerUsers as unknown as CustomerUserSummary[]);
             }
           }
         } else {
@@ -185,6 +211,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
 
   const instructionEntries = sortRouteInstructionsNewestFirst(parseRouteInstructions(route.customerInstructions));
   const agentOptions = customer?.agentOptions ?? [];
+  const customerUsersBySub = new Map(customerUsers.map((cu) => [cu.userSub, cu]));
 
   const routeLabel = route.routeCode || `${route.id.slice(0, 8)}...`;
   const totalSigns = stops.reduce((sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0), 0);
@@ -201,6 +228,37 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
           .slice(0, 2)
           .map((stop) => stop.id)
       : [];
+
+  // On a narrow viewport the map renders before the stop list — a glanceable
+  // overview before a potentially long scroll, mirroring the card-list swap
+  // already used by the routes list page at the same breakpoint.
+  const stopsCard = (
+    <Card title={`Stops (${stops.length})`} subtitle="Tap a stop to highlight it on the map" padded={false}>
+      {stops.length === 0 ? (
+        <p className={styles.noStopsText}>No stops scheduled for this route</p>
+      ) : (
+        <div className={styles.stopsList}>
+          {stops.map((stop, index) => (
+            <StopListItem key={stop.id} stop={stop} sequence={index + 1} />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+
+  const mapCard = (
+    <Card title="Route map" subtitle="Numbered stops in service order">
+      <div className={styles.mapShell}>
+        <RouteStopsMap
+          stops={stops}
+          activeStopId={nextStop?.id ?? null}
+          upcomingStopIds={upcomingStopIds}
+          mapTheme="dark"
+          presentation="field"
+        />
+      </div>
+    </Card>
+  );
 
   return (
     <ProtectedRoute>
@@ -260,10 +318,13 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
             <span className="nd-stat__value" style={{ fontSize: 20, fontFamily: 'var(--font-mono)' }}>{totalSigns}</span>
           </div>
           <div className="nd-stat">
-            <span className="nd-stat__label">Placed</span>
-            <span className="nd-stat__value" style={{ fontSize: 20, fontFamily: 'var(--font-mono)' }}>
-              {placedDeliveryStops.length}/{deliveryStops.length}
-            </span>
+            <ProgressBar
+              value={placedDeliveryStops.length}
+              max={Math.max(deliveryStops.length, 1)}
+              label={`Placed (${placedDeliveryStops.length}/${deliveryStops.length})`}
+              showValue={false}
+              tone={deliveryStops.length > 0 && placedDeliveryStops.length === deliveryStops.length ? 'success' : 'brand'}
+            />
           </div>
           <div className="nd-stat">
             <span className="nd-stat__label">Pickup due</span>
@@ -277,55 +338,78 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
           </Card>
         )}
 
-        <Card title="Special instructions" subtitle="For this route only — the operator sees them before they leave the depot">
-          <div className={styles.instructionsForm}>
-            {instructionsError && <p className="nd-badge nd-badge--danger">{instructionsError}</p>}
-            {instructionsSuccess && <p className="nd-badge nd-badge--success">{instructionsSuccess}</p>}
-
-            {instructionEntries.length > 0 && (
-              <div className={styles.instructionsFeed}>
-                {instructionEntries.map((entry, index) => (
-                  <div key={`${entry.createdAt}-${index}`} className={styles.instructionEntry}>
-                    <p className={styles.instructionText}>{entry.text}</p>
-                    <span className={styles.instructionsMeta}>
-                      {entry.agentLabel ? `${entry.agentLabel} · ` : ''}
-                      {entry.createdAt ? formatDate(entry.createdAt) : 'Before this feature tracked who/when'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {agentOptions.length > 0 && (
-              <Select
-                aria-label="Posting as"
-                value={instructionsAgent}
-                onChange={(e) => setInstructionsAgent(e.target.value)}
-                disabled={savingInstructions}
-                options={agentOptions.map((agent) => ({ value: agent, label: `Posting as ${agent}` }))}
-              />
-            )}
-
-            <Input
-              multiline
-              aria-label="Add an instruction for this route"
-              value={instructionsDraft}
-              onChange={(e) => setInstructionsDraft(e.target.value)}
-              placeholder="Anything specific for this run — access, extra signs, a street to avoid"
-              disabled={savingInstructions}
+        <Card
+          title="Special instructions"
+          subtitle="For this route only — the operator sees them before they leave the depot"
+          action={
+            <IconButton
+              icon="chevron-down"
+              label={instructionsExpanded ? 'Collapse special instructions' : 'Expand special instructions'}
+              aria-expanded={instructionsExpanded}
+              aria-controls="special-instructions-panel"
+              className={styles.instructionsToggle}
+              data-expanded={instructionsExpanded}
+              onClick={() => setInstructionsExpanded((expanded) => !expanded)}
             />
+          }
+        >
+          {instructionsExpanded && (
+            <div className={styles.instructionsForm} id="special-instructions-panel">
+              {instructionsError && <p className="nd-badge nd-badge--danger">{instructionsError}</p>}
+              {instructionsSuccess && <p className="nd-badge nd-badge--success">{instructionsSuccess}</p>}
 
-            <div className={styles.instructionsActions}>
-              <Button
-                type="button"
-                loading={savingInstructions}
-                disabled={savingInstructions || !instructionsDraft.trim()}
-                onClick={() => void handleAddInstruction()}
-              >
-                {savingInstructions ? 'Adding…' : 'Add instruction'}
-              </Button>
+              {instructionEntries.length > 0 && (
+                <div className={styles.instructionsFeed}>
+                  {instructionEntries.map((entry, index) => {
+                    const author = entry.authorSub ? customerUsersBySub.get(entry.authorSub) : undefined;
+                    const authorName = author?.name || undefined;
+                    return (
+                      <div key={`${entry.createdAt}-${index}`} className={styles.instructionEntry}>
+                        <div className={styles.instructionEntryHeader}>
+                          {authorName && <Avatar name={authorName} size="sm" />}
+                          <p className={styles.instructionText}>{entry.text}</p>
+                        </div>
+                        <span className={styles.instructionsMeta}>
+                          {authorName ? `${authorName} · ` : entry.agentLabel ? `${entry.agentLabel} · ` : ''}
+                          {entry.createdAt ? formatDate(entry.createdAt) : 'Before this feature tracked who/when'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {agentOptions.length > 0 && (
+                <Select
+                  aria-label="Posting as"
+                  value={instructionsAgent}
+                  onChange={(e) => setInstructionsAgent(e.target.value)}
+                  disabled={savingInstructions}
+                  options={agentOptions.map((agent) => ({ value: agent, label: `Posting as ${agent}` }))}
+                />
+              )}
+
+              <Input
+                multiline
+                aria-label="Add an instruction for this route"
+                value={instructionsDraft}
+                onChange={(e) => setInstructionsDraft(e.target.value)}
+                placeholder="Anything specific for this run — access, extra signs, a street to avoid"
+                disabled={savingInstructions}
+              />
+
+              <div className={styles.instructionsActions}>
+                <Button
+                  type="button"
+                  loading={savingInstructions}
+                  disabled={savingInstructions || !instructionsDraft.trim()}
+                  onClick={() => void handleAddInstruction()}
+                >
+                  {savingInstructions ? 'Adding…' : 'Add instruction'}
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </Card>
 
         {nextStop && (
@@ -389,29 +473,17 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
         )}
 
         <div className={styles.stopsAndMap}>
-          <Card title={`Stops (${stops.length})`} subtitle="Tap a stop to highlight it on the map" padded={false}>
-            {stops.length === 0 ? (
-              <p className={styles.noStopsText}>No stops scheduled for this route</p>
-            ) : (
-              <div className={styles.stopsList}>
-                {stops.map((stop, index) => (
-                  <StopListItem key={stop.id} stop={stop} sequence={index + 1} />
-                ))}
-              </div>
-            )}
-          </Card>
-
-          <Card title="Route map" subtitle="Numbered stops in service order">
-            <div className={styles.mapShell}>
-              <RouteStopsMap
-                stops={stops}
-                activeStopId={nextStop?.id ?? null}
-                upcomingStopIds={upcomingStopIds}
-                mapTheme="dark"
-                presentation="field"
-              />
-            </div>
-          </Card>
+          {isNarrow ? (
+            <>
+              {mapCard}
+              {stopsCard}
+            </>
+          ) : (
+            <>
+              {stopsCard}
+              {mapCard}
+            </>
+          )}
         </div>
       </div>
     </ProtectedRoute>

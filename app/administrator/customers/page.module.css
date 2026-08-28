@@ -148,3 +148,95 @@
   display: flex;
   gap: var(--space-3);
 }
+
+/* Agent options — tag chip editor */
+
+.agentChipRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding-top: var(--space-1);
+}
+
+.agentChipAddRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.agentChipAddInput {
+  max-width: 220px;
+}
+
+/* Standing instructions attribution */
+
+.attributionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: calc(var(--space-2) * -1);
+}
+
+.attributionCaption {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-subtle);
+}
+
+/* Onboarding checklist */
+
+.checklistCard {
+  margin-top: var(--space-5);
+}
+
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checklistRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.checklistMark {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-circle);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-bold);
+}
+
+.checklistMarkDone {
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
+}
+
+.checklistMarkPending {
+  background: var(--surface-sunken);
+  color: var(--text-subtle);
+}
+
+.checklistLabel {
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--text-body);
+}
+
+.checklistWhen {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-subtle);
+}

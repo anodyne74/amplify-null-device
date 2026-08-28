@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import { useAdminTableSort, type SortDirection } from '@/app/components/AdminDataTable';
@@ -16,17 +17,20 @@ import CustomerTableRow from '@/app/administrator/customers/components/CustomerT
 import { useCustomerEditState } from '@/app/administrator/customers/hooks/useCustomerEditState';
 import { useCustomerOwnerState } from '@/app/administrator/customers/hooks/useCustomerOwnerState';
 import type { Customer, CustomerUser } from '@/app/administrator/customers/types';
-import { parseAgentOptionsInput, stringifyAgentOptions } from '@/lib/customerDefaults';
+import { parseAgentOptionsInput } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import {
   createCustomer,
   createCustomerUser,
   deleteCustomer,
+  listCustomerInvoices,
+  listCustomerRoutes,
   listCustomerUsers,
   listCustomers,
   syncViewerSubsForCustomer,
   updateCustomer,
 } from '@/lib/queries';
+import { buildOnboardingChecklist, type ChecklistItem } from '@/lib/customerOnboardingChecklist';
 import { useToast } from '@/app/components/ToastProvider';
 import styles from './page.module.css';
 
@@ -79,7 +83,10 @@ function SortableHeader<K extends string>({
 
 export default function CustomersAdminPage() {
   const { showToast } = useToast();
+  const { user } = useAuthenticator();
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [checklists, setChecklists] = useState<Record<string, ChecklistItem[]>>({});
+  const [checklistLoading, setChecklistLoading] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -130,6 +137,8 @@ export default function CustomersAdminPage() {
     setEditCompanyName,
     editEmail,
     setEditEmail,
+    editContactPhone,
+    setEditContactPhone,
     editBillingRatePerHour,
     setEditBillingRatePerHour,
     editStatus,
@@ -139,14 +148,16 @@ export default function CustomersAdminPage() {
     editOriginalAddressLine1,
     editStandingInstructions,
     setEditStandingInstructions,
+    editOriginalStandingInstructions,
     editDefaultNumberOfSigns,
     setEditDefaultNumberOfSigns,
     editDefaultAgentName,
     setEditDefaultAgentName,
     editDefaultAgentInitials,
     setEditDefaultAgentInitials,
-    editAgentOptionsText,
-    setEditAgentOptionsText,
+    editAgentOptions,
+    addAgentOption,
+    removeAgentOption,
     editRestrictInvitesToOwnDomain,
     setEditRestrictInvitesToOwnDomain,
     editResolvedAddress,
@@ -212,6 +223,27 @@ export default function CustomersAdminPage() {
     if (!result.errors || result.errors.length === 0) {
       setCustomerUsers((prev) => ({ ...prev, [customerId]: result.data as CustomerUser[] }));
     }
+  }, [setCustomerUsers]);
+
+  // "Onboarding checklist" — computed client-side from records already scoped to this
+  // customer, fetched on demand when the edit panel opens. No new model, no new writes.
+  const fetchOnboardingChecklist = useCallback(async (customer: Customer) => {
+    setChecklistLoading((prev) => ({ ...prev, [customer.id]: true }));
+
+    const [usersResult, routesResult, invoicesResult] = await Promise.all([
+      listCustomerUsers(customer.id),
+      listCustomerRoutes(customer.id, { limit: 5 }),
+      listCustomerInvoices(customer.id, { limit: 5 }),
+    ]);
+
+    const users = (usersResult.errors && usersResult.errors.length > 0 ? [] : usersResult.data) as CustomerUser[];
+    setCustomerUsers((prev) => ({ ...prev, [customer.id]: users }));
+
+    setChecklists((prev) => ({
+      ...prev,
+      [customer.id]: buildOnboardingChecklist(customer, users, routesResult.data ?? [], invoicesResult.data ?? []),
+    }));
+    setChecklistLoading((prev) => ({ ...prev, [customer.id]: false }));
   }, [setCustomerUsers]);
 
   const handleCreate = async (event: FormEvent) => {
@@ -297,8 +329,9 @@ export default function CustomersAdminPage() {
     openEditPanel({
       customer,
       billingRateDisplay: usdFormatter.format(customer.billingRatePerHour ?? 0),
-      agentOptionsText: stringifyAgentOptions(customer.agentOptions),
+      agentOptions: customer.agentOptions ?? [],
     });
+    void fetchOnboardingChecklist(customer);
   };
 
   const handleUpdateCustomer = async (customerId: string) => {
@@ -342,10 +375,21 @@ export default function CustomersAdminPage() {
           ? { formattedAddress: trimmedAddress, latitude: 0, longitude: 0 }
           : await geocodeAddress(trimmedAddress));
 
+      // Stamp "last edited by/when" only when the standing instructions text actually changed.
+      const standingInstructionsChanged =
+        editStandingInstructions.trim() !== editOriginalStandingInstructions.trim();
+      const standingInstructionsStamp = standingInstructionsChanged
+        ? {
+            standingInstructionsUpdatedBy: user?.signInDetails?.loginId || 'unknown',
+            standingInstructionsUpdatedAt: new Date().toISOString(),
+          }
+        : {};
+
       const result = await updateCustomer(customerId, {
         name: editName.trim(),
         companyName: editCompanyName.trim() || undefined,
         email: editEmail.trim(),
+        contactPhone: editContactPhone.trim() || undefined,
         billingRatePerHour: rate,
         status: editStatus,
         addressLine1: resolved.formattedAddress,
@@ -353,14 +397,14 @@ export default function CustomersAdminPage() {
         defaultNumberOfSigns: editSigns,
         defaultAgentName: editDefaultAgentName,
         defaultAgentInitials: editDefaultAgentInitials,
-        agentOptions: parseAgentOptionsInput(editAgentOptionsText),
+        agentOptions: editAgentOptions,
         restrictInvitesToOwnDomain: editRestrictInvitesToOwnDomain,
+        ...standingInstructionsStamp,
       });
 
       if (result.errors && result.errors.length > 0) {
         setEditError('Failed to update customer.');
       } else {
-        const normalizedAgentOptions = parseAgentOptionsInput(editAgentOptionsText);
         setCustomers((prev) =>
           prev.map((customer) =>
             customer.id === customerId
@@ -369,6 +413,7 @@ export default function CustomersAdminPage() {
                   name: editName.trim(),
                   companyName: editCompanyName.trim() || null,
                   email: editEmail.trim(),
+                  contactPhone: editContactPhone.trim() || null,
                   billingRatePerHour: rate,
                   status: editStatus,
                   addressLine1: resolved.formattedAddress,
@@ -376,8 +421,9 @@ export default function CustomersAdminPage() {
                   defaultNumberOfSigns: editSigns ?? null,
                   defaultAgentName: editDefaultAgentName,
                   defaultAgentInitials: editDefaultAgentInitials,
-                  agentOptions: normalizedAgentOptions,
+                  agentOptions: editAgentOptions,
                   restrictInvitesToOwnDomain: editRestrictInvitesToOwnDomain,
+                  ...standingInstructionsStamp,
                 }
               : customer
           )
@@ -557,6 +603,7 @@ export default function CustomersAdminPage() {
                           editName={editName}
                           editCompanyName={editCompanyName}
                           editEmail={editEmail}
+                          editContactPhone={editContactPhone}
                           editBillingRatePerHour={editBillingRatePerHour}
                           editStatus={editStatus}
                           editAddressLine1={editAddressLine1}
@@ -564,14 +611,17 @@ export default function CustomersAdminPage() {
                           editDefaultNumberOfSigns={editDefaultNumberOfSigns}
                           editDefaultAgentName={editDefaultAgentName}
                           editDefaultAgentInitials={editDefaultAgentInitials}
-                          editAgentOptionsText={editAgentOptionsText}
+                          editAgentOptions={editAgentOptions}
                           editRestrictInvitesToOwnDomain={editRestrictInvitesToOwnDomain}
                           editSaving={editSaving}
                           editError={editError}
                           editSuccess={editSuccess}
+                          checklist={checklists[customer.id]}
+                          checklistLoading={checklistLoading[customer.id]}
                           onEditNameChange={setEditName}
                           onEditCompanyNameChange={setEditCompanyName}
                           onEditEmailChange={setEditEmail}
+                          onEditContactPhoneChange={setEditContactPhone}
                           onEditBillingRatePerHourChange={setEditBillingRatePerHour}
                           onEditBillingRatePerHourBlur={(value) => setEditBillingRatePerHour(formatCurrency(value))}
                           onEditStatusChange={setEditStatus}
@@ -585,7 +635,8 @@ export default function CustomersAdminPage() {
                               setEditAddressLine1(resolved.formattedAddress);
                             }
                           }}
-                          onEditAgentOptionsTextChange={setEditAgentOptionsText}
+                          onAddAgentOption={addAgentOption}
+                          onRemoveAgentOption={removeAgentOption}
                           onEditStandingInstructionsChange={setEditStandingInstructions}
                           onEditRestrictInvitesToOwnDomainChange={setEditRestrictInvitesToOwnDomain}
                           onSave={() => {

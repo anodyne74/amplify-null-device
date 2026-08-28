@@ -1,7 +1,6 @@
 'use client';
 
 import { FormEvent, useEffect, useRef } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import {
@@ -36,7 +35,6 @@ function isInvoicePaid(status?: Invoice['status'] | string | null) {
 }
 
 export default function InvoicesAdminPage() {
-  const { user } = useAuthenticator();
   const {
     loading,
     setLoading,
@@ -117,7 +115,7 @@ export default function InvoicesAdminPage() {
     billingPaymentAccountName,
     billingBsb,
     billingAccountNumber,
-  } = useInvoiceBillingSettings({ userId: user?.userId });
+  } = useInvoiceBillingSettings();
 
   // PDF upload state (per invoice)
   const fileInputRef = useRef<HTMLInputElement>(null);

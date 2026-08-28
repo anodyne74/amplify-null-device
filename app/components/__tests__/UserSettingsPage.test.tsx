@@ -48,7 +48,6 @@ describe('UserSettingsPage', () => {
         name: 'Saved Name',
         defaultTheme: 'dark',
         mapTheme: 'satellite',
-        billingCompanyName: 'Acme Pty Ltd',
       },
       errors: undefined,
     });
@@ -58,10 +57,6 @@ describe('UserSettingsPage', () => {
     expect(await screen.findByDisplayValue('Saved Name')).toBeInTheDocument();
     expect(screen.getByLabelText('Default Theme')).toBeChecked();
     expect(screen.getByLabelText('Map Theme')).toHaveValue('satellite');
-
-    expect(screen.queryByLabelText('Billing Company Name')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: /administrator settings/i }));
-    expect(screen.getByDisplayValue('Acme Pty Ltd')).toBeInTheDocument();
   });
 
   it('applies the saved default theme on load, not just after saving (#80)', async () => {
@@ -85,28 +80,22 @@ describe('UserSettingsPage', () => {
     expect(setModeMock).not.toHaveBeenCalled();
   });
 
-  it('hides admin billing fields for operator', async () => {
+  it('hides tabs for operator, who has no other settings sections', async () => {
     render(<UserSettingsPage title="Settings" roleVariant="operator" />);
 
     await screen.findByDisplayValue('Fallback Name');
 
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Billing Company Name')).not.toBeInTheDocument();
     expect(screen.getByText('Operator profile and preferences.')).toBeInTheDocument();
   });
 
-  it('shows administrator billing fields in a separate settings tab', async () => {
+  it('hides tabs for administrator, who has no other settings sections', async () => {
     render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
 
     await screen.findByDisplayValue('Fallback Name');
 
-    expect(screen.getByRole('tab', { name: /user preferences/i })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.queryByLabelText('Billing Company Name')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: /administrator settings/i }));
-
-    expect(screen.getByRole('tab', { name: /administrator settings/i })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByLabelText('Billing Company Name')).toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.getByText('Administrator profile and preferences.')).toBeInTheDocument();
   });
 
   it('replaces the theme dropdown with a light/dark toggle, no System option (#56)', async () => {
@@ -121,18 +110,6 @@ describe('UserSettingsPage', () => {
 
     fireEvent.click(toggle);
     expect(toggle).not.toBeChecked();
-  });
-
-  it('labels the remittance account fields as "Pay-To" so admins know they belong to invoices, not customers (#67)', async () => {
-    render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
-
-    await screen.findByDisplayValue('Fallback Name');
-    fireEvent.click(screen.getByRole('tab', { name: /administrator settings/i }));
-
-    expect(screen.getByLabelText('Pay-To Account Name')).toBeInTheDocument();
-    expect(screen.getByLabelText('Pay-To BSB')).toBeInTheDocument();
-    expect(screen.getByLabelText('Pay-To Account Number')).toBeInTheDocument();
-    expect(screen.getAllByText(/shown in the "pay to" section of customer invoices/i).length).toBeGreaterThan(0);
   });
 
   it('shows customer settings only for account owners', async () => {

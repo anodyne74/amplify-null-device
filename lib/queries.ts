@@ -61,13 +61,6 @@ export interface UserSettingsRecord {
   name?: string | null;
   defaultTheme?: ThemeModeSetting | null;
   mapTheme?: MapThemeSetting | null;
-  billingCompanyName?: string | null;
-  billingAbn?: string | null;
-  billingPhone?: string | null;
-  billingCompanyAddress?: string | null;
-  billingPaymentAccountName?: string | null;
-  billingBsb?: string | null;
-  billingAccountNumber?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
 }
@@ -109,13 +102,6 @@ export async function upsertUserSettings(
     name: string;
     defaultTheme: ThemeModeSetting;
     mapTheme: MapThemeSetting;
-    billingCompanyName: string;
-    billingAbn: string;
-    billingPhone: string;
-    billingCompanyAddress: string;
-    billingPaymentAccountName: string;
-    billingBsb: string;
-    billingAccountNumber: string;
   }>
 ) {
   try {

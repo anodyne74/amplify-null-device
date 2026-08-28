@@ -1,23 +1,25 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { DEFAULT_COMPANY_BILLING_DETAILS } from '@/lib/companyBilling';
-import { getUserSettings } from '@/lib/queries';
+import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { useInvoiceBillingSettings } from '@/app/administrator/invoices/hooks/useInvoiceBillingSettings';
 
-jest.mock('@/lib/queries', () => ({
-  getUserSettings: jest.fn(),
+jest.mock('@/lib/queries/OrganizationSettings', () => ({
+  getOrganizationSettings: jest.fn(),
 }));
 
-const mockGetUserSettings = getUserSettings as jest.MockedFunction<typeof getUserSettings>;
+const mockGetOrganizationSettings = getOrganizationSettings as jest.MockedFunction<typeof getOrganizationSettings>;
 
 describe('useInvoiceBillingSettings', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('returns defaults when no userId is provided', () => {
-    const { result } = renderHook(() => useInvoiceBillingSettings({ userId: undefined }));
+  it('returns defaults while organization settings are loading', () => {
+    mockGetOrganizationSettings.mockReturnValue(new Promise(() => {}) as any);
 
-    expect(mockGetUserSettings).not.toHaveBeenCalled();
+    const { result } = renderHook(() => useInvoiceBillingSettings());
+
+    expect(mockGetOrganizationSettings).toHaveBeenCalled();
     expect(result.current.billingCompanyName).toBe(DEFAULT_COMPANY_BILLING_DETAILS.companyName);
     expect(result.current.billingAbn).toBe(DEFAULT_COMPANY_BILLING_DETAILS.abn);
     expect(result.current.billingPhone).toBe(DEFAULT_COMPANY_BILLING_DETAILS.phone);
@@ -27,24 +29,25 @@ describe('useInvoiceBillingSettings', () => {
     expect(result.current.billingAccountNumber).toBe(DEFAULT_COMPANY_BILLING_DETAILS.accountNumber);
   });
 
-  it('loads and trims user settings, falling back to defaults for blank fields', async () => {
-    mockGetUserSettings.mockResolvedValue({
+  it('loads and trims organization settings, falling back to defaults for blank fields', async () => {
+    mockGetOrganizationSettings.mockResolvedValue({
       data: {
-        billingCompanyName: '  New Co  ',
-        billingAbn: ' ',
-        billingPhone: '  0400 111 222  ',
-        billingCompanyAddress: '  1 High St  ',
-        billingPaymentAccountName: '  New Co Pty Ltd  ',
-        billingBsb: '',
-        billingAccountNumber: ' 123456789 ',
+        id: 'organization',
+        companyName: '  New Co  ',
+        abn: ' ',
+        phone: '  0400 111 222  ',
+        address: '  1 High St  ',
+        paymentAccountName: '  New Co Pty Ltd  ',
+        bsb: '',
+        accountNumber: ' 123456789 ',
       },
       errors: [],
     } as any);
 
-    const { result } = renderHook(() => useInvoiceBillingSettings({ userId: 'user-1' }));
+    const { result } = renderHook(() => useInvoiceBillingSettings());
 
     await waitFor(() => {
-      expect(mockGetUserSettings).toHaveBeenCalledWith('user-1');
+      expect(mockGetOrganizationSettings).toHaveBeenCalled();
       expect(result.current.billingCompanyName).toBe('New Co');
     });
 
@@ -56,13 +59,13 @@ describe('useInvoiceBillingSettings', () => {
     expect(result.current.billingAccountNumber).toBe('123456789');
   });
 
-  it('keeps defaults when getUserSettings fails', async () => {
-    mockGetUserSettings.mockRejectedValue(new Error('network error'));
+  it('keeps defaults when getOrganizationSettings fails', async () => {
+    mockGetOrganizationSettings.mockRejectedValue(new Error('network error'));
 
-    const { result } = renderHook(() => useInvoiceBillingSettings({ userId: 'user-2' }));
+    const { result } = renderHook(() => useInvoiceBillingSettings());
 
     await waitFor(() => {
-      expect(mockGetUserSettings).toHaveBeenCalledWith('user-2');
+      expect(mockGetOrganizationSettings).toHaveBeenCalled();
     });
 
     expect(result.current.billingCompanyName).toBe(DEFAULT_COMPANY_BILLING_DETAILS.companyName);

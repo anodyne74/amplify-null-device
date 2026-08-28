@@ -15,7 +15,8 @@ import { customerAccessActivation } from '../functions/customer-access-activatio
  * - AuditLog: Security audit trail for compliance
  * - CustomerUser: Cognito users associated with a customer (account_owner or read_only)
  * - Administrator: Administrator profile details synced from Cognito
- * - UserSettings: Per-user UI preferences and Null Device's own invoice remittance details
+ * - UserSettings: Per-user UI preferences
+ * - OrganizationSettings: Null Device's own invoice remittance details (single row)
  * - OperatorAvailabilityBlock: Days Null Device has no drivers available for a customer
  * - CustomerClosureBlock: Days a customer's agency is closed
  * - RateLine: Named, priced lines on a customer's rate card
@@ -53,7 +54,7 @@ const schema = a.schema({
       status: a.enum(['active', 'inactive', 'suspended']),
       billingRatePerHour: a.float().required(), // Configurable hourly rate for invoicing
       // Rate card / GST / direct-debit — customer-scoped billing setup (distinct from
-      // UserSettings.billing*, which is Null Device's own remittance details)
+      // OrganizationSettings, which is Null Device's own remittance details)
       gstRegistered: a.boolean(),
       gstAbn: a.string(), // Customer's own ABN
       directDebitAccountName: a.string(),
@@ -528,19 +529,36 @@ const schema = a.schema({
       name: a.string(),
       defaultTheme: a.enum(['system', 'light', 'dark']),
       mapTheme: a.enum(['light', 'dark', 'satellite', 'streets']),
-      billingCompanyName: a.string(),
-      billingAbn: a.string(),
-      billingPhone: a.string(),
-      billingCompanyAddress: a.string(),
-      billingPaymentAccountName: a.string(),
-      billingBsb: a.string(),
-      billingAccountNumber: a.string(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('userSub').identityClaim('sub').to(['read', 'create', 'update', 'delete']),
       allow.groups(['administrator']).to(['read']),
+    ]),
+
+  /**
+   * OrganizationSettings - Null Device's own invoice remittance details (company name, ABN,
+   * phone, address, and the bank account invoices ask customers to pay into). Single row,
+   * always fetched/created by the well-known id 'organization' -- there is one of these for
+   * the whole business, not one per admin user (that was UserSettings' mistake pre-migration:
+   * see git history). Staff-internal and printed onto invoices server-side; not customer-facing,
+   * so only administrators get any access at all.
+   */
+  OrganizationSettings: a
+    .model({
+      companyName: a.string(),
+      abn: a.string(),
+      phone: a.string(),
+      address: a.string(),
+      paymentAccountName: a.string(),
+      bsb: a.string(),
+      accountNumber: a.string(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
     ]),
 }).authorization((allow) => [
   allow.resource(customerAccessActivation).to(['query', 'mutate']),

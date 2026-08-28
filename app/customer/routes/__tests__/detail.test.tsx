@@ -2,7 +2,14 @@ import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Route, Stop } from '@/amplify/types';
 import RouteDetailContent from '../[id]/_RouteDetailContent';
-import { getCustomer, getCustomerPortalContext, getRouteWithStops, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
+import {
+  getCustomer,
+  getCustomerPortalContext,
+  getRouteWithStops,
+  listCustomerUsers,
+  updateRoute,
+  updateRouteCustomerInstructions,
+} from '@/lib/queries';
 
 jest.mock('@aws-amplify/ui-react', () => ({
   useAuthenticator: () => ({
@@ -37,6 +44,7 @@ jest.mock('@/lib/queries', () => ({
   getCustomer: jest.fn(),
   getCustomerPortalContext: jest.fn(),
   getRouteWithStops: jest.fn(),
+  listCustomerUsers: jest.fn(),
   updateRouteCustomerInstructions: jest.fn(),
   updateRoute: jest.fn(),
 }));
@@ -124,6 +132,7 @@ describe('Customer route detail tracker', () => {
       data: { id: 'cust-1', agentOptions: ["Betty O'Shea", 'David Mun'] },
       errors: undefined,
     });
+    (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
   });
 
   it('lets a read-only customer user view their route tracker with map and stops', async () => {
@@ -144,7 +153,7 @@ describe('Customer route detail tracker', () => {
 
     expect(screen.getByText('Signs out')).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
-    expect(screen.getByText('1/3')).toBeInTheDocument();
+    expect(screen.getByText('Placed (1/3)')).toBeInTheDocument();
   });
 
   it('lets a customer add a special instruction for the route, attributed to a picked agent', async () => {
@@ -176,6 +185,113 @@ describe('Customer route detail tracker', () => {
     expect(await screen.findByText(/instruction added/i)).toBeInTheDocument();
     expect(screen.getByText('Leave signs at side gate')).toBeInTheDocument();
     expect(screen.getByText(/david mun ·/i)).toBeInTheDocument();
+  });
+
+  it("resolves an instruction's authorSub to a name from the CustomerUser directory, in place of agentLabel", async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: {
+        ...route,
+        customerInstructions: JSON.stringify({
+          v: 1,
+          entries: [
+            {
+              text: 'Use the side gate, front is blocked',
+              agentLabel: 'David Mun',
+              authorSub: 'owner-sub-1',
+              createdAt: '2024-01-16T09:00:00Z',
+            },
+          ],
+        }),
+      },
+      stops,
+      errors: [],
+    });
+    (listCustomerUsers as jest.Mock).mockResolvedValue({
+      data: [{ userSub: 'owner-sub-1', name: 'Priya Nair' }],
+      errors: undefined,
+    });
+
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+
+    expect(await screen.findByText(/priya nair ·/i)).toBeInTheDocument();
+    expect(screen.queryByText(/david mun ·/i)).not.toBeInTheDocument();
+  });
+
+  it('falls back to the stored agentLabel when the author cannot be resolved (e.g. a read_only viewer looking at a teammate\'s entry)', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: {
+        ...route,
+        customerInstructions: JSON.stringify({
+          v: 1,
+          entries: [
+            {
+              text: 'Use the side gate, front is blocked',
+              agentLabel: 'David Mun',
+              authorSub: 'owner-sub-1',
+              createdAt: '2024-01-16T09:00:00Z',
+            },
+          ],
+        }),
+      },
+      stops,
+      errors: [],
+    });
+    // A read_only viewer's CustomerUser query only returns their own row.
+    (listCustomerUsers as jest.Mock).mockResolvedValue({
+      data: [{ userSub: 'viewer-sub-1', name: 'The Viewer' }],
+      errors: undefined,
+    });
+
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+
+    expect(await screen.findByText(/david mun ·/i)).toBeInTheDocument();
+  });
+
+  it('collapses and re-expands the special instructions panel', async () => {
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+
+    const toggle = screen.getByRole('button', { name: /collapse special instructions/i });
+    expect(screen.getByLabelText(/add an instruction for this route/i)).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(screen.queryByLabelText(/add an instruction for this route/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /expand special instructions/i }));
+    expect(screen.getByLabelText(/add an instruction for this route/i)).toBeInTheDocument();
+  });
+
+  describe('narrow viewport', () => {
+    beforeEach(() => {
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        value: jest.fn().mockImplementation((query: string) => ({
+          matches: true,
+          media: query,
+          addEventListener: jest.fn(),
+          removeEventListener: jest.fn(),
+        })),
+      });
+    });
+
+    afterEach(() => {
+      // @ts-expect-error -- cleanup of a property only this describe block defines
+      delete window.matchMedia;
+    });
+
+    it('renders the route map before the stop list', async () => {
+      render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+      await screen.findByRole('heading', { name: /route w19-26-001/i });
+
+      const headings = screen.getAllByRole('heading', { name: /route map|stops \(3\)/i });
+      expect(headings.map((h) => h.textContent)).toEqual(['Route map', 'Stops (3)']);
+    });
   });
 
   it('shows a legacy plain-text customerInstructions value as an unattributed feed entry', async () => {

@@ -243,6 +243,8 @@ export async function updateCustomer(
     contactPhone: string;
     addressLine1: string;
     standingInstructions: string;
+    standingInstructionsUpdatedBy: string;
+    standingInstructionsUpdatedAt: string;
     defaultNumberOfSigns: number;
     defaultAgentName: string;
     defaultAgentInitials: string;
@@ -393,6 +395,28 @@ export async function getRouteWithStops(routeId: string) {
   } catch (error) {
     console.error('Error getting route with stops:', error);
     return { route: null, stops: [], errors: [error] };
+  }
+}
+
+/**
+ * Fetch invoices for a single customer (admin customers panel — onboarding checklist).
+ */
+export async function listCustomerInvoices(customerId: string, options?: { limit?: number }) {
+  try {
+    const { data, errors } = await getClient().models.Invoice.list({
+      filter: { customerId: { eq: customerId } },
+      limit: options?.limit || 20,
+    });
+
+    if (errors) {
+      console.error('Errors fetching customer invoices:', errors);
+      return { data: [], errors };
+    }
+
+    return { data: data || [], errors };
+  } catch (error) {
+    console.error('Error listing customer invoices:', error);
+    return { data: [], errors: [error] };
   }
 }
 

@@ -87,6 +87,7 @@ import {
   listCustomerRoutes,
   getRouteWithStops,
   getCustomerPortalContext,
+  listCustomerInvoices,
   listInvoices,
   getInvoiceWithLineItems,
   createInvoice,
@@ -307,6 +308,32 @@ describe('queries', () => {
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].status).toBe('signs_placed');
+    });
+  });
+
+  describe('listCustomerInvoices', () => {
+    it('should fetch invoices for a specific customer', async () => {
+      mockInvoiceList.mockResolvedValue({
+        data: [{ id: 'i1', customerId: 'c1', status: 'sent' }],
+        errors: undefined,
+      });
+
+      const result = await listCustomerInvoices('c1');
+
+      expect(mockInvoiceList).toHaveBeenCalledWith({
+        filter: { customerId: { eq: 'c1' } },
+        limit: 20,
+      });
+      expect(result.data).toHaveLength(1);
+    });
+
+    it('should return an empty list on error', async () => {
+      mockInvoiceList.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
+
+      const result = await listCustomerInvoices('c1');
+
+      expect(result.data).toEqual([]);
+      expect(result.errors).toBeTruthy();
     });
   });
 

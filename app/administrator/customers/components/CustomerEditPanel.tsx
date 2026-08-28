@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import { Button } from '@/app/components/ui/core/Button';
+import { Card } from '@/app/components/ui/core/Card';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { Checkbox } from '@/app/components/ui/forms/Checkbox';
+import { Tag } from '@/app/components/ui/core/Tag';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import type { Customer, CustomerStatus } from '@/app/administrator/customers/types';
+import type { ChecklistItem } from '@/lib/customerOnboardingChecklist';
 import styles from '../page.module.css';
 
 function emailDomain(email: string) {
@@ -15,6 +19,7 @@ interface CustomerEditPanelProps {
   editName: string;
   editCompanyName: string;
   editEmail: string;
+  editContactPhone: string;
   editBillingRatePerHour: string;
   editStatus: CustomerStatus;
   editAddressLine1: string;
@@ -22,14 +27,17 @@ interface CustomerEditPanelProps {
   editDefaultNumberOfSigns: string;
   editDefaultAgentName: string;
   editDefaultAgentInitials: string;
-  editAgentOptionsText: string;
+  editAgentOptions: string[];
   editRestrictInvitesToOwnDomain: boolean;
   editSaving: boolean;
   editError: string | null;
   editSuccess: string | null;
+  checklist?: ChecklistItem[];
+  checklistLoading?: boolean;
   onEditNameChange: (value: string) => void;
   onEditCompanyNameChange: (value: string) => void;
   onEditEmailChange: (value: string) => void;
+  onEditContactPhoneChange: (value: string) => void;
   onEditBillingRatePerHourChange: (value: string) => void;
   onEditBillingRatePerHourBlur: (value: string) => void;
   onEditStatusChange: (value: CustomerStatus) => void;
@@ -38,7 +46,8 @@ interface CustomerEditPanelProps {
   onEditDefaultAgentInitialsChange: (value: string) => void;
   onEditAddressLine1Change: (value: string) => void;
   onEditResolvedAddressChange: (resolved: ResolvedAddress | null) => void;
-  onEditAgentOptionsTextChange: (value: string) => void;
+  onAddAgentOption: (value: string) => void;
+  onRemoveAgentOption: (value: string) => void;
   onEditStandingInstructionsChange: (value: string) => void;
   onEditRestrictInvitesToOwnDomainChange: (value: boolean) => void;
   onSave: () => void;
@@ -50,6 +59,7 @@ export default function CustomerEditPanel({
   editName,
   editCompanyName,
   editEmail,
+  editContactPhone,
   editBillingRatePerHour,
   editStatus,
   editAddressLine1,
@@ -57,14 +67,17 @@ export default function CustomerEditPanel({
   editDefaultNumberOfSigns,
   editDefaultAgentName,
   editDefaultAgentInitials,
-  editAgentOptionsText,
+  editAgentOptions,
   editRestrictInvitesToOwnDomain,
   editSaving,
   editError,
   editSuccess,
+  checklist,
+  checklistLoading,
   onEditNameChange,
   onEditCompanyNameChange,
   onEditEmailChange,
+  onEditContactPhoneChange,
   onEditBillingRatePerHourChange,
   onEditBillingRatePerHourBlur,
   onEditStatusChange,
@@ -73,12 +86,20 @@ export default function CustomerEditPanel({
   onEditDefaultAgentInitialsChange,
   onEditAddressLine1Change,
   onEditResolvedAddressChange,
-  onEditAgentOptionsTextChange,
+  onAddAgentOption,
+  onRemoveAgentOption,
   onEditStandingInstructionsChange,
   onEditRestrictInvitesToOwnDomainChange,
   onSave,
   onCancel,
 }: CustomerEditPanelProps) {
+  const [newAgentOption, setNewAgentOption] = useState('');
+
+  const addAgent = () => {
+    if (!newAgentOption.trim()) return;
+    onAddAgentOption(newAgentOption);
+    setNewAgentOption('');
+  };
   return (
     <div className={styles.subPanel}>
       <h4 className={styles.subPanelHeading}>Edit Customer — {customer.name}</h4>
@@ -106,6 +127,13 @@ export default function CustomerEditPanel({
           type="email"
           disabled={editSaving}
           required
+        />
+        <Input
+          value={editContactPhone}
+          onChange={(event) => onEditContactPhoneChange(event.target.value)}
+          placeholder="Contact phone"
+          type="tel"
+          disabled={editSaving}
         />
         <Input
           value={editBillingRatePerHour}
@@ -160,22 +188,56 @@ export default function CustomerEditPanel({
             className="nd-input"
           />
         </div>
-        <Input
-          value={editAgentOptionsText}
-          onChange={(event) => onEditAgentOptionsTextChange(event.target.value)}
-          placeholder="Agent options, one per line"
-          disabled={editSaving}
-          multiline
-          className={styles.fieldsGridFull}
-        />
-        <Input
-          value={editStandingInstructions}
-          onChange={(event) => onEditStandingInstructionsChange(event.target.value)}
-          placeholder="Standing instructions for operators"
-          disabled={editSaving}
-          multiline
-          className={styles.fieldsGridFull}
-        />
+        <div className={styles.fieldsGridFull}>
+          <p className={styles.mutedText}>Agents on this account — shown as codes on the operator&apos;s run sheet.</p>
+          <div className={styles.agentChipRow}>
+            {editAgentOptions.map((option) => (
+              <Tag key={option} onRemove={editSaving ? undefined : () => onRemoveAgentOption(option)}>
+                {option}
+              </Tag>
+            ))}
+          </div>
+          <div className={styles.agentChipAddRow}>
+            <Input
+              className={styles.agentChipAddInput}
+              value={newAgentOption}
+              onChange={(event) => setNewAgentOption(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  addAgent();
+                }
+              }}
+              placeholder="Agent name"
+              disabled={editSaving}
+              aria-label="Add agent"
+            />
+            <Button type="button" variant="ghost" size="sm" disabled={editSaving || !newAgentOption.trim()} onClick={addAgent}>
+              Add agent
+            </Button>
+          </div>
+        </div>
+        <div className={styles.fieldsGridFull}>
+          <Input
+            value={editStandingInstructions}
+            onChange={(event) => onEditStandingInstructionsChange(event.target.value)}
+            placeholder="Standing instructions for operators"
+            disabled={editSaving}
+            multiline
+          />
+          {customer.standingInstructionsUpdatedAt && (
+            <div className={styles.attributionRow}>
+              <span className={styles.attributionCaption}>
+                Last edited {new Date(customer.standingInstructionsUpdatedAt).toLocaleDateString('en-AU', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+                {customer.standingInstructionsUpdatedBy ? ` by ${customer.standingInstructionsUpdatedBy}` : ''}
+              </span>
+            </div>
+          )}
+        </div>
         {customer.defaultAgentInitials && (
           <p className={`${styles.mutedText} ${styles.fieldsGridFull}`}>
             Current default initials: {customer.defaultAgentInitials}
@@ -198,6 +260,27 @@ export default function CustomerEditPanel({
           Cancel
         </Button>
       </div>
+
+      <Card title="Onboarding checklist" className={styles.checklistCard}>
+        {checklistLoading ? (
+          <p className={styles.mutedText}>Loading...</p>
+        ) : (
+          <ul className={styles.checklist}>
+            {(checklist ?? []).map((item) => (
+              <li key={item.id} className={styles.checklistRow}>
+                <span
+                  className={`${styles.checklistMark} ${item.done ? styles.checklistMarkDone : styles.checklistMarkPending}`}
+                  aria-hidden="true"
+                >
+                  {item.done ? '✓' : '·'}
+                </span>
+                <span className={styles.checklistLabel}>{item.label}</span>
+                {item.when && <span className={styles.checklistWhen}>{item.when}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }

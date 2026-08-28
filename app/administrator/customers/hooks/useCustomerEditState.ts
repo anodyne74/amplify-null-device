@@ -5,7 +5,7 @@ import type { Customer, CustomerStatus } from '@/app/administrator/customers/typ
 interface OpenEditPanelParams {
   customer: Customer;
   billingRateDisplay: string;
-  agentOptionsText: string;
+  agentOptions: string[];
 }
 
 export function useCustomerEditState() {
@@ -13,20 +13,34 @@ export function useCustomerEditState() {
   const [editName, setEditName] = useState('');
   const [editCompanyName, setEditCompanyName] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editContactPhone, setEditContactPhone] = useState('');
   const [editBillingRatePerHour, setEditBillingRatePerHour] = useState('$0.00');
   const [editStatus, setEditStatus] = useState<CustomerStatus>('active');
   const [editAddressLine1, setEditAddressLine1] = useState('');
   const [editOriginalAddressLine1, setEditOriginalAddressLine1] = useState('');
   const [editStandingInstructions, setEditStandingInstructions] = useState('');
+  const [editOriginalStandingInstructions, setEditOriginalStandingInstructions] = useState('');
   const [editDefaultNumberOfSigns, setEditDefaultNumberOfSigns] = useState('');
   const [editDefaultAgentName, setEditDefaultAgentName] = useState('');
   const [editDefaultAgentInitials, setEditDefaultAgentInitials] = useState('');
-  const [editAgentOptionsText, setEditAgentOptionsText] = useState('');
+  const [editAgentOptions, setEditAgentOptions] = useState<string[]>([]);
   const [editRestrictInvitesToOwnDomain, setEditRestrictInvitesToOwnDomain] = useState(false);
   const [editResolvedAddress, setEditResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
+
+  const addAgentOption = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    setEditAgentOptions((prev) =>
+      prev.some((option) => option.toLowerCase() === trimmed.toLowerCase()) ? prev : [...prev, trimmed]
+    );
+  };
+
+  const removeAgentOption = (value: string) => {
+    setEditAgentOptions((prev) => prev.filter((option) => option !== value));
+  };
 
   const resetEditFeedback = () => {
     setEditError(null);
@@ -39,24 +53,26 @@ export function useCustomerEditState() {
     resetEditFeedback();
   };
 
-  const openEditPanel = ({ customer, billingRateDisplay, agentOptionsText }: OpenEditPanelParams) => {
+  const openEditPanel = ({ customer, billingRateDisplay, agentOptions }: OpenEditPanelParams) => {
     setExpandedEditPanel(customer.id);
     resetEditFeedback();
 
     setEditName(customer.name);
     setEditCompanyName(customer.companyName ?? '');
     setEditEmail(customer.email);
+    setEditContactPhone(customer.contactPhone ?? '');
     setEditBillingRatePerHour(billingRateDisplay);
     setEditStatus(customer.status ?? 'active');
     setEditAddressLine1(customer.addressLine1 ?? '');
     setEditOriginalAddressLine1(customer.addressLine1 ?? '');
     setEditStandingInstructions(customer.standingInstructions ?? '');
+    setEditOriginalStandingInstructions(customer.standingInstructions ?? '');
     setEditDefaultNumberOfSigns(
       typeof customer.defaultNumberOfSigns === 'number' ? String(customer.defaultNumberOfSigns) : ''
     );
     setEditDefaultAgentName(customer.defaultAgentName ?? '');
     setEditDefaultAgentInitials(customer.defaultAgentInitials ?? '');
-    setEditAgentOptionsText(agentOptionsText);
+    setEditAgentOptions(agentOptions);
     setEditRestrictInvitesToOwnDomain(Boolean(customer.restrictInvitesToOwnDomain));
   };
 
@@ -69,6 +85,8 @@ export function useCustomerEditState() {
     setEditCompanyName,
     editEmail,
     setEditEmail,
+    editContactPhone,
+    setEditContactPhone,
     editBillingRatePerHour,
     setEditBillingRatePerHour,
     editStatus,
@@ -78,14 +96,17 @@ export function useCustomerEditState() {
     editOriginalAddressLine1,
     editStandingInstructions,
     setEditStandingInstructions,
+    editOriginalStandingInstructions,
     editDefaultNumberOfSigns,
     setEditDefaultNumberOfSigns,
     editDefaultAgentName,
     setEditDefaultAgentName,
     editDefaultAgentInitials,
     setEditDefaultAgentInitials,
-    editAgentOptionsText,
-    setEditAgentOptionsText,
+    editAgentOptions,
+    setEditAgentOptions,
+    addAgentOption,
+    removeAgentOption,
     editRestrictInvitesToOwnDomain,
     setEditRestrictInvitesToOwnDomain,
     editResolvedAddress,

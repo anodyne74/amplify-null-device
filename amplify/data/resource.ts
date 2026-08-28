@@ -43,6 +43,9 @@ const schema = a.schema({
       // Address (single formatted value, same style as stop.formattedAddress)
       addressLine1: a.string(),
       standingInstructions: a.string(),
+      // Attribution for the standing instructions field — stamped whenever it changes.
+      standingInstructionsUpdatedBy: a.string(),
+      standingInstructionsUpdatedAt: a.datetime(),
       defaultNumberOfSigns: a.integer(),
       defaultAgentName: a.string(),
       defaultAgentInitials: a.string(),

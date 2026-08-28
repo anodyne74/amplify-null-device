@@ -7,6 +7,10 @@ import { geocodeAddress } from '@/lib/googleMaps';
 
 jest.mock('@/app/dashboard.module.css', () => ({}));
 
+jest.mock('@aws-amplify/ui-react', () => ({
+  useAuthenticator: () => ({ user: { signInDetails: { loginId: 'admin@nulldevice.test' } } }),
+}));
+
 const mockShowToast = jest.fn();
 jest.mock('@/app/components/ToastProvider', () => ({
   useToast: () => ({ showToast: mockShowToast }),
@@ -46,7 +50,9 @@ jest.mock('@/lib/queries', () => ({
   createCustomer: jest.fn(),
   createCustomerUser: jest.fn(),
   deleteCustomer: jest.fn(),
-  listCustomerUsers: jest.fn(),
+  listCustomerUsers: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
+  listCustomerRoutes: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
+  listCustomerInvoices: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
   listCustomers: jest.fn(),
   syncViewerSubsForCustomer: jest.fn(),
   updateCustomer: jest.fn(),
@@ -151,9 +157,13 @@ describe('Operator Customers Page', () => {
 
     fireEvent.change(scoped.getByPlaceholderText('Default number of signs'), { target: { value: '6' } });
     fireEvent.change(scoped.getByPlaceholderText('Default agent name'), { target: { value: 'Jamie Lee' } });
-    fireEvent.change(scoped.getByPlaceholderText('Agent options, one per line'), {
-      target: { value: 'Jamie Lee\nAlex Roe' },
-    });
+
+    // Remove the "Pat Doe" agent chip and add "Alex Roe" via the tag-chip editor.
+    const patDoeChip = scoped.getByText('Pat Doe').closest('span') as HTMLElement;
+    fireEvent.click(within(patDoeChip).getByRole('button', { name: /remove/i }));
+    fireEvent.change(scoped.getByLabelText('Add agent'), { target: { value: 'Alex Roe' } });
+    fireEvent.click(scoped.getByRole('button', { name: /^add agent$/i }));
+
     fireEvent.change(scoped.getByPlaceholderText('Standing instructions for operators'), {
       target: { value: 'Updated standing instructions.' },
     });

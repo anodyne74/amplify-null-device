@@ -21,7 +21,7 @@ describe('useCustomerEditState', () => {
           defaultAgentInitials: undefined,
         },
         billingRateDisplay: '$95.00',
-        agentOptionsText: 'Jamie\nPat',
+        agentOptions: ['Jamie', 'Pat'],
       });
     });
 
@@ -29,6 +29,7 @@ describe('useCustomerEditState', () => {
     expect(result.current.editName).toBe('Acme');
     expect(result.current.editCompanyName).toBe('');
     expect(result.current.editEmail).toBe('acme@example.com');
+    expect(result.current.editContactPhone).toBe('');
     expect(result.current.editBillingRatePerHour).toBe('$95.00');
     expect(result.current.editStatus).toBe('active');
     expect(result.current.editAddressLine1).toBe('');
@@ -36,7 +37,7 @@ describe('useCustomerEditState', () => {
     expect(result.current.editDefaultNumberOfSigns).toBe('');
     expect(result.current.editDefaultAgentName).toBe('');
     expect(result.current.editDefaultAgentInitials).toBe('');
-    expect(result.current.editAgentOptionsText).toBe('Jamie\nPat');
+    expect(result.current.editAgentOptions).toEqual(['Jamie', 'Pat']);
     expect(result.current.editOriginalAddressLine1).toBe('');
   });
 
@@ -53,7 +54,7 @@ describe('useCustomerEditState', () => {
           addressLine1: '11 Old St',
         },
         billingRateDisplay: '$50.00',
-        agentOptionsText: '',
+        agentOptions: [],
       });
     });
 
@@ -95,7 +96,7 @@ describe('useCustomerEditState', () => {
           defaultAgentInitials: 'TA',
         },
         billingRateDisplay: '$110.00',
-        agentOptionsText: 'Taylor',
+        agentOptions: ['Taylor'],
       });
     });
 
@@ -115,5 +116,34 @@ describe('useCustomerEditState', () => {
     expect(result.current.editError).toBeNull();
     expect(result.current.editSuccess).toBeNull();
     expect(result.current.editResolvedAddress).toBeNull();
+  });
+
+  it('adds and removes agent option chips, de-duping case-insensitively', () => {
+    const { result } = renderHook(() => useCustomerEditState());
+
+    act(() => {
+      result.current.addAgentOption('Betty O\'Shea');
+    });
+    expect(result.current.editAgentOptions).toEqual(['Betty O\'Shea']);
+
+    act(() => {
+      result.current.addAgentOption('betty o\'shea');
+    });
+    expect(result.current.editAgentOptions).toEqual(['Betty O\'Shea']);
+
+    act(() => {
+      result.current.addAgentOption('  ');
+    });
+    expect(result.current.editAgentOptions).toEqual(['Betty O\'Shea']);
+
+    act(() => {
+      result.current.addAgentOption('David Mun');
+    });
+    expect(result.current.editAgentOptions).toEqual(['Betty O\'Shea', 'David Mun']);
+
+    act(() => {
+      result.current.removeAgentOption('Betty O\'Shea');
+    });
+    expect(result.current.editAgentOptions).toEqual(['David Mun']);
   });
 });

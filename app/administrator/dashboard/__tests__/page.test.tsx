@@ -1,9 +1,10 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import AdminHomePage from '../page';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
-import { listInvoices } from '@/lib/queries';
+import { listAllStops } from '@/lib/queries/ListAllStops';
+import { listInvoices, listCustomerUsers } from '@/lib/queries';
 
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
@@ -14,12 +15,16 @@ jest.mock('@/lib/queries/ListAllRoutes', () => ({
   listAllRoutes: jest.fn(),
 }));
 
+jest.mock('@/lib/queries/ListAllStops', () => ({
+  listAllStops: jest.fn(),
+}));
+
 jest.mock('@/lib/queries', () => ({
   listInvoices: jest.fn(),
+  listCustomerUsers: jest.fn(),
 }));
 
 const mockCustomerList = jest.fn();
-const mockStopList = jest.fn();
 
 jest.mock('aws-amplify/data', () => ({
   generateClient: () => ({
@@ -27,43 +32,27 @@ jest.mock('aws-amplify/data', () => ({
       Customer: {
         list: mockCustomerList,
       },
-      Stop: {
-        list: mockStopList,
-      },
     },
   }),
 }));
 
-describe('Administrator dashboard metrics visualisation', () => {
+describe('Administrator dashboard overview', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
     (listAllRoutes as jest.Mock).mockResolvedValue({
       data: [
-        {
-          id: 'route-1',
-          customerId: 'customer-1',
-          status: 'completed',
-          actualEndTime: '2026-01-14T12:00:00Z',
-          actualDurationMinutes: 120,
-          signsPlacedDistanceKm: 12.5,
-          signsPickedUpDistanceKm: 10,
-          stops: 2,
-          signsPlaced: 5,
-          signsPickedUp: 5,
-        },
-        {
-          id: 'route-2',
-          customerId: 'customer-2',
-          status: 'completed',
-          actualEndTime: '2026-01-21T12:00:00Z',
-          actualDurationMinutes: 60,
-          signsPlacedDistanceKm: 5,
-          signsPickedUpDistanceKm: 4,
-          stops: 1,
-          signsPlaced: 2,
-          signsPickedUp: 2,
-        },
+        { id: 'route-1', customerId: 'customer-1', status: 'signs_placed', actualEndTime: new Date().toISOString() },
+        { id: 'route-2', customerId: 'customer-2', status: 'completed', actualEndTime: new Date().toISOString() },
+      ],
+      nextToken: undefined,
+      errors: undefined,
+    });
+
+    (listAllStops as jest.Mock).mockResolvedValue({
+      data: [
+        { id: 'stop-1', routeId: 'route-1', numberOfSigns: 5 },
+        { id: 'stop-2', routeId: 'route-2', numberOfSigns: 2 },
       ],
       nextToken: undefined,
       errors: undefined,
@@ -71,22 +60,15 @@ describe('Administrator dashboard metrics visualisation', () => {
 
     (listInvoices as jest.Mock).mockResolvedValue({
       data: [
-        {
-          id: 'invoice-1',
-          customerId: 'customer-1',
-          totalAmount: 2000,
-          invoiceDate: '2026-01-20T00:00:00Z',
-          status: 'sent',
-        },
-        {
-          id: 'invoice-2',
-          customerId: 'customer-2',
-          totalAmount: 500,
-          invoiceDate: '2026-01-22T00:00:00Z',
-          status: 'draft',
-        },
+        { id: 'invoice-1', customerId: 'customer-1', totalAmount: 2000, invoiceDate: new Date().toISOString(), status: 'sent' },
+        { id: 'invoice-2', customerId: 'customer-2', totalAmount: 500, invoiceDate: new Date().toISOString(), status: 'draft' },
       ],
       nextToken: undefined,
+      errors: undefined,
+    });
+
+    (listCustomerUsers as jest.Mock).mockResolvedValue({
+      data: [{ customerId: 'customer-1', role: 'account_owner' }],
       errors: undefined,
     });
 
@@ -98,39 +80,47 @@ describe('Administrator dashboard metrics visualisation', () => {
       nextToken: undefined,
       errors: undefined,
     });
-
-    mockStopList.mockResolvedValue({
-      data: [{ id: 'stop-1', numberOfSigns: 5 }],
-      nextToken: undefined,
-      errors: undefined,
-    });
   });
 
-  it('renders all-customer operational and financial charts by default', async () => {
+  it('renders overview stat tiles, charts, customer volume, and needs-attention derived from live data', async () => {
     render(<AdminHomePage />);
 
     expect(screen.getByRole('heading', { name: /administrator portal/i })).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByRole('img', { name: /revenue trend/i })).toBeInTheDocument();
+      expect(screen.getByText('Billed this month')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('heading', { name: /performance metrics/i })).toBeInTheDocument();
-    expect(screen.getAllByText('All customers').length).toBeGreaterThan(0);
-    const metricsHeading = screen.getByRole('heading', { name: /performance metrics/i });
-    const activeRoutesLabel = screen.getByText('Active Routes');
-    expect(metricsHeading.compareDocumentPosition(activeRoutesLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('Routes / stops')).toBeInTheDocument();
+    expect(screen.getByText('Outstanding')).toBeInTheDocument();
+    expect(screen.getByText('Signs in field')).toBeInTheDocument();
 
-    const scopeSelect = screen.getByLabelText(/dashboard scope/i);
-    expect(scopeSelect).toHaveValue('all');
-    expect(screen.getByRole('option', { name: /acme corp/i })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /beta signs/i })).toBeInTheDocument();
-    fireEvent.change(scopeSelect, { target: { value: 'customer-2' } });
-    expect(screen.getAllByText('Beta Signs').length).toBeGreaterThan(0);
+    // Only route-1 (signs_placed) contributes to "signs in field" — its stop carries 5 signs.
+    await waitFor(() => {
+      expect(screen.getAllByText('5').length).toBeGreaterThan(0);
+    });
 
-    expect(screen.getByLabelText(/metrics period/i)).toHaveValue('month');
-    expect(screen.getByRole('img', { name: /routes completed trend/i })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: /distance trend/i })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: /sign activity trend/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /billings by week/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /route status/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /customers by volume/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /needs attention/i })).toBeInTheDocument();
+
+    // Beta Signs has no account owner (only customer-1 does) — surfaces in both the volume
+    // table and as an access issue in "Needs attention".
+    await waitFor(() => {
+      expect(screen.getAllByText('Beta Signs').length).toBeGreaterThan(1);
+    });
+    expect(screen.getByText('No account owner set')).toBeInTheDocument();
+  });
+
+  it('shows an empty state when there is no recent customer activity', async () => {
+    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], nextToken: undefined, errors: undefined });
+    (listAllStops as jest.Mock).mockResolvedValue({ data: [], nextToken: undefined, errors: undefined });
+    (listInvoices as jest.Mock).mockResolvedValue({ data: [], nextToken: undefined, errors: undefined });
+
+    render(<AdminHomePage />);
+
+    expect(await screen.findByText('No customer activity in the last 30 days.')).toBeInTheDocument();
+    expect(screen.getByText('Nothing needs attention right now.')).toBeInTheDocument();
   });
 });

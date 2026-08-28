@@ -25,6 +25,13 @@ jest.mock('@aws-sdk/client-cognito-identity-provider', () => {
     }
   }
 
+  class UserPoolAddOnNotEnabledException extends Error {
+    constructor() {
+      super('This action is not enabled for the user pool.');
+      this.name = 'UserPoolAddOnNotEnabledException';
+    }
+  }
+
   return {
     CognitoIdentityProviderClient: jest.fn(() => ({
       send: sendMock,
@@ -32,14 +39,16 @@ jest.mock('@aws-sdk/client-cognito-identity-provider', () => {
     ListUsersCommand: jest.fn((input) => ({ input })),
     ListUsersInGroupCommand: jest.fn((input) => ({ input })),
     AdminListGroupsForUserCommand: jest.fn((input) => ({ input })),
+    AdminListUserAuthEventsCommand: jest.fn((input) => ({ input })),
     AdminAddUserToGroupCommand: jest.fn((input) => ({ input })),
     AdminRemoveUserFromGroupCommand: jest.fn((input) => ({ input })),
     AdminCreateUserCommand: jest.fn((input) => ({ input })),
     UsernameExistsException,
+    UserPoolAddOnNotEnabledException,
   };
 });
 
-import { UsernameExistsException } from '@aws-sdk/client-cognito-identity-provider';
+import { UsernameExistsException, UserPoolAddOnNotEnabledException } from '@aws-sdk/client-cognito-identity-provider';
 
 jest.mock('aws-jwt-verify', () => ({
   CognitoJwtVerifier: {
@@ -352,6 +361,70 @@ describe('admin users API', () => {
     const response = await POST(request);
     expect(response.status).toBe(400);
     expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it('computes user activity stats: pending invites and signed-in-within-7-days count', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        Users: [
+          { Username: 'userA', UserStatus: 'CONFIRMED', Attributes: [] },
+          { Username: 'userB', UserStatus: 'FORCE_CHANGE_PASSWORD', Attributes: [] },
+        ],
+        PaginationToken: undefined,
+      })
+      .mockResolvedValueOnce({
+        AuthEvents: [{ EventType: 'SignIn', EventResponse: 'Pass', CreationDate: new Date() }],
+      })
+      .mockResolvedValueOnce({ AuthEvents: [] });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'getUserActivityStats' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      totalUsers: 2,
+      pendingInvites: 1,
+      signedInLast7Days: 1,
+      signedInStatsAvailable: true,
+    });
+  });
+
+  it('reports signed-in stats as unavailable when advanced security is not enabled on the user pool', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        Users: [{ Username: 'userA', UserStatus: 'CONFIRMED', Attributes: [] }],
+        PaginationToken: undefined,
+      })
+      .mockRejectedValueOnce(new UserPoolAddOnNotEnabledException());
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'getUserActivityStats' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      totalUsers: 1,
+      pendingInvites: 0,
+      signedInLast7Days: 0,
+      signedInStatsAvailable: false,
+    });
   });
 });
 

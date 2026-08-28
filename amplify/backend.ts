@@ -11,6 +11,14 @@ import { customerAccessActivation } from './functions/customer-access-activation
 
 const backend = defineBackend({ auth, data, storage, customerAccessActivation });
 
+// Advanced security (AUDIT mode) is required for AdminListUserAuthEvents, which
+// powers the admin Users page's "signed in past 7 days" stat. AUDIT only logs and
+// risk-scores sign-in events -- it doesn't block or challenge users -- so it adds
+// no sign-in friction, just the (small, per-MAU) Cognito advanced security cost.
+backend.auth.resources.cfnResources.cfnUserPool.userPoolAddOns = {
+	advancedSecurityMode: 'AUDIT',
+};
+
 function sanitizeNamePart(value: string, fallback: string) {
 	const cleaned = value
 		.toLowerCase()

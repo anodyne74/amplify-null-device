@@ -13,7 +13,7 @@ function getClient() {
 function getCustomerUserModel() {
   const model = (getClient().models as unknown as Record<string, unknown>).CustomerUser as
     | {
-        list: (args: unknown) => Promise<{ data?: unknown[]; errors?: unknown[] }>;
+        list: (args: unknown) => Promise<{ data?: unknown[]; errors?: unknown[]; nextToken?: string | null }>;
         create: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
         delete: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
       }
@@ -854,6 +854,40 @@ export async function listCustomerUsers(customerId: string) {
     return { data: data || [], errors };
   } catch (error) {
     console.error('Error listing customer users:', error);
+    return { data: [], errors: [error] };
+  }
+}
+
+/**
+ * List every CustomerUser record across all customers (unfiltered, paginated).
+ * Only accessible by administrators -- used by the admin Users page's
+ * all-customers access table.
+ */
+export async function listAllCustomerUsers() {
+  try {
+    const { model, error: modelError } = getCustomerUserModel();
+    if (!model) {
+      return { data: [], errors: [modelError] };
+    }
+
+    const allData: unknown[] = [];
+    let nextToken: string | undefined;
+    let lastErrors: unknown[] | undefined;
+
+    do {
+      const { data, errors, nextToken: token } = await model.list({ limit: 200, nextToken });
+      if (errors) {
+        console.error('Errors listing all customer users:', errors);
+        lastErrors = errors;
+        break;
+      }
+      allData.push(...(data || []));
+      nextToken = token ?? undefined;
+    } while (nextToken);
+
+    return { data: allData, errors: lastErrors };
+  } catch (error) {
+    console.error('Error listing all customer users:', error);
     return { data: [], errors: [error] };
   }
 }

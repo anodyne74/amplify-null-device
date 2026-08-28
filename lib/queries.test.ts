@@ -101,6 +101,7 @@ import {
   updateStopExecution,
   deleteRoute,
   listCustomerUsers,
+  listAllCustomerUsers,
   createCustomerUser,
   deleteCustomerUser,
   syncViewerSubsForCustomer,
@@ -806,6 +807,51 @@ describe('queries', () => {
         filter: { customerId: { eq: 'c1' } },
       });
       expect(result.data).toHaveLength(1);
+    });
+
+    it('should list customer users across every customer, paginating to completion', async () => {
+      mockCustomerUserList
+        .mockResolvedValueOnce({
+          data: [{ id: 'cu1', customerId: 'c1', role: 'account_owner' }],
+          errors: undefined,
+          nextToken: 'token-2',
+        })
+        .mockResolvedValueOnce({
+          data: [{ id: 'cu2', customerId: 'c2', role: 'read_only' }],
+          errors: undefined,
+          nextToken: null,
+        });
+
+      const result = await listAllCustomerUsers();
+
+      expect(mockCustomerUserList).toHaveBeenCalledTimes(2);
+      expect(mockCustomerUserList).toHaveBeenNthCalledWith(1, { limit: 200, nextToken: undefined });
+      expect(mockCustomerUserList).toHaveBeenNthCalledWith(2, { limit: 200, nextToken: 'token-2' });
+      expect(result.data).toEqual([
+        { id: 'cu1', customerId: 'c1', role: 'account_owner' },
+        { id: 'cu2', customerId: 'c2', role: 'read_only' },
+      ]);
+      expect(result.errors).toBeUndefined();
+    });
+
+    it('should stop and surface errors when listing all customer users fails partway through', async () => {
+      mockCustomerUserList.mockResolvedValueOnce({
+        data: [{ id: 'cu1', customerId: 'c1', role: 'account_owner' }],
+        errors: undefined,
+        nextToken: 'token-2',
+      });
+      mockCustomerUserList.mockResolvedValueOnce({
+        data: undefined,
+        errors: [new Error('boom')],
+        nextToken: undefined,
+      });
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = await listAllCustomerUsers();
+
+      expect(result.data).toEqual([{ id: 'cu1', customerId: 'c1', role: 'account_owner' }]);
+      expect(result.errors).toHaveLength(1);
+      consoleErrorSpy.mockRestore();
     });
 
     it('should create a customer user', async () => {

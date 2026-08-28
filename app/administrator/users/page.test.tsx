@@ -4,7 +4,7 @@ import UsersAdminPage from '@/app/administrator/users/page';
 import {
   createCustomerUser,
   deleteCustomerUser,
-  listCustomerUsers,
+  listAllCustomerUsers,
   listCustomers,
   syncViewerSubsForCustomer,
 } from '@/lib/queries';
@@ -37,13 +37,13 @@ jest.mock('@/app/administrator/users/components/GroupMembershipSection', () => (
 jest.mock('@/lib/queries', () => ({
   createCustomerUser: jest.fn(),
   deleteCustomerUser: jest.fn(),
-  listCustomerUsers: jest.fn(),
+  listAllCustomerUsers: jest.fn(),
   listCustomers: jest.fn(),
   syncViewerSubsForCustomer: jest.fn(),
 }));
 
 const mockListCustomers = listCustomers as jest.MockedFunction<typeof listCustomers>;
-const mockListCustomerUsers = listCustomerUsers as jest.MockedFunction<typeof listCustomerUsers>;
+const mockListAllCustomerUsers = listAllCustomerUsers as jest.MockedFunction<typeof listAllCustomerUsers>;
 const mockCreateCustomerUser = createCustomerUser as jest.MockedFunction<typeof createCustomerUser>;
 const mockDeleteCustomerUser = deleteCustomerUser as jest.MockedFunction<typeof deleteCustomerUser>;
 const mockSyncViewerSubsForCustomer = syncViewerSubsForCustomer as jest.MockedFunction<typeof syncViewerSubsForCustomer>;
@@ -56,7 +56,7 @@ describe('UsersAdminPage customer access actions', () => {
       errors: [],
     } as any);
 
-    mockListCustomerUsers.mockResolvedValue({
+    mockListAllCustomerUsers.mockResolvedValue({
       data: [
         {
           id: 'cu-1',
@@ -146,11 +146,10 @@ describe('UsersAdminPage customer access actions', () => {
       expect(screen.getByText('Read User')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Total users')).toBeInTheDocument();
-    expect(screen.getByText('Customer accounts')).toBeInTheDocument();
-    expect(screen.getByText("Customer's users")).toBeInTheDocument();
-    expect(screen.getByText('Primary contact')).toBeInTheDocument();
-    expect(screen.getByText('Missing')).toBeInTheDocument();
+    expect(screen.getByText('Client users')).toBeInTheDocument();
+    expect(screen.getByText('Account owners')).toBeInTheDocument();
+    expect(screen.getByText('Invites pending')).toBeInTheDocument();
+    expect(screen.getByText('Signed in (7d)')).toBeInTheDocument();
   });
 
   it('creates a real Cognito login (instead of a pending placeholder) when the invited email has no existing account', async () => {

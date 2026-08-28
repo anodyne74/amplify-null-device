@@ -73,8 +73,28 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     User?: UserType;
   }
 
+  export interface AdminListUserAuthEventsCommandInput {
+    UserPoolId: string;
+    Username: string;
+    MaxResults?: number;
+  }
+
+  export interface AuthEventType {
+    EventType?: string;
+    EventResponse?: string;
+    CreationDate?: Date;
+  }
+
+  export interface AdminListUserAuthEventsCommandOutput {
+    AuthEvents?: AuthEventType[];
+  }
+
   export class UsernameExistsException extends Error {
     readonly name: 'UsernameExistsException';
+  }
+
+  export class UserPoolAddOnNotEnabledException extends Error {
+    readonly name: 'UserPoolAddOnNotEnabledException';
   }
 
   export class AdminAddUserToGroupCommand {
@@ -107,6 +127,11 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     constructor(input: AdminCreateUserCommandInput);
   }
 
+  export class AdminListUserAuthEventsCommand {
+    readonly __brand_AdminListUserAuthEventsCommand?: true;
+    constructor(input: AdminListUserAuthEventsCommandInput);
+  }
+
   export class CognitoIdentityProviderClient {
     constructor(config?: Record<string, unknown>);
     send(command: AdminAddUserToGroupCommand): Promise<void>;
@@ -115,5 +140,6 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     send(command: ListUsersCommand): Promise<ListUsersCommandOutput>;
     send(command: ListUsersInGroupCommand): Promise<ListUsersInGroupCommandOutput>;
     send(command: AdminCreateUserCommand): Promise<AdminCreateUserCommandOutput>;
+    send(command: AdminListUserAuthEventsCommand): Promise<AdminListUserAuthEventsCommandOutput>;
   }
 }

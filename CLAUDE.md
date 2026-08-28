@@ -54,7 +54,7 @@ GitHub Actions requires no AWS credentials. Amplify Console handles deployment w
 
 Authorization is enforced at the AppSync model level in `amplify/data/resource.ts`:
 
-- **customer** — reads own data scoped by `customerId == user.sub`; `CustomerUser` records define sub-roles (`account_owner` reads invoices, `read_only` reads routes/stops only)
+- **customer** — reads own data scoped by `customerId == user.sub`; `CustomerUser` records define sub-roles (`account_owner` reads invoices, `read_only` reads routes/stops only — both sub-roles may add route instructions via the `Route.customerInstructions` field, a deliberate exception noted on the `Route` model's authorization comment in `amplify/data/resource.ts`)
 - **operator** — full CRUD on all models; read/create AuditLog
 - **administrator** — full access including user management and system settings
 

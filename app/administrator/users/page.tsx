@@ -11,12 +11,13 @@ import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
+import { Radio } from '@/app/components/ui/forms/Radio';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { StatTile } from '@/app/components/ui/data/StatTile';
 import {
   createCustomerUser,
   deleteCustomerUser,
-  listCustomerUsers,
+  listAllCustomerUsers,
   listCustomers,
   syncViewerSubsForCustomer,
 } from '@/lib/queries';
@@ -82,7 +83,12 @@ export default function UsersAdminPage() {
   // Customer Access section state
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-  const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>([]);
+  const [allCustomerUsers, setAllCustomerUsers] = useState<CustomerUser[]>([]);
+  const [activityStats, setActivityStats] = useState<{
+    pendingInvites: number;
+    signedInLast7Days: number;
+    signedInStatsAvailable: boolean;
+  } | null>(null);
   const [accessPending, setAccessPending] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [accessSuccess, setAccessSuccess] = useState<string | null>(null);
@@ -172,10 +178,38 @@ export default function UsersAdminPage() {
     }
   }, [selectedUsername, loadGroups]);
 
-  const hasAccountOwner = useMemo(
-    () => customerUsers.some((user) => user.role === 'account_owner'),
-    [customerUsers]
+  const customerUsersForSelected = useMemo(
+    () => allCustomerUsers.filter((user) => user.customerId === selectedCustomerId),
+    [allCustomerUsers, selectedCustomerId]
   );
+
+  const hasAccountOwner = useMemo(
+    () => customerUsersForSelected.some((user) => user.role === 'account_owner'),
+    [customerUsersForSelected]
+  );
+
+  const clientUsersCount = allCustomerUsers.length;
+
+  const accountOwnersCount = useMemo(
+    () => allCustomerUsers.filter((user) => user.role === 'account_owner').length,
+    [allCustomerUsers]
+  );
+
+  const customerNameById = useMemo(
+    () => new Map(customers.map((customer) => [customer.id, customer.name])),
+    [customers]
+  );
+
+  const sortedAllCustomerUsers = useMemo(() => {
+    return [...allCustomerUsers].sort((a, b) => {
+      const customerCompare = (customerNameById.get(a.customerId) || '').localeCompare(
+        customerNameById.get(b.customerId) || ''
+      );
+      if (customerCompare !== 0) return customerCompare;
+      if (a.role !== b.role) return a.role === 'account_owner' ? -1 : 1;
+      return (a.name ?? a.email ?? '').localeCompare(b.name ?? b.email ?? '');
+    });
+  }, [allCustomerUsers, customerNameById]);
 
   const selectedUser = useMemo(
     () => users.find((user) => user.username === selectedUsername),
@@ -203,15 +237,14 @@ export default function UsersAdminPage() {
     }
   }, [selectedCustomerId]);
 
-  const loadCustomerUsers = useCallback(async (customerId: string) => {
-    if (!customerId) return;
-    const result = await listCustomerUsers(customerId);
+  const loadAllCustomerUsers = useCallback(async () => {
+    const result = await listAllCustomerUsers();
     if (!result.errors || result.errors.length === 0) {
-      setCustomerUsers(result.data as CustomerUser[]);
+      setAllCustomerUsers(result.data as CustomerUser[]);
       return;
     }
 
-    setCustomerUsers([]);
+    setAllCustomerUsers([]);
     const message = (result.errors[0] as Error | undefined)?.message;
     if (message?.includes('CustomerUser model is not available')) {
       setAccessError('Customer access management is unavailable until backend schema changes are deployed.');
@@ -220,18 +253,30 @@ export default function UsersAdminPage() {
     }
   }, []);
 
+  const loadActivityStats = useCallback(async () => {
+    try {
+      const payload = await callAdminApi({ action: 'getUserActivityStats' });
+      setActivityStats({
+        pendingInvites: (payload.pendingInvites as number) ?? 0,
+        signedInLast7Days: (payload.signedInLast7Days as number) ?? 0,
+        signedInStatsAvailable: payload.signedInStatsAvailable !== false,
+      });
+    } catch {
+      // Non-blocking -- the rest of the page works without activity stats.
+    }
+  }, [callAdminApi]);
+
   useEffect(() => {
     void loadCustomers();
+    void loadAllCustomerUsers();
+    void loadActivityStats();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (selectedCustomerId) {
-      setAccessError(null);
-      setAccessSuccess(null);
-      void loadCustomerUsers(selectedCustomerId);
-    }
-  }, [selectedCustomerId, loadCustomerUsers]);
+    setAccessError(null);
+    setAccessSuccess(null);
+  }, [selectedCustomerId]);
 
   useEffect(() => {
     if (!selectedCustomerId) {
@@ -252,7 +297,7 @@ export default function UsersAdminPage() {
     const normalizedEmail = newUserEmail.trim().toLowerCase();
     const resolvedUser = await resolveUserByEmail(normalizedEmail).catch(() => null);
 
-    const owner = customerUsers.find((u) => u.role === 'account_owner');
+    const owner = customerUsersForSelected.find((u) => u.role === 'account_owner');
     if (newUserRole === 'read_only' && !owner) {
       setAccessError('No account owner assigned for this customer yet. Assign a primary contact first.');
       return;
@@ -308,8 +353,8 @@ export default function UsersAdminPage() {
       }
 
       const existing =
-        customerUsers.find((u) => u.userSub === assignedUserSub) ||
-        customerUsers.find((u) => (u.email || '').toLowerCase() === normalizedEmail);
+        customerUsersForSelected.find((u) => u.userSub === assignedUserSub) ||
+        customerUsersForSelected.find((u) => (u.email || '').toLowerCase() === normalizedEmail);
       let createdCustomerUserId: string | undefined;
       if (!existing) {
         const result = await createCustomerUser({
@@ -333,7 +378,7 @@ export default function UsersAdminPage() {
         createdCustomerUserId = (result.data as { id?: string } | null)?.id;
       }
 
-      const updated = [...customerUsers];
+      const updated = [...customerUsersForSelected];
       if (!existing) {
         updated.push({
           id: createdCustomerUserId || `temp-${assignedUserSub}`,
@@ -359,7 +404,7 @@ export default function UsersAdminPage() {
       setNewUserEmail('');
       setNewUserRole('read_only');
       setNewUserName('');
-      setCustomerUsers(updated);
+      setAllCustomerUsers((prev) => [...prev.filter((u) => u.customerId !== selectedCustomerId), ...updated]);
     } catch (e) {
       setAccessError(e instanceof Error ? e.message : 'Failed to assign customer access.');
     }
@@ -367,21 +412,22 @@ export default function UsersAdminPage() {
     setAccessPending(false);
   };
 
-  const handleRemoveCustomerUser = async (customerUserId: string) => {
+  const handleRemoveCustomerUser = async (target: CustomerUser) => {
     setAccessPending(true);
     setAccessError(null);
     setAccessSuccess(null);
 
-    const result = await deleteCustomerUser(customerUserId);
+    const result = await deleteCustomerUser(target.id);
     if (result.errors && result.errors.length > 0) {
       setAccessError('Failed to remove user.');
     } else {
-      const updated = customerUsers.filter((u) => u.id !== customerUserId);
-      const viewerSubs = toViewerSubs(updated);
-      await syncViewerSubsForCustomer(selectedCustomerId, viewerSubs);
+      const remainingForCustomer = allCustomerUsers.filter(
+        (u) => u.customerId === target.customerId && u.id !== target.id
+      );
+      await syncViewerSubsForCustomer(target.customerId, toViewerSubs(remainingForCustomer));
 
       setAccessSuccess('User removed and access revoked from all routes and stops.');
-      setCustomerUsers(updated);
+      setAllCustomerUsers((prev) => prev.filter((u) => u.id !== target.id));
     }
     setAccessPending(false);
     setRemovalTarget(null);
@@ -413,9 +459,9 @@ export default function UsersAdminPage() {
       await callAdminApi({ action: 'addUserToGroup', username: selectedUsername, groupName });
 
       if (groupName === 'customer') {
-        const owner = customerUsers.find((u) => u.role === 'account_owner');
+        const owner = customerUsersForSelected.find((u) => u.role === 'account_owner');
         if (selectedUser?.sub) {
-          const existing = customerUsers.find((u) => u.userSub === selectedUser.sub);
+          const existing = customerUsersForSelected.find((u) => u.userSub === selectedUser.sub);
           // Preserve existing role if present. If no record exists, first user becomes owner,
           // and all subsequent users are read_only when an owner already exists.
           const targetRole: 'account_owner' | 'read_only' = existing?.role === 'account_owner'
@@ -452,9 +498,9 @@ export default function UsersAdminPage() {
           }
 
           const updatedUsers = existing
-            ? customerUsers
+            ? customerUsersForSelected
             : [
-                ...customerUsers,
+                ...customerUsersForSelected,
                 {
                   id: `temp-${selectedUser.sub}`,
                   customerId: selectedCustomerId,
@@ -469,7 +515,7 @@ export default function UsersAdminPage() {
             selectedCustomerId,
             toViewerSubs(updatedUsers)
           );
-          setCustomerUsers(updatedUsers);
+          setAllCustomerUsers((prev) => [...prev.filter((u) => u.customerId !== selectedCustomerId), ...updatedUsers]);
         }
       }
 
@@ -499,7 +545,7 @@ export default function UsersAdminPage() {
             : undefined);
 
         const normalizedEmail = (selectedEmailInput || selectedUser?.email || '').trim().toLowerCase();
-        const customerUserToRemove = customerUsers.find((customerUser) => {
+        const customerUserToRemove = customerUsersForSelected.find((customerUser) => {
           if (selectedUser?.sub && customerUser.userSub === selectedUser.sub) {
             return true;
           }
@@ -519,11 +565,11 @@ export default function UsersAdminPage() {
             return;
           }
 
-          const updatedCustomerUsers = customerUsers.filter(
+          const updatedCustomerUsers = customerUsersForSelected.filter(
             (customerUser) => customerUser.id !== customerUserToRemove.id
           );
           await syncViewerSubsForCustomer(selectedCustomerId, toViewerSubs(updatedCustomerUsers));
-          setCustomerUsers(updatedCustomerUsers);
+          setAllCustomerUsers((prev) => prev.filter((u) => u.id !== customerUserToRemove.id));
         }
       }
 
@@ -572,10 +618,15 @@ export default function UsersAdminPage() {
         <PageHeader title="Users" />
 
         <div className={styles.statsGrid}>
-          <StatTile label="Total users" value={users.length} icon="users" />
-          <StatTile label="Customer accounts" value={customers.length} icon="building-2" />
-          <StatTile label="Customer's users" value={customerUsers.length} icon="user" />
-          <StatTile label="Primary contact" value={hasAccountOwner ? 'Assigned' : 'Missing'} icon="user" />
+          <StatTile label="Client users" value={clientUsersCount} icon="users" />
+          <StatTile label="Account owners" value={accountOwnersCount} icon="user" />
+          <StatTile label="Invites pending" value={activityStats?.pendingInvites ?? '—'} icon="mail" />
+          <StatTile
+            label="Signed in (7d)"
+            value={activityStats?.signedInStatsAvailable === false ? 'Unavailable' : (activityStats?.signedInLast7Days ?? '—')}
+            caption={activityStats?.signedInStatsAvailable === false ? 'Requires Cognito advanced security' : undefined}
+            icon="key-round"
+          />
         </div>
         <ConfirmDialog
           open={removalTarget !== null}
@@ -585,7 +636,7 @@ export default function UsersAdminPage() {
           tone="danger"
           busy={accessPending}
           onConfirm={() => {
-            if (removalTarget) void handleRemoveCustomerUser(removalTarget.id);
+            if (removalTarget) void handleRemoveCustomerUser(removalTarget);
           }}
           onCancel={() => {
             if (!accessPending) setRemovalTarget(null);
@@ -643,13 +694,69 @@ export default function UsersAdminPage() {
         {/* ── Customer Access ── */}
         <Card
           title="Customer Access"
-          subtitle="Customer-group users must be assigned to a customer. Assign each user by email as either primary contact (account owner) or read-only."
+          subtitle="All client users across every customer. Assign each new user by email as either primary contact (account owner) or read-only."
         >
           {accessError && <div className={styles.errorBanner} role="alert" aria-live="assertive">{accessError}</div>}
           {accessSuccess && (
             <div className={styles.successBanner} role="status" aria-live="polite">{accessSuccess}</div>
           )}
 
+          <h4 className={styles.subheading}>All client users</h4>
+          {allCustomerUsers.length === 0 ? (
+            <p className={styles.mutedText}>No client users yet.</p>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className="nd-table nd-table--hoverable" aria-label="Client users across all customers">
+                <thead>
+                  <tr>
+                    <th scope="col">Customer</th>
+                    <th scope="col">User</th>
+                    <th scope="col">Role</th>
+                    <th scope="col">Manage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedAllCustomerUsers.map((cu) => (
+                    <tr key={cu.id}>
+                      <td>{customerNameById.get(cu.customerId) || 'Unknown customer'}</td>
+                      <td>
+                        <div className={styles.userIdentity}>
+                          <span className={styles.userName}>{cu.name ?? cu.email ?? 'Unnamed user'}</span>
+                          {cu.email && <span className={styles.userMeta}>{cu.email}</span>}
+                        </div>
+                      </td>
+                      <td>
+                        <Badge tone={cu.role === 'account_owner' ? 'success' : 'neutral'}>
+                          {cu.role === 'account_owner' ? 'Owner' : 'Read-only'}
+                        </Badge>
+                      </td>
+                      <td>
+                        {cu.role !== 'account_owner' && (
+                          <AdminRowMenu
+                            label="Manage"
+                            ariaLabel={`More customer access actions for ${cu.name ?? cu.email ?? 'user'}`}
+                            align="end"
+                          >
+                            <Button
+                              type="button"
+                              variant="danger"
+                              loading={accessPending}
+                              aria-label={`Remove ${cu.name ?? cu.email ?? 'user'} from customer access`}
+                              onClick={() => setRemovalTarget(cu)}
+                            >
+                              {accessPending ? 'Removing...' : 'Remove User'}
+                            </Button>
+                          </AdminRowMenu>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <h4 className={styles.subheading}>Add customer user</h4>
           <Field label="Customer" htmlFor="customerSelect">
             <Select
               id="customerSelect"
@@ -666,44 +773,6 @@ export default function UsersAdminPage() {
 
           {selectedCustomerId && (
             <div>
-              <h4 className={styles.subheading}>Users for this customer</h4>
-              {customerUsers.length === 0 ? (
-                <p className={styles.mutedText}>No users assigned yet.</p>
-              ) : (
-                <ul className={styles.userList}>
-                  {customerUsers.map((cu) => (
-                    <li key={cu.id} className={styles.userRow}>
-                      <div className={styles.userIdentity}>
-                        <Badge tone={cu.role === 'account_owner' ? 'brand' : 'neutral'}>
-                          {cu.role === 'account_owner' ? 'Primary' : 'Read-only'}
-                        </Badge>
-                        <span className={styles.userName}>{cu.name ?? cu.email ?? 'Unnamed user'}</span>
-                        {cu.email && <span className={styles.userMeta}>{cu.email}</span>}
-                      </div>
-                      {cu.role !== 'account_owner' && (
-                        <AdminRowMenu
-                          label="Manage"
-                          ariaLabel={`More customer access actions for ${cu.name ?? cu.email ?? 'user'}`}
-                          align="end"
-                        >
-                          <Button
-                            type="button"
-                            variant="danger"
-                            loading={accessPending}
-                            aria-label={`Remove ${cu.name ?? cu.email ?? 'user'} from customer access`}
-                            onClick={() => setRemovalTarget(cu)}
-                          >
-                            {accessPending ? 'Removing...' : 'Remove User'}
-                          </Button>
-                        </AdminRowMenu>
-                      )}
-                      {cu.role === 'account_owner' && <Badge tone="success">Owner</Badge>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <h4 className={styles.subheading}>Add customer user</h4>
               <p className={styles.mutedText}>
                 Enter the user email. Users in the customer group must be assigned to a customer.
               </p>
@@ -712,19 +781,30 @@ export default function UsersAdminPage() {
                   This customer has no primary contact yet. Assign a primary contact first before adding read-only users.
                 </p>
               )}
-              <div className={styles.addUserForm}>
-                <Field label="Role" htmlFor="newCustomerRole" className={styles.addUserField}>
-                  <Select
-                    id="newCustomerRole"
-                    value={newUserRole}
-                    onChange={(e) => setNewUserRole(e.target.value as 'account_owner' | 'read_only')}
+              <div className={styles.roleFieldset} role="radiogroup" aria-label="Role for new customer user">
+                <span className={styles.fieldLabel}>Role</span>
+                <div className={styles.roleOptions}>
+                  <Radio
+                    name="newCustomerRole"
+                    value="account_owner"
+                    checked={newUserRole === 'account_owner'}
+                    onChange={() => setNewUserRole('account_owner')}
                     disabled={accessPending}
-                    aria-label="Role for new customer user"
-                  >
-                    <option value="account_owner">Primary contact (account owner)</option>
-                    <option value="read_only" disabled={!hasAccountOwner}>Read-only</option>
-                  </Select>
-                </Field>
+                    label="Primary contact (account owner)"
+                    description="Manages billing, standing orders, and invoices; can invite and remove teammates."
+                  />
+                  <Radio
+                    name="newCustomerRole"
+                    value="read_only"
+                    checked={newUserRole === 'read_only'}
+                    onChange={() => setNewUserRole('read_only')}
+                    disabled={accessPending || !hasAccountOwner}
+                    label="Read-only"
+                    description="Views routes and delivery stops, and can add delivery instructions. Can't manage billing or invites."
+                  />
+                </div>
+              </div>
+              <div className={styles.addUserForm}>
                 <Field label="Email" htmlFor="newCustomerEmail" className={styles.addUserField}>
                   <Input
                     id="newCustomerEmail"
@@ -759,6 +839,25 @@ export default function UsersAdminPage() {
               </div>
             </div>
           )}
+        </Card>
+
+        <Card title="What each role sees" subtitle="A quick reference for choosing a role when adding a customer user.">
+          <div className={styles.roleExplainerGrid}>
+            <div className={styles.roleExplainerItem}>
+              <Badge tone="success">Owner</Badge>
+              <p className={styles.mutedText}>
+                Account owners manage billing, standing orders, and invoices, and can invite or remove their
+                own teammates. Only one account owner per customer.
+              </p>
+            </div>
+            <div className={styles.roleExplainerItem}>
+              <Badge tone="neutral">Read-only</Badge>
+              <p className={styles.mutedText}>
+                Read-only users can view routes and delivery stops and add delivery instructions, but can&apos;t
+                see invoices or billing, and can&apos;t invite teammates.
+              </p>
+            </div>
+          </div>
         </Card>
       </div>
     </OperatorRoute>

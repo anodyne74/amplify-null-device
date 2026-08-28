@@ -60,24 +60,9 @@
   flex-wrap: wrap;
 }
 
-.userList {
-  list-style: none;
-  margin: 0 0 var(--space-6);
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.userRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface-hover);
-  border-radius: var(--radius-md);
-  flex-wrap: wrap;
+.tableWrap {
+  overflow-x: auto;
+  margin-bottom: var(--space-6);
 }
 
 .userIdentity {
@@ -107,4 +92,35 @@
 .addUserField {
   min-width: 200px;
   flex: 1;
+}
+
+.roleFieldset {
+  margin-bottom: var(--space-4);
+}
+
+.fieldLabel {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+  margin-bottom: var(--space-2);
+}
+
+.roleOptions {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.roleExplainerGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-5);
+}
+
+.roleExplainerItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
 }

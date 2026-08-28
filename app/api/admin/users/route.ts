@@ -5,11 +5,13 @@ import {
   AdminCreateUserCommand,
   type AdminCreateUserCommandInput,
   AdminListGroupsForUserCommand,
+  AdminListUserAuthEventsCommand,
   AdminRemoveUserFromGroupCommand,
   CognitoIdentityProviderClient,
   ListUsersCommand,
   ListUsersInGroupCommand,
   UsernameExistsException,
+  UserPoolAddOnNotEnabledException,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import outputs from '@/amplify_outputs.json';
@@ -28,7 +30,8 @@ type AdminUserAction =
   | 'addUserToGroup'
   | 'removeUserFromGroup'
   | 'getUserByEmail'
-  | 'createUser';
+  | 'createUser'
+  | 'getUserActivityStats';
 
 type AdminUserRequest = {
   action: AdminUserAction;
@@ -122,6 +125,53 @@ async function findUserByEmail(poolId: string, email: string): Promise<CognitoLi
   } while (!matched && paginationToken);
 
   return matched;
+}
+
+/** Paginates ListUsers to completion -- the individual admin actions cap at one
+ * page (Limit: 50/60) since they only need a preview, but activity stats need
+ * an accurate total across the whole pool. */
+async function listAllCognitoUsers(poolId: string): Promise<CognitoListedUser[]> {
+  const allUsers: CognitoListedUser[] = [];
+  let paginationToken: string | undefined;
+
+  do {
+    const response = await cognitoClient.send(
+      new ListUsersCommand({
+        UserPoolId: poolId,
+        Limit: 60,
+        PaginationToken: paginationToken,
+      } as any)
+    );
+    allUsers.push(...(response.Users || []));
+    paginationToken = (response as any).PaginationToken as string | undefined;
+  } while (paginationToken);
+
+  return allUsers;
+}
+
+const SIGNED_IN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** True if `username`'s most recent sign-in attempts include a success within
+ * the last 7 days. Looks back a few events (not just the latest) since the
+ * very latest event for an active user is sometimes a failed MFA/challenge
+ * retry rather than the successful sign-in itself. */
+async function signedInWithinLast7Days(poolId: string, username: string): Promise<boolean> {
+  const response = await cognitoClient.send(
+    new AdminListUserAuthEventsCommand({
+      UserPoolId: poolId,
+      Username: username,
+      MaxResults: 5,
+    })
+  );
+
+  const cutoff = Date.now() - SIGNED_IN_WINDOW_MS;
+  return (response.AuthEvents || []).some(
+    (event) =>
+      event.EventType === 'SignIn' &&
+      event.EventResponse === 'Pass' &&
+      event.CreationDate &&
+      event.CreationDate.getTime() >= cutoff
+  );
 }
 
 // Character classes for generateTemporaryPassword. Ambiguous glyphs (0/O, 1/l/I)
@@ -616,6 +666,48 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json({ user: { sub, username }, created, emailSent });
+    }
+
+    if (body.action === 'getUserActivityStats') {
+      const users = await listAllCognitoUsers(userPoolId);
+      const pendingInvites = users.filter((user) => user.UserStatus === 'FORCE_CHANGE_PASSWORD').length;
+
+      let signedInLast7Days = 0;
+      let signedInStatsAvailable = true;
+      try {
+        const results = await Promise.all(
+          users
+            .filter((user): user is CognitoListedUser & { Username: string } => Boolean(user.Username))
+            .map((user) => signedInWithinLast7Days(userPoolId, user.Username))
+        );
+        signedInLast7Days = results.filter(Boolean).length;
+      } catch (error) {
+        if (error instanceof UserPoolAddOnNotEnabledException) {
+          // Advanced security isn't enabled on this user pool (e.g. a sandbox branch
+          // whose CDK deploy hasn't caught up yet) -- report unavailable rather than 0.
+          signedInStatsAvailable = false;
+        } else {
+          throw error;
+        }
+      }
+
+      await writeAuditLog(authResult.token, {
+        operatorId: authResult.claims.sub,
+        eventType: 'data_access',
+        resourceType: 'operator',
+        resourceId: authResult.claims.sub || 'unknown',
+        action: 'get_user_activity_stats',
+        status: 'success',
+        ipAddress: request.headers.get('x-forwarded-for') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+      });
+
+      return NextResponse.json({
+        totalUsers: users.length,
+        pendingInvites,
+        signedInLast7Days,
+        signedInStatsAvailable,
+      });
     }
 
     if (body.action === 'addUserToGroup') {

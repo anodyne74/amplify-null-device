@@ -12,7 +12,6 @@ import {
   type MapThemeSetting,
   type ThemeModeSetting,
 } from '@/lib/queries';
-import { DEFAULT_COMPANY_BILLING_DETAILS } from '@/lib/companyBilling';
 import { MAP_THEMES } from '@/lib/mapThemes';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
@@ -24,7 +23,7 @@ import { Tabs } from '@/app/components/ui/navigation/Tabs';
 import styles from './UserSettingsPage.module.css';
 
 type RoleVariant = 'administrator' | 'operator' | 'customer';
-type SettingsTab = 'user' | 'administrator' | 'customer';
+type SettingsTab = 'user' | 'customer';
 
 type CustomerSettingsDetails = {
   name?: string | null;
@@ -47,13 +46,6 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
   const [name, setName] = useState('');
   const [defaultTheme, setDefaultTheme] = useState<ThemeModeSetting>('dark');
   const [mapTheme, setMapTheme] = useState<MapThemeSetting>('light');
-  const [billingCompanyName, setBillingCompanyName] = useState(DEFAULT_COMPANY_BILLING_DETAILS.companyName);
-  const [billingAbn, setBillingAbn] = useState(DEFAULT_COMPANY_BILLING_DETAILS.abn);
-  const [billingPhone, setBillingPhone] = useState(DEFAULT_COMPANY_BILLING_DETAILS.phone);
-  const [billingCompanyAddress, setBillingCompanyAddress] = useState(DEFAULT_COMPANY_BILLING_DETAILS.companyAddress);
-  const [billingPaymentAccountName, setBillingPaymentAccountName] = useState(DEFAULT_COMPANY_BILLING_DETAILS.paymentAccountName);
-  const [billingBsb, setBillingBsb] = useState(DEFAULT_COMPANY_BILLING_DETAILS.bsb);
-  const [billingAccountNumber, setBillingAccountNumber] = useState(DEFAULT_COMPANY_BILLING_DETAILS.accountNumber);
   const [activeTab, setActiveTab] = useState<SettingsTab>('user');
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('read_only');
   const [customerDetails, setCustomerDetails] = useState<CustomerSettingsDetails | null>(null);
@@ -87,13 +79,6 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
           setMode(loadedTheme);
         }
         setMapTheme((result.data.mapTheme as MapThemeSetting | null) || 'light');
-        setBillingCompanyName(result.data.billingCompanyName?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyName);
-        setBillingAbn(result.data.billingAbn?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.abn);
-        setBillingPhone(result.data.billingPhone?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.phone);
-        setBillingCompanyAddress(result.data.billingCompanyAddress?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyAddress);
-        setBillingPaymentAccountName(result.data.billingPaymentAccountName?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.paymentAccountName);
-        setBillingBsb(result.data.billingBsb?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.bsb);
-        setBillingAccountNumber(result.data.billingAccountNumber?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.accountNumber);
       })
       .catch(() => {
         // Non-blocking: defaults are already set in local state.
@@ -137,9 +122,6 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
   const availableTabs = useMemo<Array<{ id: SettingsTab; label: string }>>(
     () => [
       { id: 'user', label: 'User preferences' },
-      ...(roleVariant === 'administrator'
-        ? [{ id: 'administrator' as const, label: 'Administrator settings' }]
-        : []),
       ...(roleVariant === 'customer' && customerRole === 'account_owner'
         ? [{ id: 'customer' as const, label: 'Customer settings' }]
         : []),
@@ -166,13 +148,6 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
       name: name.trim() || undefined,
       defaultTheme,
       mapTheme,
-      billingCompanyName: roleVariant === 'administrator' ? billingCompanyName.trim() || undefined : undefined,
-      billingAbn: roleVariant === 'administrator' ? billingAbn.trim() || undefined : undefined,
-      billingPhone: roleVariant === 'administrator' ? billingPhone.trim() || undefined : undefined,
-      billingCompanyAddress: roleVariant === 'administrator' ? billingCompanyAddress.trim() || undefined : undefined,
-      billingPaymentAccountName: roleVariant === 'administrator' ? billingPaymentAccountName.trim() || undefined : undefined,
-      billingBsb: roleVariant === 'administrator' ? billingBsb.trim() || undefined : undefined,
-      billingAccountNumber: roleVariant === 'administrator' ? billingAccountNumber.trim() || undefined : undefined,
     });
 
     if (result.errors && result.errors.length > 0) {
@@ -251,94 +226,6 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
             <p className={styles.currentTheme}>
               Current theme in app: {mode}
             </p>
-          </>
-        )}
-
-        {activeTab === 'administrator' && roleVariant === 'administrator' && (
-          <>
-            <div className={styles.grid}>
-              <Field label="Billing Company Name" htmlFor="settings-billing-company-name">
-                <Input
-                  id="settings-billing-company-name"
-                  value={billingCompanyName}
-                  onChange={(event) => setBillingCompanyName(event.target.value)}
-                  placeholder="Company name"
-                />
-              </Field>
-
-              <Field label="Billing ABN" htmlFor="settings-billing-abn">
-                <Input
-                  id="settings-billing-abn"
-                  value={billingAbn}
-                  onChange={(event) => setBillingAbn(event.target.value)}
-                  placeholder="ABN"
-                />
-              </Field>
-
-              <Field label="Billing Phone" htmlFor="settings-billing-phone">
-                <Input
-                  id="settings-billing-phone"
-                  value={billingPhone}
-                  onChange={(event) => setBillingPhone(event.target.value)}
-                  placeholder="Phone"
-                />
-              </Field>
-
-              <Field label="Billing Company Address" htmlFor="settings-billing-company-address">
-                <Input
-                  id="settings-billing-company-address"
-                  value={billingCompanyAddress}
-                  onChange={(event) => setBillingCompanyAddress(event.target.value)}
-                  placeholder="Address"
-                />
-              </Field>
-
-              <Field
-                label="Pay-To Account Name"
-                htmlFor="settings-billing-payment-account-name"
-                hint="Shown in the &quot;Pay to&quot; section of customer invoices — this is Null Device's own account, not the customer's."
-              >
-                <Input
-                  id="settings-billing-payment-account-name"
-                  value={billingPaymentAccountName}
-                  onChange={(event) => setBillingPaymentAccountName(event.target.value)}
-                  placeholder="Account name"
-                />
-              </Field>
-
-              <Field
-                label="Pay-To BSB"
-                htmlFor="settings-billing-bsb"
-                hint="Shown in the &quot;Pay to&quot; section of customer invoices."
-              >
-                <Input
-                  id="settings-billing-bsb"
-                  value={billingBsb}
-                  onChange={(event) => setBillingBsb(event.target.value)}
-                  placeholder="BSB"
-                />
-              </Field>
-
-              <Field
-                label="Pay-To Account Number"
-                htmlFor="settings-billing-account-number"
-                hint="Shown in the &quot;Pay to&quot; section of customer invoices."
-              >
-                <Input
-                  id="settings-billing-account-number"
-                  value={billingAccountNumber}
-                  onChange={(event) => setBillingAccountNumber(event.target.value)}
-                  placeholder="Account number"
-                />
-              </Field>
-            </div>
-
-            <div className={styles.actions}>
-              <Button type="button" loading={pending} disabled={pending} onClick={() => void handleSave()}>
-                {pending ? 'Saving...' : 'Save Settings'}
-              </Button>
-              {message && <p className={styles.message}>{message}</p>}
-            </div>
           </>
         )}
 

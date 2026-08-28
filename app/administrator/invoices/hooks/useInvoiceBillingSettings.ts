@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react';
 import { DEFAULT_COMPANY_BILLING_DETAILS } from '@/lib/companyBilling';
-import { getUserSettings } from '@/lib/queries';
+import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 
-type UseInvoiceBillingSettingsParams = {
-  userId?: string;
-};
-
-export function useInvoiceBillingSettings({ userId }: UseInvoiceBillingSettingsParams) {
+export function useInvoiceBillingSettings() {
   const [billingCompanyName, setBillingCompanyName] = useState(DEFAULT_COMPANY_BILLING_DETAILS.companyName);
   const [billingAbn, setBillingAbn] = useState(DEFAULT_COMPANY_BILLING_DETAILS.abn);
   const [billingPhone, setBillingPhone] = useState(DEFAULT_COMPANY_BILLING_DETAILS.phone);
@@ -16,36 +12,28 @@ export function useInvoiceBillingSettings({ userId }: UseInvoiceBillingSettingsP
   const [billingAccountNumber, setBillingAccountNumber] = useState(DEFAULT_COMPANY_BILLING_DETAILS.accountNumber);
 
   useEffect(() => {
-    if (!userId) return;
     let cancelled = false;
 
-    void getUserSettings(userId)
+    void getOrganizationSettings()
       .then((result) => {
         if (cancelled || !result.data) return;
-        setBillingCompanyName(result.data.billingCompanyName?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyName);
-        setBillingAbn(result.data.billingAbn?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.abn);
-        setBillingPhone(result.data.billingPhone?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.phone);
-        setBillingCompanyAddress(result.data.billingCompanyAddress?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyAddress);
-        setBillingPaymentAccountName(result.data.billingPaymentAccountName?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.paymentAccountName);
-        setBillingBsb(result.data.billingBsb?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.bsb);
-        setBillingAccountNumber(result.data.billingAccountNumber?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.accountNumber);
+        setBillingCompanyName(result.data.companyName?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyName);
+        setBillingAbn(result.data.abn?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.abn);
+        setBillingPhone(result.data.phone?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.phone);
+        setBillingCompanyAddress(result.data.address?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyAddress);
+        setBillingPaymentAccountName(result.data.paymentAccountName?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.paymentAccountName);
+        setBillingBsb(result.data.bsb?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.bsb);
+        setBillingAccountNumber(result.data.accountNumber?.trim() || DEFAULT_COMPANY_BILLING_DETAILS.accountNumber);
       })
       .catch(() => {
         // Non-blocking fallback to defaults.
       });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
+    return () => { cancelled = true; };
+  }, []);
 
   return {
-    billingCompanyName,
-    billingAbn,
-    billingPhone,
-    billingCompanyAddress,
-    billingPaymentAccountName,
-    billingBsb,
-    billingAccountNumber,
+    billingCompanyName, billingAbn, billingPhone, billingCompanyAddress,
+    billingPaymentAccountName, billingBsb, billingAccountNumber,
   };
 }

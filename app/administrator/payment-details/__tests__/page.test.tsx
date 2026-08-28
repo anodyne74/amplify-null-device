@@ -8,6 +8,12 @@ import { createRateLine } from '@/lib/queries/CreateRateLine';
 import { deleteRateLine } from '@/lib/queries/DeleteRateLine';
 import { getCustomer, updateCustomer } from '@/lib/queries';
 import { computeDriverSplit } from '@/lib/driverSplit';
+import { getOrganizationSettings, upsertOrganizationSettings } from '@/lib/queries/OrganizationSettings';
+
+jest.mock('@/lib/queries/OrganizationSettings', () => ({
+  getOrganizationSettings: jest.fn(),
+  upsertOrganizationSettings: jest.fn(),
+}));
 
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
@@ -83,6 +89,20 @@ describe('Administrator Payment Details page', () => {
       retained: 60,
       byOperator: [],
     });
+    (getOrganizationSettings as jest.Mock).mockResolvedValue({
+      data: {
+        id: 'organization',
+        companyName: 'Null Device',
+        abn: 'ABN 93 374 916 783',
+        phone: '+61 406 199 785',
+        address: '31 Chester Street, Epping NSW 2121',
+        paymentAccountName: 'Null Device',
+        bsb: '000-000',
+        accountNumber: '00000000',
+      },
+      errors: undefined,
+    });
+    (upsertOrganizationSettings as jest.Mock).mockResolvedValue({ data: { id: 'organization' }, errors: undefined });
   });
 
   it('loads the first customer and shows their billing cycle & tax settings', async () => {
@@ -149,6 +169,41 @@ describe('Administrator Payment Details page', () => {
     render(<AdministratorPaymentDetailsPage />);
 
     expect(await screen.findByText(/no customers found/i)).toBeInTheDocument();
+  });
+
+  it('loads and displays the org-wide pay-to details, even with no customers', async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+
+    render(<AdministratorPaymentDetailsPage />);
+
+    expect(await screen.findByDisplayValue('ABN 93 374 916 783')).toBeInTheDocument();
+    expect(screen.getAllByDisplayValue('Null Device').length).toBe(2);
+    expect(screen.getByLabelText('Pay-To Account Name')).toBeInTheDocument();
+    expect(screen.getByLabelText('Pay-To BSB')).toBeInTheDocument();
+    expect(screen.getByLabelText('Pay-To Account Number')).toBeInTheDocument();
+  });
+
+  it('saves pay-to details as an org-wide singleton, unrelated to the selected customer', async () => {
+    render(<AdministratorPaymentDetailsPage />);
+
+    await screen.findByDisplayValue('ABN 93 374 916 783');
+
+    fireEvent.change(screen.getByLabelText('Company name'), { target: { value: 'Null Device Pty Ltd' } });
+    fireEvent.click(screen.getByRole('button', { name: /save pay-to details/i }));
+
+    await waitFor(() => {
+      expect(upsertOrganizationSettings).toHaveBeenCalledWith({
+        companyName: 'Null Device Pty Ltd',
+        abn: 'ABN 93 374 916 783',
+        phone: '+61 406 199 785',
+        address: '31 Chester Street, Epping NSW 2121',
+        paymentAccountName: 'Null Device',
+        bsb: '000-000',
+        accountNumber: '00000000',
+      });
+    });
+
+    expect(await screen.findByText(/pay-to details saved/i)).toBeInTheDocument();
   });
 
   it('shows a message when the customer has no rate lines yet', async () => {

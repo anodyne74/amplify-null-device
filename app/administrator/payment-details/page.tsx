@@ -16,6 +16,7 @@ import { listRateLines } from '@/lib/queries/ListRateLines';
 import { createRateLine } from '@/lib/queries/CreateRateLine';
 import { deleteRateLine } from '@/lib/queries/DeleteRateLine';
 import { getCustomer, updateCustomer } from '@/lib/queries';
+import { getOrganizationSettings, upsertOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { computeDriverSplit, type DriverSplitResult } from '@/lib/driverSplit';
 import type { BillingCycle, Customer, RateLine, RateLineUnit } from '@/amplify/types';
 import styles from './page.module.css';
@@ -59,6 +60,18 @@ export default function AdministratorPaymentDetailsPage() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [loadingCustomer, setLoadingCustomer] = useState(false);
+
+  const [payToCompanyName, setPayToCompanyName] = useState('');
+  const [payToAbn, setPayToAbn] = useState('');
+  const [payToPhone, setPayToPhone] = useState('');
+  const [payToAddress, setPayToAddress] = useState('');
+  const [payToAccountName, setPayToAccountName] = useState('');
+  const [payToBsb, setPayToBsb] = useState('');
+  const [payToAccountNumber, setPayToAccountNumber] = useState('');
+  const [loadingPayTo, setLoadingPayTo] = useState(true);
+  const [savingPayTo, setSavingPayTo] = useState(false);
+  const [payToError, setPayToError] = useState<string | null>(null);
+  const [payToSuccess, setPayToSuccess] = useState<string | null>(null);
 
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [paymentTermsDays, setPaymentTermsDays] = useState('14');
@@ -125,6 +138,28 @@ export default function AdministratorPaymentDetailsPage() {
       window.scrollTo({ top: 0, behavior: 'auto' });
     }
   }, [selectedCustomerId]);
+
+  useEffect(() => {
+    // Org-wide, not customer-scoped -- loads once, independent of the customer picker above.
+    let cancelled = false;
+
+    void getOrganizationSettings().then((result) => {
+      if (cancelled) return;
+      const settings = result.data;
+      setPayToCompanyName(settings?.companyName ?? '');
+      setPayToAbn(settings?.abn ?? '');
+      setPayToPhone(settings?.phone ?? '');
+      setPayToAddress(settings?.address ?? '');
+      setPayToAccountName(settings?.paymentAccountName ?? '');
+      setPayToBsb(settings?.bsb ?? '');
+      setPayToAccountNumber(settings?.accountNumber ?? '');
+      setLoadingPayTo(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedCustomerId) return;
@@ -292,6 +327,31 @@ export default function AdministratorPaymentDetailsPage() {
     setCopyingLines(false);
   };
 
+  const handleSavePayTo = async () => {
+    setSavingPayTo(true);
+    setPayToError(null);
+    setPayToSuccess(null);
+
+    const result = await upsertOrganizationSettings({
+      companyName: payToCompanyName.trim(),
+      abn: payToAbn.trim(),
+      phone: payToPhone.trim(),
+      address: payToAddress.trim(),
+      paymentAccountName: payToAccountName.trim(),
+      bsb: payToBsb.trim(),
+      accountNumber: payToAccountNumber.trim(),
+    });
+
+    if (result.errors && result.errors.length > 0) {
+      setPayToError('Could not save pay-to details.');
+      setSavingPayTo(false);
+      return;
+    }
+
+    setPayToSuccess('Pay-to details saved.');
+    setSavingPayTo(false);
+  };
+
   const handleSaveTax = async () => {
     setSavingTax(true);
     setTaxError(null);
@@ -398,6 +458,95 @@ export default function AdministratorPaymentDetailsPage() {
             </div>
           }
         />
+
+        <Card title="Pay to" subtitle="Null Device's own remittance details, printed on every customer invoice">
+          <div className={styles.form}>
+            {payToError && <p className="nd-badge nd-badge--danger">{payToError}</p>}
+            {payToSuccess && <p className="nd-badge nd-badge--success">{payToSuccess}</p>}
+
+            {loadingPayTo ? (
+              <p className={styles.rateCardEmpty}>Loading pay-to details…</p>
+            ) : (
+              <>
+                <div className={styles.grid}>
+                  <Field label="Company name" htmlFor="pd-payto-company-name">
+                    <Input
+                      id="pd-payto-company-name"
+                      value={payToCompanyName}
+                      onChange={(e) => setPayToCompanyName(e.target.value)}
+                      disabled={savingPayTo}
+                    />
+                  </Field>
+                  <Field label="ABN" htmlFor="pd-payto-abn">
+                    <Input
+                      id="pd-payto-abn"
+                      value={payToAbn}
+                      onChange={(e) => setPayToAbn(e.target.value)}
+                      disabled={savingPayTo}
+                    />
+                  </Field>
+                </div>
+
+                <div className={styles.grid}>
+                  <Field label="Phone" htmlFor="pd-payto-phone">
+                    <Input
+                      id="pd-payto-phone"
+                      value={payToPhone}
+                      onChange={(e) => setPayToPhone(e.target.value)}
+                      disabled={savingPayTo}
+                    />
+                  </Field>
+                  <Field label="Address" htmlFor="pd-payto-address">
+                    <Input
+                      id="pd-payto-address"
+                      value={payToAddress}
+                      onChange={(e) => setPayToAddress(e.target.value)}
+                      disabled={savingPayTo}
+                    />
+                  </Field>
+                </div>
+
+                <Field
+                  label="Pay-To Account Name"
+                  htmlFor="pd-payto-account-name"
+                  hint="Shown in the &quot;Pay to&quot; section of customer invoices — this is Null Device's own account, not the customer's."
+                >
+                  <Input
+                    id="pd-payto-account-name"
+                    value={payToAccountName}
+                    onChange={(e) => setPayToAccountName(e.target.value)}
+                    disabled={savingPayTo}
+                  />
+                </Field>
+
+                <div className={styles.grid}>
+                  <Field label="Pay-To BSB" htmlFor="pd-payto-bsb">
+                    <Input
+                      id="pd-payto-bsb"
+                      value={payToBsb}
+                      onChange={(e) => setPayToBsb(e.target.value)}
+                      disabled={savingPayTo}
+                    />
+                  </Field>
+                  <Field label="Pay-To Account Number" htmlFor="pd-payto-account-number">
+                    <Input
+                      id="pd-payto-account-number"
+                      value={payToAccountNumber}
+                      onChange={(e) => setPayToAccountNumber(e.target.value)}
+                      disabled={savingPayTo}
+                    />
+                  </Field>
+                </div>
+
+                <div className={styles.actions}>
+                  <Button type="button" loading={savingPayTo} disabled={savingPayTo} onClick={() => void handleSavePayTo()}>
+                    {savingPayTo ? 'Saving…' : 'Save pay-to details'}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </Card>
 
         {loadingCustomers ? (
           <LoadingSpinner message="Loading customers..." />

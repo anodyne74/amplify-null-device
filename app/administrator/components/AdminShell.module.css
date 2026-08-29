@@ -14,9 +14,9 @@
 
 /* Staff chrome: fixed navy, independent of the visitor's own light/dark
    preference -- data-theme="dark" is set on the <aside> itself (AdminShell.tsx)
-   so --surface-card/--text-*/--border-* resolve navy here regardless of what
-   <html data-theme> the rest of the page has (see tokens.css's [data-theme]
-   scoping note). */
+   so --surface-card / --text- / --border- tokens resolve navy here regardless
+   of what <html data-theme> the rest of the page has (see tokens.css's
+   [data-theme] scoping note). */
 .sidebar {
   width: var(--sidebar-w);
   flex: none;

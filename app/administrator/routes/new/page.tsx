@@ -19,7 +19,13 @@ import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { createRoute, createStop, getRouteWithStops } from '@/lib/queries';
 import { parseScheduleText } from '@/lib/parseSchedule';
+import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
 import styles from './page.module.css';
+
+function todayDateKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
 
 function getExcelStyleWeekPrefix(date = new Date()) {
   const shifted = new Date(date);
@@ -116,6 +122,7 @@ export default function NewRoutePage() {
   // Import flow state
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importCustomerId, setImportCustomerId] = useState('');
+  const [importScheduledDate, setImportScheduledDate] = useState(todayDateKey);
   const [importNotes, setImportNotes] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importText, setImportText] = useState('');
@@ -219,6 +226,7 @@ export default function NewRoutePage() {
   const handleSubmit = async (values: {
     routeCode: string;
     customerId: string;
+    scheduledDate: string;
     notes: string;
     stops: RouteDraftStop[];
   }) => {
@@ -228,6 +236,7 @@ export default function NewRoutePage() {
       const result = await createRoute({
         routeCode: values.routeCode.trim(),
         customerId: values.customerId,
+        scheduledDate: values.scheduledDate,
         status: 'planned',
         notes: values.notes || undefined,
       });
@@ -407,6 +416,7 @@ export default function NewRoutePage() {
   const handleImportSubmit = async () => {
     if (!importCustomerId) { setImportError('Select a customer.'); return; }
     if (!importRouteCode.trim()) { setImportError('Enter a route ID.'); return; }
+    if (!importScheduledDate) { setImportError('Choose a scheduled date.'); return; }
     if (!importDraftStops || importDraftStops.length === 0) {
       setImportError('Copy stops from a previous route or parse an uploaded schedule file first.');
       return;
@@ -416,6 +426,18 @@ export default function NewRoutePage() {
     setImportError(null);
 
     try {
+      const dateBlock = await checkRouteDateBlocked(importCustomerId, importScheduledDate);
+      if (dateBlock.blocked) {
+        const customerName = customers.find((c) => c.id === importCustomerId)?.name ?? 'This customer';
+        setImportError(
+          dateBlock.type === 'no_drivers'
+            ? `Null Device has no drivers available on ${importScheduledDate}${dateBlock.reason ? ` (${dateBlock.reason})` : ''}. Choose another date, or clear the block on the service calendar.`
+            : `${customerName}'s agency is closed on ${importScheduledDate}${dateBlock.reason ? ` (${dateBlock.reason})` : ''}. Choose another date.`
+        );
+        setIsUploading(false);
+        return;
+      }
+
       // 1. Upload file to S3 if one was selected
       let scheduleS3Key: string | undefined;
       if (importFile) {
@@ -433,6 +455,7 @@ export default function NewRoutePage() {
       const routeResult = await createRoute({
         routeCode: importRouteCode.trim(),
         customerId: importCustomerId,
+        scheduledDate: importScheduledDate,
         status: 'planned',
         notes: importNotes || undefined,
         scheduleS3Key,
@@ -599,6 +622,15 @@ export default function NewRoutePage() {
                     />
                   </Field>
 
+                  <Field label="Scheduled date" htmlFor="import-scheduled-date" required>
+                    <Input
+                      id="import-scheduled-date"
+                      type="date"
+                      value={importScheduledDate}
+                      onChange={(e) => setImportScheduledDate(e.target.value)}
+                    />
+                  </Field>
+
                   <Field label="Upload Schedule File" hint="PDF, CSV, TXT — stored and linked to route">
                     <div className={styles.fileRow}>
                       <input
@@ -685,6 +717,7 @@ export default function NewRoutePage() {
                 error={submitError}
                 copyStopSources={copyStopSources}
                 onCopyStopsFromSource={handleCopyStopsFromRoute}
+                onCheckDateBlock={checkRouteDateBlocked}
               />
             )}
           </>

@@ -191,6 +191,27 @@ describe('ServiceCalendar', () => {
     expect(deliveriesRow).toHaveTextContent('2');
   });
 
+  it('prefers scheduledDate over the timestamp fallback chain when counting deliveries', async () => {
+    const today = todayKey();
+
+    (listMyRoutes as jest.Mock).mockResolvedValue({
+      data: [
+        { scheduledDate: today },
+        { scheduledDate: today },
+        { actualEndTime: '2020-01-01T00:00:00Z' }, // no scheduledDate — falls back, lands on a different day
+      ],
+      errors: undefined,
+    });
+
+    render(
+      <ServiceCalendar customerId="cust-1" role="customer-readonly" currentUserSub="reviewer-sub" viewerSubs={['reviewer-sub']} />
+    );
+
+    expect(await screen.findByText('Deliveries')).toBeInTheDocument();
+    const deliveriesRow = screen.getByText('Deliveries').closest('div');
+    expect(deliveriesRow).toHaveTextContent('2');
+  });
+
   it('lets staff apply a block to every active customer', async () => {
     (listAllCustomers as jest.Mock).mockResolvedValue({
       data: [

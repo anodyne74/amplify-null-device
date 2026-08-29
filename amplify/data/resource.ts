@@ -164,6 +164,12 @@ const schema = a.schema({
       viewerSubs: a.string().array(), // Cognito subs of all customer users — grants read access
       status: a.enum(['planned', 'in_progress', 'signs_placed', 'signs_picked_up', 'completed', 'archived']),
       executionPhase: a.enum(['placement', 'pickup']),
+      // The day this route is planned to run. Checked client-side against
+      // OperatorAvailabilityBlock/CustomerClosureBlock at creation (RouteForm,
+      // app/administrator/routes/new) so a route is never built on a day either
+      // side has blocked. Optional so historical routes (created before this
+      // field existed) remain valid.
+      scheduledDate: a.date(),
       estimatedDurationMinutes: a.integer(),
       actualStartTime: a.datetime(),
       actualEndTime: a.datetime(),
@@ -478,7 +484,8 @@ const schema = a.schema({
   /**
    * OperatorAvailabilityBlock - A day Null Device has no drivers available for a customer.
    * One calendar per customer, written from the Null Device side only.
-   * No enforcement against Route creation yet — read/write calendar data only.
+   * Enforced client-side against Route.scheduledDate at route creation
+   * (lib/routeScheduleGuard.ts) — no server-side guard.
    */
   OperatorAvailabilityBlock: a
     .model({
@@ -504,7 +511,8 @@ const schema = a.schema({
   /**
    * CustomerClosureBlock - A day the customer's agency is closed.
    * One calendar per customer, written from the customer side only.
-   * No enforcement against Route creation yet — read/write calendar data only.
+   * Enforced client-side against Route.scheduledDate at route creation
+   * (lib/routeScheduleGuard.ts) — no server-side guard.
    */
   CustomerClosureBlock: a
     .model({

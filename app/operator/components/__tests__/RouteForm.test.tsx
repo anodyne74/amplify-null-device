@@ -84,6 +84,7 @@ describe('RouteForm', () => {
       expect(onSubmit).toHaveBeenCalledWith({
         routeCode: 'W20-26-001',
         customerId: 'cust-1',
+        scheduledDate: expect.any(String),
         notes: 'Test note',
         stops: [
           expect.objectContaining({
@@ -162,6 +163,7 @@ describe('RouteForm', () => {
       expect(onSubmit).toHaveBeenCalledWith({
         routeCode: 'W20-26-001',
         customerId: 'cust-1',
+        scheduledDate: expect.any(String),
         notes: '',
         stops: [
           expect.objectContaining({
@@ -200,5 +202,95 @@ describe('RouteForm', () => {
     expect(await screen.findByText(/call before arriving/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/number of signs/i)).toHaveValue(3);
     expect(screen.getByRole('button', { name: /jamie lee/i })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('defaults the scheduled date field to today', () => {
+    render(
+      <RouteForm customers={mockCustomers} onSubmit={noop} onCancel={noop} />
+    );
+
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    expect(screen.getByLabelText(/scheduled date/i)).toHaveValue(today);
+  });
+
+  it('blocks submission and shows a reason when the service calendar has no drivers that day', async () => {
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    const onCheckDateBlock = jest.fn().mockResolvedValue({ blocked: true, type: 'no_drivers', reason: 'Driver on leave' });
+
+    render(
+      <RouteForm
+        customers={mockCustomers}
+        initialRouteCode="W20-26-001"
+        onSubmit={onSubmit}
+        onCancel={noop}
+        onCheckDateBlock={onCheckDateBlock}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+
+    await waitFor(() => {
+      expect(onCheckDateBlock).toHaveBeenCalledWith('cust-1', expect.any(String));
+    });
+
+    expect(await screen.findByText(/no drivers available/i)).toBeInTheDocument();
+    expect(screen.getByText(/driver on leave/i)).toBeInTheDocument();
+
+    const submitButton = screen.getByRole('button', { name: /create route/i });
+    expect(submitButton).toBeDisabled();
+
+    fireEvent.click(submitButton);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('blocks submission when the customer agency is closed that day', async () => {
+    const onCheckDateBlock = jest.fn().mockResolvedValue({ blocked: true, type: 'closed', reason: 'Christmas shutdown' });
+
+    render(
+      <RouteForm
+        customers={mockCustomers}
+        onSubmit={noop}
+        onCancel={noop}
+        onCheckDateBlock={onCheckDateBlock}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+
+    expect(await screen.findByText(/acme corp.*closed/i)).toBeInTheDocument();
+    expect(screen.getByText(/christmas shutdown/i)).toBeInTheDocument();
+  });
+
+  it('allows submission once the calendar reports the date is clear', async () => {
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    const onCheckDateBlock = jest.fn().mockResolvedValue({ blocked: false });
+
+    render(
+      <RouteForm
+        customers={mockCustomers}
+        initialRouteCode="W20-26-001"
+        onSubmit={onSubmit}
+        onCancel={noop}
+        onCheckDateBlock={onCheckDateBlock}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+    await waitFor(() => expect(onCheckDateBlock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
+    fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: '123 Main St' } });
+    fireEvent.click(screen.getByRole('button', { name: /add stop to route/i }));
+    await waitFor(() => {
+      expect(screen.getByText('123 Main St')).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: /create route/i })).not.toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /create route/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalled();
+    });
   });
 });

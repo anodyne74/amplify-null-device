@@ -110,6 +110,7 @@ export interface Route {
   viewerSubs?: string[] | null;
   status?: RouteStatus | null;
   executionPhase?: RouteExecutionPhase | null;
+  scheduledDate?: string | null;
   estimatedDurationMinutes?: number | null;
   actualStartTime?: string | null;
   actualEndTime?: string | null;

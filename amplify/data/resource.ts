@@ -115,7 +115,13 @@ const schema = a.schema({
     ]),
 
   /**
-   * Operator - Represents a staff member managing customers and routes
+   * Operator - Represents a staff member managing customers and routes. Also the
+   * driver roster (Driver and Operator are the same person/record — see the
+   * Drivers screen at app/administrator/drivers/page.tsx): `id` is set to the
+   * operator's genuine Cognito sub by syncOperatorRecords() in
+   * app/api/admin/users/route.ts (same pattern as Administrator's own sync),
+   * so this is the queryable directory that Route.assignedOperatorSub and
+   * OperatorPayout.operatorSub previously had no counterpart for.
    * Authorization: Operators can read their own profile; Admins manage all operators
    */
   Operator: a
@@ -123,6 +129,21 @@ const schema = a.schema({
       name: a.string().required(),
       email: a.email().required(),
       role: a.enum(['admin', 'manager', 'staff']),
+      phone: a.phone(),
+      vehicleAndRego: a.string(),
+      homeBase: a.string(),
+      status: a.enum(['active', 'onboarding', 'inactive']),
+      // Pay split — editable on the Drivers screen. NOTE: not yet read by
+      // lib/driverSplit.ts's computeDriverSplit() or
+      // app/administrator/invoices/driverSplitPreview.ts, both of which still
+      // use only Customer.driverSplitPercent. Wiring a per-driver override into
+      // payout/invoice computation is a separate, not-yet-requested change.
+      driverSplitPercent: a.float(),
+      payCycle: a.enum(['weekly', 'fortnightly', 'monthly']),
+      paySplitOnCompletedStopsOnly: a.boolean(),
+      // Customers rostered to this driver first (admin-managed list — not derived
+      // from Route.assignedOperatorSub).
+      assignedCustomerIds: a.string().array(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })

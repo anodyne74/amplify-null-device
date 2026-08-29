@@ -12,6 +12,7 @@ const ADMIN_NAV = [
   { href: '/administrator', label: 'Admin Home', icon: 'layout-dashboard' },
   { href: '/administrator/routes', label: 'Routes', icon: 'route' },
   { href: '/administrator/customers', label: 'Customers', icon: 'users' },
+  { href: '/administrator/drivers', label: 'Drivers', icon: 'truck' },
   { href: '/administrator/invoices', label: 'Invoices', icon: 'file-text' },
   { href: '/administrator/payment-details', label: 'Payment Details', icon: 'receipt' },
   { href: '/administrator/payouts', label: 'Payouts', icon: 'wallet' },

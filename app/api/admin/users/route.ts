@@ -435,6 +435,59 @@ async function syncAdministratorRecords(authToken: string, users: ListedUser[]) 
   );
 }
 
+/**
+ * Upserts an Operator directory record (id = Cognito sub) for each user passed in.
+ * Mirrors syncAdministratorRecords above — same reasoning, different model. Called
+ * whenever the Drivers screen lists the `operator` Cognito group, so the roster's
+ * identity fields (name/email) stay in sync with Cognito without clobbering the
+ * driver-specific fields (phone, vehicle, split, etc.) an admin has already filled
+ * in on the Drivers screen, since this only sends name/email/role on create and
+ * leaves an existing record's other fields untouched.
+ */
+async function syncOperatorRecords(authToken: string, users: ListedUser[]) {
+  if (!graphqlEndpoint || users.length === 0) {
+    return;
+  }
+
+  const createMutation = `
+    mutation CreateOperator($input: CreateOperatorInput!) {
+      createOperator(input: $input) {
+        id
+      }
+    }
+  `;
+
+  await Promise.allSettled(
+    users.map(async (user) => {
+      if (!user.id || !user.name || !user.email) {
+        return;
+      }
+
+      const input = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: 'staff',
+        status: 'onboarding',
+        createdAt: user.createdAt || new Date().toISOString(),
+        updatedAt: user.updatedAt || new Date().toISOString(),
+      };
+
+      // create-only: an existing record (create fails with a duplicate-id error)
+      // is left as-is so an admin's edits on the Drivers screen aren't overwritten.
+      await fetch(graphqlEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authToken,
+        },
+        body: JSON.stringify({ query: createMutation, variables: { input } }),
+        cache: 'no-store',
+      });
+    })
+  );
+}
+
 async function verifyToken(token: string): Promise<VerifiedClaims | null> {
   const verifier = getVerifier();
   if (!verifier) {
@@ -544,6 +597,9 @@ export async function POST(request: NextRequest) {
       );
 
       const users = (response.Users || []).map((user) => mapListedUser(user));
+      if (body.groupName === 'operator') {
+        await syncOperatorRecords(authResult.token, users);
+      }
 
       await writeAuditLog(authResult.token, {
         operatorId: authResult.claims.sub,

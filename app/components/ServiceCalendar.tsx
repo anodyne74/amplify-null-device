@@ -72,7 +72,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [noDriversBlocks, setNoDriversBlocks] = useState<OperatorAvailabilityBlock[]>([]);
   const [closedBlocks, setClosedBlocks] = useState<CustomerClosureBlock[]>([]);
-  const [routes, setRoutes] = useState<{ actualEndTime?: string | null; actualStartTime?: string | null; createdAt?: string | null }[]>([]);
+  const [routes, setRoutes] = useState<{ scheduledDate?: string | null; actualEndTime?: string | null; actualStartTime?: string | null; createdAt?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState<string>(dateKey(today.getFullYear(), today.getMonth(), today.getDate()));
@@ -122,10 +122,16 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
   }, [closedBlocks]);
 
   const deliveriesByDate = useMemo(() => {
-    // Route has no dedicated "scheduled date" field — same fallback chain as the
-    // admin dashboard's aggregation (lib/aggregateRouteData.ts).
+    // Prefer scheduledDate (a plain YYYY-MM-DD, no timezone conversion needed).
+    // Routes created before that field existed fall back to the same chain as
+    // the admin dashboard's aggregation (lib/aggregateRouteData.ts).
     const map = new Map<string, number>();
     for (const route of routes) {
+      if (route.scheduledDate) {
+        map.set(route.scheduledDate, (map.get(route.scheduledDate) || 0) + 1);
+        continue;
+      }
+
       const isoDate = route.actualEndTime || route.actualStartTime || route.createdAt;
       if (!isoDate) continue;
       const parsed = new Date(isoDate);

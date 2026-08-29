@@ -479,6 +479,7 @@ export async function createRoute(input: {
   viewerSubs?: string[];
   status: 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
   executionPhase?: 'placement' | 'pickup';
+  scheduledDate?: string;
   notes?: string;
   scheduleS3Key?: string;
 }) {

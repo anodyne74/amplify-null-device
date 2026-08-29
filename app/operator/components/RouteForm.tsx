@@ -11,6 +11,7 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import type { Stop } from '@/amplify/types';
+import type { RouteDateBlockResult } from '@/lib/routeScheduleGuard';
 import styles from './RouteForm.module.css';
 
 const RouteStopsMap = dynamic(
@@ -49,6 +50,7 @@ interface RouteFormProps {
   onSubmit: (values: {
     routeCode: string;
     customerId: string;
+    scheduledDate: string;
     notes: string;
     stops: RouteDraftStop[];
   }) => Promise<void>;
@@ -62,6 +64,13 @@ interface RouteFormProps {
     label: string;
   }>;
   onCopyStopsFromSource?: (sourceRouteId: string) => Promise<RouteDraftStop[]>;
+  /** Checks the chosen customer/date against the service calendar. Omit to skip the check (e.g. in tests). */
+  onCheckDateBlock?: (customerId: string, date: string) => Promise<RouteDateBlockResult>;
+}
+
+function todayDateKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 export function RouteForm({
@@ -73,9 +82,15 @@ export function RouteForm({
   error,
   copyStopSources,
   onCopyStopsFromSource,
+  onCheckDateBlock,
 }: RouteFormProps) {
   const [routeCode, setRouteCode] = useState(initialRouteCode);
   const [customerId, setCustomerId] = useState('');
+  const [scheduledDate, setScheduledDate] = useState(todayDateKey);
+  const [blockCheck, setBlockCheck] = useState<{ status: 'idle' | 'checking' | 'ok' | 'blocked' } & RouteDateBlockResult>({
+    status: 'idle',
+    blocked: false,
+  });
   const [notes, setNotes] = useState('');
   const [stops, setStops] = useState<RouteDraftStop[]>([]);
   const [showAddStop, setShowAddStop] = useState(false);
@@ -133,6 +148,32 @@ export function RouteForm({
       cancelled = true;
     };
   }, [customerId, customers]);
+
+  useEffect(() => {
+    if (!onCheckDateBlock || !customerId || !scheduledDate) {
+      setBlockCheck({ status: 'idle', blocked: false });
+      return;
+    }
+
+    let cancelled = false;
+    setBlockCheck({ status: 'checking', blocked: false });
+
+    void onCheckDateBlock(customerId, scheduledDate)
+      .then((result) => {
+        if (!cancelled) {
+          setBlockCheck({ status: result.blocked ? 'blocked' : 'ok', ...result });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBlockCheck({ status: 'idle', blocked: false });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [onCheckDateBlock, customerId, scheduledDate]);
 
   const mapStops: Stop[] = stops.map((stop, index) => ({
     id: `draft-${index + 1}`,
@@ -200,6 +241,14 @@ export function RouteForm({
     setStops((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const blockedDateMessage = () => {
+    if (blockCheck.status !== 'blocked') return null;
+    if (blockCheck.type === 'no_drivers') {
+      return `Null Device has no drivers available on ${scheduledDate}${blockCheck.reason ? ` (${blockCheck.reason})` : ''}. Choose another date, or clear the block on the service calendar.`;
+    }
+    return `${selectedCustomer?.name ?? 'This customer'}'s agency is closed on ${scheduledDate}${blockCheck.reason ? ` (${blockCheck.reason})` : ''}. Choose another date.`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
@@ -214,12 +263,22 @@ export function RouteForm({
       return;
     }
 
+    if (!scheduledDate) {
+      setValidationError('Please choose a scheduled date.');
+      return;
+    }
+
     if (stops.length === 0) {
       setValidationError('Add at least one stop before creating a route.');
       return;
     }
 
-    await onSubmit({ routeCode: routeCode.trim(), customerId, notes, stops });
+    if (blockCheck.status === 'blocked') {
+      setValidationError(blockedDateMessage());
+      return;
+    }
+
+    await onSubmit({ routeCode: routeCode.trim(), customerId, scheduledDate, notes, stops });
 
     // Defer one tick so a failure flagged during submit has propagated back
     // down via the `error` prop before we announce success.
@@ -289,6 +348,22 @@ export function RouteForm({
                 </option>
               ))}
             </Select>
+          </Field>
+
+          <Field
+            label="Scheduled date"
+            htmlFor="scheduledDate"
+            required
+            error={blockedDateMessage()}
+            hint={blockCheck.status === 'checking' ? 'Checking the service calendar…' : undefined}
+          >
+            <Input
+              id="scheduledDate"
+              type="date"
+              value={scheduledDate}
+              onChange={(e) => setScheduledDate(e.target.value)}
+              disabled={isSubmitting}
+            />
           </Field>
 
           <Field label="Notes" htmlFor="notes">
@@ -401,7 +476,11 @@ export function RouteForm({
         </div>
 
         <div className={styles.actions}>
-          <Button type="submit" loading={isSubmitting} disabled={isSubmitting}>
+          <Button
+            type="submit"
+            loading={isSubmitting}
+            disabled={isSubmitting || blockCheck.status === 'blocked' || blockCheck.status === 'checking'}
+          >
             {isSubmitting ? 'Creating…' : 'Create Route'}
           </Button>
           <Button type="button" variant="secondary" onClick={onCancel} disabled={isSubmitting}>

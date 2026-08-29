@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Icon } from '@/app/components/ui/core/Icon';
+import { Logo } from '@/app/components/ui/core/Logo';
 import { Button } from '@/app/components/ui/core/Button';
 import { Dialog } from '@/app/components/ui/feedback/Dialog';
 import ThemeModeSelect from '@/app/components/ThemeModeSelect';
@@ -65,9 +65,7 @@ export default function CustomerShell({ children, navItems, userEmail, onLogout 
 
       <aside className={styles.sidebar} style={sidebarStyle}>
         <div className={styles.brand}>
-          <div className={styles.brandTile}>
-            <Image src="/icon.svg" alt="" aria-hidden="true" width={40} height={40} />
-          </div>
+          <Logo theme="dark" height={32} />
           <p className={styles.brandSubtitle}>Customer Portal</p>
         </div>
 

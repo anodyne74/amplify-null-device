@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Icon } from '@/app/components/ui/core/Icon';
+import { Logo } from '@/app/components/ui/core/Logo';
 import { Button } from '@/app/components/ui/core/Button';
 import { Dialog } from '@/app/components/ui/feedback/Dialog';
 import ThemeModeSelect from '@/app/components/ThemeModeSelect';
@@ -63,11 +63,9 @@ export default function OperatorShell({ children, navItems, userEmail, onLogout 
         />
       )}
 
-      <aside className={styles.sidebar} style={sidebarStyle}>
+      <aside className={styles.sidebar} data-theme="dark" style={sidebarStyle}>
         <div className={styles.brand}>
-          <div className={styles.brandTile}>
-            <Image src="/icon.svg" alt="" aria-hidden="true" width={40} height={40} />
-          </div>
+          <Logo theme="light" height={32} />
           <p className={styles.brandSubtitle}>Operator Portal</p>
         </div>
 
@@ -102,7 +100,7 @@ export default function OperatorShell({ children, navItems, userEmail, onLogout 
           <p className={styles.userLabel}>Signed in as</p>
           <p className={styles.userEmail}>{userEmail}</p>
 
-          <Button variant="secondary" size="sm" block onClick={() => setShowLogoutConfirm(true)}>
+          <Button variant="inverse" size="sm" block onClick={() => setShowLogoutConfirm(true)}>
             Logout
           </Button>
         </div>

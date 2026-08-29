@@ -12,11 +12,15 @@
   display: none;
 }
 
+/* Staff chrome: fixed navy, independent of the visitor's own light/dark
+   preference -- data-theme="dark" is set on the <aside> itself (OperatorShell.tsx)
+   so --surface-card/--text-*/--border-* resolve navy here regardless of what
+   <html data-theme> the rest of the page has (see tokens.css's [data-theme]
+   scoping note). */
 .sidebar {
   width: var(--sidebar-w);
   flex: none;
   background: var(--surface-card);
-  border-right: 2px solid var(--indigo-500);
   display: flex;
   flex-direction: column;
   padding: var(--space-7) var(--space-5);
@@ -28,17 +32,6 @@
 .brand {
   padding-bottom: var(--space-5);
   border-bottom: var(--border-hairline) solid var(--border-subtle);
-}
-
-.brandTile {
-  background: var(--nd-black);
-  border-radius: var(--radius-lg);
-  width: 56px;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
 }
 
 .brandSubtitle {

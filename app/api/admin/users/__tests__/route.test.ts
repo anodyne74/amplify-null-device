@@ -160,6 +160,50 @@ describe('admin users API', () => {
     expect(body.users).toEqual([
       expect.objectContaining({ name: 'Jane', email: 'jane@nulldevice.dev', sub: 'sub-operator-1' }),
     ]);
+
+    // Listing the operator group also upserts the Operator directory (Driver roster) --
+    // id is the genuine Cognito sub, not the Username.
+    const operatorSyncCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('createOperator')
+    );
+    expect(operatorSyncCall).toBeDefined();
+    const syncBody = JSON.parse(operatorSyncCall![1].body);
+    expect(syncBody.variables.input).toEqual(
+      expect.objectContaining({ id: 'sub-operator-1', name: 'Jane', email: 'jane@nulldevice.dev' })
+    );
+  });
+
+  it('does not sync the Operator directory when listing a different group', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock.mockResolvedValue({
+      Users: [
+        {
+          Username: 'customer-1',
+          Attributes: [
+            { Name: 'email', Value: 'owner@harcourts.example' },
+            { Name: 'sub', Value: 'sub-customer-1' },
+            { Name: 'name', Value: 'Betty' },
+          ],
+        },
+      ],
+    });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsersInGroup', groupName: 'customer' }),
+    } as any;
+
+    await POST(request);
+
+    const operatorSyncCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('createOperator')
+    );
+    expect(operatorSyncCall).toBeUndefined();
   });
 
   it('rejects listUsersInGroup with an invalid groupName', async () => {

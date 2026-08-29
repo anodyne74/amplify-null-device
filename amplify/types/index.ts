@@ -89,9 +89,19 @@ export interface Operator {
   name: string;
   email: string;
   role: OperatorRole;
+  phone?: string | null;
+  vehicleAndRego?: string | null;
+  homeBase?: string | null;
+  status?: OperatorStatus | null;
+  driverSplitPercent?: number | null;
+  payCycle?: BillingCycle | null;
+  paySplitOnCompletedStopsOnly?: boolean | null;
+  assignedCustomerIds?: string[] | null;
   createdAt?: string;
   updatedAt?: string;
 }
+
+export type OperatorStatus = 'active' | 'onboarding' | 'inactive';
 
 export interface Route {
   id: string;

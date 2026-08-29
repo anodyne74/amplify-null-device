@@ -1,0 +1,125 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.errorBanner {
+  padding: var(--space-4);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  border: var(--border-hairline) solid var(--status-danger-fg);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-5);
+}
+
+.driverLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: var(--fw-semibold);
+  color: var(--text-link);
+  cursor: pointer;
+}
+
+.driverLink:hover {
+  color: var(--text-link-hover);
+  text-decoration: underline;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sideCards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.formRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.formHint {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.formActions {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding-top: var(--space-1);
+}
+
+.callout {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-brand-subtle);
+  border: var(--border-hairline) solid var(--border-brand);
+  color: var(--text-brand);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+}
+
+.customerList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.customerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: var(--border-hairline) solid var(--border-subtle);
+}
+
+.customerName {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
+}
+
+.assignRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.assignRow > :first-child {
+  flex: 1;
+}

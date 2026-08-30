@@ -1,0 +1,202 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  border: var(--border-hairline) solid var(--border-subtle);
+}
+
+.mainContentWrap {
+  display: block;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+}
+
+a.mainContentWrap:hover {
+  background: var(--surface-hover);
+}
+
+.mainContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.topRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.phasePill {
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+}
+
+.phasePillIndigo {
+  color: var(--text-brand);
+  background: var(--surface-brand-subtle);
+}
+
+.phasePillViolet {
+  color: var(--violet-300);
+  background: rgba(177, 129, 232, 0.18);
+}
+
+.statusLabel {
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-2xs);
+  color: var(--text-subtle);
+}
+
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-base);
+  color: var(--text-heading);
+}
+
+.customer {
+  font-family: var(--font-body);
+  font-weight: var(--fw-medium);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.metaText {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-sm);
+  color: var(--text-body);
+}
+
+.cta {
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-sm);
+  color: var(--text-brand);
+}
+
+.track {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.trackBar {
+  display: flex;
+  gap: 4px;
+}
+
+.trackSegment {
+  flex: 1;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+
+.trackSegment_done {
+  background: var(--action-primary-bg);
+}
+
+.trackSegment_current {
+  background: var(--amber-400);
+}
+
+.trackSegment_upcoming {
+  background: var(--surface-sunken);
+}
+
+.trackCaption {
+  font-family: var(--font-body);
+  font-weight: var(--fw-medium);
+  font-size: var(--text-2xs);
+  color: var(--text-subtle);
+}
+
+.lockNote {
+  font-family: var(--font-body);
+  font-weight: var(--fw-medium);
+  font-size: var(--text-xs);
+  line-height: var(--lh-relaxed);
+  color: var(--status-warning-fg);
+}
+
+.instructionsSection {
+  border-top: var(--border-hairline) solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+}
+
+.instructionsToggle {
+  min-height: 48px;
+  padding: 0 var(--space-5);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-body);
+  text-align: left;
+  transition: var(--transition-control);
+}
+
+.instructionsToggle:hover {
+  background: var(--surface-hover);
+}
+
+.instructionsLabel {
+  flex: 1;
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-xs);
+  color: var(--status-warning-fg);
+}
+
+.instructionsChevron {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
+.instructionsBody {
+  padding: 0 var(--space-5) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.instructionEntry {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: var(--lh-relaxed);
+  color: var(--text-body);
+}

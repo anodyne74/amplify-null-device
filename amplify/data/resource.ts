@@ -129,7 +129,10 @@ const schema = a.schema({
       name: a.string().required(),
       email: a.email().required(),
       role: a.enum(['admin', 'manager', 'staff']),
-      phone: a.phone(),
+      // Plain string, not a.phone() (AWSPhone) -- that scalar's NANP-style grouping
+      // rejects ordinary AU mobile formats (e.g. "0412 345 678"), which broke every
+      // save on the Drivers screen's free-text Mobile field.
+      phone: a.string(),
       vehicleAndRego: a.string(),
       homeBase: a.string(),
       status: a.enum(['active', 'onboarding', 'inactive']),

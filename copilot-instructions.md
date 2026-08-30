@@ -110,6 +110,17 @@ GitHub Actions runs only quality gates — no AWS credentials are needed in GitH
 
 See the [Amplify IAM Setup section](#required-amplify-console-configuration) above for step-by-step role creation.
 
+4. **SSR compute role Cognito policy**: `app/api/admin/users/route.ts` calls the Cognito Identity Provider Admin API directly from the Next.js SSR runtime (not through Amplify Data/Auth), so the **hosting** compute role — `AmplifyHostingSSRCompute`, distinct from the `AmplifyBackendDeployRole` used at build/deploy time — needs its own IAM policy for these actions. This role and policy are managed by hand in IAM (there's no CDK construct for it in `amplify/`), currently as a customer-managed policy named `CognitoAdminForSingleUserPool` scoped to `arn:aws:cognito-idp:*:<account-id>:userpool/*`:
+   - `cognito-idp:ListUsers`
+   - `cognito-idp:ListUsersInGroup`
+   - `cognito-idp:AdminCreateUser`
+   - `cognito-idp:AdminAddUserToGroup`
+   - `cognito-idp:AdminRemoveUserFromGroup`
+   - `cognito-idp:AdminListGroupsForUser`
+   - `cognito-idp:AdminListUserAuthEvents`
+
+   If `app/api/admin/users/route.ts` gains a new Cognito Admin API call, add the matching action here and to the live policy — grep the route for `new [A-Za-z]+Command(` to get the current full list.
+
 ### Amplify Gen 2 Notes
 
 - Backend definitions live in `amplify/` as TypeScript — never use `amplify pull`
@@ -139,6 +150,10 @@ The `validate-amplify-outputs.js` script fails deployed builds when placeholder 
 - Verify the compute role is assigned in Amplify Console → Build settings → IAM roles
 - Check Amplify Console backend deployment logs
 - Look for errors in AWS CloudFormation console (stacks prefixed with your app name)
+
+### "User: arn:...assumed-role/AmplifyHostingSSRCompute/... is not authorized to perform: cognito-idp:*"
+
+The hosting compute role's `CognitoAdminForSingleUserPool` policy is missing that action. See the [SSR compute role Cognito policy](#required-amplify-console-configuration) list above for the full set `app/api/admin/users/route.ts` needs, add the missing action to the live IAM policy, and retry — no rebuild required, IAM changes apply immediately.
 
 ### Groups not appearing in token
 

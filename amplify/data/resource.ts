@@ -166,7 +166,9 @@ const schema = a.schema({
       customerId: a.id().required(), // Foreign key to Customer
       viewerSubs: a.string().array(), // Cognito subs of all customer users — grants read access
       status: a.enum(['planned', 'in_progress', 'signs_placed', 'signs_picked_up', 'completed', 'archived']),
-      executionPhase: a.enum(['placement', 'pickup']),
+      // 'load' and 'unload' are only used by the drivingModeEnabled sign-run flow
+      // (see below) — the existing 2-phase execution mode never sets them.
+      executionPhase: a.enum(['load', 'placement', 'pickup', 'unload']),
       // The day this route is planned to run. Checked client-side against
       // OperatorAvailabilityBlock/CustomerClosureBlock at creation (RouteForm,
       // app/administrator/routes/new) so a route is never built on a day either
@@ -194,6 +196,18 @@ const schema = a.schema({
       customerFeedbackTone: a.enum(['good', 'issue']), // Customer-authored, asked once the route is completed
       customerFeedbackNote: a.string(),
       drivingModeEnabled: a.boolean(), // Renders the operator app's simplified in-vehicle driving mode for this route
+      // Sign-run flow (drivingModeEnabled routes only) — the Load/Unload confirmations
+      // and the four Finalise-screen adjuster rows. Finalise sums the billed*Minutes
+      // fields into overrideDurationMinutes, and its distance adjuster writes
+      // overrideDistanceKm above, so invoicing/payouts read those existing fields
+      // unchanged and need no awareness of the sign-run flow.
+      loadConfirmedAt: a.datetime(),
+      loadedSignsCount: a.integer(), // Confirmed at Load — may differ from the sum of Stop.numberOfSigns after a recount
+      unloadConfirmedAt: a.datetime(),
+      billedLoadMinutes: a.integer(),
+      billedPlacementMinutes: a.integer(),
+      billedPickupMinutes: a.integer(),
+      billedUnloadMinutes: a.integer(),
       vanCount: a.integer(), // Number of vans/vehicles assigned to this route
       scheduleS3Key: a.string(), // S3 key for the uploaded schedule file
       // Operator assignment — display/notification tag only, not an authorization scope.
@@ -245,6 +259,14 @@ const schema = a.schema({
       longitude: a.float(),
       formattedAddress: a.string(),
       notes: a.string(),
+      // Sign-run flow (drivingModeEnabled routes only) — one tap logs one missing sign
+      // during the pickup phase; missing signs never count as collected. The last-logged
+      // fields back the pickup screen's coordinate/time stamp and its Undo affordance;
+      // undo-after-undo does not restore an earlier stamp exactly.
+      missingSignsCount: a.integer(),
+      missingSignsLastLoggedAt: a.datetime(),
+      missingSignsLastLatitude: a.float(),
+      missingSignsLastLongitude: a.float(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships

@@ -36,6 +36,15 @@ describe('SignRunRouteCard', () => {
     expect(link).toHaveAttribute('href', '/operator/routes/detail?id=route-1234abcd');
   });
 
+  it('links a Load-phase route to the Load screen instead of routes/detail', () => {
+    const route = baseRoute({ status: 'in_progress', executionPhase: 'load' });
+    const phaseInfo = getSignRunPhase(route, 12)!;
+
+    render(<SignRunRouteCard route={route} customerName="Beltline Group" phaseInfo={phaseInfo} stopCount={12} signsTotal={48} />);
+
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/operator/routes/load?id=route-1234abcd');
+  });
+
   it('renders a locked route as a non-link card with the lock note and no CTA', () => {
     const route = baseRoute({ status: 'planned', executionPhase: null });
     const phaseInfo = getSignRunPhase(route, 0)!;

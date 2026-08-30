@@ -29,6 +29,7 @@ describe('getSignRunPhase', () => {
     expect(info?.actionLabel).toBe('Load signs');
     expect(info?.tint).toBe('indigo');
     expect(info?.track).toEqual(['current', 'upcoming', 'upcoming', 'upcoming']);
+    expect(info?.phaseKicker).toBe('PHASE 1 OF 4 · LOAD');
   });
 
   it('reads Placement as indigo, phase 2 of 4', () => {
@@ -39,6 +40,7 @@ describe('getSignRunPhase', () => {
     expect(info?.actionLabel).toBe('Place signs');
     expect(info?.tint).toBe('indigo');
     expect(info?.track).toEqual(['done', 'current', 'upcoming', 'upcoming']);
+    expect(info?.phaseKicker).toBe('PHASE 2 OF 4 · PLACEMENT');
   });
 
   it('reads Pickup as violet, phase 3 of 4', () => {
@@ -70,6 +72,7 @@ describe('getSignRunPhase', () => {
     expect(info?.actionLabel).toBe('Finalise');
     expect(info?.tint).toBe('violet');
     expect(info?.track).toEqual(['done', 'done', 'done', 'done']);
+    expect(info?.phaseKicker).toBe('FINALISE');
   });
 
   it('does not treat unloadConfirmedAt as ready-to-finalise once the route is completed', () => {

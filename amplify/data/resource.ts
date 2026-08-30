@@ -619,6 +619,9 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+      // Read-only for operators: the Driver Sign Run flow's Load/Unload screens show
+      // this row's `address` as the yard address (no dedicated yard field exists).
+      allow.groups(['operator']).to(['read']),
     ]),
 }).authorization((allow) => [
   allow.resource(customerAccessActivation).to(['query', 'mutate']),

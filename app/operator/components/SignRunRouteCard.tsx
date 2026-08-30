@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/app/components/ui/core/Badge';
+import { PhaseTrackBar } from './PhaseTrackBar';
 import { parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import type { SignRunPhaseInfo } from '@/lib/signRunPhase';
 import type { Route } from '@/amplify/types';
@@ -22,11 +23,13 @@ export interface SignRunRouteCardProps {
  * how phaseInfo is derived. Non-drivingMode routes keep the plain trackerCard
  * in app/operator/dashboard/page.tsx.
  *
- * TODO(sign-run): once the Load/Placement/Pickup/Unload/Finalise pages exist,
- * route the card to the phase-specific screen instead of always opening
- * routes/detail.
+ * TODO(sign-run): Load (phaseIdx 0) now routes to its own screen. Once
+ * Placement/Pickup/Unload/Finalise pages exist, route those phases to their
+ * own screens too instead of falling back to routes/detail.
  */
 export function SignRunRouteCard({ route, customerName, phaseInfo, stopCount, signsTotal }: SignRunRouteCardProps) {
+  const href =
+    phaseInfo.phaseIdx === 0 ? `/operator/routes/load?id=${route.id}` : `/operator/routes/detail?id=${route.id}`;
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const instructionEntries = sortRouteInstructionsNewestFirst(parseRouteInstructions(route.customerInstructions));
   const hasNotes = instructionEntries.length > 0;
@@ -61,14 +64,7 @@ export function SignRunRouteCard({ route, customerName, phaseInfo, stopCount, si
         {!phaseInfo.isLocked && <span className={styles.cta}>{phaseInfo.actionLabel} →</span>}
       </div>
 
-      <div className={styles.track}>
-        <div className={styles.trackBar}>
-          {phaseInfo.track.map((state, i) => (
-            <span key={i} className={`${styles.trackSegment} ${styles[`trackSegment_${state}`]}`} />
-          ))}
-        </div>
-        <div className={styles.trackCaption}>{phaseInfo.phaseNumberLabel}</div>
-      </div>
+      <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
 
       {phaseInfo.isLocked && <div className={styles.lockNote}>{phaseInfo.lockNote}</div>}
     </div>
@@ -79,7 +75,7 @@ export function SignRunRouteCard({ route, customerName, phaseInfo, stopCount, si
       {phaseInfo.isLocked ? (
         <div className={styles.mainContentWrap}>{body}</div>
       ) : (
-        <Link href={`/operator/routes/detail?id=${route.id}`} className={styles.mainContentWrap}>
+        <Link href={href} className={styles.mainContentWrap}>
           {body}
         </Link>
       )}

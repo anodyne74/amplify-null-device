@@ -17,6 +17,8 @@ export interface SignRunPhaseInfo {
   phaseLabel: string;
   /** Caption under the progress bar: "Phase 1 of 4" ... "All four phases done". */
   phaseNumberLabel: string;
+  /** Phase-screen header kicker: "PHASE 1 OF 4 · LOAD". */
+  phaseKicker: string;
   /** Load/Placement pills read indigo; Pickup/Unload/finalise read violet. */
   tint: 'indigo' | 'violet';
   /** Card CTA verb: "Load signs" | "Place signs" | "Pick up signs" | "Return signs" | "Finalise". */
@@ -70,6 +72,7 @@ export function getSignRunPhase(route: Route, stopCount: number): SignRunPhaseIn
 
   const phaseLabel = phaseIdx === 4 ? 'Ready to finalise' : PHASE_ORDER[phaseIdx].label;
   const phaseNumberLabel = phaseIdx === 4 ? 'All four phases done' : `Phase ${phaseIdx + 1} of 4`;
+  const phaseKicker = phaseIdx === 4 ? 'FINALISE' : `PHASE ${phaseIdx + 1} OF 4 · ${PHASE_ORDER[phaseIdx].label.toUpperCase()}`;
   const actionLabel = phaseIdx === 4 ? 'Finalise' : PHASE_ORDER[phaseIdx].action;
   const tint: SignRunPhaseInfo['tint'] = phaseIdx >= 2 ? 'violet' : 'indigo';
   const statusLabel = route.status === 'planned' ? dayLabel(route.scheduledDate) : phaseLabel;
@@ -82,6 +85,7 @@ export function getSignRunPhase(route: Route, stopCount: number): SignRunPhaseIn
     phaseIdx,
     phaseLabel,
     phaseNumberLabel,
+    phaseKicker,
     tint,
     actionLabel,
     statusLabel,

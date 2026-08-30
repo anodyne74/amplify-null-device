@@ -478,7 +478,7 @@ export async function createRoute(input: {
   customerId: string;
   viewerSubs?: string[];
   status: 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
-  executionPhase?: 'placement' | 'pickup';
+  executionPhase?: 'load' | 'placement' | 'pickup' | 'unload';
   scheduledDate?: string;
   notes?: string;
   scheduleS3Key?: string;
@@ -506,7 +506,7 @@ export async function updateRoute(
     routeCode: string;
     customerId: string;
     status: 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
-    executionPhase: 'placement' | 'pickup';
+    executionPhase: 'load' | 'placement' | 'pickup' | 'unload';
     actualStartTime: string;
     actualEndTime: string;
     placementStartTime: string;
@@ -527,6 +527,13 @@ export async function updateRoute(
     customerFeedbackTone: 'good' | 'issue';
     customerFeedbackNote: string;
     drivingModeEnabled: boolean;
+    loadConfirmedAt: string;
+    loadedSignsCount: number;
+    unloadConfirmedAt: string;
+    billedLoadMinutes: number;
+    billedPlacementMinutes: number;
+    billedPickupMinutes: number;
+    billedUnloadMinutes: number;
     vanCount: number;
     scheduleS3Key: string;
     assignedOperatorSub: string | null;
@@ -554,7 +561,7 @@ export async function updateRoute(
 
 export interface RouteExecutionUpdateInput {
   status?: 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
-  executionPhase?: 'placement' | 'pickup';
+  executionPhase?: 'load' | 'placement' | 'pickup' | 'unload';
   actualStartTime?: string;
   actualEndTime?: string;
   placementStartTime?: string;
@@ -564,6 +571,13 @@ export interface RouteExecutionUpdateInput {
   actualDurationMinutes?: number;
   signsPlacedDistanceKm?: number;
   signsPickedUpDistanceKm?: number;
+  loadConfirmedAt?: string;
+  loadedSignsCount?: number;
+  unloadConfirmedAt?: string;
+  billedLoadMinutes?: number;
+  billedPlacementMinutes?: number;
+  billedPickupMinutes?: number;
+  billedUnloadMinutes?: number;
 }
 
 /**
@@ -621,6 +635,10 @@ export interface StopExecutionUpdateInput {
   actualArrivalTime?: string;
   actualDepartureTime?: string;
   notes?: string;
+  missingSignsCount?: number;
+  missingSignsLastLoggedAt?: string;
+  missingSignsLastLatitude?: number;
+  missingSignsLastLongitude?: number;
 }
 
 /**

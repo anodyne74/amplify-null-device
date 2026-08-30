@@ -14,7 +14,14 @@ const backend = defineBackend({ auth, data, storage, customerAccessActivation })
 // Advanced security (AUDIT mode) is required for AdminListUserAuthEvents, which
 // powers the admin Users page's "signed in past 7 days" stat. AUDIT only logs and
 // risk-scores sign-in events -- it doesn't block or challenge users -- so it adds
-// no sign-in friction, just the (small, per-MAU) Cognito advanced security cost.
+// no sign-in friction, just the Cognito advanced security cost.
+//
+// AWS now gates any "Threat Protection" (formerly "advanced security") feature
+// behind the Cognito Plus feature plan -- the pool defaults to Essentials, which
+// rejects advancedSecurityMode outright ("features need to be disabled for the
+// ESSENTIALS pricing tier configured: Threat Protection"). Plus is billed per
+// MAU pool-wide, not just for this feature -- see https://aws.amazon.com/cognito/pricing/.
+backend.auth.resources.cfnResources.cfnUserPool.userPoolTier = 'PLUS';
 backend.auth.resources.cfnResources.cfnUserPool.userPoolAddOns = {
 	advancedSecurityMode: 'AUDIT',
 };

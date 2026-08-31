@@ -66,6 +66,20 @@ export function getAgentBadgeTone(agentName?: string): AgentBadgeTone {
   return tones[hash % tones.length];
 }
 
+/** 1-2 letter initials for an agent badge, with a series of fallbacks for short/odd
+ * names so the badge is never blank. Used by StopCard and the Driver Sign Run
+ * driving-mode screens' "THEN" list agent bubbles. */
+export function getAgentBadgeInitials(agentName: string) {
+  const compact = agentName.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  const generated = (generateAgentInitials(agentName) ?? '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+  if (generated.length >= 2) return generated.slice(0, 2);
+  if (generated.length === 1 && compact.length >= 2) return `${generated}${compact[1]}`;
+  if (compact.length >= 2) return compact.slice(0, 2);
+  if (compact.length === 1) return `${compact}G`;
+  return 'AG';
+}
+
 export function normalizeAgentOptions(agentOptions?: string[], defaultAgentName?: string) {
   const deduped = new Set<string>();
   const normalizedOptions: string[] = [];

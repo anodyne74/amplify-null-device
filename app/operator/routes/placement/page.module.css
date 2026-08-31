@@ -1,0 +1,316 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 480px;
+}
+
+.mutedText {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.backLink {
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-sm);
+  color: var(--text-brand);
+}
+
+.errorBanner {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+}
+
+.kickerRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.kicker {
+  font-family: var(--font-body);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-brand);
+}
+
+.customer {
+  font-family: var(--font-body);
+  font-weight: var(--fw-medium);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.mapLoading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 360px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.mapShell {
+  position: relative;
+}
+
+.glassCard {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--surface-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: var(--border-hairline) solid var(--border-subtle);
+}
+
+.glassTopRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.glassCounter {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--ls-caps);
+  color: var(--text-brand);
+}
+
+.glassLeg {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+
+.glassStreet {
+  font-family: var(--font-display);
+  font-weight: var(--fw-semibold);
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--text-heading);
+}
+
+.glassSuburb {
+  font-family: var(--font-body);
+  font-weight: var(--fw-medium);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.glassChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chipSigns,
+.chipAgent,
+.chipAuction {
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-2xs);
+}
+
+.chipSigns {
+  color: var(--text-brand);
+  background: var(--surface-brand-subtle);
+}
+
+.chipAgent {
+  color: var(--text-body);
+  background: var(--surface-hover);
+  border: var(--border-hairline) solid var(--border-subtle);
+}
+
+.chipAuction {
+  color: var(--status-warning-fg);
+  background: var(--status-warning-bg);
+}
+
+.glassNote {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  line-height: var(--lh-relaxed);
+  color: var(--text-body);
+}
+
+.thenHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.thenLabel {
+  font-family: var(--font-body);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+.thenHint {
+  font-family: var(--font-body);
+  font-size: var(--text-2xs);
+  color: var(--text-subtle);
+}
+
+.thenList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.thenItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  border: var(--border-hairline) solid var(--border-subtle);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+
+.thenItem:hover {
+  background: var(--surface-hover);
+}
+
+.thenSequence {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-circle);
+  background: var(--surface-brand-subtle);
+  color: var(--text-brand);
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-2xs);
+}
+
+.thenBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.thenAddress {
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-sm);
+  color: var(--text-heading);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thenMeta {
+  margin-top: 2px;
+  font-family: var(--font-body);
+  font-weight: var(--fw-medium);
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thenAgent {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-circle);
+  background: var(--surface-hover);
+  border: var(--border-hairline) solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-2xs);
+  color: var(--text-body);
+}
+
+.actionBar {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--space-3);
+}
+
+.skipButton {
+  min-height: 58px;
+  border-radius: var(--radius-md);
+  border: var(--border-hairline) solid var(--border-default);
+  background: transparent;
+  color: var(--text-body);
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+
+.skipButton:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.skipButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.primaryButton {
+  min-height: 58px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--action-primary-bg);
+  color: var(--text-on-brand);
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-lg);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+
+.primaryButton:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(93, 101, 230, 0.35);
+}
+
+.primaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}

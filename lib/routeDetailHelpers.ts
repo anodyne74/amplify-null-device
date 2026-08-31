@@ -71,7 +71,7 @@ export function getRouteDurationMinutes(route: Route) {
   return null;
 }
 
-function haversineDistanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+export function haversineDistanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const toRadians = (value: number) => (value * Math.PI) / 180;
   const earthRadiusKm = 6371;
   const dLat = toRadians(b.lat - a.lat);
@@ -84,6 +84,18 @@ function haversineDistanceKm(a: { lat: number; lng: number }, b: { lat: number; 
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
 
   return 2 * earthRadiusKm * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+export function getPrimaryAddressLine(address?: string | null) {
+  if (!address) return '';
+  const firstSegment = address.split(',')[0]?.trim();
+  return firstSegment || address;
+}
+
+export function getSecondaryAddressLine(address?: string | null) {
+  if (!address) return '';
+  const [, ...rest] = address.split(',');
+  return rest.join(',').trim();
 }
 
 export function calculateRouteDistanceKm(stops: Stop[]) {

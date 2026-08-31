@@ -10,6 +10,7 @@ import { getRouteWithStops, getCustomer, updateRouteExecution } from '@/lib/quer
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { getSignRunPhase } from '@/lib/signRunPhase';
 import type { Route, Stop } from '@/amplify/types';
+import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
 
 interface AgentBreakdownRow {
@@ -131,9 +132,9 @@ export default function OperatorLoadPage() {
 
   if (!routeId) {
     return (
-      <div className={styles.page}>
-        <p className={styles.mutedText}>No route selected.</p>
-        <Link href="/operator/dashboard" className={styles.backLink}>
+      <div className={shellStyles.page}>
+        <p className={shellStyles.mutedText}>No route selected.</p>
+        <Link href="/operator/dashboard" className={shellStyles.backLink}>
           Back to Today
         </Link>
       </div>
@@ -146,12 +147,12 @@ export default function OperatorLoadPage() {
 
   if (!isValidLoadScreen) {
     return (
-      <div className={styles.page}>
+      <div className={shellStyles.page}>
         <Breadcrumbs items={[{ label: 'Today', href: '/operator/dashboard' }, { label: 'Load' }]} />
-        <p className={styles.mutedText}>
+        <p className={shellStyles.mutedText}>
           {route ? 'This route is not currently on the Load phase.' : 'Route not found.'}
         </p>
-        <Link href="/operator/dashboard" className={styles.backLink}>
+        <Link href="/operator/dashboard" className={shellStyles.backLink}>
           Back to Today
         </Link>
       </div>
@@ -159,7 +160,7 @@ export default function OperatorLoadPage() {
   }
 
   return (
-    <div className={styles.page}>
+    <div className={shellStyles.page}>
       <Breadcrumbs
         items={[
           { label: 'Today', href: '/operator/dashboard' },
@@ -167,15 +168,15 @@ export default function OperatorLoadPage() {
         ]}
       />
 
-      {error && <div className={styles.errorBanner}>{error}</div>}
+      {error && <div className={shellStyles.errorBanner}>{error}</div>}
 
       <div>
-        <div className={styles.kickerRow}>
-          <span className={styles.kicker}>{phaseInfo.phaseKicker}</span>
-          {customerName && <span className={styles.customer}>{customerName}</span>}
+        <div className={shellStyles.kickerRow}>
+          <span className={shellStyles.kicker}>{phaseInfo.phaseKicker}</span>
+          {customerName && <span className={shellStyles.customer}>{customerName}</span>}
         </div>
-        <h2 className={styles.title}>{totalSigns} signs to load</h2>
-        {yardAddress && <p className={styles.subtitle}>{yardAddress}</p>}
+        <h2 className={shellStyles.title}>{totalSigns} signs to load</h2>
+        {yardAddress && <p className={shellStyles.subtitle}>{yardAddress}</p>}
       </div>
 
       <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
@@ -207,14 +208,14 @@ export default function OperatorLoadPage() {
         </div>
       )}
 
-      <button type="button" className={styles.primaryButton} onClick={() => void handleConfirm()} disabled={confirming}>
+      <button type="button" className={`${shellStyles.primaryButton} ${styles.primaryButton}`} onClick={() => void handleConfirm()} disabled={confirming}>
         {confirming ? 'Confirming…' : `Confirm ${totalSigns} signs loaded`}
       </button>
-      <button type="button" className={styles.secondaryButton} onClick={handleRecount} disabled={confirming}>
+      <button type="button" className={shellStyles.secondaryButton} onClick={handleRecount} disabled={confirming}>
         Count differs — recount
       </button>
 
-      <p className={styles.footnote}>
+      <p className={shellStyles.footnote}>
         Confirming returns you to the main screen with the route on phase 2. Charged time is set on Finalise, not
         here.
       </p>

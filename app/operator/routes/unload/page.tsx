@@ -11,6 +11,7 @@ import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { getSignRunPhase } from '@/lib/signRunPhase';
 import { isStopCompletedForPhase, isStopSkippedForPhase } from '@/lib/stopExecutionMarkers';
 import type { Route, Stop } from '@/amplify/types';
+import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
 
 interface UnloadReconciliation {
@@ -120,9 +121,9 @@ export default function OperatorUnloadPage() {
 
   if (!routeId) {
     return (
-      <div className={styles.page}>
-        <p className={styles.mutedText}>No route selected.</p>
-        <Link href="/operator/dashboard" className={styles.backLink}>
+      <div className={shellStyles.page}>
+        <p className={shellStyles.mutedText}>No route selected.</p>
+        <Link href="/operator/dashboard" className={shellStyles.backLink}>
           Back to Today
         </Link>
       </div>
@@ -135,12 +136,12 @@ export default function OperatorUnloadPage() {
 
   if (!isUnloadScreen) {
     return (
-      <div className={styles.page}>
+      <div className={shellStyles.page}>
         <Breadcrumbs items={[{ label: 'Today', href: '/operator/dashboard' }, { label: 'Unload' }]} />
-        <p className={styles.mutedText}>
+        <p className={shellStyles.mutedText}>
           {route ? 'This route is not currently on the Unload phase.' : 'Route not found.'}
         </p>
-        <Link href="/operator/dashboard" className={styles.backLink}>
+        <Link href="/operator/dashboard" className={shellStyles.backLink}>
           Back to Today
         </Link>
       </div>
@@ -150,7 +151,7 @@ export default function OperatorUnloadPage() {
   const { returnedTotal, doneCount, skipCount, missingTotal, loadedTotal, stillOnSite } = reconciliation!;
 
   return (
-    <div className={styles.page}>
+    <div className={shellStyles.page}>
       <Breadcrumbs
         items={[
           { label: 'Today', href: '/operator/dashboard' },
@@ -158,37 +159,37 @@ export default function OperatorUnloadPage() {
         ]}
       />
 
-      {error && <div className={styles.errorBanner}>{error}</div>}
+      {error && <div className={shellStyles.errorBanner}>{error}</div>}
 
       <div>
-        <div className={styles.kickerRow}>
-          <span className={styles.kicker}>{phaseInfo.phaseKicker}</span>
-          {customerName && <span className={styles.customer}>{customerName}</span>}
+        <div className={shellStyles.kickerRow}>
+          <span className={shellStyles.kicker}>{phaseInfo.phaseKicker}</span>
+          {customerName && <span className={shellStyles.customer}>{customerName}</span>}
         </div>
-        <h2 className={styles.title}>{returnedTotal} signs to return</h2>
-        {yardAddress && <p className={styles.subtitle}>{yardAddress}</p>}
+        <h2 className={shellStyles.title}>{returnedTotal} signs to return</h2>
+        {yardAddress && <p className={shellStyles.subtitle}>{yardAddress}</p>}
       </div>
 
       <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
 
-      <div className={styles.statsGrid}>
-        <div className={styles.statCell}>
-          <span className={styles.statLabel}>Signs collected</span>
-          <span className={styles.statValue}>{returnedTotal}</span>
+      <div className={shellStyles.statsGrid}>
+        <div className={shellStyles.statCell}>
+          <span className={shellStyles.statLabel}>Signs collected</span>
+          <span className={shellStyles.statValue}>{returnedTotal}</span>
         </div>
-        <div className={styles.statCell}>
-          <span className={styles.statLabel}>Stops picked up</span>
-          <span className={styles.statValue}>
+        <div className={shellStyles.statCell}>
+          <span className={shellStyles.statLabel}>Stops picked up</span>
+          <span className={shellStyles.statValue}>
             {doneCount} / {stops.length}
           </span>
         </div>
-        <div className={styles.statCell}>
-          <span className={styles.statLabel}>Left on site</span>
-          <span className={styles.statValue}>{skipCount ? `${skipCount} stops` : 'None'}</span>
+        <div className={shellStyles.statCell}>
+          <span className={shellStyles.statLabel}>Left on site</span>
+          <span className={shellStyles.statValue}>{skipCount ? `${skipCount} stops` : 'None'}</span>
         </div>
-        <div className={styles.statCell}>
-          <span className={styles.statLabel}>Missing reported</span>
-          <span className={styles.statValue}>{missingTotal}</span>
+        <div className={shellStyles.statCell}>
+          <span className={shellStyles.statLabel}>Missing reported</span>
+          <span className={shellStyles.statValue}>{missingTotal}</span>
         </div>
       </div>
 
@@ -200,11 +201,11 @@ export default function OperatorUnloadPage() {
         </p>
       </div>
 
-      <button type="button" className={styles.primaryButton} onClick={() => void handleConfirm()} disabled={confirming}>
+      <button type="button" className={`${shellStyles.primaryButton} ${styles.primaryButton}`} onClick={() => void handleConfirm()} disabled={confirming}>
         {confirming ? 'Confirming…' : `Confirm ${returnedTotal} signs returned`}
       </button>
 
-      <p className={styles.footnote}>
+      <p className={shellStyles.footnote}>
         Confirming returns you to the main screen with the route ready to finalise. Charged time is set on Finalise,
         not here.
       </p>

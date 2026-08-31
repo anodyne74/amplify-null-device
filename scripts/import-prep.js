@@ -742,7 +742,10 @@ async function applyBundle(bundle, args) {
         customerId: record.customerId,
         routeCode: record.route.routeCode,
         status: record.route.status,
-        executionPhase: record.route.status === 'completed' || record.route.status === 'archived' ? 'pickup' : undefined,
+        // Legacy tracker imports are always field-mode (2-phase) routes, not the
+        // driving-mode sign-run flow — explicit false documents that rather than
+        // relying on the field being left undefined.
+        drivingModeEnabled: false,
         actualStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
         actualEndTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
         placementStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,

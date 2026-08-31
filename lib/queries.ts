@@ -578,6 +578,8 @@ export interface RouteExecutionUpdateInput {
   billedPlacementMinutes?: number;
   billedPickupMinutes?: number;
   billedUnloadMinutes?: number;
+  overrideDurationMinutes?: number;
+  overrideDistanceKm?: number;
 }
 
 /**

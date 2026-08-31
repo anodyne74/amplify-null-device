@@ -17,6 +17,7 @@ import {
   formatDuration,
 } from '@/lib/signRunBilling';
 import type { Route, RouteExecutionPhase, Stop } from '@/amplify/types';
+import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
 
 const PHASE_ROWS: Array<{ key: RouteExecutionPhase; label: string }> = [
@@ -150,9 +151,9 @@ export default function OperatorFinalisePage() {
 
   if (!routeId) {
     return (
-      <div className={styles.page}>
-        <p className={styles.mutedText}>No route selected.</p>
-        <Link href="/operator/dashboard" className={styles.backLink}>
+      <div className={shellStyles.page}>
+        <p className={shellStyles.mutedText}>No route selected.</p>
+        <Link href="/operator/dashboard" className={shellStyles.backLink}>
           Back to Today
         </Link>
       </div>
@@ -165,10 +166,10 @@ export default function OperatorFinalisePage() {
 
   if (!isFinaliseScreen) {
     return (
-      <div className={styles.page}>
+      <div className={shellStyles.page}>
         <Breadcrumbs items={[{ label: 'Today', href: '/operator/dashboard' }, { label: 'Finalise' }]} />
-        <p className={styles.mutedText}>{route ? 'This route is not ready to finalise yet.' : 'Route not found.'}</p>
-        <Link href="/operator/dashboard" className={styles.backLink}>
+        <p className={shellStyles.mutedText}>{route ? 'This route is not ready to finalise yet.' : 'Route not found.'}</p>
+        <Link href="/operator/dashboard" className={shellStyles.backLink}>
           Back to Today
         </Link>
       </div>
@@ -176,7 +177,7 @@ export default function OperatorFinalisePage() {
   }
 
   return (
-    <div className={styles.page}>
+    <div className={shellStyles.page}>
       <Breadcrumbs
         items={[
           { label: 'Today', href: '/operator/dashboard' },
@@ -184,14 +185,14 @@ export default function OperatorFinalisePage() {
         ]}
       />
 
-      {error && <div className={styles.errorBanner}>{error}</div>}
+      {error && <div className={shellStyles.errorBanner}>{error}</div>}
 
       <div>
-        <div className={styles.kickerRow}>
-          <span className={styles.kicker}>{phaseInfo.phaseKicker} · {route.routeCode || route.id.slice(0, 8)}</span>
+        <div className={shellStyles.kickerRow}>
+          <span className={shellStyles.kicker}>{phaseInfo.phaseKicker} · {route.routeCode || route.id.slice(0, 8)}</span>
         </div>
-        <h2 className={styles.title}>Finalise route</h2>
-        <p className={styles.subtitle}>
+        <h2 className={shellStyles.title}>Finalise route</h2>
+        <p className={shellStyles.subtitle}>
           Adjust each phase in 5 min steps and correct the tracked distance in 0.5 km steps. Load and unload are
           charged at a 15 min minimum, and the total has to land on a 15 min increment.
         </p>
@@ -199,24 +200,24 @@ export default function OperatorFinalisePage() {
 
       <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
 
-      <div className={styles.statsGrid}>
-        <div className={styles.statCell}>
-          <span className={styles.statLabel}>Stops completed</span>
-          <span className={styles.statValue}>
+      <div className={shellStyles.statsGrid}>
+        <div className={shellStyles.statCell}>
+          <span className={shellStyles.statLabel}>Stops completed</span>
+          <span className={shellStyles.statValue}>
             {summary.doneCount} / {stops.length}
           </span>
         </div>
-        <div className={styles.statCell}>
-          <span className={styles.statLabel}>Signs collected</span>
-          <span className={styles.statValue}>{summary.returnedTotal}</span>
+        <div className={shellStyles.statCell}>
+          <span className={shellStyles.statLabel}>Signs collected</span>
+          <span className={shellStyles.statValue}>{summary.returnedTotal}</span>
         </div>
-        <div className={styles.statCell}>
-          <span className={styles.statLabel}>Signs missing</span>
-          <span className={styles.statValue}>{summary.missingTotal}</span>
+        <div className={shellStyles.statCell}>
+          <span className={shellStyles.statLabel}>Signs missing</span>
+          <span className={shellStyles.statValue}>{summary.missingTotal}</span>
         </div>
-        <div className={styles.statCell}>
-          <span className={styles.statLabel}>Duration</span>
-          <span className={styles.statValue}>{formatDuration(duration)}</span>
+        <div className={shellStyles.statCell}>
+          <span className={shellStyles.statLabel}>Duration</span>
+          <span className={shellStyles.statValue}>{formatDuration(duration)}</span>
         </div>
       </div>
 
@@ -294,13 +295,13 @@ export default function OperatorFinalisePage() {
 
       <button
         type="button"
-        className={styles.primaryButton}
+        className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
         onClick={() => void handleConfirm()}
         disabled={confirming || !billAligned}
       >
         {confirming ? 'Completing…' : `Complete route · ${formatDuration(billTotal)}`}
       </button>
-      <button type="button" className={styles.secondaryButton} onClick={() => router.push('/operator/dashboard')} disabled={confirming}>
+      <button type="button" className={shellStyles.secondaryButton} onClick={() => router.push('/operator/dashboard')} disabled={confirming}>
         Back to today
       </button>
     </div>

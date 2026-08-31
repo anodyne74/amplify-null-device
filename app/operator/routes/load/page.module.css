@@ -1,71 +1,7 @@
-.page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  max-width: 480px;
-}
-
-.mutedText {
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-
-.backLink {
-  font-family: var(--font-body);
-  font-weight: var(--fw-semibold);
-  font-size: var(--text-sm);
-  color: var(--text-brand);
-}
-
-.errorBanner {
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
-  background: var(--status-warning-bg);
-  color: var(--status-warning-fg);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-}
-
-.kickerRow {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-}
-
-.kicker {
-  font-family: var(--font-body);
-  font-weight: var(--fw-bold);
-  font-size: var(--text-2xs);
-  letter-spacing: var(--ls-caps);
-  text-transform: uppercase;
-  color: var(--text-brand);
-}
-
-.customer {
-  font-family: var(--font-body);
-  font-weight: var(--fw-medium);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
-.title {
-  margin: var(--space-2) 0 0;
-  font-family: var(--font-display);
-  font-weight: var(--fw-semibold);
-  font-size: 24px;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-  color: var(--text-heading);
-}
-
-.subtitle {
-  margin: var(--space-2) 0 0;
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  line-height: var(--lh-relaxed);
-  color: var(--text-muted);
-}
+/* Shell classes (.page, .kicker, .title, .primaryButton, etc.) live in
+ * ../signRunShell.module.css — imported alongside this file in page.tsx.
+ * Only Load-specific classes remain here.
+ */
 
 .breakdownCard {
   display: flex;
@@ -144,54 +80,8 @@
   line-height: var(--lh-relaxed);
 }
 
+/* Combined with signRunShell's .primaryButton at the JSX level — see that
+ * file's header comment for why font-size is split out like this. */
 .primaryButton {
-  min-height: 58px;
-  border-radius: var(--radius-md);
-  border: none;
-  background: var(--action-primary-bg);
-  color: var(--text-on-brand);
-  font-family: var(--font-body);
-  font-weight: var(--fw-semibold);
   font-size: var(--text-md);
-  cursor: pointer;
-  transition: var(--transition-control);
-}
-
-.primaryButton:hover:not(:disabled) {
-  box-shadow: 0 6px 20px rgba(93, 101, 230, 0.35);
-}
-
-.primaryButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.secondaryButton {
-  min-height: 52px;
-  border-radius: var(--radius-md);
-  border: var(--border-hairline) solid var(--border-default);
-  background: transparent;
-  color: var(--text-body);
-  font-family: var(--font-body);
-  font-weight: var(--fw-semibold);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  transition: var(--transition-control);
-}
-
-.secondaryButton:hover:not(:disabled) {
-  background: var(--surface-hover);
-}
-
-.secondaryButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.footnote {
-  margin: 0;
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  line-height: var(--lh-relaxed);
-  color: var(--text-subtle);
 }

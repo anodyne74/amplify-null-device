@@ -22,13 +22,15 @@ import {
   upsertMarker,
 } from '@/lib/stopExecutionMarkers';
 import type { Route, Stop } from '@/amplify/types';
+import shellStyles from '../signRunShell.module.css';
+import stopCardStyles from '../../components/signRunStopCard.module.css';
 import styles from './page.module.css';
 
 const RouteStopsMap = dynamic(
   () => import('@/app/operator/components/RouteStopsMap').then((mod) => mod.RouteStopsMap),
   {
     ssr: false,
-    loading: () => <div className={styles.mapLoading}>Loading map...</div>,
+    loading: () => <div className={stopCardStyles.mapLoading}>Loading map...</div>,
   }
 );
 
@@ -192,9 +194,9 @@ export default function OperatorPlacementPage() {
 
   if (!routeId) {
     return (
-      <div className={styles.page}>
-        <p className={styles.mutedText}>No route selected.</p>
-        <Link href="/operator/dashboard" className={styles.backLink}>
+      <div className={shellStyles.page}>
+        <p className={shellStyles.mutedText}>No route selected.</p>
+        <Link href="/operator/dashboard" className={shellStyles.backLink}>
           Back to Today
         </Link>
       </div>
@@ -205,16 +207,16 @@ export default function OperatorPlacementPage() {
 
   if (!isPlacementScreen) {
     return (
-      <div className={styles.page}>
+      <div className={shellStyles.page}>
         <Breadcrumbs items={[{ label: 'Today', href: '/operator/dashboard' }, { label: 'Placement' }]} />
-        <p className={styles.mutedText}>
+        <p className={shellStyles.mutedText}>
           {!route
             ? 'Route not found.'
             : stops.length === 0
             ? 'This route has no stops yet.'
             : 'This route is not currently on the Placement phase.'}
         </p>
-        <Link href="/operator/dashboard" className={styles.backLink}>
+        <Link href="/operator/dashboard" className={shellStyles.backLink}>
           Back to Today
         </Link>
       </div>
@@ -225,7 +227,7 @@ export default function OperatorPlacementPage() {
   const settledCount = total - openStops.length;
 
   return (
-    <div className={styles.page}>
+    <div className={shellStyles.page}>
       <Breadcrumbs
         items={[
           { label: 'Today', href: '/operator/dashboard' },
@@ -233,11 +235,11 @@ export default function OperatorPlacementPage() {
         ]}
       />
 
-      {error && <div className={styles.errorBanner}>{error}</div>}
+      {error && <div className={shellStyles.errorBanner}>{error}</div>}
 
-      <div className={styles.kickerRow}>
-        <span className={styles.kicker}>{phaseInfo.phaseKicker}</span>
-        {customerName && <span className={styles.customer}>{customerName}</span>}
+      <div className={shellStyles.kickerRow}>
+        <span className={shellStyles.kicker}>{phaseInfo.phaseKicker}</span>
+        {customerName && <span className={shellStyles.customer}>{customerName}</span>}
       </div>
 
       <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
@@ -245,63 +247,63 @@ export default function OperatorPlacementPage() {
       {currentStop ? (
         <>
           <Card padded={false}>
-            <div className={styles.mapShell}>
+            <div className={stopCardStyles.mapShell}>
               <RouteStopsMap
                 stops={stops}
                 activeStopId={currentStop.id}
                 upcomingStopIds={upcomingStops.map((stop) => stop.id)}
                 presentation="field"
               />
-              <div className={styles.glassCard}>
-                <div className={styles.glassTopRow}>
-                  <span className={styles.glassCounter}>
+              <div className={stopCardStyles.glassCard}>
+                <div className={stopCardStyles.glassTopRow}>
+                  <span className={stopCardStyles.glassCounter}>
                     PLACEMENT · STOP {settledCount + 1} OF {total}
                   </span>
                   {getLegLine(stops, currentStop) && (
-                    <span className={styles.glassLeg}>{getLegLine(stops, currentStop)}</span>
+                    <span className={stopCardStyles.glassLeg}>{getLegLine(stops, currentStop)}</span>
                   )}
                 </div>
-                <div className={styles.glassStreet}>
+                <div className={stopCardStyles.glassStreet}>
                   {getPrimaryAddressLine(currentStop.formattedAddress || currentStop.address)}
                 </div>
                 {getSecondaryAddressLine(currentStop.formattedAddress || currentStop.address) && (
-                  <div className={styles.glassSuburb}>
+                  <div className={stopCardStyles.glassSuburb}>
                     {getSecondaryAddressLine(currentStop.formattedAddress || currentStop.address)}
                   </div>
                 )}
-                <div className={styles.glassChips}>
-                  <span className={styles.chipSigns}>{currentStop.numberOfSigns ?? '-'} signs</span>
-                  <span className={styles.chipAgent}>{currentStop.agent?.trim() || 'Unassigned'}</span>
-                  {currentStop.isAuction && <span className={styles.chipAuction}>Auction</span>}
+                <div className={stopCardStyles.glassChips}>
+                  <span className={stopCardStyles.chipSigns}>{currentStop.numberOfSigns ?? '-'} signs</span>
+                  <span className={stopCardStyles.chipAgent}>{currentStop.agent?.trim() || 'Unassigned'}</span>
+                  {currentStop.isAuction && <span className={stopCardStyles.chipAuction}>Auction</span>}
                 </div>
                 {getDisplayNotes(currentStop.notes) && (
-                  <div className={styles.glassNote}>{getDisplayNotes(currentStop.notes)}</div>
+                  <div className={stopCardStyles.glassNote}>{getDisplayNotes(currentStop.notes)}</div>
                 )}
               </div>
             </div>
           </Card>
 
           <div>
-            <div className={styles.thenHeader}>
-              <span className={styles.thenLabel}>Then</span>
-              <span className={styles.thenHint}>Tap a stop to action out of order</span>
+            <div className={stopCardStyles.thenHeader}>
+              <span className={stopCardStyles.thenLabel}>Then</span>
+              <span className={stopCardStyles.thenHint}>Tap a stop to action out of order</span>
             </div>
             {upcomingStops.length > 0 ? (
-              <ol className={styles.thenList}>
+              <ol className={stopCardStyles.thenList}>
                 {upcomingStops.map((stop) => (
                   <li key={stop.id}>
-                    <button type="button" className={styles.thenItem} onClick={() => openStopSheet(stop.id)}>
-                      <span className={styles.thenSequence}>{stop.sequence ?? '-'}</span>
-                      <span className={styles.thenBody}>
-                        <span className={styles.thenAddress}>
+                    <button type="button" className={stopCardStyles.thenItem} onClick={() => openStopSheet(stop.id)}>
+                      <span className={stopCardStyles.thenSequence}>{stop.sequence ?? '-'}</span>
+                      <span className={stopCardStyles.thenBody}>
+                        <span className={stopCardStyles.thenAddress}>
                           {getPrimaryAddressLine(stop.formattedAddress || stop.address)}
                         </span>
-                        <span className={styles.thenMeta}>
+                        <span className={stopCardStyles.thenMeta}>
                           {stop.numberOfSigns ?? '-'} signs ·{' '}
                           {getSecondaryAddressLine(stop.formattedAddress || stop.address)}
                         </span>
                       </span>
-                      <span className={styles.thenAgent}>
+                      <span className={stopCardStyles.thenAgent}>
                         {getAgentBadgeInitials(stop.agent?.trim() || 'Unassigned')}
                       </span>
                     </button>
@@ -309,14 +311,14 @@ export default function OperatorPlacementPage() {
                 ))}
               </ol>
             ) : (
-              <p className={styles.mutedText}>No further stops in this phase.</p>
+              <p className={shellStyles.mutedText}>No further stops in this phase.</p>
             )}
           </div>
 
-          <div className={styles.actionBar}>
+          <div className={stopCardStyles.actionBar}>
             <button
               type="button"
-              className={styles.skipButton}
+              className={stopCardStyles.skipButton}
               onClick={() => openStopSheet(currentStop.id, 'reason')}
               disabled={!!stopExecuting[currentStop.id]}
             >
@@ -324,7 +326,7 @@ export default function OperatorPlacementPage() {
             </button>
             <button
               type="button"
-              className={styles.primaryButton}
+              className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
               onClick={() => { void handleStopCompleted(currentStop.id); }}
               disabled={!!stopExecuting[currentStop.id]}
             >
@@ -333,7 +335,7 @@ export default function OperatorPlacementPage() {
           </div>
         </>
       ) : (
-        <p className={styles.mutedText}>All stops actioned. Wrapping up placement…</p>
+        <p className={shellStyles.mutedText}>All stops actioned. Wrapping up placement…</p>
       )}
 
       <StopCompletionDialog

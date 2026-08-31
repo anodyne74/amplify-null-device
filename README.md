@@ -18,11 +18,12 @@ A serverless delivery management platform built with Next.js 15, AWS Amplify Gen
 ## Current Features
 
 - Role-aware login with branded Amplify Authenticator, request-access signup, pending approval, and multi-role portal selection.
+- Administrator, operator, and customer portals each run on their own shell (`AdminShell`, `OperatorShell`, `CustomerShell`) with a shared navy staff-chrome look, collapsible mobile sidebar, and safe-area-aware bottom padding.
 - Administrator portal with dashboard KPIs, customer management, user management, route management, invoice management, and settings.
-- Route management with create/edit/detail flows, customer-aware listings, status filtering, and support for copying stops from a previous route or importing schedule files.
-- Operator portal with a phone-friendly dashboard for planned and active routes plus route detail screens for stop execution, placement/pickup progression, distance tracking, and map-based route review.
+- Route management with create/edit/detail flows, customer-aware listings, status filtering, and support for copying stops from a previous route or importing schedule files. Route creation is blocked on any date either the operator (no drivers available) or the customer (agency closed) has marked out on the service calendar.
+- Operator portal with a phone-friendly dashboard for planned and active routes, a legacy route detail flow for stop execution and map-based route review, and a five-phase Driver Sign Run flow (Load → Placement → Pickup → Unload → Finalise) for routes with `drivingModeEnabled`, covering van sign counts, placement/pickup progression with missing-sign tracking, and billing finalisation.
 - Customer portal with dashboard analytics, route history, invoice listing, and user settings.
-- Customer access controls with `account_owner` and `read_only` roles, where invoice access is restricted to the account owner.
+- Customer access controls with `account_owner` and `read_only` roles, where invoice access is restricted to the account owner; both roles can add route instructions.
 - Invoice management with PDF upload and parsing support, SES-backed email delivery through `/api/admin/send-invoice-email`, and `emailSentAt` tracking on invoices.
 - Route and stop maps with numbered markers, service-aware coloring, and multiple map style options.
 - Customer-user assignment support with first-user assignment handling.
@@ -49,7 +50,7 @@ After sign-in:
 
 ## Data Model
 
-Amplify Data schema currently defines 9 primary entities:
+Amplify Data schema currently defines 17 entities:
 
 - Customer
 - Operator
@@ -60,6 +61,14 @@ Amplify Data schema currently defines 9 primary entities:
 - PaymentRecord
 - AuditLog
 - CustomerUser
+- Administrator
+- UserSettings
+- OrganizationSettings
+- OperatorAvailabilityBlock
+- CustomerClosureBlock
+- RateLine
+- OperatorPayout
+- VanSignCount
 
 ## Getting Started
 

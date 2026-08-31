@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 // NOTE: brand SVG/PNG assets referenced below (logo-full-dark.svg, etc.) have not
 // been copied into this repo's public/ directory yet — that happens when a page
@@ -33,10 +34,13 @@ export function Logo({ variant = 'full', theme = 'dark', height = 32, tile = fal
   if (variant === 'symbol') {
     return (
       <span className={`nd-logo ${className}`} {...rest}>
-        <img
+        <Image
           src={base + (tile ? 'logo-symbol.png' : 'logo-symbol-transparent.png')}
           alt="Null Device"
+          width={height}
+          height={height}
           style={{ height, width: height, display: 'block' }}
+          unoptimized
         />
       </span>
     );
@@ -45,10 +49,13 @@ export function Logo({ variant = 'full', theme = 'dark', height = 32, tile = fal
   return (
     <span className={`nd-logo ${className}`} {...rest}>
       <span className="nd-logo__crop" style={{ width: 3.567 * height, height }}>
-        <img
+        <Image
           src={base + (FILES[theme] || FILES.dark)}
           alt="Null Device"
+          width={Math.round(4.568 * height)}
+          height={Math.round(2.045 * height)}
           style={{ left: -0.534 * height, top: -0.536 * height, width: 4.568 * height, height: 2.045 * height }}
+          unoptimized
         />
       </span>
     </span>

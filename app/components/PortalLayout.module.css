@@ -286,6 +286,10 @@
   overflow-y: auto;
   background-color: var(--nd-bg-void);
   padding: clamp(1rem, 4vw, 2rem);
+  /* Matches AdminShell/CustomerShell's bottom padding (--space-11) — operator
+     screens end in full-width action buttons that need the same breathing
+     room, plus the safe-area inset for notched/home-indicator devices. */
+  padding-bottom: calc(var(--space-11) + env(safe-area-inset-bottom, 0px));
   width: 100%;
 }
 
@@ -310,6 +314,8 @@
 
   .main {
     padding-top: 3.5rem;
+    /* Matches AdminShell/CustomerShell's mobile bottom padding (--space-9). */
+    padding-bottom: calc(var(--space-9) + env(safe-area-inset-bottom, 0px));
   }
 }
 

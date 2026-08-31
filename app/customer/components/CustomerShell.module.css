@@ -115,6 +115,9 @@
 
 .content {
   padding: var(--space-8) var(--gutter-page) var(--space-11);
+  /* Extra breathing room below --space-11 for notched/home-indicator devices
+     (relies on layout.tsx's viewport-fit=cover — 0px everywhere else). */
+  padding-bottom: calc(var(--space-11) + env(safe-area-inset-bottom, 0px));
   max-width: var(--container-max);
 }
 
@@ -153,5 +156,6 @@
 
   .content {
     padding: var(--space-11) var(--gutter-page-sm) var(--space-9);
+    padding-bottom: calc(var(--space-9) + env(safe-area-inset-bottom, 0px));
   }
 }

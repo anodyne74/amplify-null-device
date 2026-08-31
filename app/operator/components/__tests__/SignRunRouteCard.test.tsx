@@ -17,7 +17,7 @@ function baseRoute(overrides: Partial<Route> = {}): Route {
 }
 
 describe('SignRunRouteCard', () => {
-  it('renders route code, customer, phase pill, stops/signs and CTA, linking to routes/detail', () => {
+  it('renders route code, customer, phase pill, stops/signs and CTA, linking to the Placement screen', () => {
     const route = baseRoute({ executionPhase: 'placement' });
     const phaseInfo = getSignRunPhase(route, 12)!;
 
@@ -33,7 +33,7 @@ describe('SignRunRouteCard', () => {
     expect(screen.getByText('Place signs →')).toBeInTheDocument();
 
     const link = screen.getByRole('link');
-    expect(link).toHaveAttribute('href', '/operator/routes/detail?id=route-1234abcd');
+    expect(link).toHaveAttribute('href', '/operator/routes/placement?id=route-1234abcd');
   });
 
   it('links a Load-phase route to the Load screen instead of routes/detail', () => {
@@ -43,6 +43,15 @@ describe('SignRunRouteCard', () => {
     render(<SignRunRouteCard route={route} customerName="Beltline Group" phaseInfo={phaseInfo} stopCount={12} signsTotal={48} />);
 
     expect(screen.getByRole('link')).toHaveAttribute('href', '/operator/routes/load?id=route-1234abcd');
+  });
+
+  it('links a Pickup-phase route to the Pickup screen instead of routes/detail', () => {
+    const route = baseRoute({ status: 'in_progress', executionPhase: 'pickup' });
+    const phaseInfo = getSignRunPhase(route, 12)!;
+
+    render(<SignRunRouteCard route={route} customerName="Beltline Group" phaseInfo={phaseInfo} stopCount={12} signsTotal={48} />);
+
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/operator/routes/pickup?id=route-1234abcd');
   });
 
   it('renders a locked route as a non-link card with the lock note and no CTA', () => {

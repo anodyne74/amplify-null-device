@@ -23,13 +23,19 @@ export interface SignRunRouteCardProps {
  * how phaseInfo is derived. Non-drivingMode routes keep the plain trackerCard
  * in app/operator/dashboard/page.tsx.
  *
- * TODO(sign-run): Load (phaseIdx 0) now routes to its own screen. Once
- * Placement/Pickup/Unload/Finalise pages exist, route those phases to their
- * own screens too instead of falling back to routes/detail.
+ * TODO(sign-run): Load/Placement/Pickup (phaseIdx 0-2) now route to their own
+ * screens. Once Unload/Finalise pages exist, route those phases too instead
+ * of falling back to routes/detail.
  */
 export function SignRunRouteCard({ route, customerName, phaseInfo, stopCount, signsTotal }: SignRunRouteCardProps) {
   const href =
-    phaseInfo.phaseIdx === 0 ? `/operator/routes/load?id=${route.id}` : `/operator/routes/detail?id=${route.id}`;
+    phaseInfo.phaseIdx === 0
+      ? `/operator/routes/load?id=${route.id}`
+      : phaseInfo.phaseIdx === 1
+      ? `/operator/routes/placement?id=${route.id}`
+      : phaseInfo.phaseIdx === 2
+      ? `/operator/routes/pickup?id=${route.id}`
+      : `/operator/routes/detail?id=${route.id}`;
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const instructionEntries = sortRouteInstructionsNewestFirst(parseRouteInstructions(route.customerInstructions));
   const hasNotes = instructionEntries.length > 0;

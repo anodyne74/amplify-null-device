@@ -22,15 +22,31 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { StatTile } from '@/app/components/ui/data/StatTile';
 import { isAdmin } from '@/lib/amplify-config';
-import { generateAgentInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
+import { getAgentBadgeInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import {
   calculateRouteDistanceKm,
   formatCurrency,
   formatElapsedMinutes,
   formatRouteDate,
+  getPrimaryAddressLine,
   getRouteDurationMinutes,
+  getSecondaryAddressLine,
+  haversineDistanceKm,
 } from '@/lib/routeDetailHelpers';
+import {
+  getMarkerReason,
+  getMarkerTimestamp,
+  isStopCompletedForPhase,
+  isStopSkippedForPhase,
+  PICKUP_DONE_MARKER,
+  PICKUP_SKIPPED_MARKER,
+  PLACEMENT_DONE_MARKER,
+  PLACEMENT_SKIPPED_MARKER,
+  removeMarker,
+  upsertMarker,
+  type ExecutionPhase,
+} from '@/lib/stopExecutionMarkers';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
 import {
   createStop,
@@ -56,17 +72,6 @@ const RouteStopsMap = dynamic(
     loading: () => <div className={styles.mapLoading}>Loading map preview...</div>,
   }
 );
-
-function getAgentBadgeInitials(agentName: string) {
-  const compact = agentName.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-  const generated = (generateAgentInitials(agentName) ?? '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-
-  if (generated.length >= 2) return generated.slice(0, 2);
-  if (generated.length === 1 && compact.length >= 2) return `${generated}${compact[1]}`;
-  if (compact.length >= 2) return compact.slice(0, 2);
-  if (compact.length === 1) return `${compact}G`;
-  return 'AG';
-}
 
 function getPhaseDurationMinutes(route: Route, phase: ExecutionPhase) {
   const phaseStart =
@@ -100,77 +105,6 @@ function roundToNearestFive(minutes: number) {
   return Math.max(0, Math.round(minutes / 5) * 5);
 }
 
-function haversineDistanceKm(
-  from: { lat: number; lng: number },
-  to: { lat: number; lng: number }
-) {
-  const toRad = (value: number) => (value * Math.PI) / 180;
-  const earthRadiusKm = 6371;
-  const dLat = toRad(to.lat - from.lat);
-  const dLng = toRad(to.lng - from.lng);
-  const lat1 = toRad(from.lat);
-  const lat2 = toRad(to.lat);
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return earthRadiusKm * c;
-}
-
-type ExecutionPhase = 'placement' | 'pickup';
-
-const PLACEMENT_DONE_MARKER = 'PLACEMENT_DONE';
-const PICKUP_DONE_MARKER = 'PICKUP_DONE';
-const PLACEMENT_SKIPPED_MARKER = 'PLACEMENT_SKIPPED';
-const PICKUP_SKIPPED_MARKER = 'PICKUP_SKIPPED';
-
-function removeMarker(notes: string, marker: string) {
-  return notes.replace(new RegExp(`(?:^|\\s)\\[${marker}:[^\\]]*\\]`, 'g'), ' ').replace(/\s+/g, ' ').trim();
-}
-
-function upsertMarker(notes: string | null | undefined, marker: string, atIso: string, reason?: string) {
-  const base = removeMarker(notes ?? '', marker);
-  const value = reason ? `${atIso}|${reason}` : atIso;
-  return `${base}${base ? ' ' : ''}[${marker}:${value}]`;
-}
-
-function getMarkerTimestamp(notes: string | null | undefined, marker: string) {
-  if (!notes) return null;
-  const match = notes.match(new RegExp(`\\[${marker}:([^\\]]+)\\]`));
-  return match?.[1]?.split('|')[0] ?? null;
-}
-
-function getMarkerReason(notes: string | null | undefined, marker: string) {
-  if (!notes) return null;
-  const match = notes.match(new RegExp(`\\[${marker}:([^\\]]+)\\]`));
-  const [, reason] = match?.[1]?.split('|') ?? [];
-  return reason || null;
-}
-
-function isStopSkippedForPhase(stop: Stop, phase: ExecutionPhase) {
-  if (phase === 'placement') {
-    return Boolean(getMarkerTimestamp(stop.notes, PLACEMENT_SKIPPED_MARKER));
-  }
-  return Boolean(getMarkerTimestamp(stop.notes, PICKUP_SKIPPED_MARKER));
-}
-
-function isStopCompletedForPhase(stop: Stop, phase: ExecutionPhase) {
-  if (phase === 'placement') {
-    return (
-      Boolean(getMarkerTimestamp(stop.notes, PLACEMENT_DONE_MARKER)) ||
-      Boolean(getMarkerTimestamp(stop.notes, PLACEMENT_SKIPPED_MARKER)) ||
-      (stop.serviceType !== 'pickup' && Boolean(stop.actualDepartureTime))
-    );
-  }
-
-  return (
-    Boolean(getMarkerTimestamp(stop.notes, PICKUP_DONE_MARKER)) ||
-    Boolean(getMarkerTimestamp(stop.notes, PICKUP_SKIPPED_MARKER)) ||
-    (stop.serviceType === 'pickup' && Boolean(stop.actualDepartureTime))
-  );
-}
-
 function isStopCompleted(stop: Stop) {
   return Boolean(stop.actualDepartureTime);
 }
@@ -195,18 +129,6 @@ function getStopStatusLabel(stop: Stop, executionPhase?: ExecutionPhase | null) 
   }
   if (stop.actualArrivalTime) return 'At stop';
   return 'Signs pending';
-}
-
-function getPrimaryAddressLine(address?: string | null) {
-  if (!address) return '';
-  const firstSegment = address.split(',')[0]?.trim();
-  return firstSegment || address;
-}
-
-function getSecondaryAddressLine(address?: string | null) {
-  if (!address) return '';
-  const [, ...rest] = address.split(',');
-  return rest.join(',').trim();
 }
 
 function isPlacementPhase(status?: string | null, executionPhase?: string | null) {

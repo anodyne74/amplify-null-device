@@ -55,6 +55,7 @@ export function configureObservability(backend: ObservabilityBackend, branchName
   const alertAction = new SnsAction(alertsTopic);
 
   const userPoolId = backend.auth.resources.userPool.userPoolId;
+  const userPoolClientId = backend.auth.resources.userPoolClient.userPoolClientId;
   const apiId = backend.data.resources.graphqlApi.apiId;
   const appId = process.env.AMPLIFY_APP_ID;
   const cloudTrailLogGroupName = process.env.CLOUDTRAIL_LOG_GROUP_NAME;
@@ -131,11 +132,24 @@ export function configureObservability(backend: ObservabilityBackend, branchName
   if (cloudTrailLogGroupName) {
     const cloudTrailLogGroup = LogGroup.fromLogGroupName(stack, 'CloudTrailLogGroup', cloudTrailLogGroupName);
 
+    // The CloudTrail trail is a single, account-wide, multi-region trail shared by every
+    // branch (it's an externally-managed resource, not created per-branch) -- so every
+    // filter here must scope itself to this branch's own user pool, or the resulting
+    // metrics would silently mix in every other branch's login/invite/role-change
+    // activity too. InitiateAuth/RespondToAuthChallenge don't carry userPoolId as a
+    // request parameter (only clientId, tied 1:1 to a user pool via the app client), so
+    // those two match on clientId instead.
+    const isThisPoolsClient = FilterPattern.stringValue('$.requestParameters.clientId', '=', userPoolClientId);
+    const isThisPool = FilterPattern.stringValue('$.requestParameters.userPoolId', '=', userPoolId);
+
     loginAttemptsMetric = new MetricFilter(stack, 'LoginAttemptsFilter', {
       logGroup: cloudTrailLogGroup,
-      filterPattern: FilterPattern.any(
-        FilterPattern.stringValue('$.eventName', '=', 'InitiateAuth'),
-        FilterPattern.stringValue('$.eventName', '=', 'RespondToAuthChallenge'),
+      filterPattern: FilterPattern.all(
+        FilterPattern.any(
+          FilterPattern.stringValue('$.eventName', '=', 'InitiateAuth'),
+          FilterPattern.stringValue('$.eventName', '=', 'RespondToAuthChallenge'),
+        ),
+        isThisPoolsClient,
       ),
       metricNamespace: 'NullDeviceOps',
       metricName: 'LoginAttempts',
@@ -150,6 +164,7 @@ export function configureObservability(backend: ObservabilityBackend, branchName
           FilterPattern.stringValue('$.eventName', '=', 'InitiateAuth'),
           FilterPattern.stringValue('$.eventName', '=', 'RespondToAuthChallenge'),
         ),
+        isThisPoolsClient,
         FilterPattern.exists('$.errorCode'),
       ),
       metricNamespace: 'NullDeviceOps',
@@ -160,7 +175,7 @@ export function configureObservability(backend: ObservabilityBackend, branchName
 
     invitationsSentMetric = new MetricFilter(stack, 'InvitationsSentFilter', {
       logGroup: cloudTrailLogGroup,
-      filterPattern: FilterPattern.stringValue('$.eventName', '=', 'AdminCreateUser'),
+      filterPattern: FilterPattern.all(FilterPattern.stringValue('$.eventName', '=', 'AdminCreateUser'), isThisPool),
       metricNamespace: 'NullDeviceOps',
       metricName: 'InvitationsSent',
       metricValue: '1',
@@ -169,9 +184,12 @@ export function configureObservability(backend: ObservabilityBackend, branchName
 
     roleChangesMetric = new MetricFilter(stack, 'RoleChangesFilter', {
       logGroup: cloudTrailLogGroup,
-      filterPattern: FilterPattern.any(
-        FilterPattern.stringValue('$.eventName', '=', 'AdminAddUserToGroup'),
-        FilterPattern.stringValue('$.eventName', '=', 'AdminRemoveUserFromGroup'),
+      filterPattern: FilterPattern.all(
+        FilterPattern.any(
+          FilterPattern.stringValue('$.eventName', '=', 'AdminAddUserToGroup'),
+          FilterPattern.stringValue('$.eventName', '=', 'AdminRemoveUserFromGroup'),
+        ),
+        isThisPool,
       ),
       metricNamespace: 'NullDeviceOps',
       metricName: 'RoleChanges',

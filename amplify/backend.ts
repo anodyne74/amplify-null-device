@@ -724,3 +724,17 @@ new CfnReceiptRule(forwarderStack, 'SesReceiptRule', {
 
 // ── Observability: dashboard + alarms ────────────────────────────────────────
 configureObservability(backend, branchName);
+
+// ── Runtime SES template names ───────────────────────────────────────────────
+// AWS_BRANCH/AMPLIFY_BRANCH are only set during this CDK synth/build step --
+// the deployed Next.js SSR runtime never sees them. lib/emails/*.ts and
+// app/api/admin/send-invoice-email/route.ts read these back out of
+// amplify_outputs.json instead of trying to reconstruct the branch suffix
+// themselves at runtime (see lib/amplifyOutputsCustom.ts).
+backend.addOutput({
+	custom: {
+		sesInvoiceTemplateName: invoiceTemplateName,
+		sesInvitationTemplateName: invitationTemplateName,
+		sesStaffInvitationTemplateName: staffInvitationTemplateName,
+	},
+});

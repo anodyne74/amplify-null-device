@@ -134,7 +134,7 @@ Set these in Amplify Console for builds/runtime:
 Notes:
 
 - If `SES_SENDER_EMAIL` is not set, API falls back to `no-reply@nulldevice.com.au`.
-- If `SES_INVOICE_TEMPLATE_NAME` is not set, API uses a branch-scoped default (`NullDeviceInvoiceTemplate-${AWS_BRANCH}` when `AWS_BRANCH`/`AMPLIFY_BRANCH` is available, otherwise `NullDeviceInvoiceTemplate`).
+- If `SES_INVOICE_TEMPLATE_NAME` (or its `SES_INVITATION_TEMPLATE_NAME` / `SES_STAFF_INVITATION_TEMPLATE_NAME` siblings) is not set, the API falls back to the branch-scoped name `amplify/backend.ts` deployed, read out of `amplify_outputs.json`'s `custom` section (see `lib/amplifyOutputsCustom.ts`) -- not from `AWS_BRANCH`/`AMPLIFY_BRANCH`, which aren't set in the Amplify Hosting SSR runtime (only during the CDK build step).
 - Verify sender identity/domain in SES for the configured region.
 - The SES template is provisioned by Amplify backend deployment in `amplify/backend.ts`.
 

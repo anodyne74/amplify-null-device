@@ -1,5 +1,6 @@
 import { SendTemplatedEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import { SUPPORT_EMAIL } from '@/lib/publicAppConfig';
+import { customOutputs } from '@/lib/amplifyOutputsCustom';
 
 /**
  * Sends the branded staff-invitation email (the `NullDeviceStaffInvitationTemplate`
@@ -24,12 +25,16 @@ function sanitizeNamePart(value: string, fallback: string) {
   return cleaned || fallback;
 }
 
+// process.env.AWS_BRANCH/AMPLIFY_BRANCH aren't set in the SSR runtime, so this
+// reconstruction is a last-resort fallback -- see lib/amplifyOutputsCustom.ts.
 const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || '', '');
-const defaultStaffInvitationTemplateName = branchName
+const fallbackStaffInvitationTemplateName = branchName
   ? `NullDeviceStaffInvitationTemplate-${branchName}`
   : 'NullDeviceStaffInvitationTemplate';
 const staffInvitationTemplateName =
-  process.env.SES_STAFF_INVITATION_TEMPLATE_NAME || defaultStaffInvitationTemplateName;
+  process.env.SES_STAFF_INVITATION_TEMPLATE_NAME ||
+  customOutputs.sesStaffInvitationTemplateName ||
+  fallbackStaffInvitationTemplateName;
 
 export interface StaffInvitationEmailInput {
   /** Recipient / invitee email address (also rendered in the credentials panel). */

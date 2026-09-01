@@ -48,8 +48,8 @@ export interface InvitationEmailInput {
 
 /** Throws on SES failure -- callers decide whether to surface or swallow it. */
 export async function sendInvitationEmail(input: InvitationEmailInput): Promise<void> {
-  const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nulldevice.dev').replace(/\/$/, '');
-  const senderEmail = process.env.SES_SENDER_EMAIL || 'no-reply.nulldevice.dev';
+  const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nulldevice.com.au').replace(/\/$/, '');
+  const senderEmail = process.env.SES_SENDER_EMAIL || 'no-reply@nulldevice.com.au';
   const supportMailto = `mailto:${SUPPORT_EMAIL}`;
 
   const templateData = {

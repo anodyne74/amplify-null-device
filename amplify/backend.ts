@@ -8,6 +8,7 @@ import { auth } from './auth/resource';
 import { data } from './data/resource';
 import { storage } from './storage/resource';
 import { customerAccessActivation } from './functions/customer-access-activation/resource';
+import { configureObservability } from './observability/resource';
 
 const backend = defineBackend({ auth, data, storage, customerAccessActivation });
 
@@ -566,3 +567,6 @@ new CfnReceiptRule(forwarderStack, 'SesReceiptRule', {
 		],
 	},
 });
+
+// ── Observability: dashboard + alarms ────────────────────────────────────────
+configureObservability(backend, branchName);

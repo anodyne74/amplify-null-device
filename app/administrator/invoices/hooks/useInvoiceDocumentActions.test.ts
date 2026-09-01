@@ -122,7 +122,7 @@ describe('useInvoiceDocumentActions — handleGeneratePdf (#65)', () => {
       await result.current.handleGeneratePdf(createInvoice({ totalAmount: null as unknown as number }));
     });
 
-    expect(docStub.text).toHaveBeenCalledWith('$0.00', 500, expect.any(Number), { align: 'right' });
+    expect(docStub.text).toHaveBeenCalledWith('$0.00', 525, expect.any(Number), { align: 'right' });
     expect(uploadData).toHaveBeenCalled();
     // setUploadError(null) is called at the start of every attempt; it must never
     // be called again with an actual error message.
@@ -136,7 +136,7 @@ describe('useInvoiceDocumentActions — handleGeneratePdf (#65)', () => {
       await result.current.handleGeneratePdf(createInvoice({ totalAmount: 275.5 }));
     });
 
-    expect(docStub.text).toHaveBeenCalledWith('$275.50', 500, expect.any(Number), { align: 'right' });
+    expect(docStub.text).toHaveBeenCalledWith('$275.50', 525, expect.any(Number), { align: 'right' });
     expect(updateInvoicePdfKey).toHaveBeenCalledWith('inv-1', 'invoices/inv-1.pdf');
   });
 });
@@ -190,10 +190,15 @@ describe('useInvoiceDocumentActions — stop table agent grouping', () => {
       ([, config]) => config?.head?.[0]?.[0] === 'Property'
     );
     expect(stopDetailsCall).toBeDefined();
+    expect(stopDetailsCall![1].head).toEqual([['Property', 'Signs']]);
     const body = stopDetailsCall![1].body as Array<Array<{ content?: string } | string>>;
-    expect(body[0][0]).toMatchObject({ content: "Betty O'Shea — 3 signs" });
-    expect(body[1]).toEqual(['1 Test St, Epping', '', '3']);
-    expect(body[2][0]).toMatchObject({ content: 'David Mun — 2 signs' });
-    expect(body[3]).toEqual(['2 Test St, Epping', '', '2']);
+    expect(body[0][0]).toMatchObject({ content: "Betty O'Shea" });
+    expect(body[1]).toEqual(['1 Test St, Epping', '3']);
+    expect(body[2][0]).toMatchObject({ content: "Betty O'Shea subtotal" });
+    expect(body[2][1]).toMatchObject({ content: '3' });
+    expect(body[3][0]).toMatchObject({ content: 'David Mun' });
+    expect(body[4]).toEqual(['2 Test St, Epping', '2']);
+    expect(body[5][0]).toMatchObject({ content: 'David Mun subtotal' });
+    expect(body[5][1]).toMatchObject({ content: '2' });
   });
 });

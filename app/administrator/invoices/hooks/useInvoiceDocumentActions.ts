@@ -9,7 +9,7 @@ import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseInvoiceText } from '@/lib/parseInvoice';
 import { BILLING_EMAIL } from '@/lib/publicAppConfig';
 import { getInvoiceWithLineItems, getRouteWithStops, updateInvoice, updateInvoicePdfKey } from '@/lib/queries';
-import { formatStopProperty, groupStopsByAgent, type StopSummary } from '@/app/administrator/invoices/stopFormatting';
+import type { StopSummary } from '@/app/administrator/invoices/stopFormatting';
 
 type UseInvoiceDocumentActionsParams = {
   customers: CustomerOption[];
@@ -36,59 +36,6 @@ type UseInvoiceDocumentActionsParams = {
 
 function getInvoicePdfKey(invoice: Invoice) {
   return invoice.pdfS3Key ?? null;
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-        return;
-      }
-      reject(new Error('Unable to convert image blob to data URL.'));
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('Unable to read image blob.'));
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function fetchRouteMapDataUrl(
-  stops: Array<{ latitude?: number | null; longitude?: number | null; sequence?: number | null }>
-) {
-  const markers = stops
-    .filter((stop) => typeof stop.latitude === 'number' && typeof stop.longitude === 'number')
-    .map((stop) => ({
-      latitude: stop.latitude as number,
-      longitude: stop.longitude as number,
-      sequence: stop.sequence ?? null,
-    }));
-
-  if (markers.length === 0) {
-    return null;
-  }
-
-  try {
-    const session = await fetchAuthSession();
-    const token = session.tokens?.idToken?.toString();
-    const response = await fetch('/api/admin/static-route-map', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ markers }),
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const imageBlob = await response.blob();
-    return await blobToDataUrl(imageBlob);
-  } catch {
-    return null;
-  }
 }
 
 async function fetchLogoDataUrl() {
@@ -283,14 +230,11 @@ export function useInvoiceDocumentActions({
         amount?: number | null;
       }>) ?? [];
       const routeStops = invoice.routeId
-        ? ((await getRouteWithStops(invoice.routeId)).stops as Array<StopSummary & {
-            latitude?: number | null;
-            longitude?: number | null;
-          }>) ?? []
+        ? ((await getRouteWithStops(invoice.routeId)).stops as StopSummary[]) ?? []
         : [];
       const groupStopsByAgentForCustomer = Boolean(customer?.groupLineItemsByAgent);
       const { jsPDF } = await import('jspdf');
-      const { autoTable } = await import('jspdf-autotable');
+      const { drawInvoicePdfDocument } = await import('@/app/administrator/invoices/invoicePdfDocument');
       const logoDataUrl = await fetchLogoDataUrl();
       const pdfCompanyName = billingCompanyName.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyName;
       const pdfCompanyAbn = billingAbn.trim() || DEFAULT_COMPANY_BILLING_DETAILS.abn;
@@ -351,244 +295,34 @@ export function useInvoiceDocumentActions({
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
       const config = buildInvoicePdfConfig();
 
-      let y = config.margins.top;
-      const ensurePageSpace = (requiredHeight: number) => {
-        if (y + requiredHeight <= 780) return;
-        doc.addPage();
-        y = config.margins.top;
-      };
-
-      doc.setFillColor(...config.colors.header);
-      doc.rect(0, 0, 595, config.layout.headerHeight, 'F');
-
-      if (logoDataUrl) {
-        doc.addImage(logoDataUrl, 'PNG', 28, 0, 220, 96);
-      }
-
-      doc.setTextColor(...config.colors.headerText);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(config.fonts.xlarge);
-      doc.text('INVOICE', 540, 52, { align: 'right' });
-
-      y = config.layout.companyDetailsTop;
-      doc.setTextColor(...config.colors.text);
-      doc.setFillColor(...config.colors.secondary);
-      doc.roundedRect(
-        config.margins.left,
-        y,
-        config.layout.companyDetailsMaxWidth,
-        config.layout.companyDetailsHeight,
-        6,
-        6,
-        'F'
-      );
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(config.fonts.small);
-      doc.text('From', config.margins.left + 12, y + 18);
-      doc.text(pdfCompanyName, config.margins.left + 12, y + 34);
-
-      doc.setFont('helvetica', 'normal');
-      const companyDetailLines = doc.splitTextToSize(
-        `${pdfCompanyAbn} · ${pdfCompanyPhone}\n${pdfCompanyAddress}`,
-        config.layout.companyDetailsMaxWidth - 24
-      );
-      doc.text(companyDetailLines, config.margins.left + 12, y + 50);
-
-      y = config.layout.companyDetailsTop + config.layout.companyDetailsHeight + 40;
-
-      doc.setTextColor(...config.colors.text);
-
-      doc.setFillColor(...config.colors.secondary);
-      doc.roundedRect(config.margins.left, y - 20, 484, 142, 8, 8, 'F');
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.text('Bill To', config.margins.left + 12, y + 2);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
-      doc.text(`${customer?.name || invoice.customerId}`, config.margins.left + 12, y + 20);
-
-      const customerAddressLines = doc.splitTextToSize(
-        `${customer?.addressLine1 || '—'}`.split(',').map((line) => line.trim()).join('\n'),
-        320
-      );
-      doc.text(customerAddressLines, config.margins.left + 12, y + 38);
-      const customerAddressHeight = customerAddressLines.length * 13;
-      const customerEmailY = y + 38 + customerAddressHeight + 4;
-      doc.text(`Route: ${linkedRoute?.routeCode || invoice.routeId || '—'}`, config.margins.left + 12, customerEmailY + 18);
-
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Date: ${invoice.invoiceDate || new Date().toISOString().slice(0, 10)}`, 360, y + 2);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Invoice: ${invoice.invoiceNumber || invoice.id}`, 360, y + 20);
-
-      y += 160;
-
-      doc.setFillColor(...config.colors.totalBand);
-      doc.roundedRect(config.margins.left, y - 16, 484, 54, 6, 6, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('Total Amount Due', config.margins.left + 12, y + 6);
-      doc.setFontSize(19);
-      doc.text(`$${totalAmount.toFixed(2)}`, 500, y + 8, { align: 'right' });
-
-      y += 56;
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.text(
-        'Please quote the invoice number in all correspondence. Payment terms are due on receipt unless otherwise agreed.',
-        config.margins.left,
-        y,
-        { maxWidth: 484 }
-      );
-
-      y += 20;
-      doc.line(config.margins.left, y, config.margins.right, y);
-
-      y += 16;
-
-      y += 34;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
-      doc.text('Invoice Lines', config.margins.left, y);
-
-      y += 18;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.text('Description', config.margins.left, y);
-      doc.text('Qty (Hours)', 340, y);
-      doc.text('Rate', 430, y, { align: 'right' });
-      doc.text('Total', 540, y, { align: 'right' });
-
-      y += 8;
-      doc.setLineWidth(0.6);
-      doc.line(config.margins.left, y, 540, y);
-
-      for (const row of invoiceRows) {
-        ensurePageSpace(24);
-
-        y += 18;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        doc.text(row.description, config.margins.left, y, { maxWidth: 260 });
-        doc.text(`${row.quantityHours.toFixed(2)}`, 340, y);
-        doc.text(`$${row.hourlyRate.toFixed(2)}`, 430, y, { align: 'right' });
-        doc.text(`$${row.total.toFixed(2)}`, 540, y, { align: 'right' });
-      }
-
-      ensurePageSpace(30);
-      y += 16;
-      doc.setLineWidth(0.6);
-      doc.line(330, y, 540, y);
-      y += 16;
-      doc.setFont('helvetica', 'bold');
-      doc.text('Subtotal', 430, y, { align: 'right' });
-      doc.text(`$${subtotal.toFixed(2)}`, 540, y, { align: 'right' });
-
-      if (gstAmount > 0) {
-        y += 16;
-        doc.text('GST (10%)', 430, y, { align: 'right' });
-        doc.text(`$${gstAmount.toFixed(2)}`, 540, y, { align: 'right' });
-      }
-
-      ensurePageSpace(84);
-      y += 30;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.text('Payment Details', config.margins.left, y);
-
-      y += 18;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.text(`Name:    ${pdfPaymentAccountName}`, config.margins.left, y);
-      y += 14;
-      doc.text(`BSB:     ${pdfPaymentBsb}`, config.margins.left, y);
-      y += 14;
-      doc.text(`Account: ${pdfPaymentAccountNumber}`, config.margins.left, y);
-
-      if (routeStops.length > 0) {
-        ensurePageSpace(84);
-        y += 34;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(13);
-        doc.text('Route Stop Details', config.margins.left, y);
-
-        y += 18;
-        const stopTableBody = groupStopsByAgentForCustomer
-          ? groupStopsByAgent(routeStops).flatMap((group) => [
-              [
-                {
-                  content: `${group.agent} — ${group.signCount} signs`,
-                  colSpan: 3,
-                  styles: { fontStyle: 'bold' as const, fillColor: config.colors.tableHead },
-                },
-              ],
-              ...group.stops.map((stop) => [
-                formatStopProperty(stop),
-                '',
-                typeof stop.numberOfSigns === 'number' ? String(stop.numberOfSigns) : '—',
-              ]),
-            ])
-          : routeStops.map((stop) => [
-              formatStopProperty(stop),
-              stop.agent?.trim() || '—',
-              typeof stop.numberOfSigns === 'number' ? String(stop.numberOfSigns) : '—',
-            ]);
-
-        autoTable(doc, {
-          startY: y,
-          head: [['Property', 'Agent', 'Signs']],
-          body: stopTableBody,
-          theme: 'striped',
-          margin: { left: config.margins.left, right: config.margins.right },
-          styles: { font: 'helvetica', fontSize: 10, textColor: config.colors.text, fillColor: config.colors.secondary },
-          headStyles: { fillColor: config.colors.tableHead, textColor: config.colors.text, fontStyle: 'bold' },
-          columnStyles: {
-            0: { cellWidth: 350 },
-            1: { cellWidth: 84 },
-            2: { cellWidth: 50, halign: 'right' },
-          },
-          didParseCell: (data) => {
-            if (data.section === 'head' && data.column.index === 2) {
-              data.cell.styles.halign = 'right';
-            }
-          },
-        });
-
-        ensurePageSpace(290);
-        y += 34;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(13);
-        doc.text('Route Map', config.margins.left, y);
-
-        y += 12;
-        const mapImageDataUrl = await fetchRouteMapDataUrl(routeStops);
-        if (mapImageDataUrl) {
-          y += 8;
-          doc.addImage(mapImageDataUrl, 'PNG', config.margins.left, y, 484, 260);
-          y += 268;
-        } else {
-          y += 18;
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(10);
-          doc.text('Map image unavailable for this route.', config.margins.left, y);
-        }
-      }
-
-      const totalPages = doc.getNumberOfPages();
-      for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
-        doc.setPage(pageNumber);
-        doc.setDrawColor(...config.colors.border);
-        doc.line(config.margins.left, 812, 540, 812);
-        doc.setTextColor(...config.colors.muted);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.text(`${pdfCompanyName} | ${pdfCompanyAbn} | ${pdfCompanyPhone} | ${BILLING_EMAIL}`, config.margins.left, 826);
-        doc.text(`Page ${pageNumber} of ${totalPages}`, 540, 826, { align: 'right' });
-      }
+      drawInvoicePdfDocument(doc, config, {
+        invoiceNumber: invoice.invoiceNumber || invoice.id,
+        invoiceDate: invoice.invoiceDate || new Date().toISOString().slice(0, 10),
+        routeCode: linkedRoute?.routeCode || invoice.routeId || '—',
+        logoDataUrl,
+        company: {
+          name: pdfCompanyName,
+          abn: pdfCompanyAbn,
+          phone: pdfCompanyPhone,
+          address: pdfCompanyAddress,
+          email: BILLING_EMAIL,
+        },
+        customer: {
+          name: customer?.name || invoice.customerId,
+          address: customer?.addressLine1 || '—',
+        },
+        lines: invoiceRows,
+        subtotal,
+        gstAmount,
+        totalAmount,
+        payment: {
+          accountName: pdfPaymentAccountName,
+          bsb: pdfPaymentBsb,
+          accountNumber: pdfPaymentAccountNumber,
+        },
+        routeStops,
+        groupStopsByAgentForCustomer,
+      });
 
       const pdfBlob = doc.output('blob');
       const s3Key = `invoices/${invoice.id}.pdf`;

@@ -10,9 +10,10 @@ describe('invoice PDF customer portal theme', () => {
     expect(CUSTOMER_PORTAL_INVOICE_PDF_THEME.colors.header).toEqual([20, 27, 56]);
     expect(CUSTOMER_PORTAL_INVOICE_PDF_THEME.colors.accent).toEqual([238, 240, 254]);
     expect(config.colors.header).toEqual(CUSTOMER_PORTAL_INVOICE_PDF_THEME.colors.header);
-    expect(config.colors.totalBand).toEqual(CUSTOMER_PORTAL_INVOICE_PDF_THEME.colors.accentStrong);
+    expect(config.colors.accent).toEqual(CUSTOMER_PORTAL_INVOICE_PDF_THEME.colors.accent);
     expect(config.fonts.large).toBeLessThan(config.fonts.xlarge);
-    expect(config.layout.headerHeight).toBeLessThan(config.layout.companyDetailsTop);
-    expect(config.layout.companyDetailsMaxWidth).toBeLessThanOrEqual(484);
+    expect(config.fonts.label).toBeLessThan(config.fonts.default);
+    expect(config.layout.headerHeight).toBeGreaterThan(0);
+    expect(config.margins.right).toBeGreaterThan(config.margins.left);
   });
 });

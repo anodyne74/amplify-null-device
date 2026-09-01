@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, 1-delivery-management]
+    branches: [main, development, 1-delivery-management]
   pull_request:
-    branches: [main, 1-delivery-management]
+    branches: [main, development, 1-delivery-management]
 
 jobs:
   quality-gates:

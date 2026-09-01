@@ -559,7 +559,7 @@ new CfnReceiptRule(forwarderStack, 'SesReceiptRule', {
 		name: inboundRuleName,
 		enabled: true,
 		tlsPolicy: 'Optional',
-		recipients: ['admin@nulldevice.dev', 'billing@nulldevice.dev', 'support@nulldevice.dev'],
+		recipients: ['admin@nulldevice.com.au', 'billing@nulldevice.com.au', 'support@nulldevice.com.au'],
 		scanEnabled: true,
 		actions: [
 			{ s3Action: { bucketName: inboundBucket.bucketName } },

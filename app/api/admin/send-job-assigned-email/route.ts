@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     const configuredLogoUrl = process.env.SES_EMAIL_LOGO_URL?.trim();
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
-    const resolvedAppBaseUrl = (appBaseUrl || 'https://nulldevice.dev').replace(/\/$/, '');
+    const resolvedAppBaseUrl = (appBaseUrl || 'https://nulldevice.com.au').replace(/\/$/, '');
     const logoUrl = configuredLogoUrl ? configuredLogoUrl : `${resolvedAppBaseUrl}/logo.svg`;
 
     const templateData = {
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       year: `${new Date().getUTCFullYear()}`,
     };
 
-    const senderEmail = process.env.SES_SENDER_EMAIL || 'no-reply.nulldevice.dev';
+    const senderEmail = process.env.SES_SENDER_EMAIL || 'no-reply@nulldevice.com.au';
 
     let messageId: string;
     try {

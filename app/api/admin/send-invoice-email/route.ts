@@ -5,6 +5,7 @@ import { generateClient } from 'aws-amplify/data';
 import { getUrl } from 'aws-amplify/storage';
 import type { Schema } from '@/amplify/data/resource';
 import outputs from '@/amplify_outputs.json';
+import { customOutputs } from '@/lib/amplifyOutputsCustom';
 import { listCustomerUsers, getCustomer, updateInvoice } from '@/lib/queries';
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
@@ -17,11 +18,16 @@ function sanitizeNamePart(value: string, fallback: string) {
   return cleaned || fallback;
 }
 
+// process.env.AWS_BRANCH/AMPLIFY_BRANCH aren't set in the SSR runtime, so this
+// reconstruction is a last-resort fallback -- see lib/amplifyOutputsCustom.ts.
 const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || '', '');
-const defaultInvoiceTemplateName = branchName
+const fallbackInvoiceTemplateName = branchName
   ? `NullDeviceInvoiceTemplate-${branchName}`
   : 'NullDeviceInvoiceTemplate';
-const invoiceTemplateName = process.env.SES_INVOICE_TEMPLATE_NAME || defaultInvoiceTemplateName;
+const invoiceTemplateName =
+  process.env.SES_INVOICE_TEMPLATE_NAME ||
+  customOutputs.sesInvoiceTemplateName ||
+  fallbackInvoiceTemplateName;
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
 const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
 

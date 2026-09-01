@@ -33,15 +33,26 @@ describe('Administrator Drivers page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    global.fetch = jest.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        users: [
-          { id: 'sub-1', name: 'Jane Driver', email: 'jane@nulldevice.dev' },
-          { id: 'sub-2', name: 'Amir Driver', email: 'amir@nulldevice.dev' },
-        ],
-      }),
-    })) as jest.Mock;
+    global.fetch = jest.fn(async (_url: string, init?: RequestInit) => {
+      const action = init?.body ? JSON.parse(init.body as string).action : undefined;
+
+      if (action === 'createUser') {
+        return {
+          ok: true,
+          json: async () => ({ user: { sub: 'new-sub' }, created: true, emailSent: false }),
+        };
+      }
+
+      return {
+        ok: true,
+        json: async () => ({
+          users: [
+            { id: 'sub-1', name: 'Jane Driver', email: 'jane@nulldevice.dev' },
+            { id: 'sub-2', name: 'Amir Driver', email: 'amir@nulldevice.dev' },
+          ],
+        }),
+      };
+    }) as jest.Mock;
 
     (listOperators as jest.Mock).mockResolvedValue({
       data: [
@@ -152,5 +163,65 @@ describe('Administrator Drivers page', () => {
     render(<AdministratorDriversPage />);
 
     expect(await screen.findByText(/no drivers yet/i)).toBeInTheDocument();
+  });
+
+  it('invites a new driver via the operator group', async () => {
+    render(<AdministratorDriversPage />);
+
+    await screen.findByText('Van 1 · ABC123');
+
+    fireEvent.change(screen.getByLabelText(/email for new driver/i), {
+      target: { value: 'new-driver@nulldevice.dev' },
+    });
+    fireEvent.change(screen.getByLabelText(/optional display name for new driver/i), {
+      target: { value: 'New Driver' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /send invite/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/admin/users',
+        expect.objectContaining({
+          body: JSON.stringify({
+            action: 'createUser',
+            email: 'new-driver@nulldevice.dev',
+            name: 'New Driver',
+            groupName: 'operator',
+          }),
+        })
+      );
+    });
+
+    expect(await screen.findByText(/they’ll get an email with a temporary password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/email for new driver/i)).toHaveValue('');
+  });
+
+  it('shows an error and keeps the form filled in when inviting a driver fails', async () => {
+    global.fetch = jest.fn(async (_url: string, init?: RequestInit) => {
+      const action = init?.body ? JSON.parse(init.body as string).action : undefined;
+
+      if (action === 'createUser') {
+        return { ok: false, json: async () => ({ error: 'Could not create a login for this email.' }) };
+      }
+
+      return {
+        ok: true,
+        json: async () => ({
+          users: [{ id: 'sub-1', name: 'Jane Driver', email: 'jane@nulldevice.dev' }],
+        }),
+      };
+    }) as jest.Mock;
+
+    render(<AdministratorDriversPage />);
+
+    await screen.findByText('Van 1 · ABC123');
+
+    fireEvent.change(screen.getByLabelText(/email for new driver/i), {
+      target: { value: 'broken@nulldevice.dev' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /send invite/i }));
+
+    expect(await screen.findByText('Could not create a login for this email.')).toBeInTheDocument();
+    expect(screen.getByLabelText(/email for new driver/i)).toHaveValue('broken@nulldevice.dev');
   });
 });

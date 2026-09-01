@@ -45,6 +45,7 @@ const invoiceTemplateName = withMaxLength(`NullDeviceInvoiceTemplate-${branchNam
 const jobAssignedTemplateName = withMaxLength(`NullDeviceJobAssignedTemplate-${branchName}`, 64);
 const welcomeTemplateName = withMaxLength(`NullDeviceWelcomeTemplate-${branchName}`, 64);
 const invitationTemplateName = withMaxLength(`NullDeviceInvitationTemplate-${branchName}`, 64);
+const staffInvitationTemplateName = withMaxLength(`NullDeviceStaffInvitationTemplate-${branchName}`, 64);
 const inboundBucketName = withMaxLength(`ses-inbound-nulldevice-${branchName}`, 63);
 const forwarderFunctionName = withMaxLength(`ses-forwarder-nulldevice-${branchName}`, 64);
 const inboundRuleSetName = withMaxLength(`inbound-rule-set-nulldevice-${branchName}`, 64);
@@ -418,6 +419,159 @@ What you can do in the portal:
 - Track your routes and stop-by-stop progress
 - See delivery history and performance for your sites
 - Review invoices, if your account owner grants access
+
+Not expecting this? You can ignore this email, or reply to {{inviterEmail}}.
+
+Null Device - {{companyAddress}}
+`.trim(),
+	},
+});
+
+// Staff (operator/administrator) equivalent of InvitationTemplate above -- same
+// visual scaffold, but role-generic copy instead of customer-portal-flavored
+// copy, since drivers/admins have no "customerName" and don't see invoices.
+new CfnTemplate(sesStack, 'StaffInvitationTemplate', {
+	template: {
+		templateName: staffInvitationTemplateName,
+		subjectPart: "You're invited to the Null Device {{roleLabel}} portal",
+		htmlPart: `
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>You're invited to the Null Device {{roleLabel}} portal</title>
+<!-- Brand faces where the client supports them (Apple Mail, iOS, Samsung); everything else falls back to the email-safe stack in each inline style. -->
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&family=Manrope:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<!--[if mso]>
+<style>body,table,td,a,p,div{font-family:Arial,Helvetica,sans-serif !important}</style>
+<![endif]-->
+<style>
+  @media only screen and (max-width:600px){
+    .nd-pad{padding-left:20px !important;padding-right:20px !important}
+    .nd-cta a{display:block !important;text-align:center !important}
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#F6F7FB;">
+<span style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;max-height:0;max-width:0;overflow:hidden;mso-hide:all;">{{inviterName}} invited you to Null Device as a {{roleLabel}} — sign in with your temporary password.</span>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#F6F7FB;">
+<tr>
+<td align="center" style="padding:32px 16px;">
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="width:560px;max-width:560px;background-color:#FFFFFF;border:1px solid #E2E5EF;border-radius:16px;overflow:hidden;">
+
+  <!-- Header -->
+  <tr>
+    <td width="560" style="width:560px;background-color:#141B38;background-image:linear-gradient(160deg,#141B38 0%,#2A2E76 100%);padding:13px 28px;" class="nd-pad">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+        <tr>
+          <td align="left" valign="middle" style="mso-line-height-rule:exactly;line-height:0;"><img src="{{logoUrl}}" alt="null device" width="190" height="85" style="display:block;width:190px;height:85px;max-width:190px;border:0;outline:none;text-decoration:none;"></td>
+          <td align="right" valign="middle" style="font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:12px;color:rgba(255,255,255,.66);mso-line-height-rule:exactly;line-height:85px;">Invitation</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Body -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:32px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;">
+      <div style="font-family:Comfortaa,'Trebuchet MS',Tahoma,Arial,sans-serif;font-weight:bold;font-size:25px;line-height:33px;mso-line-height-rule:exactly;letter-spacing:-0.02em;color:#141B38;">You've been invited</div>
+      <p style="margin:14px 0 0;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#48526C;">
+        Hi {{inviteeName}} — {{inviterName}} ({{inviterEmail}}) has added you as a <strong style="color:#141B38;">{{roleLabel}}</strong> on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+      </p>
+    </td>
+  </tr>
+
+  <!-- Credentials panel -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:24px 28px 0;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#F6F7FB;border:1px solid #E2E5EF;border-radius:12px;">
+        <tr>
+          <td width="504" style="width:504px;padding:20px 24px;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;">
+            <div style="font-size:11px;line-height:16px;mso-line-height-rule:exactly;letter-spacing:0.08em;text-transform:uppercase;color:#818AA4;font-weight:bold;">Email</div>
+            <div style="font-family:'JetBrains Mono','Courier New',Courier,monospace;font-size:15px;line-height:22px;mso-line-height-rule:exactly;color:#141B38;padding-top:4px;">{{inviteeEmail}}</div>
+            <div style="font-size:11px;line-height:16px;mso-line-height-rule:exactly;letter-spacing:0.08em;text-transform:uppercase;color:#818AA4;font-weight:bold;padding-top:16px;">Temporary password</div>
+            <div style="font-family:'JetBrains Mono','Courier New',Courier,monospace;font-size:19px;line-height:26px;mso-line-height-rule:exactly;font-weight:bold;color:#141B38;padding-top:4px;">{{temporaryPassword}}</div>
+            <div style="font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;padding-top:12px;">Single use · expires in {{expiryDays}} days</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Primary CTA -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:24px 28px 0;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="nd-cta" bgcolor="#5D65E6" style="border-radius:999px;">
+            <a href="{{portalUrl}}" style="display:inline-block;padding:14px 30px;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;mso-line-height-rule:exactly;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:999px;">Sign in</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Secondary action -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:16px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;mso-line-height-rule:exactly;color:#818AA4;">
+      Password expired or didn't work? <a href="{{resetPasswordUrl}}" style="color:#4B52C4;text-decoration:underline;font-weight:bold;">Request a new password</a>
+    </td>
+  </tr>
+
+  <!-- Divider -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:28px 28px 0;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td height="1" style="height:1px;background-color:#E2E5EF;line-height:1px;font-size:0;">&nbsp;</td></tr></table>
+    </td>
+  </tr>
+
+  <!-- Reassurance -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:24px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#48526C;">
+      Once you're signed in, your {{roleLabel}} portal will have everything you need to get started.
+      <p style="margin:16px 0 0;font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;">Not expecting this? You can ignore this email, or reply to {{inviterEmail}}.</p>
+    </td>
+  </tr>
+
+  <tr><td height="32" style="height:32px;line-height:32px;font-size:0;">&nbsp;</td></tr>
+
+  <!-- Footer -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:20px 28px;background-color:#F6F7FB;border-top:1px solid #E2E5EF;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:12px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;">
+      Null Device · {{companyAddress}}<br>
+      <a href="{{portalUrl}}" style="color:#4B52C4;text-decoration:none;">Open portal</a> · <a href="{{supportUrl}}" style="color:#4B52C4;text-decoration:none;">Support</a><br>
+      <span style="color:#9AA2B8;">You're receiving this because {{inviterName}} invited you to Null Device as a {{roleLabel}}.</span>
+    </td>
+  </tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+</body>
+</html>
+`.trim(),
+		textPart: `
+You're invited to the Null Device {{roleLabel}} portal
+
+Hi {{inviteeName}},
+
+{{inviterName}} ({{inviterEmail}}) has added you as a {{roleLabel}} on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+
+Email: {{inviteeEmail}}
+Temporary password: {{temporaryPassword}}
+Single use - expires in {{expiryDays}} days.
+
+Sign in: {{portalUrl}}
+Password expired or didn't work? Request a new password: {{resetPasswordUrl}}
+
+Once you're signed in, your {{roleLabel}} portal will have everything you need to get started.
 
 Not expecting this? You can ignore this email, or reply to {{inviterEmail}}.
 

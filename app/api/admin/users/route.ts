@@ -16,6 +16,7 @@ import {
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import outputs from '@/amplify_outputs.json';
 import { sendInvitationEmail } from '@/lib/emails/invitationEmail';
+import { sendStaffInvitationEmail } from '@/lib/emails/staffInvitationEmail';
 
 const cognitoClient = new CognitoIdentityProviderClient({});
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
@@ -681,28 +682,40 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid groupName.' }, { status: 400 });
       }
 
-      // Customer invites get the branded invitation email (Cognito's built-in one
-      // suppressed); operator/administrator invites keep Cognito's default email.
-      const isCustomerInvite = body.groupName === 'customer';
+      // Every admin-created account gets a branded SES email instead of Cognito's
+      // default built-in invite email: customer invites use the customer-portal-
+      // flavored template, operator/administrator invites use the generic staff
+      // onboarding template.
       const { sub, username, created, temporaryPassword } = await createOrGetCognitoUser({
         poolId: userPoolId,
         email: body.email,
         name: body.name,
         groupName: body.groupName,
-        sendInvitationEmail: isCustomerInvite,
+        sendInvitationEmail: true,
       });
 
       let emailSent = false;
-      if (isCustomerInvite && created && temporaryPassword) {
+      if (created && temporaryPassword) {
         try {
-          await sendInvitationEmail({
-            toEmail: body.email.trim().toLowerCase(),
-            inviteeName: body.name,
-            customerName: body.customerName?.trim() || 'your team',
-            inviterName: authResult.claims.name || authResult.claims.email || 'Null Device',
-            inviterEmail: authResult.claims.email || '',
-            temporaryPassword,
-          });
+          if (body.groupName === 'customer') {
+            await sendInvitationEmail({
+              toEmail: body.email.trim().toLowerCase(),
+              inviteeName: body.name,
+              customerName: body.customerName?.trim() || 'your team',
+              inviterName: authResult.claims.name || authResult.claims.email || 'Null Device',
+              inviterEmail: authResult.claims.email || '',
+              temporaryPassword,
+            });
+          } else {
+            await sendStaffInvitationEmail({
+              toEmail: body.email.trim().toLowerCase(),
+              inviteeName: body.name,
+              roleLabel: body.groupName === 'administrator' ? 'Administrator' : 'Operator',
+              inviterName: authResult.claims.name || authResult.claims.email || 'Null Device',
+              inviterEmail: authResult.claims.email || '',
+              temporaryPassword,
+            });
+          }
           emailSent = true;
         } catch (err) {
           // Non-blocking: the login exists; an admin can re-send from the console.

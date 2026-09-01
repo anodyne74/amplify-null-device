@@ -128,6 +128,8 @@ Set these in Amplify Console for builds/runtime:
 | `AWS_REGION` | AWS region (for example `ap-southeast-2`) |
 | `SES_SENDER_EMAIL` | Sender used by SES invoice email API |
 | `SES_INVOICE_TEMPLATE_NAME` | SES template name for invoice emails (default: branch-scoped, e.g. `NullDeviceInvoiceTemplate-main`) |
+| `SES_INVITATION_TEMPLATE_NAME` | SES template name for branded customer invite emails (default: branch-scoped, e.g. `NullDeviceInvitationTemplate-main`) |
+| `SES_STAFF_INVITATION_TEMPLATE_NAME` | SES template name for branded operator/administrator invite emails (default: branch-scoped, e.g. `NullDeviceStaffInvitationTemplate-main`) |
 
 Notes:
 

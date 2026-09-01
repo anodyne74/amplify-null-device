@@ -6,14 +6,10 @@ import styles from '../page.module.css';
 
 interface CustomerTableRowProps {
   customer: Customer;
-  formattedRate: string;
   isEditOpen: boolean;
-  isOwnerOpen: boolean;
   onToggleEdit: () => void;
-  onToggleOwner: () => void;
   onDelete: () => void;
   editPanel?: ReactNode;
-  ownerPanel?: ReactNode;
 }
 
 function toTitleCase(value?: string | null) {
@@ -30,14 +26,10 @@ const STATUS_TONE: Record<string, BadgeProps['tone']> = {
 
 export default function CustomerTableRow({
   customer,
-  formattedRate,
   isEditOpen,
-  isOwnerOpen,
   onToggleEdit,
-  onToggleOwner,
   onDelete,
   editPanel,
-  ownerPanel,
 }: CustomerTableRowProps) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const statusKey = String(customer.status ?? 'active').toLowerCase();
@@ -48,7 +40,6 @@ export default function CustomerTableRow({
         <td>{customer.name}</td>
         <td>{customer.companyName || '—'}</td>
         <td>{customer.email}</td>
-        <td>{formattedRate}</td>
         <td>
           <Badge tone={STATUS_TONE[statusKey] ?? 'success'} dot>
             {toTitleCase(customer.status)}
@@ -70,7 +61,7 @@ export default function CustomerTableRow({
       </tr>
       {actionsOpen && (
         <tr className={styles.expandedRow}>
-          <td colSpan={6}>
+          <td colSpan={5}>
             <div className={styles.expandedPanel} id={`customer-actions-${customer.id}`}>
               <Button
                 type="button"
@@ -80,15 +71,6 @@ export default function CustomerTableRow({
                 aria-label={`${isEditOpen ? 'Close edit panel for' : 'Edit'} customer ${customer.name}`}
               >
                 {isEditOpen ? 'Close Edit' : 'Edit'}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={onToggleOwner}
-                aria-label={`${isOwnerOpen ? 'Close owner management for' : 'Manage owner for'} customer ${customer.name}`}
-              >
-                {isOwnerOpen ? 'Close Owner' : 'Manage Owner'}
               </Button>
               <Button
                 type="button"
@@ -105,12 +87,7 @@ export default function CustomerTableRow({
       )}
       {isEditOpen && (
         <tr>
-          <td colSpan={6}>{editPanel}</td>
-        </tr>
-      )}
-      {isOwnerOpen && (
-        <tr>
-          <td colSpan={6}>{ownerPanel}</td>
+          <td colSpan={5}>{editPanel}</td>
         </tr>
       )}
     </>

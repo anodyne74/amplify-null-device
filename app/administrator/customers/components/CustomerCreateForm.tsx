@@ -4,6 +4,7 @@ import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
+import AgentOptionsEditor from '@/app/administrator/customers/components/AgentOptionsEditor';
 import styles from '../page.module.css';
 
 interface CustomerCreateFormProps {
@@ -14,10 +15,9 @@ interface CustomerCreateFormProps {
   email: string;
   billingRatePerHour: string;
   defaultNumberOfSigns: string;
-  defaultAgentName: string;
   defaultAgentInitials: string;
   addressLine1: string;
-  agentOptionsText: string;
+  agentOptions: string[];
   standingInstructions: string;
   onToggleShowCreateForm: () => void;
   onSubmit: (event: FormEvent) => void;
@@ -26,11 +26,11 @@ interface CustomerCreateFormProps {
   onEmailChange: (value: string) => void;
   onBillingRatePerHourChange: (value: string) => void;
   onDefaultNumberOfSignsChange: (value: string) => void;
-  onDefaultAgentNameChange: (value: string) => void;
   onDefaultAgentInitialsChange: (value: string) => void;
   onAddressChange: (value: string) => void;
   onAddressResolved: (resolved: ResolvedAddress | null) => void;
-  onAgentOptionsTextChange: (value: string) => void;
+  onAddAgentOption: (value: string) => void;
+  onRemoveAgentOption: (value: string) => void;
   onStandingInstructionsChange: (value: string) => void;
 }
 
@@ -42,10 +42,9 @@ export default function CustomerCreateForm({
   email,
   billingRatePerHour,
   defaultNumberOfSigns,
-  defaultAgentName,
   defaultAgentInitials,
   addressLine1,
-  agentOptionsText,
+  agentOptions,
   standingInstructions,
   onToggleShowCreateForm,
   onSubmit,
@@ -54,11 +53,11 @@ export default function CustomerCreateForm({
   onEmailChange,
   onBillingRatePerHourChange,
   onDefaultNumberOfSignsChange,
-  onDefaultAgentNameChange,
   onDefaultAgentInitialsChange,
   onAddressChange,
   onAddressResolved,
-  onAgentOptionsTextChange,
+  onAddAgentOption,
+  onRemoveAgentOption,
   onStandingInstructionsChange,
 }: CustomerCreateFormProps) {
   return (
@@ -126,14 +125,6 @@ export default function CustomerCreateForm({
                   min={0}
                 />
               </Field>
-              <Field label="Default agent name" htmlFor="create-customer-agent-name">
-                <Input
-                  id="create-customer-agent-name"
-                  value={defaultAgentName}
-                  onChange={(event) => onDefaultAgentNameChange(event.target.value)}
-                  placeholder="Default agent name"
-                />
-              </Field>
               <Field label="Default agent initials" htmlFor="create-customer-agent-initials">
                 <Input
                   id="create-customer-agent-initials"
@@ -154,20 +145,12 @@ export default function CustomerCreateForm({
                   className="nd-input"
                 />
               </Field>
-              <Field
-                label="Agent options"
-                htmlFor="create-customer-agent-options"
-                hint="One option per line."
-                className={styles.fieldsGridFull}
-              >
-                <Input
-                  id="create-customer-agent-options"
-                  value={agentOptionsText}
-                  onChange={(event) => onAgentOptionsTextChange(event.target.value)}
-                  placeholder="Agent options, one per line"
-                  multiline
-                />
-              </Field>
+              <AgentOptionsEditor
+                agentOptions={agentOptions}
+                onAdd={onAddAgentOption}
+                onRemove={onRemoveAgentOption}
+                disabled={saving}
+              />
               <Field
                 label="Standing instructions"
                 htmlFor="create-customer-standing-instructions"

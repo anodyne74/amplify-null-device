@@ -290,13 +290,18 @@ export function configureObservability(backend: ObservabilityBackend, branchName
   }
 
   // ── Operational health ────────────────────────────────────────────────
-  const lambdaFunctionNames = [
-    backend.customerAccessActivation.resources.lambda.functionName,
-    `ses-forwarder-nulldevice-${branchName}`,
+  // Construct IDs must be resolvable at synth time, so each function is paired with a
+  // stable literal label — `functionName` itself is an unresolved CDK token for
+  // customerAccessActivation (its physical name isn't fixed), so it can only be used in
+  // property values (e.g. dimensionsMap, alarmName), never in an ID or another string
+  // that CDK needs to hash/resolve up front.
+  const lambdaFunctions: Array<{ label: string; functionName: string }> = [
+    { label: 'CustomerAccessActivation', functionName: backend.customerAccessActivation.resources.lambda.functionName },
+    { label: 'SesForwarder', functionName: `ses-forwarder-nulldevice-${branchName}` },
   ];
 
   const lambdaErrorAlarms: GraphWidget[] = [];
-  for (const functionName of lambdaFunctionNames) {
+  for (const { label, functionName } of lambdaFunctions) {
     const errorsMetric = new Metric({
       namespace: 'AWS/Lambda',
       metricName: 'Errors',
@@ -312,8 +317,8 @@ export function configureObservability(backend: ObservabilityBackend, branchName
       period: Duration.minutes(5),
     });
 
-    new Alarm(stack, `LambdaErrorsAlarm-${functionName}`, {
-      alarmName: `nulldevice-lambda-errors-${functionName}`,
+    new Alarm(stack, `LambdaErrorsAlarm${label}`, {
+      alarmName: `nulldevice-lambda-errors-${branchName}-${label}`,
       metric: errorsMetric,
       threshold: 0,
       evaluationPeriods: 1,
@@ -323,7 +328,7 @@ export function configureObservability(backend: ObservabilityBackend, branchName
 
     lambdaErrorAlarms.push(
       new GraphWidget({
-        title: `${functionName} errors / duration`,
+        title: `${label} errors / duration`,
         left: [errorsMetric],
         right: [durationMetric],
         width: 12,

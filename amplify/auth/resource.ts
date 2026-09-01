@@ -16,10 +16,17 @@ export const auth = defineAuth({
   },
   /**
    * Cognito User Groups:
-   * - customer: assigned by an administrator when a signup request is approved
-   * - operator: staff members; must be added manually by an admin
    * - administrator: superusers with full access; must be added manually by an admin
+   * - operator: staff members; must be added manually by an admin
+   * - customer: assigned by an administrator when a signup request is approved
+   *
+   * Order matters: Amplify assigns group precedence by array index (lower index =
+   * lower precedence number = higher priority). If a user ever ends up in more than
+   * one group, the Identity Pool grants AWS credentials for exactly one group's IAM
+   * role — the one with the lowest precedence number. Listing groups most-privileged
+   * first ensures a multi-group user always resolves to their highest-privilege role,
+   * rather than silently being downgraded to e.g. read-only customer S3 permissions.
    */
-  groups: ['customer', 'operator', 'administrator'],
+  groups: ['administrator', 'operator', 'customer'],
 });
 

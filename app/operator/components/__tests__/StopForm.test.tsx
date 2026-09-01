@@ -97,7 +97,7 @@ describe('StopForm', () => {
         onSubmit={noop}
         onCancel={noop}
         defaultNumberOfSigns={3}
-        defaultAgentName="Jamie Lee"
+        defaultAgentInitials="Jamie Lee"
         availableAgents={['Jamie Lee', 'Pat Doe']}
         standingInstructions="Call before arriving."
       />
@@ -161,7 +161,7 @@ describe('StopForm', () => {
       <StopForm
         onSubmit={noop}
         onCancel={noop}
-        defaultAgentName="Jamie Lee"
+        defaultAgentInitials="Jamie Lee"
       />
     );
 

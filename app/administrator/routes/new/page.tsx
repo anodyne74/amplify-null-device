@@ -100,7 +100,7 @@ export default function NewRoutePage() {
     addressLine1?: string | null;
     standingInstructions?: string | null;
     defaultNumberOfSigns?: number | null;
-    defaultAgentName?: string | null;
+    defaultAgentInitials?: string | null;
     agentOptions?: string[] | null;
   }>>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
@@ -171,7 +171,7 @@ export default function NewRoutePage() {
             addressLine1: c.addressLine1 ?? null,
             standingInstructions: c.standingInstructions ?? null,
             defaultNumberOfSigns: c.defaultNumberOfSigns ?? null,
-            defaultAgentName: c.defaultAgentName ?? null,
+            defaultAgentInitials: c.defaultAgentInitials ?? null,
             agentOptions: c.agentOptions ?? null,
           }))
         );

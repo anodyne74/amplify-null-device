@@ -186,7 +186,7 @@ describe('RouteForm', () => {
             email: 'acme@example.com',
             standingInstructions: 'Call before arriving.',
             defaultNumberOfSigns: 3,
-            defaultAgentName: 'Jamie Lee',
+            defaultAgentInitials: 'Jamie Lee',
             agentOptions: ['Jamie Lee', 'Pat Doe'],
           },
         ]}

@@ -12,22 +12,18 @@ import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import CustomerCreateForm from '@/app/administrator/customers/components/CustomerCreateForm';
 import CustomerEditPanel from '@/app/administrator/customers/components/CustomerEditPanel';
-import CustomerOwnerPanel from '@/app/administrator/customers/components/CustomerOwnerPanel';
 import CustomerTableRow from '@/app/administrator/customers/components/CustomerTableRow';
 import { useCustomerEditState } from '@/app/administrator/customers/hooks/useCustomerEditState';
-import { useCustomerOwnerState } from '@/app/administrator/customers/hooks/useCustomerOwnerState';
 import type { Customer, CustomerUser } from '@/app/administrator/customers/types';
-import { parseAgentOptionsInput } from '@/lib/customerDefaults';
+import { addAgentOption as addAgentOptionTo, removeAgentOption as removeAgentOptionFrom } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import {
   createCustomer,
-  createCustomerUser,
   deleteCustomer,
   listCustomerInvoices,
   listCustomerRoutes,
   listCustomerUsers,
   listCustomers,
-  syncViewerSubsForCustomer,
   updateCustomer,
 } from '@/lib/queries';
 import { buildOnboardingChecklist, type ChecklistItem } from '@/lib/customerOnboardingChecklist';
@@ -124,10 +120,17 @@ export default function CustomersAdminPage() {
   const [addressLine1, setAddressLine1] = useState('');
   const [standingInstructions, setStandingInstructions] = useState('');
   const [defaultNumberOfSigns, setDefaultNumberOfSigns] = useState('');
-  const [defaultAgentName, setDefaultAgentName] = useState('');
   const [defaultAgentInitials, setDefaultAgentInitials] = useState('');
-  const [agentOptionsText, setAgentOptionsText] = useState('');
+  const [agentOptions, setAgentOptions] = useState<string[]>([]);
   const [createResolvedAddress, setCreateResolvedAddress] = useState<ResolvedAddress | null>(null);
+
+  const addAgentOptionToCreate = useCallback((value: string) => {
+    setAgentOptions((prev) => addAgentOptionTo(prev, value));
+  }, []);
+
+  const removeAgentOptionFromCreate = useCallback((value: string) => {
+    setAgentOptions((prev) => removeAgentOptionFrom(prev, value));
+  }, []);
 
   const {
     expandedEditPanel,
@@ -151,8 +154,6 @@ export default function CustomersAdminPage() {
     editOriginalStandingInstructions,
     editDefaultNumberOfSigns,
     setEditDefaultNumberOfSigns,
-    editDefaultAgentName,
-    setEditDefaultAgentName,
     editDefaultAgentInitials,
     setEditDefaultAgentInitials,
     editAgentOptions,
@@ -171,25 +172,6 @@ export default function CustomersAdminPage() {
     closeEditPanel,
     openEditPanel,
   } = useCustomerEditState();
-
-  const {
-    expandedOwnerPanel,
-    customerUsers,
-    setCustomerUsers,
-    ownerUserSub,
-    ownerName,
-    ownerEmail,
-    ownerSaving,
-    setOwnerSaving,
-    ownerError,
-    setOwnerError,
-    ownerSuccess,
-    setOwnerSuccess,
-    resetOwnerSelection,
-    closeOwnerPanel,
-    openOwnerPanel,
-    selectOwnerUserSub,
-  } = useCustomerOwnerState();
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -218,13 +200,6 @@ export default function CustomersAdminPage() {
     void fetchCustomers();
   }, [fetchCustomers]);
 
-  const fetchCustomerUsers = useCallback(async (customerId: string) => {
-    const result = await listCustomerUsers(customerId);
-    if (!result.errors || result.errors.length === 0) {
-      setCustomerUsers((prev) => ({ ...prev, [customerId]: result.data as CustomerUser[] }));
-    }
-  }, [setCustomerUsers]);
-
   // "Onboarding checklist" — computed client-side from records already scoped to this
   // customer, fetched on demand when the edit panel opens. No new model, no new writes.
   const fetchOnboardingChecklist = useCallback(async (customer: Customer) => {
@@ -237,14 +212,13 @@ export default function CustomersAdminPage() {
     ]);
 
     const users = (usersResult.errors && usersResult.errors.length > 0 ? [] : usersResult.data) as CustomerUser[];
-    setCustomerUsers((prev) => ({ ...prev, [customer.id]: users }));
 
     setChecklists((prev) => ({
       ...prev,
       [customer.id]: buildOnboardingChecklist(customer, users, routesResult.data ?? [], invoicesResult.data ?? []),
     }));
     setChecklistLoading((prev) => ({ ...prev, [customer.id]: false }));
-  }, [setCustomerUsers]);
+  }, []);
 
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();
@@ -281,9 +255,8 @@ export default function CustomersAdminPage() {
         addressLine1: resolved.formattedAddress,
         standingInstructions,
         defaultNumberOfSigns: createSigns,
-        defaultAgentName,
         defaultAgentInitials,
-        agentOptions: parseAgentOptionsInput(agentOptionsText),
+        agentOptions,
       });
 
       if (result.errors && result.errors.length > 0) {
@@ -296,9 +269,8 @@ export default function CustomersAdminPage() {
         setAddressLine1('');
         setStandingInstructions('');
         setDefaultNumberOfSigns('');
-        setDefaultAgentName('');
         setDefaultAgentInitials('');
-        setAgentOptionsText('');
+        setAgentOptions([]);
         setCreateResolvedAddress(null);
         await fetchCustomers();
       }
@@ -309,18 +281,7 @@ export default function CustomersAdminPage() {
     setSaving(false);
   };
 
-  const toggleOwnerPanel = async (customerId: string) => {
-    closeEditPanel();
-    if (expandedOwnerPanel === customerId) {
-      closeOwnerPanel();
-      return;
-    }
-    openOwnerPanel(customerId);
-    await fetchCustomerUsers(customerId);
-  };
-
   const toggleEditPanel = (customer: Customer) => {
-    closeOwnerPanel();
     if (expandedEditPanel === customer.id) {
       closeEditPanel();
       return;
@@ -395,7 +356,6 @@ export default function CustomersAdminPage() {
         addressLine1: resolved.formattedAddress,
         standingInstructions: editStandingInstructions,
         defaultNumberOfSigns: editSigns,
-        defaultAgentName: editDefaultAgentName,
         defaultAgentInitials: editDefaultAgentInitials,
         agentOptions: editAgentOptions,
         restrictInvitesToOwnDomain: editRestrictInvitesToOwnDomain,
@@ -419,7 +379,6 @@ export default function CustomersAdminPage() {
                   addressLine1: resolved.formattedAddress,
                   standingInstructions: editStandingInstructions,
                   defaultNumberOfSigns: editSigns ?? null,
-                  defaultAgentName: editDefaultAgentName,
                   defaultAgentInitials: editDefaultAgentInitials,
                   agentOptions: editAgentOptions,
                   restrictInvitesToOwnDomain: editRestrictInvitesToOwnDomain,
@@ -447,7 +406,6 @@ export default function CustomersAdminPage() {
       showToast(`Failed to delete customer ${deleteTarget.name}.`, 'error');
     } else {
       if (expandedEditPanel === deleteTarget.id) closeEditPanel();
-      if (expandedOwnerPanel === deleteTarget.id) closeOwnerPanel();
       showToast(`Customer ${deleteTarget.name} deleted.`, 'success');
       await fetchCustomers();
     }
@@ -455,47 +413,6 @@ export default function CustomersAdminPage() {
     setDeleting(false);
     setDeleteTarget(null);
   };
-
-  const handleAssignOwner = async (customerId: string) => {
-    if (!ownerUserSub.trim()) {
-      setOwnerError('Cognito user sub is required.');
-      return;
-    }
-    setOwnerSaving(true);
-    setOwnerError(null);
-    setOwnerSuccess(null);
-
-    const result = await createCustomerUser({
-      customerId,
-      userSub: ownerUserSub.trim(),
-      accountOwnerSub: ownerUserSub.trim(), // account owner's sub is their own sub
-      role: 'account_owner',
-      name: ownerName || undefined,
-      email: ownerEmail || undefined,
-    });
-
-    if (result.errors && result.errors.length > 0) {
-      setOwnerError('Failed to assign account owner.');
-    } else {
-      // Sync viewerSubs on all routes/stops for this customer
-      const users = [...(customerUsers[customerId] ?? [])];
-      if (result.data) users.push(result.data as CustomerUser);
-      const viewerSubs = [...new Set(users.map((u) => u.userSub))];
-      await syncViewerSubsForCustomer(customerId, viewerSubs);
-
-      setCustomerUsers((prev) => ({
-        ...prev,
-        [customerId]: users,
-      }));
-      setOwnerSuccess('Account owner assigned and access synced.');
-      resetOwnerSelection();
-    }
-
-    setOwnerSaving(false);
-  };
-
-  const existingOwner = (customerId: string) =>
-    (customerUsers[customerId] ?? []).find((u) => u.role === 'account_owner');
 
   return (
     <OperatorRoute requireAdmin>
@@ -525,10 +442,9 @@ export default function CustomersAdminPage() {
           email={email}
           billingRatePerHour={billingRatePerHour}
           defaultNumberOfSigns={defaultNumberOfSigns}
-          defaultAgentName={defaultAgentName}
           defaultAgentInitials={defaultAgentInitials}
           addressLine1={addressLine1}
-          agentOptionsText={agentOptionsText}
+          agentOptions={agentOptions}
           standingInstructions={standingInstructions}
           onToggleShowCreateForm={() => setShowCreateForm(!showCreateForm)}
           onSubmit={handleCreate}
@@ -537,7 +453,6 @@ export default function CustomersAdminPage() {
           onEmailChange={setEmail}
           onBillingRatePerHourChange={setBillingRatePerHour}
           onDefaultNumberOfSignsChange={setDefaultNumberOfSigns}
-          onDefaultAgentNameChange={setDefaultAgentName}
           onDefaultAgentInitialsChange={setDefaultAgentInitials}
           onAddressChange={setAddressLine1}
           onAddressResolved={(resolved) => {
@@ -546,7 +461,8 @@ export default function CustomersAdminPage() {
               setAddressLine1(resolved.formattedAddress);
             }
           }}
-          onAgentOptionsTextChange={setAgentOptionsText}
+          onAddAgentOption={addAgentOptionToCreate}
+          onRemoveAgentOption={removeAgentOptionFromCreate}
           onStandingInstructionsChange={setStandingInstructions}
         />
 
@@ -579,7 +495,6 @@ export default function CustomersAdminPage() {
                     <SortableHeader label="Name" sortKey="name" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
                     <th scope="col">Company Name</th>
                     <th scope="col">Correspondence Email</th>
-                    <th scope="col">Rate/hr</th>
                     <SortableHeader label="Status" sortKey="status" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
                     <th scope="col">Manage</th>
                   </tr>
@@ -589,13 +504,8 @@ export default function CustomersAdminPage() {
                     <CustomerTableRow
                       key={customer.id}
                       customer={customer}
-                      formattedRate={usdFormatter.format(customer.billingRatePerHour ?? 0)}
                       isEditOpen={expandedEditPanel === customer.id}
-                      isOwnerOpen={expandedOwnerPanel === customer.id}
                       onToggleEdit={() => toggleEditPanel(customer)}
-                      onToggleOwner={() => {
-                        void toggleOwnerPanel(customer.id);
-                      }}
                       onDelete={() => setDeleteTarget(customer)}
                       editPanel={(
                         <CustomerEditPanel
@@ -609,7 +519,6 @@ export default function CustomersAdminPage() {
                           editAddressLine1={editAddressLine1}
                           editStandingInstructions={editStandingInstructions}
                           editDefaultNumberOfSigns={editDefaultNumberOfSigns}
-                          editDefaultAgentName={editDefaultAgentName}
                           editDefaultAgentInitials={editDefaultAgentInitials}
                           editAgentOptions={editAgentOptions}
                           editRestrictInvitesToOwnDomain={editRestrictInvitesToOwnDomain}
@@ -626,7 +535,6 @@ export default function CustomersAdminPage() {
                           onEditBillingRatePerHourBlur={(value) => setEditBillingRatePerHour(formatCurrency(value))}
                           onEditStatusChange={setEditStatus}
                           onEditDefaultNumberOfSignsChange={setEditDefaultNumberOfSigns}
-                          onEditDefaultAgentNameChange={setEditDefaultAgentName}
                           onEditDefaultAgentInitialsChange={setEditDefaultAgentInitials}
                           onEditAddressLine1Change={setEditAddressLine1}
                           onEditResolvedAddressChange={(resolved) => {
@@ -643,25 +551,6 @@ export default function CustomersAdminPage() {
                             void handleUpdateCustomer(customer.id);
                           }}
                           onCancel={() => toggleEditPanel(customer)}
-                        />
-                      )}
-                      ownerPanel={(
-                        <CustomerOwnerPanel
-                          customer={customer}
-                          ownerError={ownerError}
-                          ownerSuccess={ownerSuccess}
-                          ownerSaving={ownerSaving}
-                          ownerUserSub={ownerUserSub}
-                          ownerName={ownerName}
-                          ownerEmail={ownerEmail}
-                          usersForCustomer={customerUsers[customer.id] ?? []}
-                          existingOwner={existingOwner(customer.id)}
-                          onOwnerUserSubChange={(selectedUserSub) => {
-                            selectOwnerUserSub(selectedUserSub, customerUsers[customer.id] ?? []);
-                          }}
-                          onAssignOwner={() => {
-                            void handleAssignOwner(customer.id);
-                          }}
                         />
                       )}
                     />

@@ -41,7 +41,7 @@ interface RouteFormCustomer {
   addressLine1?: string | null;
   standingInstructions?: string | null;
   defaultNumberOfSigns?: number | null;
-  defaultAgentName?: string | null;
+  defaultAgentInitials?: string | null;
   agentOptions?: string[] | null;
 }
 
@@ -437,7 +437,7 @@ export function RouteForm({
                 addressSearchOrigin={customerAddressOrigin}
                 standingInstructions={selectedCustomer?.standingInstructions ?? undefined}
                 defaultNumberOfSigns={selectedCustomer?.defaultNumberOfSigns ?? undefined}
-                defaultAgentName={selectedCustomer?.defaultAgentName ?? undefined}
+                defaultAgentInitials={selectedCustomer?.defaultAgentInitials ?? undefined}
                 availableAgents={selectedCustomer?.agentOptions ?? undefined}
                 isSubmitting={addingStop}
                 submitLabel="Add Stop to Route"

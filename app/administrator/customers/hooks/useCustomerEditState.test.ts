@@ -35,7 +35,6 @@ describe('useCustomerEditState', () => {
     expect(result.current.editAddressLine1).toBe('');
     expect(result.current.editStandingInstructions).toBe('');
     expect(result.current.editDefaultNumberOfSigns).toBe('');
-    expect(result.current.editDefaultAgentName).toBe('');
     expect(result.current.editDefaultAgentInitials).toBe('');
     expect(result.current.editAgentOptions).toEqual(['Jamie', 'Pat']);
     expect(result.current.editOriginalAddressLine1).toBe('');
@@ -102,7 +101,6 @@ describe('useCustomerEditState', () => {
 
     expect(result.current.editDefaultNumberOfSigns).toBe('6');
     expect(result.current.editStatus).toBe('inactive');
-    expect(result.current.editDefaultAgentName).toBe('Taylor');
     expect(result.current.editDefaultAgentInitials).toBe('TA');
     expect(result.current.editError).toBeNull();
     expect(result.current.editSuccess).toBeNull();

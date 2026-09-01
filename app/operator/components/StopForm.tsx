@@ -36,7 +36,7 @@ interface StopFormProps {
   standingInstructions?: string;
   defaultNumberOfSigns?: number | null;
   availableAgents?: string[] | null;
-  defaultAgentName?: string;
+  defaultAgentInitials?: string;
   isSubmitting?: boolean;
   error?: string | null;
   submitLabel?: string;
@@ -51,7 +51,7 @@ export function StopForm({
   standingInstructions,
   defaultNumberOfSigns,
   availableAgents,
-  defaultAgentName,
+  defaultAgentInitials,
   isSubmitting,
   error,
   submitLabel = 'Add Stop',
@@ -63,7 +63,7 @@ export function StopForm({
   const [numberOfSigns, setNumberOfSigns] = useState(
     initialValues?.numberOfSigns?.toString() || defaultNumberOfSigns?.toString() || ''
   );
-  const [agent, setAgent] = useState(initialValues?.agent || defaultAgentName || '');
+  const [agent, setAgent] = useState(initialValues?.agent || defaultAgentInitials || '');
   const [isAuction, setIsAuction] = useState(Boolean(initialValues?.isAuction));
   const [resolvedAddress, setResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [notes, setNotes] = useState(initialValues?.notes || '');
@@ -76,7 +76,7 @@ export function StopForm({
       [
         ...(availableAgents ?? []),
         initialValues?.agent,
-        defaultAgentName,
+        defaultAgentInitials,
       ]
         .map((value) => value?.trim())
         .filter((value): value is string => Boolean(value))

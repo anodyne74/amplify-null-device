@@ -987,10 +987,26 @@ function RouteDetailContent() {
       let formatted = values.formattedAddress ?? values.address;
 
       if (lat === undefined || lng === undefined) {
-        const geocoded = await geocodeAddress(values.address);
-        lat = geocoded.latitude;
-        lng = geocoded.longitude;
-        formatted = geocoded.formattedAddress;
+        // The address field wasn't (re)resolved via autocomplete on this save — the
+        // common case when only another field changed. Reuse the stop's existing
+        // coordinates instead of re-geocoding, so an unchanged address can't fail
+        // the whole save on a flaky Maps API call (mirrors the fix for #58).
+        const originalStop = stops.find((s) => s.id === editingStopId);
+        const addressUnchanged = originalStop?.address?.trim() === values.address.trim();
+        if (
+          addressUnchanged &&
+          typeof originalStop?.latitude === 'number' &&
+          typeof originalStop?.longitude === 'number'
+        ) {
+          lat = originalStop.latitude;
+          lng = originalStop.longitude;
+          formatted = originalStop.formattedAddress ?? formatted;
+        } else {
+          const geocoded = await geocodeAddress(values.address);
+          lat = geocoded.latitude;
+          lng = geocoded.longitude;
+          formatted = geocoded.formattedAddress;
+        }
       }
 
       const result = await updateStop({
@@ -1006,13 +1022,14 @@ function RouteDetailContent() {
         notes: values.notes,
       });
       if (result.errors && result.errors.length > 0) {
-        setEditStopError('Failed to update stop.');
+        const firstError = result.errors[0] as { message?: string } | undefined;
+        setEditStopError(firstError?.message ?? 'Failed to update stop.');
       } else {
         setEditingStopId(null);
         await fetchStops();
       }
-    } catch {
-      setEditStopError('Failed to update stop.');
+    } catch (error) {
+      setEditStopError(error instanceof Error ? error.message : 'Failed to update stop.');
     }
     setEditingStop(false);
   };

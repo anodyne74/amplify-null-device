@@ -86,11 +86,11 @@ describe('Operator Customers Page', () => {
     fireEvent.change(screen.getByPlaceholderText('Email'), { target: { value: 'acme@example.com' } });
     fireEvent.change(screen.getByPlaceholderText('Billing rate per hour'), { target: { value: '120' } });
     fireEvent.change(screen.getByPlaceholderText('Default number of signs'), { target: { value: '4' } });
-    fireEvent.change(screen.getByPlaceholderText('Default agent name'), { target: { value: 'Jamie Lee' } });
     fireEvent.change(screen.getByPlaceholderText('Address'), { target: { value: '100 Main St' } });
-    fireEvent.change(screen.getByPlaceholderText('Agent options, one per line'), {
-      target: { value: 'Jamie Lee\nPat Doe' },
-    });
+    fireEvent.change(screen.getByLabelText('Add agent'), { target: { value: 'Jamie Lee' } });
+    fireEvent.click(screen.getByRole('button', { name: /^add agent$/i }));
+    fireEvent.change(screen.getByLabelText('Add agent'), { target: { value: 'Pat Doe' } });
+    fireEvent.click(screen.getByRole('button', { name: /^add agent$/i }));
     fireEvent.change(screen.getByPlaceholderText('Standing instructions for operators'), {
       target: { value: 'Call customer before placing signs.' },
     });
@@ -106,7 +106,6 @@ describe('Operator Customers Page', () => {
           addressLine1: '100 Main St, Fort Worth, TX',
           standingInstructions: 'Call customer before placing signs.',
           defaultNumberOfSigns: 4,
-          defaultAgentName: 'Jamie Lee',
           agentOptions: ['Jamie Lee', 'Pat Doe'],
         })
       );
@@ -156,7 +155,6 @@ describe('Operator Customers Page', () => {
     const scoped = within(editPanel as HTMLElement);
 
     fireEvent.change(scoped.getByPlaceholderText('Default number of signs'), { target: { value: '6' } });
-    fireEvent.change(scoped.getByPlaceholderText('Default agent name'), { target: { value: 'Jamie Lee' } });
 
     // Remove the "Pat Doe" agent chip and add "Alex Roe" via the tag-chip editor.
     const patDoeChip = scoped.getByText('Pat Doe').closest('span') as HTMLElement;
@@ -176,7 +174,6 @@ describe('Operator Customers Page', () => {
         expect.objectContaining({
           standingInstructions: 'Updated standing instructions.',
           defaultNumberOfSigns: 6,
-          defaultAgentName: 'Jamie Lee',
           agentOptions: ['Jamie Lee', 'Alex Roe'],
         })
       );

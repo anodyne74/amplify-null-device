@@ -13,7 +13,7 @@ describe('buildOnboardingChecklist', () => {
   });
 
   it('leaves "default agent assigned" undated even when done — no timestamp is tracked for it', () => {
-    const items = buildOnboardingChecklist({ defaultAgentName: 'Betty O\'Shea' }, [], [], []);
+    const items = buildOnboardingChecklist({ defaultAgentInitials: 'BO' }, [], [], []);
     const agent = items.find((item) => item.id === 'default-agent');
     expect(agent).toMatchObject({ done: true, when: null });
   });

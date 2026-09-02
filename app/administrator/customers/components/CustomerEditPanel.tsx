@@ -1,11 +1,10 @@
-import { useState } from 'react';
 import { Button } from '@/app/components/ui/core/Button';
 import { Card } from '@/app/components/ui/core/Card';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { Checkbox } from '@/app/components/ui/forms/Checkbox';
-import { Tag } from '@/app/components/ui/core/Tag';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
+import AgentOptionsEditor from '@/app/administrator/customers/components/AgentOptionsEditor';
 import type { Customer, CustomerStatus } from '@/app/administrator/customers/types';
 import type { ChecklistItem } from '@/lib/customerOnboardingChecklist';
 import styles from '../page.module.css';
@@ -25,7 +24,6 @@ interface CustomerEditPanelProps {
   editAddressLine1: string;
   editStandingInstructions: string;
   editDefaultNumberOfSigns: string;
-  editDefaultAgentName: string;
   editDefaultAgentInitials: string;
   editAgentOptions: string[];
   editRestrictInvitesToOwnDomain: boolean;
@@ -42,7 +40,6 @@ interface CustomerEditPanelProps {
   onEditBillingRatePerHourBlur: (value: string) => void;
   onEditStatusChange: (value: CustomerStatus) => void;
   onEditDefaultNumberOfSignsChange: (value: string) => void;
-  onEditDefaultAgentNameChange: (value: string) => void;
   onEditDefaultAgentInitialsChange: (value: string) => void;
   onEditAddressLine1Change: (value: string) => void;
   onEditResolvedAddressChange: (resolved: ResolvedAddress | null) => void;
@@ -65,7 +62,6 @@ export default function CustomerEditPanel({
   editAddressLine1,
   editStandingInstructions,
   editDefaultNumberOfSigns,
-  editDefaultAgentName,
   editDefaultAgentInitials,
   editAgentOptions,
   editRestrictInvitesToOwnDomain,
@@ -82,7 +78,6 @@ export default function CustomerEditPanel({
   onEditBillingRatePerHourBlur,
   onEditStatusChange,
   onEditDefaultNumberOfSignsChange,
-  onEditDefaultAgentNameChange,
   onEditDefaultAgentInitialsChange,
   onEditAddressLine1Change,
   onEditResolvedAddressChange,
@@ -93,13 +88,6 @@ export default function CustomerEditPanel({
   onSave,
   onCancel,
 }: CustomerEditPanelProps) {
-  const [newAgentOption, setNewAgentOption] = useState('');
-
-  const addAgent = () => {
-    if (!newAgentOption.trim()) return;
-    onAddAgentOption(newAgentOption);
-    setNewAgentOption('');
-  };
   return (
     <div className={styles.subPanel}>
       <h4 className={styles.subPanelHeading}>Edit Customer — {customer.name}</h4>
@@ -163,12 +151,6 @@ export default function CustomerEditPanel({
           disabled={editSaving}
         />
         <Input
-          value={editDefaultAgentName}
-          onChange={(event) => onEditDefaultAgentNameChange(event.target.value)}
-          placeholder="Default agent name"
-          disabled={editSaving}
-        />
-        <Input
           value={editDefaultAgentInitials}
           onChange={(event) => onEditDefaultAgentInitialsChange(event.target.value)}
           placeholder="Default agent initials (e.g., BO)"
@@ -188,35 +170,12 @@ export default function CustomerEditPanel({
             className="nd-input"
           />
         </div>
-        <div className={styles.fieldsGridFull}>
-          <p className={styles.mutedText}>Agents on this account — shown as codes on the operator&apos;s run sheet.</p>
-          <div className={styles.agentChipRow}>
-            {editAgentOptions.map((option) => (
-              <Tag key={option} onRemove={editSaving ? undefined : () => onRemoveAgentOption(option)}>
-                {option}
-              </Tag>
-            ))}
-          </div>
-          <div className={styles.agentChipAddRow}>
-            <Input
-              className={styles.agentChipAddInput}
-              value={newAgentOption}
-              onChange={(event) => setNewAgentOption(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  addAgent();
-                }
-              }}
-              placeholder="Agent name"
-              disabled={editSaving}
-              aria-label="Add agent"
-            />
-            <Button type="button" variant="ghost" size="sm" disabled={editSaving || !newAgentOption.trim()} onClick={addAgent}>
-              Add agent
-            </Button>
-          </div>
-        </div>
+        <AgentOptionsEditor
+          agentOptions={editAgentOptions}
+          onAdd={onAddAgentOption}
+          onRemove={onRemoveAgentOption}
+          disabled={editSaving}
+        />
         <div className={styles.fieldsGridFull}>
           <Input
             value={editStandingInstructions}

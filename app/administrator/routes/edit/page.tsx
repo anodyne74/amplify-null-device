@@ -31,7 +31,7 @@ type CustomerOption = {
   addressLine1?: string | null;
   standingInstructions?: string | null;
   defaultNumberOfSigns?: number | null;
-  defaultAgentName?: string | null;
+  defaultAgentInitials?: string | null;
   agentOptions?: string[] | null;
 };
 
@@ -189,7 +189,7 @@ function RouteEditContent() {
             addressLine1: c.addressLine1 ?? null,
             standingInstructions: c.standingInstructions ?? null,
             defaultNumberOfSigns: c.defaultNumberOfSigns ?? null,
-            defaultAgentName: c.defaultAgentName ?? null,
+            defaultAgentInitials: c.defaultAgentInitials ?? null,
             agentOptions: c.agentOptions ?? null,
           }))
         );
@@ -492,7 +492,7 @@ function RouteEditContent() {
 
     return Array.from(new Set([...customerAgents, ...routeAgents]));
   }, [selectedCustomer?.agentOptions, stops]);
-  const defaultAgentForStops = selectedCustomer?.defaultAgentName ?? availableAgentsForStops[0] ?? undefined;
+  const defaultAgentForStops = selectedCustomer?.defaultAgentInitials ?? availableAgentsForStops[0] ?? undefined;
 
   if (loading) {
     return <LoadingSpinner message="Loading route..." />;
@@ -626,7 +626,7 @@ function RouteEditContent() {
                   addressSearchOrigin={customerAddressOrigin}
                   standingInstructions={selectedCustomer?.standingInstructions ?? undefined}
                   defaultNumberOfSigns={selectedCustomer?.defaultNumberOfSigns ?? undefined}
-                  defaultAgentName={defaultAgentForStops}
+                  defaultAgentInitials={defaultAgentForStops}
                   availableAgents={availableAgentsForStops}
                   isSubmitting={stopSaving}
                   submitLabel="Add Stop"
@@ -657,7 +657,7 @@ function RouteEditContent() {
                           addressSearchOrigin={customerAddressOrigin}
                           standingInstructions={selectedCustomer?.standingInstructions ?? undefined}
                           defaultNumberOfSigns={selectedCustomer?.defaultNumberOfSigns ?? undefined}
-                          defaultAgentName={defaultAgentForStops}
+                          defaultAgentInitials={defaultAgentForStops}
                           availableAgents={availableAgentsForStops}
                           isSubmitting={stopSaving}
                           submitLabel="Save Stop"

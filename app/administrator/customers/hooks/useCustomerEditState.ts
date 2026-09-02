@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import type { Customer, CustomerStatus } from '@/app/administrator/customers/types';
+import { addAgentOption as addAgentOptionTo, removeAgentOption as removeAgentOptionFrom } from '@/lib/customerDefaults';
 
 interface OpenEditPanelParams {
   customer: Customer;
@@ -21,7 +22,6 @@ export function useCustomerEditState() {
   const [editStandingInstructions, setEditStandingInstructions] = useState('');
   const [editOriginalStandingInstructions, setEditOriginalStandingInstructions] = useState('');
   const [editDefaultNumberOfSigns, setEditDefaultNumberOfSigns] = useState('');
-  const [editDefaultAgentName, setEditDefaultAgentName] = useState('');
   const [editDefaultAgentInitials, setEditDefaultAgentInitials] = useState('');
   const [editAgentOptions, setEditAgentOptions] = useState<string[]>([]);
   const [editRestrictInvitesToOwnDomain, setEditRestrictInvitesToOwnDomain] = useState(false);
@@ -31,15 +31,11 @@ export function useCustomerEditState() {
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
 
   const addAgentOption = (value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    setEditAgentOptions((prev) =>
-      prev.some((option) => option.toLowerCase() === trimmed.toLowerCase()) ? prev : [...prev, trimmed]
-    );
+    setEditAgentOptions((prev) => addAgentOptionTo(prev, value));
   };
 
   const removeAgentOption = (value: string) => {
-    setEditAgentOptions((prev) => prev.filter((option) => option !== value));
+    setEditAgentOptions((prev) => removeAgentOptionFrom(prev, value));
   };
 
   const resetEditFeedback = () => {
@@ -70,7 +66,6 @@ export function useCustomerEditState() {
     setEditDefaultNumberOfSigns(
       typeof customer.defaultNumberOfSigns === 'number' ? String(customer.defaultNumberOfSigns) : ''
     );
-    setEditDefaultAgentName(customer.defaultAgentName ?? '');
     setEditDefaultAgentInitials(customer.defaultAgentInitials ?? '');
     setEditAgentOptions(agentOptions);
     setEditRestrictInvitesToOwnDomain(Boolean(customer.restrictInvitesToOwnDomain));
@@ -99,8 +94,6 @@ export function useCustomerEditState() {
     editOriginalStandingInstructions,
     editDefaultNumberOfSigns,
     setEditDefaultNumberOfSigns,
-    editDefaultAgentName,
-    setEditDefaultAgentName,
     editDefaultAgentInitials,
     setEditDefaultAgentInitials,
     editAgentOptions,

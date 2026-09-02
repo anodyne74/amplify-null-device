@@ -124,6 +124,19 @@ export function normalizeCustomerDefaults<T extends CustomerDefaultsInput>(input
   };
 }
 
+/** Add an agent option, case-insensitively deduped against what's already there. */
+export function addAgentOption(options: string[], value: string): string[] {
+  const trimmed = value.trim();
+  if (!trimmed) return options;
+  return options.some((option) => option.toLowerCase() === trimmed.toLowerCase())
+    ? options
+    : [...options, trimmed];
+}
+
+export function removeAgentOption(options: string[], value: string): string[] {
+  return options.filter((option) => option !== value);
+}
+
 export function parseAgentOptionsInput(value: string) {
   return value
     .split(/\r?\n|,/)

@@ -154,7 +154,7 @@ function RouteDetailContent() {
   const [customerDefaults, setCustomerDefaults] = useState<{
     standingInstructions?: string | null;
     defaultNumberOfSigns?: number | null;
-    defaultAgentName?: string | null;
+    defaultAgentInitials?: string | null;
     agentOptions?: string[] | null;
   } | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
@@ -411,7 +411,7 @@ function RouteDetailContent() {
             billingRatePerHour?: number | null;
             standingInstructions?: string | null;
             defaultNumberOfSigns?: number | null;
-            defaultAgentName?: string | null;
+            defaultAgentInitials?: string | null;
             agentOptions?: string[] | null;
           } | null;
           setCustomerName(customer?.name || 'Unknown customer');
@@ -419,7 +419,7 @@ function RouteDetailContent() {
           setCustomerDefaults({
             standingInstructions: customer?.standingInstructions ?? null,
             defaultNumberOfSigns: customer?.defaultNumberOfSigns ?? null,
-            defaultAgentName: customer?.defaultAgentName ?? null,
+            defaultAgentInitials: customer?.defaultAgentInitials ?? null,
             agentOptions: customer?.agentOptions ?? null,
           });
 
@@ -1168,7 +1168,7 @@ function RouteDetailContent() {
 
     return Array.from(new Set([...customerAgents, ...routeAgents]));
   }, [customerDefaults?.agentOptions, stops]);
-  const defaultAgentForStops = customerDefaults?.defaultAgentName ?? availableAgentsForStops[0] ?? undefined;
+  const defaultAgentForStops = customerDefaults?.defaultAgentInitials ?? availableAgentsForStops[0] ?? undefined;
   const placementDistance = phaseDistanceKm.signs_placed;
   const pickupDistance = phaseDistanceKm.signs_picked_up;
   const isPickupExecutionPhase = route?.status === 'in_progress' && route.executionPhase === 'pickup';
@@ -1792,7 +1792,7 @@ function RouteDetailContent() {
                   addressSearchOrigin={customerAddressOrigin}
                   standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                   defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
-                  defaultAgentName={defaultAgentForStops}
+                  defaultAgentInitials={defaultAgentForStops}
                   availableAgents={availableAgentsForStops}
                   isSubmitting={addingStop}
                   error={addStopError}
@@ -1853,7 +1853,7 @@ function RouteDetailContent() {
                           addressSearchOrigin={customerAddressOrigin}
                           standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                           defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
-                          defaultAgentName={defaultAgentForStops}
+                          defaultAgentInitials={defaultAgentForStops}
                           availableAgents={availableAgentsForStops}
                           isSubmitting={editingStop}
                           error={editStopError}

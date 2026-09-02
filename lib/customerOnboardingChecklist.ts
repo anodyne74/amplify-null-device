@@ -6,7 +6,7 @@
 
 export interface ChecklistCustomer {
   createdAt?: string | null;
-  defaultAgentName?: string | null;
+  defaultAgentInitials?: string | null;
 }
 
 export interface ChecklistCustomerUser {
@@ -66,7 +66,7 @@ export function buildOnboardingChecklist(
     {
       id: 'default-agent',
       label: 'Default agent assigned',
-      done: Boolean(customer.defaultAgentName?.trim()),
+      done: Boolean(customer.defaultAgentInitials?.trim()),
       when: null,
     },
     {

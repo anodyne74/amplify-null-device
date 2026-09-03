@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
-import { getUserDisplayName } from '@/lib/amplify-config';
+import { fetchUserDisplayName } from '@/lib/amplify-config';
 import {
   getCustomer,
   getCustomerPortalContext,
@@ -41,7 +41,7 @@ interface UserSettingsPageProps {
 export default function UserSettingsPage({ title, roleVariant }: UserSettingsPageProps) {
   const { user } = useAuthenticator();
   const { mode, setMode } = useThemeMode();
-  const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
+  const [fallbackDisplayName, setFallbackDisplayName] = useState('');
 
   const [name, setName] = useState('');
   const [defaultTheme, setDefaultTheme] = useState<ThemeModeSetting>('dark');
@@ -51,6 +51,19 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
   const [customerDetails, setCustomerDetails] = useState<CustomerSettingsDetails | null>(null);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    let cancelled = false;
+
+    void fetchUserDisplayName().then((name) => {
+      if (!cancelled) setFallbackDisplayName(name || '');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
 
   useEffect(() => {
     if (!user?.userId) return;

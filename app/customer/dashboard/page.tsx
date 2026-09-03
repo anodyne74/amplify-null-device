@@ -6,7 +6,7 @@ import { useAuthenticator } from '@aws-amplify/ui-react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import type { Customer, Stop, Route } from '@/amplify/types';
-import { getUserDisplayName } from '@/lib/amplify-config';
+import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getCustomer, getCustomerPortalContext, getUserSettings } from '@/lib/queries';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
@@ -32,8 +32,8 @@ type CustomerInvoice = {
  */
 export default function CustomerDashboard() {
   const { user } = useAuthenticator();
-  const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
-  const [displayName, setDisplayName] = useState(fallbackDisplayName);
+  const [fallbackDisplayName, setFallbackDisplayName] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [customerLoadError, setCustomerLoadError] = useState<string | null>(null);
@@ -62,6 +62,19 @@ export default function CustomerDashboard() {
     () => aggregateRouteData(completedRoutesForAnalytics, analyticsInvoices, selectedPeriod),
     [completedRoutesForAnalytics, analyticsInvoices, selectedPeriod]
   );
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    let cancelled = false;
+
+    void fetchUserDisplayName().then((name) => {
+      if (!cancelled) setFallbackDisplayName(name || '');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
 
   useEffect(() => {
     setDisplayName(fallbackDisplayName);

@@ -1,3 +1,4 @@
+import { fetchAuthSession } from 'aws-amplify/auth';
 import {
   getUserGroups,
   isCustomer,
@@ -6,8 +7,15 @@ import {
   getUserEmail,
   getUsername,
   getUserDisplayName,
+  fetchUserDisplayName,
   hasGroup,
 } from './amplify-config';
+
+jest.mock('aws-amplify/auth', () => ({
+  fetchAuthSession: jest.fn(),
+}));
+
+const mockFetchAuthSession = fetchAuthSession as jest.MockedFunction<typeof fetchAuthSession>;
 
 describe('amplify-config utilities', () => {
   // Mock user with customer group
@@ -185,6 +193,42 @@ describe('amplify-config utilities', () => {
           },
         })
       ).toBeUndefined();
+    });
+  });
+
+  describe('fetchUserDisplayName', () => {
+    afterEach(() => {
+      mockFetchAuthSession.mockReset();
+    });
+
+    it('returns the given_name claim from the active session', async () => {
+      mockFetchAuthSession.mockResolvedValue({
+        tokens: { idToken: { payload: { given_name: '  Aishling  ', name: 'Aishling OKeeffe' } } },
+      } as any);
+
+      expect(await fetchUserDisplayName()).toBe('Aishling');
+    });
+
+    it('falls back to the name claim when given_name is absent', async () => {
+      mockFetchAuthSession.mockResolvedValue({
+        tokens: { idToken: { payload: { name: 'Aishling' } } },
+      } as any);
+
+      expect(await fetchUserDisplayName()).toBe('Aishling');
+    });
+
+    it('returns undefined when no name claim is present', async () => {
+      mockFetchAuthSession.mockResolvedValue({
+        tokens: { idToken: { payload: { email: 'aishling@example.com' } } },
+      } as any);
+
+      expect(await fetchUserDisplayName()).toBeUndefined();
+    });
+
+    it('returns undefined when fetching the session fails', async () => {
+      mockFetchAuthSession.mockRejectedValue(new Error('no session'));
+
+      expect(await fetchUserDisplayName()).toBeUndefined();
     });
   });
 

@@ -5,7 +5,7 @@ import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import AdminShell from '@/app/administrator/components/AdminShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
-import { getUserDisplayName } from '@/lib/amplify-config';
+import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/queries';
 
 const ADMIN_NAV = [
@@ -28,9 +28,22 @@ const ADMIN_NAV = [
  */
 export default function AdministratorLayout({ children }: { children: React.ReactNode }) {
   const { signOut, user } = useAuthenticator();
-  const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
-  const [userDisplayName, setUserDisplayName] = useState(fallbackDisplayName);
+  const [fallbackDisplayName, setFallbackDisplayName] = useState('');
+  const [userDisplayName, setUserDisplayName] = useState('');
   const { setMode: applyThemeMode } = useThemeMode();
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    let cancelled = false;
+
+    void fetchUserDisplayName().then((name) => {
+      if (!cancelled) setFallbackDisplayName(name || '');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
 
   useEffect(() => {
     setUserDisplayName(fallbackDisplayName);

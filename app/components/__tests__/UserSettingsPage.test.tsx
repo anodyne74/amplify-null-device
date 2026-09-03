@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const useAuthenticatorMock = jest.fn();
 const setModeMock = jest.fn();
-const getUserDisplayNameMock = jest.fn();
+const fetchUserDisplayNameMock = jest.fn();
 const getUserSettingsMock = jest.fn();
 const upsertUserSettingsMock = jest.fn();
 const getCustomerPortalContextMock = jest.fn();
@@ -19,7 +19,7 @@ jest.mock('@/app/components/AmplifyThemeProvider', () => ({
 }));
 
 jest.mock('@/lib/amplify-config', () => ({
-  getUserDisplayName: (...args: unknown[]) => getUserDisplayNameMock(...args),
+  fetchUserDisplayName: (...args: unknown[]) => fetchUserDisplayNameMock(...args),
 }));
 
 jest.mock('@/lib/queries', () => ({
@@ -35,7 +35,7 @@ describe('UserSettingsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useAuthenticatorMock.mockReturnValue({ user: { userId: 'user-1' } });
-    getUserDisplayNameMock.mockReturnValue('Fallback Name');
+    fetchUserDisplayNameMock.mockResolvedValue('Fallback Name');
     getUserSettingsMock.mockResolvedValue({ data: null, errors: undefined });
     upsertUserSettingsMock.mockResolvedValue({ data: { id: 'settings-1' }, errors: undefined });
     getCustomerPortalContextMock.mockResolvedValue({ role: 'read_only', customerId: 'customer-1', errors: undefined });

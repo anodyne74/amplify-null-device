@@ -47,12 +47,6 @@ jest.mock('@/lib/queries', () => ({
   getCustomerPortalContext: jest.fn(),
 }));
 
-jest.mock('@/app/components/ThemeModeSelect', () => {
-  return function MockThemeModeSelect() {
-    return null;
-  };
-});
-
 jest.mock('@/app/components/AmplifyThemeProvider', () => ({
   useThemeMode: () => ({ mode: 'system', resolvedMode: 'dark', setMode: jest.fn() }),
 }));

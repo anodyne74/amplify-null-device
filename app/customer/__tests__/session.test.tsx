@@ -39,7 +39,7 @@ jest.mock('@/app/components/ProtectedRoute', () => {
 // Mock utilities
 jest.mock('@/lib/amplify-config', () => ({
   getUserEmail: jest.fn(() => 'test@example.com'),
-  getUserDisplayName: jest.fn(() => 'test@example.com'),
+  fetchUserDisplayName: jest.fn(() => Promise.resolve('test@example.com')),
   getUserGroups: jest.fn(() => ['customer']),
 }));
 
@@ -184,14 +184,16 @@ describe('Customer Session Management Integration', () => {
     expect(mockSignOut).not.toHaveBeenCalled();
   });
 
-  it('displays user email in sidebar', () => {
+  it('displays user email in sidebar', async () => {
     render(
       <CustomerLayout>
         <div>Test Content</div>
       </CustomerLayout>
     );
 
-    expect(screen.getByText(/test@example.com/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/test@example.com/)).toBeInTheDocument();
+    });
   });
 
   it('shows navigation links', () => {

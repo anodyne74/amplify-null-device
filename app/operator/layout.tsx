@@ -5,7 +5,7 @@ import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import OperatorShell from '@/app/operator/components/OperatorShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
-import { getUserDisplayName } from '@/lib/amplify-config';
+import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/queries';
 
 const OPERATOR_NAV = [
@@ -23,9 +23,22 @@ const OPERATOR_NAV = [
  */
 export default function OperatorLayout({ children }: { children: React.ReactNode }) {
   const { signOut, user } = useAuthenticator();
-  const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
-  const [userDisplayName, setUserDisplayName] = useState(fallbackDisplayName);
+  const [fallbackDisplayName, setFallbackDisplayName] = useState('');
+  const [userDisplayName, setUserDisplayName] = useState('');
   const { setMode: applyThemeMode } = useThemeMode();
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    let cancelled = false;
+
+    void fetchUserDisplayName().then((name) => {
+      if (!cancelled) setFallbackDisplayName(name || '');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
 
   useEffect(() => {
     setUserDisplayName(fallbackDisplayName);

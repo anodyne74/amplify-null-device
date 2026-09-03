@@ -269,13 +269,18 @@ describe('Home Redirect', () => {
       });
     });
 
-    it('renders the sign-in form and no embedded Authenticator by default', () => {
+    it('renders the sign-in form, with the embedded Authenticator mounted but hidden', () => {
       render(<Home />);
 
       expect(screen.getByLabelText('Work email')).toBeInTheDocument();
       expect(screen.getByLabelText('Password')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
-      expect(screen.queryByTestId('authenticator')).not.toBeInTheDocument();
+      // Mounted unconditionally (rather than only once "Forgot password?" is
+      // clicked) so the shared Authenticator machine's one-time INIT event
+      // resolves before the user's first click instead of racing against it
+      // -- see app/page.tsx and project_amplify_authenticator_pattern memory.
+      expect(screen.getByTestId('authenticator')).toBeInTheDocument();
+      expect(screen.getByTestId('authenticator')).not.toBeVisible();
     });
 
     it('calls signIn with the entered email and password', async () => {
@@ -306,12 +311,12 @@ describe('Home Redirect', () => {
       ).toBeInTheDocument();
     });
 
-    it('switches to the embedded Authenticator on forgot password, and back again', () => {
+    it('reveals the embedded Authenticator on forgot password, and hides it again on back', () => {
       render(<Home />);
 
       fireEvent.click(screen.getByRole('link', { name: /forgot password/i }));
 
-      expect(screen.getByTestId('authenticator')).toBeInTheDocument();
+      expect(screen.getByTestId('authenticator')).toBeVisible();
       expect(mockToForgotPassword).toHaveBeenCalledTimes(1);
       expect(screen.queryByLabelText('Work email')).not.toBeInTheDocument();
 
@@ -319,7 +324,9 @@ describe('Home Redirect', () => {
 
       expect(mockToSignIn).toHaveBeenCalledTimes(1);
       expect(screen.getByLabelText('Work email')).toBeInTheDocument();
-      expect(screen.queryByTestId('authenticator')).not.toBeInTheDocument();
+      // Still mounted (never unmounted), just hidden again.
+      expect(screen.getByTestId('authenticator')).toBeInTheDocument();
+      expect(screen.getByTestId('authenticator')).not.toBeVisible();
     });
 
     describe('temporary password (admin-created account)', () => {

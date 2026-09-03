@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
+import { Amplify } from 'aws-amplify';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import outputs from '@/amplify_outputs.json';
@@ -11,7 +12,13 @@ const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.
 
 let _client: ReturnType<typeof generateClient<Schema>> | null = null;
 function getDataClient() {
-  if (!_client) _client = generateClient<Schema>();
+  if (!_client) {
+    // See sync-profile-access/route.ts for why this configure() + authMode:
+    // 'iam' pairing is required -- without it, generateClient() runs against
+    // an empty resourcesConfig and every call silently fails.
+    Amplify.configure(outputs);
+    _client = generateClient<Schema>({ authMode: 'iam' });
+  }
   return _client;
 }
 

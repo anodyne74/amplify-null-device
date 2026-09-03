@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
+import { Amplify } from 'aws-amplify';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import outputs from '@/amplify_outputs.json';
@@ -9,7 +10,18 @@ const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.
 
 let _client: ReturnType<typeof generateClient<Schema>> | null = null;
 function getDataClient() {
-  if (!_client) _client = generateClient<Schema>();
+  if (!_client) {
+    // Amplify is never configured elsewhere in this SSR process (unlike the
+    // browser app, which calls configureAmplify() from AmplifyAuthProvider) --
+    // without this, generateClient() runs against an empty resourcesConfig and
+    // every call silently fails. authMode: 'iam' signs requests with the SSR
+    // compute role's own credentials -- AppSync's generated resolvers grant
+    // unconditional access to any non-Identity-Pool IAM caller, the same
+    // elevated-access mechanism the customer-access-activation Lambda uses
+    // via getAmplifyDataClientConfig().
+    Amplify.configure(outputs);
+    _client = generateClient<Schema>({ authMode: 'iam' });
+  }
   return _client;
 }
 

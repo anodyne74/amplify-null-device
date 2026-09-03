@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
 import type { Customer } from '@/app/administrator/customers/types';
@@ -8,7 +8,6 @@ interface CustomerTableRowProps {
   customer: Customer;
   isEditOpen: boolean;
   onToggleEdit: () => void;
-  onDelete: () => void;
   editPanel?: ReactNode;
 }
 
@@ -28,10 +27,8 @@ export default function CustomerTableRow({
   customer,
   isEditOpen,
   onToggleEdit,
-  onDelete,
   editPanel,
 }: CustomerTableRowProps) {
-  const [actionsOpen, setActionsOpen] = useState(false);
   const statusKey = String(customer.status ?? 'active').toLowerCase();
 
   return (
@@ -50,41 +47,14 @@ export default function CustomerTableRow({
             type="button"
             variant="secondary"
             size="sm"
-            aria-expanded={actionsOpen}
-            aria-controls={`customer-actions-${customer.id}`}
-            aria-label={`More customer actions for ${customer.name}`}
-            onClick={() => setActionsOpen((open) => !open)}
+            aria-expanded={isEditOpen}
+            onClick={onToggleEdit}
+            aria-label={`${isEditOpen ? 'Close edit panel for' : 'Edit'} customer ${customer.name}`}
           >
-            Manage
+            {isEditOpen ? 'Close Edit' : 'Edit'}
           </Button>
         </td>
       </tr>
-      {actionsOpen && (
-        <tr className={styles.expandedRow}>
-          <td colSpan={5}>
-            <div className={styles.expandedPanel} id={`customer-actions-${customer.id}`}>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={onToggleEdit}
-                aria-label={`${isEditOpen ? 'Close edit panel for' : 'Edit'} customer ${customer.name}`}
-              >
-                {isEditOpen ? 'Close Edit' : 'Edit'}
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                size="sm"
-                onClick={onDelete}
-                aria-label={`Delete customer ${customer.name}`}
-              >
-                Delete
-              </Button>
-            </div>
-          </td>
-        </tr>
-      )}
       {isEditOpen && (
         <tr>
           <td colSpan={5}>{editPanel}</td>

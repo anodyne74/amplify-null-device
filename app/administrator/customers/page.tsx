@@ -496,7 +496,7 @@ export default function CustomersAdminPage() {
                     <th scope="col">Company Name</th>
                     <th scope="col">Correspondence Email</th>
                     <SortableHeader label="Status" sortKey="status" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
-                    <th scope="col">Manage</th>
+                    <th scope="col">Edit</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -506,7 +506,6 @@ export default function CustomersAdminPage() {
                       customer={customer}
                       isEditOpen={expandedEditPanel === customer.id}
                       onToggleEdit={() => toggleEditPanel(customer)}
-                      onDelete={() => setDeleteTarget(customer)}
                       editPanel={(
                         <CustomerEditPanel
                           customer={customer}
@@ -551,6 +550,7 @@ export default function CustomersAdminPage() {
                             void handleUpdateCustomer(customer.id);
                           }}
                           onCancel={() => toggleEditPanel(customer)}
+                          onDelete={() => setDeleteTarget(customer)}
                         />
                       )}
                     />

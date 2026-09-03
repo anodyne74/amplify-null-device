@@ -59,6 +59,10 @@
   flex-wrap: wrap;
 }
 
+.deleteAction {
+  margin-left: auto;
+}
+
 .retryRow {
   margin-top: var(--space-4);
 }
@@ -87,17 +91,6 @@
 
 .manageCell {
   text-align: right;
-}
-
-.expandedRow {
-  background: var(--surface-hover);
-}
-
-.expandedPanel {
-  display: flex;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  padding: var(--space-3) 0;
 }
 
 .subPanel {
@@ -185,9 +178,9 @@
   color: var(--text-subtle);
 }
 
-/* Onboarding checklist */
+/* Edit panel sections — Customer Details / Standing Instructions / Onboarding checklist */
 
-.checklistCard {
+.sectionCard {
   margin-top: var(--space-5);
 }
 

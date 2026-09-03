@@ -15,6 +15,7 @@ function getCustomerUserModel() {
     | {
         list: (args: unknown) => Promise<{ data?: unknown[]; errors?: unknown[]; nextToken?: string | null }>;
         create: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
+        update: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
         delete: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
       }
     | undefined;
@@ -988,6 +989,36 @@ export async function createCustomerUser(input: {
     return { data, errors };
   } catch (error) {
     console.error('Error creating customer user:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
+/**
+ * Update a CustomerUser record's display name and/or role.
+ * Only accessible by administrators.
+ */
+export async function updateCustomerUser(input: {
+  id: string;
+  name?: string;
+  role?: 'account_owner' | 'read_only';
+  // Only passed when this update re-keys the denormalized owner sub after a
+  // promotion -- see the comment on handleUpdateCustomerUser in
+  // app/administrator/users/page.tsx.
+  accountOwnerSub?: string;
+}) {
+  try {
+    const { model, error: modelError } = getCustomerUserModel();
+    if (!model) {
+      return { data: null, errors: [modelError] };
+    }
+
+    const { data, errors } = await model.update(input);
+    if (errors) {
+      console.error('Errors updating customer user:', errors);
+    }
+    return { data, errors };
+  } catch (error) {
+    console.error('Error updating customer user:', error);
     return { data: null, errors: [error] };
   }
 }

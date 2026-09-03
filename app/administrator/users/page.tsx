@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import AdminRowMenu from '@/app/components/AdminRowMenu';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
@@ -14,9 +13,11 @@ import { Select } from '@/app/components/ui/forms/Select';
 import { Radio } from '@/app/components/ui/forms/Radio';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { StatTile } from '@/app/components/ui/data/StatTile';
+import { Dialog } from '@/app/components/ui/feedback/Dialog';
 import {
   createCustomerUser,
   deleteCustomerUser,
+  updateCustomerUser,
   listAllCustomerUsers,
   listCustomers,
   syncViewerSubsForCustomer,
@@ -96,6 +97,9 @@ export default function UsersAdminPage() {
   const [newUserRole, setNewUserRole] = useState<'account_owner' | 'read_only'>('read_only');
   const [newUserName, setNewUserName] = useState('');
   const [removalTarget, setRemovalTarget] = useState<CustomerUser | null>(null);
+  const [editTarget, setEditTarget] = useState<CustomerUser | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState<'account_owner' | 'read_only'>('read_only');
 
   const callAdminApi = useCallback(async (body: Record<string, unknown>) => {
     const session = await fetchAuthSession();
@@ -200,16 +204,12 @@ export default function UsersAdminPage() {
     [customers]
   );
 
-  const sortedAllCustomerUsers = useMemo(() => {
-    return [...allCustomerUsers].sort((a, b) => {
-      const customerCompare = (customerNameById.get(a.customerId) || '').localeCompare(
-        customerNameById.get(b.customerId) || ''
-      );
-      if (customerCompare !== 0) return customerCompare;
+  const sortedCustomerUsersForSelected = useMemo(() => {
+    return [...customerUsersForSelected].sort((a, b) => {
       if (a.role !== b.role) return a.role === 'account_owner' ? -1 : 1;
       return (a.name ?? a.email ?? '').localeCompare(b.name ?? b.email ?? '');
     });
-  }, [allCustomerUsers, customerNameById]);
+  }, [customerUsersForSelected]);
 
   const selectedUser = useMemo(
     () => users.find((user) => user.username === selectedUsername),
@@ -433,6 +433,89 @@ export default function UsersAdminPage() {
     setRemovalTarget(null);
   };
 
+  const openEditDialog = (target: CustomerUser) => {
+    setEditTarget(target);
+    setEditName(target.name ?? '');
+    setEditRole(target.role ?? 'read_only');
+    setAccessError(null);
+    setAccessSuccess(null);
+  };
+
+  const closeEditDialog = () => {
+    if (accessPending) return;
+    setEditTarget(null);
+  };
+
+  const handleUpdateCustomerUser = async () => {
+    if (!editTarget) return;
+
+    const trimmedName = editName.trim();
+    const roleChanged = editRole !== editTarget.role;
+
+    if (roleChanged) {
+      const otherOwner = customerUsersForSelected.find(
+        (u) => u.role === 'account_owner' && u.id !== editTarget.id
+      );
+      if (editRole === 'account_owner' && otherOwner) {
+        setAccessError(
+          'This customer already has a primary contact. Remove or change the current owner before assigning a new one.'
+        );
+        return;
+      }
+      if (editRole === 'read_only' && editTarget.role === 'account_owner') {
+        setAccessError('Promote a teammate to primary contact before changing this one to read-only.');
+        return;
+      }
+    }
+
+    setAccessPending(true);
+    setAccessError(null);
+    setAccessSuccess(null);
+
+    // Promoting a user to account owner re-keys the denormalized accountOwnerSub
+    // carried on every CustomerUser row for this customer -- it must stay the
+    // same value across all rows (see amplify/data/resource.ts) so the new
+    // owner's ownerDefinedIn('accountOwnerSub') grant actually resolves.
+    const promotingToOwner = roleChanged && editRole === 'account_owner';
+    const newOwnerSub = editTarget.userSub;
+
+    const result = await updateCustomerUser({
+      id: editTarget.id,
+      name: trimmedName || undefined,
+      role: editRole,
+      ...(promotingToOwner ? { accountOwnerSub: newOwnerSub } : {}),
+    });
+
+    if (result.errors && result.errors.length > 0) {
+      setAccessError('Failed to update user.');
+      setAccessPending(false);
+      return;
+    }
+
+    if (promotingToOwner) {
+      const rowsToRekey = customerUsersForSelected.filter(
+        (u) => u.id !== editTarget.id && u.accountOwnerSub !== newOwnerSub
+      );
+      await Promise.all(rowsToRekey.map((u) => updateCustomerUser({ id: u.id, accountOwnerSub: newOwnerSub })));
+    }
+
+    setAllCustomerUsers((prev) =>
+      prev.map((u) => {
+        if (u.id === editTarget.id) {
+          return { ...u, name: trimmedName || undefined, role: editRole, ...(promotingToOwner ? { accountOwnerSub: newOwnerSub } : {}) };
+        }
+        if (promotingToOwner && u.customerId === editTarget.customerId) {
+          return { ...u, accountOwnerSub: newOwnerSub };
+        }
+        return u;
+      })
+    );
+
+    setAccessSuccess('User updated.');
+    setAccessPending(false);
+    setEditTarget(null);
+  };
+
   const assignGroup = async (groupName: (typeof GROUPS)[number]) => {
     if (!selectedUsername) return;
     setPending(true);
@@ -630,9 +713,9 @@ export default function UsersAdminPage() {
         </div>
         <ConfirmDialog
           open={removalTarget !== null}
-          title="Remove customer access?"
-          message={`Remove ${removalTarget?.name ?? removalTarget?.email ?? 'this user'} from customer access? Their access to this customer's routes and stops will be revoked.`}
-          confirmLabel="Remove User"
+          title="Revoke customer access?"
+          message={`Revoke ${removalTarget?.name ?? removalTarget?.email ?? 'this user'}'s customer access? Their access to this customer's routes and stops will be revoked.`}
+          confirmLabel="Revoke Access"
           tone="danger"
           busy={accessPending}
           onConfirm={() => {
@@ -642,6 +725,80 @@ export default function UsersAdminPage() {
             if (!accessPending) setRemovalTarget(null);
           }}
         />
+
+        <Dialog
+          open={editTarget !== null}
+          title={editTarget ? `Edit ${editTarget.name ?? editTarget.email ?? 'user'}` : ''}
+          description={editTarget ? customerNameById.get(editTarget.customerId) : undefined}
+          onClose={closeEditDialog}
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="danger"
+                disabled={accessPending}
+                onClick={() => {
+                  if (editTarget) {
+                    setRemovalTarget(editTarget);
+                    setEditTarget(null);
+                  }
+                }}
+              >
+                Revoke Access
+              </Button>
+              <Button type="button" variant="secondary" disabled={accessPending} onClick={closeEditDialog}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                loading={accessPending}
+                disabled={accessPending}
+                onClick={() => void handleUpdateCustomerUser()}
+              >
+                {accessPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </>
+          }
+        >
+          {accessError && (
+            <div className={styles.errorBanner} role="alert" aria-live="assertive">
+              {accessError}
+            </div>
+          )}
+          <Field label="Display Name" htmlFor="editCustomerUserName">
+            <Input
+              id="editCustomerUserName"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder="Display name"
+              disabled={accessPending}
+            />
+          </Field>
+          <div className={styles.roleFieldset} role="radiogroup" aria-label="Role">
+            <span className={styles.fieldLabel}>Role</span>
+            <div className={styles.roleOptions}>
+              <Radio
+                name="editCustomerUserRole"
+                value="account_owner"
+                checked={editRole === 'account_owner'}
+                onChange={() => setEditRole('account_owner')}
+                disabled={accessPending || (editTarget?.role !== 'account_owner' && hasAccountOwner)}
+                label="Primary contact (account owner)"
+                description="Manages billing, standing orders, and invoices; can invite and remove teammates."
+              />
+              <Radio
+                name="editCustomerUserRole"
+                value="read_only"
+                checked={editRole === 'read_only'}
+                onChange={() => setEditRole('read_only')}
+                disabled={accessPending || editTarget?.role === 'account_owner'}
+                label="Read-only"
+                description="Views routes and delivery stops, and can add delivery instructions. Can't manage billing or invites."
+              />
+            </div>
+          </div>
+        </Dialog>
 
         <Card
           title="Manage User Groups"
@@ -691,34 +848,133 @@ export default function UsersAdminPage() {
           />
         </Card>
 
+        {/* ── Invite a user ── */}
+        <Card
+          title="Invite a user"
+          subtitle="They'll get a login in the customer group, assigned to the customer below as either primary contact (account owner) or read-only."
+        >
+          <div className={styles.form}>
+            {accessError && (
+              <div className={styles.errorBanner} role="alert" aria-live="assertive">
+                {accessError}
+              </div>
+            )}
+            {accessSuccess && (
+              <div className={styles.successBanner} role="status" aria-live="polite">
+                {accessSuccess}
+              </div>
+            )}
+
+            <Field label="Customer" htmlFor="customerSelect">
+              <Select
+                id="customerSelect"
+                value={selectedCustomerId}
+                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                disabled={accessPending}
+                aria-label="Customer for access management"
+              >
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </Select>
+            </Field>
+
+            {selectedCustomerId && (
+              <>
+                <p className={styles.mutedText}>
+                  Enter the user email. Users in the customer group must be assigned to a customer.
+                </p>
+                {!hasAccountOwner && (
+                  <p className={styles.mutedText}>
+                    This customer has no primary contact yet. Assign a primary contact first before adding read-only users.
+                  </p>
+                )}
+                <div className={styles.roleFieldset} role="radiogroup" aria-label="Role for new customer user">
+                  <span className={styles.fieldLabel}>Role</span>
+                  <div className={styles.roleOptions}>
+                    <Radio
+                      name="newCustomerRole"
+                      value="account_owner"
+                      checked={newUserRole === 'account_owner'}
+                      onChange={() => setNewUserRole('account_owner')}
+                      disabled={accessPending}
+                      label="Primary contact (account owner)"
+                      description="Manages billing, standing orders, and invoices; can invite and remove teammates."
+                    />
+                    <Radio
+                      name="newCustomerRole"
+                      value="read_only"
+                      checked={newUserRole === 'read_only'}
+                      onChange={() => setNewUserRole('read_only')}
+                      disabled={accessPending || !hasAccountOwner}
+                      label="Read-only"
+                      description="Views routes and delivery stops, and can add delivery instructions. Can't manage billing or invites."
+                    />
+                  </div>
+                </div>
+                <div className={styles.inviteForm}>
+                  <Field label="Email" htmlFor="newCustomerEmail" className={styles.inviteField}>
+                    <Input
+                      id="newCustomerEmail"
+                      value={newUserEmail}
+                      onChange={(e) => setNewUserEmail(e.target.value)}
+                      placeholder="User email"
+                      disabled={accessPending}
+                      type="email"
+                      aria-label="Email for new customer user"
+                    />
+                  </Field>
+                  <Field label="Display Name" htmlFor="newCustomerName" className={styles.inviteField}>
+                    <Input
+                      id="newCustomerName"
+                      value={newUserName}
+                      onChange={(e) => setNewUserName(e.target.value)}
+                      placeholder="Display name (optional)"
+                      disabled={accessPending}
+                      aria-label="Optional display name for new customer user"
+                    />
+                  </Field>
+                  <Button
+                    type="button"
+                    iconLeft="plus"
+                    loading={accessPending}
+                    disabled={accessPending || !newUserEmail.trim()}
+                    aria-label="Add customer user"
+                    onClick={() => void handleAddCustomerUser()}
+                  >
+                    {accessPending ? 'Saving...' : 'Add Customer User'}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </Card>
+
         {/* ── Customer Access ── */}
         <Card
           title="Customer Access"
-          subtitle="All client users across every customer. Assign each new user by email as either primary contact (account owner) or read-only."
+          subtitle={`Client users for ${customerNameById.get(selectedCustomerId) || 'the customer selected above'}.`}
         >
-          {accessError && <div className={styles.errorBanner} role="alert" aria-live="assertive">{accessError}</div>}
-          {accessSuccess && (
-            <div className={styles.successBanner} role="status" aria-live="polite">{accessSuccess}</div>
-          )}
-
-          <h4 className={styles.subheading}>All client users</h4>
-          {allCustomerUsers.length === 0 ? (
-            <p className={styles.mutedText}>No client users yet.</p>
+          {customerUsersForSelected.length === 0 ? (
+            <p className={styles.mutedText}>
+              {selectedCustomerId ? 'No client users for this customer yet -- invite one above.' : 'Select a customer above to see their team.'}
+            </p>
           ) : (
             <div className={styles.tableWrap}>
-              <table className="nd-table nd-table--hoverable" aria-label="Client users across all customers">
+              <table
+                className="nd-table nd-table--hoverable"
+                aria-label={`Client users for ${customerNameById.get(selectedCustomerId) || 'selected customer'}`}
+              >
                 <thead>
                   <tr>
-                    <th scope="col">Customer</th>
                     <th scope="col">User</th>
                     <th scope="col">Role</th>
                     <th scope="col">Manage</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedAllCustomerUsers.map((cu) => (
+                  {sortedCustomerUsersForSelected.map((cu) => (
                     <tr key={cu.id}>
-                      <td>{customerNameById.get(cu.customerId) || 'Unknown customer'}</td>
                       <td>
                         <div className={styles.userIdentity}>
                           <span className={styles.userName}>{cu.name ?? cu.email ?? 'Unnamed user'}</span>
@@ -731,112 +987,20 @@ export default function UsersAdminPage() {
                         </Badge>
                       </td>
                       <td>
-                        {cu.role !== 'account_owner' && (
-                          <AdminRowMenu
-                            label="Manage"
-                            ariaLabel={`More customer access actions for ${cu.name ?? cu.email ?? 'user'}`}
-                            align="end"
-                          >
-                            <Button
-                              type="button"
-                              variant="danger"
-                              loading={accessPending}
-                              aria-label={`Remove ${cu.name ?? cu.email ?? 'user'} from customer access`}
-                              onClick={() => setRemovalTarget(cu)}
-                            >
-                              {accessPending ? 'Removing...' : 'Remove User'}
-                            </Button>
-                          </AdminRowMenu>
-                        )}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          aria-label={`Edit ${cu.name ?? cu.email ?? 'user'}`}
+                          onClick={() => openEditDialog(cu)}
+                        >
+                          Edit
+                        </Button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
-
-          <h4 className={styles.subheading}>Add customer user</h4>
-          <Field label="Customer" htmlFor="customerSelect">
-            <Select
-              id="customerSelect"
-              value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
-              disabled={accessPending}
-              aria-label="Customer for access management"
-            >
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </Select>
-          </Field>
-
-          {selectedCustomerId && (
-            <div>
-              <p className={styles.mutedText}>
-                Enter the user email. Users in the customer group must be assigned to a customer.
-              </p>
-              {!hasAccountOwner && (
-                <p className={styles.mutedText}>
-                  This customer has no primary contact yet. Assign a primary contact first before adding read-only users.
-                </p>
-              )}
-              <div className={styles.roleFieldset} role="radiogroup" aria-label="Role for new customer user">
-                <span className={styles.fieldLabel}>Role</span>
-                <div className={styles.roleOptions}>
-                  <Radio
-                    name="newCustomerRole"
-                    value="account_owner"
-                    checked={newUserRole === 'account_owner'}
-                    onChange={() => setNewUserRole('account_owner')}
-                    disabled={accessPending}
-                    label="Primary contact (account owner)"
-                    description="Manages billing, standing orders, and invoices; can invite and remove teammates."
-                  />
-                  <Radio
-                    name="newCustomerRole"
-                    value="read_only"
-                    checked={newUserRole === 'read_only'}
-                    onChange={() => setNewUserRole('read_only')}
-                    disabled={accessPending || !hasAccountOwner}
-                    label="Read-only"
-                    description="Views routes and delivery stops, and can add delivery instructions. Can't manage billing or invites."
-                  />
-                </div>
-              </div>
-              <div className={styles.addUserForm}>
-                <Field label="Email" htmlFor="newCustomerEmail" className={styles.addUserField}>
-                  <Input
-                    id="newCustomerEmail"
-                    value={newUserEmail}
-                    onChange={(e) => setNewUserEmail(e.target.value)}
-                    placeholder="User email"
-                    disabled={accessPending}
-                    type="email"
-                    aria-label="Email for new customer user"
-                  />
-                </Field>
-                <Field label="Display Name" htmlFor="newCustomerName" className={styles.addUserField}>
-                  <Input
-                    id="newCustomerName"
-                    value={newUserName}
-                    onChange={(e) => setNewUserName(e.target.value)}
-                    placeholder="Display name (optional)"
-                    disabled={accessPending}
-                    aria-label="Optional display name for new customer user"
-                  />
-                </Field>
-                <Button
-                  type="button"
-                  variant="primary"
-                  loading={accessPending}
-                  disabled={!newUserEmail.trim()}
-                  aria-label="Add customer user"
-                  onClick={() => void handleAddCustomerUser()}
-                >
-                  {accessPending ? 'Saving...' : 'Add Customer User'}
-                </Button>
-              </div>
             </div>
           )}
         </Card>

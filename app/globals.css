@@ -478,6 +478,24 @@ textarea:focus-visible,
   --amplify-components-text-color: var(--nd-text-primary);
   --amplify-components-text-primary-color: var(--nd-text-primary);
   --amplify-components-text-secondary-color: var(--nd-text-secondary);
+  /* Second layer of the same trap: theme.css also has each field-type class
+     (.amplify-input, .amplify-textfield, .amplify-passwordfield, etc.)
+     re-derive --amplify-components-fieldcontrol-color from a component-scoped
+     token (--amplify-components-input-color, -textfield-color, ...), and
+     *those* were themselves baked from :root's font-primary the moment the
+     stylesheet loaded. The .amplify-input rule sits directly on the <input>
+     itself, so its re-declaration wins over the fieldcontrol-color override
+     above for every field type -- email, password, code -- and without this,
+     typed text renders invisible (near-white on this form's light
+     background) even though labels/placeholders look fine. */
+  --amplify-components-input-color: var(--nd-text-primary);
+  --amplify-components-textfield-color: var(--nd-text-primary);
+  --amplify-components-passwordfield-color: var(--nd-text-primary);
+  --amplify-components-textareafield-color: var(--nd-text-primary);
+  --amplify-components-searchfield-input-color: var(--nd-text-primary);
+  --amplify-components-selectfield-color: var(--nd-text-primary);
+  --amplify-components-stepperfield-input-color: var(--nd-text-primary);
+  --amplify-components-phonenumberfield-color: var(--nd-text-primary);
 }
 
 [data-amplify-router]{

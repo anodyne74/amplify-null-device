@@ -255,23 +255,36 @@ export default function Home() {
                 </form>
               </>
             ) : (
-              <>
-                <button
-                  type="button"
-                  className={styles.backLink}
-                  onClick={() => {
-                    setAuthView('signIn');
-                    toSignIn();
-                  }}
-                >
-                  <Icon name="chevron-left" size={16} />
-                  Back to sign in
-                </button>
-                <div className={styles.authCard}>
-                  <Authenticator hideSignUp />
-                </div>
-              </>
+              <button
+                type="button"
+                className={styles.backLink}
+                onClick={() => {
+                  setAuthView('signIn');
+                  toSignIn();
+                }}
+              >
+                <Icon name="chevron-left" size={16} />
+                Back to sign in
+              </button>
             )}
+
+            {/* Mounted unconditionally (rather than only when authView ===
+                'forgotPassword') and hidden via the `hidden` attribute
+                instead. The shared Authenticator machine starts in a
+                'setup' route and only leaves it -- to its default 'signIn'
+                screen -- the first time an <Authenticator> widget anywhere
+                in the app mounts and fires its one-time INIT event. If that
+                first mount happens on click (i.e. only rendering this when
+                authView flips to 'forgotPassword'), INIT fires in the same
+                render pass as toForgotPassword() and silently wins the
+                race, resetting the machine back to 'signIn' -- so the very
+                first click shows the Authenticator's own sign-in view
+                instead of the reset-password form. Mounting it here at
+                initial page load lets INIT resolve harmlessly before the
+                user ever clicks "Forgot password?". */}
+            <div className={styles.authCard} hidden={authView !== 'forgotPassword'}>
+              <Authenticator hideSignUp />
+            </div>
 
             <p className={styles.footerText}>
               Need help? Contact support at <strong><a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a></strong>

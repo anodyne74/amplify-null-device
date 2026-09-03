@@ -82,14 +82,20 @@
   color: var(--text-subtle);
 }
 
-.addUserForm {
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.inviteForm {
   display: flex;
   gap: var(--space-4);
   flex-wrap: wrap;
   align-items: flex-end;
 }
 
-.addUserField {
+.inviteField {
   min-width: 200px;
   flex: 1;
 }

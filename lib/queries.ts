@@ -1113,6 +1113,23 @@ export async function syncViewerSubsForCustomer(
       if (customerUserUpdateErrors) allErrors.push(...customerUserUpdateErrors);
       else updatedCustomerUsers++;
     }
+
+    // The Customer record itself also needs accountOwnerSub/viewerSubs set --
+    // without these, the account owner (and read-only teammates) can't read
+    // their own Customer record (e.g. Billing Details) via the ownerDefinedIn
+    // auth rule. This is normally set by the customer-access-activation Lambda
+    // at signup time, but admin-driven onboarding (this code path) never
+    // touched the Customer record itself, so it stays null indefinitely.
+    const accountOwnerSub = (customerUsers || []).find(
+      (row) => row.role === 'account_owner' && row.userSub && !row.userSub.startsWith('pending:')
+    )?.userSub;
+
+    const { errors: customerUpdateErrors } = await getClient().models.Customer.update({
+      id: customerId,
+      viewerSubs,
+      ...(accountOwnerSub ? { accountOwnerSub } : {}),
+    });
+    if (customerUpdateErrors) allErrors.push(...customerUpdateErrors);
   } catch (error) {
     console.error('Error syncing viewer subs:', error);
     allErrors.push(error);

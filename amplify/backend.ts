@@ -41,6 +41,12 @@ function withMaxLength(value: string, max: number) {
 }
 
 const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || 'dev', 'dev');
+// The app is deployed on two domains split by branch: nulldevice.com.au for
+// `main`/production, nulldevice.dev for everything else (`development` and
+// any preview branches). Used below for the SES inbound rule's recipient
+// addresses -- those must match whichever domain the branch actually
+// receives mail on, not be hardcoded to production's domain.
+const emailDomain = branchName === 'main' ? 'nulldevice.com.au' : 'nulldevice.dev';
 const invoiceTemplateName = withMaxLength(`NullDeviceInvoiceTemplate-${branchName}`, 64);
 const jobAssignedTemplateName = withMaxLength(`NullDeviceJobAssignedTemplate-${branchName}`, 64);
 const welcomeTemplateName = withMaxLength(`NullDeviceWelcomeTemplate-${branchName}`, 64);
@@ -591,6 +597,16 @@ backend.customerAccessActivation.resources.lambda.addToRolePolicy(
 	}),
 );
 
+// Unlike the Next.js app compute, this function doesn't automatically inherit
+// Amplify Console's app/branch-level environment variables -- without these,
+// its handler falls back to an unbranded template name (which doesn't match
+// the branch-suffixed template above, so the send silently fails) and a
+// hardcoded nulldevice.com.au sender/link domain regardless of branch.
+const customerAccessActivationLambda = backend.customerAccessActivation.resources.lambda as LambdaFunction;
+customerAccessActivationLambda.addEnvironment('SES_WELCOME_TEMPLATE_NAME', welcomeTemplateName);
+customerAccessActivationLambda.addEnvironment('SES_SENDER_EMAIL', `no-reply@${emailDomain}`);
+customerAccessActivationLambda.addEnvironment('NEXT_PUBLIC_APP_URL', `https://${emailDomain}`);
+
 // ── SES inbound email forwarder ──────────────────────────────────────────────
 const forwarderStack = backend.createStack('ses-email-forwarder');
 
@@ -713,7 +729,7 @@ new CfnReceiptRule(forwarderStack, 'SesReceiptRule', {
 		name: inboundRuleName,
 		enabled: true,
 		tlsPolicy: 'Optional',
-		recipients: ['admin@nulldevice.com.au', 'billing@nulldevice.com.au', 'support@nulldevice.com.au'],
+		recipients: [`admin@${emailDomain}`, `billing@${emailDomain}`, `support@${emailDomain}`],
 		scanEnabled: true,
 		actions: [
 			{ s3Action: { bucketName: inboundBucket.bucketName } },

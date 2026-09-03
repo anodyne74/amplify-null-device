@@ -1,5 +1,5 @@
 import { SendTemplatedEmailCommand, SESClient } from '@aws-sdk/client-ses';
-import { SUPPORT_EMAIL } from '@/lib/publicAppConfig';
+import { APP_DOMAIN, SUPPORT_EMAIL } from '@/lib/publicAppConfig';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
 
 /**
@@ -53,8 +53,8 @@ export interface InvitationEmailInput {
 
 /** Throws on SES failure -- callers decide whether to surface or swallow it. */
 export async function sendInvitationEmail(input: InvitationEmailInput): Promise<void> {
-  const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nulldevice.com.au').replace(/\/$/, '');
-  const senderEmail = process.env.SES_SENDER_EMAIL || 'no-reply@nulldevice.com.au';
+  const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || `https://${APP_DOMAIN}`).replace(/\/$/, '');
+  const senderEmail = process.env.SES_SENDER_EMAIL || `no-reply@${APP_DOMAIN}`;
   const supportMailto = `mailto:${SUPPORT_EMAIL}`;
 
   const templateData = {

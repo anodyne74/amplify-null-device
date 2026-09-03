@@ -30,6 +30,10 @@ const defaultWelcomeTemplateName = branchName
 const welcomeTemplateName = process.env.SES_WELCOME_TEMPLATE_NAME || defaultWelcomeTemplateName;
 
 async function sendWelcomeEmail(recipientEmail: string, customerName: string) {
+  // Unlike Amplify Console's app/branch env vars, NEXT_PUBLIC_APP_URL and
+  // SES_SENDER_EMAIL aren't auto-injected into this function -- amplify/backend.ts
+  // wires both explicitly (branch-derived) via addEnvironment, so these literal
+  // fallbacks are only reached if that wiring is ever removed.
   const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nulldevice.com.au').replace(/\/$/, '');
   const senderEmail = process.env.SES_SENDER_EMAIL || 'no-reply@nulldevice.com.au';
 

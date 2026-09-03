@@ -7,6 +7,7 @@ import type { Schema } from '@/amplify/data/resource';
 import outputs from '@/amplify_outputs.json';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
 import { listCustomerUsers, getCustomer, updateInvoice } from '@/lib/queries';
+import { APP_DOMAIN } from '@/lib/publicAppConfig';
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
 function sanitizeNamePart(value: string, fallback: string) {
@@ -197,7 +198,7 @@ export async function POST(request: NextRequest) {
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
     const logoUrl = configuredLogoUrl
       ? configuredLogoUrl
-      : `${(appBaseUrl || 'https://nulldevice.com.au').replace(/\/$/, '')}/logo.svg`;
+      : `${(appBaseUrl || `https://${APP_DOMAIN}`).replace(/\/$/, '')}/logo.svg`;
     const templateValues = {
       invoiceNumber: invoice.invoiceNumber,
       customerName: customer.name || 'Customer',
@@ -223,7 +224,7 @@ export async function POST(request: NextRequest) {
     const encodedPdf = wrapBase64(Buffer.from(pdfBytes).toString('base64'));
 
     // Send email via SES as a raw MIME message to include the PDF attachment.
-    const senderEmail = sanitizeMimeHeaderValue(process.env.SES_SENDER_EMAIL || 'no-reply@nulldevice.com.au');
+    const senderEmail = sanitizeMimeHeaderValue(process.env.SES_SENDER_EMAIL || `no-reply@${APP_DOMAIN}`);
     const safeToEmail = sanitizeMimeHeaderValue(toEmail);
     const mixedBoundary = `mixed_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const altBoundary = `alt_${Date.now()}_${Math.random().toString(16).slice(2)}`;

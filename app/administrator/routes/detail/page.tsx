@@ -1479,6 +1479,7 @@ function RouteDetailContent() {
                       agentInitials={agentInitials}
                       agentName={agentName}
                       agentBadgeTone={agentBadgeTone}
+                      isAuction={Boolean(stop.isAuction)}
                       isTop={isTopVisibleStop}
                       isCompleted={completedStop}
                       isDragging={draggingStopId === stop.id}

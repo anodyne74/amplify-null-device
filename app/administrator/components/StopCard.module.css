@@ -78,6 +78,18 @@
   margin-top: 2px;
 }
 
+.auctionBadge {
+  display: inline-block;
+  margin-top: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+}
+
 .agentBadge {
   flex: none;
   width: 32px;

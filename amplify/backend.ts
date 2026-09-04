@@ -492,8 +492,8 @@ new CfnTemplate(sesStack, 'StaffInvitationTemplate', {
     <td width="560" style="width:560px;background-color:#141B38;background-image:linear-gradient(160deg,#141B38 0%,#2A2E76 100%);padding:13px 28px;" class="nd-pad">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
         <tr>
-          <td align="left" valign="middle" style="mso-line-height-rule:exactly;line-height:0;"><img src="{{logoUrl}}" alt="null device" width="190" height="85" style="display:block;width:190px;height:85px;max-width:190px;border:0;outline:none;text-decoration:none;"></td>
-          <td align="right" valign="middle" style="font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:12px;color:rgba(255,255,255,.66);mso-line-height-rule:exactly;line-height:85px;">Invitation</td>
+          <td align="left" valign="middle" style="mso-line-height-rule:exactly;line-height:0;"><img src="{{logoUrl}}" alt="null device" width="224" height="100" style="display:block;width:224px;height:100px;max-width:224px;border:0;outline:none;text-decoration:none;"></td>
+          <td align="right" valign="middle" style="font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;color:rgba(255,255,255,.66);mso-line-height-rule:exactly;line-height:100px;">Invitation</td>
         </tr>
       </table>
     </td>
@@ -504,7 +504,7 @@ new CfnTemplate(sesStack, 'StaffInvitationTemplate', {
     <td class="nd-pad" width="560" style="width:560px;padding:32px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;">
       <div style="font-family:Comfortaa,'Trebuchet MS',Tahoma,Arial,sans-serif;font-weight:bold;font-size:25px;line-height:33px;mso-line-height-rule:exactly;letter-spacing:-0.02em;color:#141B38;">You've been invited</div>
       <p style="margin:14px 0 0;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#48526C;">
-        Hi {{inviteeName}} — {{inviterName}} ({{inviterEmail}}) has added you as a <strong style="color:#141B38;">{{roleLabel}}</strong> on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+        Hi {{inviteeName}} — {{inviterDisplay}} has added you as a <strong style="color:#141B38;">{{roleLabel}}</strong> on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
       </p>
     </td>
   </tr>
@@ -557,7 +557,7 @@ new CfnTemplate(sesStack, 'StaffInvitationTemplate', {
   <tr>
     <td class="nd-pad" width="560" style="width:560px;padding:24px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#48526C;">
       Once you're signed in, your {{roleLabel}} portal will have everything you need to get started.
-      <p style="margin:16px 0 0;font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;">Not expecting this? You can ignore this email, or reply to {{inviterEmail}}.</p>
+      <p style="margin:16px 0 0;font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;">Not expecting this? You can ignore this email, or contact us at <a href="{{supportUrl}}" style="color:#4B52C4;text-decoration:underline;">{{supportEmail}}</a>.</p>
     </td>
   </tr>
 
@@ -585,7 +585,7 @@ You're invited to the Null Device {{roleLabel}} portal
 
 Hi {{inviteeName}},
 
-{{inviterName}} ({{inviterEmail}}) has added you as a {{roleLabel}} on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+{{inviterDisplay}} has added you as a {{roleLabel}} on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
 
 Email: {{inviteeEmail}}
 Temporary password: {{temporaryPassword}}
@@ -596,7 +596,7 @@ Password expired or didn't work? Request a new password: {{resetPasswordUrl}}
 
 Once you're signed in, your {{roleLabel}} portal will have everything you need to get started.
 
-Not expecting this? You can ignore this email, or reply to {{inviterEmail}}.
+Not expecting this? You can ignore this email, or contact us at {{supportEmail}}.
 
 Null Device - {{companyAddress}}
 `.trim(),

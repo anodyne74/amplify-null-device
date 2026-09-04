@@ -136,6 +136,10 @@
   opacity: 0.4;
 }
 
+.stopRowDropTarget {
+  box-shadow: inset 0 2px 0 0 var(--nd-status-active, var(--indigo-400));
+}
+
 .stopRowSelected {
   border-color: var(--border-brand);
   background: var(--surface-brand-subtle);

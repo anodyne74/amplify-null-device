@@ -35,7 +35,6 @@ describe('useCustomerEditState', () => {
     expect(result.current.editAddressLine1).toBe('');
     expect(result.current.editStandingInstructions).toBe('');
     expect(result.current.editDefaultNumberOfSigns).toBe('');
-    expect(result.current.editDefaultAgentInitials).toBe('');
     expect(result.current.editAgentOptions).toEqual(['Jamie', 'Pat']);
     expect(result.current.editOriginalAddressLine1).toBe('');
   });
@@ -101,7 +100,6 @@ describe('useCustomerEditState', () => {
 
     expect(result.current.editDefaultNumberOfSigns).toBe('6');
     expect(result.current.editStatus).toBe('inactive');
-    expect(result.current.editDefaultAgentInitials).toBe('TA');
     expect(result.current.editError).toBeNull();
     expect(result.current.editSuccess).toBeNull();
     expect(result.current.editResolvedAddress).toBeNull();
@@ -143,5 +141,26 @@ describe('useCustomerEditState', () => {
       result.current.removeAgentOption('Betty O\'Shea');
     });
     expect(result.current.editAgentOptions).toEqual(['David Mun']);
+  });
+
+  it('reorders agent options — the first entry is the default agent', () => {
+    const { result } = renderHook(() => useCustomerEditState());
+
+    act(() => {
+      result.current.addAgentOption('Betty O\'Shea');
+      result.current.addAgentOption('David Mun');
+    });
+    expect(result.current.editAgentOptions).toEqual(['Betty O\'Shea', 'David Mun']);
+
+    act(() => {
+      result.current.moveAgentOption(1, 'up');
+    });
+    expect(result.current.editAgentOptions).toEqual(['David Mun', 'Betty O\'Shea']);
+
+    // Already first — moving up further is a no-op.
+    act(() => {
+      result.current.moveAgentOption(0, 'up');
+    });
+    expect(result.current.editAgentOptions).toEqual(['David Mun', 'Betty O\'Shea']);
   });
 });

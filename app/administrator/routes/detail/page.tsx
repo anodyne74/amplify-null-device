@@ -155,13 +155,18 @@ function getPhaseCompletionTime(stop: Stop, phase: ExecutionPhase) {
   );
 }
 
-function getStopStatusLabel(stop: Stop, executionPhase?: ExecutionPhase | null) {
+function getStopStatusLabel(stop: Stop, executionPhase?: ExecutionPhase | null, routeStatus?: string | null) {
   if (executionPhase) {
     if (isStopSkippedForPhase(stop, executionPhase)) {
       return executionPhase === 'pickup' ? 'Pickup skipped' : 'Placement skipped';
     }
     if (isStopCompletedForPhase(stop, executionPhase)) {
       return executionPhase === 'pickup' ? 'Signs collected' : 'Signs placed';
+    }
+    // The route hasn't started yet, so there's nothing to be "awaiting" —
+    // the operator still needs to load the signs onto the vehicle.
+    if (routeStatus === 'planned' && executionPhase === 'placement') {
+      return 'Load signs';
     }
     return executionPhase === 'pickup' ? 'Awaiting pickup' : 'Awaiting placement';
   }
@@ -1459,7 +1464,7 @@ function RouteDetailContent() {
                       sequence={stop.sequence ?? '?'}
                       serviceType={stop.serviceType}
                       address={stop.formattedAddress || stop.address || ''}
-                      statusLabel={getStopStatusLabel(stop, currentExecutionPhase)}
+                      statusLabel={getStopStatusLabel(stop, currentExecutionPhase, route?.status)}
                       agentInitials={agentInitials}
                       agentName={agentName}
                       agentBadgeTone={agentBadgeTone}

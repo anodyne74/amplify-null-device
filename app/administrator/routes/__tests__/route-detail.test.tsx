@@ -186,6 +186,17 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByText('200 Second Ave')).toBeInTheDocument();
   });
 
+  it('shows "Load signs" instead of "Awaiting placement" for a planned route (#5)', async () => {
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('100 First St')).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByText('Load signs').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Awaiting placement')).not.toBeInTheDocument();
+  });
+
   it('shows "Add Stop" button', async () => {
     render(<RouteDetailPage />);
 

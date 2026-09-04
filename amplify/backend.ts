@@ -1,5 +1,5 @@
 import { defineBackend } from '@aws-amplify/backend';
-import { Duration, RemovalPolicy } from 'aws-cdk-lib';
+import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { Role, ServicePrincipal, ManagedPolicy, PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
 import { Function as LambdaFunction, Runtime, Code } from 'aws-cdk-lib/aws-lambda';
@@ -41,6 +41,27 @@ function withMaxLength(value: string, max: number) {
 }
 
 const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || 'dev', 'dev');
+// The app is deployed on two domains split by branch: nulldevice.com.au for
+// `main`/production, nulldevice.dev for everything else (`development` and
+// any preview branches).
+const emailDomain = branchName === 'main' ? 'nulldevice.com.au' : 'nulldevice.dev';
+
+// Cognito's own emails (forgot-password codes, sign-up verification codes,
+// admin-created-user temp passwords) default to its built-in "COGNITO_DEFAULT"
+// sender (no-reply@verificationemail.com) unless told otherwise. That sender is
+// capped at a low daily volume and is routinely spam-filtered or outright
+// rejected by Microsoft-hosted mail (Outlook/Hotmail/Microsoft 365) -- so
+// ForgotPassword reports success (Cognito accepted and "sent" the code) while
+// the email never arrives. Route these through the same verified, DKIM-signed
+// SES domain the rest of the app already sends invoices/invitations from.
+const authStack = Stack.of(backend.auth.resources.userPool);
+backend.auth.resources.cfnResources.cfnUserPool.emailConfiguration = {
+	emailSendingAccount: 'DEVELOPER',
+	from: `no-reply@${emailDomain}`,
+	sourceArn: `arn:aws:ses:${authStack.region}:${authStack.account}:identity/${emailDomain}`,
+	configurationSet: 'my-first-configuration-set',
+};
+
 const invoiceTemplateName = withMaxLength(`NullDeviceInvoiceTemplate-${branchName}`, 64);
 const jobAssignedTemplateName = withMaxLength(`NullDeviceJobAssignedTemplate-${branchName}`, 64);
 const welcomeTemplateName = withMaxLength(`NullDeviceWelcomeTemplate-${branchName}`, 64);

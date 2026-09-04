@@ -58,10 +58,21 @@ export async function sendStaffInvitationEmail(input: StaffInvitationEmailInput)
   const senderEmail = process.env.SES_SENDER_EMAIL || `no-reply@${APP_DOMAIN}`;
   const supportMailto = `mailto:${SUPPORT_EMAIL}`;
 
+  // inviterName falls back to inviterEmail when the inviter has no display
+  // name set -- in that case "{{inviterName}} ({{inviterEmail}})" would render
+  // the same address twice, so collapse it to a single mention.
+  const inviterName = input.inviterName.trim();
+  const inviterEmail = input.inviterEmail.trim();
+  const inviterDisplay =
+    inviterName && inviterName.toLowerCase() !== inviterEmail.toLowerCase()
+      ? `${inviterName} (${inviterEmail})`
+      : inviterEmail || inviterName;
+
   const templateData = {
     roleLabel: input.roleLabel,
-    inviterName: input.inviterName,
-    inviterEmail: input.inviterEmail,
+    inviterName,
+    inviterEmail,
+    inviterDisplay,
     inviteeName: input.inviteeName?.trim() || 'there',
     inviteeEmail: input.toEmail,
     temporaryPassword: input.temporaryPassword,
@@ -71,6 +82,7 @@ export async function sendStaffInvitationEmail(input: StaffInvitationEmailInput)
     // No deep-link reset route -- a stuck invitee reaches a human.
     resetPasswordUrl: supportMailto,
     supportUrl: supportMailto,
+    supportEmail: SUPPORT_EMAIL,
     logoUrl: `${appBaseUrl}/logo.svg`,
     companyAddress: process.env.SES_COMPANY_ADDRESS?.trim() || 'Melbourne, Australia',
   };

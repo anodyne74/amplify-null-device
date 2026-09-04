@@ -24,7 +24,6 @@ interface CustomerEditPanelProps {
   editAddressLine1: string;
   editStandingInstructions: string;
   editDefaultNumberOfSigns: string;
-  editDefaultAgentInitials: string;
   editAgentOptions: string[];
   editRestrictInvitesToOwnDomain: boolean;
   editSaving: boolean;
@@ -40,11 +39,11 @@ interface CustomerEditPanelProps {
   onEditBillingRatePerHourBlur: (value: string) => void;
   onEditStatusChange: (value: CustomerStatus) => void;
   onEditDefaultNumberOfSignsChange: (value: string) => void;
-  onEditDefaultAgentInitialsChange: (value: string) => void;
   onEditAddressLine1Change: (value: string) => void;
   onEditResolvedAddressChange: (resolved: ResolvedAddress | null) => void;
   onAddAgentOption: (value: string) => void;
   onRemoveAgentOption: (value: string) => void;
+  onMoveAgentOption: (index: number, direction: 'up' | 'down') => void;
   onEditStandingInstructionsChange: (value: string) => void;
   onEditRestrictInvitesToOwnDomainChange: (value: boolean) => void;
   onSave: () => void;
@@ -63,7 +62,6 @@ export default function CustomerEditPanel({
   editAddressLine1,
   editStandingInstructions,
   editDefaultNumberOfSigns,
-  editDefaultAgentInitials,
   editAgentOptions,
   editRestrictInvitesToOwnDomain,
   editSaving,
@@ -79,11 +77,11 @@ export default function CustomerEditPanel({
   onEditBillingRatePerHourBlur,
   onEditStatusChange,
   onEditDefaultNumberOfSignsChange,
-  onEditDefaultAgentInitialsChange,
   onEditAddressLine1Change,
   onEditResolvedAddressChange,
   onAddAgentOption,
   onRemoveAgentOption,
+  onMoveAgentOption,
   onEditStandingInstructionsChange,
   onEditRestrictInvitesToOwnDomainChange,
   onSave,
@@ -176,13 +174,7 @@ export default function CustomerEditPanel({
             agentOptions={editAgentOptions}
             onAdd={onAddAgentOption}
             onRemove={onRemoveAgentOption}
-            disabled={editSaving}
-          />
-          <Input
-            value={editDefaultAgentInitials}
-            onChange={(event) => onEditDefaultAgentInitialsChange(event.target.value)}
-            placeholder="Default agent initials (e.g., BO)"
-            maxLength={4}
+            onMove={onMoveAgentOption}
             disabled={editSaving}
           />
           <Input
@@ -193,11 +185,6 @@ export default function CustomerEditPanel({
             min={0}
             disabled={editSaving}
           />
-          {customer.defaultAgentInitials && (
-            <p className={`${styles.mutedText} ${styles.fieldsGridFull}`}>
-              Current default initials: {customer.defaultAgentInitials}
-            </p>
-          )}
           <div className={styles.fieldsGridFull}>
             <Input
               value={editStandingInstructions}

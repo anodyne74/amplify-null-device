@@ -91,7 +91,6 @@ function RouteEditContent() {
   const [dragOverStopId, setDragOverStopId] = useState<string | null>(null);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [stopError, setStopError] = useState<string | null>(null);
-  const [pendingDeleteStopId, setPendingDeleteStopId] = useState<string | null>(null);
 
   const [routeCode, setRouteCode] = useState('');
   const [customerId, setCustomerId] = useState('');
@@ -442,6 +441,12 @@ function RouteEditContent() {
 
   const handleDeleteStop = async (stopId: string) => {
     if (stopSaving) return;
+    const stop = stops.find((s) => s.id === stopId);
+    const confirmed = window.confirm(
+      `Delete stop${stop?.address ? ` at ${stop.address}` : ''}?`
+    );
+    if (!confirmed) return;
+
     setStopSaving(true);
     setStopError(null);
 
@@ -454,7 +459,6 @@ function RouteEditContent() {
 
     const remaining = stops.filter((stop) => stop.id !== stopId);
     await persistStopOrder(remaining);
-    setPendingDeleteStopId(null);
     setStopSaving(false);
   };
 
@@ -734,50 +738,22 @@ function RouteEditContent() {
                           onClick={() => {
                             setEditingStopId(stop.id);
                             setShowAddStop(false);
-                            setPendingDeleteStopId(null);
                           }}
                           disabled={stopSaving}
                         >
                           Edit
                         </Button>
-                        {pendingDeleteStopId === stop.id ? (
-                          <>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="danger"
-                              onClick={() => {
-                                void handleDeleteStop(stop.id);
-                              }}
-                              disabled={stopSaving}
-                            >
-                              {stopSaving ? 'Deleting...' : 'Confirm Delete'}
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setPendingDeleteStopId(null);
-                              }}
-                              disabled={stopSaving}
-                            >
-                              Cancel
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="danger"
-                            onClick={() => {
-                              setPendingDeleteStopId(stop.id);
-                            }}
-                            disabled={stopSaving}
-                          >
-                            Delete
-                          </Button>
-                        )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="danger"
+                          onClick={() => {
+                            void handleDeleteStop(stop.id);
+                          }}
+                          disabled={stopSaving}
+                        >
+                          {stopSaving ? 'Deleting...' : 'Delete'}
+                        </Button>
                       </div>
                     </div>
                   );

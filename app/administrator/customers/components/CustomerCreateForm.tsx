@@ -15,7 +15,6 @@ interface CustomerCreateFormProps {
   email: string;
   billingRatePerHour: string;
   defaultNumberOfSigns: string;
-  defaultAgentInitials: string;
   addressLine1: string;
   agentOptions: string[];
   standingInstructions: string;
@@ -26,11 +25,11 @@ interface CustomerCreateFormProps {
   onEmailChange: (value: string) => void;
   onBillingRatePerHourChange: (value: string) => void;
   onDefaultNumberOfSignsChange: (value: string) => void;
-  onDefaultAgentInitialsChange: (value: string) => void;
   onAddressChange: (value: string) => void;
   onAddressResolved: (resolved: ResolvedAddress | null) => void;
   onAddAgentOption: (value: string) => void;
   onRemoveAgentOption: (value: string) => void;
+  onMoveAgentOption: (index: number, direction: 'up' | 'down') => void;
   onStandingInstructionsChange: (value: string) => void;
 }
 
@@ -42,7 +41,6 @@ export default function CustomerCreateForm({
   email,
   billingRatePerHour,
   defaultNumberOfSigns,
-  defaultAgentInitials,
   addressLine1,
   agentOptions,
   standingInstructions,
@@ -53,11 +51,11 @@ export default function CustomerCreateForm({
   onEmailChange,
   onBillingRatePerHourChange,
   onDefaultNumberOfSignsChange,
-  onDefaultAgentInitialsChange,
   onAddressChange,
   onAddressResolved,
   onAddAgentOption,
   onRemoveAgentOption,
+  onMoveAgentOption,
   onStandingInstructionsChange,
 }: CustomerCreateFormProps) {
   return (
@@ -125,15 +123,6 @@ export default function CustomerCreateForm({
                   min={0}
                 />
               </Field>
-              <Field label="Default agent initials" htmlFor="create-customer-agent-initials">
-                <Input
-                  id="create-customer-agent-initials"
-                  value={defaultAgentInitials}
-                  onChange={(event) => onDefaultAgentInitialsChange(event.target.value)}
-                  placeholder="Default agent initials (e.g., BO)"
-                  maxLength={4}
-                />
-              </Field>
               <Field label="Address" htmlFor="create-customer-address">
                 <AddressAutocompleteInput
                   id="create-customer-address"
@@ -149,6 +138,7 @@ export default function CustomerCreateForm({
                 agentOptions={agentOptions}
                 onAdd={onAddAgentOption}
                 onRemove={onRemoveAgentOption}
+                onMove={onMoveAgentOption}
                 disabled={saving}
               />
               <Field

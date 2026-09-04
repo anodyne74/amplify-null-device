@@ -223,7 +223,6 @@ function RouteDetailContent() {
   const [editStopError, setEditStopError] = useState<string | null>(null);
   const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
   const [dragOverStopId, setDragOverStopId] = useState<string | null>(null);
-  const [pendingDeleteStopId, setPendingDeleteStopId] = useState<string | null>(null);
   const [deletingStopId, setDeletingStopId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
@@ -735,6 +734,12 @@ function RouteDetailContent() {
     if (!canManagePlanning || deletingStopId) {
       return;
     }
+    const stop = stops.find((s) => s.id === stopId);
+    const confirmed = window.confirm(
+      `Delete stop${stop?.address ? ` at ${stop.address}` : ''}?`
+    );
+    if (!confirmed) return;
+
     setDeletingStopId(stopId);
     setReorderError(null);
     try {
@@ -751,7 +756,6 @@ function RouteDetailContent() {
           client.models.Stop.update({ id: s.id, sequence: idx + 1 })
         )
       );
-      setPendingDeleteStopId(null);
       await fetchStops();
     } catch {
       setReorderError('Failed to delete stop. Please try again.');
@@ -1401,36 +1405,15 @@ function RouteDetailContent() {
                         >
                           Edit
                         </Button>
-                        {pendingDeleteStopId === stop.id ? (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="danger"
-                              loading={deletingStopId === stop.id}
-                              onClick={() => { void handleDeleteStop(stop.id); }}
-                              disabled={reordering || !!deletingStopId}
-                            >
-                              {deletingStopId === stop.id ? 'Deleting...' : 'Confirm Delete'}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setPendingDeleteStopId(null)}
-                              disabled={reordering || !!deletingStopId}
-                            >
-                              Cancel
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => setPendingDeleteStopId(stop.id)}
-                            disabled={reordering || !!deletingStopId}
-                          >
-                            Delete
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          loading={deletingStopId === stop.id}
+                          onClick={() => { void handleDeleteStop(stop.id); }}
+                          disabled={reordering || !!deletingStopId}
+                        >
+                          {deletingStopId === stop.id ? 'Deleting...' : 'Delete'}
+                        </Button>
                       </div>
                     );
                   } else if (route?.status === 'in_progress' && isCurrentPhaseStop) {

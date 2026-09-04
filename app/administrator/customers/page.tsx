@@ -15,7 +15,12 @@ import CustomerEditPanel from '@/app/administrator/customers/components/Customer
 import CustomerTableRow from '@/app/administrator/customers/components/CustomerTableRow';
 import { useCustomerEditState } from '@/app/administrator/customers/hooks/useCustomerEditState';
 import type { Customer, CustomerUser } from '@/app/administrator/customers/types';
-import { addAgentOption as addAgentOptionTo, removeAgentOption as removeAgentOptionFrom } from '@/lib/customerDefaults';
+import {
+  addAgentOption as addAgentOptionTo,
+  generateAgentInitials,
+  moveAgentOption as moveAgentOptionIn,
+  removeAgentOption as removeAgentOptionFrom,
+} from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import {
   createCustomer,
@@ -120,7 +125,6 @@ export default function CustomersAdminPage() {
   const [addressLine1, setAddressLine1] = useState('');
   const [standingInstructions, setStandingInstructions] = useState('');
   const [defaultNumberOfSigns, setDefaultNumberOfSigns] = useState('');
-  const [defaultAgentInitials, setDefaultAgentInitials] = useState('');
   const [agentOptions, setAgentOptions] = useState<string[]>([]);
   const [createResolvedAddress, setCreateResolvedAddress] = useState<ResolvedAddress | null>(null);
 
@@ -130,6 +134,10 @@ export default function CustomersAdminPage() {
 
   const removeAgentOptionFromCreate = useCallback((value: string) => {
     setAgentOptions((prev) => removeAgentOptionFrom(prev, value));
+  }, []);
+
+  const moveAgentOptionInCreate = useCallback((index: number, direction: 'up' | 'down') => {
+    setAgentOptions((prev) => moveAgentOptionIn(prev, index, direction));
   }, []);
 
   const {
@@ -154,11 +162,10 @@ export default function CustomersAdminPage() {
     editOriginalStandingInstructions,
     editDefaultNumberOfSigns,
     setEditDefaultNumberOfSigns,
-    editDefaultAgentInitials,
-    setEditDefaultAgentInitials,
     editAgentOptions,
     addAgentOption,
     removeAgentOption,
+    moveAgentOption,
     editRestrictInvitesToOwnDomain,
     setEditRestrictInvitesToOwnDomain,
     editResolvedAddress,
@@ -255,7 +262,6 @@ export default function CustomersAdminPage() {
         addressLine1: resolved.formattedAddress,
         standingInstructions,
         defaultNumberOfSigns: createSigns,
-        defaultAgentInitials,
         agentOptions,
       });
 
@@ -269,7 +275,6 @@ export default function CustomersAdminPage() {
         setAddressLine1('');
         setStandingInstructions('');
         setDefaultNumberOfSigns('');
-        setDefaultAgentInitials('');
         setAgentOptions([]);
         setCreateResolvedAddress(null);
         await fetchCustomers();
@@ -356,7 +361,6 @@ export default function CustomersAdminPage() {
         addressLine1: resolved.formattedAddress,
         standingInstructions: editStandingInstructions,
         defaultNumberOfSigns: editSigns,
-        defaultAgentInitials: editDefaultAgentInitials,
         agentOptions: editAgentOptions,
         restrictInvitesToOwnDomain: editRestrictInvitesToOwnDomain,
         ...standingInstructionsStamp,
@@ -379,7 +383,11 @@ export default function CustomersAdminPage() {
                   addressLine1: resolved.formattedAddress,
                   standingInstructions: editStandingInstructions,
                   defaultNumberOfSigns: editSigns ?? null,
-                  defaultAgentInitials: editDefaultAgentInitials,
+                  // Mirrors normalizeCustomerDefaults: the first agent in the
+                  // (admin-ordered) list is the default.
+                  defaultAgentInitials: editAgentOptions[0]
+                    ? generateAgentInitials(editAgentOptions[0]) ?? editAgentOptions[0].slice(0, 2).toUpperCase()
+                    : null,
                   agentOptions: editAgentOptions,
                   restrictInvitesToOwnDomain: editRestrictInvitesToOwnDomain,
                   ...standingInstructionsStamp,
@@ -442,7 +450,6 @@ export default function CustomersAdminPage() {
           email={email}
           billingRatePerHour={billingRatePerHour}
           defaultNumberOfSigns={defaultNumberOfSigns}
-          defaultAgentInitials={defaultAgentInitials}
           addressLine1={addressLine1}
           agentOptions={agentOptions}
           standingInstructions={standingInstructions}
@@ -453,7 +460,6 @@ export default function CustomersAdminPage() {
           onEmailChange={setEmail}
           onBillingRatePerHourChange={setBillingRatePerHour}
           onDefaultNumberOfSignsChange={setDefaultNumberOfSigns}
-          onDefaultAgentInitialsChange={setDefaultAgentInitials}
           onAddressChange={setAddressLine1}
           onAddressResolved={(resolved) => {
             setCreateResolvedAddress(resolved);
@@ -463,6 +469,7 @@ export default function CustomersAdminPage() {
           }}
           onAddAgentOption={addAgentOptionToCreate}
           onRemoveAgentOption={removeAgentOptionFromCreate}
+          onMoveAgentOption={moveAgentOptionInCreate}
           onStandingInstructionsChange={setStandingInstructions}
         />
 
@@ -518,7 +525,6 @@ export default function CustomersAdminPage() {
                           editAddressLine1={editAddressLine1}
                           editStandingInstructions={editStandingInstructions}
                           editDefaultNumberOfSigns={editDefaultNumberOfSigns}
-                          editDefaultAgentInitials={editDefaultAgentInitials}
                           editAgentOptions={editAgentOptions}
                           editRestrictInvitesToOwnDomain={editRestrictInvitesToOwnDomain}
                           editSaving={editSaving}
@@ -534,7 +540,6 @@ export default function CustomersAdminPage() {
                           onEditBillingRatePerHourBlur={(value) => setEditBillingRatePerHour(formatCurrency(value))}
                           onEditStatusChange={setEditStatus}
                           onEditDefaultNumberOfSignsChange={setEditDefaultNumberOfSigns}
-                          onEditDefaultAgentInitialsChange={setEditDefaultAgentInitials}
                           onEditAddressLine1Change={setEditAddressLine1}
                           onEditResolvedAddressChange={(resolved) => {
                             setEditResolvedAddress(resolved);
@@ -544,6 +549,7 @@ export default function CustomersAdminPage() {
                           }}
                           onAddAgentOption={addAgentOption}
                           onRemoveAgentOption={removeAgentOption}
+                          onMoveAgentOption={moveAgentOption}
                           onEditStandingInstructionsChange={setEditStandingInstructions}
                           onEditRestrictInvitesToOwnDomainChange={setEditRestrictInvitesToOwnDomain}
                           onSave={() => {

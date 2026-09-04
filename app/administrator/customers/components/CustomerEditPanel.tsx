@@ -24,7 +24,6 @@ interface CustomerEditPanelProps {
   editAddressLine1: string;
   editStandingInstructions: string;
   editDefaultNumberOfSigns: string;
-  editDefaultAgentInitials: string;
   editAgentOptions: string[];
   editRestrictInvitesToOwnDomain: boolean;
   editSaving: boolean;
@@ -40,15 +39,16 @@ interface CustomerEditPanelProps {
   onEditBillingRatePerHourBlur: (value: string) => void;
   onEditStatusChange: (value: CustomerStatus) => void;
   onEditDefaultNumberOfSignsChange: (value: string) => void;
-  onEditDefaultAgentInitialsChange: (value: string) => void;
   onEditAddressLine1Change: (value: string) => void;
   onEditResolvedAddressChange: (resolved: ResolvedAddress | null) => void;
   onAddAgentOption: (value: string) => void;
   onRemoveAgentOption: (value: string) => void;
+  onMoveAgentOption: (index: number, direction: 'up' | 'down') => void;
   onEditStandingInstructionsChange: (value: string) => void;
   onEditRestrictInvitesToOwnDomainChange: (value: boolean) => void;
   onSave: () => void;
   onCancel: () => void;
+  onDelete: () => void;
 }
 
 export default function CustomerEditPanel({
@@ -62,7 +62,6 @@ export default function CustomerEditPanel({
   editAddressLine1,
   editStandingInstructions,
   editDefaultNumberOfSigns,
-  editDefaultAgentInitials,
   editAgentOptions,
   editRestrictInvitesToOwnDomain,
   editSaving,
@@ -78,139 +77,138 @@ export default function CustomerEditPanel({
   onEditBillingRatePerHourBlur,
   onEditStatusChange,
   onEditDefaultNumberOfSignsChange,
-  onEditDefaultAgentInitialsChange,
   onEditAddressLine1Change,
   onEditResolvedAddressChange,
   onAddAgentOption,
   onRemoveAgentOption,
+  onMoveAgentOption,
   onEditStandingInstructionsChange,
   onEditRestrictInvitesToOwnDomainChange,
   onSave,
   onCancel,
+  onDelete,
 }: CustomerEditPanelProps) {
   return (
     <div className={styles.subPanel}>
       <h4 className={styles.subPanelHeading}>Edit Customer — {customer.name}</h4>
       {editError && <div className={styles.errorBanner} role="alert" aria-live="assertive">{editError}</div>}
       {editSuccess && <div className={styles.successBanner} role="status" aria-live="polite">{editSuccess}</div>}
-      <p className={styles.mutedText}>Address is validated via Google address lookup before saving.</p>
-      <div className={styles.fieldsGrid}>
-        <Input
-          value={editName}
-          onChange={(event) => onEditNameChange(event.target.value)}
-          placeholder="Name"
-          disabled={editSaving}
-          required
-        />
-        <Input
-          value={editCompanyName}
-          onChange={(event) => onEditCompanyNameChange(event.target.value)}
-          placeholder="Company Name"
-          disabled={editSaving}
-        />
-        <Input
-          value={editEmail}
-          onChange={(event) => onEditEmailChange(event.target.value)}
-          placeholder="Correspondence Email"
-          type="email"
-          disabled={editSaving}
-          required
-        />
-        <Input
-          value={editContactPhone}
-          onChange={(event) => onEditContactPhoneChange(event.target.value)}
-          placeholder="Contact phone"
-          type="tel"
-          disabled={editSaving}
-        />
-        <Input
-          value={editBillingRatePerHour}
-          onChange={(event) => onEditBillingRatePerHourChange(event.target.value)}
-          onBlur={(event) => onEditBillingRatePerHourBlur(event.target.value)}
-          placeholder="Billing rate per hour"
-          type="text"
-          inputMode="decimal"
-          disabled={editSaving}
-          required
-        />
-        <Select
-          value={editStatus}
-          onChange={(event) => onEditStatusChange(event.target.value as CustomerStatus)}
-          disabled={editSaving}
-        >
-          <option value="active">active</option>
-          <option value="inactive">inactive</option>
-          <option value="suspended">suspended</option>
-        </Select>
-        <Input
-          value={editDefaultNumberOfSigns}
-          onChange={(event) => onEditDefaultNumberOfSignsChange(event.target.value)}
-          placeholder="Default number of signs"
-          type="number"
-          min={0}
-          disabled={editSaving}
-        />
-        <Input
-          value={editDefaultAgentInitials}
-          onChange={(event) => onEditDefaultAgentInitialsChange(event.target.value)}
-          placeholder="Default agent initials (e.g., BO)"
-          maxLength={4}
-          disabled={editSaving}
-        />
-        <div className={styles.fieldsGridFull}>
-          <AddressAutocompleteInput
-            id={`customer-address-${customer.id}`}
-            value={editAddressLine1}
-            onChange={(value) => {
-              onEditAddressLine1Change(value);
-            }}
-            onResolved={onEditResolvedAddressChange}
-            disabled={editSaving}
-            placeholder="Address"
-            className="nd-input"
-          />
-        </div>
-        <AgentOptionsEditor
-          agentOptions={editAgentOptions}
-          onAdd={onAddAgentOption}
-          onRemove={onRemoveAgentOption}
-          disabled={editSaving}
-        />
-        <div className={styles.fieldsGridFull}>
+
+      <Card title="Customer Details" className={styles.sectionCard}>
+        <p className={styles.mutedText}>Address is validated via Google address lookup before saving.</p>
+        <div className={styles.fieldsGrid}>
           <Input
-            value={editStandingInstructions}
-            onChange={(event) => onEditStandingInstructionsChange(event.target.value)}
-            placeholder="Standing instructions for operators"
+            value={editName}
+            onChange={(event) => onEditNameChange(event.target.value)}
+            placeholder="Customer Name"
             disabled={editSaving}
-            multiline
+            required
           />
-          {customer.standingInstructionsUpdatedAt && (
-            <div className={styles.attributionRow}>
-              <span className={styles.attributionCaption}>
-                Last edited {new Date(customer.standingInstructionsUpdatedAt).toLocaleDateString('en-AU', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                })}
-                {customer.standingInstructionsUpdatedBy ? ` by ${customer.standingInstructionsUpdatedBy}` : ''}
-              </span>
-            </div>
-          )}
+          <Input
+            value={editCompanyName}
+            onChange={(event) => onEditCompanyNameChange(event.target.value)}
+            placeholder="Trading Name"
+            disabled={editSaving}
+          />
+          <Select
+            value={editStatus}
+            onChange={(event) => onEditStatusChange(event.target.value as CustomerStatus)}
+            disabled={editSaving}
+          >
+            <option value="active">active</option>
+            <option value="inactive">inactive</option>
+            <option value="suspended">suspended</option>
+          </Select>
+          <Input
+            value={editContactPhone}
+            onChange={(event) => onEditContactPhoneChange(event.target.value)}
+            placeholder="Contact phone"
+            type="tel"
+            disabled={editSaving}
+          />
+          <Input
+            value={editEmail}
+            onChange={(event) => onEditEmailChange(event.target.value)}
+            placeholder="Billing Email"
+            type="email"
+            disabled={editSaving}
+            required
+          />
+          <Input
+            value={editBillingRatePerHour}
+            onChange={(event) => onEditBillingRatePerHourChange(event.target.value)}
+            onBlur={(event) => onEditBillingRatePerHourBlur(event.target.value)}
+            placeholder="Billing rate per hour"
+            type="text"
+            inputMode="decimal"
+            disabled={editSaving}
+            required
+          />
+          <div className={styles.fieldsGridFull}>
+            <AddressAutocompleteInput
+              id={`customer-address-${customer.id}`}
+              value={editAddressLine1}
+              onChange={(value) => {
+                onEditAddressLine1Change(value);
+              }}
+              onResolved={onEditResolvedAddressChange}
+              disabled={editSaving}
+              placeholder="Address"
+              className="nd-input"
+            />
+          </div>
+          <Checkbox
+            className={styles.fieldsGridFull}
+            checked={editRestrictInvitesToOwnDomain}
+            onChange={(event) => onEditRestrictInvitesToOwnDomainChange(event.target.checked)}
+            disabled={editSaving}
+            label={`Restrict invited users to @${emailDomain(editEmail || customer.email)} email addresses`}
+            description="When on, this customer's account owner can only invite teammates whose email matches this domain."
+          />
         </div>
-        {customer.defaultAgentInitials && (
-          <p className={`${styles.mutedText} ${styles.fieldsGridFull}`}>
-            Current default initials: {customer.defaultAgentInitials}
-          </p>
-        )}
-        <Checkbox
-          className={styles.fieldsGridFull}
-          checked={editRestrictInvitesToOwnDomain}
-          onChange={(event) => onEditRestrictInvitesToOwnDomainChange(event.target.checked)}
-          disabled={editSaving}
-          label={`Restrict invited users to @${emailDomain(editEmail || customer.email)} email addresses`}
-          description="When on, this customer's account owner can only invite teammates whose email matches this domain."
-        />
-      </div>
+      </Card>
+
+      <Card title="Standing Instructions" className={styles.sectionCard}>
+        <div className={styles.fieldsGrid}>
+          <AgentOptionsEditor
+            agentOptions={editAgentOptions}
+            onAdd={onAddAgentOption}
+            onRemove={onRemoveAgentOption}
+            onMove={onMoveAgentOption}
+            disabled={editSaving}
+          />
+          <Input
+            value={editDefaultNumberOfSigns}
+            onChange={(event) => onEditDefaultNumberOfSignsChange(event.target.value)}
+            placeholder="Default number of signs"
+            type="number"
+            min={0}
+            disabled={editSaving}
+          />
+          <div className={styles.fieldsGridFull}>
+            <Input
+              value={editStandingInstructions}
+              onChange={(event) => onEditStandingInstructionsChange(event.target.value)}
+              placeholder="Standing instructions for operators"
+              disabled={editSaving}
+              multiline
+            />
+            {customer.standingInstructionsUpdatedAt && (
+              <div className={styles.attributionRow}>
+                <span className={styles.attributionCaption}>
+                  Last edited {new Date(customer.standingInstructionsUpdatedAt).toLocaleDateString('en-AU', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                  {customer.standingInstructionsUpdatedBy ? ` by ${customer.standingInstructionsUpdatedBy}` : ''}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+
       <div className={styles.actionsRow}>
         <Button type="button" variant="primary" loading={editSaving} onClick={onSave}>
           {editSaving ? 'Saving...' : 'Save Customer'}
@@ -218,9 +216,19 @@ export default function CustomerEditPanel({
         <Button type="button" variant="ghost" disabled={editSaving} onClick={onCancel}>
           Cancel
         </Button>
+        <Button
+          type="button"
+          variant="danger"
+          disabled={editSaving}
+          onClick={onDelete}
+          className={styles.deleteAction}
+          aria-label={`Delete customer ${customer.name}`}
+        >
+          Delete Customer
+        </Button>
       </div>
 
-      <Card title="Onboarding checklist" className={styles.checklistCard}>
+      <Card title="Onboarding checklist" className={styles.sectionCard}>
         {checklistLoading ? (
           <p className={styles.mutedText}>Loading...</p>
         ) : (

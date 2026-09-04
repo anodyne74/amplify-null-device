@@ -1,6 +1,7 @@
 import {
   generateAgentInitials,
   getAgentBadgeTone,
+  moveAgentOption,
   normalizeCustomerDefaults,
   parseAgentOptionsInput,
 } from './customerDefaults';
@@ -11,7 +12,7 @@ describe('customerDefaults', () => {
     expect(generateAgentInitials('Pat')).toBe('PA');
   });
 
-  it('normalizes defaults and includes the default agent in options', () => {
+  it('normalizes defaults and derives the default agent from the first agent option', () => {
     expect(
       normalizeCustomerDefaults({
         standingInstructions: '  Call first  ',
@@ -21,12 +22,25 @@ describe('customerDefaults', () => {
     ).toEqual({
       standingInstructions: 'Call first',
       defaultAgentName: 'Jamie Lee',
-      defaultAgentInitials: 'JL',
+      // The first entry of agentOptions ("Pat Doe") is the default agent — an
+      // admin-ordered, non-empty list is always authoritative over defaultAgentName.
+      defaultAgentInitials: 'PD',
       agentOptions: ['Pat Doe', 'jamie lee'],
     });
   });
 
-  it('preserves provided default agent initials', () => {
+  it('reordering agent options changes the derived default agent (#2)', () => {
+    expect(
+      normalizeCustomerDefaults({
+        agentOptions: moveAgentOption(['BO', 'DM'], 1, 'up'),
+      })
+    ).toEqual({
+      defaultAgentInitials: 'DM',
+      agentOptions: ['DM', 'BO'],
+    });
+  });
+
+  it('falls back to a legacy defaultAgentName when there are no agent options yet', () => {
     expect(
       normalizeCustomerDefaults({
         defaultAgentName: 'Bo',
@@ -37,6 +51,13 @@ describe('customerDefaults', () => {
       defaultAgentInitials: 'BO',
       agentOptions: ['Bo'],
     });
+  });
+
+  it('moves an agent option earlier or later, clamped to the list bounds', () => {
+    expect(moveAgentOption(['BO', 'DM', 'KP'], 0, 'up')).toEqual(['BO', 'DM', 'KP']);
+    expect(moveAgentOption(['BO', 'DM', 'KP'], 2, 'down')).toEqual(['BO', 'DM', 'KP']);
+    expect(moveAgentOption(['BO', 'DM', 'KP'], 2, 'up')).toEqual(['BO', 'KP', 'DM']);
+    expect(moveAgentOption(['BO', 'DM', 'KP'], 0, 'down')).toEqual(['DM', 'BO', 'KP']);
   });
 
   it('parses agent options from mixed line and comma input', () => {

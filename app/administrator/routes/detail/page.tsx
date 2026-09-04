@@ -155,13 +155,18 @@ function getPhaseCompletionTime(stop: Stop, phase: ExecutionPhase) {
   );
 }
 
-function getStopStatusLabel(stop: Stop, executionPhase?: ExecutionPhase | null) {
+function getStopStatusLabel(stop: Stop, executionPhase?: ExecutionPhase | null, routeStatus?: string | null) {
   if (executionPhase) {
     if (isStopSkippedForPhase(stop, executionPhase)) {
       return executionPhase === 'pickup' ? 'Pickup skipped' : 'Placement skipped';
     }
     if (isStopCompletedForPhase(stop, executionPhase)) {
       return executionPhase === 'pickup' ? 'Signs collected' : 'Signs placed';
+    }
+    // The route hasn't started yet, so there's nothing to be "awaiting" —
+    // the operator still needs to load the signs onto the vehicle.
+    if (routeStatus === 'planned' && executionPhase === 'placement') {
+      return 'Load signs';
     }
     return executionPhase === 'pickup' ? 'Awaiting pickup' : 'Awaiting placement';
   }
@@ -222,7 +227,7 @@ function RouteDetailContent() {
   const [editingStop, setEditingStop] = useState(false);
   const [editStopError, setEditStopError] = useState<string | null>(null);
   const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
-  const [pendingDeleteStopId, setPendingDeleteStopId] = useState<string | null>(null);
+  const [dragOverStopId, setDragOverStopId] = useState<string | null>(null);
   const [deletingStopId, setDeletingStopId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
@@ -751,6 +756,12 @@ function RouteDetailContent() {
     if (!canManagePlanning || deletingStopId) {
       return;
     }
+    const stop = stops.find((s) => s.id === stopId);
+    const confirmed = window.confirm(
+      `Delete stop${stop?.address ? ` at ${stop.address}` : ''}?`
+    );
+    if (!confirmed) return;
+
     setDeletingStopId(stopId);
     setReorderError(null);
     try {
@@ -767,7 +778,6 @@ function RouteDetailContent() {
           client.models.Stop.update({ id: s.id, sequence: idx + 1 })
         )
       );
-      setPendingDeleteStopId(null);
       await fetchStops();
     } catch {
       setReorderError('Failed to delete stop. Please try again.');
@@ -1417,36 +1427,15 @@ function RouteDetailContent() {
                         >
                           Edit
                         </Button>
-                        {pendingDeleteStopId === stop.id ? (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="danger"
-                              loading={deletingStopId === stop.id}
-                              onClick={() => { void handleDeleteStop(stop.id); }}
-                              disabled={reordering || !!deletingStopId}
-                            >
-                              {deletingStopId === stop.id ? 'Deleting...' : 'Confirm Delete'}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setPendingDeleteStopId(null)}
-                              disabled={reordering || !!deletingStopId}
-                            >
-                              Cancel
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => setPendingDeleteStopId(stop.id)}
-                            disabled={reordering || !!deletingStopId}
-                          >
-                            Delete
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          loading={deletingStopId === stop.id}
+                          onClick={() => { void handleDeleteStop(stop.id); }}
+                          disabled={reordering || !!deletingStopId}
+                        >
+                          {deletingStopId === stop.id ? 'Deleting...' : 'Delete'}
+                        </Button>
                       </div>
                     );
                   } else if (route?.status === 'in_progress' && isCurrentPhaseStop) {
@@ -1492,22 +1481,34 @@ function RouteDetailContent() {
                       sequence={stop.sequence ?? '?'}
                       serviceType={stop.serviceType}
                       address={stop.formattedAddress || stop.address || ''}
-                      statusLabel={getStopStatusLabel(stop, currentExecutionPhase)}
+                      statusLabel={getStopStatusLabel(stop, currentExecutionPhase, route?.status)}
                       agentInitials={agentInitials}
                       agentName={agentName}
                       agentBadgeTone={agentBadgeTone}
+                      isAuction={Boolean(stop.isAuction)}
                       isTop={isTopVisibleStop}
                       isCompleted={completedStop}
                       isDragging={draggingStopId === stop.id}
+                      isDropTarget={dragOverStopId === stop.id && draggingStopId !== stop.id}
                       draggable={canManagePlanning && !planningLocked && !reordering}
                       onDragStart={() => setDraggingStopId(stop.id)}
                       onDragOver={(event) => {
                         if (canManagePlanning && !planningLocked) {
                           event.preventDefault();
+                          setDragOverStopId(stop.id);
                         }
                       }}
-                      onDrop={() => { void handleDropStop(stop.id); }}
-                      onDragEnd={() => setDraggingStopId(null)}
+                      onDragLeave={() => {
+                        setDragOverStopId((current) => (current === stop.id ? null : current));
+                      }}
+                      onDrop={() => {
+                        setDragOverStopId(null);
+                        void handleDropStop(stop.id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingStopId(null);
+                        setDragOverStopId(null);
+                      }}
                       actions={stopActions}
                     />
                   );

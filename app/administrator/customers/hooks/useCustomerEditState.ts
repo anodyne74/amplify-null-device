@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import type { ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import type { Customer, CustomerStatus } from '@/app/administrator/customers/types';
-import { addAgentOption as addAgentOptionTo, removeAgentOption as removeAgentOptionFrom } from '@/lib/customerDefaults';
+import {
+  addAgentOption as addAgentOptionTo,
+  moveAgentOption as moveAgentOptionIn,
+  removeAgentOption as removeAgentOptionFrom,
+} from '@/lib/customerDefaults';
 
 interface OpenEditPanelParams {
   customer: Customer;
@@ -22,7 +26,6 @@ export function useCustomerEditState() {
   const [editStandingInstructions, setEditStandingInstructions] = useState('');
   const [editOriginalStandingInstructions, setEditOriginalStandingInstructions] = useState('');
   const [editDefaultNumberOfSigns, setEditDefaultNumberOfSigns] = useState('');
-  const [editDefaultAgentInitials, setEditDefaultAgentInitials] = useState('');
   const [editAgentOptions, setEditAgentOptions] = useState<string[]>([]);
   const [editRestrictInvitesToOwnDomain, setEditRestrictInvitesToOwnDomain] = useState(false);
   const [editResolvedAddress, setEditResolvedAddress] = useState<ResolvedAddress | null>(null);
@@ -36,6 +39,10 @@ export function useCustomerEditState() {
 
   const removeAgentOption = (value: string) => {
     setEditAgentOptions((prev) => removeAgentOptionFrom(prev, value));
+  };
+
+  const moveAgentOption = (index: number, direction: 'up' | 'down') => {
+    setEditAgentOptions((prev) => moveAgentOptionIn(prev, index, direction));
   };
 
   const resetEditFeedback = () => {
@@ -66,7 +73,6 @@ export function useCustomerEditState() {
     setEditDefaultNumberOfSigns(
       typeof customer.defaultNumberOfSigns === 'number' ? String(customer.defaultNumberOfSigns) : ''
     );
-    setEditDefaultAgentInitials(customer.defaultAgentInitials ?? '');
     setEditAgentOptions(agentOptions);
     setEditRestrictInvitesToOwnDomain(Boolean(customer.restrictInvitesToOwnDomain));
   };
@@ -94,12 +100,11 @@ export function useCustomerEditState() {
     editOriginalStandingInstructions,
     editDefaultNumberOfSigns,
     setEditDefaultNumberOfSigns,
-    editDefaultAgentInitials,
-    setEditDefaultAgentInitials,
     editAgentOptions,
     setEditAgentOptions,
     addAgentOption,
     removeAgentOption,
+    moveAgentOption,
     editRestrictInvitesToOwnDomain,
     setEditRestrictInvitesToOwnDomain,
     editResolvedAddress,

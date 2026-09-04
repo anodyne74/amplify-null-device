@@ -186,6 +186,17 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByText('200 Second Ave')).toBeInTheDocument();
   });
 
+  it('shows "Load signs" instead of "Awaiting placement" for a planned route (#5)', async () => {
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('100 First St')).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByText('Load signs').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Awaiting placement')).not.toBeInTheDocument();
+  });
+
   it('shows "Add Stop" button', async () => {
     render(<RouteDetailPage />);
 
@@ -196,7 +207,8 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByRole('button', { name: /add stop/i })).toBeInTheDocument();
   });
 
-  it('calls deleteStop when inline delete is confirmed', async () => {
+  it('calls deleteStop in one click after the browser confirm is accepted', async () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
     render(<RouteDetailPage />);
 
     await waitFor(() => {
@@ -205,11 +217,30 @@ describe('Operator Route Detail Page', () => {
 
     const stopDeleteButtons = screen.getAllByRole('button', { name: /^delete$/i });
     fireEvent.click(stopDeleteButtons[0]);
-    fireEvent.click(screen.getByRole('button', { name: /confirm delete/i }));
 
+    expect(confirmSpy).toHaveBeenCalled();
     await waitFor(() => {
       expect(deleteStopModule.deleteStop).toHaveBeenCalledWith('stop-1');
     });
+
+    confirmSpy.mockRestore();
+  });
+
+  it('does not call deleteStop when the browser confirm is dismissed', async () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /delete/i }).length).toBeGreaterThan(0);
+    });
+
+    const stopDeleteButtons = screen.getAllByRole('button', { name: /^delete$/i });
+    fireEvent.click(stopDeleteButtons[0]);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(deleteStopModule.deleteStop).not.toHaveBeenCalled();
+
+    confirmSpy.mockRestore();
   });
 
   it('shows "Start Route" button for planned routes', async () => {

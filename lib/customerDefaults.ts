@@ -93,12 +93,15 @@ export function normalizeAgentOptions(agentOptions?: string[], defaultAgentName?
     normalizedOptions.push(trimmed);
   }
 
+  // Legacy fallback: a customer created before the agent-list UI existed may only
+  // have a defaultAgentName and no agentOptions at all — seed the list with it so
+  // it isn't silently dropped. Once agentOptions exist, list order (set via
+  // AgentOptionsEditor's Up/Down reordering) is authoritative, so defaultAgentName
+  // is never injected into a non-empty list — that would fight the admin's
+  // explicit ordering and silently change their chosen default agent.
   const normalizedDefaultAgent = defaultAgentName?.trim();
-  if (normalizedDefaultAgent) {
-    const defaultKey = normalizedDefaultAgent.toLowerCase();
-    if (!deduped.has(defaultKey)) {
-      normalizedOptions.unshift(normalizedDefaultAgent);
-    }
+  if (normalizedDefaultAgent && normalizedOptions.length === 0) {
+    normalizedOptions.push(normalizedDefaultAgent);
   }
 
   return normalizedOptions.length > 0 ? normalizedOptions : undefined;
@@ -107,13 +110,21 @@ export function normalizeAgentOptions(agentOptions?: string[], defaultAgentName?
 export function normalizeCustomerDefaults<T extends CustomerDefaultsInput>(input: T): T {
   const standingInstructions = input.standingInstructions?.trim() || undefined;
   const defaultAgentName = input.defaultAgentName?.trim() || undefined;
-  const providedInitials = input.defaultAgentInitials?.trim();
-  const defaultAgentInitials = providedInitials
-    ? providedInitials.toUpperCase()
-    : defaultAgentName
-      ? generateAgentInitials(defaultAgentName)
-      : undefined;
   const agentOptions = normalizeAgentOptions(input.agentOptions, defaultAgentName);
+
+  // The default agent is simply the first entry of the (admin-ordered) agent list —
+  // reordering via AgentOptionsEditor's Up/Down buttons is how admins change a
+  // customer's default agent. Falls back to a provided/legacy value only when
+  // there's no agent list at all.
+  const providedInitials = input.defaultAgentInitials?.trim();
+  const firstAgent = agentOptions?.[0];
+  const defaultAgentInitials = firstAgent
+    ? (generateAgentInitials(firstAgent) ?? firstAgent.slice(0, 2).toUpperCase())
+    : providedInitials
+      ? providedInitials.toUpperCase()
+      : defaultAgentName
+        ? generateAgentInitials(defaultAgentName)
+        : undefined;
 
   return {
     ...input,
@@ -124,7 +135,9 @@ export function normalizeCustomerDefaults<T extends CustomerDefaultsInput>(input
   };
 }
 
-/** Add an agent option, case-insensitively deduped against what's already there. */
+/** Add an agent option, case-insensitively deduped against what's already there.
+ * New agents are appended to the end — the first entry is the customer's default
+ * agent (see normalizeCustomerDefaults), so appending never silently changes it. */
 export function addAgentOption(options: string[], value: string): string[] {
   const trimmed = value.trim();
   if (!trimmed) return options;
@@ -135,6 +148,20 @@ export function addAgentOption(options: string[], value: string): string[] {
 
 export function removeAgentOption(options: string[], value: string): string[] {
   return options.filter((option) => option !== value);
+}
+
+/** Move an agent option earlier/later in the list — reordering is how admins
+ * change which agent is the default (always index 0, see normalizeCustomerDefaults). */
+export function moveAgentOption(options: string[], index: number, direction: 'up' | 'down'): string[] {
+  const targetIndex = direction === 'up' ? index - 1 : index + 1;
+  if (index < 0 || index >= options.length || targetIndex < 0 || targetIndex >= options.length) {
+    return options;
+  }
+
+  const reordered = [...options];
+  const [moved] = reordered.splice(index, 1);
+  reordered.splice(targetIndex, 0, moved);
+  return reordered;
 }
 
 export function parseAgentOptionsInput(value: string) {

@@ -23,12 +23,15 @@ interface StopCardProps {
   agentInitials: string;
   agentName: string;
   agentBadgeTone: { backgroundColor: string; color: string };
+  isAuction?: boolean;
   isTop?: boolean;
   isCompleted?: boolean;
   isDragging?: boolean;
+  isDropTarget?: boolean;
   draggable?: boolean;
   onDragStart?: () => void;
   onDragOver?: (event: DragEvent<HTMLDivElement>) => void;
+  onDragLeave?: () => void;
   onDrop?: () => void;
   onDragEnd?: () => void;
   actions?: ReactNode;
@@ -43,12 +46,15 @@ export default function StopCard({
   agentInitials,
   agentName,
   agentBadgeTone,
+  isAuction = false,
   isTop = false,
   isCompleted = false,
   isDragging = false,
+  isDropTarget = false,
   draggable = false,
   onDragStart,
   onDragOver,
+  onDragLeave,
   onDrop,
   onDragEnd,
   actions,
@@ -57,10 +63,11 @@ export default function StopCard({
 
   return (
     <div
-      className={`${styles.card} ${SERVICE_TYPE_CLASS[svcKey] ?? ''} ${isTop ? styles.cardTop : ''} ${isCompleted ? styles.cardCompleted : ''} ${isDragging ? styles.cardDragging : ''}`}
+      className={`${styles.card} ${SERVICE_TYPE_CLASS[svcKey] ?? ''} ${isTop ? styles.cardTop : ''} ${isCompleted ? styles.cardCompleted : ''} ${isDragging ? styles.cardDragging : ''} ${isDropTarget ? styles.cardDropTarget : ''}`}
       draggable={draggable}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
       onDrop={onDrop}
       onDragEnd={onDragEnd}
     >
@@ -69,6 +76,7 @@ export default function StopCard({
       <div className={styles.body}>
         <div className={styles.address}>{address}</div>
         <div className={styles.status}>{statusLabel}</div>
+        {isAuction && <span className={styles.auctionBadge}>Auction</span>}
       </div>
 
       <span

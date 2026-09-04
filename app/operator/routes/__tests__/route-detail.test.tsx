@@ -4,8 +4,14 @@ import { render, screen, waitFor, within, fireEvent } from '@testing-library/rea
 import RouteDetailPage from '../detail/page';
 import * as getRouteDetailModule from '@/lib/queries/GetRouteDetail';
 import * as deleteStopModule from '@/lib/queries/DeleteStop';
+import { updateStop } from '@/lib/queries/UpdateStop';
+import { geocodeAddress } from '@/lib/googleMaps';
 import { updateStopExecution, updateRouteExecution } from '@/lib/queries';
 import type { Route, Stop } from '@/amplify/types';
+
+jest.mock('@/lib/googleMaps', () => ({
+  geocodeAddress: jest.fn(),
+}));
 
 // Mock Next.js navigation
 jest.mock('next/navigation', () => ({
@@ -189,6 +195,13 @@ describe('Operator Route Detail Page', () => {
       data: {},
       errors: undefined,
     });
+
+    (updateStop as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
+    (geocodeAddress as jest.Mock).mockResolvedValue({
+      latitude: 0,
+      longitude: 0,
+      formattedAddress: 'Unused',
+    });
   });
 
   it('renders route information after loading', async () => {
@@ -278,6 +291,49 @@ describe('Operator Route Detail Page', () => {
     });
 
     expect(screen.getByRole('button', { name: /add stop/i })).toBeInTheDocument();
+  });
+
+  it('reuses a stop\'s existing coordinates instead of re-geocoding when the address is unchanged (#149)', async () => {
+    const stopsWithCoords: Stop[] = [
+      {
+        ...mockStops[0],
+        formattedAddress: '100 First St, Melbourne VIC',
+        latitude: -37.8136,
+        longitude: 144.9631,
+      },
+      mockStops[1],
+    ];
+    mockStopList.mockResolvedValue({ data: stopsWithCoords, errors: undefined });
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /^edit$/i }).length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^edit$/i })[0]);
+
+    // Only touch a non-address field — the address input is left exactly as loaded.
+    const notesField = await screen.findByPlaceholderText(/optional notes/i);
+    fireEvent.change(notesField, { target: { value: 'Leave signs at the side gate' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(updateStop).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'stop-1',
+          address: '100 First St',
+          latitude: -37.8136,
+          longitude: 144.9631,
+          notes: 'Leave signs at the side gate',
+        })
+      );
+    });
+
+    // A live re-validation of an unchanged address is what made this fail on a flaky
+    // Maps API call in the first place (same bug class as #58).
+    expect(geocodeAddress).not.toHaveBeenCalled();
   });
 
   it('calls deleteStop when inline delete is confirmed', async () => {

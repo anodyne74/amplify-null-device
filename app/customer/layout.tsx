@@ -6,7 +6,7 @@ import { fetchAuthSession } from 'aws-amplify/auth';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import CustomerShell from '@/app/customer/components/CustomerShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
-import { getUserDisplayName } from '@/lib/amplify-config';
+import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getCustomerPortalContext, getUserSettings } from '@/lib/queries';
 import { useSessionTimeout, useLogout } from '@/app/auth/sessionManager';
 
@@ -30,13 +30,26 @@ const READ_ONLY_HIDDEN_PATHS = ['/customer/invoices', '/customer/billing-details
  */
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuthenticator();
-  const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
-  const [userDisplayName, setUserDisplayName] = useState(fallbackDisplayName);
+  const [fallbackDisplayName, setFallbackDisplayName] = useState('');
+  const [userDisplayName, setUserDisplayName] = useState('');
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
   const { logout } = useLogout();
   const { setMode: applyThemeMode } = useThemeMode();
 
   useSessionTimeout();
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    let cancelled = false;
+
+    void fetchUserDisplayName().then((name) => {
+      if (!cancelled) setFallbackDisplayName(name || '');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
 
   useEffect(() => {
     setUserDisplayName(fallbackDisplayName);

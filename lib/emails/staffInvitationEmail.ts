@@ -3,14 +3,15 @@ import { APP_DOMAIN, SUPPORT_EMAIL } from '@/lib/publicAppConfig';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
 
 /**
- * Sends the branded portal-invitation email (the `NullDeviceInvitationTemplate`
- * SES template defined in amplify/backend.ts). Callers own the temporary
- * password: it is generated in createOrGetCognitoUser with MessageAction:SUPPRESS
- * so Cognito's built-in invitation email never goes out for customer invites.
+ * Sends the branded staff-invitation email (the `NullDeviceStaffInvitationTemplate`
+ * SES template defined in amplify/backend.ts) for operator/administrator invites.
+ * Callers own the temporary password: it is generated in createOrGetCognitoUser
+ * with MessageAction:SUPPRESS so Cognito's built-in invitation email never goes
+ * out for these invites either.
  *
- * Shared by the two customer-invite paths -- app/api/admin/users/route.ts
- * (createUser action) and app/api/customer/invite-user/route.ts -- to avoid a
- * third copy of the SendTemplatedEmailCommand boilerplate.
+ * Sibling of lib/emails/invitationEmail.ts (the customer-portal-flavored
+ * equivalent) -- kept separate because the copy differs (no customerName, no
+ * invoices) rather than reusing one template with role-conditional wording.
  */
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
@@ -27,22 +28,22 @@ function sanitizeNamePart(value: string, fallback: string) {
 // process.env.AWS_BRANCH/AMPLIFY_BRANCH aren't set in the SSR runtime, so this
 // reconstruction is a last-resort fallback -- see lib/amplifyOutputsCustom.ts.
 const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || '', '');
-const fallbackInvitationTemplateName = branchName
-  ? `NullDeviceInvitationTemplate-${branchName}`
-  : 'NullDeviceInvitationTemplate';
-const invitationTemplateName =
-  process.env.SES_INVITATION_TEMPLATE_NAME ||
-  customOutputs.sesInvitationTemplateName ||
-  fallbackInvitationTemplateName;
+const fallbackStaffInvitationTemplateName = branchName
+  ? `NullDeviceStaffInvitationTemplate-${branchName}`
+  : 'NullDeviceStaffInvitationTemplate';
+const staffInvitationTemplateName =
+  process.env.SES_STAFF_INVITATION_TEMPLATE_NAME ||
+  customOutputs.sesStaffInvitationTemplateName ||
+  fallbackStaffInvitationTemplateName;
 
-export interface InvitationEmailInput {
+export interface StaffInvitationEmailInput {
   /** Recipient / invitee email address (also rendered in the credentials panel). */
   toEmail: string;
   /** Invitee display name for the greeting; falls back to "there". */
   inviteeName?: string;
-  /** The customer account they've been invited to. */
-  customerName: string;
-  /** Who sent the invite (account owner, or the admin acting on their behalf). */
+  /** Human-readable role, e.g. "Operator" or "Administrator". */
+  roleLabel: string;
+  /** Who sent the invite (the admin acting on the invite). */
   inviterName: string;
   inviterEmail: string;
   /** The Cognito temporary password issued for this user. */
@@ -52,27 +53,15 @@ export interface InvitationEmailInput {
 }
 
 /** Throws on SES failure -- callers decide whether to surface or swallow it. */
-export async function sendInvitationEmail(input: InvitationEmailInput): Promise<void> {
+export async function sendStaffInvitationEmail(input: StaffInvitationEmailInput): Promise<void> {
   const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || `https://${APP_DOMAIN}`).replace(/\/$/, '');
   const senderEmail = process.env.SES_SENDER_EMAIL || `no-reply@${APP_DOMAIN}`;
   const supportMailto = `mailto:${SUPPORT_EMAIL}`;
 
-  // inviterName falls back to inviterEmail when the inviter has no display
-  // name set (see createUser in app/api/admin/users/route.ts) -- in that case
-  // "{{inviterName}} ({{inviterEmail}})" would render the same address twice,
-  // so collapse it to a single mention.
-  const inviterName = input.inviterName.trim();
-  const inviterEmail = input.inviterEmail.trim();
-  const inviterDisplay =
-    inviterName && inviterName.toLowerCase() !== inviterEmail.toLowerCase()
-      ? `${inviterName} (${inviterEmail})`
-      : inviterEmail || inviterName;
-
   const templateData = {
-    customerName: input.customerName,
-    inviterName,
-    inviterEmail,
-    inviterDisplay,
+    roleLabel: input.roleLabel,
+    inviterName: input.inviterName,
+    inviterEmail: input.inviterEmail,
     inviteeName: input.inviteeName?.trim() || 'there',
     inviteeEmail: input.toEmail,
     temporaryPassword: input.temporaryPassword,
@@ -82,8 +71,6 @@ export async function sendInvitationEmail(input: InvitationEmailInput): Promise<
     // No deep-link reset route -- a stuck invitee reaches a human.
     resetPasswordUrl: supportMailto,
     supportUrl: supportMailto,
-    supportEmail: SUPPORT_EMAIL,
-    unsubscribeUrl: `${appBaseUrl}/customer/settings`,
     logoUrl: `${appBaseUrl}/logo.svg`,
     companyAddress: process.env.SES_COMPANY_ADDRESS?.trim() || 'Melbourne, Australia',
   };
@@ -92,7 +79,7 @@ export async function sendInvitationEmail(input: InvitationEmailInput): Promise<
     new SendTemplatedEmailCommand({
       Source: senderEmail,
       Destination: { ToAddresses: [input.toEmail] },
-      Template: invitationTemplateName,
+      Template: staffInvitationTemplateName,
       TemplateData: JSON.stringify(templateData),
     })
   );

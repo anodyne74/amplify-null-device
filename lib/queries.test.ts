@@ -899,10 +899,14 @@ describe('queries', () => {
       });
       mockStopUpdate.mockResolvedValue({ data: {}, errors: undefined });
       mockCustomerUserList.mockResolvedValue({
-        data: [{ id: 'cu1', customerId: 'c1' }, { id: 'cu2', customerId: 'c1' }],
+        data: [
+          { id: 'cu1', customerId: 'c1', role: 'account_owner', userSub: 'sub-owner' },
+          { id: 'cu2', customerId: 'c1', role: 'read_only', userSub: 'sub-read' },
+        ],
         errors: undefined,
       });
       mockCustomerUserUpdate.mockResolvedValue({ data: {}, errors: undefined });
+      mockCustomerUpdate.mockResolvedValue({ data: { id: 'c1' }, errors: undefined });
 
       const result = await syncViewerSubsForCustomer('c1', ['sub-owner', 'sub-read']);
 
@@ -918,10 +922,29 @@ describe('queries', () => {
       });
       expect(mockCustomerUserUpdate).toHaveBeenCalledWith({ id: 'cu1', viewerSubs: ['sub-owner', 'sub-read'] });
       expect(mockCustomerUserUpdate).toHaveBeenCalledWith({ id: 'cu2', viewerSubs: ['sub-owner', 'sub-read'] });
+      expect(mockCustomerUpdate).toHaveBeenCalledWith({
+        id: 'c1',
+        viewerSubs: ['sub-owner', 'sub-read'],
+        accountOwnerSub: 'sub-owner',
+      });
       expect(result.updatedRoutes).toBe(1);
       expect(result.updatedStops).toBe(2);
       expect(result.updatedCustomerUsers).toBe(2);
       expect(result.errors).toEqual([]);
+    });
+
+    it('should sync Customer.viewerSubs without accountOwnerSub when no account owner is resolved yet', async () => {
+      mockRouteList.mockResolvedValue({ data: [], errors: undefined });
+      mockCustomerUserList.mockResolvedValue({
+        data: [{ id: 'cu1', customerId: 'c1', role: 'read_only', userSub: 'sub-read' }],
+        errors: undefined,
+      });
+      mockCustomerUserUpdate.mockResolvedValue({ data: {}, errors: undefined });
+      mockCustomerUpdate.mockResolvedValue({ data: { id: 'c1' }, errors: undefined });
+
+      await syncViewerSubsForCustomer('c1', ['sub-read']);
+
+      expect(mockCustomerUpdate).toHaveBeenCalledWith({ id: 'c1', viewerSubs: ['sub-read'] });
     });
 
     it('should collect and return update errors', async () => {
@@ -942,10 +965,12 @@ describe('queries', () => {
         errors: undefined,
       });
       mockCustomerUserUpdate.mockResolvedValue({ data: null, errors: [{ message: 'customer user update failed' }] });
+      mockCustomerUpdate.mockResolvedValue({ data: null, errors: [{ message: 'customer update failed' }] });
 
       const result = await syncViewerSubsForCustomer('c1', ['sub-owner']);
 
       expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors).toContainEqual({ message: 'customer update failed' });
       expect(result.updatedRoutes).toBe(0);
       expect(result.updatedStops).toBe(0);
       expect(result.updatedCustomerUsers).toBe(0);

@@ -18,7 +18,7 @@ jest.mock('@aws-amplify/ui-react', () => ({
 }));
 
 jest.mock('@/lib/amplify-config', () => ({
-  getUserDisplayName: () => 'Owner Name',
+  fetchUserDisplayName: () => Promise.resolve('Owner Name'),
   getUserEmail: () => 'owner@example.com',
 }));
 

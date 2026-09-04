@@ -7,7 +7,7 @@ jest.mock('@aws-amplify/ui-react', () => ({
 }));
 
 jest.mock('@/lib/amplify-config', () => ({
-  getUserDisplayName: jest.fn(() => 'test@example.com'),
+  fetchUserDisplayName: jest.fn(() => Promise.resolve('test@example.com')),
 }));
 
 jest.mock('@/app/components/AmplifyThemeProvider', () => ({

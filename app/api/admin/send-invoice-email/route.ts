@@ -5,7 +5,9 @@ import { generateClient } from 'aws-amplify/data';
 import { getUrl } from 'aws-amplify/storage';
 import type { Schema } from '@/amplify/data/resource';
 import outputs from '@/amplify_outputs.json';
+import { customOutputs } from '@/lib/amplifyOutputsCustom';
 import { listCustomerUsers, getCustomer, updateInvoice } from '@/lib/queries';
+import { APP_DOMAIN } from '@/lib/publicAppConfig';
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
 function sanitizeNamePart(value: string, fallback: string) {
@@ -17,11 +19,16 @@ function sanitizeNamePart(value: string, fallback: string) {
   return cleaned || fallback;
 }
 
+// process.env.AWS_BRANCH/AMPLIFY_BRANCH aren't set in the SSR runtime, so this
+// reconstruction is a last-resort fallback -- see lib/amplifyOutputsCustom.ts.
 const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || '', '');
-const defaultInvoiceTemplateName = branchName
+const fallbackInvoiceTemplateName = branchName
   ? `NullDeviceInvoiceTemplate-${branchName}`
   : 'NullDeviceInvoiceTemplate';
-const invoiceTemplateName = process.env.SES_INVOICE_TEMPLATE_NAME || defaultInvoiceTemplateName;
+const invoiceTemplateName =
+  process.env.SES_INVOICE_TEMPLATE_NAME ||
+  customOutputs.sesInvoiceTemplateName ||
+  fallbackInvoiceTemplateName;
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
 const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
 
@@ -191,7 +198,7 @@ export async function POST(request: NextRequest) {
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
     const logoUrl = configuredLogoUrl
       ? configuredLogoUrl
-      : `${(appBaseUrl || 'https://nulldevice.dev').replace(/\/$/, '')}/logo.svg`;
+      : `${(appBaseUrl || `https://${APP_DOMAIN}`).replace(/\/$/, '')}/logo.svg`;
     const templateValues = {
       invoiceNumber: invoice.invoiceNumber,
       customerName: customer.name || 'Customer',
@@ -217,7 +224,7 @@ export async function POST(request: NextRequest) {
     const encodedPdf = wrapBase64(Buffer.from(pdfBytes).toString('base64'));
 
     // Send email via SES as a raw MIME message to include the PDF attachment.
-    const senderEmail = sanitizeMimeHeaderValue(process.env.SES_SENDER_EMAIL || 'no-reply.nulldevice.dev');
+    const senderEmail = sanitizeMimeHeaderValue(process.env.SES_SENDER_EMAIL || `no-reply@${APP_DOMAIN}`);
     const safeToEmail = sanitizeMimeHeaderValue(toEmail);
     const mixedBoundary = `mixed_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const altBoundary = `alt_${Date.now()}_${Math.random().toString(16).slice(2)}`;

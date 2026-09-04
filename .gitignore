@@ -46,3 +46,7 @@ legacy-import-bundle.json
 
 # Visual brainstorming sessions
 .superpowers/
+
+# Tool-generated artifacts (headroom.ai wrap state, Serena MCP cache)
+.claude/.headroom_wrap_*
+.serena/

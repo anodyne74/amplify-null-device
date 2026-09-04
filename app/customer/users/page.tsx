@@ -138,36 +138,57 @@ export default function CustomerTeamPage() {
       {loadError && <div className={styles.errorBanner} role="alert">{loadError}</div>}
 
       {isAccountOwner ? (
-        <Card className={styles.inviteCard}>
-          <h2 className={styles.cardTitle}>Invite a teammate</h2>
-          {inviteError && <div className={styles.errorBanner} role="alert" aria-live="assertive">{inviteError}</div>}
-          {inviteSuccess && <div className={styles.successBanner} role="status" aria-live="polite">{inviteSuccess}</div>}
+        <Card
+          className={styles.inviteCard}
+          title="Invite a teammate"
+          subtitle="They'll get a login in the customer group with read-only access to your routes and invoices."
+        >
           <div className={styles.form}>
-            <Field
-              label="Email"
-              htmlFor="invite-email"
-              hint={requiredDomain ? `Must be an @${requiredDomain} address` : undefined}
-            >
-              <Input
-                id="invite-email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                disabled={sending}
-                placeholder="teammate@company.com"
-              />
-            </Field>
-            <Field label="Name (optional)" htmlFor="invite-name">
-              <Input
-                id="invite-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                disabled={sending}
-              />
-            </Field>
-            <Button type="button" loading={sending} disabled={sending} onClick={() => void handleInvite()}>
-              Send invite
-            </Button>
+            {inviteError && (
+              <div className={styles.errorBanner} role="alert" aria-live="assertive">
+                {inviteError}
+              </div>
+            )}
+            {inviteSuccess && (
+              <div className={styles.successBanner} role="status" aria-live="polite">
+                {inviteSuccess}
+              </div>
+            )}
+            <div className={styles.inviteForm}>
+              <Field
+                label="Email"
+                htmlFor="invite-email"
+                className={styles.inviteField}
+                hint={requiredDomain ? `Must be an @${requiredDomain} address` : undefined}
+              >
+                <Input
+                  id="invite-email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  disabled={sending}
+                  placeholder="teammate@company.com"
+                />
+              </Field>
+              <Field label="Display Name" htmlFor="invite-name" className={styles.inviteField}>
+                <Input
+                  id="invite-name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  disabled={sending}
+                  placeholder="Display name (optional)"
+                />
+              </Field>
+              <Button
+                type="button"
+                iconLeft="plus"
+                loading={sending}
+                disabled={sending || !email.trim()}
+                onClick={() => void handleInvite()}
+              >
+                {sending ? 'Sending...' : 'Send invite'}
+              </Button>
+            </div>
           </div>
         </Card>
       ) : (

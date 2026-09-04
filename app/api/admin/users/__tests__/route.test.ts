@@ -10,11 +10,16 @@ jest.mock('next/server', () => ({
 const sendMock = jest.fn();
 const verifyMock = jest.fn();
 const sendInvitationEmailMock = jest.fn();
+const sendStaffInvitationEmailMock = jest.fn();
 
 import { POST, generateTemporaryPassword } from '@/app/api/admin/users/route';
 
 jest.mock('@/lib/emails/invitationEmail', () => ({
   sendInvitationEmail: (...args: unknown[]) => sendInvitationEmailMock(...args),
+}));
+
+jest.mock('@/lib/emails/staffInvitationEmail', () => ({
+  sendStaffInvitationEmail: (...args: unknown[]) => sendStaffInvitationEmailMock(...args),
 }));
 
 jest.mock('@aws-sdk/client-cognito-identity-provider', () => {
@@ -65,6 +70,7 @@ describe('admin users API', () => {
     jest.clearAllMocks();
     global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) } as any);
     sendInvitationEmailMock.mockResolvedValue(undefined);
+    sendStaffInvitationEmailMock.mockResolvedValue(undefined);
   });
 
   afterAll(() => {
@@ -319,9 +325,11 @@ describe('admin users API', () => {
     );
   });
 
-  it('createUser does not suppress the Cognito email or send a branded invite for non-customer groups', async () => {
+  it('createUser suppresses the Cognito email and sends the branded staff invite for an operator invite', async () => {
     verifyMock.mockResolvedValue({
       sub: 'sub-123',
+      email: 'admin@nulldevice.dev',
+      name: 'Admin Person',
       'cognito:username': 'admin-user',
       'cognito:groups': ['administrator'],
     });
@@ -337,15 +345,73 @@ describe('admin users API', () => {
       json: async () => ({
         action: 'createUser',
         email: 'ops@nulldevice.dev',
+        name: 'Driver Dan',
         groupName: 'operator',
       }),
     } as any;
 
     const response = await POST(request);
     expect(response.status).toBe(200);
-    expect(sendMock.mock.calls[0][0].input.MessageAction).toBeUndefined();
-    expect(sendMock.mock.calls[0][0].input.TemporaryPassword).toBeUndefined();
+    await expect(response.json()).resolves.toEqual({
+      user: { sub: 'sub-ops', username: 'ops@nulldevice.dev' },
+      created: true,
+      emailSent: true,
+    });
+
+    const createUserInput = sendMock.mock.calls[0][0].input;
+    expect(createUserInput.MessageAction).toBe('SUPPRESS');
+    expect(typeof createUserInput.TemporaryPassword).toBe('string');
+
     expect(sendInvitationEmailMock).not.toHaveBeenCalled();
+    expect(sendStaffInvitationEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toEmail: 'ops@nulldevice.dev',
+        inviteeName: 'Driver Dan',
+        roleLabel: 'Operator',
+        inviterName: 'Admin Person',
+        inviterEmail: 'admin@nulldevice.dev',
+        temporaryPassword: createUserInput.TemporaryPassword,
+      })
+    );
+  });
+
+  it('createUser suppresses the Cognito email and sends the branded staff invite for an administrator invite', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      email: 'admin@nulldevice.dev',
+      name: 'Admin Person',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        User: { Username: 'new-admin@nulldevice.dev', Attributes: [{ Name: 'sub', Value: 'sub-new-admin' }] },
+      })
+      .mockResolvedValueOnce({});
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'createUser',
+        email: 'new-admin@nulldevice.dev',
+        groupName: 'administrator',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const createUserInput = sendMock.mock.calls[0][0].input;
+    expect(createUserInput.MessageAction).toBe('SUPPRESS');
+
+    expect(sendStaffInvitationEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toEmail: 'new-admin@nulldevice.dev',
+        roleLabel: 'Administrator',
+        temporaryPassword: createUserInput.TemporaryPassword,
+      })
+    );
   });
 
   it('createUser adds an already-existing Cognito user to the group instead of erroring', async () => {

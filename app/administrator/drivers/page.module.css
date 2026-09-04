@@ -13,6 +13,14 @@
   border: var(--border-hairline) solid var(--status-danger-fg);
 }
 
+.successBanner {
+  padding: var(--space-3) var(--space-4);
+  background: var(--status-success-bg);
+  color: var(--status-success-fg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -81,6 +89,18 @@
   gap: var(--space-3);
   align-items: center;
   padding-top: var(--space-1);
+}
+
+.inviteForm {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.inviteField {
+  min-width: 200px;
+  flex: 1;
 }
 
 .callout {

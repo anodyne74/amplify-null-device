@@ -81,6 +81,29 @@ export default function AdministratorDriversPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [assignCustomerId, setAssignCustomerId] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName, setInviteName] = useState('');
+  const [invitePending, setInvitePending] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+
+  const callAdminApi = useCallback(async (body: Record<string, unknown>) => {
+    const session = await fetchAuthSession();
+    const idToken = session.tokens?.idToken?.toString();
+    if (!idToken) throw new Error('No session token found. Please sign in again.');
+
+    const response = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify(body),
+    });
+
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Request failed.');
+    }
+    return payload;
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -180,6 +203,40 @@ export default function AdministratorDriversPage() {
     await persist(selected.id, { assignedCustomerIds: nextIds }, { assignedCustomerIds: nextIds });
   };
 
+  const handleInviteDriver = async () => {
+    const email = inviteEmail.trim();
+    if (!email) {
+      setInviteError('Driver email is required.');
+      return;
+    }
+
+    setInvitePending(true);
+    setInviteError(null);
+    setInviteSuccess(null);
+
+    try {
+      const result = await callAdminApi({
+        action: 'createUser',
+        email,
+        name: inviteName.trim() || undefined,
+        groupName: 'operator',
+      });
+
+      setInviteSuccess(
+        result.created
+          ? 'Invited — they’ll get an email with a temporary password.'
+          : 'Already had a login — added them to the operator group.'
+      );
+      setInviteEmail('');
+      setInviteName('');
+      await load();
+    } catch (e) {
+      setInviteError(e instanceof Error ? e.message : 'Could not invite that driver.');
+    }
+
+    setInvitePending(false);
+  };
+
   const customerName = (id: string) => customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
   const unassignedCustomers = customers.filter((c) => !selected?.assignedCustomerIds.includes(c.id));
 
@@ -251,17 +308,60 @@ export default function AdministratorDriversPage() {
           />
         </div>
 
-        <Card
-          title="Drivers"
-          subtitle="A driver's login is added from Users → operator group. Pick a driver here to configure their profile and split."
-          padded={false}
-        >
+        <Card title="Invite a driver" subtitle="They’ll get a login in the operator group and show up below as onboarding.">
+          <div className={styles.form}>
+            {inviteError && (
+              <div className={styles.errorBanner} role="alert" aria-live="assertive">
+                {inviteError}
+              </div>
+            )}
+            {inviteSuccess && (
+              <div className={styles.successBanner} role="status" aria-live="polite">
+                {inviteSuccess}
+              </div>
+            )}
+            <div className={styles.inviteForm}>
+              <Field label="Email" htmlFor="invite-driver-email" className={styles.inviteField}>
+                <Input
+                  id="invite-driver-email"
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="driver@nulldevice.dev"
+                  disabled={invitePending}
+                  aria-label="Email for new driver"
+                />
+              </Field>
+              <Field label="Display Name" htmlFor="invite-driver-name" className={styles.inviteField}>
+                <Input
+                  id="invite-driver-name"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  placeholder="Display name (optional)"
+                  disabled={invitePending}
+                  aria-label="Optional display name for new driver"
+                />
+              </Field>
+              <Button
+                type="button"
+                iconLeft="plus"
+                loading={invitePending}
+                disabled={invitePending || !inviteEmail.trim()}
+                onClick={() => void handleInviteDriver()}
+              >
+                {invitePending ? 'Sending...' : 'Send invite'}
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="Drivers" subtitle="Pick a driver to configure their profile and split." padded={false}>
           {loading ? (
             <div style={{ padding: 'var(--space-6)' }}>
               <LoadingSpinner message="Loading drivers..." />
             </div>
           ) : (
-            <DataTable columns={columns} rows={drivers} empty="No drivers yet. Add one via Users → operator group." />
+            <DataTable columns={columns} rows={drivers} empty="No drivers yet. Invite one above." />
           )}
         </Card>
 

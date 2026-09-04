@@ -162,6 +162,11 @@ export function getUsername(user: any): string | undefined {
 
 /**
  * Get a display-friendly user name, preferring Cognito first name claim.
+ *
+ * @deprecated For Amplify v6, use fetchUserDisplayName() instead. The `user`
+ * object from useAuthenticator() no longer carries `attributes` or
+ * `signInUserSession` -- this always returns undefined against a real v6
+ * user, which is why admin-set display names never appeared after login.
  */
 export function getUserDisplayName(user: any): string | undefined {
   if (!user) return undefined;
@@ -176,6 +181,23 @@ export function getUserDisplayName(user: any): string | undefined {
   }
 
   return undefined;
+}
+
+/**
+ * Fetch a display-friendly user name from the active session token's Cognito
+ * claims (preferring `given_name`, falling back to `name`). This is the
+ * Amplify v6-compatible version -- see fetchUserGroups() for the same
+ * pattern applied to group membership.
+ */
+export async function fetchUserDisplayName(): Promise<string | undefined> {
+  try {
+    const session = await fetchAuthSession();
+    const payload = session.tokens?.idToken?.payload;
+    const displayName = payload?.given_name || payload?.name;
+    return typeof displayName === 'string' && displayName.trim() ? displayName.trim() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

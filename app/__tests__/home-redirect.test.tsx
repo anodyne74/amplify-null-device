@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { signIn } from 'aws-amplify/auth';
 import { useUserGroups } from '@/lib/use-user-groups';
+import { confirmSignIn } from 'aws-amplify/auth';
 
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
@@ -19,6 +20,7 @@ jest.mock('@aws-amplify/ui-react', () => ({
 
 jest.mock('aws-amplify/auth', () => ({
   signIn: jest.fn(),
+  confirmSignIn: jest.fn(),
 }));
 
 jest.mock('@/lib/use-user-groups', () => ({
@@ -267,13 +269,18 @@ describe('Home Redirect', () => {
       });
     });
 
-    it('renders the sign-in form and no embedded Authenticator by default', () => {
+    it('renders the sign-in form, with the embedded Authenticator mounted but hidden', () => {
       render(<Home />);
 
       expect(screen.getByLabelText('Work email')).toBeInTheDocument();
       expect(screen.getByLabelText('Password')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
-      expect(screen.queryByTestId('authenticator')).not.toBeInTheDocument();
+      // Mounted unconditionally (rather than only once "Forgot password?" is
+      // clicked) so the shared Authenticator machine's one-time INIT event
+      // resolves before the user's first click instead of racing against it
+      // -- see app/page.tsx and project_amplify_authenticator_pattern memory.
+      expect(screen.getByTestId('authenticator')).toBeInTheDocument();
+      expect(screen.getByTestId('authenticator')).not.toBeVisible();
     });
 
     it('calls signIn with the entered email and password', async () => {
@@ -304,12 +311,12 @@ describe('Home Redirect', () => {
       ).toBeInTheDocument();
     });
 
-    it('switches to the embedded Authenticator on forgot password, and back again', () => {
+    it('reveals the embedded Authenticator on forgot password, and hides it again on back', () => {
       render(<Home />);
 
       fireEvent.click(screen.getByRole('link', { name: /forgot password/i }));
 
-      expect(screen.getByTestId('authenticator')).toBeInTheDocument();
+      expect(screen.getByTestId('authenticator')).toBeVisible();
       expect(mockToForgotPassword).toHaveBeenCalledTimes(1);
       expect(screen.queryByLabelText('Work email')).not.toBeInTheDocument();
 
@@ -317,7 +324,74 @@ describe('Home Redirect', () => {
 
       expect(mockToSignIn).toHaveBeenCalledTimes(1);
       expect(screen.getByLabelText('Work email')).toBeInTheDocument();
-      expect(screen.queryByTestId('authenticator')).not.toBeInTheDocument();
+      // Still mounted (never unmounted), just hidden again.
+      expect(screen.getByTestId('authenticator')).toBeInTheDocument();
+      expect(screen.getByTestId('authenticator')).not.toBeVisible();
+    });
+
+    describe('temporary password (admin-created account)', () => {
+      it('shows a set-new-password form when Cognito challenges for a new password', async () => {
+        (signIn as jest.Mock).mockResolvedValue({
+          isSignedIn: false,
+          nextStep: { signInStep: 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED' },
+        });
+
+        render(<Home />);
+
+        fireEvent.change(screen.getByLabelText('Work email'), { target: { value: 'priya@rangeproperty.com.au' } });
+        fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'TempPass123!' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+        expect(await screen.findByText(/set a new password/i)).toBeInTheDocument();
+        expect(screen.getByLabelText('New password')).toBeInTheDocument();
+        expect(screen.getByLabelText('Confirm new password')).toBeInTheDocument();
+      });
+
+      it('calls confirmSignIn with the new password once both fields match', async () => {
+        (signIn as jest.Mock).mockResolvedValue({
+          isSignedIn: false,
+          nextStep: { signInStep: 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED' },
+        });
+        (confirmSignIn as jest.Mock).mockResolvedValue({ isSignedIn: true });
+
+        render(<Home />);
+
+        fireEvent.change(screen.getByLabelText('Work email'), { target: { value: 'priya@rangeproperty.com.au' } });
+        fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'TempPass123!' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+        await screen.findByText(/set a new password/i);
+
+        fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'NewSecurePass1!' } });
+        fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'NewSecurePass1!' } });
+        fireEvent.click(screen.getByRole('button', { name: /set password and sign in/i }));
+
+        await waitFor(() => {
+          expect(confirmSignIn).toHaveBeenCalledWith({ challengeResponse: 'NewSecurePass1!' });
+        });
+      });
+
+      it('shows an error and does not call confirmSignIn when the passwords do not match', async () => {
+        (signIn as jest.Mock).mockResolvedValue({
+          isSignedIn: false,
+          nextStep: { signInStep: 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED' },
+        });
+
+        render(<Home />);
+
+        fireEvent.change(screen.getByLabelText('Work email'), { target: { value: 'priya@rangeproperty.com.au' } });
+        fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'TempPass123!' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+        await screen.findByText(/set a new password/i);
+
+        fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'NewSecurePass1!' } });
+        fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'Mismatch1!' } });
+        fireEvent.click(screen.getByRole('button', { name: /set password and sign in/i }));
+
+        expect(await screen.findByText("Passwords don't match.")).toBeInTheDocument();
+        expect(confirmSignIn).not.toHaveBeenCalled();
+      });
     });
   });
 });

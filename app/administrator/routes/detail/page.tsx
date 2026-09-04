@@ -222,6 +222,7 @@ function RouteDetailContent() {
   const [editingStop, setEditingStop] = useState(false);
   const [editStopError, setEditStopError] = useState<string | null>(null);
   const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
+  const [dragOverStopId, setDragOverStopId] = useState<string | null>(null);
   const [pendingDeleteStopId, setPendingDeleteStopId] = useState<string | null>(null);
   const [deletingStopId, setDeletingStopId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
@@ -1482,15 +1483,26 @@ function RouteDetailContent() {
                       isTop={isTopVisibleStop}
                       isCompleted={completedStop}
                       isDragging={draggingStopId === stop.id}
+                      isDropTarget={dragOverStopId === stop.id && draggingStopId !== stop.id}
                       draggable={canManagePlanning && !planningLocked && !reordering}
                       onDragStart={() => setDraggingStopId(stop.id)}
                       onDragOver={(event) => {
                         if (canManagePlanning && !planningLocked) {
                           event.preventDefault();
+                          setDragOverStopId(stop.id);
                         }
                       }}
-                      onDrop={() => { void handleDropStop(stop.id); }}
-                      onDragEnd={() => setDraggingStopId(null)}
+                      onDragLeave={() => {
+                        setDragOverStopId((current) => (current === stop.id ? null : current));
+                      }}
+                      onDrop={() => {
+                        setDragOverStopId(null);
+                        void handleDropStop(stop.id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingStopId(null);
+                        setDragOverStopId(null);
+                      }}
                       actions={stopActions}
                     />
                   );

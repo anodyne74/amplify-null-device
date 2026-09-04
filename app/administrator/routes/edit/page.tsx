@@ -88,6 +88,7 @@ function RouteEditContent() {
   const [stopSaving, setStopSaving] = useState(false);
   const [reordering, setReordering] = useState(false);
   const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
+  const [dragOverStopId, setDragOverStopId] = useState<string | null>(null);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [stopError, setStopError] = useState<string | null>(null);
   const [pendingDeleteStopId, setPendingDeleteStopId] = useState<string | null>(null);
@@ -669,13 +670,25 @@ function RouteEditContent() {
                   return (
                     <div
                       key={stop.id}
-                      className={`${styles.stopRow}${draggingStopId === stop.id ? ` ${styles.stopRowDragging}` : ''}${selectedStopId === stop.id ? ` ${styles.stopRowSelected}` : ''}`}
+                      className={`${styles.stopRow}${draggingStopId === stop.id ? ` ${styles.stopRowDragging}` : ''}${selectedStopId === stop.id ? ` ${styles.stopRowSelected}` : ''}${dragOverStopId === stop.id && draggingStopId !== stop.id ? ` ${styles.stopRowDropTarget}` : ''}`}
                       draggable={!reordering && !stopSaving}
                       onClick={() => setSelectedStopId(stop.id)}
                       onDragStart={() => setDraggingStopId(stop.id)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={() => { void handleDropStop(stop.id); }}
-                      onDragEnd={() => setDraggingStopId(null)}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverStopId(stop.id);
+                      }}
+                      onDragLeave={() => {
+                        setDragOverStopId((current) => (current === stop.id ? null : current));
+                      }}
+                      onDrop={() => {
+                        setDragOverStopId(null);
+                        void handleDropStop(stop.id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingStopId(null);
+                        setDragOverStopId(null);
+                      }}
                     >
                       <div className={styles.stopSequence}>{stop.sequence ?? index + 1}</div>
                       <div className={styles.stopBody}>

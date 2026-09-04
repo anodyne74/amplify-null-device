@@ -52,10 +52,22 @@ export async function sendInvitationEmail(input: InvitationEmailInput): Promise<
   const senderEmail = process.env.SES_SENDER_EMAIL || 'no-reply.nulldevice.dev';
   const supportMailto = `mailto:${SUPPORT_EMAIL}`;
 
+  // inviterName falls back to inviterEmail when the inviter has no display
+  // name set (see createUser in app/api/admin/users/route.ts) -- in that case
+  // "{{inviterName}} ({{inviterEmail}})" would render the same address twice,
+  // so collapse it to a single mention.
+  const inviterName = input.inviterName.trim();
+  const inviterEmail = input.inviterEmail.trim();
+  const inviterDisplay =
+    inviterName && inviterName.toLowerCase() !== inviterEmail.toLowerCase()
+      ? `${inviterName} (${inviterEmail})`
+      : inviterEmail || inviterName;
+
   const templateData = {
     customerName: input.customerName,
-    inviterName: input.inviterName,
-    inviterEmail: input.inviterEmail,
+    inviterName,
+    inviterEmail,
+    inviterDisplay,
     inviteeName: input.inviteeName?.trim() || 'there',
     inviteeEmail: input.toEmail,
     temporaryPassword: input.temporaryPassword,
@@ -65,6 +77,7 @@ export async function sendInvitationEmail(input: InvitationEmailInput): Promise<
     // No deep-link reset route -- a stuck invitee reaches a human.
     resetPasswordUrl: supportMailto,
     supportUrl: supportMailto,
+    supportEmail: SUPPORT_EMAIL,
     unsubscribeUrl: `${appBaseUrl}/customer/settings`,
     logoUrl: `${appBaseUrl}/logo.svg`,
     companyAddress: process.env.SES_COMPANY_ADDRESS?.trim() || 'Melbourne, Australia',

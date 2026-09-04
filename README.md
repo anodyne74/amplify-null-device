@@ -128,11 +128,18 @@ Set these in Amplify Console for builds/runtime:
 | `AWS_REGION` | AWS region (for example `ap-southeast-2`) |
 | `SES_SENDER_EMAIL` | Sender used by SES invoice email API |
 | `SES_INVOICE_TEMPLATE_NAME` | SES template name for invoice emails (default: branch-scoped, e.g. `NullDeviceInvoiceTemplate-main`) |
+| `SES_INVITATION_TEMPLATE_NAME` | SES template name for portal-invitation emails (default: branch-scoped, e.g. `NullDeviceInvitationTemplate-main`) |
+| `SES_COMPANY_ADDRESS` | Postal address shown in email footers (invoice + invitation) |
+| `NEXT_PUBLIC_SUPPORT_EMAIL` | Support address shown in email footers and "not expecting this?" text |
+| `NEXT_PUBLIC_APP_URL` | Base URL used to build portal/reset links and the logo asset URL in emails |
 
 Notes:
 
 - If `SES_SENDER_EMAIL` is not set, API falls back to `no-reply.nulldevice.dev`.
 - If `SES_INVOICE_TEMPLATE_NAME` is not set, API uses a branch-scoped default (`NullDeviceInvoiceTemplate-${AWS_BRANCH}` when `AWS_BRANCH`/`AMPLIFY_BRANCH` is available, otherwise `NullDeviceInvoiceTemplate`).
+- If `SES_INVITATION_TEMPLATE_NAME` is not set, the invitation email uses the equivalent branch-scoped default (`NullDeviceInvitationTemplate-${AWS_BRANCH}`, otherwise `NullDeviceInvitationTemplate`).
+- If `SES_COMPANY_ADDRESS` is not set, emails fall back to a placeholder ("Melbourne, Australia") -- set it per environment so production email doesn't ship the placeholder.
+- If `NEXT_PUBLIC_SUPPORT_EMAIL` is not set, emails fall back to `support@nulldevice.dev`.
 - Verify sender identity/domain in SES for the configured region.
 - The SES template is provisioned by Amplify backend deployment in `amplify/backend.ts`.
 

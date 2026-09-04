@@ -130,11 +130,16 @@ Set these in Amplify Console for builds/runtime:
 | `SES_INVOICE_TEMPLATE_NAME` | SES template name for invoice emails (default: branch-scoped, e.g. `NullDeviceInvoiceTemplate-main`) |
 | `SES_INVITATION_TEMPLATE_NAME` | SES template name for branded customer invite emails (default: branch-scoped, e.g. `NullDeviceInvitationTemplate-main`) |
 | `SES_STAFF_INVITATION_TEMPLATE_NAME` | SES template name for branded operator/administrator invite emails (default: branch-scoped, e.g. `NullDeviceStaffInvitationTemplate-main`) |
+| `SES_COMPANY_ADDRESS` | Postal address shown in email footers (invoice + invitation) |
+| `NEXT_PUBLIC_SUPPORT_EMAIL` | Support address shown in email footers and "not expecting this?" text |
+| `NEXT_PUBLIC_APP_URL` | Base URL used to build portal/reset links and the logo asset URL in emails |
 
 Notes:
 
 - If `SES_SENDER_EMAIL` is not set, API falls back to `no-reply@<domain>`, where `<domain>` is the host of `NEXT_PUBLIC_APP_URL` (or `nulldevice.com.au` if that isn't set either). `nulldevice.dev` is used for the `development` branch, `nulldevice.com.au` for `main`/production.
 - If `SES_INVOICE_TEMPLATE_NAME` (or its `SES_INVITATION_TEMPLATE_NAME` / `SES_STAFF_INVITATION_TEMPLATE_NAME` siblings) is not set, the API falls back to the branch-scoped name `amplify/backend.ts` deployed, read out of `amplify_outputs.json`'s `custom` section (see `lib/amplifyOutputsCustom.ts`) -- not from `AWS_BRANCH`/`AMPLIFY_BRANCH`, which aren't set in the Amplify Hosting SSR runtime (only during the CDK build step).
+- If `SES_COMPANY_ADDRESS` is not set, emails fall back to a placeholder ("Melbourne, Australia") -- set it per environment so production email doesn't ship the placeholder.
+- If `NEXT_PUBLIC_SUPPORT_EMAIL` is not set, emails fall back to `support@nulldevice.dev`.
 - Verify sender identity/domain in SES for the configured region.
 - The SES template is provisioned by Amplify backend deployment in `amplify/backend.ts`.
 

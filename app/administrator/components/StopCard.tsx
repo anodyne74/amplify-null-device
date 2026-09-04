@@ -23,6 +23,7 @@ interface StopCardProps {
   agentInitials: string;
   agentName: string;
   agentBadgeTone: { backgroundColor: string; color: string };
+  isAuction?: boolean;
   isTop?: boolean;
   isCompleted?: boolean;
   isDragging?: boolean;
@@ -45,6 +46,7 @@ export default function StopCard({
   agentInitials,
   agentName,
   agentBadgeTone,
+  isAuction = false,
   isTop = false,
   isCompleted = false,
   isDragging = false,
@@ -74,6 +76,7 @@ export default function StopCard({
       <div className={styles.body}>
         <div className={styles.address}>{address}</div>
         <div className={styles.status}>{statusLabel}</div>
+        {isAuction && <span className={styles.auctionBadge}>Auction</span>}
       </div>
 
       <span

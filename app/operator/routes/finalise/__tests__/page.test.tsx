@@ -84,7 +84,9 @@ describe('Operator Finalise page', () => {
     expect(screen.getByText('2 / 3')).toBeInTheDocument();
     expect(screen.getByText('22')).toBeInTheDocument(); // signs collected
     expect(screen.getByText('2')).toBeInTheDocument(); // signs missing
-    expect(screen.getByText('1h 10m')).toBeInTheDocument(); // duration
+    // Cumulative of the completed phases' measured times, not the actualStartTime ->
+    // actualEndTime wall clock: 0 (load) + 22 (placement) + 12 (pickup) + 18 (unload) = 52m.
+    expect(screen.getByText('52m')).toBeInTheDocument(); // duration
 
     // load: 0 measured -> floored at 15m. placement: 22min -> round5 -> 20m.
     // pickup: 12min -> round5 -> 10m. unload: 18min -> round5 -> 20m. Total 65m.

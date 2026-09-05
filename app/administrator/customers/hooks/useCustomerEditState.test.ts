@@ -143,7 +143,7 @@ describe('useCustomerEditState', () => {
     expect(result.current.editAgentOptions).toEqual(['David Mun']);
   });
 
-  it('reorders agent options — the first entry is the default agent', () => {
+  it('sets an agent option as the default — the first entry is the default agent', () => {
     const { result } = renderHook(() => useCustomerEditState());
 
     act(() => {
@@ -153,13 +153,13 @@ describe('useCustomerEditState', () => {
     expect(result.current.editAgentOptions).toEqual(['Betty O\'Shea', 'David Mun']);
 
     act(() => {
-      result.current.moveAgentOption(1, 'up');
+      result.current.setDefaultAgentOption('David Mun');
     });
     expect(result.current.editAgentOptions).toEqual(['David Mun', 'Betty O\'Shea']);
 
-    // Already first — moving up further is a no-op.
+    // Already the default — setting it again is a no-op.
     act(() => {
-      result.current.moveAgentOption(0, 'up');
+      result.current.setDefaultAgentOption('David Mun');
     });
     expect(result.current.editAgentOptions).toEqual(['David Mun', 'Betty O\'Shea']);
   });

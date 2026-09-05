@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/administrator/components/PageHeader';
@@ -54,7 +55,9 @@ function getCurrentMonthRange() {
   return { start: start.toISOString().slice(0, 10), end: now.toISOString().slice(0, 10) };
 }
 
-export default function AdministratorPaymentDetailsPage() {
+function PaymentDetailsContent() {
+  const searchParams = useSearchParams();
+  const requestedCustomerId = searchParams.get('customerId');
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -120,13 +123,18 @@ export default function AdministratorPaymentDetailsPage() {
       if (cancelled) return;
       const list = ((result.data as { id: string; name: string }[]) || []);
       setCustomers(list);
-      if (list.length > 0) setSelectedCustomerId(list[0].id);
+      const requested = requestedCustomerId && list.some((c) => c.id === requestedCustomerId)
+        ? requestedCustomerId
+        : list[0]?.id;
+      if (requested) setSelectedCustomerId(requested);
       setLoadingCustomers(false);
     });
 
     return () => {
       cancelled = true;
     };
+    // Runs once on mount — requestedCustomerId is read from the URL at that point only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -851,5 +859,13 @@ export default function AdministratorPaymentDetailsPage() {
         )}
       </div>
     </OperatorRoute>
+  );
+}
+
+export default function AdministratorPaymentDetailsPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner message="Loading payment details..." />}>
+      <PaymentDetailsContent />
+    </Suspense>
   );
 }

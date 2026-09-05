@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
 import type { Customer } from '@/app/administrator/customers/types';
@@ -6,9 +5,10 @@ import styles from '../page.module.css';
 
 interface CustomerTableRowProps {
   customer: Customer;
-  isEditOpen: boolean;
-  onToggleEdit: () => void;
-  editPanel?: ReactNode;
+  userCount: number;
+  isSelected: boolean;
+  onConfigure: () => void;
+  onPaymentDetails: () => void;
 }
 
 function toTitleCase(value?: string | null) {
@@ -25,41 +25,44 @@ const STATUS_TONE: Record<string, BadgeProps['tone']> = {
 
 export default function CustomerTableRow({
   customer,
-  isEditOpen,
-  onToggleEdit,
-  editPanel,
+  userCount,
+  isSelected,
+  onConfigure,
+  onPaymentDetails,
 }: CustomerTableRowProps) {
   const statusKey = String(customer.status ?? 'active').toLowerCase();
 
   return (
-    <>
-      <tr>
-        <td>{customer.name}</td>
-        <td>{customer.companyName || '—'}</td>
-        <td>{customer.email}</td>
-        <td>
-          <Badge tone={STATUS_TONE[statusKey] ?? 'success'} dot>
-            {toTitleCase(customer.status)}
-          </Badge>
-        </td>
-        <td className={styles.manageCell}>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            aria-expanded={isEditOpen}
-            onClick={onToggleEdit}
-            aria-label={`${isEditOpen ? 'Close edit panel for' : 'Edit'} customer ${customer.name}`}
-          >
-            {isEditOpen ? 'Close Edit' : 'Edit'}
-          </Button>
-        </td>
-      </tr>
-      {isEditOpen && (
-        <tr>
-          <td colSpan={5}>{editPanel}</td>
-        </tr>
-      )}
-    </>
+    <tr className={isSelected ? styles.selectedRow : undefined}>
+      <td>
+        <div>{customer.name}</div>
+        {customer.companyName && <div className={styles.mutedText}>{customer.companyName}</div>}
+      </td>
+      <td>
+        <Badge tone={STATUS_TONE[statusKey] ?? 'success'} dot>
+          {toTitleCase(customer.status)}
+        </Badge>
+      </td>
+      <td>{userCount}</td>
+      <td>{typeof customer.billingRatePerHour === 'number' ? `$${customer.billingRatePerHour.toFixed(2)}/hr` : '—'}</td>
+      <td>{typeof customer.driverSplitPercent === 'number' ? `${customer.driverSplitPercent}%` : '—'}</td>
+      <td>{customer.billingCycle ? toTitleCase(customer.billingCycle) : '—'}</td>
+      <td>{typeof customer.defaultNumberOfSigns === 'number' ? customer.defaultNumberOfSigns : '—'}</td>
+      <td className={styles.manageCell}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          aria-expanded={isSelected}
+          onClick={onConfigure}
+          aria-label={`${isSelected ? 'Close configure panel for' : 'Configure'} customer ${customer.name}`}
+        >
+          {isSelected ? 'Close' : 'Configure'}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={onPaymentDetails} aria-label={`Payment details for ${customer.name}`}>
+          Payment details
+        </Button>
+      </td>
+    </tr>
   );
 }

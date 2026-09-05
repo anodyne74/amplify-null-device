@@ -91,10 +91,6 @@
   padding-top: var(--space-4);
 }
 
-.themeControls {
-  margin-bottom: var(--space-4);
-}
-
 .userLabel {
   font-size: var(--text-2xs);
   letter-spacing: var(--ls-caps);

@@ -7,7 +7,6 @@ import { Icon } from '@/app/components/ui/core/Icon';
 import { Logo } from '@/app/components/ui/core/Logo';
 import { Button } from '@/app/components/ui/core/Button';
 import { Dialog } from '@/app/components/ui/feedback/Dialog';
-import ThemeModeSelect from '@/app/components/ThemeModeSelect';
 import styles from './AdminShell.module.css';
 
 export interface AdminNavItem {
@@ -93,10 +92,6 @@ export default function AdminShell({ children, navItems, userEmail, onLogout }: 
         </nav>
 
         <div className={styles.userSection}>
-          <div className={styles.themeControls}>
-            <ThemeModeSelect label="Theme" />
-          </div>
-
           <p className={styles.userLabel}>Signed in as</p>
           <p className={styles.userEmail}>{userEmail}</p>
 

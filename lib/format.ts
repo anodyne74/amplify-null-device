@@ -28,3 +28,23 @@ export function formatDurationHoursMinutes(minutes?: number | null): string {
   const mins = minutes % 60;
   return `${hours}h ${mins}m`;
 }
+
+/**
+ * Format a timestamp as "Today HH:MM", "Yesterday", or "D MMM" for compact
+ * "last seen"-style table columns. Missing values render as "—".
+ */
+export function formatRelativeDay(isoTimestamp?: string | null): string {
+  if (!isoTimestamp) return '—';
+  const date = new Date(isoTimestamp);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  const now = new Date();
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dayDiff = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+
+  if (dayDiff === 0) {
+    return `Today ${new Intl.DateTimeFormat('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false }).format(date)}`;
+  }
+  if (dayDiff === 1) return 'Yesterday';
+  return new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short' }).format(date);
+}

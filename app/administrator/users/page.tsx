@@ -314,6 +314,7 @@ export default function UsersAdminPage() {
     try {
       let assignedUserSub: string;
       let invited = false;
+      let emailSent = false;
 
       if (resolvedUser?.sub && resolvedUser.username) {
         // Already has a Cognito account -- just make sure they're in the customer group.
@@ -350,6 +351,7 @@ export default function UsersAdminPage() {
         }
         assignedUserSub = createdUser.sub;
         invited = true;
+        emailSent = Boolean(createPayload.emailSent);
       }
 
       const existing =
@@ -398,7 +400,9 @@ export default function UsersAdminPage() {
 
       setAccessSuccess(
         invited
-          ? 'Account created — we emailed them a branded invitation with a temporary password. Access is synced.'
+          ? emailSent
+            ? 'Account created — we emailed them a branded invitation with a temporary password. Access is synced.'
+            : 'Account created, but the invitation email could not be sent. Ask the user to use "Forgot password" to get access.'
           : 'User assigned to customer and access synced to all routes and stops.'
       );
       setNewUserEmail('');

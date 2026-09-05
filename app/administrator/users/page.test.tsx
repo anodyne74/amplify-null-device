@@ -186,7 +186,11 @@ describe('UsersAdminPage customer access actions', () => {
       if (body.action === 'createUser') {
         return {
           ok: true,
-          json: async () => ({ user: { sub: 'brand-new-sub', username: 'new@agency.com.au' }, created: true }),
+          json: async () => ({
+            user: { sub: 'brand-new-sub', username: 'new@agency.com.au' },
+            created: true,
+            emailSent: true,
+          }),
         };
       }
       return { ok: true, json: async () => ({}) };
@@ -220,5 +224,38 @@ describe('UsersAdminPage customer access actions', () => {
       groupName: 'customer',
       customerName: 'Acme Customer',
     });
+  });
+
+  it('tells the admin when the login was created but the invitation email failed to send', async () => {
+    global.fetch = jest.fn(async (_url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string) as { action: string };
+      if (body.action === 'getUserByEmail') {
+        return { ok: false, json: async () => ({ error: 'No user found.' }) };
+      }
+      if (body.action === 'createUser') {
+        return {
+          ok: true,
+          json: async () => ({
+            user: { sub: 'brand-new-sub', username: 'new@agency.com.au' },
+            created: true,
+            emailSent: false,
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    }) as jest.Mock;
+
+    render(<UsersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Read User')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Email for new customer user'), {
+      target: { value: 'new@agency.com.au' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add customer user' }));
+
+    expect(await screen.findByText(/invitation email could not be sent/i)).toBeInTheDocument();
   });
 });

@@ -78,7 +78,7 @@ describe('Customer Team page', () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
-      json: async () => ({ success: true, user: { sub: 'sub-new' } }),
+      json: async () => ({ success: true, user: { sub: 'sub-new' }, emailSent: true }),
     });
 
     render(<CustomerTeamPage />);
@@ -120,5 +120,24 @@ describe('Customer Team page', () => {
     fireEvent.click(screen.getByRole('button', { name: /send invite/i }));
 
     expect(await screen.findByText(/must use the @rangeproperty\.com\.au domain/i)).toBeInTheDocument();
+  });
+
+  it('tells the account owner when the invite email could not be sent', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, user: { sub: 'sub-new' }, emailSent: false }),
+    });
+
+    render(<CustomerTeamPage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: 'teammate@rangeproperty.com.au' } });
+    fireEvent.click(screen.getByRole('button', { name: /send invite/i }));
+
+    expect(await screen.findByText(/invitation email could not be sent/i)).toBeInTheDocument();
   });
 });

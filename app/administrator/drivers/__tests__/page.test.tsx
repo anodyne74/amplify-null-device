@@ -39,7 +39,7 @@ describe('Administrator Drivers page', () => {
       if (action === 'createUser') {
         return {
           ok: true,
-          json: async () => ({ user: { sub: 'new-sub' }, created: true, emailSent: false }),
+          json: async () => ({ user: { sub: 'new-sub' }, created: true, emailSent: true }),
         };
       }
 
@@ -194,6 +194,40 @@ describe('Administrator Drivers page', () => {
 
     expect(await screen.findByText(/they’ll get an email with a temporary password/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email for new driver/i)).toHaveValue('');
+  });
+
+  it('tells the admin when the login was created but the invitation email failed to send', async () => {
+    global.fetch = jest.fn(async (_url: string, init?: RequestInit) => {
+      const action = init?.body ? JSON.parse(init.body as string).action : undefined;
+
+      if (action === 'createUser') {
+        return {
+          ok: true,
+          json: async () => ({ user: { sub: 'new-sub' }, created: true, emailSent: false }),
+        };
+      }
+
+      return {
+        ok: true,
+        json: async () => ({
+          users: [
+            { id: 'sub-1', name: 'Jane Driver', email: 'jane@nulldevice.dev' },
+            { id: 'sub-2', name: 'Amir Driver', email: 'amir@nulldevice.dev' },
+          ],
+        }),
+      };
+    }) as jest.Mock;
+
+    render(<AdministratorDriversPage />);
+
+    await screen.findByText('Van 1 · ABC123');
+
+    fireEvent.change(screen.getByLabelText(/email for new driver/i), {
+      target: { value: 'new-driver@nulldevice.dev' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /send invite/i }));
+
+    expect(await screen.findByText(/invitation email could not be sent/i)).toBeInTheDocument();
   });
 
   it('shows an error and keeps the form filled in when inviting a driver fails', async () => {

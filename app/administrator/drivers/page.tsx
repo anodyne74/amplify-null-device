@@ -224,7 +224,9 @@ export default function AdministratorDriversPage() {
 
       setInviteSuccess(
         result.created
-          ? 'Invited — they’ll get an email with a temporary password.'
+          ? result.emailSent
+            ? 'Invited — they’ll get an email with a temporary password.'
+            : 'Login created, but the invitation email could not be sent. Ask them to use "Forgot password" to get access.'
           : 'Already had a login — added them to the operator group.'
       );
       setInviteEmail('');

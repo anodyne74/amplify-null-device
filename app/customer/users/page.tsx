@@ -106,8 +106,12 @@ export default function CustomerTeamPage() {
     setInviteSuccess(null);
 
     try {
-      await callInviteApi(email.trim(), name.trim() || undefined);
-      setInviteSuccess(`Invited ${email.trim()} — they'll receive an email with a temporary password.`);
+      const payload = await callInviteApi(email.trim(), name.trim() || undefined);
+      setInviteSuccess(
+        payload?.emailSent
+          ? `Invited ${email.trim()} — they'll receive an email with a temporary password.`
+          : `Added ${email.trim()} to your team, but the invitation email could not be sent. Ask them to use "Forgot password" to get access, or contact support.`
+      );
       setEmail('');
       setName('');
       if (customerId) await loadTeammates(customerId);

@@ -10,6 +10,10 @@ import { getCustomer, updateCustomer } from '@/lib/queries';
 import { computeDriverSplit } from '@/lib/driverSplit';
 import { getOrganizationSettings, upsertOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 
+jest.mock('next/navigation', () => ({
+  useSearchParams: () => ({ get: () => null }),
+}));
+
 jest.mock('@/lib/queries/OrganizationSettings', () => ({
   getOrganizationSettings: jest.fn(),
   upsertOrganizationSettings: jest.fn(),

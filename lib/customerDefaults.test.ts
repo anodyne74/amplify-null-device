@@ -1,9 +1,9 @@
 import {
   generateAgentInitials,
   getAgentBadgeTone,
-  moveAgentOption,
   normalizeCustomerDefaults,
   parseAgentOptionsInput,
+  setDefaultAgentOption,
 } from './customerDefaults';
 
 describe('customerDefaults', () => {
@@ -32,7 +32,7 @@ describe('customerDefaults', () => {
   it('reordering agent options changes the derived default agent (#2)', () => {
     expect(
       normalizeCustomerDefaults({
-        agentOptions: moveAgentOption(['BO', 'DM'], 1, 'up'),
+        agentOptions: setDefaultAgentOption(['BO', 'DM'], 'DM'),
       })
     ).toEqual({
       defaultAgentInitials: 'DM',
@@ -53,11 +53,11 @@ describe('customerDefaults', () => {
     });
   });
 
-  it('moves an agent option earlier or later, clamped to the list bounds', () => {
-    expect(moveAgentOption(['BO', 'DM', 'KP'], 0, 'up')).toEqual(['BO', 'DM', 'KP']);
-    expect(moveAgentOption(['BO', 'DM', 'KP'], 2, 'down')).toEqual(['BO', 'DM', 'KP']);
-    expect(moveAgentOption(['BO', 'DM', 'KP'], 2, 'up')).toEqual(['BO', 'KP', 'DM']);
-    expect(moveAgentOption(['BO', 'DM', 'KP'], 0, 'down')).toEqual(['DM', 'BO', 'KP']);
+  it('sets an agent option as the default, moving it to the front of the list', () => {
+    expect(setDefaultAgentOption(['BO', 'DM', 'KP'], 'BO')).toEqual(['BO', 'DM', 'KP']);
+    expect(setDefaultAgentOption(['BO', 'DM', 'KP'], 'KP')).toEqual(['KP', 'BO', 'DM']);
+    expect(setDefaultAgentOption(['BO', 'DM', 'KP'], 'DM')).toEqual(['DM', 'BO', 'KP']);
+    expect(setDefaultAgentOption(['BO', 'DM', 'KP'], 'nope')).toEqual(['BO', 'DM', 'KP']);
   });
 
   it('parses agent options from mixed line and comma input', () => {

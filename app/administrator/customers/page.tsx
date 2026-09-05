@@ -1,8 +1,8 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import ConfirmDialog from '@/app/components/ConfirmDialog';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import { useAdminTableSort, type SortDirection } from '@/app/components/AdminDataTable';
 import { ADMIN_PAGE_SIZE, getPageSlice } from '@/app/components/AdminPagination';
@@ -14,17 +14,17 @@ import CustomerCreateForm from '@/app/administrator/customers/components/Custome
 import CustomerEditPanel from '@/app/administrator/customers/components/CustomerEditPanel';
 import CustomerTableRow from '@/app/administrator/customers/components/CustomerTableRow';
 import { useCustomerEditState } from '@/app/administrator/customers/hooks/useCustomerEditState';
-import type { Customer, CustomerUser } from '@/app/administrator/customers/types';
+import type { Customer, CustomerStatus, CustomerUser } from '@/app/administrator/customers/types';
 import {
   addAgentOption as addAgentOptionTo,
   generateAgentInitials,
-  moveAgentOption as moveAgentOptionIn,
   removeAgentOption as removeAgentOptionFrom,
+  setDefaultAgentOption as setDefaultAgentOptionIn,
 } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import {
   createCustomer,
-  deleteCustomer,
+  listAllCustomerUsers,
   listCustomerInvoices,
   listCustomerRoutes,
   listCustomerUsers,
@@ -32,7 +32,6 @@ import {
   updateCustomer,
 } from '@/lib/queries';
 import { buildOnboardingChecklist, type ChecklistItem } from '@/lib/customerOnboardingChecklist';
-import { useToast } from '@/app/components/ToastProvider';
 import styles from './page.module.css';
 
 const usdFormatter = new Intl.NumberFormat('en-US', {
@@ -83,9 +82,10 @@ function SortableHeader<K extends string>({
 }
 
 export default function CustomersAdminPage() {
-  const { showToast } = useToast();
+  const router = useRouter();
   const { user } = useAuthenticator();
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>([]);
   const [checklists, setChecklists] = useState<Record<string, ChecklistItem[]>>({});
   const [checklistLoading, setChecklistLoading] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
@@ -93,8 +93,14 @@ export default function CustomersAdminPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
-  const [deleting, setDeleting] = useState(false);
+
+  const userCountByCustomerId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const customerUser of customerUsers) {
+      counts.set(customerUser.customerId, (counts.get(customerUser.customerId) ?? 0) + 1);
+    }
+    return counts;
+  }, [customerUsers]);
 
   // Sorting + pagination for the customer list
   const { sortBy, sortDirection, toggleSort } = useAdminTableSort<'name' | 'status'>();
@@ -136,8 +142,8 @@ export default function CustomersAdminPage() {
     setAgentOptions((prev) => removeAgentOptionFrom(prev, value));
   }, []);
 
-  const moveAgentOptionInCreate = useCallback((index: number, direction: 'up' | 'down') => {
-    setAgentOptions((prev) => moveAgentOptionIn(prev, index, direction));
+  const setDefaultAgentOptionForCreate = useCallback((value: string) => {
+    setAgentOptions((prev) => setDefaultAgentOptionIn(prev, value));
   }, []);
 
   const {
@@ -165,7 +171,7 @@ export default function CustomersAdminPage() {
     editAgentOptions,
     addAgentOption,
     removeAgentOption,
-    moveAgentOption,
+    setDefaultAgentOption,
     editRestrictInvitesToOwnDomain,
     setEditRestrictInvitesToOwnDomain,
     editResolvedAddress,
@@ -203,9 +209,17 @@ export default function CustomersAdminPage() {
     setLoading(false);
   }, []);
 
+  const fetchCustomerUsers = useCallback(async () => {
+    const result = await listAllCustomerUsers();
+    if (!result.errors || result.errors.length === 0) {
+      setCustomerUsers(result.data as CustomerUser[]);
+    }
+  }, []);
+
   useEffect(() => {
     void fetchCustomers();
-  }, [fetchCustomers]);
+    void fetchCustomerUsers();
+  }, [fetchCustomers, fetchCustomerUsers]);
 
   // "Onboarding checklist" — computed client-side from records already scoped to this
   // customer, fetched on demand when the edit panel opens. No new model, no new writes.
@@ -277,6 +291,7 @@ export default function CustomersAdminPage() {
         setDefaultNumberOfSigns('');
         setAgentOptions([]);
         setCreateResolvedAddress(null);
+        setShowCreateForm(false);
         await fetchCustomers();
       }
     } catch (err) {
@@ -300,7 +315,7 @@ export default function CustomersAdminPage() {
     void fetchOnboardingChecklist(customer);
   };
 
-  const handleUpdateCustomer = async (customerId: string) => {
+  const handleUpdateCustomer = async (customerId: string, statusOverride?: CustomerStatus) => {
     if (!editName.trim()) {
       setEditError('Name is required.');
       return;
@@ -321,6 +336,8 @@ export default function CustomersAdminPage() {
       setEditError('Default number of signs must be 0 or greater.');
       return;
     }
+
+    const status = statusOverride ?? editStatus;
 
     setEditSaving(true);
     setEditError(null);
@@ -357,7 +374,7 @@ export default function CustomersAdminPage() {
         email: editEmail.trim(),
         contactPhone: editContactPhone.trim() || undefined,
         billingRatePerHour: rate,
-        status: editStatus,
+        status,
         addressLine1: resolved.formattedAddress,
         standingInstructions: editStandingInstructions,
         defaultNumberOfSigns: editSigns,
@@ -379,7 +396,7 @@ export default function CustomersAdminPage() {
                   email: editEmail.trim(),
                   contactPhone: editContactPhone.trim() || null,
                   billingRatePerHour: rate,
-                  status: editStatus,
+                  status,
                   addressLine1: resolved.formattedAddress,
                   standingInstructions: editStandingInstructions,
                   defaultNumberOfSigns: editSigns ?? null,
@@ -395,7 +412,10 @@ export default function CustomersAdminPage() {
               : customer
           )
         );
-        setEditSuccess('Customer updated.');
+        setEditStatus(status);
+        setEditSuccess(
+          statusOverride ? `Customer ${status === 'suspended' ? 'suspended' : 'reactivated'}.` : 'Customer updated.'
+        );
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Address could not be validated.';
@@ -405,73 +425,62 @@ export default function CustomersAdminPage() {
     setEditSaving(false);
   };
 
-  const handleDeleteCustomer = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-
-    const result = await deleteCustomer(deleteTarget.id);
-    if (result.errors && result.errors.length > 0) {
-      showToast(`Failed to delete customer ${deleteTarget.name}.`, 'error');
-    } else {
-      if (expandedEditPanel === deleteTarget.id) closeEditPanel();
-      showToast(`Customer ${deleteTarget.name} deleted.`, 'success');
-      await fetchCustomers();
-    }
-
-    setDeleting(false);
-    setDeleteTarget(null);
+  const handleSuspendToggle = () => {
+    if (!expandedEditPanel) return;
+    const nextStatus: CustomerStatus = editStatus === 'suspended' ? 'active' : 'suspended';
+    void handleUpdateCustomer(expandedEditPanel, nextStatus);
   };
+
+  const selectedCustomer = customers.find((customer) => customer.id === expandedEditPanel) ?? null;
 
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
-        <PageHeader title="Customers" />
-
-        <ConfirmDialog
-          open={deleteTarget !== null}
-          title="Delete customer?"
-          message={`Delete customer ${deleteTarget?.name ?? ''}? This permanently removes the customer record and cannot be undone.`}
-          confirmLabel="Delete Customer"
-          tone="danger"
-          busy={deleting}
-          onConfirm={() => {
-            void handleDeleteCustomer();
-          }}
-          onCancel={() => {
-            if (!deleting) setDeleteTarget(null);
-          }}
+        <PageHeader
+          title="Customers"
+          subtitle="Set up accounts, defaults and standing instructions"
+          actions={
+            <Button
+              type="button"
+              variant={showCreateForm ? 'secondary' : 'primary'}
+              iconLeft={showCreateForm ? undefined : 'plus'}
+              onClick={() => setShowCreateForm((prev) => !prev)}
+            >
+              {showCreateForm ? 'Hide form' : 'New customer'}
+            </Button>
+          }
         />
 
-        <CustomerCreateForm
-          showCreateForm={showCreateForm}
-          saving={saving}
-          name={name}
-          companyName={companyName}
-          email={email}
-          billingRatePerHour={billingRatePerHour}
-          defaultNumberOfSigns={defaultNumberOfSigns}
-          addressLine1={addressLine1}
-          agentOptions={agentOptions}
-          standingInstructions={standingInstructions}
-          onToggleShowCreateForm={() => setShowCreateForm(!showCreateForm)}
-          onSubmit={handleCreate}
-          onNameChange={setName}
-          onCompanyNameChange={setCompanyName}
-          onEmailChange={setEmail}
-          onBillingRatePerHourChange={setBillingRatePerHour}
-          onDefaultNumberOfSignsChange={setDefaultNumberOfSigns}
-          onAddressChange={setAddressLine1}
-          onAddressResolved={(resolved) => {
-            setCreateResolvedAddress(resolved);
-            if (resolved) {
-              setAddressLine1(resolved.formattedAddress);
-            }
-          }}
-          onAddAgentOption={addAgentOptionToCreate}
-          onRemoveAgentOption={removeAgentOptionFromCreate}
-          onMoveAgentOption={moveAgentOptionInCreate}
-          onStandingInstructionsChange={setStandingInstructions}
-        />
+        {showCreateForm && (
+          <CustomerCreateForm
+            saving={saving}
+            name={name}
+            companyName={companyName}
+            email={email}
+            billingRatePerHour={billingRatePerHour}
+            defaultNumberOfSigns={defaultNumberOfSigns}
+            addressLine1={addressLine1}
+            agentOptions={agentOptions}
+            standingInstructions={standingInstructions}
+            onSubmit={handleCreate}
+            onNameChange={setName}
+            onCompanyNameChange={setCompanyName}
+            onEmailChange={setEmail}
+            onBillingRatePerHourChange={setBillingRatePerHour}
+            onDefaultNumberOfSignsChange={setDefaultNumberOfSigns}
+            onAddressChange={setAddressLine1}
+            onAddressResolved={(resolved) => {
+              setCreateResolvedAddress(resolved);
+              if (resolved) {
+                setAddressLine1(resolved.formattedAddress);
+              }
+            }}
+            onAddAgentOption={addAgentOptionToCreate}
+            onRemoveAgentOption={removeAgentOptionFromCreate}
+            onSetDefaultAgentOption={setDefaultAgentOptionForCreate}
+            onStandingInstructionsChange={setStandingInstructions}
+          />
+        )}
 
         {error && <div className={styles.errorBanner} role="alert" aria-live="assertive">{error}</div>}
 
@@ -499,11 +508,14 @@ export default function CustomersAdminPage() {
               <table className="nd-table nd-table--hoverable" aria-label="Customer list">
                 <thead>
                   <tr>
-                    <SortableHeader label="Name" sortKey="name" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
-                    <th scope="col">Company Name</th>
-                    <th scope="col">Correspondence Email</th>
+                    <SortableHeader label="Customer" sortKey="name" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
                     <SortableHeader label="Status" sortKey="status" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
-                    <th scope="col">Edit</th>
+                    <th scope="col">Users</th>
+                    <th scope="col">Hourly rate</th>
+                    <th scope="col">Driver split</th>
+                    <th scope="col">Cycle</th>
+                    <th scope="col">Default signs</th>
+                    <th scope="col">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -511,54 +523,10 @@ export default function CustomersAdminPage() {
                     <CustomerTableRow
                       key={customer.id}
                       customer={customer}
-                      isEditOpen={expandedEditPanel === customer.id}
-                      onToggleEdit={() => toggleEditPanel(customer)}
-                      editPanel={(
-                        <CustomerEditPanel
-                          customer={customer}
-                          editName={editName}
-                          editCompanyName={editCompanyName}
-                          editEmail={editEmail}
-                          editContactPhone={editContactPhone}
-                          editBillingRatePerHour={editBillingRatePerHour}
-                          editStatus={editStatus}
-                          editAddressLine1={editAddressLine1}
-                          editStandingInstructions={editStandingInstructions}
-                          editDefaultNumberOfSigns={editDefaultNumberOfSigns}
-                          editAgentOptions={editAgentOptions}
-                          editRestrictInvitesToOwnDomain={editRestrictInvitesToOwnDomain}
-                          editSaving={editSaving}
-                          editError={editError}
-                          editSuccess={editSuccess}
-                          checklist={checklists[customer.id]}
-                          checklistLoading={checklistLoading[customer.id]}
-                          onEditNameChange={setEditName}
-                          onEditCompanyNameChange={setEditCompanyName}
-                          onEditEmailChange={setEditEmail}
-                          onEditContactPhoneChange={setEditContactPhone}
-                          onEditBillingRatePerHourChange={setEditBillingRatePerHour}
-                          onEditBillingRatePerHourBlur={(value) => setEditBillingRatePerHour(formatCurrency(value))}
-                          onEditStatusChange={setEditStatus}
-                          onEditDefaultNumberOfSignsChange={setEditDefaultNumberOfSigns}
-                          onEditAddressLine1Change={setEditAddressLine1}
-                          onEditResolvedAddressChange={(resolved) => {
-                            setEditResolvedAddress(resolved);
-                            if (resolved) {
-                              setEditAddressLine1(resolved.formattedAddress);
-                            }
-                          }}
-                          onAddAgentOption={addAgentOption}
-                          onRemoveAgentOption={removeAgentOption}
-                          onMoveAgentOption={moveAgentOption}
-                          onEditStandingInstructionsChange={setEditStandingInstructions}
-                          onEditRestrictInvitesToOwnDomainChange={setEditRestrictInvitesToOwnDomain}
-                          onSave={() => {
-                            void handleUpdateCustomer(customer.id);
-                          }}
-                          onCancel={() => toggleEditPanel(customer)}
-                          onDelete={() => setDeleteTarget(customer)}
-                        />
-                      )}
+                      userCount={userCountByCustomerId.get(customer.id) ?? 0}
+                      isSelected={expandedEditPanel === customer.id}
+                      onConfigure={() => toggleEditPanel(customer)}
+                      onPaymentDetails={() => router.push(`/administrator/payment-details?customerId=${customer.id}`)}
                     />
                   ))}
                 </tbody>
@@ -595,6 +563,53 @@ export default function CustomersAdminPage() {
             </nav>
           )}
         </Card>
+
+        {selectedCustomer && (
+          <CustomerEditPanel
+            customer={selectedCustomer}
+            editName={editName}
+            editCompanyName={editCompanyName}
+            editEmail={editEmail}
+            editContactPhone={editContactPhone}
+            editBillingRatePerHour={editBillingRatePerHour}
+            editStatus={editStatus}
+            editAddressLine1={editAddressLine1}
+            editStandingInstructions={editStandingInstructions}
+            editDefaultNumberOfSigns={editDefaultNumberOfSigns}
+            editAgentOptions={editAgentOptions}
+            editRestrictInvitesToOwnDomain={editRestrictInvitesToOwnDomain}
+            editSaving={editSaving}
+            editError={editError}
+            editSuccess={editSuccess}
+            checklist={checklists[selectedCustomer.id]}
+            checklistLoading={checklistLoading[selectedCustomer.id]}
+            onEditNameChange={setEditName}
+            onEditCompanyNameChange={setEditCompanyName}
+            onEditEmailChange={setEditEmail}
+            onEditContactPhoneChange={setEditContactPhone}
+            onEditBillingRatePerHourChange={setEditBillingRatePerHour}
+            onEditBillingRatePerHourBlur={(value) => setEditBillingRatePerHour(formatCurrency(value))}
+            onEditStatusChange={setEditStatus}
+            onEditDefaultNumberOfSignsChange={setEditDefaultNumberOfSigns}
+            onEditAddressLine1Change={setEditAddressLine1}
+            onEditResolvedAddressChange={(resolved) => {
+              setEditResolvedAddress(resolved);
+              if (resolved) {
+                setEditAddressLine1(resolved.formattedAddress);
+              }
+            }}
+            onAddAgentOption={addAgentOption}
+            onRemoveAgentOption={removeAgentOption}
+            onSetDefaultAgentOption={setDefaultAgentOption}
+            onEditStandingInstructionsChange={setEditStandingInstructions}
+            onEditRestrictInvitesToOwnDomainChange={setEditRestrictInvitesToOwnDomain}
+            onSave={() => {
+              void handleUpdateCustomer(selectedCustomer.id);
+            }}
+            onCancel={() => closeEditPanel()}
+            onSuspendToggle={handleSuspendToggle}
+          />
+        )}
       </div>
     </OperatorRoute>
   );

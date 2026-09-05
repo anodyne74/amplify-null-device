@@ -59,7 +59,7 @@
   flex-wrap: wrap;
 }
 
-.deleteAction {
+.suspendAction {
   margin-left: auto;
 }
 
@@ -91,10 +91,14 @@
 
 .manageCell {
   text-align: right;
+  white-space: nowrap;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
 }
 
-.subPanel {
-  padding: var(--space-5) var(--space-6);
+.selectedRow {
+  background: var(--surface-hover);
 }
 
 .subPanelHeading {
@@ -142,7 +146,7 @@
   gap: var(--space-3);
 }
 
-/* Agent options — ordered tag chip editor */
+/* Agent options — click-to-default tag chip editor */
 
 .agentChipRow {
   display: flex;
@@ -150,37 +154,6 @@
   gap: var(--space-2);
   flex-wrap: wrap;
   padding-top: var(--space-1);
-}
-
-.agentOrderedList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: var(--space-1) 0 0;
-  list-style: none;
-}
-
-.agentOrderedRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.agentDefaultBadge {
-  font-size: var(--text-2xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-subtle);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  padding: 2px 6px;
-}
-
-.agentMoveGroup {
-  display: flex;
-  gap: var(--space-1);
 }
 
 .agentChipAddRow {
@@ -209,10 +182,24 @@
   color: var(--text-subtle);
 }
 
-/* Edit panel sections — Customer Details / Standing Instructions / Onboarding checklist */
+/* Master-detail panel — two-column layout for the selected customer's Configure card */
 
-.sectionCard {
-  margin-top: var(--space-5);
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-6);
+}
+
+.detailColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.detailDivider {
+  border: none;
+  border-top: var(--border-hairline) solid var(--border-default);
+  margin: var(--space-2) 0;
 }
 
 .checklist {

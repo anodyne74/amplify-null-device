@@ -8,9 +8,10 @@ import { auth } from './auth/resource';
 import { data } from './data/resource';
 import { storage } from './storage/resource';
 import { customerAccessActivation } from './functions/customer-access-activation/resource';
+import { operatorStatusActivation } from './functions/operator-status-activation/resource';
 import { configureObservability } from './observability/resource';
 
-const backend = defineBackend({ auth, data, storage, customerAccessActivation });
+const backend = defineBackend({ auth, data, storage, customerAccessActivation, operatorStatusActivation });
 
 // Advanced security (AUDIT mode) is required for AdminListUserAuthEvents, which
 // powers the admin Users page's "signed in past 7 days" stat. AUDIT only logs and

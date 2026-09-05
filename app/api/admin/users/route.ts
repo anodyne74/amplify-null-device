@@ -4,6 +4,7 @@ import {
   AdminAddUserToGroupCommand,
   AdminCreateUserCommand,
   type AdminCreateUserCommandInput,
+  AdminGetUserCommand,
   AdminListGroupsForUserCommand,
   AdminListUserAuthEventsCommand,
   AdminRemoveUserFromGroupCommand,
@@ -126,6 +127,33 @@ async function findUserByEmail(poolId: string, email: string): Promise<CognitoLi
   } while (!matched && paginationToken);
 
   return matched;
+}
+
+/** The full set of Cognito sub/username identifiers currently in the `administrator`
+ * group -- used to scope syncAdministratorRecords so it never writes a directory row
+ * for a customer or operator who merely showed up in a full-pool or by-email lookup. */
+async function fetchAdministratorGroupIds(poolId: string): Promise<Set<string>> {
+  const ids = new Set<string>();
+  let paginationToken: string | undefined;
+
+  do {
+    const response = await cognitoClient.send(
+      new ListUsersInGroupCommand({
+        UserPoolId: poolId,
+        GroupName: 'administrator',
+        Limit: 60,
+        NextToken: paginationToken,
+      })
+    );
+    for (const user of response.Users || []) {
+      const sub = getAttributeValue(user.Attributes, 'sub');
+      if (sub) ids.add(sub);
+      if (user.Username) ids.add(user.Username);
+    }
+    paginationToken = response.NextToken;
+  } while (paginationToken);
+
+  return ids;
 }
 
 /** Paginates ListUsers to completion -- the individual admin actions cap at one
@@ -489,6 +517,71 @@ async function syncOperatorRecords(authToken: string, users: ListedUser[]) {
   );
 }
 
+/** Fetches a single user by username/sub and maps it the same way listUsers/
+ * listUsersInGroup do, for use where only a username is known (addUserToGroup). */
+async function fetchListedUser(poolId: string, username: string): Promise<ListedUser> {
+  const response = await cognitoClient.send(
+    new AdminGetUserCommand({ UserPoolId: poolId, Username: username })
+  );
+  return mapListedUser({
+    Username: response.Username,
+    Enabled: response.Enabled,
+    UserStatus: response.UserStatus,
+    UserCreateDate: response.UserCreateDate,
+    UserLastModifiedDate: response.UserLastModifiedDate,
+    Attributes: response.UserAttributes,
+  });
+}
+
+/** Sets an existing Operator directory record's status. No-op if the record doesn't
+ * exist (e.g. the user was never actually synced, or was removed already). */
+async function setOperatorStatus(authToken: string, operatorId: string, status: 'active' | 'inactive') {
+  if (!graphqlEndpoint) return;
+
+  const mutation = `
+    mutation UpdateOperator($input: UpdateOperatorInput!) {
+      updateOperator(input: $input) {
+        id
+      }
+    }
+  `;
+
+  await fetch(graphqlEndpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: authToken,
+    },
+    body: JSON.stringify({ query: mutation, variables: { input: { id: operatorId, status } } }),
+    cache: 'no-store',
+  });
+}
+
+/** Deletes an Administrator directory record. Administrator has no status field, so
+ * removing the Cognito group membership removes the directory row outright rather
+ * than leaving a stale one an admin-management screen would otherwise still list. */
+async function deleteAdministratorRecord(authToken: string, administratorId: string) {
+  if (!graphqlEndpoint) return;
+
+  const mutation = `
+    mutation DeleteAdministrator($input: DeleteAdministratorInput!) {
+      deleteAdministrator(input: $input) {
+        id
+      }
+    }
+  `;
+
+  await fetch(graphqlEndpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: authToken,
+    },
+    body: JSON.stringify({ query: mutation, variables: { input: { id: administratorId } } }),
+    cache: 'no-store',
+  });
+}
+
 async function verifyToken(token: string): Promise<VerifiedClaims | null> {
   const verifier = getVerifier();
   if (!verifier) {
@@ -564,7 +657,11 @@ export async function POST(request: NextRequest) {
       );
 
       const users = (response.Users || []).map((user) => mapListedUser(user));
-      await syncAdministratorRecords(authResult.token, users);
+      const administratorIds = await fetchAdministratorGroupIds(userPoolId);
+      await syncAdministratorRecords(
+        authResult.token,
+        users.filter((user) => user.id && administratorIds.has(user.id))
+      );
 
       await writeAuditLog(authResult.token, {
         operatorId: authResult.claims.sub,
@@ -657,7 +754,15 @@ export async function POST(request: NextRequest) {
       }
 
       const user = mapListedUser(matched);
-      await syncAdministratorRecords(authResult.token, [user]);
+      if (matched.Username) {
+        const groupsResponse = await cognitoClient.send(
+          new AdminListGroupsForUserCommand({ UserPoolId: userPoolId, Username: matched.Username })
+        );
+        const isAdministrator = (groupsResponse.Groups || []).some((group) => group.GroupName === 'administrator');
+        if (isAdministrator) {
+          await syncAdministratorRecords(authResult.token, [user]);
+        }
+      }
 
       await writeAuditLog(authResult.token, {
         operatorId: authResult.claims.sub,
@@ -796,6 +901,21 @@ export async function POST(request: NextRequest) {
         })
       );
 
+      // Keep the directory tables in step with group membership -- the customer
+      // group's own invite flow already creates its CustomerUser row synchronously;
+      // operator/administrator need the equivalent here since this is the only
+      // path (besides invite-time createUser, which already syncs) that grants
+      // those roles.
+      if (body.groupName === 'operator' || body.groupName === 'administrator') {
+        const user = await fetchListedUser(userPoolId, body.username);
+        if (body.groupName === 'operator') {
+          await syncOperatorRecords(authResult.token, [user]);
+          if (user.id) await setOperatorStatus(authResult.token, user.id, 'active');
+        } else {
+          await syncAdministratorRecords(authResult.token, [user]);
+        }
+      }
+
       await writeAuditLog(authResult.token, {
         operatorId: authResult.claims.sub,
         eventType: 'data_modification',
@@ -834,6 +954,19 @@ export async function POST(request: NextRequest) {
           GroupName: body.groupName,
         })
       );
+
+      // Mirror the group removal onto the directory tables so they don't keep a
+      // stale row for someone who no longer has the role's access.
+      if (body.groupName === 'operator' || body.groupName === 'administrator') {
+        const user = await fetchListedUser(userPoolId, body.username);
+        if (user.id) {
+          if (body.groupName === 'operator') {
+            await setOperatorStatus(authResult.token, user.id, 'inactive');
+          } else {
+            await deleteAdministratorRecord(authResult.token, user.id);
+          }
+        }
+      }
 
       await writeAuditLog(authResult.token, {
         operatorId: authResult.claims.sub,

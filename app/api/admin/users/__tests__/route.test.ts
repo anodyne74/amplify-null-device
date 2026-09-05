@@ -49,6 +49,7 @@ jest.mock('@aws-sdk/client-cognito-identity-provider', () => {
     AdminAddUserToGroupCommand: jest.fn((input) => ({ input })),
     AdminRemoveUserFromGroupCommand: jest.fn((input) => ({ input })),
     AdminCreateUserCommand: jest.fn((input) => ({ input })),
+    AdminSetUserPasswordCommand: jest.fn((input) => ({ input })),
     UsernameExistsException,
     UserPoolAddOnNotEnabledException,
   };
@@ -694,6 +695,185 @@ describe('admin users API', () => {
     const response = await POST(request);
     expect(response.status).toBe(400);
     expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it('lists users in a group across multiple Cognito pages', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        Users: [
+          { Username: 'customer-1', Attributes: [{ Name: 'sub', Value: 'sub-customer-1' }] },
+        ],
+        NextToken: 'page-2',
+      })
+      .mockResolvedValueOnce({
+        Users: [
+          { Username: 'customer-2', Attributes: [{ Name: 'sub', Value: 'sub-customer-2' }] },
+        ],
+        NextToken: undefined,
+      });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsersInGroup', groupName: 'customer' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.users).toEqual([
+      expect.objectContaining({ username: 'customer-1', sub: 'sub-customer-1' }),
+      expect.objectContaining({ username: 'customer-2', sub: 'sub-customer-2' }),
+    ]);
+    expect(sendMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('resendInvite issues a fresh temporary password and re-sends the branded customer invitation', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      email: 'admin@nulldevice.dev',
+      name: 'Admin Person',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        Users: [
+          {
+            Username: 'pending-user',
+            UserStatus: 'FORCE_CHANGE_PASSWORD',
+            Attributes: [{ Name: 'email', Value: 'pending@agency.com.au' }],
+          },
+        ],
+      }) // findUserByEmail's ListUsersCommand
+      .mockResolvedValueOnce({}); // AdminSetUserPasswordCommand
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'resendInvite',
+        email: 'pending@agency.com.au',
+        groupName: 'customer',
+        name: 'Pending Person',
+        customerName: 'Agency Co',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ emailSent: true });
+
+    const setPasswordInput = sendMock.mock.calls[1][0].input;
+    expect(setPasswordInput).toEqual(
+      expect.objectContaining({ Username: 'pending-user', Permanent: false })
+    );
+    expect(typeof setPasswordInput.Password).toBe('string');
+
+    expect(sendInvitationEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toEmail: 'pending@agency.com.au',
+        inviteeName: 'Pending Person',
+        customerName: 'Agency Co',
+        temporaryPassword: setPasswordInput.Password,
+      })
+    );
+  });
+
+  it('resendInvite sends the branded staff invitation for a non-customer group', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        Users: [
+          {
+            Username: 'pending-ops',
+            UserStatus: 'FORCE_CHANGE_PASSWORD',
+            Attributes: [{ Name: 'email', Value: 'ops@nulldevice.dev' }],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({});
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'resendInvite',
+        email: 'ops@nulldevice.dev',
+        groupName: 'operator',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(sendInvitationEmailMock).not.toHaveBeenCalled();
+    expect(sendStaffInvitationEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ toEmail: 'ops@nulldevice.dev', roleLabel: 'Operator' })
+    );
+  });
+
+  it('rejects resendInvite for a user who has already signed in', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock.mockResolvedValueOnce({
+      Users: [
+        {
+          Username: 'active-user',
+          UserStatus: 'CONFIRMED',
+          Attributes: [{ Name: 'email', Value: 'active@agency.com.au' }],
+        },
+      ],
+    });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'resendInvite',
+        email: 'active@agency.com.au',
+        groupName: 'customer',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: 'This user has already signed in and can no longer be re-invited.',
+    });
+  });
+
+  it('rejects resendInvite when no matching user exists', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock.mockResolvedValueOnce({ Users: [] });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'resendInvite',
+        email: 'nobody@agency.com.au',
+        groupName: 'customer',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(404);
   });
 
   it('computes user activity stats: pending invites and signed-in-within-7-days count', async () => {

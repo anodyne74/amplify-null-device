@@ -8,6 +8,7 @@ import {
   AdminListGroupsForUserCommand,
   AdminListUserAuthEventsCommand,
   AdminRemoveUserFromGroupCommand,
+  AdminSetUserPasswordCommand,
   CognitoIdentityProviderClient,
   ListUsersCommand,
   ListUsersInGroupCommand,
@@ -33,6 +34,7 @@ type AdminUserAction =
   | 'removeUserFromGroup'
   | 'getUserByEmail'
   | 'createUser'
+  | 'resendInvite'
   | 'getUserActivityStats';
 
 type AdminUserRequest = {
@@ -686,15 +688,22 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid groupName.' }, { status: 400 });
       }
 
-      const response = await cognitoClient.send(
-        new ListUsersInGroupCommand({
-          UserPoolId: userPoolId,
-          GroupName: body.groupName,
-          Limit: 60,
-        })
-      );
+      const rawUsers: CognitoListedUser[] = [];
+      let groupPaginationToken: string | undefined;
+      do {
+        const response = await cognitoClient.send(
+          new ListUsersInGroupCommand({
+            UserPoolId: userPoolId,
+            GroupName: body.groupName,
+            Limit: 60,
+            NextToken: groupPaginationToken,
+          })
+        );
+        rawUsers.push(...(response.Users || []));
+        groupPaginationToken = response.NextToken;
+      } while (groupPaginationToken);
 
-      const users = (response.Users || []).map((user) => mapListedUser(user));
+      const users = rawUsers.map((user) => mapListedUser(user));
       if (body.groupName === 'operator') {
         await syncOperatorRecords(authResult.token, users);
       }
@@ -776,6 +785,79 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json({ user });
+    }
+
+    if (body.action === 'resendInvite') {
+      if (!body.email || !body.groupName) {
+        return NextResponse.json({ error: 'email and groupName are required.' }, { status: 400 });
+      }
+
+      const email = body.email.trim().toLowerCase();
+      const matched = await findUserByEmail(userPoolId, email);
+      if (!matched?.Username) {
+        return NextResponse.json({ error: `No user found for email ${email}.` }, { status: 404 });
+      }
+
+      if (matched.UserStatus !== 'FORCE_CHANGE_PASSWORD') {
+        return NextResponse.json(
+          { error: 'This user has already signed in and can no longer be re-invited.' },
+          { status: 400 }
+        );
+      }
+
+      // Re-invite by issuing a fresh temporary password: the user stays in
+      // FORCE_CHANGE_PASSWORD (same as a brand-new invite) rather than being
+      // moved to RESET_REQUIRED, which is what AdminResetUserPasswordCommand
+      // would do and would route them through "forgot password" instead of
+      // the temp-password sign-in flow the branded email describes.
+      const temporaryPassword = generateTemporaryPassword();
+      await cognitoClient.send(
+        new AdminSetUserPasswordCommand({
+          UserPoolId: userPoolId,
+          Username: matched.Username,
+          Password: temporaryPassword,
+          Permanent: false,
+        })
+      );
+
+      let emailSent = false;
+      try {
+        if (body.groupName === 'customer') {
+          await sendInvitationEmail({
+            toEmail: email,
+            inviteeName: body.name,
+            customerName: body.customerName?.trim() || 'your team',
+            inviterName: authResult.claims.name || authResult.claims.email || 'Null Device',
+            inviterEmail: authResult.claims.email || '',
+            temporaryPassword,
+          });
+        } else {
+          await sendStaffInvitationEmail({
+            toEmail: email,
+            inviteeName: body.name,
+            roleLabel: body.groupName === 'administrator' ? 'Administrator' : 'Operator',
+            inviterName: authResult.claims.name || authResult.claims.email || 'Null Device',
+            inviterEmail: authResult.claims.email || '',
+            temporaryPassword,
+          });
+        }
+        emailSent = true;
+      } catch (err) {
+        console.error('Failed to send branded re-invitation email:', err);
+      }
+
+      await writeAuditLog(authResult.token, {
+        operatorId: authResult.claims.sub,
+        eventType: 'data_modification',
+        resourceType: 'operator',
+        resourceId: matched.Username,
+        action: `resend_invite:${body.groupName}`,
+        status: 'success',
+        ipAddress: request.headers.get('x-forwarded-for') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+      });
+
+      return NextResponse.json({ emailSent });
     }
 
     if (body.action === 'createUser') {

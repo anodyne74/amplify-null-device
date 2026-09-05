@@ -95,6 +95,15 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     MaxResults?: number;
   }
 
+  export interface AdminSetUserPasswordCommandInput {
+    UserPoolId: string;
+    Username: string;
+    Password: string;
+    Permanent?: boolean;
+  }
+
+  export interface AdminSetUserPasswordCommandOutput {}
+
   export interface AuthEventType {
     EventType?: string;
     EventResponse?: string;
@@ -153,6 +162,11 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     constructor(input: AdminListUserAuthEventsCommandInput);
   }
 
+  export class AdminSetUserPasswordCommand {
+    readonly __brand_AdminSetUserPasswordCommand?: true;
+    constructor(input: AdminSetUserPasswordCommandInput);
+  }
+
   export class CognitoIdentityProviderClient {
     constructor(config?: Record<string, unknown>);
     send(command: AdminAddUserToGroupCommand): Promise<void>;
@@ -163,5 +177,6 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     send(command: AdminGetUserCommand): Promise<AdminGetUserCommandOutput>;
     send(command: AdminCreateUserCommand): Promise<AdminCreateUserCommandOutput>;
     send(command: AdminListUserAuthEventsCommand): Promise<AdminListUserAuthEventsCommandOutput>;
+    send(command: AdminSetUserPasswordCommand): Promise<AdminSetUserPasswordCommandOutput>;
   }
 }

@@ -25,16 +25,6 @@ jest.mock('@/app/components/OperatorRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/app/administrator/users/components/UserSelectorControl', () => ({
-  __esModule: true,
-  default: () => <div>User Selector</div>,
-}));
-
-jest.mock('@/app/administrator/users/components/GroupMembershipSection', () => ({
-  __esModule: true,
-  default: () => <div>Group Membership</div>,
-}));
-
 jest.mock('@/lib/queries', () => ({
   createCustomerUser: jest.fn(),
   deleteCustomerUser: jest.fn(),
@@ -105,21 +95,20 @@ describe('UsersAdminPage customer access actions', () => {
 
     expect(screen.queryByRole('button', { name: 'Revoke Access' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Read User' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change role for Read User' }));
 
     const revokeButton = screen.getByRole('button', { name: 'Revoke Access' });
     expect(revokeButton).toHaveClass('nd-btn--danger');
   });
 
-  it('requires confirmation before revoking a customer user from the edit dialog', async () => {
+  it('requires confirmation before revoking a customer user from the table row', async () => {
     render(<UsersAdminPage />);
 
     await waitFor(() => {
       expect(screen.getByText('Read User')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Read User' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Revoke Access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke access for Read User' }));
 
     const dialog = screen.getByRole('alertdialog', { name: 'Revoke customer access?' });
     expect(dialog).toHaveTextContent("Revoke Read User's customer access?");
@@ -131,8 +120,7 @@ describe('UsersAdminPage customer access actions', () => {
     expect(mockDeleteCustomerUser).not.toHaveBeenCalled();
 
     // Confirming performs the removal.
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Read User' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Revoke Access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke access for Read User' }));
     fireEvent.click(screen.getByRole('button', { name: 'Revoke Access' }));
 
     await waitFor(() => {
@@ -151,7 +139,7 @@ describe('UsersAdminPage customer access actions', () => {
       expect(screen.getByText('Read User')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Read User' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change role for Read User' }));
 
     const dialog = screen.getByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('Display Name'), { target: { value: 'Renamed User' } });
@@ -171,10 +159,10 @@ describe('UsersAdminPage customer access actions', () => {
       expect(screen.getByText('Read User')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Client users')).toBeInTheDocument();
+    expect(screen.getByText('Customer users')).toBeInTheDocument();
     expect(screen.getByText('Account owners')).toBeInTheDocument();
     expect(screen.getByText('Invites pending')).toBeInTheDocument();
-    expect(screen.getByText('Signed in (7d)')).toBeInTheDocument();
+    expect(screen.getByText('Signed in past 7d')).toBeInTheDocument();
   });
 
   it('creates a real Cognito login (instead of a pending placeholder) when the invited email has no existing account', async () => {
@@ -257,5 +245,39 @@ describe('UsersAdminPage customer access actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add customer user' }));
 
     expect(await screen.findByText(/invitation email could not be sent/i)).toBeInTheDocument();
+  });
+
+  it('shows a Resend action for a pending invite and resends it', async () => {
+    global.fetch = jest.fn(async (_url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string) as { action: string; groupName?: string };
+      if (body.action === 'listUsersInGroup' && body.groupName === 'customer') {
+        return {
+          ok: true,
+          json: async () => ({ users: [{ sub: 'sub-1', status: 'FORCE_CHANGE_PASSWORD' }] }),
+        };
+      }
+      if (body.action === 'resendInvite') {
+        return { ok: true, json: async () => ({ emailSent: true }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    }) as jest.Mock;
+
+    render(<UsersAdminPage />);
+
+    const resendButton = await screen.findByRole('button', { name: 'Resend invite to Read User' });
+    fireEvent.click(resendButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Invitation resent to read@example.com.')).toBeInTheDocument();
+    });
+
+    const calls = (global.fetch as jest.Mock).mock.calls;
+    const resendCall = calls.find(([, init]) => JSON.parse(init.body).action === 'resendInvite');
+    expect(resendCall).toBeTruthy();
+    expect(JSON.parse(resendCall![1].body)).toMatchObject({
+      action: 'resendInvite',
+      email: 'read@example.com',
+      groupName: 'customer',
+    });
   });
 });

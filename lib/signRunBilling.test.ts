@@ -1,6 +1,7 @@
 import {
   MIN_BILLED_MINUTES,
   minutesBetween,
+  measuredPhaseMinutes,
   round5,
   defaultBilledMinutes,
   sumBilledMinutes,
@@ -58,6 +59,34 @@ describe('defaultBilledMinutes', () => {
 
   it('exposes the same minimums used internally', () => {
     expect(MIN_BILLED_MINUTES).toEqual({ load: 15, placement: 5, pickup: 5, unload: 15 });
+  });
+});
+
+describe('measuredPhaseMinutes', () => {
+  it('measures each phase from its own start/end pair', () => {
+    expect(
+      measuredPhaseMinutes({
+        actualStartTime: '2026-08-31T08:00:00.000Z',
+        loadConfirmedAt: '2026-08-31T08:00:00.000Z',
+        placementStartTime: '2026-08-31T08:15:00.000Z',
+        placementEndTime: '2026-08-31T08:37:00.000Z',
+        pickupStartTime: '2026-08-31T08:40:00.000Z',
+        pickupEndTime: '2026-08-31T08:52:00.000Z',
+        unloadConfirmedAt: '2026-08-31T09:10:00.000Z',
+      })
+    ).toEqual({ load: 0, placement: 22, pickup: 12, unload: 18 });
+  });
+
+  it('measures 0 for a phase missing either timestamp, regardless of the others', () => {
+    expect(
+      measuredPhaseMinutes({
+        actualStartTime: '2026-08-31T08:00:00.000Z',
+        loadConfirmedAt: '2026-08-31T08:00:00.000Z',
+        placementStartTime: '2026-08-31T08:15:00.000Z',
+        placementEndTime: '2026-08-31T08:37:00.000Z',
+        // pickup never actioned, unload not yet confirmed
+      })
+    ).toEqual({ load: 0, placement: 22, pickup: 0, unload: 0 });
   });
 });
 

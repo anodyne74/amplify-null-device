@@ -223,8 +223,9 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     expect(screen.getByText('2 / 3')).toBeInTheDocument();
     expect(screen.getByText('22')).toBeInTheDocument();
     expect(screen.getByText('1')).toBeInTheDocument();
-    // actualStartTime (T0) -> actualEndTime (T5) = 60 min.
-    expect(screen.getByText('1h 0m')).toBeInTheDocument();
+    // Cumulative of the completed phases' measured times, not the actualStartTime ->
+    // actualEndTime wall clock: 0 (load) + 20 (placement) + 12 (pickup) + 18 (unload) = 50 min.
+    expect(screen.getByText('50m')).toBeInTheDocument();
 
     // Measured defaults: load 0min->floor 15m; placement 20min->20m;
     // pickup 12min->round5->10m; unload 18min->round5->20m. Total 65m, not billable.

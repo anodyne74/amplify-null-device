@@ -11,7 +11,7 @@ import { getSignRunPhase } from '@/lib/signRunPhase';
 import { isStopCompletedForPhase, isStopSkippedForPhase } from '@/lib/stopExecutionMarkers';
 import {
   MIN_BILLED_MINUTES,
-  minutesBetween,
+  measuredPhaseMinutes,
   defaultBilledMinutes,
   sumBilledMinutes,
   formatDuration,
@@ -91,21 +91,20 @@ export default function OperatorFinalisePage() {
 
   const defaults = useMemo(() => {
     if (!route) return null;
+    const measured = measuredPhaseMinutes(route);
     return {
-      load: route.billedLoadMinutes ?? defaultBilledMinutes('load', minutesBetween(route.actualStartTime, route.loadConfirmedAt)),
-      placement:
-        route.billedPlacementMinutes ??
-        defaultBilledMinutes('placement', minutesBetween(route.placementStartTime, route.placementEndTime)),
-      pickup:
-        route.billedPickupMinutes ?? defaultBilledMinutes('pickup', minutesBetween(route.pickupStartTime, route.pickupEndTime)),
-      unload:
-        route.billedUnloadMinutes ?? defaultBilledMinutes('unload', minutesBetween(route.pickupEndTime, route.unloadConfirmedAt)),
+      load: route.billedLoadMinutes ?? defaultBilledMinutes('load', measured.load),
+      placement: route.billedPlacementMinutes ?? defaultBilledMinutes('placement', measured.placement),
+      pickup: route.billedPickupMinutes ?? defaultBilledMinutes('pickup', measured.pickup),
+      unload: route.billedUnloadMinutes ?? defaultBilledMinutes('unload', measured.unload),
     };
   }, [route]);
 
   const billedMinutes = defaults ? { ...defaults, ...billedOverride } : null;
   const kmAdj = kmOverride ?? route?.overrideDistanceKm ?? 0;
-  const duration = route ? minutesBetween(route.actualStartTime, route.actualEndTime) : 0;
+  // Cumulative duration of the completed phases, not raw wall-clock start-to-end —
+  // a phase with no recorded times (e.g. pickup/unload never actioned) contributes 0.
+  const duration = route ? sumBilledMinutes(measuredPhaseMinutes(route)) : 0;
 
   const bumpBilled = (phase: RouteExecutionPhase, step: number) => {
     if (!billedMinutes) return;

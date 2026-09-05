@@ -33,6 +33,28 @@ export function defaultBilledMinutes(phase: RouteExecutionPhase, measuredMinutes
   return Math.max(MIN_BILLED_MINUTES[phase], round5(measuredMinutes));
 }
 
+export interface PhaseTimestamps {
+  actualStartTime?: string | null;
+  loadConfirmedAt?: string | null;
+  placementStartTime?: string | null;
+  placementEndTime?: string | null;
+  pickupStartTime?: string | null;
+  pickupEndTime?: string | null;
+  unloadConfirmedAt?: string | null;
+}
+
+/** Raw elapsed minutes for each phase, from its own start/end pair. There's no dedicated
+ * "sign return" start marker — unload is timed from the end of pickup to its own
+ * confirmation. A phase that hasn't both started and finished measures 0. */
+export function measuredPhaseMinutes(route: PhaseTimestamps): Record<RouteExecutionPhase, number> {
+  return {
+    load: minutesBetween(route.actualStartTime, route.loadConfirmedAt),
+    placement: minutesBetween(route.placementStartTime, route.placementEndTime),
+    pickup: minutesBetween(route.pickupStartTime, route.pickupEndTime),
+    unload: minutesBetween(route.pickupEndTime, route.unloadConfirmedAt),
+  };
+}
+
 export function sumBilledMinutes(bill: Record<RouteExecutionPhase, number>): number {
   return bill.load + bill.placement + bill.pickup + bill.unload;
 }

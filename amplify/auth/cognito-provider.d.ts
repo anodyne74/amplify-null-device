@@ -55,10 +55,26 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     UserPoolId: string;
     GroupName: string;
     Limit?: number;
+    NextToken?: string;
   }
 
   export interface ListUsersInGroupCommandOutput {
     Users?: UserType[];
+    NextToken?: string;
+  }
+
+  export interface AdminGetUserCommandInput {
+    UserPoolId: string;
+    Username: string;
+  }
+
+  export interface AdminGetUserCommandOutput {
+    Username?: string;
+    UserAttributes?: AttributeType[];
+    UserCreateDate?: Date;
+    UserLastModifiedDate?: Date;
+    Enabled?: boolean;
+    UserStatus?: string;
   }
 
   export interface AdminCreateUserCommandInput {
@@ -122,6 +138,11 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     constructor(input: ListUsersInGroupCommandInput);
   }
 
+  export class AdminGetUserCommand {
+    readonly __brand_AdminGetUserCommand?: true;
+    constructor(input: AdminGetUserCommandInput);
+  }
+
   export class AdminCreateUserCommand {
     readonly __brand_AdminCreateUserCommand?: true;
     constructor(input: AdminCreateUserCommandInput);
@@ -139,6 +160,7 @@ declare module '@aws-sdk/client-cognito-identity-provider' {
     send(command: AdminListGroupsForUserCommand): Promise<AdminListGroupsForUserCommandOutput>;
     send(command: ListUsersCommand): Promise<ListUsersCommandOutput>;
     send(command: ListUsersInGroupCommand): Promise<ListUsersInGroupCommandOutput>;
+    send(command: AdminGetUserCommand): Promise<AdminGetUserCommandOutput>;
     send(command: AdminCreateUserCommand): Promise<AdminCreateUserCommandOutput>;
     send(command: AdminListUserAuthEventsCommand): Promise<AdminListUserAuthEventsCommandOutput>;
   }

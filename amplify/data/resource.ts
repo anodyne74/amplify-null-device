@@ -1,5 +1,6 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 import { customerAccessActivation } from '../functions/customer-access-activation/resource';
+import { operatorStatusActivation } from '../functions/operator-status-activation/resource';
 
 /**
  * Delivery Management System Data Model
@@ -135,6 +136,9 @@ const schema = a.schema({
       phone: a.string(),
       vehicleAndRego: a.string(),
       homeBase: a.string(),
+      // Starts 'onboarding' on creation; flipped to 'active' by
+      // operator-status-activation's postAuthentication trigger on first sign-in,
+      // and to 'inactive' by removeUserFromGroup when the operator group is removed.
       status: a.enum(['active', 'onboarding', 'inactive']),
       // Pay split — editable on the Drivers screen. NOTE: not yet read by
       // lib/driverSplit.ts's computeDriverSplit() or
@@ -625,6 +629,7 @@ const schema = a.schema({
     ]),
 }).authorization((allow) => [
   allow.resource(customerAccessActivation).to(['query', 'mutate']),
+  allow.resource(operatorStatusActivation).to(['query', 'mutate']),
 ]);
 
 export type Schema = ClientSchema<typeof schema>;

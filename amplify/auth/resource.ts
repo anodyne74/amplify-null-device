@@ -1,5 +1,6 @@
 import { defineAuth } from '@aws-amplify/backend';
 import { customerAccessActivation } from '../functions/customer-access-activation/resource';
+import { operatorStatusActivation } from '../functions/operator-status-activation/resource';
 
 /**
  * Define and configure your auth resource
@@ -13,6 +14,7 @@ export const auth = defineAuth({
   },
   triggers: {
     postConfirmation: customerAccessActivation,
+    postAuthentication: operatorStatusActivation,
   },
   /**
    * Cognito User Groups:

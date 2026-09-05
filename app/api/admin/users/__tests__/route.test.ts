@@ -43,6 +43,7 @@ jest.mock('@aws-sdk/client-cognito-identity-provider', () => {
     })),
     ListUsersCommand: jest.fn((input) => ({ input })),
     ListUsersInGroupCommand: jest.fn((input) => ({ input })),
+    AdminGetUserCommand: jest.fn((input) => ({ input })),
     AdminListGroupsForUserCommand: jest.fn((input) => ({ input })),
     AdminListUserAuthEventsCommand: jest.fn((input) => ({ input })),
     AdminAddUserToGroupCommand: jest.fn((input) => ({ input })),
@@ -133,6 +134,143 @@ describe('admin users API', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ success: true });
     expect(sendMock).toHaveBeenCalled();
+  });
+
+  it('addUserToGroup for operator creates and activates the Operator directory record', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({}) // AdminAddUserToGroupCommand
+      .mockResolvedValueOnce({
+        Username: 'driver-dan',
+        UserAttributes: [
+          { Name: 'sub', Value: 'sub-driver-dan' },
+          { Name: 'email', Value: 'dan@nulldevice.dev' },
+          { Name: 'name', Value: 'Driver Dan' },
+        ],
+      }); // AdminGetUserCommand
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'addUserToGroup', username: 'driver-dan', groupName: 'operator' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const createCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('createOperator')
+    );
+    expect(createCall).toBeDefined();
+    expect(JSON.parse(createCall![1].body).variables.input).toEqual(
+      expect.objectContaining({ id: 'sub-driver-dan', name: 'Driver Dan', email: 'dan@nulldevice.dev' })
+    );
+
+    const activateCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('updateOperator')
+    );
+    expect(activateCall).toBeDefined();
+    expect(JSON.parse(activateCall![1].body).variables.input).toEqual({ id: 'sub-driver-dan', status: 'active' });
+  });
+
+  it('addUserToGroup for administrator creates the Administrator directory record', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({}) // AdminAddUserToGroupCommand
+      .mockResolvedValueOnce({
+        Username: 'new-admin-user',
+        UserAttributes: [
+          { Name: 'sub', Value: 'sub-new-admin' },
+          { Name: 'email', Value: 'newadmin@nulldevice.dev' },
+          { Name: 'name', Value: 'New Admin' },
+        ],
+      }); // AdminGetUserCommand
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'addUserToGroup', username: 'new-admin-user', groupName: 'administrator' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const createCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('createAdministrator')
+    );
+    expect(createCall).toBeDefined();
+    expect(JSON.parse(createCall![1].body).variables.input).toEqual(
+      expect.objectContaining({ id: 'sub-new-admin', name: 'New Admin', email: 'newadmin@nulldevice.dev' })
+    );
+  });
+
+  it('removeUserFromGroup for operator deactivates the Operator directory record', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({}) // AdminRemoveUserFromGroupCommand
+      .mockResolvedValueOnce({
+        Username: 'driver-dan',
+        UserAttributes: [{ Name: 'sub', Value: 'sub-driver-dan' }],
+      }); // AdminGetUserCommand
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'removeUserFromGroup', username: 'driver-dan', groupName: 'operator' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const deactivateCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('updateOperator')
+    );
+    expect(deactivateCall).toBeDefined();
+    expect(JSON.parse(deactivateCall![1].body).variables.input).toEqual({
+      id: 'sub-driver-dan',
+      status: 'inactive',
+    });
+  });
+
+  it('removeUserFromGroup for administrator deletes the Administrator directory record', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({}) // AdminRemoveUserFromGroupCommand
+      .mockResolvedValueOnce({
+        Username: 'old-admin',
+        UserAttributes: [{ Name: 'sub', Value: 'sub-old-admin' }],
+      }); // AdminGetUserCommand
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'removeUserFromGroup', username: 'old-admin', groupName: 'administrator' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const deleteCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('deleteAdministrator')
+    );
+    expect(deleteCall).toBeDefined();
+    expect(JSON.parse(deleteCall![1].body).variables.input).toEqual({ id: 'sub-old-admin' });
   });
 
   it('lists users in a group for operator assignment', async () => {
@@ -227,6 +365,91 @@ describe('admin users API', () => {
     const response = await POST(request);
     expect(response.status).toBe(400);
     expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it('listUsers only syncs the Administrator directory for actual administrator-group members', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        Users: [
+          {
+            Username: 'admin-1',
+            Attributes: [
+              { Name: 'sub', Value: 'sub-admin-1' },
+              { Name: 'email', Value: 'admin1@nulldevice.dev' },
+              { Name: 'name', Value: 'Admin One' },
+            ],
+          },
+          {
+            Username: 'operator-1',
+            Attributes: [
+              { Name: 'sub', Value: 'sub-operator-1' },
+              { Name: 'email', Value: 'operator1@nulldevice.dev' },
+              { Name: 'name', Value: 'Operator One' },
+            ],
+          },
+        ],
+      }) // ListUsersCommand
+      .mockResolvedValueOnce({
+        Users: [{ Username: 'admin-1', Attributes: [{ Name: 'sub', Value: 'sub-admin-1' }] }],
+      }); // ListUsersInGroupCommand('administrator') for scoping
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsers' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const syncCalls = (global.fetch as jest.Mock).mock.calls.filter(([, init]) =>
+      String(init?.body || '').includes('createAdministrator')
+    );
+    expect(syncCalls).toHaveLength(1);
+    expect(JSON.parse(syncCalls[0][1].body).variables.input).toEqual(
+      expect.objectContaining({ id: 'sub-admin-1' })
+    );
+  });
+
+  it('getUserByEmail only syncs the Administrator directory when the match is actually an administrator', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        Users: [
+          {
+            Username: 'customer-1',
+            Attributes: [
+              { Name: 'email', Value: 'owner@harcourts.example' },
+              { Name: 'sub', Value: 'sub-customer-1' },
+              { Name: 'name', Value: 'Betty' },
+            ],
+          },
+        ],
+      }) // findUserByEmail's ListUsersCommand
+      .mockResolvedValueOnce({ Groups: [{ GroupName: 'customer' }] }); // AdminListGroupsForUserCommand
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'getUserByEmail', email: 'owner@harcourts.example' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const syncCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('createAdministrator')
+    );
+    expect(syncCall).toBeUndefined();
   });
 
   it('resolves user by email for customer access assignment', async () => {

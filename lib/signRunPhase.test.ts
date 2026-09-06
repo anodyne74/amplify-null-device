@@ -1,4 +1,4 @@
-import { getSignRunPhase } from './signRunPhase';
+import { getSignRunPhase, getRoutePhaseKey, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS } from './signRunPhase';
 import type { Route } from '@/amplify/types';
 
 function baseRoute(overrides: Partial<Route> = {}): Route {
@@ -125,6 +125,62 @@ describe('getSignRunPhase', () => {
     it('falls back to the current phase label for an in-progress route', () => {
       const info = getSignRunPhase(baseRoute({ status: 'in_progress', executionPhase: 'pickup' }), 3);
       expect(info?.statusLabel).toBe('Signs picked up');
+    });
+  });
+});
+
+describe('getRoutePhaseKey', () => {
+  it('covers every route, including completed and archived — unlike getSignRunPhase', () => {
+    expect(getRoutePhaseKey(baseRoute({ status: 'completed' }))).toBe('completed');
+    expect(getRoutePhaseKey(baseRoute({ status: 'archived' }))).toBe('completed');
+  });
+
+  it('reads planned routes as planned, regardless of executionPhase', () => {
+    expect(getRoutePhaseKey(baseRoute({ status: 'planned' }))).toBe('planned');
+    expect(getRoutePhaseKey(baseRoute({ status: undefined }))).toBe('planned');
+  });
+
+  it('reads each in-progress sub-phase off executionPhase', () => {
+    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress', executionPhase: null }))).toBe('signs_collected');
+    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress', executionPhase: 'placement' }))).toBe('signs_placed');
+    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress', executionPhase: 'pickup' }))).toBe('signs_picked_up');
+    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress', executionPhase: 'unload' }))).toBe('signs_returned');
+  });
+
+  it('reads legacy signs_placed/signs_picked_up statuses off executionPhase too', () => {
+    expect(getRoutePhaseKey(baseRoute({ status: 'signs_placed', executionPhase: 'pickup' }))).toBe('signs_picked_up');
+    expect(getRoutePhaseKey(baseRoute({ status: 'signs_picked_up', executionPhase: 'unload' }))).toBe('signs_returned');
+  });
+
+  it('falls back to the status itself for pre-executionPhase legacy data', () => {
+    // Oldest records predate the executionPhase field, so it's simply absent
+    // — the legacy status is then the only record of which phase last completed.
+    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress' }))).toBe('signs_collected');
+    expect(getRoutePhaseKey(baseRoute({ status: 'signs_placed' }))).toBe('signs_placed');
+    expect(getRoutePhaseKey(baseRoute({ status: 'signs_picked_up' }))).toBe('signs_picked_up');
+  });
+
+  it('reads ready-to-finalise (unload confirmed, not yet finalised) as completed', () => {
+    expect(
+      getRoutePhaseKey(
+        baseRoute({ status: 'in_progress', executionPhase: 'unload', unloadConfirmedAt: '2026-08-31T10:00:00.000Z' })
+      )
+    ).toBe('completed');
+  });
+});
+
+describe('ROUTE_PHASE_KEYS / ROUTE_PHASE_LABELS', () => {
+  it('lists all 6 phases in flow order, each with a label', () => {
+    expect(ROUTE_PHASE_KEYS).toEqual([
+      'planned',
+      'signs_collected',
+      'signs_placed',
+      'signs_picked_up',
+      'signs_returned',
+      'completed',
+    ]);
+    ROUTE_PHASE_KEYS.forEach((key) => {
+      expect(typeof ROUTE_PHASE_LABELS[key]).toBe('string');
     });
   });
 });

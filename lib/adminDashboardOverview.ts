@@ -5,15 +5,25 @@
  */
 import { getDateGroup } from './aggregateRouteData';
 import { getDeltaPercent, formatCurrency } from './dashboardAnalytics';
+import { getRoutePhaseKey, ROUTE_PHASE_KEYS, type RoutePhaseInput, type RoutePhaseKey } from './signRunPhase';
 
 export interface OverviewRoute {
   id: string;
   customerId?: string | null;
   status?: string | null;
+  executionPhase?: string | null;
+  unloadConfirmedAt?: string | null;
   actualEndTime?: string | null;
   actualStartTime?: string | null;
   createdAt?: string | null;
   actualDurationMinutes?: number | null;
+}
+
+// getRoutePhaseKey wants the strict Route enum types; OverviewRoute is
+// deliberately loose (string | null) so this file stays decoupled from
+// amplify/types — narrowing here is safe, every real Route satisfies both.
+function phaseKeyOf(route: OverviewRoute): RoutePhaseKey {
+  return getRoutePhaseKey(route as unknown as RoutePhaseInput);
 }
 
 export interface OverviewInvoice {
@@ -195,23 +205,26 @@ export function summarizeOutstanding(invoices: OverviewInvoice[], now = new Date
   return { total, pastDueCount };
 }
 
-/** Signs currently placed (not yet picked up), summed across in-progress routes. */
+/** Signs currently placed (not yet picked up), summed across routes in the "signs placed" phase. */
 export function summarizeSignsInField(routes: OverviewRoute[], stops: OverviewStop[]): number {
-  const placedRouteIds = new Set(routes.filter((route) => route.status === 'signs_placed').map((route) => route.id));
+  const placedRouteIds = new Set(routes.filter((route) => phaseKeyOf(route) === 'signs_placed').map((route) => route.id));
   return stops
     .filter((stop) => stop.routeId && placedRouteIds.has(stop.routeId))
     .reduce((sum, stop) => sum + (stop.numberOfSigns || 0), 0);
 }
 
-export const ROUTE_STATUS_ORDER = ['planned', 'in_progress', 'signs_placed', 'signs_picked_up', 'completed'] as const;
-export type OrderedRouteStatus = (typeof ROUTE_STATUS_ORDER)[number];
+export const ROUTE_STATUS_ORDER = ROUTE_PHASE_KEYS;
+export type OrderedRouteStatus = RoutePhaseKey;
 
-/** Route counts by status, across every customer — archived routes are excluded (not operationally active). */
+/**
+ * Route counts by phase, across every customer. Archived routes are folded
+ * into "completed" (legacy, soft-deprecated status — see getRoutePhaseKey)
+ * rather than excluded, so they're still reflected in the totals.
+ */
 export function summarizeRouteStatusCounts(routes: OverviewRoute[]): Record<OrderedRouteStatus, number> {
-  const counts = Object.fromEntries(ROUTE_STATUS_ORDER.map((status) => [status, 0])) as Record<OrderedRouteStatus, number>;
+  const counts = Object.fromEntries(ROUTE_STATUS_ORDER.map((phase) => [phase, 0])) as Record<OrderedRouteStatus, number>;
   routes.forEach((route) => {
-    const status = route.status as OrderedRouteStatus;
-    if (status && status in counts) counts[status] += 1;
+    counts[phaseKeyOf(route)] += 1;
   });
   return counts;
 }

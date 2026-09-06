@@ -197,7 +197,7 @@ describe('Operator Routes List Page', () => {
       expect(screen.getByText('W19-26-001')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /^archived$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^signs picked up$/i }));
 
     expect(screen.getByText(/no routes found/i)).toBeInTheDocument();
     // The filter row stays so the user can switch back.

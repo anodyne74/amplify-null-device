@@ -12,6 +12,7 @@ import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import { formatCurrency, formatDuration } from '@/lib/dashboardAnalytics';
 import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
+import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { StatTile } from '@/app/components/ui/data/StatTile';
@@ -54,7 +55,7 @@ export default function CustomerDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<MetricsPeriod>('month');
 
   const completedRoutesForAnalytics = useMemo(
-    () => analyticsRoutes.filter((route) => route.status === 'completed'),
+    () => analyticsRoutes.filter((route) => getRoutePhaseKey(route) === 'completed'),
     [analyticsRoutes]
   );
 
@@ -142,9 +143,12 @@ export default function CustomerDashboard() {
 
         if (!cancelled) {
           setActiveRoutes(
-            routes.filter((route) => route.status === 'in_progress' || route.status === 'signs_placed' || route.status === 'signs_picked_up').length
+            routes.filter((route) => {
+              const phaseKey = getRoutePhaseKey(route);
+              return phaseKey !== 'planned' && phaseKey !== 'completed';
+            }).length
           );
-          const completed = routes.filter((r) => r.status === 'completed');
+          const completed = routes.filter((r) => getRoutePhaseKey(r) === 'completed');
           setTotalCompletedRoutes(completed.length);
           const totalMinutes = completed.reduce((sum, r) => sum + (typeof r.actualDurationMinutes === 'number' ? r.actualDurationMinutes : 0), 0);
           setTotalHours(totalMinutes);
@@ -226,14 +230,16 @@ export default function CustomerDashboard() {
     () =>
       [...analyticsRoutes]
         .sort((a, b) => {
-          const statusPriority = (status?: string | null) => {
-            if (status === 'in_progress') return 0;
-            if (status === 'signs_placed' || status === 'signs_picked_up') return 1;
-            if (status === 'planned') return 2;
-            if (status === 'completed') return 3;
-            return 4;
+          // Routes still moving through a work phase sort first (earliest
+          // phase first, since those have the most work left), then planned,
+          // then completed/archived last.
+          const statusPriority = (route: Route) => {
+            const phaseKey = getRoutePhaseKey(route);
+            if (phaseKey === 'planned') return ROUTE_PHASE_KEYS.length;
+            if (phaseKey === 'completed') return ROUTE_PHASE_KEYS.length + 1;
+            return ROUTE_PHASE_KEYS.indexOf(phaseKey);
           };
-          const priorityDelta = statusPriority(a.status) - statusPriority(b.status);
+          const priorityDelta = statusPriority(a) - statusPriority(b);
           if (priorityDelta !== 0) return priorityDelta;
           return String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? ''));
         })
@@ -274,7 +280,7 @@ export default function CustomerDashboard() {
             <div className={styles.trackerList}>
               {trackerRoutes.map((route) => {
                 const routeLabel = route.routeCode || route.id.slice(0, 8);
-                const { label: statusLabel } = getRouteStatusPresentation(route.status);
+                const { label: statusLabel } = getRouteStatusPresentation(route);
 
                 return (
                   <Link

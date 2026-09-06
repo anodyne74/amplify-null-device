@@ -28,9 +28,11 @@ import {
   getRouteDurationMinutes,
 } from '@/lib/routeDetailHelpers';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import { createStop, deleteRoute, getCustomer, getRouteWithStops, getUserSettings, updateRoute, updateRouteExecution, updateStopExecution } from '@/lib/queries';
+import { createStop, deleteRoute, getCustomer, getRouteWithStops, getUserSettings, updateRoute, updateStopExecution } from '@/lib/queries';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
+import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
+import { getSignRunPhase, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS } from '@/lib/signRunPhase';
 import type { Route, Stop } from '@/amplify/types';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
@@ -232,10 +234,8 @@ function RouteDetailContent() {
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
 
-  const [transitioning, setTransitioning] = useState(false);
   const [deletingRoute, setDeletingRoute] = useState(false);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
-  const [transitionError, setTransitionError] = useState<string | null>(null);
   const [savingBillingOverrides, setSavingBillingOverrides] = useState(false);
   const [billingOverrideError, setBillingOverrideError] = useState<string | null>(null);
   const [billingOverrideSuccess, setBillingOverrideSuccess] = useState<string | null>(null);
@@ -431,154 +431,6 @@ function RouteDetailContent() {
       cancelled = true;
     };
   }, [user?.userId]);
-
-  const handleStartRoute = async () => {
-    if (!route) return;
-    setTransitioning(true);
-    setTransitionError(null);
-    try {
-      const startedAt = new Date().toISOString();
-      const isStartingPlacement = route.status === 'planned';
-      const isStartingPickup = route.status === 'signs_placed';
-
-      if (!isStartingPlacement && !isStartingPickup) {
-        setTransitioning(false);
-        return;
-      }
-
-      const { errors } = await updateRouteExecution(route.id, isStartingPlacement
-        ? {
-            status: 'in_progress',
-            executionPhase: 'placement',
-            actualStartTime: route.actualStartTime ?? startedAt,
-            placementStartTime: startedAt,
-          }
-        : {
-            status: 'in_progress',
-            executionPhase: 'pickup',
-            pickupStartTime: startedAt,
-          });
-      if (errors && errors.length > 0) {
-        setTransitionError('Failed to start route.');
-      } else {
-        setRoute((r) =>
-          r
-            ? {
-                ...r,
-                status: 'in_progress',
-                executionPhase: isStartingPlacement ? 'placement' : 'pickup',
-                actualStartTime: isStartingPlacement ? (r.actualStartTime ?? startedAt) : r.actualStartTime,
-                placementStartTime: isStartingPlacement ? startedAt : r.placementStartTime,
-                pickupStartTime: isStartingPickup ? startedAt : r.pickupStartTime,
-              }
-            : r
-        );
-      }
-    } catch {
-      setTransitionError('Failed to start route.');
-    }
-    setTransitioning(false);
-  };
-
-  const handleEndRoute = async () => {
-    if (!route) return;
-    setTransitioning(true);
-    setTransitionError(null);
-
-    try {
-      if (route.status !== 'in_progress' || !route.executionPhase) {
-        setTransitioning(false);
-        return;
-      }
-
-      const now = new Date();
-      const endedAt = now.toISOString();
-      const isEndingPlacement = route.executionPhase === 'placement';
-      const startForDuration = route.actualStartTime
-        ?? route.placementStartTime
-        ?? route.pickupStartTime
-        ?? endedAt;
-      const actualDurationMinutes = Math.max(
-        0,
-        Math.round((now.getTime() - new Date(startForDuration).getTime()) / 60000)
-      );
-
-      const { errors } = await updateRouteExecution(route.id, isEndingPlacement
-        ? {
-            status: 'signs_placed',
-            executionPhase: 'placement',
-            placementEndTime: endedAt,
-          }
-        : {
-            status: 'signs_picked_up',
-            executionPhase: 'pickup',
-            pickupEndTime: endedAt,
-            actualEndTime: endedAt,
-            actualDurationMinutes,
-          });
-
-      if (errors && errors.length > 0) {
-        setTransitionError('Failed to end route phase.');
-      } else {
-        setRoute((r) =>
-          r
-            ? {
-                ...r,
-                status: isEndingPlacement ? 'signs_placed' : 'signs_picked_up',
-                executionPhase: route.executionPhase,
-                placementEndTime: isEndingPlacement ? endedAt : r.placementEndTime,
-                pickupEndTime: isEndingPlacement ? r.pickupEndTime : endedAt,
-                actualEndTime: isEndingPlacement ? r.actualEndTime : endedAt,
-                actualDurationMinutes: isEndingPlacement ? r.actualDurationMinutes : actualDurationMinutes,
-              }
-            : r
-        );
-      }
-    } catch {
-      setTransitionError('Failed to end route phase.');
-    }
-
-    setTransitioning(false);
-  };
-
-  const handleCompleteRoute = async () => {
-    if (!route || route.status !== 'signs_picked_up' || !canManagePlanning) return;
-    setTransitioning(true);
-    setTransitionError(null);
-    try {
-      const { errors } = await updateRouteExecution(route.id, { status: 'completed' });
-      if (errors && errors.length > 0) {
-        setTransitionError('Failed to complete route.');
-      } else {
-        setRoute((r) => (r ? { ...r, status: 'completed' } : r));
-      }
-    } catch {
-      setTransitionError('Failed to complete route.');
-    }
-    setTransitioning(false);
-  };
-
-  const handleConfirmCompletion = async () => {
-    if (!route) return;
-    const confirmed = window.confirm(
-      `Archive route ${route.routeCode || route.id.slice(0, 8)}? Archived routes are no longer active.`
-    );
-    if (!confirmed) return;
-
-    setTransitioning(true);
-    setTransitionError(null);
-    try {
-      const { errors } = await updateRouteExecution(route.id, { status: 'archived' });
-      if (errors && errors.length > 0) {
-        setTransitionError('Failed to confirm route completion.');
-      } else {
-        setRoute((r) => (r ? { ...r, status: 'archived' } : r));
-      }
-    } catch {
-      setTransitionError('Failed to confirm route completion.');
-    }
-    setTransitioning(false);
-  };
 
   const handleSaveBillingOverrides = async () => {
     if (!route || !canManagePlanning) return;
@@ -876,14 +728,30 @@ function RouteDetailContent() {
   })();
   const currentPhaseStopIds = new Set(visibleStops.map((stop) => stop.id));
   const topVisibleStopId = visibleStops[0]?.id ?? null;
-  const allPickupStopsCompleted =
-    pickupPhaseStops.length === 0 || pickupPhaseStops.every((stop) => isStopCompletedForPhase(stop, 'pickup'));
   const completedStops = stops.filter((stop) => isStopCompleted(stop));
   const summaryStops = route?.status === 'completed' || route?.status === 'archived'
     ? completedStops.length > 0
       ? completedStops
       : stops
     : stops;
+  // Read-only phase overview — phase advancement now happens exclusively on the
+  // operator sign-run screens (Load/Placement/Pickup/Unload/Finalise), so this
+  // page no longer offers transition buttons, just a summary of where the
+  // route sits in the 6-phase flow. Completed/archived routes always render
+  // as fully done — archived is a legacy status and no longer gets its own
+  // presentation (see lib/signRunPhase.ts).
+  const phaseOverview = (() => {
+    if (!route) return null;
+    if (route.status === 'completed' || route.status === 'archived') {
+      return { track: ['done', 'done', 'done', 'done', 'done', 'done'] as const, caption: ROUTE_PHASE_LABELS.completed };
+    }
+    const info = getSignRunPhase(route, stops.length);
+    if (!info) return null;
+    const currentIdx = info.overallTrack.indexOf('current');
+    const idx = currentIdx === -1 ? info.overallTrack.length - 1 : currentIdx;
+    return { track: info.overallTrack, caption: `${ROUTE_PHASE_LABELS[ROUTE_PHASE_KEYS[idx]]} · Phase ${idx + 1} of 6` };
+  })();
+
   const routeDurationMinutes = route ? getRouteDurationMinutes(route) : null;
   const kilometersTravelled = calculateRouteDistanceKm(summaryStops);
   const totalStops = summaryStops.length;
@@ -962,7 +830,7 @@ function RouteDetailContent() {
               <h1 className={styles.routeTitle}>
                 Route {route.routeCode || route.id.slice(0, 8)}
               </h1>
-              <RouteStatusPill status={route.status} />
+              <RouteStatusPill route={route} />
               <div className={styles.headerActions}>
                 <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
                   Edit Route
@@ -1012,45 +880,14 @@ function RouteDetailContent() {
               </div>
             )}
 
-            {/* Status transitions */}
-            <div className={styles.transitionRow}>
-              {route.status === 'planned' && (
-                <Button onClick={handleStartRoute} loading={transitioning} disabled={transitioning}>
-                  {transitioning ? 'Starting…' : 'Start Route'}
-                </Button>
-              )}
-              {route.status === 'in_progress' && (
-                <Button
-                  onClick={handleEndRoute}
-                  disabled={transitioning || (route.executionPhase === 'pickup' && !allPickupStopsCompleted)}
-                  loading={transitioning}
-                >
-                  {transitioning
-                    ? 'Updating…'
-                    : route.executionPhase === 'pickup' && !allPickupStopsCompleted
-                    ? 'Awaiting Pickups'
-                    : 'End Route'}
-                </Button>
-              )}
-              {route.status === 'signs_placed' && (
-                <Button onClick={handleStartRoute} loading={transitioning} disabled={transitioning}>
-                  {transitioning ? 'Starting…' : 'Start Route'}
-                </Button>
-              )}
-              {canManagePlanning && route.status === 'signs_picked_up' && (
-                <Button onClick={handleCompleteRoute} loading={transitioning} disabled={transitioning}>
-                  {transitioning ? 'Completing…' : 'Complete Route'}
-                </Button>
-              )}
-              {canManagePlanning && route.status === 'completed' && (
-                <Button onClick={handleConfirmCompletion} loading={transitioning} disabled={transitioning}>
-                  {transitioning ? 'Confirming…' : 'Confirm Completion'}
-                </Button>
-              )}
-              {transitionError && (
-                <span className={styles.transitionError}>{transitionError}</span>
-              )}
-            </div>
+            {/* Route phase — read-only. Advancing a route through its phases is an
+                operator action on the Load/Placement/Pickup/Unload/Finalise screens. */}
+            {phaseOverview && (
+              <div className={styles.summaryPanel}>
+                <h3 className={styles.summaryHeading}>Route Phase</h3>
+                <PhaseTrackBar track={[...phaseOverview.track]} caption={phaseOverview.caption} />
+              </div>
+            )}
 
             {(route.status === 'signs_picked_up' || route.status === 'completed' || route.status === 'archived') && (
               <div className={styles.summaryPanel}>

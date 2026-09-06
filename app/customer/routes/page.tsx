@@ -17,8 +17,8 @@ import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import type { Route } from '@/amplify/types';
 import { compareRouteIdDesc, compareRouteStatusAsc, formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
 import { formatRouteDate } from '@/lib/routeDetailHelpers';
-import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
+import { getRoutePhaseKey, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS, type RoutePhaseKey } from '@/lib/signRunPhase';
 import styles from './page.module.css';
 
 // Below this width the DataTable's 5 columns don't fit sensibly (mirrors the
@@ -26,14 +26,13 @@ import styles from './page.module.css';
 // mobile layout switch) — show a stacked RouteCard list instead.
 const NARROW_LIST_BREAKPOINT_PX = 900;
 
-type ChipFilter = 'all' | 'planned' | 'active' | 'completed' | 'archived';
+type ChipFilter = RoutePhaseKey | 'all';
 
+// archived is intentionally absent — it's a legacy, soft-deprecated status
+// that now displays (and filters) identically to completed.
 const STATUS_CHIPS: { id: ChipFilter; label: string }[] = [
   { id: 'all', label: 'All' },
-  { id: 'planned', label: 'Planned' },
-  { id: 'active', label: 'Active' },
-  { id: 'completed', label: 'Completed' },
-  { id: 'archived', label: 'Archived' },
+  ...ROUTE_PHASE_KEYS.map((key) => ({ id: key, label: ROUTE_PHASE_LABELS[key] })),
 ];
 
 /**
@@ -105,7 +104,7 @@ export default function CustomerRoutesPage() {
     let filtered = [...routes];
 
     if (statusFilter !== 'all') {
-      filtered = filtered.filter((route) => getRouteStatusPresentation(route.status).badgeKey === statusFilter);
+      filtered = filtered.filter((route) => getRoutePhaseKey(route) === statusFilter);
     }
 
     const trimmedSearch = searchText.trim().toLowerCase();
@@ -138,7 +137,7 @@ export default function CustomerRoutesPage() {
         </span>
       ),
     },
-    { key: 'status', header: 'Status', render: (route) => <RouteStatusPill status={route.status} /> },
+    { key: 'status', header: 'Status', render: (route) => <RouteStatusPill route={route} /> },
     { key: 'created', header: 'Created', render: (route) => formatRouteDate(route.createdAt) },
     {
       key: 'duration',

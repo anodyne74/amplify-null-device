@@ -1,26 +1,16 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { getRouteWithStops } from '@/lib/queries';
-import { getSignRunPhase } from '@/lib/signRunPhase';
+import { getSignRunPhase, getRoutePhaseKey } from '@/lib/signRunPhase';
 import type { Route } from '@/amplify/types';
 import PageHeader from '@/app/operator/components/PageHeader';
-import { RouteStatusPill } from '@/app/operator/components/RouteStatusPill';
 import { SignRunRouteCard } from '@/app/operator/components/SignRunRouteCard';
 import { Card } from '@/app/components/ui/core/Card';
 import { StatTile } from '@/app/components/ui/data/StatTile';
 import styles from './page.module.css';
-
-function formatDate(dateString?: string | null) {
-  if (!dateString) return '—';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
-}
 
 interface StopSummary {
   stopCount: number;
@@ -66,14 +56,14 @@ export default function OperatorDashboard() {
 
   const activeRoutes = useMemo(
     () =>
-      routes.filter(
-        (route) =>
-          route.status === 'in_progress' || route.status === 'signs_placed' || route.status === 'signs_picked_up'
-      ),
+      routes.filter((route) => {
+        const phaseKey = getRoutePhaseKey(route);
+        return phaseKey !== 'planned' && phaseKey !== 'completed';
+      }),
     [routes]
   );
   const plannedRoutes = useMemo(
-    () => routes.filter((route) => route.status === 'planned'),
+    () => routes.filter((route) => getRoutePhaseKey(route) === 'planned'),
     [routes]
   );
   const priorityRoutes = useMemo(
@@ -143,33 +133,20 @@ export default function OperatorDashboard() {
             {priorityRoutes.map((route) => {
               const stopSummary = stopSummaryByRouteId[route.id];
               const phaseInfo = getSignRunPhase(route, stopSummary?.stopCount ?? 0);
-
-              // Every phase ends back on Today with the card advanced to the next
-              // phase; tapping a card still opens routes/detail today. Once the
-              // Load/Placement/Pickup/Unload/Finalise pages exist (later PRs), this
-              // is the spot to route to the phase-specific screen instead.
-              if (phaseInfo) {
-                return (
-                  <SignRunRouteCard
-                    key={route.id}
-                    route={route}
-                    customerName={customersById[route.customerId]}
-                    phaseInfo={phaseInfo}
-                    stopCount={stopSummary?.stopCount ?? 0}
-                    signsTotal={stopSummary?.signsTotal ?? 0}
-                  />
-                );
-              }
+              // getSignRunPhase now covers every non-terminal route (see
+              // lib/signRunPhase.ts), so this is never null here — priorityRoutes
+              // already excludes completed/archived routes below.
+              if (!phaseInfo) return null;
 
               return (
-                <Link key={route.id} href={`/operator/routes/detail?id=${route.id}`} className={styles.trackerCard}>
-                  <div className={styles.trackerTopRow}>
-                    <strong>{route.routeCode || route.id.slice(0, 8)}</strong>
-                    <RouteStatusPill status={route.status} />
-                  </div>
-                  <div className={styles.trackerMeta}>Created: {formatDate(route.createdAt)}</div>
-                  <div className={styles.trackerAction}>Open Route</div>
-                </Link>
+                <SignRunRouteCard
+                  key={route.id}
+                  route={route}
+                  customerName={customersById[route.customerId]}
+                  phaseInfo={phaseInfo}
+                  stopCount={stopSummary?.stopCount ?? 0}
+                  signsTotal={stopSummary?.signsTotal ?? 0}
+                />
               );
             })}
           </div>

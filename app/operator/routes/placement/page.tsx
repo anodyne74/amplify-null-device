@@ -177,20 +177,28 @@ export default function OperatorPlacementPage() {
     [settleStop]
   );
 
-  // Completing the last open stop closes the phase and returns to Today — also covers
-  // reloading the screen after the last stop was actioned but the phase transition
-  // round-trip hadn't landed yet.
-  useEffect(() => {
-    if (!route || !isPlacementScreen || completingPhase || openStops.length > 0) return;
-
+  // Settling the last stop doesn't close the phase on its own — the design leaves the
+  // driver on this screen with a "confirm to finish" state (see the glass card and
+  // primary button below) and only closes placement out, advancing the route to
+  // pickup, once they explicitly tap through.
+  const handleCompletePhase = useCallback(async () => {
+    if (!route) return;
     setCompletingPhase(true);
-    void updateRouteExecution(route.id, {
-      executionPhase: 'pickup',
-      placementEndTime: new Date().toISOString(),
-    }).then(() => {
-      router.push('/operator/dashboard');
-    });
-  }, [route, isPlacementScreen, completingPhase, openStops.length, router]);
+    try {
+      const { errors } = await updateRouteExecution(route.id, {
+        executionPhase: 'pickup',
+        placementEndTime: new Date().toISOString(),
+      });
+      if (!errors || errors.length === 0) {
+        router.push('/operator/dashboard');
+        return;
+      }
+      setError('Could not close out placement. Try again.');
+    } catch {
+      setError('Could not close out placement. Try again.');
+    }
+    setCompletingPhase(false);
+  }, [route, router]);
 
   if (!routeId) {
     return (
@@ -225,6 +233,10 @@ export default function OperatorPlacementPage() {
 
   const total = stops.length;
   const settledCount = total - openStops.length;
+  // Caps at `total` once every stop is settled — otherwise the counter overshoots to
+  // "17 of 16" on the confirm-to-finish state below.
+  const stopNumber = Math.min(total, settledCount + 1);
+  const legLine = currentStop ? getLegLine(stops, currentStop) : 'Route complete';
 
   return (
     <div className={shellStyles.page}>
@@ -244,25 +256,23 @@ export default function OperatorPlacementPage() {
 
       <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
 
-      {currentStop ? (
-        <>
-          <Card padded={false}>
-            <div className={stopCardStyles.mapShell}>
-              <RouteStopsMap
-                stops={stops}
-                activeStopId={currentStop.id}
-                upcomingStopIds={upcomingStops.map((stop) => stop.id)}
-                presentation="field"
-              />
-              <div className={stopCardStyles.glassCard}>
-                <div className={stopCardStyles.glassTopRow}>
-                  <span className={stopCardStyles.glassCounter}>
-                    PLACEMENT · STOP {settledCount + 1} OF {total}
-                  </span>
-                  {getLegLine(stops, currentStop) && (
-                    <span className={stopCardStyles.glassLeg}>{getLegLine(stops, currentStop)}</span>
-                  )}
-                </div>
+      <Card padded={false}>
+        <div className={stopCardStyles.mapShell}>
+          <RouteStopsMap
+            stops={stops}
+            activeStopId={currentStop?.id}
+            upcomingStopIds={upcomingStops.map((stop) => stop.id)}
+            presentation="field"
+          />
+          <div className={stopCardStyles.glassCard}>
+            <div className={stopCardStyles.glassTopRow}>
+              <span className={stopCardStyles.glassCounter}>
+                PLACEMENT · STOP {stopNumber} OF {total}
+              </span>
+              {legLine && <span className={stopCardStyles.glassLeg}>{legLine}</span>}
+            </div>
+            {currentStop ? (
+              <>
                 <div className={stopCardStyles.glassStreet}>
                   {getPrimaryAddressLine(currentStop.formattedAddress || currentStop.address)}
                 </div>
@@ -279,64 +289,79 @@ export default function OperatorPlacementPage() {
                 {getDisplayNotes(currentStop.notes) && (
                   <div className={stopCardStyles.glassNote}>{getDisplayNotes(currentStop.notes)}</div>
                 )}
-              </div>
-            </div>
-          </Card>
-
-          <div>
-            <div className={stopCardStyles.thenHeader}>
-              <span className={stopCardStyles.thenLabel}>Then</span>
-              <span className={stopCardStyles.thenHint}>Tap a stop to action out of order</span>
-            </div>
-            {upcomingStops.length > 0 ? (
-              <ol className={stopCardStyles.thenList}>
-                {upcomingStops.map((stop) => (
-                  <li key={stop.id}>
-                    <button type="button" className={stopCardStyles.thenItem} onClick={() => openStopSheet(stop.id)}>
-                      <span className={stopCardStyles.thenSequence}>{stop.sequence ?? '-'}</span>
-                      <span className={stopCardStyles.thenBody}>
-                        <span className={stopCardStyles.thenAddress}>
-                          {getPrimaryAddressLine(stop.formattedAddress || stop.address)}
-                        </span>
-                        <span className={stopCardStyles.thenMeta}>
-                          {stop.numberOfSigns ?? '-'} signs ·{' '}
-                          {getSecondaryAddressLine(stop.formattedAddress || stop.address)}
-                        </span>
-                      </span>
-                      <span className={stopCardStyles.thenAgent}>
-                        {getAgentBadgeInitials(stop.agent?.trim() || 'Unassigned')}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ol>
+              </>
             ) : (
-              <p className={shellStyles.mutedText}>No further stops in this phase.</p>
+              <>
+                <div className={stopCardStyles.glassStreet}>All stops done</div>
+                <div className={stopCardStyles.glassSuburb}>Confirm to send your times and return to Today.</div>
+              </>
             )}
           </div>
+        </div>
+      </Card>
 
-          <div className={stopCardStyles.actionBar}>
-            <button
-              type="button"
-              className={stopCardStyles.skipButton}
-              onClick={() => openStopSheet(currentStop.id, 'reason')}
-              disabled={!!stopExecuting[currentStop.id]}
-            >
-              Skip
-            </button>
-            <button
-              type="button"
-              className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
-              onClick={() => { void handleStopCompleted(currentStop.id); }}
-              disabled={!!stopExecuting[currentStop.id]}
-            >
-              {stopExecuting[currentStop.id] ? 'Saving…' : 'Signs placed'}
-            </button>
-          </div>
-        </>
-      ) : (
-        <p className={shellStyles.mutedText}>All stops actioned. Wrapping up placement…</p>
-      )}
+      <div>
+        <div className={stopCardStyles.thenHeader}>
+          <span className={stopCardStyles.thenLabel}>Then</span>
+          <span className={stopCardStyles.thenHint}>Tap a stop to action out of order</span>
+        </div>
+        {upcomingStops.length > 0 ? (
+          <ol className={stopCardStyles.thenList}>
+            {upcomingStops.map((stop) => (
+              <li key={stop.id}>
+                <button type="button" className={stopCardStyles.thenItem} onClick={() => openStopSheet(stop.id)}>
+                  <span className={stopCardStyles.thenSequence}>{stop.sequence ?? '-'}</span>
+                  <span className={stopCardStyles.thenBody}>
+                    <span className={stopCardStyles.thenAddress}>
+                      {getPrimaryAddressLine(stop.formattedAddress || stop.address)}
+                    </span>
+                    <span className={stopCardStyles.thenMeta}>
+                      {stop.numberOfSigns ?? '-'} signs ·{' '}
+                      {getSecondaryAddressLine(stop.formattedAddress || stop.address)}
+                    </span>
+                  </span>
+                  <span className={stopCardStyles.thenAgent}>
+                    {getAgentBadgeInitials(stop.agent?.trim() || 'Unassigned')}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className={shellStyles.mutedText}>No further stops in this phase.</p>
+        )}
+      </div>
+
+      <div className={stopCardStyles.actionBar}>
+        <button
+          type="button"
+          className={stopCardStyles.skipButton}
+          onClick={() => currentStop && openStopSheet(currentStop.id, 'reason')}
+          disabled={!currentStop || !!stopExecuting[currentStop.id]}
+        >
+          Skip
+        </button>
+        <button
+          type="button"
+          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          onClick={() => {
+            if (currentStop) {
+              void handleStopCompleted(currentStop.id);
+            } else {
+              void handleCompletePhase();
+            }
+          }}
+          disabled={currentStop ? !!stopExecuting[currentStop.id] : completingPhase}
+        >
+          {currentStop
+            ? stopExecuting[currentStop.id]
+              ? 'Saving…'
+              : 'Signs placed'
+            : completingPhase
+            ? 'Completing…'
+            : 'Complete placement'}
+        </button>
+      </div>
 
       <StopCompletionDialog
         stop={actionSheetStop}

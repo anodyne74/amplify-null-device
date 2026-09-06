@@ -166,6 +166,9 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     expect(await screen.findByText('Why is this stop skipped?')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /gate locked/i }));
 
+    // All stops settled — the phase doesn't close until the driver confirms.
+    fireEvent.click(await screen.findByRole('button', { name: /complete placement/i }));
+
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
     expect(store.route.executionPhase).toBe('pickup');
     expect(store.route.placementStartTime).toBe(T1);
@@ -188,6 +191,9 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /^skip$/i }));
     expect(await screen.findByText('Why is this stop skipped?')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /gate locked/i }));
+
+    // All stops settled — the phase doesn't close until the driver confirms.
+    fireEvent.click(await screen.findByRole('button', { name: /complete pickup/i }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
     expect(store.route.executionPhase).toBe('unload');

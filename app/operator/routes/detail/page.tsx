@@ -9,7 +9,6 @@ import type { Schema } from '@/amplify/data/resource';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
-import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { useToast } from '@/app/components/ToastProvider';
 import { StopForm } from '@/app/operator/components/StopForm';
 import StopCard from '@/app/operator/components/StopCard';
@@ -61,9 +60,29 @@ import type { MapTheme } from '@/lib/mapThemes';
 import { MAP_THEMES } from '@/lib/mapThemes';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
+import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
+import { getSignRunPhase } from '@/lib/signRunPhase';
 import type { Route, Stop } from '@/amplify/types';
 import { parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import styles from './page.module.css';
+
+/** Overview-tracker labels, in flow order — matches lib/signRunPhase.ts's RoutePhaseKey. */
+const OVERALL_PHASE_LABELS = [
+  'Planned',
+  'Signs collected',
+  'Signs placed',
+  'Signs picked up',
+  'Signs returned',
+  'Route completed',
+];
+
+const PHASE_SCREEN_HREF: Record<number, string> = {
+  0: 'load',
+  1: 'placement',
+  2: 'pickup',
+  3: 'unload',
+  4: 'finalise',
+};
 
 const RouteStopsMap = dynamic(
   () => import('@/app/operator/components/RouteStopsMap').then((mod) => mod.RouteStopsMap),
@@ -175,7 +194,6 @@ function RouteDetailContent() {
   const [reorderError, setReorderError] = useState<string | null>(null);
 
   const [transitioning, setTransitioning] = useState(false);
-  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [deletingRoute, setDeletingRoute] = useState(false);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
@@ -640,73 +658,6 @@ function RouteDetailContent() {
     };
   }, [route?.status]);
 
-  const handleStartRoute = async () => {
-    if (!route) return;
-    setTransitioning(true);
-    setTransitionError(null);
-    try {
-      const startedAt = new Date().toISOString();
-      const isStartingPlacement = route.status === 'planned';
-      const isStartingPickup = route.status === 'signs_placed';
-
-      if (!isStartingPlacement && !isStartingPickup) {
-        setTransitioning(false);
-        return;
-      }
-
-      const { errors } = await updateRouteExecution(route.id, isStartingPlacement
-        ? {
-            status: 'in_progress',
-            executionPhase: 'placement',
-            actualStartTime: route.actualStartTime ?? startedAt,
-            placementStartTime: startedAt,
-            signsPlacedDistanceKm: route.signsPlacedDistanceKm ?? 0,
-            signsPickedUpDistanceKm: route.signsPickedUpDistanceKm ?? 0,
-          }
-        : {
-            status: 'in_progress',
-            executionPhase: 'pickup',
-            pickupStartTime: startedAt,
-          });
-      if (errors && errors.length > 0) {
-        setTransitionError('Failed to start route.');
-      } else {
-        if (isStartingPlacement) {
-          setPhaseDistanceKm({ signs_placed: 0, signs_picked_up: 0 });
-          setPhaseMetricOverrides({
-            placementDistanceKm: '0.00',
-            placementDurationMinutes: '0',
-            pickupDistanceKm: '0.00',
-            pickupDurationMinutes: '0',
-          });
-        } else if (isStartingPickup) {
-          setPhaseMetricOverrides((prev) => ({
-            ...prev,
-            pickupDistanceKm: (route.signsPickedUpDistanceKm ?? 0).toFixed(2),
-            pickupDurationMinutes: '0',
-          }));
-        }
-        setRoute((r) =>
-          r
-            ? {
-                ...r,
-                status: 'in_progress',
-                executionPhase: isStartingPlacement ? 'placement' : 'pickup',
-                actualStartTime: isStartingPlacement ? (r.actualStartTime ?? startedAt) : r.actualStartTime,
-                placementStartTime: isStartingPlacement ? startedAt : r.placementStartTime,
-                pickupStartTime: isStartingPickup ? startedAt : r.pickupStartTime,
-                signsPlacedDistanceKm: isStartingPlacement ? 0 : r.signsPlacedDistanceKm,
-                signsPickedUpDistanceKm: isStartingPlacement ? 0 : r.signsPickedUpDistanceKm,
-              }
-            : r
-        );
-      }
-    } catch {
-      setTransitionError('Failed to start route.');
-    }
-    setTransitioning(false);
-  };
-
   const handleEndRoute = async () => {
     if (!route) return;
     setTransitioning(true);
@@ -828,42 +779,6 @@ function RouteDetailContent() {
     }
 
     setTransitioning(false);
-  };
-
-  const handleCompleteRoute = async () => {
-    if (!route || route.status !== 'signs_picked_up' || !canManagePlanning) return;
-    setTransitioning(true);
-    setTransitionError(null);
-    try {
-      const { errors } = await updateRouteExecution(route.id, { status: 'completed' });
-      if (errors && errors.length > 0) {
-        setTransitionError('Failed to complete route.');
-      } else {
-        setRoute((r) => (r ? { ...r, status: 'completed' } : r));
-      }
-    } catch {
-      setTransitionError('Failed to complete route.');
-    }
-    setTransitioning(false);
-  };
-
-  const handleConfirmCompletion = async () => {
-    if (!route) return;
-
-    setTransitioning(true);
-    setTransitionError(null);
-    try {
-      const { errors } = await updateRouteExecution(route.id, { status: 'archived' });
-      if (errors && errors.length > 0) {
-        setTransitionError('Failed to confirm route completion.');
-      } else {
-        setRoute((r) => (r ? { ...r, status: 'archived' } : r));
-      }
-    } catch {
-      setTransitionError('Failed to confirm route completion.');
-    }
-    setTransitioning(false);
-    setShowArchiveConfirm(false);
   };
 
   const handleSaveDistanceOverride = async () => {
@@ -1190,6 +1105,30 @@ function RouteDetailContent() {
   const pickupDistance = phaseDistanceKm.signs_picked_up;
   const isPickupExecutionPhase = route?.status === 'in_progress' && route.executionPhase === 'pickup';
   const phaseLabelPrefix = isPickupExecutionPhase ? 'Pickup' : 'Placement';
+
+  // Read-only phase overview shown outside field mode (planned/completed/legacy
+  // signs_placed & signs_picked_up routes) — advancing a route through its
+  // phases is now exclusively done from the Load/Placement/Pickup/Unload/
+  // Finalise screens, so this links there rather than offering a transition
+  // button. Completed/archived routes always render as fully done — archived
+  // is a legacy status and no longer gets its own presentation (see
+  // lib/signRunPhase.ts).
+  const phaseOverview = (() => {
+    if (!route) return null;
+    if (route.status === 'completed' || route.status === 'archived') {
+      return { track: ['done', 'done', 'done', 'done', 'done', 'done'] as const, caption: 'Route completed', href: null as string | null };
+    }
+    const info = getSignRunPhase(route, stops.length);
+    if (!info) return null;
+    const currentIdx = info.overallTrack.indexOf('current');
+    const idx = currentIdx === -1 ? info.overallTrack.length - 1 : currentIdx;
+    const screen = PHASE_SCREEN_HREF[info.phaseIdx];
+    return {
+      track: info.overallTrack,
+      caption: `${OVERALL_PHASE_LABELS[idx]} · Phase ${idx + 1} of 6`,
+      href: screen ? `/operator/routes/${screen}?id=${route.id}` : null,
+    };
+  })();
   const nextExecutionStop = isExecutionMode ? visibleStops[0] : null;
   const upcomingExecutionStops = isExecutionMode ? visibleStops.slice(1) : [];
   const upcomingExecutionStopIds = upcomingExecutionStops.slice(0, 2).map((stop) => stop.id);
@@ -1456,48 +1395,23 @@ function RouteDetailContent() {
               );
             })()}
 
-            {/* Status transitions */}
-            <div className={styles.transitionRow}>
-              {route.status === 'in_progress' && (
-                <span className={styles.mutedText}>{`Ending ${phaseLabelPrefix} phase using header metrics`}</span>
-              )}
-              {route.status === 'planned' && (
-                <Button onClick={handleStartRoute} loading={transitioning} disabled={transitioning}>
-                  {transitioning ? 'Starting…' : 'Start Route'}
-                </Button>
-              )}
-              {route.status === 'in_progress' && (
-                <Button
-                  onClick={handleEndRoute}
-                  disabled={transitioning || !canEndCurrentPhase}
-                  loading={transitioning}
-                >
-                  {transitioning
-                    ? 'Updating…'
-                    : !canEndCurrentPhase
-                    ? 'Action Stops First'
-                    : 'End Route'}
-                </Button>
-              )}
-              {route.status === 'signs_placed' && (
-                <Button onClick={handleStartRoute} loading={transitioning} disabled={transitioning}>
-                  {transitioning ? 'Starting…' : 'Start Route'}
-                </Button>
-              )}
-              {canManagePlanning && route.status === 'signs_picked_up' && (
-                <Button onClick={handleCompleteRoute} loading={transitioning} disabled={transitioning}>
-                  {transitioning ? 'Completing…' : 'Complete Route'}
-                </Button>
-              )}
-              {canManagePlanning && route.status === 'completed' && (
-                <Button onClick={() => setShowArchiveConfirm(true)} loading={transitioning} disabled={transitioning}>
-                  {transitioning ? 'Confirming…' : 'Confirm Completion'}
-                </Button>
-              )}
-              {transitionError && (
-                <span className={styles.transitionError}>{transitionError}</span>
-              )}
-            </div>
+            {/* Route phase — read-only. Advancing a route through its phases is an
+                operator action on the Load/Placement/Pickup/Unload/Finalise screens. */}
+            {phaseOverview && (
+              <div className={styles.summaryPanel}>
+                <h3 className={styles.summaryHeading}>Route Phase</h3>
+                <PhaseTrackBar track={[...phaseOverview.track]} caption={phaseOverview.caption} />
+                {phaseOverview.href && (
+                  <a
+                    href={phaseOverview.href}
+                    className="nd-btn nd-btn--primary nd-btn--sm"
+                    style={{ marginTop: 'var(--space-3)' }}
+                  >
+                    Continue route →
+                  </a>
+                )}
+              </div>
+            )}
 
             {(route.status === 'completed' || route.status === 'archived') && (
               <div className={styles.summaryPanel}>
@@ -1823,7 +1737,7 @@ function RouteDetailContent() {
                 {isPlacementPhase(route?.status, route?.executionPhase)
                   ? 'All signs are placed. Start the pickup phase to continue.'
                   : route?.status === 'signs_placed'
-                  ? 'Ready for pickup phase. Click Start Route to begin pickup.'
+                  ? 'Ready for pickup phase. Continue from the route phase panel above.'
                   : pickupPhaseStops.length === 0
                   ? 'No pickup-phase stops on this route. The route can be completed.'
                   : 'All pickup stops are complete. Click End Route to finish pickup phase.'}
@@ -1975,21 +1889,6 @@ function RouteDetailContent() {
             </Card>
           </div>
           )}
-
-          <ConfirmDialog
-            open={showArchiveConfirm}
-            title="Archive Route"
-            message={`Archive route ${route.routeCode || route.id.slice(0, 8)}? Archived routes are no longer active.`}
-            confirmLabel="Archive Route"
-            tone="danger"
-            busy={transitioning}
-            onConfirm={() => {
-              void handleConfirmCompletion();
-            }}
-            onCancel={() => {
-              if (!transitioning) setShowArchiveConfirm(false);
-            }}
-          />
 
           <StopCompletionDialog
             stop={actionSheetStop}

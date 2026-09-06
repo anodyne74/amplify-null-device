@@ -243,14 +243,16 @@ describe('Operator Route Detail Page', () => {
     confirmSpy.mockRestore();
   });
 
-  it('shows "Start Route" button for planned routes', async () => {
+  it('shows a read-only phase tracker for planned routes instead of transition buttons', async () => {
     render(<RouteDetailPage />);
 
     await waitFor(() => {
       expect(screen.queryByText(/loading route/i)).not.toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: /start route/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /route phase/i })).toBeInTheDocument();
+    expect(screen.getByText(/planned · phase 1 of 6/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /start route/i })).not.toBeInTheDocument();
   });
 
   it('shows breadcrumb navigation back to the routes list', async () => {

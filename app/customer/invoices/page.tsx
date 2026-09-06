@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
-import { getCustomerPortalContext } from '@/lib/queries';
+import { getCustomerPortalContext, getCustomer } from '@/lib/queries';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { InvoiceStatusPill, InvoiceActions } from '@/app/customer/components/InvoiceListItem';
@@ -66,12 +66,37 @@ function downloadInvoicesCsv(invoices: Invoice[]) {
 export default function InvoicesPage() {
   const { user } = useAuthenticator();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [customerName, setCustomerName] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    let cancelled = false;
+
+    const fetchCustomerName = async () => {
+      try {
+        const context = await getCustomerPortalContext(user.userId);
+        if (!context.customerId) return;
+        const { data } = await getCustomer(context.customerId);
+        if (!cancelled) {
+          setCustomerName(data?.name || undefined);
+        }
+      } catch (err) {
+        console.error('Error fetching customer name:', err);
+      }
+    };
+
+    fetchCustomerName();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.userId]);
 
   useEffect(() => {
     if (!user?.userId) return;
@@ -191,7 +216,7 @@ export default function InvoicesPage() {
       key: 'action',
       header: '',
       width: 190,
-      render: (invoice) => <InvoiceActions invoice={invoice} />,
+      render: (invoice) => <InvoiceActions invoice={invoice} customerName={customerName} />,
     },
   ];
 

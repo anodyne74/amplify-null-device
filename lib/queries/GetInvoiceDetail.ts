@@ -14,6 +14,7 @@ export interface GetInvoiceDetailParams {
 export interface InvoiceDetail {
   id: string;
   customerId: string;
+  customerName?: string;
   invoiceNumber?: string;
   invoiceDate?: string;
   periodStartDate?: string;
@@ -57,6 +58,11 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
       return { data: null, errors: ['Access denied'] };
     }
 
+    // Fetch customer name for display and PDF file naming
+    const { data: customer } = await getDataClient().models.Customer.get({
+      id: invoice.customerId,
+    });
+
     // Fetch line items for this invoice
     const { data: lineItems, errors: lineItemsErrors } = await getDataClient().models.LineItem.list({
       filter: {
@@ -78,6 +84,7 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
     const detail: InvoiceDetail = {
       id: invoice.id || '',
       customerId: invoice.customerId || '',
+      customerName: customer?.name || undefined,
       invoiceNumber: invoice.invoiceNumber || undefined,
       invoiceDate: invoice.invoiceDate || undefined,
       periodStartDate: invoice.periodStartDate || undefined,

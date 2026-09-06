@@ -25,9 +25,9 @@ describe('SignRunRouteCard', () => {
 
     expect(screen.getByText('W25-08-114')).toBeInTheDocument();
     expect(screen.getByText('Beltline Group')).toBeInTheDocument();
-    // "Placement" appears twice: the phase pill and (since the route is in
+    // "Signs placed" appears twice: the phase pill and (since the route is in
     // progress, not planned) the status label reusing the same phase name.
-    expect(screen.getAllByText('Placement')).toHaveLength(2);
+    expect(screen.getAllByText('Signs placed')).toHaveLength(2);
     expect(screen.getByText('12 stops')).toBeInTheDocument();
     expect(screen.getByText('48 signs')).toBeInTheDocument();
     expect(screen.getByText('Place signs →')).toBeInTheDocument();

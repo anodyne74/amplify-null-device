@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import { useAdminTableSort, type SortDirection } from '@/app/components/AdminDataTable';
-import { ADMIN_PAGE_SIZE, getPageSlice } from '@/app/components/AdminPagination';
 import type { ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
@@ -102,13 +101,8 @@ export default function CustomersAdminPage() {
     return counts;
   }, [customerUsers]);
 
-  // Sorting + pagination for the customer list
+  // Sorting for the customer list
   const { sortBy, sortDirection, toggleSort } = useAdminTableSort<'name' | 'status'>();
-  const [page, setPage] = useState(1);
-
-  useEffect(() => {
-    setPage(1);
-  }, [sortBy, sortDirection]);
 
   const sortedCustomers = useMemo(() => {
     if (!sortBy) return customers;
@@ -120,8 +114,6 @@ export default function CustomersAdminPage() {
     if (sortDirection === 'desc') sorted.reverse();
     return sorted;
   }, [customers, sortBy, sortDirection]);
-
-  const { currentPage, totalPages, pageRows: pageCustomers } = getPageSlice(sortedCustomers, page, ADMIN_PAGE_SIZE);
 
   // Create customer form state
   const [name, setName] = useState('');
@@ -519,7 +511,7 @@ export default function CustomersAdminPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pageCustomers.map((customer) => (
+                  {sortedCustomers.map((customer) => (
                     <CustomerTableRow
                       key={customer.id}
                       customer={customer}
@@ -532,35 +524,6 @@ export default function CustomersAdminPage() {
                 </tbody>
               </table>
             </div>
-          )}
-          {!loading && !loadError && customers.length > 0 && (
-            <nav className={styles.paginationBar} aria-label="customers pagination">
-              <p className={styles.paginationSummary} aria-live="polite">
-                {`Showing ${(currentPage - 1) * ADMIN_PAGE_SIZE + 1}–${Math.min(sortedCustomers.length, currentPage * ADMIN_PAGE_SIZE)} of ${sortedCustomers.length} customers`}
-              </p>
-              <div className={styles.paginationControls}>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={currentPage <= 1}
-                  onClick={() => setPage(currentPage - 1)}
-                  aria-label="Previous page of customers"
-                >
-                  Previous
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setPage(currentPage + 1)}
-                  aria-label="Next page of customers"
-                >
-                  Next
-                </Button>
-              </div>
-            </nav>
           )}
         </Card>
 

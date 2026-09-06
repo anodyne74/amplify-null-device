@@ -126,26 +126,6 @@
   color: var(--text-subtle);
 }
 
-.paginationBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-  padding-top: var(--space-4);
-}
-
-.paginationSummary {
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--text-subtle);
-}
-
-.paginationControls {
-  display: flex;
-  gap: var(--space-3);
-}
-
 /* Agent options — click-to-default tag chip editor */
 
 .agentChipRow {

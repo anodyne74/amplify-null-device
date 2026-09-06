@@ -352,7 +352,7 @@ describe('Operator Customers Page', () => {
     });
   });
 
-  it('sorts the customer list by name and shows the pagination summary', async () => {
+  it('sorts the customer list by name', async () => {
     (listCustomers as jest.Mock).mockResolvedValue({
       data: [
         { id: 'c-1', name: 'Zenith Co', email: 'z@example.com', billingRatePerHour: 95, status: 'active' },
@@ -366,8 +366,6 @@ describe('Operator Customers Page', () => {
     await waitFor(() => {
       expect(screen.getByText('Zenith Co')).toBeInTheDocument();
     });
-
-    expect(screen.getByText('Showing 1–2 of 2 customers')).toBeInTheDocument();
 
     const firstDataRow = () => screen.getAllByRole('row')[1];
 

@@ -1,6 +1,7 @@
 import {
   summarizeBilledThisMonth,
   summarizeRoutesStopsThisMonth,
+  summarizeAverageRouteDuration,
   summarizeOutstanding,
   summarizeSignsInField,
   summarizeRouteStatusCounts,
@@ -65,6 +66,36 @@ describe('adminDashboardOverview', () => {
       const result = summarizeRoutesStopsThisMonth([{ id: 'r1' }], [], NOW);
       expect(result.currentRoutes).toBe(0);
       expect(result.stopsServiced).toBe(0);
+    });
+  });
+
+  describe('summarizeAverageRouteDuration', () => {
+    it('averages duration and stops over only routes that recorded a duration', () => {
+      const routes = [
+        { id: 'r1', actualEndTime: THIS_MONTH, actualDurationMinutes: 240 },
+        { id: 'r2', actualEndTime: THIS_MONTH, actualDurationMinutes: 300 },
+        { id: 'r3', actualEndTime: THIS_MONTH }, // still in progress -- no duration yet, excluded
+        { id: 'r4', actualEndTime: LAST_MONTH, actualDurationMinutes: 180 },
+      ];
+      const stops = [
+        { id: 's1', routeId: 'r1' },
+        { id: 's2', routeId: 'r1' },
+        { id: 's3', routeId: 'r2' },
+        { id: 's4', routeId: 'r3' }, // no-duration route -- excluded from the per-route average
+      ];
+
+      const result = summarizeAverageRouteDuration(routes, stops, NOW);
+
+      expect(result.currentAverageMinutes).toBe(270);
+      expect(result.previousAverageMinutes).toBe(180);
+      expect(result.averageStopsPerRoute).toBe(1.5);
+      expect(result.direction).toBe('up');
+    });
+
+    it('reports null averages when nothing has a recorded duration', () => {
+      const result = summarizeAverageRouteDuration([{ id: 'r1', actualEndTime: THIS_MONTH }], [], NOW);
+      expect(result.currentAverageMinutes).toBeNull();
+      expect(result.averageStopsPerRoute).toBeNull();
     });
   });
 

@@ -23,6 +23,18 @@ export function formatDuration(minutes: number): string {
   return `${hours}:${mins.toString().padStart(2, '0')}:00`;
 }
 
+/**
+ * Format a duration in minutes as "Xh Ym" for compact stat-tile display
+ * (e.g. average route duration on the Drivers screen). Distinct from
+ * formatDurationHoursMinutes in lib/format.ts, which is reserved for
+ * customer-facing invoice/route views per that file's own note.
+ */
+export function formatDurationCompact(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  return `${hours}h ${mins}m`;
+}
+
 export function formatPeriodDisplay(periodKey: string, period: AnalyticsPeriod): string {
   if (period === 'quarter') return periodKey;
   if (period === 'year') return periodKey;

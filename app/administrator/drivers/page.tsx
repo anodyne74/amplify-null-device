@@ -8,6 +8,7 @@ import PageHeader from '@/app/administrator/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Badge } from '@/app/components/ui/core/Badge';
+import { Avatar } from '@/app/components/ui/core/Avatar';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
@@ -17,7 +18,12 @@ import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { listOperators } from '@/lib/queries/ListOperators';
 import { updateOperator } from '@/lib/queries/UpdateOperator';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import type { BillingCycle, Operator, OperatorStatus } from '@/amplify/types';
+import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
+import { listAllStops } from '@/lib/queries/ListAllStops';
+import { getDateGroup } from '@/lib/aggregateRouteData';
+import { formatDurationCompact } from '@/lib/dashboardAnalytics';
+import { summarizeRoutesStopsThisMonth, summarizeAverageRouteDuration } from '@/lib/adminDashboardOverview';
+import type { BillingCycle, Operator, OperatorStatus, Route } from '@/amplify/types';
 import styles from './page.module.css';
 
 type CognitoOperator = {
@@ -28,6 +34,8 @@ type CognitoOperator = {
 };
 
 type CustomerSummary = { id: string; name: string };
+
+type StopSummary = { id: string; routeId?: string | null };
 
 // A Driver is an Operator record joined to its Cognito identity — see the
 // Operator model's doc comment in amplify/data/resource.ts: Driver and
@@ -72,9 +80,15 @@ function statusTone(status: OperatorStatus): 'success' | 'warning' | 'neutral' {
   return 'neutral';
 }
 
+function statusLabel(status: OperatorStatus): string {
+  return status === 'active' ? 'Active' : status === 'onboarding' ? 'Onboarding' : 'Inactive';
+}
+
 export default function AdministratorDriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [stops, setStops] = useState<StopSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string>('');
@@ -86,6 +100,8 @@ export default function AdministratorDriversPage() {
   const [invitePending, setInvitePending] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+  const [resendPending, setResendPending] = useState(false);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
 
   const callAdminApi = useCallback(async (body: Record<string, unknown>) => {
     const session = await fetchAuthSession();
@@ -113,7 +129,31 @@ export default function AdministratorDriversPage() {
       const idToken = session.tokens?.idToken?.toString();
       if (!idToken) throw new Error('No session token found. Please sign in again.');
 
-      const [usersResponse, operatorsResult, customersResult] = await Promise.all([
+      const fetchAllRoutes = async () => {
+        const allRoutes: Route[] = [];
+        let nextToken: string | undefined;
+        do {
+          const pageResult = await listAllRoutes({ limit: 500, nextToken });
+          if (pageResult.errors && pageResult.errors.length > 0) break;
+          allRoutes.push(...((pageResult.data as Route[]) || []));
+          nextToken = pageResult.nextToken ?? undefined;
+        } while (nextToken);
+        return allRoutes;
+      };
+
+      const fetchAllStops = async () => {
+        const allStops: StopSummary[] = [];
+        let nextToken: string | undefined;
+        do {
+          const pageResult = await listAllStops({ limit: 500, nextToken });
+          if (pageResult.errors && pageResult.errors.length > 0) break;
+          allStops.push(...((pageResult.data as StopSummary[]) || []));
+          nextToken = pageResult.nextToken ?? undefined;
+        } while (nextToken);
+        return allStops;
+      };
+
+      const [usersResponse, operatorsResult, customersResult, allRoutes, allStops] = await Promise.all([
         fetch('/api/admin/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
@@ -121,6 +161,8 @@ export default function AdministratorDriversPage() {
         }),
         listOperators(),
         listAllCustomers({ limit: 200 }),
+        fetchAllRoutes(),
+        fetchAllStops(),
       ]);
 
       const usersPayload = await usersResponse.json();
@@ -137,6 +179,8 @@ export default function AdministratorDriversPage() {
 
       setDrivers(merged);
       setCustomers((customersResult.data as CustomerSummary[]) || []);
+      setRoutes(allRoutes);
+      setStops(allStops);
       setSelectedId((current) => (current && merged.some((d) => d.id === current) ? current : merged[0]?.id || ''));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load drivers.');
@@ -239,6 +283,29 @@ export default function AdministratorDriversPage() {
     setInvitePending(false);
   };
 
+  const handleResendInvite = async () => {
+    if (!selected) return;
+    setResendPending(true);
+    setResendMessage(null);
+    setSaveError(null);
+    try {
+      const result = await callAdminApi({
+        action: 'resendInvite',
+        email: selected.email,
+        groupName: 'operator',
+        name: selected.name,
+      });
+      setResendMessage(
+        result.emailSent
+          ? `Invitation resent to ${selected.email}.`
+          : `Invitation reset for ${selected.email}, but the email could not be sent. Ask them to use "Forgot password".`
+      );
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Could not resend that invite.');
+    }
+    setResendPending(false);
+  };
+
   const customerName = (id: string) => customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
   const unassignedCustomers = customers.filter((c) => !selected?.assignedCustomerIds.includes(c.id));
 
@@ -246,35 +313,77 @@ export default function AdministratorDriversPage() {
   const onboardingCount = drivers.filter((d) => d.status === 'onboarding').length;
   const splitValues = drivers.map((d) => d.driverSplitPercent).filter((v): v is number => v !== '');
   const avgSplit = splitValues.length > 0 ? splitValues.reduce((sum, v) => sum + v, 0) / splitValues.length : null;
-  const totalAssignments = drivers.reduce((sum, d) => sum + d.assignedCustomerIds.length, 0);
-  const unassignedDriverCount = drivers.filter((d) => d.assignedCustomerIds.length === 0).length;
+
+  const routesStops = useMemo(() => summarizeRoutesStopsThisMonth(routes, stops), [routes, stops]);
+  const avgDuration = useMemo(() => summarizeAverageRouteDuration(routes, stops), [routes, stops]);
+
+  // Routes assigned to each driver this calendar month, for the "N routes
+  // this month" hint in the detail panel below.
+  const routesThisMonthByDriver = useMemo(() => {
+    const thisMonthKey = getDateGroup(new Date().toISOString(), 'month');
+    const counts = new Map<string, number>();
+    routes.forEach((route) => {
+      const date = route.actualEndTime || route.actualStartTime || route.createdAt;
+      if (!date || !route.assignedOperatorSub) return;
+      if (getDateGroup(date, 'month') !== thisMonthKey) return;
+      counts.set(route.assignedOperatorSub, (counts.get(route.assignedOperatorSub) || 0) + 1);
+    });
+    return counts;
+  }, [routes]);
 
   const columns: DataColumn<Driver>[] = [
     {
       key: 'name',
       header: 'Driver',
       render: (row) => (
-        <button type="button" className={styles.driverLink} onClick={() => setSelectedId(row.id)}>
-          {row.name}
-        </button>
+        <div className={styles.driverCell}>
+          <Avatar name={row.name} size="sm" />
+          <div>
+            <div className={styles.driverCellName}>{row.name}</div>
+            <div className={styles.driverCellMeta}>{row.homeBase ? `based ${row.homeBase}` : 'Home base not set'}</div>
+          </div>
+        </div>
       ),
-    },
-    { key: 'email', header: 'Email' },
-    { key: 'vehicle', header: 'Vehicle', render: (row) => row.vehicleAndRego || '—' },
-    { key: 'homeBase', header: 'Home base', render: (row) => row.homeBase || '—' },
-    {
-      key: 'split',
-      header: 'Driver split',
-      numeric: true,
-      render: (row) => (row.driverSplitPercent === '' ? '—' : `${row.driverSplitPercent}%`),
     },
     {
       key: 'status',
       header: 'Status',
       render: (row) => (
         <Badge tone={statusTone(row.status)} dot>
-          {row.status === 'active' ? 'Active' : row.status === 'onboarding' ? 'Onboarding' : 'Inactive'}
+          {statusLabel(row.status)}
         </Badge>
+      ),
+    },
+    { key: 'vehicle', header: 'Vehicle', render: (row) => row.vehicleAndRego || '—' },
+    {
+      key: 'split',
+      header: 'Split',
+      align: 'right',
+      render: (row) => (row.driverSplitPercent === '' ? '—' : `${row.driverSplitPercent}%`),
+    },
+    {
+      key: 'covers',
+      header: 'Covers',
+      render: (row) =>
+        row.assignedCustomerIds.length === 0
+          ? 'Unassigned'
+          : `${row.assignedCustomerIds.length} customer${row.assignedCustomerIds.length === 1 ? '' : 's'}`,
+    },
+    {
+      key: 'action',
+      header: '',
+      width: 120,
+      align: 'right',
+      render: (row) => (
+        <Button
+          type="button"
+          variant={row.id === selectedId ? 'secondary' : 'ghost'}
+          size="sm"
+          aria-label={`Configure ${row.name}`}
+          onClick={() => setSelectedId(row.id)}
+        >
+          {row.id === selectedId ? 'Configuring' : 'Configure'}
+        </Button>
       ),
     },
   ];
@@ -295,7 +404,14 @@ export default function AdministratorDriversPage() {
 
         <div className={styles.statsGrid}>
           <StatTile label="Drivers active" value={activeCount} caption={`${onboardingCount} onboarding`} icon="truck" />
-          <StatTile label="Total drivers" value={drivers.length} caption={`${drivers.length - activeCount - onboardingCount} inactive`} icon="users" />
+          <StatTile
+            label="Routes this month"
+            value={loading ? '…' : routesStops.currentRoutes}
+            delta={loading ? undefined : `${routesStops.deltaPercent}%`}
+            direction={loading ? 'flat' : routesStops.direction}
+            caption={`${routesStops.stopsServiced.toLocaleString()} stops serviced`}
+            icon="route"
+          />
           <StatTile
             label="Avg driver split"
             value={avgSplit === null ? '—' : `${avgSplit.toFixed(1)}%`}
@@ -303,10 +419,16 @@ export default function AdministratorDriversPage() {
             icon="chart-column"
           />
           <StatTile
-            label="Customers assigned"
-            value={totalAssignments}
-            caption={`${unassignedDriverCount} drivers unassigned`}
-            icon="route"
+            label="Average route duration"
+            value={loading || avgDuration.currentAverageMinutes === null ? '—' : formatDurationCompact(avgDuration.currentAverageMinutes)}
+            delta={loading || avgDuration.currentAverageMinutes === null ? undefined : `${avgDuration.deltaPercent}%`}
+            direction={loading ? 'flat' : avgDuration.direction}
+            caption={
+              avgDuration.averageStopsPerRoute === null
+                ? 'No completed routes yet'
+                : `${avgDuration.averageStopsPerRoute.toFixed(1)} stops per route`
+            }
+            icon="timer"
           />
         </div>
 
@@ -357,7 +479,7 @@ export default function AdministratorDriversPage() {
           </div>
         </Card>
 
-        <Card title="Drivers" subtitle="Pick a driver to configure their profile and split." padded={false}>
+        <Card title="Drivers" subtitle="Pick a driver to configure their roster, vehicle and split" padded={false}>
           {loading ? (
             <div style={{ padding: 'var(--space-6)' }}>
               <LoadingSpinner message="Loading drivers..." />
@@ -368,15 +490,18 @@ export default function AdministratorDriversPage() {
         </Card>
 
         {selected && (
-          <div className={styles.detailGrid}>
-            <Card title={selected.name} subtitle="Driver setup">
+          <Card title={selected.name} subtitle="Driver setup">
+            <div className={styles.detailLayout}>
               <div className={styles.form}>
                 {saveError && <p className="nd-badge nd-badge--danger">{saveError}</p>}
                 <div className={styles.formRow}>
                   <Badge tone={statusTone(selected.status)} dot>
-                    {selected.status === 'active' ? 'Active' : selected.status === 'onboarding' ? 'Onboarding' : 'Inactive'}
+                    {statusLabel(selected.status)}
                   </Badge>
-                  <span className={styles.formHint}>{selected.assignedCustomerIds.length} customer(s) assigned</span>
+                  <span className={styles.formHint}>
+                    {routesThisMonthByDriver.get(selected.id) || 0} routes this month · {selected.assignedCustomerIds.length}{' '}
+                    customer(s) assigned
+                  </span>
                 </div>
                 <div className={styles.formGrid}>
                   <Field label="Mobile" htmlFor="driver-phone">
@@ -404,6 +529,11 @@ export default function AdministratorDriversPage() {
                     onChange={(e) => updateSelected({ homeBase: e.target.value })}
                   />
                 </Field>
+                {resendMessage && (
+                  <p className={styles.formHint} role="status" aria-live="polite">
+                    {resendMessage}
+                  </p>
+                )}
                 <div className={styles.formActions}>
                   <Button type="button" loading={saving} disabled={saving} onClick={() => void handleSaveDriver()}>
                     Save driver
@@ -416,13 +546,24 @@ export default function AdministratorDriversPage() {
                   >
                     Deactivate
                   </Button>
+                  {selected.status === 'onboarding' && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      iconLeft="send"
+                      loading={resendPending}
+                      disabled={resendPending}
+                      onClick={() => void handleResendInvite()}
+                    >
+                      Resend invite
+                    </Button>
+                  )}
                 </div>
               </div>
-            </Card>
 
-            <div className={styles.sideCards}>
-              <Card title="Pay split" subtitle="Internal — never shown to customers">
+              <div className={styles.detailSide}>
                 <div className={styles.form}>
+                  <span className={styles.sectionHeading}>Pay split</span>
                   <div className={styles.callout}>
                     Not yet applied to payouts — payout calculations still use the customer&apos;s rate-card split for
                     every operator on that customer&apos;s routes. Captured here ahead of per-driver overrides.
@@ -460,10 +601,12 @@ export default function AdministratorDriversPage() {
                     label="Pay on completed stops only"
                   />
                 </div>
-              </Card>
 
-              <Card title="Customers covered" subtitle="Routes for these accounts come to this driver first">
-                <div className={styles.form}>
+                <div className={`${styles.form} ${styles.detailDivider}`}>
+                  <div>
+                    <span className={styles.sectionHeading}>Customers covered</span>
+                    <p className={styles.formHint}>Routes for these accounts come to this driver first</p>
+                  </div>
                   {selected.assignedCustomerIds.length > 0 ? (
                     <div className={styles.customerList}>
                       {selected.assignedCustomerIds.map((customerId) => (
@@ -511,9 +654,9 @@ export default function AdministratorDriversPage() {
                     </div>
                   )}
                 </div>
-              </Card>
+              </div>
             </div>
-          </div>
+          </Card>
         )}
       </div>
     </OperatorRoute>

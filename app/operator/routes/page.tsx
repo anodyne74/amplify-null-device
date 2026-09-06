@@ -57,7 +57,7 @@ export default function OperatorRoutesPage() {
       header: 'Customer',
       render: (route) => customersById[route.customerId] || 'Unknown customer',
     },
-    { key: 'status', header: 'Status', render: (route) => <RouteStatusPill status={route.status} /> },
+    { key: 'status', header: 'Status', render: (route) => <RouteStatusPill route={route} /> },
     { key: 'created', header: 'Created', render: (route) => formatRouteDate(route.createdAt) },
     {
       key: 'duration',

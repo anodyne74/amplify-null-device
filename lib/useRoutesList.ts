@@ -1,23 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { Route, RouteStatus } from '@/amplify/types';
+import type { Route } from '@/amplify/types';
 import { compareRouteIdDesc } from '@/lib/routeListHelpers';
 import { deleteRoute } from '@/lib/queries';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
+import { getRoutePhaseKey, ROUTE_PHASE_KEYS, type RoutePhaseKey } from '@/lib/signRunPhase';
 
-export type StatusFilter = RouteStatus | 'all';
+export type StatusFilter = RoutePhaseKey | 'all';
 
-export const ROUTE_STATUS_FILTERS: StatusFilter[] = [
-  'all',
-  'planned',
-  'in_progress',
-  'signs_placed',
-  'signs_picked_up',
-  'completed',
-  'archived',
-];
+// archived is intentionally absent — it's a legacy, soft-deprecated status
+// that now displays (and filters) identically to completed.
+export const ROUTE_STATUS_FILTERS: StatusFilter[] = ['all', ...ROUTE_PHASE_KEYS];
 
 export function useRoutesList(canDeleteRoutes: boolean) {
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -62,7 +57,7 @@ export function useRoutesList(canDeleteRoutes: boolean) {
   }, []);
 
   const filteredRoutes = useMemo(
-    () => (statusFilter === 'all' ? routes : routes.filter((route) => route.status === statusFilter)),
+    () => (statusFilter === 'all' ? routes : routes.filter((route) => getRoutePhaseKey(route) === statusFilter)),
     [routes, statusFilter]
   );
 

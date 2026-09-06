@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { getRouteWithStops } from '@/lib/queries';
-import { getSignRunPhase } from '@/lib/signRunPhase';
+import { getSignRunPhase, getRoutePhaseKey } from '@/lib/signRunPhase';
 import type { Route } from '@/amplify/types';
 import PageHeader from '@/app/operator/components/PageHeader';
 import { SignRunRouteCard } from '@/app/operator/components/SignRunRouteCard';
@@ -56,14 +56,14 @@ export default function OperatorDashboard() {
 
   const activeRoutes = useMemo(
     () =>
-      routes.filter(
-        (route) =>
-          route.status === 'in_progress' || route.status === 'signs_placed' || route.status === 'signs_picked_up'
-      ),
+      routes.filter((route) => {
+        const phaseKey = getRoutePhaseKey(route);
+        return phaseKey !== 'planned' && phaseKey !== 'completed';
+      }),
     [routes]
   );
   const plannedRoutes = useMemo(
-    () => routes.filter((route) => route.status === 'planned'),
+    () => routes.filter((route) => getRoutePhaseKey(route) === 'planned'),
     [routes]
   );
   const priorityRoutes = useMemo(

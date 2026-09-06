@@ -274,7 +274,7 @@ export default function CustomerDashboard() {
             <div className={styles.trackerList}>
               {trackerRoutes.map((route) => {
                 const routeLabel = route.routeCode || route.id.slice(0, 8);
-                const { label: statusLabel } = getRouteStatusPresentation(route.status);
+                const { label: statusLabel } = getRouteStatusPresentation(route);
 
                 return (
                   <Link

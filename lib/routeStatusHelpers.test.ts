@@ -1,52 +1,59 @@
 import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 
 describe('getRouteStatusPresentation', () => {
-  it('maps active-phase statuses to active badge with readable labels', () => {
-    expect(getRouteStatusPresentation('in_progress')).toEqual({
-      badgeKey: 'active',
-      label: 'in progress',
+  it('reads each in-progress sub-phase off executionPhase, with a readable label', () => {
+    expect(getRouteStatusPresentation({ status: 'in_progress', executionPhase: null })).toEqual({
+      badgeKey: 'signs_collected',
+      label: 'signs collected',
     });
 
-    expect(getRouteStatusPresentation('signs_placed')).toEqual({
-      badgeKey: 'active',
+    expect(getRouteStatusPresentation({ status: 'in_progress', executionPhase: 'placement' })).toEqual({
+      badgeKey: 'signs_placed',
       label: 'signs placed',
     });
 
-    expect(getRouteStatusPresentation('signs_picked_up')).toEqual({
-      badgeKey: 'active',
+    expect(getRouteStatusPresentation({ status: 'in_progress', executionPhase: 'pickup' })).toEqual({
+      badgeKey: 'signs_picked_up',
+      label: 'signs picked up',
+    });
+
+    expect(getRouteStatusPresentation({ status: 'in_progress', executionPhase: 'unload' })).toEqual({
+      badgeKey: 'signs_returned',
+      label: 'signs returned',
+    });
+  });
+
+  it('reads legacy signs_placed/signs_picked_up statuses off executionPhase too', () => {
+    expect(getRouteStatusPresentation({ status: 'signs_placed', executionPhase: 'pickup' })).toEqual({
+      badgeKey: 'signs_picked_up',
       label: 'signs picked up',
     });
   });
 
-  it('maps completed and archived statuses to their explicit badge keys', () => {
-    expect(getRouteStatusPresentation('completed')).toEqual({
+  it('folds archived into the completed badge — archived is legacy-only, no longer distinguished', () => {
+    expect(getRouteStatusPresentation({ status: 'completed' })).toEqual({
       badgeKey: 'completed',
-      label: 'completed',
+      label: 'route completed',
     });
 
-    expect(getRouteStatusPresentation('archived')).toEqual({
-      badgeKey: 'archived',
-      label: 'archived',
+    expect(getRouteStatusPresentation({ status: 'archived' })).toEqual({
+      badgeKey: 'completed',
+      label: 'route completed',
     });
   });
 
-  it('falls back to planned for planned, unknown, and missing statuses', () => {
-    expect(getRouteStatusPresentation('planned')).toEqual({
+  it('falls back to planned for planned and missing statuses', () => {
+    expect(getRouteStatusPresentation({ status: 'planned' })).toEqual({
       badgeKey: 'planned',
       label: 'planned',
     });
 
-    expect(getRouteStatusPresentation('unexpected_status')).toEqual({
-      badgeKey: 'planned',
-      label: 'unexpected_status',
-    });
-
-    expect(getRouteStatusPresentation(undefined)).toEqual({
+    expect(getRouteStatusPresentation({ status: undefined })).toEqual({
       badgeKey: 'planned',
       label: 'planned',
     });
 
-    expect(getRouteStatusPresentation(null)).toEqual({
+    expect(getRouteStatusPresentation({ status: null })).toEqual({
       badgeKey: 'planned',
       label: 'planned',
     });

@@ -1,18 +1,21 @@
 import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
 import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
+import type { RoutePhaseInput, RoutePhaseKey } from '@/lib/signRunPhase';
 
-const ROUTE_STATUS_TONE: Record<string, BadgeProps['tone']> = {
+const ROUTE_STATUS_TONE: Record<RoutePhaseKey, BadgeProps['tone']> = {
   planned: 'warning',
-  active: 'info',
+  signs_collected: 'info',
+  signs_placed: 'info',
+  signs_picked_up: 'info',
+  signs_returned: 'info',
   completed: 'success',
-  archived: 'neutral',
 };
 
 /** Status pill for a route, reused across the operator dashboard and routes/detail pages. */
-export function RouteStatusPill({ status }: { status?: string | null }) {
-  const { badgeKey, label } = getRouteStatusPresentation(status);
+export function RouteStatusPill({ route }: { route: RoutePhaseInput }) {
+  const { badgeKey, label } = getRouteStatusPresentation(route);
   return (
-    <Badge tone={ROUTE_STATUS_TONE[badgeKey] ?? 'neutral'} dot>
+    <Badge tone={ROUTE_STATUS_TONE[badgeKey]} dot>
       {label}
     </Badge>
   );

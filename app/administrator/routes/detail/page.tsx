@@ -32,20 +32,10 @@ import { createStop, deleteRoute, getCustomer, getRouteWithStops, getUserSetting
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
-import { getSignRunPhase } from '@/lib/signRunPhase';
+import { getSignRunPhase, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS } from '@/lib/signRunPhase';
 import type { Route, Stop } from '@/amplify/types';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
-
-/** Overview-tracker labels, in flow order — matches lib/signRunPhase.ts's RoutePhaseKey. */
-const OVERALL_PHASE_LABELS = [
-  'Planned',
-  'Signs collected',
-  'Signs placed',
-  'Signs picked up',
-  'Signs returned',
-  'Route completed',
-];
 
 const RouteStopsMap = dynamic(
   () => import('@/app/operator/components/RouteStopsMap').then((mod) => mod.RouteStopsMap),
@@ -753,13 +743,13 @@ function RouteDetailContent() {
   const phaseOverview = (() => {
     if (!route) return null;
     if (route.status === 'completed' || route.status === 'archived') {
-      return { track: ['done', 'done', 'done', 'done', 'done', 'done'] as const, caption: 'Route completed' };
+      return { track: ['done', 'done', 'done', 'done', 'done', 'done'] as const, caption: ROUTE_PHASE_LABELS.completed };
     }
     const info = getSignRunPhase(route, stops.length);
     if (!info) return null;
     const currentIdx = info.overallTrack.indexOf('current');
     const idx = currentIdx === -1 ? info.overallTrack.length - 1 : currentIdx;
-    return { track: info.overallTrack, caption: `${OVERALL_PHASE_LABELS[idx]} · Phase ${idx + 1} of 6` };
+    return { track: info.overallTrack, caption: `${ROUTE_PHASE_LABELS[ROUTE_PHASE_KEYS[idx]]} · Phase ${idx + 1} of 6` };
   })();
 
   const routeDurationMinutes = route ? getRouteDurationMinutes(route) : null;
@@ -840,7 +830,7 @@ function RouteDetailContent() {
               <h1 className={styles.routeTitle}>
                 Route {route.routeCode || route.id.slice(0, 8)}
               </h1>
-              <RouteStatusPill status={route.status} />
+              <RouteStatusPill route={route} />
               <div className={styles.headerActions}>
                 <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
                   Edit Route

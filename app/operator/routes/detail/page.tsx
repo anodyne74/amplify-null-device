@@ -61,20 +61,10 @@ import { MAP_THEMES } from '@/lib/mapThemes';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
-import { getSignRunPhase } from '@/lib/signRunPhase';
+import { getSignRunPhase, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS } from '@/lib/signRunPhase';
 import type { Route, Stop } from '@/amplify/types';
 import { parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import styles from './page.module.css';
-
-/** Overview-tracker labels, in flow order — matches lib/signRunPhase.ts's RoutePhaseKey. */
-const OVERALL_PHASE_LABELS = [
-  'Planned',
-  'Signs collected',
-  'Signs placed',
-  'Signs picked up',
-  'Signs returned',
-  'Route completed',
-];
 
 const PHASE_SCREEN_HREF: Record<number, string> = {
   0: 'load',
@@ -1116,7 +1106,7 @@ function RouteDetailContent() {
   const phaseOverview = (() => {
     if (!route) return null;
     if (route.status === 'completed' || route.status === 'archived') {
-      return { track: ['done', 'done', 'done', 'done', 'done', 'done'] as const, caption: 'Route completed', href: null as string | null };
+      return { track: ['done', 'done', 'done', 'done', 'done', 'done'] as const, caption: ROUTE_PHASE_LABELS.completed, href: null as string | null };
     }
     const info = getSignRunPhase(route, stops.length);
     if (!info) return null;
@@ -1125,7 +1115,7 @@ function RouteDetailContent() {
     const screen = PHASE_SCREEN_HREF[info.phaseIdx];
     return {
       track: info.overallTrack,
-      caption: `${OVERALL_PHASE_LABELS[idx]} · Phase ${idx + 1} of 6`,
+      caption: `${ROUTE_PHASE_LABELS[ROUTE_PHASE_KEYS[idx]]} · Phase ${idx + 1} of 6`,
       href: screen ? `/operator/routes/${screen}?id=${route.id}` : null,
     };
   })();
@@ -1235,7 +1225,7 @@ function RouteDetailContent() {
               <h1 className={styles.routeTitle}>
                 Route {route.routeCode || route.id.slice(0, 8)}
               </h1>
-              <RouteStatusPill status={route.status} />
+              <RouteStatusPill route={route} />
               {canManagePlanning && (
                 <div className={styles.headerActions}>
                   <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
@@ -1564,7 +1554,7 @@ function RouteDetailContent() {
                   <Badge tone={isOnline ? 'brand' : 'neutral'} size="sm" dot>
                     {isOnline ? 'Online' : 'Offline'}
                   </Badge>
-                  <RouteStatusPill status={route.status} />
+                  <RouteStatusPill route={route} />
                 </div>
               </div>
 

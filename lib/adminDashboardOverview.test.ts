@@ -118,7 +118,7 @@ describe('adminDashboardOverview', () => {
   describe('summarizeSignsInField', () => {
     it('sums signs on routes currently placed but not picked up', () => {
       const routes = [
-        { id: 'r1', status: 'signs_placed' },
+        { id: 'r1', status: 'signs_placed', executionPhase: 'placement' },
         { id: 'r2', status: 'completed' },
       ];
       const stops = [
@@ -129,10 +129,17 @@ describe('adminDashboardOverview', () => {
 
       expect(summarizeSignsInField(routes, stops)).toBe(8);
     });
+
+    it('also counts new-flow routes currently in the signs_placed phase (status stays in_progress)', () => {
+      const routes = [{ id: 'r1', status: 'in_progress', executionPhase: 'placement' }];
+      const stops = [{ id: 's1', routeId: 'r1', numberOfSigns: 4 }];
+
+      expect(summarizeSignsInField(routes, stops)).toBe(4);
+    });
   });
 
   describe('summarizeRouteStatusCounts', () => {
-    it('counts every non-archived status and excludes archived', () => {
+    it('counts routes by phase and folds archived into completed', () => {
       const routes = [
         { id: 'r1', status: 'planned' },
         { id: 'r2', status: 'planned' },
@@ -142,10 +149,11 @@ describe('adminDashboardOverview', () => {
 
       expect(summarizeRouteStatusCounts(routes)).toEqual({
         planned: 2,
-        in_progress: 0,
+        signs_collected: 0,
         signs_placed: 0,
         signs_picked_up: 0,
-        completed: 1,
+        signs_returned: 0,
+        completed: 2,
       });
     });
   });

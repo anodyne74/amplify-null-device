@@ -24,7 +24,7 @@ export default function RouteCard({ route }: RouteCardProps) {
       {/* Header with ID and Status */}
       <div className={styles.header}>
         <h3 className={styles.title}>{displayCode}</h3>
-        <RouteStatusBadge status={route.status} classes={styles} />
+        <RouteStatusBadge route={route} classes={styles} />
       </div>
 
       {/* Route Info */}

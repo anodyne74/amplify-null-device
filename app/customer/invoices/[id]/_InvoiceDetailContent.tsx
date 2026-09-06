@@ -5,6 +5,7 @@ import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useRouter } from 'next/navigation';
 import { getInvoiceDetail, type InvoiceDetail } from '@/lib/queries/GetInvoiceDetail';
 import { getCustomerPortalContext } from '@/lib/queries';
+import { buildInvoiceFileName } from '@/lib/invoiceFileName';
 import InvoiceLineItems from '@/app/customer/components/InvoiceLineItems';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
@@ -112,7 +113,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
 
       const link = document.createElement('a');
       link.href = urlString;
-      link.download = `${invoice.invoiceNumber || invoice.id}.pdf`;
+      link.download = buildInvoiceFileName(invoice.customerName, invoice.invoiceNumber, invoice.id);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

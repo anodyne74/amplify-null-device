@@ -6,6 +6,7 @@ import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
 import type { Invoice } from '@/amplify/types';
 import { getInvoiceStatusTone } from '@/lib/invoiceStatusHelpers';
+import { buildInvoiceFileName } from '@/lib/invoiceFileName';
 
 function getStatusLabel(status?: string | null) {
   return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
@@ -21,7 +22,13 @@ export function InvoiceStatusPill({ status }: { status?: string | null }) {
 }
 
 /** PDF view/download actions (or a plain "View" link when no PDF exists yet), reused by the invoices table. */
-export function InvoiceActions({ invoice }: { invoice: Pick<Invoice, 'id' | 'invoiceNumber' | 'pdfS3Key'> }) {
+export function InvoiceActions({
+  invoice,
+  customerName,
+}: {
+  invoice: Pick<Invoice, 'id' | 'invoiceNumber' | 'pdfS3Key'>;
+  customerName?: string;
+}) {
   const [pdfLoading, setPdfLoading] = useState(false);
 
   const handlePdfAction = async (action: 'view' | 'download') => {
@@ -42,7 +49,7 @@ export function InvoiceActions({ invoice }: { invoice: Pick<Invoice, 'id' | 'inv
 
       const link = document.createElement('a');
       link.href = urlString;
-      link.download = `${invoice.invoiceNumber || invoice.id}.pdf`;
+      link.download = buildInvoiceFileName(customerName, invoice.invoiceNumber, invoice.id);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

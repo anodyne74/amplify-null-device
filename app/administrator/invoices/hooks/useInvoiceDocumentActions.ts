@@ -9,6 +9,7 @@ import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseInvoiceText } from '@/lib/parseInvoice';
 import { BILLING_EMAIL } from '@/lib/publicAppConfig';
 import { getInvoiceWithLineItems, getRouteWithStops, updateInvoice, updateInvoicePdfKey } from '@/lib/queries';
+import { buildInvoiceFileName } from '@/lib/invoiceFileName';
 import type { StopSummary } from '@/app/administrator/invoices/stopFormatting';
 
 type UseInvoiceDocumentActionsParams = {
@@ -194,9 +195,10 @@ export function useInvoiceDocumentActions({
         return;
       }
 
+      const customer = customers.find((entry) => entry.id === invoice.customerId);
       const link = document.createElement('a');
       link.href = urlString;
-      link.download = `${invoice.invoiceNumber || invoice.id}.pdf`;
+      link.download = buildInvoiceFileName(customer?.name, invoice.invoiceNumber, invoice.id);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

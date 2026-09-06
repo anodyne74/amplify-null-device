@@ -8,6 +8,7 @@ import outputs from '@/amplify_outputs.json';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
 import { listCustomerUsers, getCustomer, updateInvoice } from '@/lib/queries';
 import { APP_DOMAIN } from '@/lib/publicAppConfig';
+import { buildInvoiceFileName } from '@/lib/invoiceFileName';
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
 function sanitizeNamePart(value: string, fallback: string) {
@@ -79,9 +80,10 @@ function sanitizeMimeHeaderValue(value: string): string {
 
 function sanitizeAttachmentFileName(value: string, fallback: string): string {
   const cleaned = sanitizeMimeHeaderValue(value)
-    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .replace(/[^A-Za-z0-9 ._-]+/g, '_')
     .replace(/_+/g, '_')
-    .replace(/^[_\.\s-]+|[_\.\s-]+$/g, '');
+    .replace(/ +/g, ' ')
+    .replace(/^[_.\s-]+|[_.\s-]+$/g, '');
 
   return cleaned || fallback;
 }
@@ -220,7 +222,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch invoice PDF for attachment' }, { status: 500 });
     }
     const pdfBytes = new Uint8Array(await pdfResponse.arrayBuffer());
-    const pdfFileName = sanitizeAttachmentFileName(`invoice-${invoice.invoiceNumber || invoice.id}.pdf`, `invoice-${invoice.id}.pdf`);
+    const pdfFileName = sanitizeAttachmentFileName(
+      buildInvoiceFileName(customer.name, invoice.invoiceNumber, invoice.id),
+      `Invoice ${invoice.id}.pdf`
+    );
     const encodedPdf = wrapBase64(Buffer.from(pdfBytes).toString('base64'));
 
     // Send email via SES as a raw MIME message to include the PDF attachment.

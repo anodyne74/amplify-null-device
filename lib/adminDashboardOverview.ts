@@ -13,6 +13,7 @@ export interface OverviewRoute {
   actualEndTime?: string | null;
   actualStartTime?: string | null;
   createdAt?: string | null;
+  actualDurationMinutes?: number | null;
 }
 
 export interface OverviewInvoice {
@@ -121,6 +122,57 @@ export function summarizeRoutesStopsThisMonth(
     previousRoutes: previousRoutes.length,
     stopsServiced,
     ...trend(currentRoutes.length, previousRoutes.length),
+  };
+}
+
+export interface AverageRouteDurationSummary {
+  currentAverageMinutes: number | null;
+  previousAverageMinutes: number | null;
+  deltaPercent: number;
+  direction: TrendDirection;
+  averageStopsPerRoute: number | null;
+}
+
+/**
+ * Average actual duration of routes run this month vs last, over only the
+ * routes that recorded a duration (i.e. actually completed a sign run —
+ * planned/in-progress routes have no actualDurationMinutes yet). Paired with
+ * the average stop count for the same set, for the Drivers screen's
+ * "Average route duration" stat tile.
+ */
+export function summarizeAverageRouteDuration(
+  routes: OverviewRoute[],
+  stops: OverviewStop[],
+  now = new Date()
+): AverageRouteDurationSummary {
+  const thisMonthKey = getDateGroup(now.toISOString(), 'month');
+  const lastMonthKey = previousMonthKey(now);
+
+  const timedRoutesFor = (key: string) =>
+    routes.filter((route) => {
+      if (!route.actualDurationMinutes) return false;
+      const date = routeActivityDate(route);
+      return date ? getDateGroup(date, 'month') === key : false;
+    });
+
+  const currentRoutes = timedRoutesFor(thisMonthKey);
+  const previousRoutes = timedRoutesFor(lastMonthKey);
+
+  const average = (list: OverviewRoute[]): number | null =>
+    list.length === 0 ? null : list.reduce((sum, r) => sum + (r.actualDurationMinutes || 0), 0) / list.length;
+
+  const currentAverageMinutes = average(currentRoutes);
+  const previousAverageMinutes = average(previousRoutes);
+
+  const currentRouteIds = new Set(currentRoutes.map((route) => route.id));
+  const stopsOnCurrentRoutes = stops.filter((stop) => stop.routeId && currentRouteIds.has(stop.routeId)).length;
+  const averageStopsPerRoute = currentRoutes.length === 0 ? null : stopsOnCurrentRoutes / currentRoutes.length;
+
+  return {
+    currentAverageMinutes,
+    previousAverageMinutes,
+    averageStopsPerRoute,
+    ...trend(currentAverageMinutes || 0, previousAverageMinutes || 0),
   };
 }
 

@@ -5,6 +5,8 @@ import AdministratorDriversPage from '../page';
 import { listOperators } from '@/lib/queries/ListOperators';
 import { updateOperator } from '@/lib/queries/UpdateOperator';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
+import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
+import { listAllStops } from '@/lib/queries/ListAllStops';
 
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
@@ -27,6 +29,14 @@ jest.mock('@/lib/queries/UpdateOperator', () => ({
 
 jest.mock('@/lib/queries/ListAllCustomers', () => ({
   listAllCustomers: jest.fn(),
+}));
+
+jest.mock('@/lib/queries/ListAllRoutes', () => ({
+  listAllRoutes: jest.fn(),
+}));
+
+jest.mock('@/lib/queries/ListAllStops', () => ({
+  listAllStops: jest.fn(),
 }));
 
 describe('Administrator Drivers page', () => {
@@ -88,22 +98,57 @@ describe('Administrator Drivers page', () => {
     });
 
     (updateOperator as jest.Mock).mockResolvedValue({ data: { id: 'sub-1' }, errors: undefined });
+    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: undefined });
+    (listAllStops as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: undefined });
   });
 
   it('lists drivers merged with their Operator profile fields', async () => {
     render(<AdministratorDriversPage />);
 
     expect(await screen.findByText('Van 1 · ABC123')).toBeInTheDocument();
-    expect(screen.getByText('Ryde')).toBeInTheDocument();
+    expect(screen.getByText('based Ryde')).toBeInTheDocument();
     expect(screen.getAllByText('Active').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Onboarding').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('computes the route-based stat tiles and the per-driver monthly route count', async () => {
+    const now = new Date();
+    const isoThisMonth = new Date(now.getFullYear(), now.getMonth(), 10).toISOString();
+
+    (listAllRoutes as jest.Mock).mockResolvedValue({
+      data: [
+        { id: 'r1', assignedOperatorSub: 'sub-1', actualEndTime: isoThisMonth, actualDurationMinutes: 240 },
+        { id: 'r2', assignedOperatorSub: 'sub-1', actualEndTime: isoThisMonth, actualDurationMinutes: 300 },
+      ],
+      errors: undefined,
+      nextToken: undefined,
+    });
+    (listAllStops as jest.Mock).mockResolvedValue({
+      data: [
+        { id: 's1', routeId: 'r1' },
+        { id: 's2', routeId: 'r2' },
+        { id: 's3', routeId: 'r2' },
+      ],
+      errors: undefined,
+      nextToken: undefined,
+    });
+
+    render(<AdministratorDriversPage />);
+
+    await screen.findByText('Van 1 · ABC123');
+
+    expect(screen.getByText('3 stops serviced')).toBeInTheDocument();
+    expect(screen.getByText('4h 30m')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
+    expect(screen.getByText(/2 routes this month/)).toBeInTheDocument();
   });
 
   it('selects a driver and saves profile edits', async () => {
     render(<AdministratorDriversPage />);
 
     await screen.findByText('Van 1 · ABC123');
-    fireEvent.click(screen.getByRole('button', { name: 'Jane Driver' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
 
     fireEvent.change(screen.getByLabelText(/vehicle and rego/i), { target: { value: 'Van 1 · XYZ999' } });
     fireEvent.click(screen.getByRole('button', { name: /save driver/i }));
@@ -120,7 +165,7 @@ describe('Administrator Drivers page', () => {
     render(<AdministratorDriversPage />);
 
     await screen.findByText('Van 1 · ABC123');
-    fireEvent.click(screen.getByRole('button', { name: 'Jane Driver' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
 
     fireEvent.change(screen.getByLabelText(/customer to assign/i), { target: { value: 'cust-2' } });
     fireEvent.click(screen.getByRole('button', { name: /assign customer/i }));
@@ -134,7 +179,7 @@ describe('Administrator Drivers page', () => {
     render(<AdministratorDriversPage />);
 
     await screen.findByText('Van 1 · ABC123');
-    fireEvent.click(screen.getByRole('button', { name: 'Jane Driver' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
 
     await screen.findByText('Harcourts Epping');
     fireEvent.click(screen.getByRole('button', { name: /remove/i }));
@@ -148,12 +193,63 @@ describe('Administrator Drivers page', () => {
     render(<AdministratorDriversPage />);
 
     await screen.findByText('Van 1 · ABC123');
-    fireEvent.click(screen.getByRole('button', { name: 'Jane Driver' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
     fireEvent.click(screen.getByRole('button', { name: /deactivate/i }));
 
     await waitFor(() => {
       expect(updateOperator).toHaveBeenCalledWith('sub-1', { status: 'inactive' });
     });
+  });
+
+  it('resends the invite for an onboarding driver', async () => {
+    global.fetch = jest.fn(async (_url: string, init?: RequestInit) => {
+      const action = init?.body ? JSON.parse(init.body as string).action : undefined;
+
+      if (action === 'resendInvite') {
+        return { ok: true, json: async () => ({ emailSent: true }) };
+      }
+
+      return {
+        ok: true,
+        json: async () => ({
+          users: [
+            { id: 'sub-1', name: 'Jane Driver', email: 'jane@nulldevice.dev' },
+            { id: 'sub-2', name: 'Amir Driver', email: 'amir@nulldevice.dev' },
+          ],
+        }),
+      };
+    }) as jest.Mock;
+
+    render(<AdministratorDriversPage />);
+
+    await screen.findByText('Van 1 · ABC123');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure Amir Driver' }));
+    fireEvent.click(screen.getByRole('button', { name: /resend invite/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/admin/users',
+        expect.objectContaining({
+          body: JSON.stringify({
+            action: 'resendInvite',
+            email: 'amir@nulldevice.dev',
+            groupName: 'operator',
+            name: 'Amir Driver',
+          }),
+        })
+      );
+    });
+
+    expect(await screen.findByText(/invitation resent to amir@nulldevice.dev/i)).toBeInTheDocument();
+  });
+
+  it('does not offer a resend invite action for an active driver', async () => {
+    render(<AdministratorDriversPage />);
+
+    await screen.findByText('Van 1 · ABC123');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
+
+    expect(screen.queryByRole('button', { name: /resend invite/i })).not.toBeInTheDocument();
   });
 
   it('shows an empty state when there are no drivers', async () => {
@@ -176,7 +272,7 @@ describe('Administrator Drivers page', () => {
     fireEvent.change(screen.getByLabelText(/optional display name for new driver/i), {
       target: { value: 'New Driver' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /send invite/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^send invite$/i }));
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -225,7 +321,7 @@ describe('Administrator Drivers page', () => {
     fireEvent.change(screen.getByLabelText(/email for new driver/i), {
       target: { value: 'new-driver@nulldevice.dev' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /send invite/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^send invite$/i }));
 
     expect(await screen.findByText(/invitation email could not be sent/i)).toBeInTheDocument();
   });
@@ -253,7 +349,7 @@ describe('Administrator Drivers page', () => {
     fireEvent.change(screen.getByLabelText(/email for new driver/i), {
       target: { value: 'broken@nulldevice.dev' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /send invite/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^send invite$/i }));
 
     expect(await screen.findByText('Could not create a login for this email.')).toBeInTheDocument();
     expect(screen.getByLabelText(/email for new driver/i)).toHaveValue('broken@nulldevice.dev');

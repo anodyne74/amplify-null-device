@@ -27,38 +27,51 @@
   gap: var(--space-5);
 }
 
-.driverLink {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
+.driverCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.driverCellName {
+  font-size: var(--text-sm);
   font-weight: var(--fw-semibold);
-  color: var(--text-link);
-  cursor: pointer;
+  color: var(--text-heading);
 }
 
-.driverLink:hover {
-  color: var(--text-link-hover);
-  text-decoration: underline;
+.driverCellMeta {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
 }
 
-.detailGrid {
+.detailLayout {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-5);
+  gap: var(--space-6);
   align-items: start;
 }
 
 @media (max-width: 900px) {
-  .detailGrid {
+  .detailLayout {
     grid-template-columns: 1fr;
   }
 }
 
-.sideCards {
+.detailSide {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+}
+
+.detailDivider {
+  border-top: var(--border-hairline) solid var(--border-subtle);
+  padding-top: var(--space-5);
+}
+
+.sectionHeading {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-heading);
 }
 
 .form {

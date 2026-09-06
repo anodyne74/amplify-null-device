@@ -5,6 +5,7 @@
 
 import { normalizeCustomerDefaults } from '@/lib/customerDefaults';
 import { getDataClient } from '@/lib/data-client';
+import type { RouteStatus } from '@/amplify/types';
 
 function getClient() {
   return getDataClient();
@@ -478,7 +479,7 @@ export async function createRoute(input: {
   routeCode?: string;
   customerId: string;
   viewerSubs?: string[];
-  status: 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+  status: RouteStatus;
   executionPhase?: 'load' | 'placement' | 'pickup' | 'unload';
   scheduledDate?: string;
   notes?: string;
@@ -506,7 +507,7 @@ export async function updateRoute(
   updates: Partial<{
     routeCode: string;
     customerId: string;
-    status: 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+    status: RouteStatus;
     executionPhase: 'load' | 'placement' | 'pickup' | 'unload';
     actualStartTime: string;
     actualEndTime: string;
@@ -561,7 +562,7 @@ export async function updateRoute(
 }
 
 export interface RouteExecutionUpdateInput {
-  status?: 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
+  status?: RouteStatus;
   executionPhase?: 'load' | 'placement' | 'pickup' | 'unload';
   actualStartTime?: string;
   actualEndTime?: string;

@@ -368,8 +368,6 @@ describe('Operator Customers Page', () => {
     });
 
     expect(screen.getByText('Showing 1–2 of 2 customers')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Previous page of customers' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Next page of customers' })).toBeDisabled();
 
     const firstDataRow = () => screen.getAllByRole('row')[1];
 

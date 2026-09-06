@@ -121,7 +121,7 @@ export default function CustomersAdminPage() {
     return sorted;
   }, [customers, sortBy, sortDirection]);
 
-  const { currentPage, totalPages, pageRows: pageCustomers } = getPageSlice(sortedCustomers, page, ADMIN_PAGE_SIZE);
+  const { currentPage, pageRows: pageCustomers } = getPageSlice(sortedCustomers, page, ADMIN_PAGE_SIZE);
 
   // Create customer form state
   const [name, setName] = useState('');
@@ -538,28 +538,6 @@ export default function CustomersAdminPage() {
               <p className={styles.paginationSummary} aria-live="polite">
                 {`Showing ${(currentPage - 1) * ADMIN_PAGE_SIZE + 1}–${Math.min(sortedCustomers.length, currentPage * ADMIN_PAGE_SIZE)} of ${sortedCustomers.length} customers`}
               </p>
-              <div className={styles.paginationControls}>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={currentPage <= 1}
-                  onClick={() => setPage(currentPage - 1)}
-                  aria-label="Previous page of customers"
-                >
-                  Previous
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setPage(currentPage + 1)}
-                  aria-label="Next page of customers"
-                >
-                  Next
-                </Button>
-              </div>
             </nav>
           )}
         </Card>

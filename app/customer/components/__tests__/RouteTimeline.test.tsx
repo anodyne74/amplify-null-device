@@ -11,15 +11,17 @@ describe('RouteTimeline', () => {
     createdAt: '2024-01-15T08:00:00Z',
   };
 
-  it('displays planned status timeline', () => {
+  it('displays all 6 named phases', () => {
     render(<RouteTimeline route={mockRoute} />);
-    expect(screen.getByText(/Planned/i)).toBeInTheDocument();
-    expect(screen.getByText(/Signs Placed/i)).toBeInTheDocument();
-    expect(screen.getByText(/Signs Picked Up/i)).toBeInTheDocument();
-    expect(screen.getByText(/Completed/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Planned$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Signs collected$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Signs placed$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Signs picked up$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Signs returned$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Route completed$/i)).toBeInTheDocument();
   });
 
-  it('shows signs placed status as current for in-progress routes', () => {
+  it('shows signs placed as the current phase mid-placement', () => {
     const activeRoute: Route = {
       ...mockRoute,
       status: 'in_progress',
@@ -29,10 +31,10 @@ describe('RouteTimeline', () => {
     };
 
     render(<RouteTimeline route={activeRoute} />);
-    expect(screen.getAllByText(/In Progress/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/^Signs placed$/i)).toHaveClass('stepLabelActive');
   });
 
-  it('shows completed status as current for completed routes', () => {
+  it('shows route completed as the current phase for completed routes', () => {
     const completedRoute: Route = {
       ...mockRoute,
       status: 'completed',
@@ -41,7 +43,7 @@ describe('RouteTimeline', () => {
     };
 
     render(<RouteTimeline route={completedRoute} />);
-    expect(screen.getByText(/Completed/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Route completed$/i)).toHaveClass('stepLabelActive');
   });
 
   it('handles routes with missing timestamps gracefully', () => {

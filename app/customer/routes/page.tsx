@@ -18,6 +18,7 @@ import type { Route } from '@/amplify/types';
 import { compareRouteIdDesc, compareRouteStatusAsc, formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
 import { formatRouteDate } from '@/lib/routeDetailHelpers';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
+import { getRoutePhaseKey, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS, type RoutePhaseKey } from '@/lib/signRunPhase';
 import styles from './page.module.css';
 
 // Below this width the DataTable's 5 columns don't fit sensibly (mirrors the
@@ -25,36 +26,14 @@ import styles from './page.module.css';
 // mobile layout switch) — show a stacked RouteCard list instead.
 const NARROW_LIST_BREAKPOINT_PX = 900;
 
-type ChipFilter = 'all' | 'planned' | 'active' | 'completed' | 'archived';
+type ChipFilter = RoutePhaseKey | 'all';
 
+// archived is intentionally absent — it's a legacy, soft-deprecated status
+// that now displays (and filters) identically to completed.
 const STATUS_CHIPS: { id: ChipFilter; label: string }[] = [
   { id: 'all', label: 'All' },
-  { id: 'planned', label: 'Planned' },
-  { id: 'active', label: 'Active' },
-  { id: 'completed', label: 'Completed' },
-  { id: 'archived', label: 'Archived' },
+  ...ROUTE_PHASE_KEYS.map((key) => ({ id: key, label: ROUTE_PHASE_LABELS[key] })),
 ];
-
-// Buckets a route's raw status into this page's 4 filter chips. Deliberately
-// independent of lib/routeStatusHelpers' getRouteStatusPresentation, whose
-// badgeKey now ranges over the 6 named phases (and folds archived into
-// completed) — these chips still reflect the old 4-bucket grouping, pending
-// the customer portal's own phase-model update (see the "archived" chip,
-// which the plan calls to drop next).
-function routeChipBucket(route: Route): ChipFilter {
-  switch (route.status) {
-    case 'in_progress':
-    case 'signs_placed':
-    case 'signs_picked_up':
-      return 'active';
-    case 'completed':
-      return 'completed';
-    case 'archived':
-      return 'archived';
-    default:
-      return 'planned';
-  }
-}
 
 /**
  * Customer Routes List Page
@@ -125,7 +104,7 @@ export default function CustomerRoutesPage() {
     let filtered = [...routes];
 
     if (statusFilter !== 'all') {
-      filtered = filtered.filter((route) => routeChipBucket(route) === statusFilter);
+      filtered = filtered.filter((route) => getRoutePhaseKey(route) === statusFilter);
     }
 
     const trimmedSearch = searchText.trim().toLowerCase();

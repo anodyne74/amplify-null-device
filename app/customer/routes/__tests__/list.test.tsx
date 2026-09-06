@@ -118,7 +118,7 @@ describe('Customer Routes List Page', () => {
     });
   });
 
-  it('filters routes by status', async () => {
+  it('filters routes by phase, with no separate Archived chip', async () => {
     (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
       data: mockRoutes,
       errors: undefined,
@@ -130,8 +130,14 @@ describe('Customer Routes List Page', () => {
       expect(screen.queryByText(/Loading routes/i)).not.toBeInTheDocument();
     });
 
-    // Routes page should handle filtering
-    expect(screen.getByText(/^Routes$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^Archived$/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(/^Signs placed$/i));
+
+    await waitFor(() => {
+      const routeLinks = screen.getAllByRole('link');
+      expect(routeLinks.map((link) => link.getAttribute('href'))).toEqual(['/customer/routes/route-3']);
+    });
   });
 
   it('displays correct route count for each filter', async () => {

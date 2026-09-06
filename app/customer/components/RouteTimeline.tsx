@@ -2,40 +2,37 @@
 
 import type { Route } from '@/amplify/types';
 import { Icon } from '@/app/components/ui/core/Icon';
+import { getRoutePhaseKey, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS, type RoutePhaseKey } from '@/lib/signRunPhase';
 import styles from './RouteTimeline.module.css';
 
 interface RouteTimelineProps {
   route: Route;
 }
 
+// Best-available timestamp for when each of the 6 phases was reached. Older
+// routes predate loadConfirmedAt/unloadConfirmedAt, so those two phases fall
+// back to the nearest field that was already being written at the time.
+const PHASE_TIMESTAMP: Record<RoutePhaseKey, (route: Route) => string | null | undefined> = {
+  planned: (route) => route.createdAt,
+  signs_collected: (route) => route.loadConfirmedAt ?? route.actualStartTime,
+  signs_placed: (route) => route.placementEndTime,
+  signs_picked_up: (route) => route.pickupEndTime ?? route.actualEndTime,
+  signs_returned: (route) => route.unloadConfirmedAt,
+  completed: (route) => route.updatedAt,
+};
+
 /**
  * RouteTimeline component
- * Displays the status progression timeline of a route
+ * Displays the route's progression through the 6 named phases.
  */
 export default function RouteTimeline({ route }: RouteTimelineProps) {
-  const statuses = [
-    { id: 'planned', label: 'Planned', timestamp: route.createdAt },
-    { id: 'in_progress_placement', label: 'In Progress', timestamp: route.placementStartTime ?? route.actualStartTime },
-    { id: 'signs_placed', label: 'Signs Placed', timestamp: route.placementEndTime },
-    { id: 'in_progress_pickup', label: 'In Progress', timestamp: route.pickupStartTime },
-    { id: 'signs_picked_up', label: 'Signs Picked Up', timestamp: route.pickupEndTime ?? route.actualEndTime },
-    { id: 'completed', label: 'Completed', timestamp: route.updatedAt },
-  ];
+  const statuses = ROUTE_PHASE_KEYS.map((key) => ({
+    id: key,
+    label: ROUTE_PHASE_LABELS[key],
+    timestamp: PHASE_TIMESTAMP[key](route),
+  }));
 
-  const currentStatusIndex =
-    route.status === 'archived'
-      ? 5
-      : route.status === 'completed'
-        ? 5
-        : route.status === 'signs_picked_up'
-          ? 4
-          : route.status === 'in_progress' && route.executionPhase === 'pickup'
-            ? 3
-            : route.status === 'signs_placed'
-              ? 2
-              : route.status === 'in_progress' && route.executionPhase === 'placement'
-                ? 1
-                : 0;
+  const currentStatusIndex = ROUTE_PHASE_KEYS.indexOf(getRoutePhaseKey(route));
 
   return (
     <div className={styles.steps}>

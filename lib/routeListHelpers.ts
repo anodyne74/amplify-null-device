@@ -1,22 +1,6 @@
 import type { Route } from '@/amplify/types';
+import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
 export { formatRouteDate } from '@/lib/routeDetailHelpers';
-
-type SortableRouteStatus =
-  | 'planned'
-  | 'in_progress'
-  | 'signs_placed'
-  | 'signs_picked_up'
-  | 'completed'
-  | 'archived';
-
-const routeStatusSortOrder: Record<SortableRouteStatus, number> = {
-  planned: 0,
-  in_progress: 1,
-  signs_placed: 2,
-  signs_picked_up: 3,
-  completed: 4,
-  archived: 5,
-};
 
 export function formatRouteDuration(route: Route) {
   if (typeof route.actualDurationMinutes === 'number') {
@@ -41,8 +25,8 @@ export function compareRouteIdDesc(a: Route, b: Route) {
 }
 
 export function compareRouteStatusAsc(a: Route, b: Route) {
-  const aOrder = routeStatusSortOrder[(a.status as SortableRouteStatus) ?? 'planned'] ?? 0;
-  const bOrder = routeStatusSortOrder[(b.status as SortableRouteStatus) ?? 'planned'] ?? 0;
+  const aOrder = ROUTE_PHASE_KEYS.indexOf(getRoutePhaseKey(a));
+  const bOrder = ROUTE_PHASE_KEYS.indexOf(getRoutePhaseKey(b));
 
   if (aOrder !== bOrder) {
     return aOrder - bOrder;

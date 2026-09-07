@@ -70,12 +70,6 @@
   color: var(--text-brand);
 }
 
-.emptyStateCta {
-  color: var(--text-brand);
-  font-weight: var(--fw-semibold);
-  text-decoration: none;
-}
-
 .tableWrap {
   overflow-x: auto;
 }

@@ -398,7 +398,7 @@ a:hover {
 /* ─────────────────────────────────────────────────────────────────────────────
    Buttons
    ───────────────────────────────────────────────────────────────────────────── */
-button:not(.amplify-button) {
+button:not(.amplify-button):not(.nd-btn) {
   border-radius: var(--nd-radius-md);
   border: 1px solid var(--nd-border-default);
   padding: 0.6em 1.2em;
@@ -413,11 +413,11 @@ button:not(.amplify-button) {
               background-color var(--nd-transition-fast),
               box-shadow var(--nd-transition-fast);
 }
-button:not(.amplify-button):hover {
+button:not(.amplify-button):not(.nd-btn):hover {
   border-color: var(--nd-logo-primary);
   box-shadow: var(--nd-logo-primary-glow);
 }
-button:not(.amplify-button):focus-visible {
+button:not(.amplify-button):not(.nd-btn):focus-visible {
   outline: 2px solid var(--nd-role-focus-ring);
   outline-offset: 2px;
 }
@@ -513,7 +513,7 @@ textarea:focus-visible,
     min-height: auto;
   }
 
-  button:not(.amplify-button) {
+  button:not(.amplify-button):not(.nd-btn) {
     padding: 0.5em 1em;
   }
 }

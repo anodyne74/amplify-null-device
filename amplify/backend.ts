@@ -741,7 +741,7 @@ new CfnReceiptRule(forwarderStack, 'SesReceiptRule', {
 });
 
 // ── Observability: dashboard + alarms ────────────────────────────────────────
-configureObservability(backend, branchName);
+configureObservability(backend, branchName, emailDomain);
 
 // ── Runtime SES template names ───────────────────────────────────────────────
 // AWS_BRANCH/AMPLIFY_BRANCH are only set during this CDK synth/build step --

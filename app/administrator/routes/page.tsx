@@ -158,7 +158,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       loadingMessage="Loading routes..."
       emptyMessage="No routes found. Routes you create will appear here."
       emptyAction={(
-        <Link href="/administrator/routes/new" className={styles.emptyStateCta}>
+        <Link href="/administrator/routes/new" className="nd-btn nd-btn--primary nd-btn--md">
           Create your first route
         </Link>
       )}

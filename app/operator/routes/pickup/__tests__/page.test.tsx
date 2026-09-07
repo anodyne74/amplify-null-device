@@ -168,7 +168,7 @@ describe('Operator Pickup page', () => {
     expect(screen.getByRole('button', { name: 'Signs Picked Up' })).toBeInTheDocument();
   });
 
-  it('advances the phase to unload and returns to Today after the last stop', async () => {
+  it('shows a confirm-to-finish state after the last stop, without advancing the phase yet', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute(),
       stops: [baseStops()[0]],
@@ -179,6 +179,28 @@ describe('Operator Pickup page', () => {
     await screen.findByText('PICKUP · STOP 1 OF 1');
 
     fireEvent.click(screen.getByRole('button', { name: /signs picked up/i }));
+
+    expect(await screen.findByText('All stops done')).toBeInTheDocument();
+    expect(screen.getByText('Route complete')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /complete pickup/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^skip$/i })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /sign missing/i })).not.toBeInTheDocument();
+    expect(updateRouteExecution).not.toHaveBeenCalledWith('route-1', expect.objectContaining({ executionPhase: 'unload' }));
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('advances the phase to unload and returns to Today once the driver confirms', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: baseRoute(),
+      stops: [baseStops()[0]],
+      errors: [],
+    });
+
+    render(<OperatorPickupPage />);
+    await screen.findByText('PICKUP · STOP 1 OF 1');
+
+    fireEvent.click(screen.getByRole('button', { name: /signs picked up/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /complete pickup/i }));
 
     await waitFor(() => {
       expect(updateRouteExecution).toHaveBeenCalledWith(

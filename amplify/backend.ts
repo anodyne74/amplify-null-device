@@ -10,6 +10,7 @@ import { storage } from './storage/resource';
 import { customerAccessActivation } from './functions/customer-access-activation/resource';
 import { operatorStatusActivation } from './functions/operator-status-activation/resource';
 import { configureObservability } from './observability/resource';
+import { branchName, emailDomain } from './shared/branch';
 
 const backend = defineBackend({ auth, data, storage, customerAccessActivation, operatorStatusActivation });
 
@@ -28,26 +29,9 @@ backend.auth.resources.cfnResources.cfnUserPool.userPoolAddOns = {
 	advancedSecurityMode: 'AUDIT',
 };
 
-function sanitizeNamePart(value: string, fallback: string) {
-	const cleaned = value
-		.toLowerCase()
-		.replace(/[^a-z0-9-]+/g, '-')
-		.replace(/-+/g, '-')
-		.replace(/^-+|-+$/g, '');
-	return cleaned || fallback;
-}
-
 function withMaxLength(value: string, max: number) {
 	return value.length <= max ? value : value.slice(0, max);
 }
-
-const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || 'dev', 'dev');
-// The app is deployed on two domains split by branch: nulldevice.com.au for
-// `main`/production, nulldevice.dev for everything else (`development` and
-// any preview branches). Used below for the SES inbound rule's recipient
-// addresses -- those must match whichever domain the branch actually
-// receives mail on, not be hardcoded to production's domain.
-const emailDomain = branchName === 'main' ? 'nulldevice.com.au' : 'nulldevice.dev';
 
 // Cognito's own emails (forgot-password codes, sign-up verification codes,
 // admin-created-user temp passwords) default to its built-in "COGNITO_DEFAULT"

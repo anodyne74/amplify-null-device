@@ -55,26 +55,28 @@ export default function CustomerUserTableRow({
       </td>
       <td className={styles.mono}>{formatRelativeDay(row.lastSeen)}</td>
       <td className={styles.manageCell}>
-        {isActive ? (
-          <Button type="button" variant="secondary" size="sm" onClick={onChangeRole} aria-label={`Change role for ${row.name}`}>
-            Change role
+        <div className={styles.manageCellActions}>
+          {isActive ? (
+            <Button type="button" variant="secondary" size="sm" onClick={onChangeRole} aria-label={`Change role for ${row.name}`}>
+              Change role
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              loading={resending}
+              disabled={resending}
+              onClick={onResend}
+              aria-label={`Resend invite to ${row.name}`}
+            >
+              {resending ? 'Resending...' : 'Resend'}
+            </Button>
+          )}
+          <Button type="button" variant="ghost" size="sm" onClick={onRevoke} aria-label={`Revoke access for ${row.name}`}>
+            Revoke
           </Button>
-        ) : (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            loading={resending}
-            disabled={resending}
-            onClick={onResend}
-            aria-label={`Resend invite to ${row.name}`}
-          >
-            {resending ? 'Resending...' : 'Resend'}
-          </Button>
-        )}
-        <Button type="button" variant="ghost" size="sm" onClick={onRevoke} aria-label={`Revoke access for ${row.name}`}>
-          Revoke
-        </Button>
+        </div>
       </td>
     </tr>
   );

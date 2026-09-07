@@ -6,7 +6,6 @@ import ConfirmDialog from '@/app/components/ConfirmDialog';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { useAdminTableSort, type SortDirection } from '@/app/components/AdminDataTable';
-import { ADMIN_PAGE_SIZE, getPageSlice } from '@/app/components/AdminPagination';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
@@ -213,11 +212,6 @@ export default function UsersAdminPage() {
 
   const { sortBy: usersSortBy, sortDirection: usersSortDirection, toggleSort: toggleUsersSort } =
     useAdminTableSort<CustomerUserSortKey>();
-  const [usersPage, setUsersPage] = useState(1);
-
-  useEffect(() => {
-    setUsersPage(1);
-  }, [usersSortBy, usersSortDirection]);
 
   const sortedCustomerUserRows = useMemo(() => {
     if (!usersSortBy) return customerUserRows;
@@ -233,12 +227,6 @@ export default function UsersAdminPage() {
     if (usersSortDirection === 'desc') sorted.reverse();
     return sorted;
   }, [customerUserRows, usersSortBy, usersSortDirection]);
-
-  const {
-    currentPage: usersCurrentPage,
-    totalPages: usersTotalPages,
-    pageRows: pageCustomerUserRows,
-  } = getPageSlice(sortedCustomerUserRows, usersPage, ADMIN_PAGE_SIZE);
 
   // ── Customer Access ──────────────────────────────────────────────
   const loadCustomers = useCallback(async () => {
@@ -723,61 +711,32 @@ export default function UsersAdminPage() {
             ) : sortedCustomerUserRows.length === 0 ? (
               <p className={styles.mutedText}>No customer users yet -- invite one to get started.</p>
             ) : (
-              <>
-                <div className={styles.tableWrap}>
-                  <table className="nd-table nd-table--hoverable" aria-label="All customer users">
-                    <thead>
-                      <tr>
-                        <SortableHeader label="User" sortKey="name" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
-                        <SortableHeader label="Customer" sortKey="customer" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
-                        <SortableHeader label="Role" sortKey="role" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
-                        <SortableHeader label="Status" sortKey="status" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
-                        <th scope="col">Last seen</th>
-                        <th scope="col">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pageCustomerUserRows.map((row) => (
-                        <CustomerUserTableRow
-                          key={row.id}
-                          row={row}
-                          resending={resendingId === row.id}
-                          onChangeRole={() => openEditDialog(row)}
-                          onResend={() => void handleResendInvite(row)}
-                          onRevoke={() => setRemovalTarget(row)}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <nav className={styles.paginationBar} aria-label="customer users pagination">
-                  <p className={styles.paginationSummary} aria-live="polite">
-                    {`Showing ${(usersCurrentPage - 1) * ADMIN_PAGE_SIZE + 1}–${Math.min(sortedCustomerUserRows.length, usersCurrentPage * ADMIN_PAGE_SIZE)} of ${sortedCustomerUserRows.length} users`}
-                  </p>
-                  <div className={styles.paginationControls}>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      disabled={usersCurrentPage <= 1}
-                      onClick={() => setUsersPage(usersCurrentPage - 1)}
-                      aria-label="Previous page of customer users"
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      disabled={usersCurrentPage >= usersTotalPages}
-                      onClick={() => setUsersPage(usersCurrentPage + 1)}
-                      aria-label="Next page of customer users"
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </nav>
-              </>
+              <div className={styles.tableWrap}>
+                <table className="nd-table nd-table--hoverable" aria-label="All customer users">
+                  <thead>
+                    <tr>
+                      <SortableHeader label="User" sortKey="name" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
+                      <SortableHeader label="Customer" sortKey="customer" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
+                      <SortableHeader label="Role" sortKey="role" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
+                      <SortableHeader label="Status" sortKey="status" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
+                      <th scope="col">Last seen</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedCustomerUserRows.map((row) => (
+                      <CustomerUserTableRow
+                        key={row.id}
+                        row={row}
+                        resending={resendingId === row.id}
+                        onChangeRole={() => openEditDialog(row)}
+                        onResend={() => void handleResendInvite(row)}
+                        onRevoke={() => setRemovalTarget(row)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </Card>
 

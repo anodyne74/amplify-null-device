@@ -7,6 +7,7 @@ import OperatorShell from '@/app/operator/components/OperatorShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/queries';
+import { useLogout } from '@/app/auth/sessionManager';
 
 const OPERATOR_NAV = [
   { href: '/operator/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
@@ -22,7 +23,8 @@ const OPERATOR_NAV = [
  * operator accent variant. Responsive: collapsible sidebar on mobile.
  */
 export default function OperatorLayout({ children }: { children: React.ReactNode }) {
-  const { signOut, user } = useAuthenticator();
+  const { user } = useAuthenticator();
+  const { logout } = useLogout();
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
   const [userDisplayName, setUserDisplayName] = useState('');
   const { setMode: applyThemeMode } = useThemeMode();
@@ -71,7 +73,7 @@ export default function OperatorLayout({ children }: { children: React.ReactNode
 
   return (
     <OperatorRoute>
-      <OperatorShell navItems={OPERATOR_NAV} userEmail={userDisplayName} onLogout={signOut}>
+      <OperatorShell navItems={OPERATOR_NAV} userEmail={userDisplayName} onLogout={logout}>
         {children}
       </OperatorShell>
     </OperatorRoute>

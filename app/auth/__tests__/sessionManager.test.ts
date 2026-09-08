@@ -67,7 +67,9 @@ describe('Session Management', () => {
         expect(mockSignOut).toHaveBeenCalled();
       });
 
-      expect(mockPush).toHaveBeenCalledWith('/');
+      await waitFor(() => {
+        expect(window.location.href).toBe('http://localhost/');
+      });
     });
 
     it('does not timeout if activity occurs within timeout period', async () => {
@@ -135,7 +137,7 @@ describe('Session Management', () => {
       });
 
       expect(mockSignOut).toHaveBeenCalled();
-      expect(mockPush).toHaveBeenCalledWith('/');
+      expect(window.location.href).toBe('http://localhost/');
     });
 
     it('handles signOut errors gracefully', async () => {
@@ -144,12 +146,15 @@ describe('Session Management', () => {
 
       const { result } = renderHook(() => useLogout());
 
-      // Should not throw
+      // Should not throw, and should still navigate away even though
+      // signOut() failed -- getting the user off the current page is more
+      // important than a clean sign-out.
       await act(async () => {
         await result.current.logout();
       });
 
       expect(mockSignOut).toHaveBeenCalled();
+      expect(window.location.href).toBe('http://localhost/');
       consoleErrorSpy.mockRestore();
     });
 

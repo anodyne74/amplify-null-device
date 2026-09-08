@@ -7,6 +7,7 @@ import AdminShell from '@/app/administrator/components/AdminShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/queries';
+import { useLogout } from '@/app/auth/sessionManager';
 
 const ADMIN_NAV = [
   { href: '/administrator', label: 'Admin Home', icon: 'layout-dashboard' },
@@ -27,7 +28,8 @@ const ADMIN_NAV = [
  * Responsive design: collapsible sidebar on mobile, fixed on desktop.
  */
 export default function AdministratorLayout({ children }: { children: React.ReactNode }) {
-  const { signOut, user } = useAuthenticator();
+  const { user } = useAuthenticator();
+  const { logout } = useLogout();
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
   const [userDisplayName, setUserDisplayName] = useState('');
   const { setMode: applyThemeMode } = useThemeMode();
@@ -76,7 +78,7 @@ export default function AdministratorLayout({ children }: { children: React.Reac
 
   return (
     <OperatorRoute requireAdmin>
-      <AdminShell navItems={ADMIN_NAV} userEmail={userDisplayName} onLogout={signOut}>
+      <AdminShell navItems={ADMIN_NAV} userEmail={userDisplayName} onLogout={logout}>
         {children}
       </AdminShell>
     </OperatorRoute>

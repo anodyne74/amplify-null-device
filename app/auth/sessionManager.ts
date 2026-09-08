@@ -4,7 +4,6 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
@@ -15,7 +14,6 @@ const INACTIVITY_CHECK_INTERVAL_MS = 1000; // Check every second
  * Logs out user after 30 minutes of inactivity
  */
 export function useSessionTimeout() {
-  const router = useRouter();
   const { signOut } = useAuthenticator();
   const lastActivityRef = useRef<number>(Date.now());
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -38,9 +36,10 @@ export function useSessionTimeout() {
     // Sign out from Cognito
     await signOut();
 
-    // Redirect to login page
-    router.push('/');
-  }, [signOut, router]);
+    // Hard navigation, not router.push -- see useLogout() below for why.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = '/';
+  }, [signOut]);
 
   /**
    * Check if session has timed out
@@ -102,17 +101,26 @@ export function useSessionTimeout() {
  * Provides a way to manually logout the user
  */
 export function useLogout() {
-  const router = useRouter();
   const { signOut } = useAuthenticator();
 
   const logout = useCallback(async () => {
     try {
       await signOut();
-      router.push('/');
     } catch (error) {
       console.error('Error during logout:', error);
     }
-  }, [signOut, router]);
+    // Hard navigation rather than router.push('/'): signOut()'s promise
+    // resolves once it dispatches the Authenticator machine's SIGN_OUT
+    // event, not once every authStatus subscriber (root page, route
+    // guards) has re-rendered with the new 'unauthenticated' snapshot. A
+    // client-side push can land before that propagates, so the freshly
+    // mounted root page reads a stale 'authenticated' status and redirects
+    // straight back into the portal -- looking like logout silently failed
+    // (worse, and needing repeated attempts, on slower/mobile devices). A
+    // full navigation always re-reads auth state fresh from storage.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = '/';
+  }, [signOut]);
 
   return { logout };
 }

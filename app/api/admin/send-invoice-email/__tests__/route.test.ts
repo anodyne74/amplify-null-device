@@ -33,8 +33,12 @@ jest.mock('@aws-sdk/client-ses', () => ({
   }),
 }));
 
-jest.mock('aws-amplify/data', () => ({
-  generateClient: () => ({
+// lib/server/iamDataClient re-exports generateClient's return value wired
+// with real IAM credentials -- mocked wholesale here so tests never import
+// its @aws-sdk/credential-provider-node dependency (which pulls in an
+// ESM-only build jest's CJS transform can't load).
+jest.mock('@/lib/server/iamDataClient', () => ({
+  getIamDataClient: () => ({
     models: {
       Invoice: {
         get: invoiceGetMock,

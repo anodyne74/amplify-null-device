@@ -29,6 +29,35 @@ backend.auth.resources.cfnResources.cfnUserPool.userPoolAddOns = {
 	advancedSecurityMode: 'AUDIT',
 };
 
+// ── Grant the shared SSR compute role access to this branch's AppSync API ───
+// Several Next.js API routes (sync-profile-access, invite-user, and parts of
+// send-invoice-email/send-job-assigned-email) call
+// generateClient({ authMode: 'iam' }) to run with elevated data access from
+// inside SSR request handlers -- see the "getDataClient()" comment in each of
+// those routes for why. AWS_IAM is already enabled as an additional
+// authentication provider on this API (Amplify turns it on automatically for
+// the allow.resource() Lambda grants below), but nothing previously granted
+// the SSR compute role itself permission to call it -- every IAM-signed
+// GraphQL request from those routes was silently rejected. Since those
+// routes only destructure `data` (not `errors`) from the client response,
+// the rejection surfaced as misleading "not found" 404s (e.g.
+// sync-profile-access returning "No customer mapping found for this user"
+// for accounts that had a mapping all along) rather than an auth error.
+//
+// AmplifyHostingSSRCompute is a single IAM role Amplify Hosting creates once
+// per AWS account/region and shares across every Web Compute app's SSR
+// runtime -- it isn't created by this stack, so it's imported by name rather
+// than referenced via `backend.*`. The grant below is scoped to this
+// branch's own AppSync API ARN, so it doesn't widen access for any other
+// Amplify app using the same shared role.
+const ssrComputeRole = Role.fromRoleName(
+	Stack.of(backend.data.resources.graphqlApi),
+	'AmplifyHostingSSRComputeRole',
+	'AmplifyHostingSSRCompute',
+);
+backend.data.resources.graphqlApi.grantMutation(ssrComputeRole);
+backend.data.resources.graphqlApi.grantQuery(ssrComputeRole);
+
 function withMaxLength(value: string, max: number) {
 	return value.length <= max ? value : value.slice(0, max);
 }

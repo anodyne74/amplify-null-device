@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SendTemplatedEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
-import { Amplify } from 'aws-amplify';
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
+import { getIamDataClient } from '@/lib/server/iamDataClient';
 import outputs from '@/amplify_outputs.json';
 import { getCustomer } from '@/lib/queries';
 import { APP_DOMAIN } from '@/lib/publicAppConfig';
@@ -27,17 +25,9 @@ const jobAssignedTemplateName = process.env.SES_JOB_ASSIGNED_TEMPLATE_NAME || de
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
 const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
 
-let _client: ReturnType<typeof generateClient<Schema>> | null = null;
-function getDataClient() {
-  if (!_client) {
-    // See sync-profile-access/route.ts for why this configure() + authMode:
-    // 'iam' pairing is required -- without it, generateClient() runs against
-    // an empty resourcesConfig and every call silently fails.
-    Amplify.configure(outputs);
-    _client = generateClient<Schema>({ authMode: 'iam' });
-  }
-  return _client;
-}
+// See lib/server/iamDataClient.ts for why this needs to be a real IAM
+// signature (execution-role credentials), not just an enabled auth mode.
+const getDataClient = getIamDataClient;
 
 type VerifiedClaims = {
   sub?: string;

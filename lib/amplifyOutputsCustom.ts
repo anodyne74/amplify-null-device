@@ -19,6 +19,7 @@ export interface AmplifyOutputsCustom {
   sesInvoiceTemplateName?: string;
   sesInvitationTemplateName?: string;
   sesStaffInvitationTemplateName?: string;
+  sesInboundRuleSetName?: string;
 }
 
 export const customOutputs: AmplifyOutputsCustom =

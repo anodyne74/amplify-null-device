@@ -7,6 +7,7 @@ backend:
         - npm run preflight:ampx
         - npx ampx pipeline-deploy --app-id "$AWS_APP_ID" --branch "$AWS_BRANCH"
         - node scripts/ensure-cognito-groups.js
+        - node scripts/ensure-ses-active-ruleset.js
 frontend:
   phases:
     preBuild:

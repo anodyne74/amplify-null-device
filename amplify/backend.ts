@@ -750,6 +750,15 @@ forwarderFunction.addPermission('AllowSESInvoke', {
 	sourceAccount: forwarderStack.account,
 });
 
+// CloudFormation can create a receipt rule set, but SES only ever delivers
+// through whichever ONE rule set is marked "active" for the account/region --
+// and nothing in CDK/CloudFormation sets that. Since rule sets are branch-scoped
+// (a new one is created per branch, never reused), a fresh branch's rules just
+// sit inert unless something flips SES's active-rule-set pointer to it. That's
+// what scripts/ensure-ses-active-ruleset.js (wired into amplify.yml after this
+// deploy step) does -- mirroring how scripts/ensure-cognito-groups.js handles
+// the equivalent "CDK created it, but something else has to be told about it"
+// gap for Cognito groups.
 const receiptRuleSet = new CfnReceiptRuleSet(forwarderStack, 'SesReceiptRuleSet', {
 	ruleSetName: inboundRuleSetName,
 });
@@ -783,5 +792,6 @@ backend.addOutput({
 		sesInvoiceTemplateName: invoiceTemplateName,
 		sesInvitationTemplateName: invitationTemplateName,
 		sesStaffInvitationTemplateName: staffInvitationTemplateName,
+		sesInboundRuleSetName: inboundRuleSetName,
 	},
 });

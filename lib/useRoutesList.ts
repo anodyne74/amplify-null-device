@@ -21,6 +21,7 @@ export function useRoutesList(canDeleteRoutes: boolean) {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [deletingRouteId, setDeletingRouteId] = useState<string | null>(null);
+  const [routePendingDelete, setRoutePendingDelete] = useState<Route | null>(null);
 
   useEffect(() => {
     async function fetchRoutes() {
@@ -61,14 +62,18 @@ export function useRoutesList(canDeleteRoutes: boolean) {
     [routes, statusFilter]
   );
 
+  function requestDeleteRoute(route: Route) {
+    if (!canDeleteRoutes || deletingRouteId) return;
+    setRoutePendingDelete(route);
+  }
+
+  function cancelDeleteRoute() {
+    if (deletingRouteId) return;
+    setRoutePendingDelete(null);
+  }
+
   async function handleDeleteRoute(route: Route) {
     if (!canDeleteRoutes || deletingRouteId) return;
-
-    const routeLabel = route.routeCode || route.id.slice(0, 8);
-    const confirmed = window.confirm(
-      `Delete route ${routeLabel}? This will also delete all stops on the route.`
-    );
-    if (!confirmed) return;
 
     setDeletingRouteId(route.id);
     setError(null);
@@ -77,20 +82,25 @@ export function useRoutesList(canDeleteRoutes: boolean) {
     if (result.errors && result.errors.length > 0) {
       setError('Failed to delete route.');
       setDeletingRouteId(null);
+      setRoutePendingDelete(null);
       return;
     }
 
     setRoutes((prev) => prev.filter((currentRoute) => currentRoute.id !== route.id));
     setDeletingRouteId(null);
+    setRoutePendingDelete(null);
   }
 
   return {
+    cancelDeleteRoute,
     customersById,
     deletingRouteId,
     error,
     filteredRoutes,
     handleDeleteRoute,
     loading,
+    requestDeleteRoute,
+    routePendingDelete,
     statusFilter,
     setStatusFilter,
   };

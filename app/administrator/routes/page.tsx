@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import AsyncState from '@/app/components/AsyncState';
 import OperatorRoute from '@/app/components/OperatorRoute';
+import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { isAdmin } from '@/lib/amplify-config';
 import { useRoutesList, ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
 import { formatRouteDate, formatRouteDuration } from '@/lib/routeListHelpers';
@@ -33,12 +34,15 @@ interface RoutesListSectionProps {
  */
 function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps) {
   const {
+    cancelDeleteRoute,
     customersById,
     deletingRouteId,
     error,
     filteredRoutes,
     handleDeleteRoute,
     loading,
+    requestDeleteRoute,
+    routePendingDelete,
     setStatusFilter,
     statusFilter,
   } = useRoutesList(canDeleteRoutes);
@@ -138,7 +142,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
                 size="sm"
                 variant="danger"
                 loading={deletingRouteId === route.id}
-                onClick={() => void handleDeleteRoute(route)}
+                onClick={() => requestDeleteRoute(route)}
                 aria-label={`Delete route ${routeLabel}`}
               >
                 {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
@@ -228,6 +232,19 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
           </div>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={routePendingDelete !== null}
+        title="Delete route?"
+        message={`Delete route ${routePendingDelete?.routeCode || routePendingDelete?.id.slice(0, 8)}? This will also delete all stops on the route.`}
+        confirmLabel="Delete"
+        tone="danger"
+        busy={deletingRouteId === routePendingDelete?.id}
+        onConfirm={() => {
+          if (routePendingDelete) void handleDeleteRoute(routePendingDelete);
+        }}
+        onCancel={cancelDeleteRoute}
+      />
     </AsyncState>
   );
 }

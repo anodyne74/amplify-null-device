@@ -202,6 +202,13 @@ export function RouteStopsMap({
         maxZoom: 20,
       }).addTo(map);
 
+      // Themes without their own styled tile source (e.g. 'light'/'dark') derive
+      // their look from the OSM standard tiles via a CSS filter on the tile pane.
+      const tilePane = map.getPane('tilePane');
+      if (tilePane) {
+        tilePane.style.filter = selectedMapTheme.tileFilter || '';
+      }
+
       mappedStops.forEach((stop) => {
         const isCompleted = Boolean(stop.actualDepartureTime);
         const isActive = stop.id === activeStop.id;

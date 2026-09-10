@@ -5,20 +5,29 @@ export interface MapThemeDefinition {
   label: string;
   tileUrl: string;
   attribution: string;
+  /** Optional CSS `filter` applied to the tile pane to derive this theme's look
+   *  from a key-free tile source (see 'light'/'dark' below). */
+  tileFilter?: string;
 }
 
+// CARTO's basemaps.cartocdn.com raster tiles (light_all/dark_all) started requiring
+// a registered API key and now serve an "API KEY REQUIRED" watermark for anonymous
+// requests. 'light' and 'dark' are derived from the still-anonymous OSM standard
+// tile source instead, styled via CSS filter on the tile pane (see RouteStopsMap).
 export const MAP_THEMES: MapThemeDefinition[] = [
   {
     key: 'light',
     label: 'Light',
-    tileUrl: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    tileUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap contributors',
+    tileFilter: 'grayscale(20%) brightness(1.05) contrast(0.95)',
   },
   {
     key: 'dark',
     label: 'Dark',
-    tileUrl: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    tileUrl: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap contributors',
+    tileFilter: 'invert(100%) hue-rotate(180deg) brightness(0.95) contrast(0.9)',
   },
   {
     key: 'streets',

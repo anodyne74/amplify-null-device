@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { signOut } from 'aws-amplify/auth';
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const INACTIVITY_CHECK_INTERVAL_MS = 1000; // Check every second
@@ -14,7 +14,6 @@ const INACTIVITY_CHECK_INTERVAL_MS = 1000; // Check every second
  * Logs out user after 30 minutes of inactivity
  */
 export function useSessionTimeout() {
-  const { signOut } = useAuthenticator();
   const lastActivityRef = useRef<number>(Date.now());
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -39,7 +38,7 @@ export function useSessionTimeout() {
     // Hard navigation, not router.push -- see useLogout() below for why.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = '/';
-  }, [signOut]);
+  }, []);
 
   /**
    * Check if session has timed out
@@ -101,26 +100,35 @@ export function useSessionTimeout() {
  * Provides a way to manually logout the user
  */
 export function useLogout() {
-  const { signOut } = useAuthenticator();
-
   const logout = useCallback(async () => {
     try {
+      // Call aws-amplify/auth's signOut() directly rather than the
+      // signOut() exposed by useAuthenticator(). The latter is just
+      // `send({ type: 'SIGN_OUT' })` -- a synchronous dispatch to the
+      // Authenticator's XState machine that returns void, not a promise
+      // tied to completion. `await`-ing it resolves on the next
+      // microtask regardless of whether the machine's invoked signOut
+      // service (which does the real work: revoking the refresh token,
+      // clearing tokens from storage) has actually finished. The hard
+      // navigation below then fires before that work completes, tearing
+      // down the page mid-signOut and leaving the session tokens intact
+      // in localStorage -- so the freshly loaded '/' reads a still-valid
+      // session and redirects straight back into the portal, looking
+      // like logout silently failed. Awaiting the real signOut() from
+      // aws-amplify/auth guarantees storage is actually cleared first.
       await signOut();
     } catch (error) {
       console.error('Error during logout:', error);
     }
-    // Hard navigation rather than router.push('/'): signOut()'s promise
-    // resolves once it dispatches the Authenticator machine's SIGN_OUT
-    // event, not once every authStatus subscriber (root page, route
-    // guards) has re-rendered with the new 'unauthenticated' snapshot. A
-    // client-side push can land before that propagates, so the freshly
-    // mounted root page reads a stale 'authenticated' status and redirects
-    // straight back into the portal -- looking like logout silently failed
-    // (worse, and needing repeated attempts, on slower/mobile devices). A
-    // full navigation always re-reads auth state fresh from storage.
+    // Hard navigation rather than router.push('/'): a client-side push
+    // can land before every authStatus subscriber (root page, route
+    // guards) has re-rendered with the new 'unauthenticated' snapshot,
+    // so the freshly mounted root page reads a stale 'authenticated'
+    // status and redirects straight back into the portal. A full
+    // navigation always re-reads auth state fresh from storage.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = '/';
-  }, [signOut]);
+  }, []);
 
   return { logout };
 }

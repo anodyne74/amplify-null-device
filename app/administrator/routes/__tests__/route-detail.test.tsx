@@ -207,8 +207,7 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByRole('button', { name: /add stop/i })).toBeInTheDocument();
   });
 
-  it('calls deleteStop in one click after the browser confirm is accepted', async () => {
-    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
+  it('calls deleteStop after confirming in the dialog', async () => {
     render(<RouteDetailPage />);
 
     await waitFor(() => {
@@ -218,16 +217,20 @@ describe('Operator Route Detail Page', () => {
     const stopDeleteButtons = screen.getAllByRole('button', { name: /^delete$/i });
     fireEvent.click(stopDeleteButtons[0]);
 
-    expect(confirmSpy).toHaveBeenCalled();
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete stop?' });
+    expect(deleteStopModule.deleteStop).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
     await waitFor(() => {
       expect(deleteStopModule.deleteStop).toHaveBeenCalledWith('stop-1');
     });
-
-    confirmSpy.mockRestore();
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    });
   });
 
-  it('does not call deleteStop when the browser confirm is dismissed', async () => {
-    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
+  it('does not call deleteStop when the confirmation dialog is cancelled', async () => {
     render(<RouteDetailPage />);
 
     await waitFor(() => {
@@ -237,10 +240,11 @@ describe('Operator Route Detail Page', () => {
     const stopDeleteButtons = screen.getAllByRole('button', { name: /^delete$/i });
     fireEvent.click(stopDeleteButtons[0]);
 
-    expect(confirmSpy).toHaveBeenCalled();
-    expect(deleteStopModule.deleteStop).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete stop?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
-    confirmSpy.mockRestore();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(deleteStopModule.deleteStop).not.toHaveBeenCalled();
   });
 
   it('shows a read-only phase tracker for planned routes instead of transition buttons', async () => {

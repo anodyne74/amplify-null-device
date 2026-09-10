@@ -9,6 +9,7 @@ import { Tag } from '@/app/components/ui/core/Tag';
 import { Button } from '@/app/components/ui/core/Button';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { isAdmin } from '@/lib/amplify-config';
 import { useRoutesList, ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
 import { formatRouteDate, formatRouteDuration } from '@/lib/routeListHelpers';
@@ -28,12 +29,15 @@ export default function OperatorRoutesPage() {
   const canDeleteRoutes = isAdmin(user);
 
   const {
+    cancelDeleteRoute,
     customersById,
     deletingRouteId,
     error,
     filteredRoutes,
     handleDeleteRoute,
     loading,
+    requestDeleteRoute,
+    routePendingDelete,
     setStatusFilter,
     statusFilter,
   } = useRoutesList(canDeleteRoutes);
@@ -94,7 +98,7 @@ export default function OperatorRoutesPage() {
                 size="sm"
                 variant="danger"
                 loading={deletingRouteId === route.id}
-                onClick={() => void handleDeleteRoute(route)}
+                onClick={() => requestDeleteRoute(route)}
               >
                 {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
               </Button>
@@ -134,6 +138,19 @@ export default function OperatorRoutesPage() {
         <Card padded={false}>
           <DataTable columns={columns} rows={filteredRoutes} wrapped={false} empty="No routes found." />
         </Card>
+
+        <ConfirmDialog
+          open={routePendingDelete !== null}
+          title="Delete route?"
+          message={`Delete route ${routePendingDelete?.routeCode || routePendingDelete?.id.slice(0, 8)}? This will also delete all stops on the route.`}
+          confirmLabel="Delete"
+          tone="danger"
+          busy={deletingRouteId === routePendingDelete?.id}
+          onConfirm={() => {
+            if (routePendingDelete) void handleDeleteRoute(routePendingDelete);
+          }}
+          onCancel={cancelDeleteRoute}
+        />
       </div>
     </OperatorRoute>
   );

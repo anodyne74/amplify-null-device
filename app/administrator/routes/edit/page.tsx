@@ -7,6 +7,7 @@ import { useAuthenticator } from '@aws-amplify/ui-react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { StopForm } from '@/app/operator/components/StopForm';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
@@ -91,6 +92,7 @@ function RouteEditContent() {
   const [dragOverStopId, setDragOverStopId] = useState<string | null>(null);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [stopError, setStopError] = useState<string | null>(null);
+  const [stopPendingDelete, setStopPendingDelete] = useState<Stop | null>(null);
 
   const [routeCode, setRouteCode] = useState('');
   const [customerId, setCustomerId] = useState('');
@@ -458,11 +460,6 @@ function RouteEditContent() {
 
   const handleDeleteStop = async (stopId: string) => {
     if (stopSaving) return;
-    const stop = stops.find((s) => s.id === stopId);
-    const confirmed = window.confirm(
-      `Delete stop${stop?.address ? ` at ${stop.address}` : ''}?`
-    );
-    if (!confirmed) return;
 
     setStopSaving(true);
     setStopError(null);
@@ -471,12 +468,14 @@ function RouteEditContent() {
     if (result.errors && result.errors.length > 0) {
       setStopError('Failed to delete stop.');
       setStopSaving(false);
+      setStopPendingDelete(null);
       return;
     }
 
     const remaining = stops.filter((stop) => stop.id !== stopId);
     await persistStopOrder(remaining);
     setStopSaving(false);
+    setStopPendingDelete(null);
   };
 
   const handleDropStop = async (targetId: string) => {
@@ -764,12 +763,10 @@ function RouteEditContent() {
                           type="button"
                           size="sm"
                           variant="danger"
-                          onClick={() => {
-                            void handleDeleteStop(stop.id);
-                          }}
+                          onClick={() => setStopPendingDelete(stop)}
                           disabled={stopSaving}
                         >
-                          {stopSaving ? 'Deleting...' : 'Delete'}
+                          Delete
                         </Button>
                       </div>
                     </div>
@@ -790,6 +787,21 @@ function RouteEditContent() {
           </aside>
         </div>
       </Card>
+
+      <ConfirmDialog
+        open={stopPendingDelete !== null}
+        title="Delete stop?"
+        message={`Delete stop${stopPendingDelete?.address ? ` at ${stopPendingDelete.address}` : ''}?`}
+        confirmLabel="Delete"
+        tone="danger"
+        busy={stopSaving}
+        onConfirm={() => {
+          if (stopPendingDelete) void handleDeleteStop(stopPendingDelete.id);
+        }}
+        onCancel={() => {
+          if (!stopSaving) setStopPendingDelete(null);
+        }}
+      />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import type { Schema } from '@/amplify/data/resource';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
+import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { StopForm } from '@/app/operator/components/StopForm';
 import StopCard from '@/app/administrator/components/StopCard';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
@@ -231,10 +232,12 @@ function RouteDetailContent() {
   const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
   const [dragOverStopId, setDragOverStopId] = useState<string | null>(null);
   const [deletingStopId, setDeletingStopId] = useState<string | null>(null);
+  const [stopPendingDelete, setStopPendingDelete] = useState<Stop | null>(null);
   const [reordering, setReordering] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
 
   const [deletingRoute, setDeletingRoute] = useState(false);
+  const [routePendingDelete, setRoutePendingDelete] = useState(false);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [savingBillingOverrides, setSavingBillingOverrides] = useState(false);
   const [billingOverrideError, setBillingOverrideError] = useState<string | null>(null);
@@ -608,11 +611,6 @@ function RouteDetailContent() {
     if (!canManagePlanning || deletingStopId) {
       return;
     }
-    const stop = stops.find((s) => s.id === stopId);
-    const confirmed = window.confirm(
-      `Delete stop${stop?.address ? ` at ${stop.address}` : ''}?`
-    );
-    if (!confirmed) return;
 
     setDeletingStopId(stopId);
     setReorderError(null);
@@ -635,6 +633,7 @@ function RouteDetailContent() {
       setReorderError('Failed to delete stop. Please try again.');
     } finally {
       setDeletingStopId(null);
+      setStopPendingDelete(null);
     }
   };
 
@@ -691,11 +690,6 @@ function RouteDetailContent() {
   const handleDeleteRoute = async () => {
     if (!route || !canManagePlanning || deletingRoute) return;
 
-    const confirmed = window.confirm(
-      `Delete route ${route.routeCode || route.id.slice(0, 8)}? This will also delete all stops on the route.`
-    );
-    if (!confirmed) return;
-
     setDeletingRoute(true);
     setError(null);
 
@@ -703,6 +697,7 @@ function RouteDetailContent() {
     if (result.errors && result.errors.length > 0) {
       setError('Failed to delete route.');
       setDeletingRoute(false);
+      setRoutePendingDelete(false);
       return;
     }
 
@@ -840,9 +835,7 @@ function RouteDetailContent() {
                     size="sm"
                     variant="danger"
                     loading={deletingRoute}
-                    onClick={() => {
-                      void handleDeleteRoute();
-                    }}
+                    onClick={() => setRoutePendingDelete(true)}
                   >
                     {deletingRoute ? 'Deleting...' : 'Delete Route'}
                   </Button>
@@ -864,7 +857,7 @@ function RouteDetailContent() {
                 <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{formatElapsedMinutes(routeDurationMinutes)}</span>
               </div>
               <div className="nd-stat">
-                <span className="nd-stat__label">Kilometers</span>
+                <span className="nd-stat__label">{route.status === 'planned' ? 'Estimated Kilometers' : 'Kilometers'}</span>
                 <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${kilometersTravelled.toFixed(2)} km`}</span>
               </div>
               <div className="nd-stat">
@@ -1268,10 +1261,10 @@ function RouteDetailContent() {
                           size="sm"
                           variant="danger"
                           loading={deletingStopId === stop.id}
-                          onClick={() => { void handleDeleteStop(stop.id); }}
+                          onClick={() => setStopPendingDelete(stop)}
                           disabled={reordering || !!deletingStopId}
                         >
-                          {deletingStopId === stop.id ? 'Deleting...' : 'Delete'}
+                          Delete
                         </Button>
                       </div>
                     );
@@ -1355,6 +1348,34 @@ function RouteDetailContent() {
           </div>
         </>
       )}
+
+      <ConfirmDialog
+        open={stopPendingDelete !== null}
+        title="Delete stop?"
+        message={`Delete stop${stopPendingDelete?.address ? ` at ${stopPendingDelete.address}` : ''}?`}
+        confirmLabel="Delete"
+        tone="danger"
+        busy={deletingStopId === stopPendingDelete?.id}
+        onConfirm={() => {
+          if (stopPendingDelete) void handleDeleteStop(stopPendingDelete.id);
+        }}
+        onCancel={() => {
+          if (!deletingStopId) setStopPendingDelete(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={routePendingDelete}
+        title="Delete route?"
+        message={`Delete route ${route?.routeCode || route?.id.slice(0, 8)}? This will also delete all stops on the route.`}
+        confirmLabel="Delete"
+        tone="danger"
+        busy={deletingRoute}
+        onConfirm={() => void handleDeleteRoute()}
+        onCancel={() => {
+          if (!deletingRoute) setRoutePendingDelete(false);
+        }}
+      />
     </div>
   );
 }

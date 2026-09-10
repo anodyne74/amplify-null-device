@@ -59,8 +59,6 @@ describe('useRoutesList', () => {
     });
 
     (deleteRoute as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
-
-    jest.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -117,7 +115,7 @@ describe('useRoutesList', () => {
     expect(result.current.filteredRoutes.map((route) => route.id)).toEqual(['route-2', 'route-1']);
   });
 
-  it('deletes a route when confirmed and permitted', async () => {
+  it('deletes a route when permitted', async () => {
     const { result } = renderHook(() => useRoutesList(true));
 
     await waitFor(() => {
@@ -146,7 +144,6 @@ describe('useRoutesList', () => {
       await result.current.handleDeleteRoute(result.current.filteredRoutes[0]);
     });
 
-    expect(window.confirm).not.toHaveBeenCalled();
     expect(deleteRoute).not.toHaveBeenCalled();
   });
 
@@ -174,9 +171,24 @@ describe('useRoutesList', () => {
     expect(result.current.filteredRoutes.map((route) => route.id)).toEqual(initialIds);
   });
 
-  it('does not delete route when user cancels confirmation', async () => {
-    (window.confirm as jest.Mock).mockReturnValue(false);
+  it('tracks a route pending delete confirmation without deleting it', async () => {
+    const { result } = renderHook(() => useRoutesList(true));
 
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    const targetRoute = result.current.filteredRoutes[0];
+
+    act(() => {
+      result.current.requestDeleteRoute(targetRoute);
+    });
+
+    expect(result.current.routePendingDelete).toEqual(targetRoute);
+    expect(deleteRoute).not.toHaveBeenCalled();
+  });
+
+  it('clears the pending route when the delete is cancelled', async () => {
     const { result } = renderHook(() => useRoutesList(true));
 
     await waitFor(() => {
@@ -185,14 +197,30 @@ describe('useRoutesList', () => {
 
     const initialIds = result.current.filteredRoutes.map((route) => route.id);
 
-    await act(async () => {
-      await result.current.handleDeleteRoute(result.current.filteredRoutes[0]);
+    act(() => {
+      result.current.requestDeleteRoute(result.current.filteredRoutes[0]);
+    });
+    act(() => {
+      result.current.cancelDeleteRoute();
     });
 
-    expect(window.confirm).toHaveBeenCalled();
+    expect(result.current.routePendingDelete).toBeNull();
     expect(deleteRoute).not.toHaveBeenCalled();
     expect(result.current.error).toBeNull();
-    expect(result.current.deletingRouteId).toBeNull();
     expect(result.current.filteredRoutes.map((route) => route.id)).toEqual(initialIds);
+  });
+
+  it('does not request a pending delete when user cannot delete', async () => {
+    const { result } = renderHook(() => useRoutesList(false));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    act(() => {
+      result.current.requestDeleteRoute(result.current.filteredRoutes[0]);
+    });
+
+    expect(result.current.routePendingDelete).toBeNull();
   });
 });

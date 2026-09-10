@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import CustomerLayout from '../layout';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
+import { signOut } from 'aws-amplify/auth';
 import { getCustomerPortalContext } from '@/lib/queries';
 
 // Mock the router
@@ -27,6 +28,9 @@ jest.mock('aws-amplify/auth', () => ({
       },
     },
   })),
+  // useLogout() calls this directly rather than going through
+  // useAuthenticator() -- see app/auth/sessionManager.ts for why.
+  signOut: jest.fn(),
 }));
 
 // Mock the ProtectedRoute component
@@ -59,14 +63,14 @@ describe('Customer Session Management Integration', () => {
     jest.clearAllMocks();
 
     mockPush = jest.fn();
-    mockSignOut = jest.fn().mockResolvedValue(undefined);
+    mockSignOut = signOut as jest.Mock;
+    mockSignOut.mockResolvedValue(undefined);
 
     (useRouter as jest.Mock).mockReturnValue({
       push: mockPush,
     });
 
     (useAuthenticator as jest.Mock).mockReturnValue({
-      signOut: mockSignOut,
       user: {
         userId: 'test-user-id',
         signInUserSession: {

@@ -3,6 +3,7 @@ import { SendTemplatedEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { getIamDataClient } from '@/lib/server/iamDataClient';
 import outputs from '@/amplify_outputs.json';
+import { customOutputs } from '@/lib/amplifyOutputsCustom';
 import { getCustomer } from '@/lib/queries';
 import { APP_DOMAIN } from '@/lib/publicAppConfig';
 
@@ -17,11 +18,16 @@ function sanitizeNamePart(value: string, fallback: string) {
   return cleaned || fallback;
 }
 
+// process.env.AWS_BRANCH/AMPLIFY_BRANCH aren't set in the SSR runtime, so this
+// reconstruction is a last-resort fallback -- see lib/amplifyOutputsCustom.ts.
 const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || '', '');
-const defaultJobAssignedTemplateName = branchName
+const fallbackJobAssignedTemplateName = branchName
   ? `NullDeviceJobAssignedTemplate-${branchName}`
   : 'NullDeviceJobAssignedTemplate';
-const jobAssignedTemplateName = process.env.SES_JOB_ASSIGNED_TEMPLATE_NAME || defaultJobAssignedTemplateName;
+const jobAssignedTemplateName =
+  process.env.SES_JOB_ASSIGNED_TEMPLATE_NAME ||
+  customOutputs.sesJobAssignedTemplateName ||
+  fallbackJobAssignedTemplateName;
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
 const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
 

@@ -17,6 +17,7 @@ import outputs from '@/amplify_outputs.json';
  */
 export interface AmplifyOutputsCustom {
   sesInvoiceTemplateName?: string;
+  sesJobAssignedTemplateName?: string;
   sesInvitationTemplateName?: string;
   sesStaffInvitationTemplateName?: string;
   sesInboundRuleSetName?: string;

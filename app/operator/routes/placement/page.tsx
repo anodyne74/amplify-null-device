@@ -332,6 +332,7 @@ export default function OperatorPlacementPage() {
         )}
       </div>
 
+      <div className={stopCardStyles.actionBarSpacer} aria-hidden="true" />
       <div className={stopCardStyles.actionBar}>
         <button
           type="button"

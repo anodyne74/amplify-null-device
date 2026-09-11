@@ -790,6 +790,7 @@ configureObservability(backend, branchName, emailDomain);
 backend.addOutput({
 	custom: {
 		sesInvoiceTemplateName: invoiceTemplateName,
+		sesJobAssignedTemplateName: jobAssignedTemplateName,
 		sesInvitationTemplateName: invitationTemplateName,
 		sesStaffInvitationTemplateName: staffInvitationTemplateName,
 		sesInboundRuleSetName: inboundRuleSetName,

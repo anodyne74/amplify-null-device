@@ -10,6 +10,15 @@
   gap: var(--space-5);
 }
 
+/* On phones, the Route Execution card is the whole point of this screen --
+   drop the summary tiles so operators land straight on their routes instead
+   of scrolling past stats. */
+@media (max-width: 768px) {
+  .statsGrid {
+    display: none;
+  }
+}
+
 .trackerList {
   display: flex;
   flex-direction: column;

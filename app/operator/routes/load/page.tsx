@@ -21,7 +21,12 @@ interface AgentBreakdownRow {
 
 /** Distinct stop.agent values, first-appearance (sequence) order — stops.list
  * from getRouteWithStops is already sorted by sequence. No-agent stops are
- * pooled under "Unassigned", shown only if any exist. */
+ * pooled under "Unassigned", shown only if any exist.
+ *
+ * Every auction property's signs are all timed (they all carry the auction
+ * date/time). A non-auction property gets exactly one timed sign -- the main
+ * board, which carries the viewing-times rider -- and any remaining signs are
+ * blank. */
 function buildBreakdown(stops: Stop[]): AgentBreakdownRow[] {
   const rows: AgentBreakdownRow[] = [];
   const indexByName = new Map<string, number>();
@@ -37,8 +42,12 @@ function buildBreakdown(stops: Stop[]): AgentBreakdownRow[] {
       indexByName.set(name, idx);
       rows.push({ name, timed: 0, blank: 0 });
     }
-    if (stop.isAuction) rows[idx].timed += signs;
-    else rows[idx].blank += signs;
+    if (stop.isAuction) {
+      rows[idx].timed += signs;
+    } else {
+      rows[idx].timed += 1;
+      rows[idx].blank += signs - 1;
+    }
   }
 
   return rows;

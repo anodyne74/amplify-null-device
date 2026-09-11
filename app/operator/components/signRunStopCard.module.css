@@ -220,10 +220,41 @@
   color: var(--text-body);
 }
 
+/* Pinned to the bottom of the viewport so Skip/Complete are always reachable
+ * without scrolling — this is a phone-in-hand flow at a property, not a desk
+ * screen. .actionBarSpacer reserves the same height in normal flow, rendered
+ * immediately before .actionBar in Placement/Pickup's JSX, so the fixed bar
+ * doesn't cover the last stop card or "Then" list item. Height there must be
+ * kept in sync with the min-height/padding below. */
 .actionBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
   display: grid;
   grid-template-columns: 1fr 2fr;
   gap: var(--space-3);
+  padding: var(--space-4) var(--gutter-page-sm);
+  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface-page);
+  border-top: var(--border-hairline) solid var(--border-subtle);
+  box-shadow: var(--shadow-lg);
+}
+
+.actionBarSpacer {
+  height: calc(58px + var(--space-4) * 2 + env(safe-area-inset-bottom, 0px));
+}
+
+/* Desktop/tablet: the sidebar is in normal flow (not an off-canvas overlay)
+ * at this breakpoint -- see OperatorShell.module.css -- so the fixed bar
+ * needs to start past it instead of running full width underneath it. */
+@media (min-width: 769px) {
+  .actionBar {
+    left: var(--sidebar-w);
+    padding-left: var(--gutter-page);
+    padding-right: var(--gutter-page);
+  }
 }
 
 .skipButton {

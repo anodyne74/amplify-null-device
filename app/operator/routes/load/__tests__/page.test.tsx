@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import OperatorLoadPage from '../page';
 import { getRouteWithStops, getCustomer, updateRouteExecution } from '@/lib/queries';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
@@ -70,6 +70,33 @@ describe('Operator Load page', () => {
     expect(screen.getByText('Unassigned')).toBeInTheDocument();
     expect(screen.getByText('45 signs')).toBeInTheDocument();
     expect(screen.getByText(/load not confirmed/i)).toBeInTheDocument();
+  });
+
+  it('splits each property into 1 timed sign + remaining blank, except auctions which are all timed', async () => {
+    const stops: Stop[] = [
+      { id: 's1', routeId: 'route-1', sequence: 1, agent: 'Rachel Morrow', numberOfSigns: 5, isAuction: false } as Stop,
+      { id: 's2', routeId: 'route-1', sequence: 2, agent: 'Rachel Morrow', numberOfSigns: 3, isAuction: false } as Stop,
+      { id: 's3', routeId: 'route-1', sequence: 3, agent: 'Jem Tran', numberOfSigns: 5, isAuction: true } as Stop,
+    ];
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops, errors: [] });
+
+    render(<OperatorLoadPage />);
+    await screen.findByText('13 signs to load');
+
+    // Rachel Morrow: two non-auction properties (5 signs, 3 signs) -> 1 timed each = 2 timed, (4 + 2) = 6 blank.
+    const rachelRow = screen.getByText('Rachel Morrow').closest('div');
+    expect(rachelRow).not.toBeNull();
+    const rachelValues = within(rachelRow as HTMLElement).getAllByText(/^\d+$/);
+    expect(rachelValues.map((el) => el.textContent)).toEqual(['2', '6']);
+
+    // Jem Tran: one 5-sign auction property -> all 5 timed, 0 blank.
+    const jemRow = screen.getByText('Jem Tran').closest('div');
+    expect(jemRow).not.toBeNull();
+    const jemValues = within(jemRow as HTMLElement).getAllByText(/^\d+$/);
+    expect(jemValues.map((el) => el.textContent)).toEqual(['5', '0']);
+
+    // Totals: 2 + 5 = 7 timed, 6 + 0 = 6 blank.
+    expect(screen.getByText('13 signs')).toBeInTheDocument();
   });
 
   it('confirms the load, advances the phase, and returns to Today', async () => {

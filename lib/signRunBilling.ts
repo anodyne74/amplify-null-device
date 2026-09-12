@@ -27,6 +27,12 @@ export function round5(minutes: number): number {
   return Math.max(5, Math.round(minutes / 5) * 5);
 }
 
+/** "HH:MM" in en-AU 24-hour time — the stamp shown on the Start/Complete confirm dialog
+ * and the "Load/Unload started" line once a phase has started. */
+export function formatClockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+}
+
 /** The initial billed value for a phase before the operator adjusts it — the measured
  * time rounded to the nearest 5 minutes, floored at that phase's minimum charge. */
 export function defaultBilledMinutes(phase: RouteExecutionPhase, measuredMinutes: number): number {
@@ -34,24 +40,24 @@ export function defaultBilledMinutes(phase: RouteExecutionPhase, measuredMinutes
 }
 
 export interface PhaseTimestamps {
-  actualStartTime?: string | null;
+  loadStartedAt?: string | null;
   loadConfirmedAt?: string | null;
   placementStartTime?: string | null;
   placementEndTime?: string | null;
   pickupStartTime?: string | null;
   pickupEndTime?: string | null;
+  unloadStartedAt?: string | null;
   unloadConfirmedAt?: string | null;
 }
 
-/** Raw elapsed minutes for each phase, from its own start/end pair. There's no dedicated
- * "sign return" start marker — unload is timed from the end of pickup to its own
- * confirmation. A phase that hasn't both started and finished measures 0. */
+/** Raw elapsed minutes for each phase, from its own start/end pair. A phase that hasn't
+ * both started and finished measures 0. */
 export function measuredPhaseMinutes(route: PhaseTimestamps): Record<RouteExecutionPhase, number> {
   return {
-    load: minutesBetween(route.actualStartTime, route.loadConfirmedAt),
+    load: minutesBetween(route.loadStartedAt, route.loadConfirmedAt),
     placement: minutesBetween(route.placementStartTime, route.placementEndTime),
     pickup: minutesBetween(route.pickupStartTime, route.pickupEndTime),
-    unload: minutesBetween(route.pickupEndTime, route.unloadConfirmedAt),
+    unload: minutesBetween(route.unloadStartedAt, route.unloadConfirmedAt),
   };
 }
 

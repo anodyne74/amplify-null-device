@@ -48,19 +48,21 @@ jest.mock('@/app/operator/components/RouteStopsMap', () => ({
 // Route-level timestamps are pinned to fixed values (rather than left as the real
 // `new Date().toISOString()` each screen actually passes) so the elapsed spans between
 // them — and therefore Finalise's measured-minutes defaults — are deterministic.
-const T0 = '2026-08-31T08:00:00.000Z'; // load confirmed / actual start
+const T0 = '2026-08-31T08:00:00.000Z'; // load started / confirmed / actual start
 const T1 = '2026-08-31T08:05:00.000Z'; // placement start
 const T2 = '2026-08-31T08:25:00.000Z'; // placement end (20 min)
 const T3 = '2026-08-31T08:30:00.000Z'; // pickup start
-const T4 = '2026-08-31T08:42:00.000Z'; // pickup end (12 min)
+const T4 = '2026-08-31T08:42:00.000Z'; // pickup end / unload started (12 min pickup)
 const T5 = '2026-08-31T09:00:00.000Z'; // unload confirmed / actual end (18 min after T4)
 const FIXED_TIMES: Record<string, string> = {
   actualStartTime: T0,
+  loadStartedAt: T0,
   loadConfirmedAt: T0,
   placementStartTime: T1,
   placementEndTime: T2,
   pickupStartTime: T3,
   pickupEndTime: T4,
+  unloadStartedAt: T4,
   unloadConfirmedAt: T5,
   actualEndTime: T5,
 };
@@ -143,17 +145,26 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     const load = render(<OperatorLoadPage />);
     expect(await screen.findByText('40 signs to load')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /confirm 40 signs loaded/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start load' }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    await waitFor(() => expect(store.route.loadStartedAt).toBe(T0));
+    expect(store.route.actualStartTime).toBe(T0);
+
+    fireEvent.click(await screen.findByRole('button', { name: /confirm 40 signs loaded/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
     expect(store.route.loadedSignsCount).toBe(40);
     expect(store.route.executionPhase).toBe('placement');
     expect(store.route.loadConfirmedAt).toBe(T0);
-    expect(store.route.actualStartTime).toBe(T0);
     load.unmount();
     push.mockClear();
 
     // --- Placement: place s1 and s2, skip s3 --------------------------
     const placement = render(<OperatorPlacementPage />);
+    expect(await screen.findByText('3 stops to place')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start placement' }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     expect(await screen.findByText('PLACEMENT · STOP 1 OF 3')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /signs placed/i }));
@@ -168,6 +179,7 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
 
     // All stops settled — the phase doesn't close until the driver confirms.
     fireEvent.click(await screen.findByRole('button', { name: /complete placement/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
     expect(store.route.executionPhase).toBe('pickup');
@@ -178,6 +190,10 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
 
     // --- Pickup: pick up s1, log a missing sign then pick up s2, skip s3 --
     const pickup = render(<OperatorPickupPage />);
+    expect(await screen.findByText('3 stops to pick up')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start pickup' }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     expect(await screen.findByText('PICKUP · STOP 1 OF 3')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /signs picked up/i }));
@@ -194,6 +210,7 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
 
     // All stops settled — the phase doesn't close until the driver confirms.
     fireEvent.click(await screen.findByRole('button', { name: /complete pickup/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
     expect(store.route.executionPhase).toBe('unload');
@@ -213,7 +230,12 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     expect(screen.getByText('1 stops')).toBeInTheDocument();
     expect(screen.getByText('40 loaded · 22 returned · 1 reported missing · 17 still on site.')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /confirm 22 signs returned/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start unload' }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    await waitFor(() => expect(store.route.unloadStartedAt).toBe(T4));
+
+    fireEvent.click(await screen.findByRole('button', { name: /confirm 22 signs returned/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
     expect(store.route.unloadConfirmedAt).toBe(T5);
     expect(store.route.actualEndTime).toBe(T5);

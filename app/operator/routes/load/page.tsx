@@ -6,9 +6,11 @@ import Link from 'next/link';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
+import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { getRouteWithStops, getCustomer, updateRouteExecution } from '@/lib/queries';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { getSignRunPhase } from '@/lib/signRunPhase';
+import { formatClockTime } from '@/lib/signRunBilling';
 import type { Route, Stop } from '@/amplify/types';
 import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
@@ -63,8 +65,9 @@ export default function OperatorLoadPage() {
   const [customerName, setCustomerName] = useState('');
   const [yardAddress, setYardAddress] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [confirming, setConfirming] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<{ kind: 'start' | 'confirm'; time: string } | null>(null);
 
   useEffect(() => {
     if (!routeId) {
@@ -112,23 +115,49 @@ export default function OperatorLoadPage() {
   );
   const totalSigns = totals.timed + totals.blank;
 
-  const handleConfirm = async () => {
+  const openDialog = (kind: 'start' | 'confirm') => setDialog({ kind, time: new Date().toISOString() });
+  const closeDialog = () => {
+    if (!submitting) setDialog(null);
+  };
+
+  const handleStartLoad = async (iso: string) => {
     if (!route) return;
-    setConfirming(true);
+    setSubmitting(true);
     setError(null);
 
-    const now = new Date().toISOString();
     const result = await updateRouteExecution(route.id, {
-      loadConfirmedAt: now,
+      loadStartedAt: iso,
+      actualStartTime: route.actualStartTime ?? iso,
+    });
+
+    setSubmitting(false);
+    if (result.errors && result.errors.length > 0) {
+      setError('Could not start the load. Try again.');
+      return;
+    }
+
+    setRoute((prev) =>
+      prev ? { ...prev, loadStartedAt: iso, actualStartTime: prev.actualStartTime ?? iso } : prev
+    );
+    setDialog(null);
+  };
+
+  const handleConfirmLoad = async (iso: string) => {
+    if (!route) return;
+    setSubmitting(true);
+    setError(null);
+
+    const result = await updateRouteExecution(route.id, {
+      loadConfirmedAt: iso,
       loadedSignsCount: totalSigns,
       executionPhase: 'placement',
       status: route.status === 'planned' ? 'in_progress' : route.status ?? 'in_progress',
-      actualStartTime: route.actualStartTime ?? now,
     });
 
     if (result.errors && result.errors.length > 0) {
       setError('Could not confirm the load. Try again.');
-      setConfirming(false);
+      setSubmitting(false);
+      setDialog(null);
       return;
     }
 
@@ -211,23 +240,66 @@ export default function OperatorLoadPage() {
         </div>
       </div>
 
-      {!route.loadConfirmedAt && (
+      {!route.loadStartedAt && (
+        <div className={styles.startPanel}>Tap start once you&apos;re at the yard to begin loading.</div>
+      )}
+
+      {route.loadStartedAt && (
+        <div className={styles.stampLine}>Load started {formatClockTime(route.loadStartedAt)}</div>
+      )}
+
+      {route.loadStartedAt && !route.loadConfirmedAt && (
         <div className={styles.warningPanel}>
           Load not confirmed — stops still open, but the yard time may not bill.
         </div>
       )}
 
-      <button type="button" className={`${shellStyles.primaryButton} ${styles.primaryButton}`} onClick={() => void handleConfirm()} disabled={confirming}>
-        {confirming ? 'Confirming…' : `Confirm ${totalSigns} signs loaded`}
-      </button>
-      <button type="button" className={shellStyles.secondaryButton} onClick={handleRecount} disabled={confirming}>
-        Count differs — recount
-      </button>
+      {!route.loadStartedAt ? (
+        <button
+          type="button"
+          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          onClick={() => openDialog('start')}
+          disabled={submitting}
+        >
+          Start load
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+            onClick={() => openDialog('confirm')}
+            disabled={submitting}
+          >
+            {`Confirm ${totalSigns} signs loaded`}
+          </button>
+          <button type="button" className={shellStyles.secondaryButton} onClick={handleRecount} disabled={submitting}>
+            Count differs — recount
+          </button>
+        </>
+      )}
 
       <p className={shellStyles.footnote}>
-        Confirming returns you to the main screen with the route on phase 2. Charged time is set on Finalise, not
-        here.
+        Start and complete both confirm in a dialog showing the time. Completing returns you to the main screen with
+        the route on phase 2; charged time is set on Finalise.
       </p>
+
+      <ConfirmDialog
+        open={dialog !== null}
+        time={dialog ? formatClockTime(dialog.time) : ''}
+        title={dialog?.kind === 'start' ? 'Start load' : 'Complete load'}
+        summary={
+          dialog?.kind === 'start'
+            ? `Starting load of ${totalSigns} signs at ${yardAddress ?? 'the yard'}.`
+            : `${totalSigns} signs loaded at ${yardAddress ?? 'the yard'}.`
+        }
+        busy={submitting}
+        onCancel={closeDialog}
+        onOk={() => {
+          if (!dialog) return;
+          void (dialog.kind === 'start' ? handleStartLoad(dialog.time) : handleConfirmLoad(dialog.time));
+        }}
+      />
     </div>
   );
 }

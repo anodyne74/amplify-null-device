@@ -96,13 +96,53 @@ describe('Operator Unload page', () => {
     expect(screen.getByText('45 loaded · 22 returned · 2 reported missing · 21 still on site.')).toBeInTheDocument();
   });
 
-  it('confirms the unload and returns to Today', async () => {
+  it('starts the unload through the confirm dialog, then shows the stamp and the confirm step', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
 
     render(<OperatorUnloadPage />);
     await screen.findByText('22 signs to return');
 
+    fireEvent.click(screen.getByRole('button', { name: 'Start unload' }));
+
+    expect(screen.getByText(/starting unload at/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    await waitFor(() => {
+      expect(updateRouteExecution).toHaveBeenCalledWith(
+        'route-1',
+        expect.objectContaining({ unloadStartedAt: expect.any(String) })
+      );
+    });
+    expect(await screen.findByText(/^Unload started/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /confirm 22 signs returned/i })).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('cancelling the start dialog leaves the unload unstarted', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+
+    render(<OperatorUnloadPage />);
+    await screen.findByText('22 signs to return');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start unload' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(updateRouteExecution).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Start unload' })).toBeInTheDocument();
+  });
+
+  it('confirms the unload and returns to Today', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: baseRoute({ unloadStartedAt: '2026-09-12T07:37:00.000Z' }),
+      stops: baseStops(),
+      errors: [],
+    });
+
+    render(<OperatorUnloadPage />);
+    await screen.findByText('22 signs to return');
+
     fireEvent.click(screen.getByRole('button', { name: /confirm 22 signs returned/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
       expect(updateRouteExecution).toHaveBeenCalledWith(
@@ -115,7 +155,7 @@ describe('Operator Unload page', () => {
 
   it('does not overwrite an already-recorded actualEndTime', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
-      route: baseRoute({ actualEndTime: '2026-08-31T09:00:00.000Z' }),
+      route: baseRoute({ unloadStartedAt: '2026-09-12T07:37:00.000Z', actualEndTime: '2026-08-31T09:00:00.000Z' }),
       stops: baseStops(),
       errors: [],
     });
@@ -124,6 +164,7 @@ describe('Operator Unload page', () => {
     await screen.findByText('22 signs to return');
 
     fireEvent.click(screen.getByRole('button', { name: /confirm 22 signs returned/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
       expect(updateRouteExecution).toHaveBeenCalledWith(

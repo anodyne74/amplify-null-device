@@ -9,8 +9,10 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { Card } from '@/app/components/ui/core/Card';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
+import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { getRouteWithStops, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
 import { getSignRunPhase } from '@/lib/signRunPhase';
+import { formatClockTime } from '@/lib/signRunBilling';
 import { getAgentBadgeInitials } from '@/lib/customerDefaults';
 import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } from '@/lib/routeDetailHelpers';
 import {
@@ -75,7 +77,8 @@ export default function OperatorPickupPage() {
   const [missingLogging, setMissingLogging] = useState<Record<string, boolean>>({});
   const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
   const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
-  const [completingPhase, setCompletingPhase] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [dialog, setDialog] = useState<{ kind: 'start' | 'complete'; time: string } | null>(null);
 
   useEffect(() => {
     if (!routeId) {
@@ -110,12 +113,27 @@ export default function OperatorPickupPage() {
   const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
   const isPickupScreen = route && phaseInfo && phaseInfo.phaseIdx === 2 && stops.length > 0;
 
-  // There's no separate "start driving" button in this flow — opening this screen is
-  // the accurate "start" moment, so record it lazily the first time we land here.
-  useEffect(() => {
-    if (!route || route.pickupStartTime || !isPickupScreen) return;
-    void updateRouteExecution(route.id, { pickupStartTime: new Date().toISOString() });
-  }, [route, isPickupScreen]);
+  const openDialog = (kind: 'start' | 'complete') => setDialog({ kind, time: new Date().toISOString() });
+  const closeDialog = () => {
+    if (!submitting) setDialog(null);
+  };
+
+  const handleStartPickup = async (iso: string) => {
+    if (!route) return;
+    setSubmitting(true);
+    setError(null);
+
+    const { errors } = await updateRouteExecution(route.id, { pickupStartTime: iso });
+
+    setSubmitting(false);
+    if (errors && errors.length > 0) {
+      setError('Could not start pickup. Try again.');
+      return;
+    }
+
+    setRoute((prev) => (prev ? { ...prev, pickupStartTime: iso } : prev));
+    setDialog(null);
+  };
 
   const openStops = useMemo(() => stops.filter((stop) => !isStopCompletedForPhase(stop, 'pickup')), [stops]);
   const currentStop = openStops[0] ?? null;
@@ -257,24 +275,29 @@ export default function OperatorPickupPage() {
   // driver on this screen with a "confirm to finish" state (see the glass card and
   // primary button below) and only closes pickup out, advancing the route to unload,
   // once they explicitly tap through.
-  const handleCompletePhase = useCallback(async () => {
-    if (!route) return;
-    setCompletingPhase(true);
-    try {
-      const { errors } = await updateRouteExecution(route.id, {
-        executionPhase: 'unload',
-        pickupEndTime: new Date().toISOString(),
-      });
-      if (!errors || errors.length === 0) {
-        router.push('/operator/dashboard');
-        return;
+  const handleCompletePhase = useCallback(
+    async (iso: string) => {
+      if (!route) return;
+      setSubmitting(true);
+      setError(null);
+      try {
+        const { errors } = await updateRouteExecution(route.id, {
+          executionPhase: 'unload',
+          pickupEndTime: iso,
+        });
+        if (!errors || errors.length === 0) {
+          router.push('/operator/dashboard');
+          return;
+        }
+        setError('Could not close out pickup. Try again.');
+      } catch {
+        setError('Could not close out pickup. Try again.');
       }
-      setError('Could not close out pickup. Try again.');
-    } catch {
-      setError('Could not close out pickup. Try again.');
-    }
-    setCompletingPhase(false);
-  }, [route, router]);
+      setSubmitting(false);
+      setDialog(null);
+    },
+    [route, router]
+  );
 
   if (!routeId) {
     return (
@@ -308,6 +331,54 @@ export default function OperatorPickupPage() {
   }
 
   const total = stops.length;
+
+  if (!route.pickupStartTime) {
+    return (
+      <div className={shellStyles.page}>
+        <Breadcrumbs
+          items={[
+            { label: 'Today', href: '/operator/dashboard' },
+            { label: `${route.routeCode || route.id.slice(0, 8)} · Pickup` },
+          ]}
+        />
+
+        {error && <div className={shellStyles.errorBanner}>{error}</div>}
+
+        <div className={shellStyles.kickerRow}>
+          <span className={shellStyles.kicker}>{phaseInfo.phaseKicker}</span>
+          {customerName && <span className={shellStyles.customer}>{customerName}</span>}
+        </div>
+        <h2 className={shellStyles.title}>{total} stops to pick up</h2>
+
+        <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+
+        <div className={styles.startPanel}>Tap start once you&apos;re on the road to begin pickup.</div>
+
+        <button
+          type="button"
+          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          onClick={() => openDialog('start')}
+          disabled={submitting}
+        >
+          Start pickup
+        </button>
+
+        <ConfirmDialog
+          open={dialog !== null}
+          time={dialog ? formatClockTime(dialog.time) : ''}
+          title="Start pickup"
+          summary={`Starting pickup for ${total} stops at ${customerName || 'this route'}.`}
+          busy={submitting}
+          onCancel={closeDialog}
+          onOk={() => {
+            if (!dialog) return;
+            void handleStartPickup(dialog.time);
+          }}
+        />
+      </div>
+    );
+  }
+
   const settledCount = total - openStops.length;
   const missingCount = currentStop?.missingSignsCount ?? 0;
   // Caps at `total` once every stop is settled — otherwise the counter overshoots to
@@ -453,35 +524,44 @@ export default function OperatorPickupPage() {
 
       <div className={stopCardStyles.actionBarSpacer} aria-hidden="true" />
       <div className={stopCardStyles.actionBar}>
+        {currentStop && (
+          <button
+            type="button"
+            className={stopCardStyles.skipButton}
+            onClick={() => openStopSheet(currentStop.id, 'reason')}
+            disabled={!!stopExecuting[currentStop.id]}
+          >
+            Skip
+          </button>
+        )}
         <button
           type="button"
-          className={stopCardStyles.skipButton}
-          onClick={() => currentStop && openStopSheet(currentStop.id, 'reason')}
-          disabled={!currentStop || !!stopExecuting[currentStop.id]}
-        >
-          Skip
-        </button>
-        <button
-          type="button"
-          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          className={`${shellStyles.primaryButton} ${styles.primaryButton} ${stopCardStyles.primaryAction}`}
           onClick={() => {
             if (currentStop) {
               void handleStopCompleted(currentStop.id);
             } else {
-              void handleCompletePhase();
+              openDialog('complete');
             }
           }}
-          disabled={currentStop ? !!stopExecuting[currentStop.id] : completingPhase}
+          disabled={currentStop ? !!stopExecuting[currentStop.id] : submitting}
         >
-          {currentStop
-            ? stopExecuting[currentStop.id]
-              ? 'Saving…'
-              : 'Signs picked up'
-            : completingPhase
-            ? 'Completing…'
-            : 'Complete pickup'}
+          {currentStop ? (stopExecuting[currentStop.id] ? 'Saving…' : 'Signs picked up') : 'Complete pickup'}
         </button>
       </div>
+
+      <ConfirmDialog
+        open={dialog !== null}
+        time={dialog ? formatClockTime(dialog.time) : ''}
+        title="Complete pickup"
+        summary={`This closes pickup for ${route.routeCode} and returns you to Today.`}
+        busy={submitting}
+        onCancel={closeDialog}
+        onOk={() => {
+          if (!dialog) return;
+          void handleCompletePhase(dialog.time);
+        }}
+      />
 
       <StopCompletionDialog
         stop={actionSheetStop}

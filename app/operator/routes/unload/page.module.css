@@ -30,6 +30,13 @@
   color: var(--text-body);
 }
 
+.stampLine {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
 /* Combined with signRunShell's .primaryButton at the JSX level — see that
  * file's header comment for why font-size is split out like this. */
 .primaryButton {

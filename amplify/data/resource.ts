@@ -205,8 +205,14 @@ const schema = a.schema({
       // fields into overrideDurationMinutes, and its distance adjuster writes
       // overrideDistanceKm above, so invoicing/payouts read those existing fields
       // unchanged and need no awareness of the sign-run flow.
+      // Stamped when the driver taps "Start load"/"Start unload" and confirms the dialog —
+      // paired with loadConfirmedAt/unloadConfirmedAt to measure billed time (see
+      // lib/signRunBilling.ts measuredPhaseMinutes). Placement/pickup don't need an
+      // equivalent field: placementStartTime/pickupStartTime below already serve that role.
+      loadStartedAt: a.datetime(),
       loadConfirmedAt: a.datetime(),
       loadedSignsCount: a.integer(), // Confirmed at Load — may differ from the sum of Stop.numberOfSigns after a recount
+      unloadStartedAt: a.datetime(),
       unloadConfirmedAt: a.datetime(),
       billedLoadMinutes: a.integer(),
       billedPlacementMinutes: a.integer(),

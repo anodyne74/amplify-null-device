@@ -573,8 +573,10 @@ export interface RouteExecutionUpdateInput {
   actualDurationMinutes?: number;
   signsPlacedDistanceKm?: number;
   signsPickedUpDistanceKm?: number;
+  loadStartedAt?: string;
   loadConfirmedAt?: string;
   loadedSignsCount?: number;
+  unloadStartedAt?: string;
   unloadConfirmedAt?: string;
   billedLoadMinutes?: number;
   billedPlacementMinutes?: number;

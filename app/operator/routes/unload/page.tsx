@@ -6,9 +6,11 @@ import Link from 'next/link';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
+import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { getRouteWithStops, getCustomer, updateRouteExecution } from '@/lib/queries';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { getSignRunPhase } from '@/lib/signRunPhase';
+import { formatClockTime } from '@/lib/signRunBilling';
 import { isStopCompletedForPhase, isStopSkippedForPhase } from '@/lib/stopExecutionMarkers';
 import type { Route, Stop } from '@/amplify/types';
 import shellStyles from '../signRunShell.module.css';
@@ -59,8 +61,9 @@ export default function OperatorUnloadPage() {
   const [customerName, setCustomerName] = useState('');
   const [yardAddress, setYardAddress] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [confirming, setConfirming] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<{ kind: 'start' | 'confirm'; time: string } | null>(null);
 
   useEffect(() => {
     if (!routeId) {
@@ -99,20 +102,42 @@ export default function OperatorUnloadPage() {
   const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
   const reconciliation = useMemo(() => (route ? buildReconciliation(route, stops) : null), [route, stops]);
 
-  const handleConfirm = async () => {
+  const openDialog = (kind: 'start' | 'confirm') => setDialog({ kind, time: new Date().toISOString() });
+  const closeDialog = () => {
+    if (!submitting) setDialog(null);
+  };
+
+  const handleStartUnload = async (iso: string) => {
     if (!route) return;
-    setConfirming(true);
+    setSubmitting(true);
     setError(null);
 
-    const now = new Date().toISOString();
+    const result = await updateRouteExecution(route.id, { unloadStartedAt: iso });
+
+    setSubmitting(false);
+    if (result.errors && result.errors.length > 0) {
+      setError('Could not start the unload. Try again.');
+      return;
+    }
+
+    setRoute((prev) => (prev ? { ...prev, unloadStartedAt: iso } : prev));
+    setDialog(null);
+  };
+
+  const handleConfirmUnload = async (iso: string) => {
+    if (!route) return;
+    setSubmitting(true);
+    setError(null);
+
     const result = await updateRouteExecution(route.id, {
-      unloadConfirmedAt: now,
-      actualEndTime: route.actualEndTime ?? now,
+      unloadConfirmedAt: iso,
+      actualEndTime: route.actualEndTime ?? iso,
     });
 
     if (result.errors && result.errors.length > 0) {
       setError('Could not confirm the unload. Try again.');
-      setConfirming(false);
+      setSubmitting(false);
+      setDialog(null);
       return;
     }
 
@@ -201,14 +226,51 @@ export default function OperatorUnloadPage() {
         </p>
       </div>
 
-      <button type="button" className={`${shellStyles.primaryButton} ${styles.primaryButton}`} onClick={() => void handleConfirm()} disabled={confirming}>
-        {confirming ? 'Confirming…' : `Confirm ${returnedTotal} signs returned`}
-      </button>
+      {route.unloadStartedAt && (
+        <div className={styles.stampLine}>Unload started {formatClockTime(route.unloadStartedAt)}</div>
+      )}
+
+      {!route.unloadStartedAt ? (
+        <button
+          type="button"
+          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          onClick={() => openDialog('start')}
+          disabled={submitting}
+        >
+          Start unload
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          onClick={() => openDialog('confirm')}
+          disabled={submitting}
+        >
+          {`Confirm ${returnedTotal} signs returned`}
+        </button>
+      )}
 
       <p className={shellStyles.footnote}>
-        Confirming returns you to the main screen with the route ready to finalise. Charged time is set on Finalise,
-        not here.
+        Unload only unlocks once every stop is settled. Start and complete both confirm in a dialog; charged time is
+        set on Finalise.
       </p>
+
+      <ConfirmDialog
+        open={dialog !== null}
+        time={dialog ? formatClockTime(dialog.time) : ''}
+        title={dialog?.kind === 'start' ? 'Start unload' : 'Complete unload'}
+        summary={
+          dialog?.kind === 'start'
+            ? `Starting unload at ${yardAddress ?? 'the yard'}.`
+            : `Signs returned to ${yardAddress ?? 'the yard'}.`
+        }
+        busy={submitting}
+        onCancel={closeDialog}
+        onOk={() => {
+          if (!dialog) return;
+          void (dialog.kind === 'start' ? handleStartUnload(dialog.time) : handleConfirmUnload(dialog.time));
+        }}
+      />
     </div>
   );
 }

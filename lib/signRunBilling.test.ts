@@ -66,27 +66,28 @@ describe('measuredPhaseMinutes', () => {
   it('measures each phase from its own start/end pair', () => {
     expect(
       measuredPhaseMinutes({
-        actualStartTime: '2026-08-31T08:00:00.000Z',
+        loadStartedAt: '2026-08-31T07:37:00.000Z',
         loadConfirmedAt: '2026-08-31T08:00:00.000Z',
         placementStartTime: '2026-08-31T08:15:00.000Z',
         placementEndTime: '2026-08-31T08:37:00.000Z',
         pickupStartTime: '2026-08-31T08:40:00.000Z',
         pickupEndTime: '2026-08-31T08:52:00.000Z',
+        unloadStartedAt: '2026-08-31T08:58:00.000Z',
         unloadConfirmedAt: '2026-08-31T09:10:00.000Z',
       })
-    ).toEqual({ load: 0, placement: 22, pickup: 12, unload: 18 });
+    ).toEqual({ load: 23, placement: 22, pickup: 12, unload: 12 });
   });
 
   it('measures 0 for a phase missing either timestamp, regardless of the others', () => {
     expect(
       measuredPhaseMinutes({
-        actualStartTime: '2026-08-31T08:00:00.000Z',
+        loadStartedAt: '2026-08-31T07:37:00.000Z',
         loadConfirmedAt: '2026-08-31T08:00:00.000Z',
         placementStartTime: '2026-08-31T08:15:00.000Z',
         placementEndTime: '2026-08-31T08:37:00.000Z',
-        // pickup never actioned, unload not yet confirmed
+        // pickup never actioned, unload not yet started/confirmed
       })
-    ).toEqual({ load: 0, placement: 22, pickup: 0, unload: 0 });
+    ).toEqual({ load: 23, placement: 22, pickup: 0, unload: 0 });
   });
 });
 

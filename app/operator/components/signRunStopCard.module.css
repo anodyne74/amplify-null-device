@@ -232,8 +232,7 @@
   right: 0;
   bottom: 0;
   z-index: 30;
-  display: grid;
-  grid-template-columns: 1fr 2fr;
+  display: flex;
   gap: var(--space-3);
   padding: var(--space-4) var(--gutter-page-sm);
   padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
@@ -257,7 +256,16 @@
   }
 }
 
+/* .primaryAction is combined with shellStyles.primaryButton at the JSX level
+ * (see signRunShell.module.css's header comment on that split) to give the
+ * Complete button its 2:1 share of .actionBar's flex row, matching .skipButton's
+ * flex: 1 below. */
+.primaryAction {
+  flex: 2;
+}
+
 .skipButton {
+  flex: 1;
   min-height: 58px;
   border-radius: var(--radius-md);
   border: var(--border-hairline) solid var(--border-default);

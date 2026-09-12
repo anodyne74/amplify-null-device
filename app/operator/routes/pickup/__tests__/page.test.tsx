@@ -92,16 +92,7 @@ describe('Operator Pickup page', () => {
     expect(screen.getByTestId('pickup-map')).toHaveAttribute('data-active-stop', 's1');
   });
 
-  it('does not re-set pickupStartTime when it is already recorded', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
-
-    render(<OperatorPickupPage />);
-    await screen.findByText('PICKUP · STOP 1 OF 2');
-
-    expect(updateRouteExecution).not.toHaveBeenCalledWith('route-1', expect.objectContaining({ pickupStartTime: expect.anything() }));
-  });
-
-  it('lazily records pickupStartTime on mount when unset', async () => {
+  it('shows a gated start panel until the driver starts pickup', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ pickupStartTime: null }),
       stops: baseStops(),
@@ -109,7 +100,26 @@ describe('Operator Pickup page', () => {
     });
 
     render(<OperatorPickupPage />);
-    await screen.findByText('PICKUP · STOP 1 OF 2');
+
+    expect(await screen.findByText('2 stops to pick up')).toBeInTheDocument();
+    expect(screen.getByText(/tap start once you're on the road/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('pickup-map')).not.toBeInTheDocument();
+    expect(updateRouteExecution).not.toHaveBeenCalled();
+  });
+
+  it('starts pickup through the confirm dialog', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: baseRoute({ pickupStartTime: null }),
+      stops: baseStops(),
+      errors: [],
+    });
+
+    render(<OperatorPickupPage />);
+    await screen.findByText('2 stops to pick up');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start pickup' }));
+    expect(screen.getByText(/starting pickup for 2 stops/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
       expect(updateRouteExecution).toHaveBeenCalledWith(
@@ -117,6 +127,24 @@ describe('Operator Pickup page', () => {
         expect.objectContaining({ pickupStartTime: expect.any(String) })
       );
     });
+    expect(await screen.findByText('PICKUP · STOP 1 OF 2')).toBeInTheDocument();
+  });
+
+  it('cancelling the start dialog leaves pickup unstarted', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: baseRoute({ pickupStartTime: null }),
+      stops: baseStops(),
+      errors: [],
+    });
+
+    render(<OperatorPickupPage />);
+    await screen.findByText('2 stops to pick up');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start pickup' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(updateRouteExecution).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Start pickup' })).toBeInTheDocument();
   });
 
   it('completes the current stop with one tap and advances to the next', async () => {
@@ -183,7 +211,7 @@ describe('Operator Pickup page', () => {
     expect(await screen.findByText('All stops done')).toBeInTheDocument();
     expect(screen.getByText('Route complete')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /complete pickup/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^skip$/i })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /^skip$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /sign missing/i })).not.toBeInTheDocument();
     expect(updateRouteExecution).not.toHaveBeenCalledWith('route-1', expect.objectContaining({ executionPhase: 'unload' }));
     expect(push).not.toHaveBeenCalled();
@@ -201,6 +229,9 @@ describe('Operator Pickup page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /signs picked up/i }));
     fireEvent.click(await screen.findByRole('button', { name: /complete pickup/i }));
+
+    expect(screen.getByText(/this closes pickup for w25-08-114/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
       expect(updateRouteExecution).toHaveBeenCalledWith(

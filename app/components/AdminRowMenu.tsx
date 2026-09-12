@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@/app/components/ui/core/Icon';
 import styles from '@/app/dashboard.module.css';
 
@@ -25,6 +25,7 @@ export default function AdminRowMenu({
 }: AdminRowMenuProps) {
   const menuId = useId();
   const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<'bottom' | 'top'>('bottom');
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -47,6 +48,36 @@ export default function AdminRowMenu({
     if (!open) return;
     getMenuItems()[0]?.focus();
   }, [open, getMenuItems]);
+
+  // Flip the menu upward when it would otherwise be clipped by a scrollable
+  // ancestor (e.g. a horizontally-scrollable table wrapper, whose overflow-x
+  // forces overflow-y to clip too) or by the bottom of the viewport.
+  useLayoutEffect(() => {
+    if (!open) {
+      setPlacement('bottom');
+      return;
+    }
+    const trigger = triggerRef.current;
+    const list = listRef.current;
+    if (!trigger || !list) return;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const listHeight = list.getBoundingClientRect().height;
+
+    let boundaryBottom = window.innerHeight;
+    let ancestor = rootRef.current?.parentElement ?? null;
+    while (ancestor) {
+      const overflowY = getComputedStyle(ancestor).overflowY;
+      if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden' || overflowY === 'clip') {
+        boundaryBottom = Math.min(boundaryBottom, ancestor.getBoundingClientRect().bottom);
+      }
+      ancestor = ancestor.parentElement;
+    }
+
+    const spaceBelow = boundaryBottom - triggerRect.bottom;
+    const spaceAbove = triggerRect.top;
+    setPlacement(spaceBelow < listHeight + 6 && spaceAbove > spaceBelow ? 'top' : 'bottom');
+  }, [open]);
 
   // Close on outside click.
   useEffect(() => {
@@ -100,6 +131,7 @@ export default function AdminRowMenu({
       ref={rootRef}
       className={mergeClasses(styles.rowMenu, align === 'end' ? styles.rowMenuAlignEnd : undefined)}
       data-open={open ? 'true' : undefined}
+      data-placement={placement}
       onKeyDown={handleKeyDown}
     >
       <button

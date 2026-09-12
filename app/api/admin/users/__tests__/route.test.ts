@@ -318,6 +318,96 @@ describe('admin users API', () => {
     );
   });
 
+  it('flips a confirmed operator stuck on onboarding to active', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock.mockResolvedValue({
+      Users: [
+        {
+          Username: 'operator-1',
+          UserStatus: 'CONFIRMED',
+          Attributes: [
+            { Name: 'email', Value: 'jane@nulldevice.dev' },
+            { Name: 'sub', Value: 'sub-operator-1' },
+            { Name: 'name', Value: 'Jane' },
+          ],
+        },
+      ],
+    });
+
+    (global.fetch as jest.Mock).mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body || '{}'));
+      if (body.query?.includes('getOperator')) {
+        return { ok: true, json: async () => ({ data: { getOperator: { status: 'onboarding' } } }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsersInGroup', groupName: 'operator' }),
+    } as any;
+
+    await POST(request);
+
+    const activationCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) => {
+      const body = JSON.parse(String(init?.body || '{}'));
+      return body.query?.includes('updateOperator') && body.variables?.input?.status === 'active';
+    });
+    expect(activationCall).toBeDefined();
+    expect(JSON.parse(activationCall![1].body).variables.input).toEqual({
+      id: 'sub-operator-1',
+      status: 'active',
+    });
+  });
+
+  it('does not reactivate an operator who was deliberately deactivated', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock.mockResolvedValue({
+      Users: [
+        {
+          Username: 'operator-1',
+          UserStatus: 'CONFIRMED',
+          Attributes: [
+            { Name: 'email', Value: 'jane@nulldevice.dev' },
+            { Name: 'sub', Value: 'sub-operator-1' },
+            { Name: 'name', Value: 'Jane' },
+          ],
+        },
+      ],
+    });
+
+    (global.fetch as jest.Mock).mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body || '{}'));
+      if (body.query?.includes('getOperator')) {
+        return { ok: true, json: async () => ({ data: { getOperator: { status: 'inactive' } } }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsersInGroup', groupName: 'operator' }),
+    } as any;
+
+    await POST(request);
+
+    const activationCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) => {
+      const body = JSON.parse(String(init?.body || '{}'));
+      return body.query?.includes('updateOperator') && body.variables?.input?.status === 'active';
+    });
+    expect(activationCall).toBeUndefined();
+  });
+
   it('does not sync the Operator directory when listing a different group', async () => {
     verifyMock.mockResolvedValue({
       sub: 'sub-123',

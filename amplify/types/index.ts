@@ -132,8 +132,10 @@ export interface Route {
   customerFeedbackTone?: 'good' | 'issue' | null;
   customerFeedbackNote?: string;
   drivingModeEnabled?: boolean | null;
+  loadStartedAt?: string | null;
   loadConfirmedAt?: string | null;
   loadedSignsCount?: number | null;
+  unloadStartedAt?: string | null;
   unloadConfirmedAt?: string | null;
   billedLoadMinutes?: number | null;
   billedPlacementMinutes?: number | null;

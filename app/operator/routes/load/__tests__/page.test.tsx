@@ -69,7 +69,7 @@ describe('Operator Load page', () => {
     expect(screen.getByText('Jem Tran')).toBeInTheDocument();
     expect(screen.getByText('Unassigned')).toBeInTheDocument();
     expect(screen.getByText('45 signs')).toBeInTheDocument();
-    expect(screen.getByText(/load not confirmed/i)).toBeInTheDocument();
+    expect(screen.getByText(/tap start once you're at the yard/i)).toBeInTheDocument();
   });
 
   it('splits each property into 1 timed sign + remaining blank, except auctions which are all timed', async () => {
@@ -99,13 +99,54 @@ describe('Operator Load page', () => {
     expect(screen.getByText('13 signs')).toBeInTheDocument();
   });
 
-  it('confirms the load, advances the phase, and returns to Today', async () => {
+  it('starts the load through the confirm dialog, then shows the stamp and the confirm step', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
 
     render(<OperatorLoadPage />);
     await screen.findByText('45 signs to load');
 
+    expect(screen.getByText(/tap start once you're at the yard/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Start load' }));
+
+    expect(screen.getByText(/starting load of 45 signs/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    await waitFor(() => {
+      expect(updateRouteExecution).toHaveBeenCalledWith(
+        'route-1',
+        expect.objectContaining({ loadStartedAt: expect.any(String) })
+      );
+    });
+    expect(await screen.findByText(/^Load started/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /confirm 45 signs loaded/i })).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('cancelling the start dialog leaves the load unstarted', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+
+    render(<OperatorLoadPage />);
+    await screen.findByText('45 signs to load');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start load' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(updateRouteExecution).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Start load' })).toBeInTheDocument();
+  });
+
+  it('confirms the load, advances the phase, and returns to Today', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: baseRoute({ loadStartedAt: '2026-09-12T07:37:00.000Z' }),
+      stops: baseStops(),
+      errors: [],
+    });
+
+    render(<OperatorLoadPage />);
+    await screen.findByText('45 signs to load');
+
     fireEvent.click(screen.getByRole('button', { name: /confirm 45 signs loaded/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
       expect(updateRouteExecution).toHaveBeenCalledWith(
@@ -121,7 +162,11 @@ describe('Operator Load page', () => {
   });
 
   it('routes to van count on "Count differs — recount"', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: baseRoute({ loadStartedAt: '2026-09-12T07:37:00.000Z' }),
+      stops: baseStops(),
+      errors: [],
+    });
 
     render(<OperatorLoadPage />);
     await screen.findByText('45 signs to load');

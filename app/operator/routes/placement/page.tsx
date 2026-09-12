@@ -9,8 +9,10 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { Card } from '@/app/components/ui/core/Card';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
+import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { getRouteWithStops, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
 import { getSignRunPhase } from '@/lib/signRunPhase';
+import { formatClockTime } from '@/lib/signRunBilling';
 import { getAgentBadgeInitials } from '@/lib/customerDefaults';
 import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } from '@/lib/routeDetailHelpers';
 import {
@@ -74,7 +76,8 @@ export default function OperatorPlacementPage() {
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
   const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
-  const [completingPhase, setCompletingPhase] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [dialog, setDialog] = useState<{ kind: 'start' | 'complete'; time: string } | null>(null);
 
   useEffect(() => {
     if (!routeId) {
@@ -109,12 +112,27 @@ export default function OperatorPlacementPage() {
   const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
   const isPlacementScreen = route && phaseInfo && phaseInfo.phaseIdx === 1 && stops.length > 0;
 
-  // There's no separate "start driving" button in this flow — opening this screen is
-  // the accurate "start" moment, so record it lazily the first time we land here.
-  useEffect(() => {
-    if (!route || route.placementStartTime || !isPlacementScreen) return;
-    void updateRouteExecution(route.id, { placementStartTime: new Date().toISOString() });
-  }, [route, isPlacementScreen]);
+  const openDialog = (kind: 'start' | 'complete') => setDialog({ kind, time: new Date().toISOString() });
+  const closeDialog = () => {
+    if (!submitting) setDialog(null);
+  };
+
+  const handleStartPlacement = async (iso: string) => {
+    if (!route) return;
+    setSubmitting(true);
+    setError(null);
+
+    const { errors } = await updateRouteExecution(route.id, { placementStartTime: iso });
+
+    setSubmitting(false);
+    if (errors && errors.length > 0) {
+      setError('Could not start placement. Try again.');
+      return;
+    }
+
+    setRoute((prev) => (prev ? { ...prev, placementStartTime: iso } : prev));
+    setDialog(null);
+  };
 
   const openStops = useMemo(() => stops.filter((stop) => !isStopCompletedForPhase(stop, 'placement')), [stops]);
   const currentStop = openStops[0] ?? null;
@@ -181,24 +199,29 @@ export default function OperatorPlacementPage() {
   // driver on this screen with a "confirm to finish" state (see the glass card and
   // primary button below) and only closes placement out, advancing the route to
   // pickup, once they explicitly tap through.
-  const handleCompletePhase = useCallback(async () => {
-    if (!route) return;
-    setCompletingPhase(true);
-    try {
-      const { errors } = await updateRouteExecution(route.id, {
-        executionPhase: 'pickup',
-        placementEndTime: new Date().toISOString(),
-      });
-      if (!errors || errors.length === 0) {
-        router.push('/operator/dashboard');
-        return;
+  const handleCompletePhase = useCallback(
+    async (iso: string) => {
+      if (!route) return;
+      setSubmitting(true);
+      setError(null);
+      try {
+        const { errors } = await updateRouteExecution(route.id, {
+          executionPhase: 'pickup',
+          placementEndTime: iso,
+        });
+        if (!errors || errors.length === 0) {
+          router.push('/operator/dashboard');
+          return;
+        }
+        setError('Could not close out placement. Try again.');
+      } catch {
+        setError('Could not close out placement. Try again.');
       }
-      setError('Could not close out placement. Try again.');
-    } catch {
-      setError('Could not close out placement. Try again.');
-    }
-    setCompletingPhase(false);
-  }, [route, router]);
+      setSubmitting(false);
+      setDialog(null);
+    },
+    [route, router]
+  );
 
   if (!routeId) {
     return (
@@ -232,6 +255,54 @@ export default function OperatorPlacementPage() {
   }
 
   const total = stops.length;
+
+  if (!route.placementStartTime) {
+    return (
+      <div className={shellStyles.page}>
+        <Breadcrumbs
+          items={[
+            { label: 'Today', href: '/operator/dashboard' },
+            { label: `${route.routeCode || route.id.slice(0, 8)} · Placement` },
+          ]}
+        />
+
+        {error && <div className={shellStyles.errorBanner}>{error}</div>}
+
+        <div className={shellStyles.kickerRow}>
+          <span className={shellStyles.kicker}>{phaseInfo.phaseKicker}</span>
+          {customerName && <span className={shellStyles.customer}>{customerName}</span>}
+        </div>
+        <h2 className={shellStyles.title}>{total} stops to place</h2>
+
+        <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+
+        <div className={styles.startPanel}>Tap start once you&apos;re on the road to begin placement.</div>
+
+        <button
+          type="button"
+          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          onClick={() => openDialog('start')}
+          disabled={submitting}
+        >
+          Start placement
+        </button>
+
+        <ConfirmDialog
+          open={dialog !== null}
+          time={dialog ? formatClockTime(dialog.time) : ''}
+          title="Start placement"
+          summary={`Starting placement for ${total} stops at ${customerName || 'this route'}.`}
+          busy={submitting}
+          onCancel={closeDialog}
+          onOk={() => {
+            if (!dialog) return;
+            void handleStartPlacement(dialog.time);
+          }}
+        />
+      </div>
+    );
+  }
+
   const settledCount = total - openStops.length;
   // Caps at `total` once every stop is settled — otherwise the counter overshoots to
   // "17 of 16" on the confirm-to-finish state below.
@@ -334,35 +405,44 @@ export default function OperatorPlacementPage() {
 
       <div className={stopCardStyles.actionBarSpacer} aria-hidden="true" />
       <div className={stopCardStyles.actionBar}>
+        {currentStop && (
+          <button
+            type="button"
+            className={stopCardStyles.skipButton}
+            onClick={() => openStopSheet(currentStop.id, 'reason')}
+            disabled={!!stopExecuting[currentStop.id]}
+          >
+            Skip
+          </button>
+        )}
         <button
           type="button"
-          className={stopCardStyles.skipButton}
-          onClick={() => currentStop && openStopSheet(currentStop.id, 'reason')}
-          disabled={!currentStop || !!stopExecuting[currentStop.id]}
-        >
-          Skip
-        </button>
-        <button
-          type="button"
-          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          className={`${shellStyles.primaryButton} ${styles.primaryButton} ${stopCardStyles.primaryAction}`}
           onClick={() => {
             if (currentStop) {
               void handleStopCompleted(currentStop.id);
             } else {
-              void handleCompletePhase();
+              openDialog('complete');
             }
           }}
-          disabled={currentStop ? !!stopExecuting[currentStop.id] : completingPhase}
+          disabled={currentStop ? !!stopExecuting[currentStop.id] : submitting}
         >
-          {currentStop
-            ? stopExecuting[currentStop.id]
-              ? 'Saving…'
-              : 'Signs placed'
-            : completingPhase
-            ? 'Completing…'
-            : 'Complete placement'}
+          {currentStop ? (stopExecuting[currentStop.id] ? 'Saving…' : 'Signs placed') : 'Complete placement'}
         </button>
       </div>
+
+      <ConfirmDialog
+        open={dialog !== null}
+        time={dialog ? formatClockTime(dialog.time) : ''}
+        title="Complete placement"
+        summary={`This closes placement for ${route.routeCode} and returns you to Today.`}
+        busy={submitting}
+        onCancel={closeDialog}
+        onOk={() => {
+          if (!dialog) return;
+          void handleCompletePhase(dialog.time);
+        }}
+      />
 
       <StopCompletionDialog
         stop={actionSheetStop}

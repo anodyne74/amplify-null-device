@@ -8,10 +8,15 @@ import { createOperatorPayout } from '@/lib/queries/CreateOperatorPayout';
 import { updateOperatorPayout } from '@/lib/queries/UpdateOperatorPayout';
 import { getCustomer } from '@/lib/queries';
 import { computeDriverSplit } from '@/lib/driverSplit';
+import { fetchAuthSession } from 'aws-amplify/auth';
 
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+jest.mock('aws-amplify/auth', () => ({
+  fetchAuthSession: jest.fn(),
 }));
 
 jest.mock('@/lib/queries/ListAllCustomers', () => ({
@@ -86,6 +91,13 @@ describe('Administrator Payouts page', () => {
       retained: 180,
       byOperator: [{ operatorSub: 'op-1', billedAmount: 300, stopCount: 10, driverShare: 120 }],
     });
+    (fetchAuthSession as jest.Mock).mockResolvedValue({ tokens: { idToken: { toString: () => 'token' } } });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        users: [{ sub: 'op-1', name: 'Aishling' }],
+      }),
+    }) as unknown as typeof fetch;
   });
 
   it('lists existing payouts for both customers', async () => {
@@ -155,6 +167,15 @@ describe('Administrator Payouts page', () => {
         paidAt: expect.any(String),
       });
     });
+  });
+
+  it('shows the driver display name instead of a raw operator id', async () => {
+    render(<AdministratorPayoutsPage />);
+
+    expect(await screen.findByText('$120.00')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Driver' })).toBeInTheDocument();
+    expect(screen.getByText('Aishling')).toBeInTheDocument();
+    expect(screen.getByText('Operator op-2')).toBeInTheDocument();
   });
 
   it('shows an empty state when there are no payouts', async () => {

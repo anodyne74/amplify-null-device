@@ -559,6 +559,67 @@ async function setOperatorStatus(authToken: string, operatorId: string, status: 
   });
 }
 
+/** Reads an Operator directory record's current status, for the reconciliation
+ * check below -- setOperatorStatus itself is a blind write, which would be
+ * unsafe to call unconditionally here (see reconcileOperatorActivation). */
+async function getOperatorStatus(authToken: string, operatorId: string): Promise<string | undefined> {
+  if (!graphqlEndpoint) return undefined;
+
+  const query = `
+    query GetOperator($id: ID!) {
+      getOperator(id: $id) {
+        status
+      }
+    }
+  `;
+
+  const response = await fetch(graphqlEndpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: authToken,
+    },
+    body: JSON.stringify({ query, variables: { id: operatorId } }),
+    cache: 'no-store',
+  });
+
+  const payload = await response.json().catch(() => null);
+  return payload?.data?.getOperator?.status;
+}
+
+/**
+ * Self-heals an Operator directory row stuck on 'onboarding' when Cognito shows
+ * the account has already been confirmed (i.e. signed in at least once).
+ *
+ * The normal path off 'onboarding' is operator-status-activation's
+ * postAuthentication trigger (amplify/functions/operator-status-activation),
+ * which only ever fires once per fresh sign-in. An account whose first sign-in
+ * happened before that trigger existed -- or hit any other transient gap --
+ * never gets a second chance, since a long-lived refreshed session doesn't
+ * re-fire it. Running this reconciliation every time the Drivers screen loads
+ * the operator group catches that instead of leaving it stuck indefinitely.
+ *
+ * Deliberately narrow: only ever moves 'onboarding' -> 'active', never touches
+ * an 'inactive' row. The Drivers screen's Deactivate action sets status
+ * 'inactive' without removing operator group membership, so a deactivated
+ * driver is still a CONFIRMED Cognito group member and would otherwise match
+ * here too.
+ */
+async function reconcileOperatorActivation(authToken: string, users: ListedUser[]) {
+  if (!graphqlEndpoint) return;
+
+  await Promise.allSettled(
+    users
+      .filter((user) => user.id && user.status === 'CONFIRMED')
+      .map(async (user) => {
+        const status = await getOperatorStatus(authToken, user.id as string);
+        if (status === 'onboarding') {
+          await setOperatorStatus(authToken, user.id as string, 'active');
+        }
+      })
+  );
+}
+
 /** Deletes an Administrator directory record. Administrator has no status field, so
  * removing the Cognito group membership removes the directory row outright rather
  * than leaving a stale one an admin-management screen would otherwise still list. */
@@ -706,6 +767,7 @@ export async function POST(request: NextRequest) {
       const users = rawUsers.map((user) => mapListedUser(user));
       if (body.groupName === 'operator') {
         await syncOperatorRecords(authResult.token, users);
+        await reconcileOperatorActivation(authResult.token, users);
       }
 
       await writeAuditLog(authResult.token, {

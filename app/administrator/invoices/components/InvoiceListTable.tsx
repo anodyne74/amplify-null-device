@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Route } from '@/amplify/types';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import AdminRowMenu from '@/app/components/AdminRowMenu';
-import { useAdminTableSort, type SortDirection } from '@/app/components/AdminDataTable';
 import { ADMIN_PAGE_SIZE, getPageSlice } from '@/app/components/AdminPagination';
 import { useToast } from '@/app/components/ToastProvider';
 import { Card } from '@/app/components/ui/core/Card';
@@ -11,8 +10,6 @@ import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
 import { Select } from '@/app/components/ui/forms/Select';
 import type { Invoice, InvoiceStatus } from '@/app/administrator/invoices/types';
 import styles from '../page.module.css';
-
-type InvoiceSortKey = 'invoiceNumber' | 'customer' | 'totalAmount' | 'status' | 'sent';
 
 interface InvoiceListTableProps {
   loading: boolean;
@@ -78,34 +75,6 @@ type ConfirmAction =
   | { type: 'regenerate' | 'markPaid' | 'delete'; invoice: Invoice }
   | { type: 'bulkMarkPaid'; invoiceIds: string[] };
 
-function SortableHeader({
-  label,
-  sortKey,
-  sortBy,
-  sortDirection,
-  onSort,
-}: {
-  label: string;
-  sortKey: InvoiceSortKey;
-  sortBy: InvoiceSortKey | null;
-  sortDirection: SortDirection;
-  onSort: (key: InvoiceSortKey) => void;
-}) {
-  const active = sortBy === sortKey;
-  const ariaSort = active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none';
-
-  return (
-    <th scope="col" aria-sort={ariaSort}>
-      <button type="button" className={styles.sortButton} onClick={() => onSort(sortKey)} aria-label={`Sort by ${label}`}>
-        <span>{label}</span>
-        <span className={styles.sortIndicator} aria-hidden="true">
-          {active ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
-        </span>
-      </button>
-    </th>
-  );
-}
-
 export default function InvoiceListTable({
   loading,
   invoices,
@@ -132,45 +101,13 @@ export default function InvoiceListTable({
 
   const bulkSelectionEnabled = typeof onBulkMarkPaidInvoice === 'function';
 
-  const { sortBy, sortDirection, toggleSort } = useAdminTableSort<InvoiceSortKey>();
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     setPage(1);
-  }, [sortBy, sortDirection, invoices.length]);
+  }, [invoices.length]);
 
-  const sortedInvoices = useMemo(() => {
-    if (!sortBy) return invoices;
-    const value = (invoice: Invoice): string | number => {
-      switch (sortBy) {
-        case 'invoiceNumber':
-          return invoice.invoiceNumber ?? '';
-        case 'customer':
-          return customerName(invoice.customerId);
-        case 'totalAmount':
-          return invoice.totalAmount ?? 0;
-        case 'status':
-          return inferInvoiceStatus(invoice);
-        case 'sent': {
-          const parsed = Date.parse(invoice.emailSentAt ?? '');
-          return Number.isFinite(parsed) ? parsed : 0;
-        }
-      }
-    };
-    const sorted = [...invoices].sort((a, b) => {
-      const left = value(a);
-      const right = value(b);
-      if (typeof left === 'number' && typeof right === 'number') return left - right;
-      return String(left).localeCompare(String(right), undefined, {
-        numeric: true,
-        sensitivity: 'base',
-      });
-    });
-    if (sortDirection === 'desc') sorted.reverse();
-    return sorted;
-  }, [invoices, customerName, sortBy, sortDirection]);
-
-  const { currentPage, totalPages, pageRows: pageInvoices } = getPageSlice(sortedInvoices, page, ADMIN_PAGE_SIZE);
+  const { currentPage, totalPages, pageRows: pageInvoices } = getPageSlice(invoices, page, ADMIN_PAGE_SIZE);
 
   // Selection is only meaningful for invoices that can still be marked paid.
   const selectedEligible = useMemo(
@@ -344,12 +281,12 @@ export default function InvoiceListTable({
                       />
                     </th>
                   )}
-                  <SortableHeader label="Invoice #" sortKey="invoiceNumber" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
-                  <SortableHeader label="Customer" sortKey="customer" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
+                  <th scope="col">Invoice #</th>
+                  <th scope="col">Customer</th>
                   <th scope="col">Route</th>
-                  <SortableHeader label="Total" sortKey="totalAmount" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
-                  <SortableHeader label="Status" sortKey="status" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
-                  <SortableHeader label="Sent" sortKey="sent" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
+                  <th scope="col">Total</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Sent</th>
                   <th scope="col">PDF</th>
                   <th scope="col">Actions</th>
                 </tr>
@@ -529,7 +466,7 @@ export default function InvoiceListTable({
           </div>
           <nav className={styles.paginationBar} aria-label="invoices pagination">
             <p className={styles.paginationSummary} aria-live="polite">
-              {`Showing ${(currentPage - 1) * ADMIN_PAGE_SIZE + 1}–${Math.min(sortedInvoices.length, currentPage * ADMIN_PAGE_SIZE)} of ${sortedInvoices.length} invoices`}
+              {`Showing ${(currentPage - 1) * ADMIN_PAGE_SIZE + 1}–${Math.min(invoices.length, currentPage * ADMIN_PAGE_SIZE)} of ${invoices.length} invoices`}
             </p>
             <div className={styles.paginationControls}>
               <Button

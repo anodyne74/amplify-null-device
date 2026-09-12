@@ -438,8 +438,8 @@
 
 .rowMenu[data-open='true'] .rowMenuTrigger,
 .rowMenu[open] .rowMenuTrigger {
-  border-color: var(--nd-operator-accent);
-  color: var(--nd-operator-accent);
+  border-color: var(--border-brand);
+  color: var(--text-brand);
 }
 
 .rowMenuTrigger {
@@ -447,15 +447,24 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  min-height: 30px;
-  padding: 6px 10px;
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  background: transparent;
-  color: var(--nd-text-secondary);
-  font-size: 0.74rem;
+  gap: var(--space-2);
+  height: var(--control-h-sm);
+  padding: 0 var(--space-5);
+  border: var(--border-hairline) solid var(--action-secondary-border);
+  border-radius: var(--radius-pill);
+  background: var(--action-secondary-bg);
+  color: var(--text-heading);
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-sm);
+  box-shadow: var(--shadow-xs);
   cursor: pointer;
+  transition: var(--transition-control);
+}
+
+.rowMenuTrigger:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
 }
 
 /* Distinguishes the "More" trigger from a flat action button — without this,
@@ -463,7 +472,7 @@
    it opens a menu rather than performing an action directly (#64). */
 .rowMenuChevron {
   flex-shrink: 0;
-  transition: transform var(--nd-transition-fast, 0.15s ease);
+  transition: transform var(--dur-fast, 0.15s) var(--ease-standard, ease);
 }
 
 .rowMenu[data-open='true'] .rowMenuChevron {
@@ -480,13 +489,18 @@
   left: 0;
   z-index: 3;
   display: grid;
-  gap: 6px;
-  min-width: 146px;
-  padding: 8px;
-  border: 1px solid var(--nd-border-default);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg-surface);
-  box-shadow: 0 10px 20px color-mix(in srgb, var(--nd-bg-base) 78%, transparent);
+  gap: var(--space-2);
+  min-width: 160px;
+  padding: var(--space-3);
+  border: var(--border-hairline) solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lg);
+}
+
+.rowMenu[data-placement='top'] .rowMenuList {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 
 .rowMenuAlignEnd .rowMenuList {
@@ -501,7 +515,7 @@
 .inlineGrid select:focus-visible,
 .inlineGrid input:focus-visible,
 .statusCellStack select:focus-visible {
-  outline: 2px solid var(--nd-customer-accent);
+  outline: 2px solid var(--border-brand);
   outline-offset: 2px;
 }
 

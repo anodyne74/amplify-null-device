@@ -159,37 +159,6 @@ describe('InvoiceListTable', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 
-  it('sorts rows when a sortable header is clicked and reflects aria-sort', () => {
-    renderTable([
-      createInvoice({ id: 'inv-2', invoiceNumber: 'INV-002' }),
-      createInvoice({ id: 'inv-1', invoiceNumber: 'INV-001' }),
-    ]);
-
-    const header = screen.getByRole('button', { name: 'Sort by Invoice #' });
-    expect(header.closest('th')).toHaveAttribute('aria-sort', 'none');
-
-    // Default order matches the incoming invoice order.
-    let rows = screen.getAllByRole('row').slice(1);
-    expect(rows[0]).toHaveTextContent('INV-002');
-
-    fireEvent.click(header);
-    expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending');
-    rows = screen.getAllByRole('row').slice(1);
-    expect(rows[0]).toHaveTextContent('INV-001');
-    expect(rows[1]).toHaveTextContent('INV-002');
-
-    fireEvent.click(header);
-    expect(header.closest('th')).toHaveAttribute('aria-sort', 'descending');
-    rows = screen.getAllByRole('row').slice(1);
-    expect(rows[0]).toHaveTextContent('INV-002');
-
-    // Third click returns to the default order.
-    fireEvent.click(header);
-    expect(header.closest('th')).toHaveAttribute('aria-sort', 'none');
-    rows = screen.getAllByRole('row').slice(1);
-    expect(rows[0]).toHaveTextContent('INV-002');
-  });
-
   it('paginates invoices 25 per page with boundary-aware controls', () => {
     const invoices = Array.from({ length: 26 }, (_, index) =>
       createInvoice({

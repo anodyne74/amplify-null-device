@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/administrator/components/PageHeader';
@@ -38,9 +39,27 @@ function operatorLabel(operatorSub: string, operatorName?: string) {
   return operatorName || `Operator ${operatorSub.slice(0, 8)}`;
 }
 
+async function fetchDriverNamesBySub(): Promise<Map<string, string>> {
+  const session = await fetchAuthSession();
+  const idToken = session.tokens?.idToken?.toString();
+  if (!idToken) return new Map();
+
+  const response = await fetch('/api/admin/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ action: 'listUsersInGroup', groupName: 'operator' }),
+  });
+  if (!response.ok) return new Map();
+
+  const payload = await response.json();
+  const users = (payload.users as Array<{ sub?: string; name?: string }> | undefined) || [];
+  return new Map(users.filter((u): u is { sub: string; name: string } => Boolean(u.sub && u.name)).map((u) => [u.sub, u.name]));
+}
+
 export default function AdministratorPayoutsPage() {
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
   const [payouts, setPayouts] = useState<OperatorPayout[]>([]);
+  const [driverNamesBySub, setDriverNamesBySub] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -64,14 +83,17 @@ export default function AdministratorPayoutsPage() {
     let cancelled = false;
     setLoading(true);
 
-    Promise.all([listAllCustomers({ limit: 200 }), listOperatorPayouts()]).then(([customerResult, payoutResult]) => {
-      if (cancelled) return;
-      const customerList = (customerResult.data as { id: string; name: string }[]) || [];
-      setCustomers(customerList);
-      if (customerList.length > 0) setCreateCustomerId(customerList[0].id);
-      setPayouts((payoutResult.data as OperatorPayout[]) || []);
-      setLoading(false);
-    });
+    Promise.all([listAllCustomers({ limit: 200 }), listOperatorPayouts(), fetchDriverNamesBySub().catch(() => new Map<string, string>())]).then(
+      ([customerResult, payoutResult, driverNames]) => {
+        if (cancelled) return;
+        const customerList = (customerResult.data as { id: string; name: string }[]) || [];
+        setCustomers(customerList);
+        if (customerList.length > 0) setCreateCustomerId(customerList[0].id);
+        setPayouts((payoutResult.data as OperatorPayout[]) || []);
+        setDriverNamesBySub(driverNames);
+        setLoading(false);
+      }
+    );
 
     return () => {
       cancelled = true;
@@ -158,7 +180,7 @@ export default function AdministratorPayoutsPage() {
 
   const columns: DataColumn<OperatorPayout>[] = [
     { key: 'customer', header: 'Customer', render: (row) => customerName(row.customerId) },
-    { key: 'operator', header: 'Operator', render: (row) => operatorLabel(row.operatorSub) },
+    { key: 'operator', header: 'Driver', render: (row) => operatorLabel(row.operatorSub, driverNamesBySub.get(row.operatorSub)) },
     {
       key: 'period',
       header: 'Period',
@@ -260,7 +282,9 @@ export default function AdministratorPayoutsPage() {
               <div className={styles.previewTable}>
                 {preview.byOperator.map((o) => (
                   <div key={o.operatorSub} className={styles.previewRow}>
-                    <span className={styles.previewRowLabel}>{operatorLabel(o.operatorSub, o.operatorName)}</span>
+                    <span className={styles.previewRowLabel}>
+                      {operatorLabel(o.operatorSub, driverNamesBySub.get(o.operatorSub) || o.operatorName)}
+                    </span>
                     <span className={styles.previewRowMeta}>{o.stopCount} stops · {formatMoney(o.billedAmount)} billed</span>
                     <span className={styles.previewRowAmount}>{formatMoney(o.driverShare)}</span>
                   </div>

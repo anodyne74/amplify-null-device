@@ -50,7 +50,16 @@ export const ROUTE_PHASE_LABELS: Record<RoutePhaseKey, string> = {
 /** The only Route fields the phase model actually reads — lets pure/testable
  *  callers (e.g. lib/adminDashboardOverview.ts) work with a loosely-typed
  *  route shape without importing the full Route interface. */
-export type RoutePhaseInput = Pick<Route, 'status' | 'executionPhase' | 'unloadConfirmedAt' | 'scheduledDate'>;
+export type RoutePhaseInput = Pick<
+  Route,
+  | 'status'
+  | 'executionPhase'
+  | 'loadConfirmedAt'
+  | 'placementEndTime'
+  | 'pickupEndTime'
+  | 'unloadConfirmedAt'
+  | 'scheduledDate'
+>;
 
 export interface SignRunPhaseInfo {
   /** 0-3 = Signs collected/placed/picked up/returned in progress, 4 = ready to finalise. */
@@ -170,14 +179,31 @@ export function getSignRunPhase(route: RoutePhaseInput, stopCount: number): Sign
 /**
  * Which of the 6 phases a route currently sits in — the single source of
  * truth for badges, filters, and summary counts across every portal. Unlike
- * getSignRunPhase, this covers every route including completed/archived
- * (archived is legacy-only and reads as "completed" — see the decision to
- * soft-deprecate it, noted on the Route status enum).
+ * getSignRunPhase (which points at the phase now being *worked on*, so its
+ * screen-gating logic can unlock the next operator screen the instant the
+ * previous one is confirmed), this reads the last phase actually *completed*
+ * off its own timestamp field — e.g. a route sits in "signs_picked_up" from
+ * the moment pickupEndTime is stamped until unloadConfirmedAt is, even though
+ * executionPhase has already flipped to 'unload' to unlock the Unload screen.
+ * Reading executionPhase directly here reported one phase further along than
+ * the route had actually gotten.
+ *
+ * Covers every route including completed/archived (archived is legacy-only
+ * and reads as "completed" — see the decision to soft-deprecate it, noted on
+ * the Route status enum).
  */
 export function getRoutePhaseKey(route: RoutePhaseInput): RoutePhaseKey {
   if (route.status === 'completed' || route.status === 'archived') return 'completed';
   if (!route.status || route.status === 'planned') return 'planned';
 
+  if (route.unloadConfirmedAt) return 'completed';
+  if (route.pickupEndTime) return 'signs_picked_up';
+  if (route.placementEndTime) return 'signs_placed';
+  if (route.loadConfirmedAt) return 'signs_collected';
+
+  // Oldest records predate these completion timestamps entirely — fall back
+  // to the phase executionPhase/status currently point at, the only record
+  // of progress that exists for them.
   const info = getSignRunPhase(route, 0);
   if (!info) return 'completed';
 

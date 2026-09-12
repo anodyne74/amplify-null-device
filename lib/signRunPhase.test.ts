@@ -167,6 +167,28 @@ describe('getRoutePhaseKey', () => {
       )
     ).toBe('completed');
   });
+
+  it('reads the last phase actually completed, not the phase executionPhase has already advanced to', () => {
+    // Completing Pickup stamps pickupEndTime and flips executionPhase to
+    // 'unload' in the same update, to unlock the Unload screen — the route
+    // hasn't started returning signs yet, so the badge should still read
+    // "Signs picked up" until unloadConfirmedAt is stamped.
+    expect(
+      getRoutePhaseKey(
+        baseRoute({ status: 'in_progress', executionPhase: 'unload', pickupEndTime: '2026-09-12T10:00:00.000Z' })
+      )
+    ).toBe('signs_picked_up');
+    expect(
+      getRoutePhaseKey(
+        baseRoute({ status: 'in_progress', executionPhase: 'pickup', placementEndTime: '2026-09-12T09:00:00.000Z' })
+      )
+    ).toBe('signs_placed');
+    expect(
+      getRoutePhaseKey(
+        baseRoute({ status: 'in_progress', executionPhase: 'placement', loadConfirmedAt: '2026-09-12T08:00:00.000Z' })
+      )
+    ).toBe('signs_collected');
+  });
 });
 
 describe('ROUTE_PHASE_KEYS / ROUTE_PHASE_LABELS', () => {

@@ -102,6 +102,10 @@
   color: var(--text-body);
 }
 
+.lineTable th.numeric {
+  text-align: right;
+}
+
 .numeric {
   text-align: right;
   font-family: var(--font-mono);

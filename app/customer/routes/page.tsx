@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import { getCustomerPortalContext } from '@/lib/queries';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
@@ -40,8 +40,7 @@ const STATUS_CHIPS: { id: ChipFilter; label: string }[] = [
  * Displays all routes for the current customer with filtering and sorting
  */
 export default function CustomerRoutesPage() {
-  const { user } = useAuthenticator();
-  const userId = user?.userId;
+  const userId = useCurrentUserId();
 
   const [routes, setRoutes] = useState<Route[]>([]);
   const [filteredRoutes, setFilteredRoutes] = useState<Route[]>([]);
@@ -54,6 +53,7 @@ export default function CustomerRoutesPage() {
 
   useEffect(() => {
     if (!userId) return;
+    const currentUserId = userId;
     let cancelled = false;
 
     async function fetchRoutes() {
@@ -61,7 +61,7 @@ export default function CustomerRoutesPage() {
       setError(null);
 
       try {
-        const context = await getCustomerPortalContext(userId);
+        const context = await getCustomerPortalContext(currentUserId);
 
         if (!context.customerId) {
           if (!cancelled) {

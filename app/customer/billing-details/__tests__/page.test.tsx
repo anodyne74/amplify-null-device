@@ -4,10 +4,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import CustomerBillingDetailsPage from '../page';
 import { getCustomer, getCustomerPortalContext, updateCustomer } from '@/lib/queries';
 
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: () => ({
-    user: { userId: 'user-sub-1' },
-  }),
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => 'user-sub-1',
 }));
 
 jest.mock('@/lib/queries', () => ({
@@ -46,7 +44,6 @@ describe('Customer Billing Details page', () => {
         email: 'accounts@harcourtsepping.com.au',
         billingCcEmails: ['prue@harcourtsepping.com.au'],
         attachAgentBreakdown: true,
-        sendPaymentReminder: false,
         companyName: 'Harcourts Epping Pty Ltd',
         gstAbn: '48 221 604 992',
         addressLine1: 'Suite 3, 52 Beecroft Rd',
@@ -78,7 +75,6 @@ describe('Customer Billing Details page', () => {
         email: 'billing@harcourtsepping.com.au',
         billingCcEmails: ['prue@harcourtsepping.com.au'],
         attachAgentBreakdown: true,
-        sendPaymentReminder: false,
       });
     });
 

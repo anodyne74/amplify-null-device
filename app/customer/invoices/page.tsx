@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { getCustomerPortalContext, getCustomer } from '@/lib/queries';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
@@ -64,7 +64,7 @@ function downloadInvoicesCsv(invoices: Invoice[]) {
  * Displays all customer's invoices with filtering options
  */
 export default function InvoicesPage() {
-  const { user } = useAuthenticator();
+  const userId = useCurrentUserId();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customerName, setCustomerName] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -75,12 +75,12 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     let cancelled = false;
 
     const fetchCustomerName = async () => {
       try {
-        const context = await getCustomerPortalContext(user.userId);
+        const context = await getCustomerPortalContext(userId);
         if (!context.customerId) return;
         const { data } = await getCustomer(context.customerId);
         if (!cancelled) {
@@ -96,10 +96,10 @@ export default function InvoicesPage() {
     return () => {
       cancelled = true;
     };
-  }, [user?.userId]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     let cancelled = false;
 
     const fetchInvoices = async () => {
@@ -107,7 +107,7 @@ export default function InvoicesPage() {
       setError(null);
 
       try {
-        const context = await getCustomerPortalContext(user.userId);
+        const context = await getCustomerPortalContext(userId);
 
         if (context.role === 'read_only') {
           if (!cancelled) {
@@ -127,7 +127,7 @@ export default function InvoicesPage() {
 
         const result = await listMyInvoices({
           customerId: context.customerId,
-          userSub: user.userId,
+          userSub: userId,
           startDate: startDate || undefined,
           endDate: endDate || undefined,
           limit: 50,
@@ -159,7 +159,7 @@ export default function InvoicesPage() {
     return () => {
       cancelled = true;
     };
-  }, [user?.userId, startDate, endDate]);
+  }, [userId, startDate, endDate]);
 
   const handleClearFilters = () => {
     setStartDate('');

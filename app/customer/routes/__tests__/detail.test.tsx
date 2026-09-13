@@ -11,14 +11,8 @@ import {
   updateRouteCustomerInstructions,
 } from '@/lib/queries';
 
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: () => ({
-    authStatus: 'authenticated',
-    user: {
-      userId: 'viewer-sub-1',
-      username: 'viewer-sub-1',
-    },
-  }),
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => 'viewer-sub-1',
 }));
 
 jest.mock('@/app/components/ProtectedRoute', () => ({

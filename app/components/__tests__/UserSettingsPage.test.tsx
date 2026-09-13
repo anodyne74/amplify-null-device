@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
-const useAuthenticatorMock = jest.fn();
+const useCurrentUserIdMock = jest.fn();
 const setModeMock = jest.fn();
 const fetchUserDisplayNameMock = jest.fn();
 const getUserSettingsMock = jest.fn();
@@ -10,8 +10,8 @@ const upsertUserSettingsMock = jest.fn();
 const getCustomerPortalContextMock = jest.fn();
 const getCustomerMock = jest.fn();
 
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: () => useAuthenticatorMock(),
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => useCurrentUserIdMock(),
 }));
 
 jest.mock('@/app/components/AmplifyThemeProvider', () => ({
@@ -34,7 +34,7 @@ import UserSettingsPage from '@/app/components/UserSettingsPage';
 describe('UserSettingsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useAuthenticatorMock.mockReturnValue({ user: { userId: 'user-1' } });
+    useCurrentUserIdMock.mockReturnValue('user-1');
     fetchUserDisplayNameMock.mockResolvedValue('Fallback Name');
     getUserSettingsMock.mockResolvedValue({ data: null, errors: undefined });
     upsertUserSettingsMock.mockResolvedValue({ data: { id: 'settings-1' }, errors: undefined });
@@ -137,7 +137,7 @@ describe('UserSettingsPage', () => {
   });
 
   it('shows auth error when trying to save without a user', async () => {
-    useAuthenticatorMock.mockReturnValue({ user: null });
+    useCurrentUserIdMock.mockReturnValue(undefined);
 
     render(<UserSettingsPage title="Settings" roleVariant="customer" />);
 

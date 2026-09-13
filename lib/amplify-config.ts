@@ -117,6 +117,29 @@ export async function fetchUserGroups(): Promise<string[]> {
 }
 
 /**
+ * Fetch the current user's Cognito sub from the active session token.
+ *
+ * `useAuthenticator().user` is only populated by the Authenticator machine's
+ * own internal getCurrentUser/signIn actors -- it stays `undefined` forever
+ * after this app's custom sign-in form calls `signIn()` from 'aws-amplify/auth'
+ * directly (see app/page.tsx), since that bypasses those actors entirely. It
+ * only becomes correct again after a full page reload re-runs the machine's
+ * initial getCurrentUser check. fetchAuthSession() (same as fetchUserGroups()
+ * above) reflects the real session immediately, so use this (or the
+ * useCurrentUserId() hook) instead of useAuthenticator().user.userId anywhere
+ * a page needs the signed-in user's id.
+ */
+export async function fetchUserId(): Promise<string | undefined> {
+  try {
+    const session = await fetchAuthSession();
+    const sub = session.tokens?.idToken?.payload?.sub;
+    return typeof sub === 'string' ? sub : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Check if the current user is a customer (member of 'customer' group)
  * All authenticated users should be in at least the 'customer' group
  */

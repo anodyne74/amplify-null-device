@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import type { Customer, Stop, Route } from '@/amplify/types';
@@ -32,7 +32,7 @@ type CustomerInvoice = {
  * Shows overview of routes, invoices, and statistics
  */
 export default function CustomerDashboard() {
-  const { user } = useAuthenticator();
+  const userId = useCurrentUserId();
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
@@ -65,7 +65,7 @@ export default function CustomerDashboard() {
   );
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     let cancelled = false;
 
     void fetchUserDisplayName().then((name) => {
@@ -75,18 +75,18 @@ export default function CustomerDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [user?.userId]);
+  }, [userId]);
 
   useEffect(() => {
     setDisplayName(fallbackDisplayName);
   }, [fallbackDisplayName]);
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     if (typeof getUserSettings !== 'function') return;
     let cancelled = false;
 
-    void getUserSettings(user.userId)
+    void getUserSettings(userId)
       .then((result) => {
         if (cancelled) return;
         const configuredName = result.data?.name?.trim();
@@ -99,13 +99,13 @@ export default function CustomerDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [fallbackDisplayName, user?.userId]);
+  }, [fallbackDisplayName, userId]);
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     let cancelled = false;
 
-    void getCustomerPortalContext(user.userId)
+    void getCustomerPortalContext(userId)
       .then(async (context) => {
         if (!cancelled) {
           setCustomerRole(context.role);
@@ -180,7 +180,7 @@ export default function CustomerDashboard() {
         if (context.role === 'account_owner') {
           const invoiceResult = await listMyInvoices({
             customerId: context.customerId,
-            userSub: user.userId,
+            userSub: userId,
             limit: 500,
           });
           const invoiceItems = (invoiceResult.data as CustomerInvoice[]) ?? [];
@@ -222,7 +222,7 @@ export default function CustomerDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [user?.userId]);
+  }, [userId]);
 
   const isAccountOwner = customerRole === 'account_owner';
   const averageSignsPerHour = totalHours > 0 ? (totalSigns / (totalHours / 60)).toFixed(2) : '…';

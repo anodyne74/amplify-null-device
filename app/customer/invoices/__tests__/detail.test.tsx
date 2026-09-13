@@ -19,14 +19,8 @@ jest.mock('next/navigation', () => ({
   useRouter: () => routerMock,
 }));
 
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: () => ({
-    authStatus: 'authenticated',
-    user: {
-      userId: 'owner-sub-1',
-      username: 'owner-sub-1',
-    },
-  }),
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => 'owner-sub-1',
 }));
 
 jest.mock('@/lib/queries/GetInvoiceDetail', () => ({

@@ -8,6 +8,17 @@
   width: 260px;
 }
 
+.customerFilterRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.customerFilterNote {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
 .emptyState {
   padding: var(--space-8);
   text-align: center;

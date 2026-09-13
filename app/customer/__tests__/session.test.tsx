@@ -4,7 +4,6 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CustomerLayout from '../layout';
 import { useRouter } from 'next/navigation';
-import { useAuthenticator } from '@aws-amplify/ui-react';
 import { signOut } from 'aws-amplify/auth';
 import { getCustomerPortalContext } from '@/lib/queries';
 
@@ -14,10 +13,9 @@ jest.mock('next/navigation', () => ({
   usePathname: jest.fn(() => '/customer/dashboard'),
 }));
 
-// Mock the authenticator
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: jest.fn(),
-  Authenticator: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+// Mock the authentication
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => 'test-user-id',
 }));
 
 jest.mock('aws-amplify/auth', () => ({
@@ -68,19 +66,6 @@ describe('Customer Session Management Integration', () => {
 
     (useRouter as jest.Mock).mockReturnValue({
       push: mockPush,
-    });
-
-    (useAuthenticator as jest.Mock).mockReturnValue({
-      user: {
-        userId: 'test-user-id',
-        signInUserSession: {
-          idToken: {
-            payload: {
-              email: 'test@example.com',
-            },
-          },
-        },
-      },
     });
 
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({

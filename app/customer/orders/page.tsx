@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import type { Customer, StandingPickupDay } from '@/amplify/types';
 import { getCustomer, getCustomerPortalContext, updateCustomer } from '@/lib/queries';
 import PageHeader from '@/app/customer/components/PageHeader';
@@ -30,7 +30,7 @@ function formatUpdatedAt(value?: string | null) {
 }
 
 export default function CustomerStandingOrdersPage() {
-  const { user } = useAuthenticator();
+  const userId = useCurrentUserId();
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('read_only');
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -48,10 +48,10 @@ export default function CustomerStandingOrdersPage() {
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     let cancelled = false;
 
-    void getCustomerPortalContext(user.userId)
+    void getCustomerPortalContext(userId)
       .then(async (context) => {
         if (cancelled) return;
         setCustomerRole(context.role);
@@ -94,7 +94,7 @@ export default function CustomerStandingOrdersPage() {
     return () => {
       cancelled = true;
     };
-  }, [user?.userId]);
+  }, [userId]);
 
   const handleSave = async () => {
     if (!customerId) {

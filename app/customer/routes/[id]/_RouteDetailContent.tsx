@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import { getCustomer, getCustomerPortalContext, getRouteWithStops, listCustomerUsers, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
@@ -43,8 +43,7 @@ interface RouteDetailContentProps {
  * Shows full route information with stops and timeline
  */
 export default function RouteDetailContent({ params }: RouteDetailContentProps) {
-  const { user } = useAuthenticator();
-  const userId = user?.userId;
+  const userId = useCurrentUserId();
   const [route, setRoute] = useState<Route | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +65,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
 
   useEffect(() => {
     if (!params.id || !userId) return;
+    const currentUserId = userId;
     let cancelled = false;
 
     async function fetchRoute() {
@@ -73,7 +73,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
       setError(null);
 
       try {
-        const context = await getCustomerPortalContext(userId);
+        const context = await getCustomerPortalContext(currentUserId);
         const result = await getRouteWithStops(params.id);
 
         if (cancelled) return;

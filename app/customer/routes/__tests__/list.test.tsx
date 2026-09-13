@@ -20,22 +20,9 @@ jest.mock('@/lib/amplify-config', () => ({
   fetchUserGroups: jest.fn().mockResolvedValue(['customer']),
 }));
 
-// Mock the authentication with proper authStatus
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: () => ({
-    authStatus: 'authenticated',
-    user: {
-      userId: 'viewer-sub-1',
-      username: 'viewer-sub-1',
-      signInUserSession: {
-        idToken: {
-          payload: {
-            email: 'test@example.com',
-          },
-        },
-      },
-    },
-  }),
+// Mock the authentication
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => 'viewer-sub-1',
 }));
 
 // Mock the queries

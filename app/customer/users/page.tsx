@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { getCustomer, getCustomerPortalContext, listCustomerUsers } from '@/lib/queries';
 import PageHeader from '@/app/customer/components/PageHeader';
@@ -40,7 +40,7 @@ function roleLabel(role?: string | null) {
 }
 
 export default function CustomerTeamPage() {
-  const { user } = useAuthenticator();
+  const userId = useCurrentUserId();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -61,10 +61,10 @@ export default function CustomerTeamPage() {
   }, []);
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     let cancelled = false;
 
-    void getCustomerPortalContext(user.userId)
+    void getCustomerPortalContext(userId)
       .then(async (context) => {
         if (cancelled) return;
         setIsAccountOwner(context.role === 'account_owner');
@@ -94,7 +94,7 @@ export default function CustomerTeamPage() {
     return () => {
       cancelled = true;
     };
-  }, [user?.userId, loadTeammates]);
+  }, [userId, loadTeammates]);
 
   const handleInvite = async () => {
     if (!email.trim()) {

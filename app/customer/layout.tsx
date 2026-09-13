@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import CustomerShell from '@/app/customer/components/CustomerShell';
@@ -29,7 +29,7 @@ const READ_ONLY_HIDDEN_PATHS = ['/customer/invoices', '/customer/billing-details
  * Includes session timeout after 30 minutes of inactivity.
  */
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuthenticator();
+  const userId = useCurrentUserId();
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
   const [userDisplayName, setUserDisplayName] = useState('');
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
@@ -39,7 +39,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   useSessionTimeout();
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     let cancelled = false;
 
     void fetchUserDisplayName().then((name) => {
@@ -49,18 +49,18 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     return () => {
       cancelled = true;
     };
-  }, [user?.userId]);
+  }, [userId]);
 
   useEffect(() => {
     setUserDisplayName(fallbackDisplayName);
   }, [fallbackDisplayName]);
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     if (typeof getUserSettings !== 'function') return;
     let cancelled = false;
 
-    void getUserSettings(user.userId)
+    void getUserSettings(userId)
       .then((result) => {
         const configuredName = result.data?.name?.trim();
         if (!cancelled) {
@@ -78,13 +78,13 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     return () => {
       cancelled = true;
     };
-  }, [applyThemeMode, fallbackDisplayName, user?.userId]);
+  }, [applyThemeMode, fallbackDisplayName, userId]);
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     let cancelled = false;
 
-    void getCustomerPortalContext(user.userId)
+    void getCustomerPortalContext(userId)
       .then((ctx) => {
         if (!cancelled) setCustomerRole(ctx.role);
       })
@@ -95,10 +95,10 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     return () => {
       cancelled = true;
     };
-  }, [user?.userId]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
 
     void fetchAuthSession()
       .then((session) => {
@@ -116,7 +116,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
       .catch(() => {
         // Non-blocking: existing accounts self-heal on a later visit if this fails.
       });
-  }, [user?.userId]);
+  }, [userId]);
 
   const navItems = useMemo(
     () => (customerRole === 'read_only' ? CUSTOMER_NAV.filter((item) => !READ_ONLY_HIDDEN_PATHS.includes(item.href)) : CUSTOMER_NAV),

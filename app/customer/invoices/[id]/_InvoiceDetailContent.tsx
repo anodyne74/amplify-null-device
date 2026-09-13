@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import { useRouter } from 'next/navigation';
 import { getInvoiceDetail, type InvoiceDetail } from '@/lib/queries/GetInvoiceDetail';
 import { getCustomerPortalContext } from '@/lib/queries';
@@ -26,7 +26,7 @@ interface InvoiceDetailContentProps {
  * Displays invoice with line items and download option
  */
 export default function InvoiceDetailContent({ params }: InvoiceDetailContentProps) {
-  const { user } = useAuthenticator();
+  const userId = useCurrentUserId();
   const router = useRouter();
   const { showToast } = useToast();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
@@ -36,7 +36,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
   const [pdfActionLoading, setPdfActionLoading] = useState(false);
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     let cancelled = false;
 
     const fetchInvoice = async () => {
@@ -44,7 +44,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
       setError(null);
 
       try {
-        const context = await getCustomerPortalContext(user.userId);
+        const context = await getCustomerPortalContext(userId);
 
         if (context.role === 'read_only') {
           if (!cancelled) {
@@ -63,7 +63,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
         const result = await getInvoiceDetail({
           invoiceId: params.id,
           customerId: context.customerId,
-          userSub: user.userId,
+          userSub: userId,
         });
 
         if (cancelled) return;
@@ -93,7 +93,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
     return () => {
       cancelled = true;
     };
-  }, [user?.userId, params.id]);
+  }, [userId, params.id]);
 
   const handlePdfAction = async (action: 'view' | 'download') => {
     if (!invoice?.pdfS3Key) return;

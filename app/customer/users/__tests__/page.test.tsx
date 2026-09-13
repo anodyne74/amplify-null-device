@@ -4,10 +4,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import CustomerTeamPage from '../page';
 import { getCustomer, getCustomerPortalContext, listCustomerUsers } from '@/lib/queries';
 
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: () => ({
-    user: { userId: 'user-sub-1' },
-  }),
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => 'user-sub-1',
 }));
 
 jest.mock('aws-amplify/auth', () => ({

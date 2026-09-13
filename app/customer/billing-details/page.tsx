@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import type { Customer } from '@/amplify/types';
 import { getCustomer, getCustomerPortalContext, updateCustomer } from '@/lib/queries';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
@@ -21,7 +21,7 @@ function parseCcEmails(value: string) {
 }
 
 export default function CustomerBillingDetailsPage() {
-  const { user } = useAuthenticator();
+  const userId = useCurrentUserId();
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('read_only');
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -31,7 +31,6 @@ export default function CustomerBillingDetailsPage() {
   const [billingEmail, setBillingEmail] = useState('');
   const [billingCcEmailsText, setBillingCcEmailsText] = useState('');
   const [attachAgentBreakdown, setAttachAgentBreakdown] = useState(true);
-  const [sendPaymentReminder, setSendPaymentReminder] = useState(false);
   const [companyName, setCompanyName] = useState('');
   const [gstAbn, setGstAbn] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
@@ -45,10 +44,10 @@ export default function CustomerBillingDetailsPage() {
   const [addressSuccess, setAddressSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     let cancelled = false;
 
-    void getCustomerPortalContext(user.userId)
+    void getCustomerPortalContext(userId)
       .then(async (context) => {
         if (cancelled) return;
         setCustomerRole(context.role);
@@ -75,7 +74,6 @@ export default function CustomerBillingDetailsPage() {
         setBillingEmail(nextCustomer?.email ?? '');
         setBillingCcEmailsText((nextCustomer?.billingCcEmails ?? []).join(', '));
         setAttachAgentBreakdown(nextCustomer?.attachAgentBreakdown ?? true);
-        setSendPaymentReminder(nextCustomer?.sendPaymentReminder ?? false);
         setCompanyName(nextCustomer?.companyName ?? '');
         setGstAbn(nextCustomer?.gstAbn ?? '');
         setAddressLine1(nextCustomer?.addressLine1 ?? '');
@@ -91,7 +89,7 @@ export default function CustomerBillingDetailsPage() {
     return () => {
       cancelled = true;
     };
-  }, [user?.userId]);
+  }, [userId]);
 
   const handleSaveEmail = async () => {
     if (!customerId) return;
@@ -103,7 +101,6 @@ export default function CustomerBillingDetailsPage() {
       email: billingEmail.trim(),
       billingCcEmails: parseCcEmails(billingCcEmailsText),
       attachAgentBreakdown,
-      sendPaymentReminder,
     });
 
     if (result.errors && result.errors.length > 0) {
@@ -180,12 +177,6 @@ export default function CustomerBillingDetailsPage() {
                 checked={attachAgentBreakdown}
                 onChange={(e) => setAttachAgentBreakdown(e.target.checked)}
                 label="Attach the agent breakdown for on-charging"
-                disabled={savingEmail}
-              />
-              <Switch
-                checked={sendPaymentReminder}
-                onChange={(e) => setSendPaymentReminder(e.target.checked)}
-                label="Send a reminder three days before the due date"
                 disabled={savingEmail}
               />
               <div className={styles.actions}>

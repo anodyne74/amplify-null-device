@@ -4,8 +4,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import CustomerCalendarPage from '../page';
 import { getCustomer, getCustomerPortalContext } from '@/lib/queries';
 
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: () => ({ user: { userId: 'reviewer-sub' } }),
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => 'reviewer-sub',
 }));
 
 jest.mock('@/app/components/ProtectedRoute', () => ({

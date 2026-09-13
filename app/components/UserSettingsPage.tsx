@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
 import {
@@ -39,7 +39,7 @@ interface UserSettingsPageProps {
 }
 
 export default function UserSettingsPage({ title, roleVariant }: UserSettingsPageProps) {
-  const { user } = useAuthenticator();
+  const userId = useCurrentUserId();
   const { mode, setMode } = useThemeMode();
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
 
@@ -53,7 +53,7 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     let cancelled = false;
 
     void fetchUserDisplayName().then((name) => {
@@ -63,15 +63,15 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
     return () => {
       cancelled = true;
     };
-  }, [user?.userId]);
+  }, [userId]);
 
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!userId) return;
     let cancelled = false;
 
     setName(fallbackDisplayName);
 
-    void getUserSettings(user.userId)
+    void getUserSettings(userId)
       .then((result) => {
         if (cancelled) return;
 
@@ -100,13 +100,13 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
     return () => {
       cancelled = true;
     };
-  }, [fallbackDisplayName, user?.userId, setMode]);
+  }, [fallbackDisplayName, userId, setMode]);
 
   useEffect(() => {
-    if (roleVariant !== 'customer' || !user?.userId) return;
+    if (roleVariant !== 'customer' || !userId) return;
     let cancelled = false;
 
-    void getCustomerPortalContext(user.userId)
+    void getCustomerPortalContext(userId)
       .then(async (context) => {
         if (cancelled) return;
         setCustomerRole(context.role);
@@ -130,7 +130,7 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
     return () => {
       cancelled = true;
     };
-  }, [roleVariant, user?.userId]);
+  }, [roleVariant, userId]);
 
   const availableTabs = useMemo<Array<{ id: SettingsTab; label: string }>>(
     () => [
@@ -149,7 +149,7 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
   }, [activeTab, availableTabs]);
 
   const handleSave = async () => {
-    if (!user?.userId) {
+    if (!userId) {
       setMessage('Unable to save settings. Please sign in again.');
       return;
     }
@@ -157,7 +157,7 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
     setPending(true);
     setMessage(null);
 
-    const result = await upsertUserSettings(user.userId, {
+    const result = await upsertUserSettings(userId, {
       name: name.trim() || undefined,
       defaultTheme,
       mapTheme,

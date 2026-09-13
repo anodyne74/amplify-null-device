@@ -2,18 +2,17 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import InvoicesPage from '../page';
-import { useAuthenticator } from '@aws-amplify/ui-react';
 import * as listMyInvoicesModule from '@/lib/queries/ListMyInvoices';
-import { getCustomerPortalContext } from '@/lib/queries';
+import { getCustomerPortalContext, getCustomer } from '@/lib/queries';
 
 // Mock the router
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
 }));
 
-// Mock the authenticator
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: jest.fn(),
+// Mock the authentication
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => 'owner-sub-1',
 }));
 
 // Mock the LoadingSpinner
@@ -27,6 +26,7 @@ jest.mock('@/app/components/LoadingSpinner', () => {
 jest.spyOn(listMyInvoicesModule, 'listMyInvoices');
 jest.mock('@/lib/queries', () => ({
   getCustomerPortalContext: jest.fn(),
+  getCustomer: jest.fn(),
 }));
 
 describe('Invoice List Page Integration', () => {
@@ -58,15 +58,13 @@ describe('Invoice List Page Integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    (useAuthenticator as jest.Mock).mockReturnValue({
-      authStatus: 'authenticated',
-      user: {
-        userId: 'owner-sub-1',
-      },
-    });
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({
       role: 'account_owner',
       customerId: 'cust-1',
+    });
+    (getCustomer as jest.Mock).mockResolvedValue({
+      data: { id: 'cust-1', name: 'Acme Corp' },
+      errors: undefined,
     });
 
     (listMyInvoicesModule.listMyInvoices as jest.Mock).mockResolvedValue({

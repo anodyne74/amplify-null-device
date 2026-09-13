@@ -11,10 +11,8 @@ import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 
 jest.mock('@/app/dashboard.module.css', () => ({}));
 
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: () => ({
-    user: { userId: 'user-sub-1' },
-  }),
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => 'user-sub-1',
 }));
 
 jest.mock('@/lib/amplify-config', () => ({

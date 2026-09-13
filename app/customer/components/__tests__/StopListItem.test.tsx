@@ -17,24 +17,35 @@ describe('StopListItem', () => {
     render(<StopListItem stop={mockStop} sequence={1} />);
 
     expect(screen.getByText(/123 Main Street/i)).toBeInTheDocument();
-    expect(screen.getByText(/delivery/i)).toBeInTheDocument();
+    expect(screen.getByText(/Awaiting placement/i)).toBeInTheDocument();
   });
 
-  it('displays service type correctly', () => {
-    render(
-      <StopListItem stop={mockStop} sequence={1} />
-    );
-    expect(screen.getByText(/delivery/i)).toBeInTheDocument();
+  it('reflects the pickup phase for pickup stops', () => {
+    render(<StopListItem stop={{ ...mockStop, serviceType: 'pickup' }} sequence={1} />);
+    expect(screen.getByText(/Awaiting pickup/i)).toBeInTheDocument();
   });
 
-  it('renders with notes when provided', () => {
+  it('shows placement and pickup completion times from execution markers', () => {
+    const completedStop: Stop = {
+      ...mockStop,
+      notes: '[PLACEMENT_DONE:2026-08-31T10:00:00.000Z] [PICKUP_DONE:2026-08-31T11:00:00.000Z]',
+    };
+
+    render(<StopListItem stop={completedStop} sequence={1} />);
+    expect(screen.getByText(/Picked up/i)).toBeInTheDocument();
+    expect(screen.getByText(/Placed:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Picked up:/i)).toBeInTheDocument();
+  });
+
+  it('renders with notes when provided, stripped of execution markers', () => {
     const stopWithNotes: Stop = {
       ...mockStop,
-      notes: 'Customer not home, left at gate',
+      notes: 'Customer not home, left at gate [PLACEMENT_DONE:2026-08-31T10:00:00.000Z]',
     };
 
     render(<StopListItem stop={stopWithNotes} sequence={1} />);
     expect(screen.getByText(/Customer not home, left at gate/i)).toBeInTheDocument();
+    expect(screen.queryByText(/PLACEMENT_DONE/i)).not.toBeInTheDocument();
   });
 
   it('handles stops without arrival time', () => {

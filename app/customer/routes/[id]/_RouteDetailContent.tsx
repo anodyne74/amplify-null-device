@@ -20,6 +20,7 @@ import type { Customer, Route, Stop } from '@/amplify/types';
 import { formatDurationHoursMinutes } from '@/lib/format';
 import { appendRouteInstruction, parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
+import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
 import styles from './_RouteDetailContent.module.css';
 
 // Mirrors the existing .stopsAndMap collapse breakpoint in
@@ -131,7 +132,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   }, [params.id, userId]);
 
   const handleAddInstruction = async () => {
-    if (!route || !instructionsDraft.trim()) return;
+    if (!route || !instructionsDraft.trim() || instructionsLocked) return;
     setSavingInstructions(true);
     setInstructionsError(null);
     setInstructionsSuccess(null);
@@ -212,6 +213,13 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const instructionEntries = sortRouteInstructionsNewestFirst(parseRouteInstructions(route.customerInstructions));
   const agentOptions = customer?.agentOptions ?? [];
   const customerUsersBySub = new Map(customerUsers.map((cu) => [cu.userSub, cu]));
+  // getRoutePhaseKey (not the raw loadConfirmedAt field) is what determines
+  // this — legacy routes predating that field still resolve to their correct
+  // phase (e.g. via route.status), so the lock holds even for old data where
+  // loadConfirmedAt was never backfilled. Phase index >= signs_placed covers
+  // "placement has begun" through the rest of the route's life.
+  const currentPhase = getRoutePhaseKey(route);
+  const instructionsLocked = ROUTE_PHASE_KEYS.indexOf(currentPhase) >= ROUTE_PHASE_KEYS.indexOf('signs_placed');
 
   const routeLabel = route.routeCode || `${route.id.slice(0, 8)}...`;
   const totalSigns = stops.reduce((sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0), 0);
@@ -220,6 +228,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const pickupDueLabel = route.pickupStartTime ? formatDate(route.pickupStartTime) : 'TBC';
   const nextStop = stops.find((stop) => !stop.actualDepartureTime) ?? stops[0] ?? null;
   const nextStopIndex = nextStop ? stops.findIndex((stop) => stop.id === nextStop.id) : -1;
+  const showNextStop = Boolean(nextStop) && (currentPhase === 'signs_placed' || currentPhase === 'signs_picked_up');
   const upcomingStopIds =
     nextStopIndex >= 0
       ? stops
@@ -340,7 +349,11 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
 
         <Card
           title="Special instructions"
-          subtitle="For this route only — the operator sees them before they leave the depot"
+          subtitle={
+            instructionsLocked
+              ? 'Locked — sign placement has already begun for this route'
+              : 'For this route only — the operator sees them before they leave the depot'
+          }
           action={
             <IconButton
               icon="chevron-down"
@@ -379,45 +392,50 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
                 </div>
               )}
 
-              {agentOptions.length > 0 && (
-                <Select
-                  aria-label="Posting as"
-                  value={instructionsAgent}
-                  onChange={(e) => setInstructionsAgent(e.target.value)}
-                  disabled={savingInstructions}
-                  options={agentOptions.map((agent) => ({ value: agent, label: `Posting as ${agent}` }))}
-                />
+              {instructionsLocked ? (
+                <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
+                  Instructions can no longer be added or changed — sign placement has begun.
+                </p>
+              ) : (
+                <>
+                  {agentOptions.length > 0 && (
+                    <Select
+                      aria-label="Posting as"
+                      value={instructionsAgent}
+                      onChange={(e) => setInstructionsAgent(e.target.value)}
+                      disabled={savingInstructions}
+                      options={agentOptions.map((agent) => ({ value: agent, label: `Posting as ${agent}` }))}
+                    />
+                  )}
+
+                  <Input
+                    multiline
+                    aria-label="Add an instruction for this route"
+                    value={instructionsDraft}
+                    onChange={(e) => setInstructionsDraft(e.target.value)}
+                    placeholder="Anything specific for this run — access, extra signs, a street to avoid"
+                    disabled={savingInstructions}
+                  />
+
+                  <div className={styles.instructionsActions}>
+                    <Button
+                      type="button"
+                      loading={savingInstructions}
+                      disabled={savingInstructions || !instructionsDraft.trim()}
+                      onClick={() => void handleAddInstruction()}
+                    >
+                      {savingInstructions ? 'Adding…' : 'Add instruction'}
+                    </Button>
+                  </div>
+                </>
               )}
-
-              <Input
-                multiline
-                aria-label="Add an instruction for this route"
-                value={instructionsDraft}
-                onChange={(e) => setInstructionsDraft(e.target.value)}
-                placeholder="Anything specific for this run — access, extra signs, a street to avoid"
-                disabled={savingInstructions}
-              />
-
-              <div className={styles.instructionsActions}>
-                <Button
-                  type="button"
-                  loading={savingInstructions}
-                  disabled={savingInstructions || !instructionsDraft.trim()}
-                  onClick={() => void handleAddInstruction()}
-                >
-                  {savingInstructions ? 'Adding…' : 'Add instruction'}
-                </Button>
-              </div>
             </div>
           )}
         </Card>
 
-        {nextStop && (
+        {showNextStop && nextStop && (
           <Card title="Next stop">
             <p style={{ margin: 0, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--text-lg)', color: 'var(--text-heading)' }}>
-              {`Stop ${nextStop.sequence ?? nextStopIndex + 1}`}
-            </p>
-            <p style={{ margin: '4px 0 0', color: 'var(--text-muted)' }}>
               {nextStop.formattedAddress || nextStop.address || 'No address available'}
             </p>
           </Card>

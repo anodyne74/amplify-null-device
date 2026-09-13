@@ -66,12 +66,15 @@ jest.mock('@/app/operator/components/RouteStopsMap', () => ({
 }));
 
 describe('Customer route detail tracker', () => {
+  // executionPhase 'load' = signs are still being collected, i.e. before sign
+  // placement has begun — special instructions are still editable at this
+  // point (see the dedicated locking test below for the 'placement' case).
   const route: Route = {
     id: 'route-1',
     routeCode: 'W19-26-001',
     customerId: 'cust-1',
     status: 'in_progress',
-    executionPhase: 'placement',
+    executionPhase: 'load',
     createdAt: '2024-01-15T10:00:00Z',
   } as Route;
 
@@ -139,7 +142,9 @@ describe('Customer route detail tracker', () => {
     expect(map).toHaveAttribute('data-active-stop', 'stop-2');
     expect(map).toHaveAttribute('data-upcoming-stops', 'stop-3');
     expect(map).toHaveAttribute('data-map-theme', 'dark');
-    expect(screen.getAllByText('200 Second St')).toHaveLength(2);
+    // Next stop card is gated to the signs_placed/signs_picked_up phases (see the
+    // dedicated locking tests below), so at 'load' phase it only appears once, in the list.
+    expect(screen.getAllByText('200 Second St')).toHaveLength(1);
 
     await waitFor(() => {
       expect(getRouteWithStops).toHaveBeenCalledWith('route-1');
@@ -243,6 +248,53 @@ describe('Customer route detail tracker', () => {
     await screen.findByRole('heading', { name: /route w19-26-001/i });
 
     expect(await screen.findByText(/david mun ·/i)).toBeInTheDocument();
+  });
+
+  it('locks special instructions once sign placement has begun, hiding the add-instruction form', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: { ...route, executionPhase: 'placement' },
+      stops,
+      errors: [],
+    });
+
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+
+    expect(screen.getByText(/sign placement has already begun/i)).toBeInTheDocument();
+    expect(screen.getByText(/sign placement has begun/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/add an instruction for this route/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps special instructions locked for a completed route even without loadConfirmedAt set (legacy data)', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: { ...route, status: 'completed', executionPhase: undefined },
+      stops,
+      errors: [],
+    });
+
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+
+    expect(screen.getByText(/sign placement has already begun/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/add an instruction for this route/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the "Next stop" card only during the signs_placed/signs_picked_up phases', async () => {
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+    expect(screen.queryByRole('heading', { name: /next stop/i })).not.toBeInTheDocument();
+
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: { ...route, executionPhase: 'placement' },
+      stops,
+      errors: [],
+    });
+    const { unmount } = render(<RouteDetailContent params={{ id: 'route-1' }} />);
+    await screen.findAllByRole('heading', { name: /route w19-26-001/i });
+    expect(await screen.findByRole('heading', { name: /next stop/i })).toBeInTheDocument();
+    unmount();
   });
 
   it('collapses and re-expands the special instructions panel', async () => {

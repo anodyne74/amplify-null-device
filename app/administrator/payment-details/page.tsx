@@ -444,28 +444,7 @@ function PaymentDetailsContent() {
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
-        <PageHeader
-          title="Payment Details"
-          subtitle="Rate card, cycle, tax and direct debit"
-          actions={
-            <div className={styles.customerPicker}>
-              <Field label="Customer" htmlFor="payment-details-customer">
-                <Select
-                  id="payment-details-customer"
-                  value={selectedCustomerId}
-                  onChange={(e) => setSelectedCustomerId(e.target.value)}
-                  disabled={loadingCustomers || customers.length === 0}
-                >
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-          }
-        />
+        <PageHeader title="Payment Details" subtitle="Rate card, cycle, tax and direct debit" />
 
         <Card title="Pay to" subtitle="Null Device's own remittance details, printed on every customer invoice">
           <div className={styles.form}>
@@ -553,6 +532,30 @@ function PaymentDetailsContent() {
                 </div>
               </>
             )}
+          </div>
+        </Card>
+
+        <Card>
+          <div className={styles.customerFilterRow}>
+            <div className={styles.customerPicker}>
+              <Field label="Customer" htmlFor="payment-details-customer">
+                <Select
+                  id="payment-details-customer"
+                  value={selectedCustomerId}
+                  onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  disabled={loadingCustomers || customers.length === 0}
+                >
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <span className={styles.customerFilterNote}>
+              Changes apply to routes invoiced after the current period closes.
+            </span>
           </div>
         </Card>
 

@@ -70,6 +70,8 @@ describe('Customer Dashboard', () => {
           actualDurationMinutes: 120,
           signsPlacedDistanceKm: 12.5,
           signsPickedUpDistanceKm: 10,
+          overrideDurationMinutes: 150,
+          overrideDistanceKm: 30,
           stops: 2,
           signsPlaced: 5,
           signsPickedUp: 5,
@@ -102,6 +104,14 @@ describe('Customer Dashboard', () => {
           latitude: -37.814,
           longitude: 144.9731,
         },
+        {
+          id: 'stop-3',
+          routeId: 'route-2',
+          sequence: 1,
+          numberOfSigns: 4,
+          latitude: -37.82,
+          longitude: 144.97,
+        },
       ],
       errors: undefined,
     });
@@ -126,6 +136,29 @@ describe('Customer Dashboard', () => {
     expect(screen.getByText(/outstanding amount/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /performance metrics/i })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: /revenue trend/i })).toBeInTheDocument();
+
+    expect(screen.queryByText(/average signs per hour/i)).not.toBeInTheDocument();
+  });
+
+  it('calculates Total distance and Total hours from the route finalisation (override) values when present', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'account_owner',
+      customerId: 'cust-1',
+    });
+
+    render(<CustomerDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /customer totals/i })).toBeInTheDocument();
+    });
+
+    // route-2 (the only completed route) has overrideDistanceKm: 30 and
+    // overrideDurationMinutes: 150, which should win over the raw
+    // signsPlaced/signsPickedUp distance sum (22.5) and actualDurationMinutes (120).
+    await waitFor(() => {
+      expect(screen.getByText(/^total distance$/i).closest('.nd-stat')).toHaveTextContent('30.0 km');
+    });
+    expect(screen.getByText(/^total hours$/i).closest('.nd-stat')).toHaveTextContent('2:30:00');
   });
 
   it('hides financial dashboard surfaces for reviewer role', async () => {
@@ -174,6 +207,39 @@ describe('Customer Dashboard', () => {
     );
     expect(listMyInvoices).not.toHaveBeenCalled();
     expect(screen.queryByText(/pending invoices/i)).not.toBeInTheDocument();
+  });
+
+  it('renames "Route stops" to "Active Route Stops" and counts only stops on active routes', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'read_only',
+      customerId: 'cust-1',
+    });
+
+    render(<CustomerDashboard />);
+
+    // route-1 is signs_placed (active) with 2 stops; route-2 is completed
+    // with 1 stop — only the active route's stops should be counted.
+    await waitFor(() => {
+      expect(screen.getByText(/active route stops/i).closest('.nd-stat')).toHaveTextContent('2');
+    });
+
+    expect(screen.queryByText(/^route stops$/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the stop count under the phase badge and drops the "Review route..." action label', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'read_only',
+      customerId: 'cust-1',
+    });
+
+    render(<CustomerDashboard />);
+
+    const routeLink = await screen.findByRole('link', { name: /review route w19-26-001/i });
+
+    await waitFor(() => {
+      expect(routeLink).toHaveTextContent('2 stops');
+    });
+    expect(routeLink).not.toHaveTextContent(/review route w19-26-001/i);
   });
 
 });

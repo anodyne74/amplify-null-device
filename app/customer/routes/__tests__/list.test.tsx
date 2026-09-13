@@ -58,6 +58,7 @@ describe('Customer Routes List Page', () => {
       customerId: 'test-customer-1',
       status: 'completed',
       estimatedDurationMinutes: 90,
+      actualDurationMinutes: 130,
       createdAt: '2024-01-14T09:00:00Z',
     },
     {
@@ -163,7 +164,7 @@ describe('Customer Routes List Page', () => {
     ]);
   });
 
-  it('sorts by status when sort mode is changed', async () => {
+  it('shows Duration as N/A until a route is completed, then its actual duration', async () => {
     (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
       data: mockRoutes,
       errors: undefined,
@@ -171,24 +172,10 @@ describe('Customer Routes List Page', () => {
 
     render(<RoutesPage />);
 
-    await waitFor(() => {
-      expect(screen.queryByText(/Loading routes/i)).not.toBeInTheDocument();
-    });
+    await screen.findAllByRole('link');
 
-    const sortSelect = screen.getAllByRole('combobox')[0];
-
-    fireEvent.change(sortSelect, {
-      target: { value: 'status' },
-    });
-
-    await waitFor(() => {
-      const routeLinks = screen.getAllByRole('link');
-      expect(routeLinks.map((link) => link.getAttribute('href'))).toEqual([
-        '/customer/routes/route-1',
-        '/customer/routes/route-3',
-        '/customer/routes/route-2',
-      ]);
-    });
+    expect(screen.getAllByText('N/A')).toHaveLength(2); // route-1 (planned), route-3 (signs_placed)
+    expect(screen.getByText('2h 10m')).toBeInTheDocument(); // route-2 (completed), from actualDurationMinutes
   });
 
   it('handles empty route list gracefully', async () => {

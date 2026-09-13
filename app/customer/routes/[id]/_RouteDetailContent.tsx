@@ -294,20 +294,15 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
           </div>
 
           <div className="nd-stat">
-            <span className="nd-stat__label">Estimated duration</span>
+            <span className="nd-stat__label">Duration</span>
             <span className="nd-stat__value" style={{ fontSize: 20, fontFamily: 'var(--font-mono)' }}>
-              {formatDurationHoursMinutes(route.estimatedDurationMinutes as number | undefined)}
+              {/* Total time is only known once the operator finalises the route,
+                  so this stays N/A until then rather than showing an estimate. */}
+              {currentPhase === 'completed'
+                ? formatDurationHoursMinutes(route.actualDurationMinutes as number | undefined)
+                : 'N/A'}
             </span>
           </div>
-
-          {route.actualDurationMinutes && (
-            <div className="nd-stat">
-              <span className="nd-stat__label">Actual duration</span>
-              <span className="nd-stat__value" style={{ fontSize: 20, fontFamily: 'var(--font-mono)' }}>
-                {formatDurationHoursMinutes(route.actualDurationMinutes as number | undefined)}
-              </span>
-            </div>
-          )}
 
           <div className="nd-stat">
             <span className="nd-stat__label">Created</span>

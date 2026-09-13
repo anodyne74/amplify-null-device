@@ -28,4 +28,16 @@ describe('RouteCard', () => {
     render(<RouteCard route={{ id: 'route-1', status: 'planned', stops: [{}, {}, {}] } as unknown as Route} />);
     expect(screen.getByText(/3/)).toBeInTheDocument();
   });
+
+  it('shows N/A duration for a route that has not been finalised yet', () => {
+    render(
+      <RouteCard route={{ id: 'route-1', status: 'in_progress', actualDurationMinutes: 90 } as Route} />
+    );
+    expect(screen.getByText(/duration:/i).parentElement).toHaveTextContent('Duration: N/A');
+  });
+
+  it('shows the actual duration once the route is completed', () => {
+    render(<RouteCard route={{ id: 'route-1', status: 'completed', actualDurationMinutes: 130 } as Route} />);
+    expect(screen.getByText(/duration:/i).parentElement).toHaveTextContent('Duration: 2h 10m');
+  });
 });

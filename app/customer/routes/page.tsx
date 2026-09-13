@@ -11,11 +11,10 @@ import { RouteStatusPill } from '@/app/customer/components/RouteListItem';
 import RouteCard from '@/app/customer/components/RouteCard';
 import { Card } from '@/app/components/ui/core/Card';
 import { Tag } from '@/app/components/ui/core/Tag';
-import { Select } from '@/app/components/ui/forms/Select';
 import { Input } from '@/app/components/ui/forms/Input';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import type { Route } from '@/amplify/types';
-import { compareRouteIdDesc, compareRouteStatusAsc, formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
+import { compareRouteIdDesc, formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
 import { formatRouteDate } from '@/lib/routeDetailHelpers';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS, type RoutePhaseKey } from '@/lib/signRunPhase';
@@ -47,7 +46,6 @@ export default function CustomerRoutesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ChipFilter>('all');
-  const [sortBy, setSortBy] = useState<'routeId' | 'status'>('routeId');
   const [searchText, setSearchText] = useState('');
   const isNarrow = useIsNarrowViewport(NARROW_LIST_BREAKPOINT_PX);
 
@@ -114,14 +112,10 @@ export default function CustomerRoutesPage() {
       );
     }
 
-    if (sortBy === 'routeId') {
-      filtered.sort(compareRouteIdDesc);
-    } else {
-      filtered.sort(compareRouteStatusAsc);
-    }
+    filtered.sort(compareRouteIdDesc);
 
     setFilteredRoutes(filtered);
-  }, [routes, statusFilter, sortBy, searchText]);
+  }, [routes, statusFilter, searchText]);
 
   if (loading) {
     return <LoadingSpinner message="Loading routes..." />;
@@ -143,7 +137,12 @@ export default function CustomerRoutesPage() {
       key: 'duration',
       header: 'Duration',
       align: 'right',
-      render: (route) => formatEstimatedDurationMinutes(route.estimatedDurationMinutes as number | undefined),
+      // Total time is only meaningful once the route has actually finished —
+      // it's calculated from the operator's finalisation, not an estimate.
+      render: (route) =>
+        getRoutePhaseKey(route) === 'completed'
+          ? formatEstimatedDurationMinutes(route.actualDurationMinutes as number | undefined)
+          : 'N/A',
     },
     {
       key: 'action',
@@ -182,15 +181,6 @@ export default function CustomerRoutesPage() {
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               placeholder="Search route code"
-            />
-            <Select
-              aria-label="Sort by"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'routeId' | 'status')}
-              options={[
-                { value: 'routeId', label: 'Route ID (Desc)' },
-                { value: 'status', label: 'Status' },
-              ]}
             />
           </div>
         </div>

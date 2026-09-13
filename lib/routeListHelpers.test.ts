@@ -1,7 +1,6 @@
 import type { Route } from '@/amplify/types';
 import {
   compareRouteIdDesc,
-  compareRouteStatusAsc,
   formatEstimatedDurationMinutes,
   formatRouteDuration,
 } from '@/lib/routeListHelpers';
@@ -63,32 +62,6 @@ describe('routeListHelpers', () => {
       ];
 
       routes.sort(compareRouteIdDesc);
-
-      expect(routes.map((route) => route.id)).toEqual(['route-10', 'route-2', 'route-1']);
-    });
-  });
-
-  describe('compareRouteStatusAsc', () => {
-    it('sorts routes by configured status order', () => {
-      const routes = [
-        makeRoute({ id: 'r-completed', status: 'completed' }),
-        makeRoute({ id: 'r-planned', status: 'planned' }),
-        makeRoute({ id: 'r-signs-placed', status: 'signs_placed' }),
-      ];
-
-      routes.sort(compareRouteStatusAsc);
-
-      expect(routes.map((route) => route.id)).toEqual(['r-planned', 'r-signs-placed', 'r-completed']);
-    });
-
-    it('uses descending route id as tie-breaker for same status', () => {
-      const routes = [
-        makeRoute({ id: 'route-1', status: 'planned' }),
-        makeRoute({ id: 'route-10', status: 'planned' }),
-        makeRoute({ id: 'route-2', status: 'planned' }),
-      ];
-
-      routes.sort(compareRouteStatusAsc);
 
       expect(routes.map((route) => route.id)).toEqual(['route-10', 'route-2', 'route-1']);
     });

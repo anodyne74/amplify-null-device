@@ -4,6 +4,7 @@ import RouteStatusBadge from '@/app/components/RouteStatusBadge';
 import type { Route } from '@/amplify/types';
 import { formatRouteDate } from '@/lib/routeDetailHelpers';
 import { formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
+import { getRoutePhaseKey } from '@/lib/signRunPhase';
 import styles from './RouteCard.module.css';
 
 interface RouteCardProps {
@@ -33,11 +34,14 @@ export default function RouteCard({ route }: RouteCardProps) {
           <strong>Stops:</strong> {stopCount}
         </p>
 
-        {route.estimatedDurationMinutes && (
-          <p className={styles.meta}>
-            <strong>Duration:</strong> {formatEstimatedDurationMinutes(route.estimatedDurationMinutes)}
-          </p>
-        )}
+        <p className={styles.meta}>
+          {/* Total time is only known once the operator finalises the route,
+              so this stays N/A until then rather than showing an estimate. */}
+          <strong>Duration:</strong>{' '}
+          {getRoutePhaseKey(route) === 'completed'
+            ? formatEstimatedDurationMinutes(route.actualDurationMinutes)
+            : 'N/A'}
+        </p>
 
         {route.createdAt && (
           <p className={styles.meta}>

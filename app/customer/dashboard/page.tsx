@@ -12,6 +12,7 @@ import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import { formatCurrency, formatDuration } from '@/lib/dashboardAnalytics';
 import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
+import { getFinalizedRouteDistanceKm, getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
@@ -43,6 +44,8 @@ export default function CustomerDashboard() {
   const [pendingInvoices, setPendingInvoices] = useState(0);
   const [outstandingAmount, setOutstandingAmount] = useState(0);
   const [totalStops, setTotalStops] = useState(0);
+  const [activeRouteStops, setActiveRouteStops] = useState(0);
+  const [stopCountsByRouteId, setStopCountsByRouteId] = useState<Record<string, number>>({});
   const [totalSigns, setTotalSigns] = useState(0);
 
   const [totalInvoicedAmount, setTotalInvoicedAmount] = useState(0);
@@ -141,22 +144,22 @@ export default function CustomerDashboard() {
           setAnalyticsRoutes(routes);
         }
 
-        if (!cancelled) {
-          setActiveRoutes(
-            routes.filter((route) => {
+        const activeRouteIds = new Set(
+          routes
+            .filter((route) => {
               const phaseKey = getRoutePhaseKey(route);
               return phaseKey !== 'planned' && phaseKey !== 'completed';
-            }).length
-          );
+            })
+            .map((route) => route.id)
+        );
+
+        if (!cancelled) {
+          setActiveRoutes(activeRouteIds.size);
           const completed = routes.filter((r) => getRoutePhaseKey(r) === 'completed');
           setTotalCompletedRoutes(completed.length);
-          const totalMinutes = completed.reduce((sum, r) => sum + (typeof r.actualDurationMinutes === 'number' ? r.actualDurationMinutes : 0), 0);
+          const totalMinutes = completed.reduce((sum, r) => sum + getFinalizedRouteDurationMinutes(r), 0);
           setTotalHours(totalMinutes);
-          const totalDist = completed.reduce(
-            (sum, r) => sum + (typeof r.signsPlacedDistanceKm === 'number' ? r.signsPlacedDistanceKm : 0) +
-                         (typeof r.signsPickedUpDistanceKm === 'number' ? r.signsPickedUpDistanceKm : 0),
-            0
-          );
+          const totalDist = completed.reduce((sum, r) => sum + getFinalizedRouteDistanceKm(r), 0);
           setTotalDistance(totalDist);
         }
 
@@ -169,6 +172,13 @@ export default function CustomerDashboard() {
 
         if (!cancelled) {
           setTotalStops(customerStops.length);
+          setActiveRouteStops(customerStops.filter((stop) => activeRouteIds.has(stop.routeId)).length);
+          setStopCountsByRouteId(
+            customerStops.reduce<Record<string, number>>((counts, stop) => {
+              counts[stop.routeId] = (counts[stop.routeId] || 0) + 1;
+              return counts;
+            }, {})
+          );
           setTotalSigns(
             customerStops.reduce(
               (sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0),
@@ -225,7 +235,6 @@ export default function CustomerDashboard() {
   }, [userId]);
 
   const isAccountOwner = customerRole === 'account_owner';
-  const averageSignsPerHour = totalHours > 0 ? (totalSigns / (totalHours / 60)).toFixed(2) : '…';
   const trackerRoutes = useMemo(
     () =>
       [...analyticsRoutes]
@@ -268,7 +277,7 @@ export default function CustomerDashboard() {
             />
           </>
         ) : (
-          <StatTile label="Route stops" value={statsLoading ? '…' : totalStops} icon="map-pin" />
+          <StatTile label="Active Route Stops" value={statsLoading ? '…' : activeRouteStops} icon="map-pin" />
         )}
       </div>
 
@@ -281,6 +290,7 @@ export default function CustomerDashboard() {
               {trackerRoutes.map((route) => {
                 const routeLabel = route.routeCode || route.id.slice(0, 8);
                 const { label: statusLabel } = getRouteStatusPresentation(route);
+                const stopCount = stopCountsByRouteId[route.id] ?? 0;
 
                 return (
                   <Link
@@ -291,7 +301,12 @@ export default function CustomerDashboard() {
                   >
                     <div className={styles.trackerTopRow}>
                       <strong>Route {routeLabel}</strong>
-                      <span className="nd-badge nd-badge--sm nd-badge--info">{statusLabel}</span>
+                      <div className={styles.trackerBadgeColumn}>
+                        <span className="nd-badge nd-badge--sm nd-badge--info">{statusLabel}</span>
+                        <span className={styles.trackerStopCount}>
+                          {stopCount} {stopCount === 1 ? 'stop' : 'stops'}
+                        </span>
+                      </div>
                     </div>
                     <div className={styles.trackerMeta}>
                       {route.createdAt
@@ -302,7 +317,6 @@ export default function CustomerDashboard() {
                           })
                         : 'Date unavailable'}
                     </div>
-                    <div className={styles.trackerAction}>Review route {routeLabel}</div>
                   </Link>
                 );
               })}
@@ -332,10 +346,6 @@ export default function CustomerDashboard() {
           <div className="nd-stat">
             <span className="nd-stat__label">Total hours</span>
             <span className="nd-stat__value">{statsLoading ? '…' : formatDuration(totalHours)}</span>
-          </div>
-          <div className="nd-stat">
-            <span className="nd-stat__label">Average signs per hour</span>
-            <span className="nd-stat__value">{statsLoading ? '…' : averageSignsPerHour}</span>
           </div>
           {isAccountOwner && (
             <>

@@ -29,3 +29,19 @@ export function formatEstimatedDurationMinutes(minutes?: number | null) {
   const remainingMinutes = minutes % 60;
   return `${hours}h ${remainingMinutes}m`;
 }
+
+// Operators can correct the measured duration/distance at finalisation (the
+// same overrideDurationMinutes/overrideDistanceKm fields invoicing reads) —
+// these mirror that fallback so customer-facing totals agree with billing.
+export function getFinalizedRouteDurationMinutes(route: Route) {
+  if (typeof route.overrideDurationMinutes === 'number') return route.overrideDurationMinutes;
+  return typeof route.actualDurationMinutes === 'number' ? route.actualDurationMinutes : 0;
+}
+
+export function getFinalizedRouteDistanceKm(route: Route) {
+  if (typeof route.overrideDistanceKm === 'number') return route.overrideDistanceKm;
+  return (
+    (typeof route.signsPlacedDistanceKm === 'number' ? route.signsPlacedDistanceKm : 0) +
+    (typeof route.signsPickedUpDistanceKm === 'number' ? route.signsPickedUpDistanceKm : 0)
+  );
+}

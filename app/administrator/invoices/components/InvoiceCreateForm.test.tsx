@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom';
+import type { ComponentProps } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { RateLine, Route } from '@/amplify/types';
 import type { CustomerOption } from '@/app/administrator/invoices/types';
@@ -41,12 +42,15 @@ describe('InvoiceCreateForm', () => {
         customerRoutes={customerRoutes}
         rateLines={[]}
         rateLineQuantities={{}}
+        visibleRateLineIds={new Set()}
         onCustomerChange={onCustomerChange}
         onRouteChange={onRouteChange}
         onInvoiceNumberChange={onInvoiceNumberChange}
         onTotalHoursChange={onTotalHoursChange}
         onTotalAmountChange={onTotalAmountChange}
         onRateLineQuantityChange={jest.fn()}
+        onAddRateLine={jest.fn()}
+        onRemoveRateLine={jest.fn()}
         onSubmit={onSubmit}
       />
     );
@@ -84,12 +88,15 @@ describe('InvoiceCreateForm', () => {
         customerRoutes={customerRoutes}
         rateLines={[]}
         rateLineQuantities={{}}
+        visibleRateLineIds={new Set()}
         onCustomerChange={jest.fn()}
         onRouteChange={jest.fn()}
         onInvoiceNumberChange={jest.fn()}
         onTotalHoursChange={jest.fn()}
         onTotalAmountChange={jest.fn()}
         onRateLineQuantityChange={jest.fn()}
+        onAddRateLine={jest.fn()}
+        onRemoveRateLine={jest.fn()}
         onSubmit={jest.fn()}
       />
     );
@@ -112,12 +119,15 @@ describe('InvoiceCreateForm', () => {
         customerRoutes={customerRoutes}
         rateLines={[]}
         rateLineQuantities={{}}
+        visibleRateLineIds={new Set()}
         onCustomerChange={jest.fn()}
         onRouteChange={jest.fn()}
         onInvoiceNumberChange={jest.fn()}
         onTotalHoursChange={jest.fn()}
         onTotalAmountChange={jest.fn()}
         onRateLineQuantityChange={jest.fn()}
+        onAddRateLine={jest.fn()}
+        onRemoveRateLine={jest.fn()}
         onSubmit={jest.fn()}
       />
     );
@@ -141,12 +151,15 @@ describe('InvoiceCreateForm', () => {
         customerRoutes={customerRoutes}
         rateLines={rateLines}
         rateLineQuantities={{ 'line-1': '18' }}
+        visibleRateLineIds={new Set()}
         onCustomerChange={jest.fn()}
         onRouteChange={jest.fn()}
         onInvoiceNumberChange={jest.fn()}
         onTotalHoursChange={jest.fn()}
         onTotalAmountChange={jest.fn()}
         onRateLineQuantityChange={onRateLineQuantityChange}
+        onAddRateLine={jest.fn()}
+        onRemoveRateLine={jest.fn()}
         onSubmit={jest.fn()}
       />
     );
@@ -160,5 +173,88 @@ describe('InvoiceCreateForm', () => {
 
     fireEvent.change(screen.getByLabelText('Quantity for Pickup'), { target: { value: '5' } });
     expect(onRateLineQuantityChange).toHaveBeenCalledWith('line-2', '5');
+  });
+
+  describe('progressive disclosure of rate lines', () => {
+    const hoursLine: RateLine = {
+      id: 'line-hours',
+      customerId: 'cust-1',
+      label: 'Sign distribution & collection',
+      ratePerUnit: 60,
+      unit: 'per_hour',
+    } as RateLine;
+    const otherLines: RateLine[] = [
+      { id: 'line-extra', customerId: 'cust-1', label: 'Extra sign', ratePerUnit: 14, unit: 'per_sign' } as RateLine,
+      { id: 'line-after', customerId: 'cust-1', label: 'After-hours surcharge', ratePerUnit: 95, unit: 'per_stop' } as RateLine,
+    ];
+
+    function renderForm(overrides: Partial<ComponentProps<typeof InvoiceCreateForm>> = {}) {
+      return render(
+        <InvoiceCreateForm
+          customerId="cust-1"
+          routeId=""
+          invoiceNumber="INV-1"
+          totalHours="0"
+          totalAmount="120"
+          gstAmount="0"
+          saving={false}
+          customers={customers}
+          customerRoutes={customerRoutes}
+          rateLines={[hoursLine, ...otherLines]}
+          rateLineQuantities={{ 'line-hours': '2' }}
+          visibleRateLineIds={new Set()}
+          onCustomerChange={jest.fn()}
+          onRouteChange={jest.fn()}
+          onInvoiceNumberChange={jest.fn()}
+          onTotalHoursChange={jest.fn()}
+          onTotalAmountChange={jest.fn()}
+          onRateLineQuantityChange={jest.fn()}
+          onAddRateLine={jest.fn()}
+          onRemoveRateLine={jest.fn()}
+          onSubmit={jest.fn()}
+          {...overrides}
+        />
+      );
+    }
+
+    it('shows only the per_hour line by default, with an Add rate card item button for the rest', () => {
+      renderForm();
+
+      expect(screen.getByText('Sign distribution & collection')).toBeInTheDocument();
+      expect(screen.queryByText('Extra sign')).not.toBeInTheDocument();
+      expect(screen.queryByText('After-hours surcharge')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '+ Add rate card item' })).toBeInTheDocument();
+    });
+
+    it('reveals a picker of hidden lines and adds the chosen one on selection', () => {
+      const onAddRateLine = jest.fn();
+      renderForm({ onAddRateLine });
+
+      fireEvent.click(screen.getByRole('button', { name: '+ Add rate card item' }));
+      fireEvent.change(screen.getByLabelText('Choose a rate card item to add'), {
+        target: { value: 'line-extra' },
+      });
+
+      expect(onAddRateLine).toHaveBeenCalledWith('line-extra');
+    });
+
+    it('shows added lines with a Remove control that excludes them again', () => {
+      const onRemoveRateLine = jest.fn();
+      renderForm({ visibleRateLineIds: new Set(['line-extra']), onRemoveRateLine });
+
+      expect(screen.getByText('Extra sign')).toBeInTheDocument();
+      expect(screen.queryByText('After-hours surcharge')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Extra sign' }));
+      expect(onRemoveRateLine).toHaveBeenCalledWith('line-extra');
+    });
+
+    it('falls back to showing all rate lines when the customer has no per_hour line', () => {
+      renderForm({ rateLines: otherLines, rateLineQuantities: {} });
+
+      expect(screen.getByText('Extra sign')).toBeInTheDocument();
+      expect(screen.getByText('After-hours surcharge')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '+ Add rate card item' })).not.toBeInTheDocument();
+    });
   });
 });

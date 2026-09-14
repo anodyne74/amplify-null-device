@@ -4,10 +4,13 @@ import { useMemo } from 'react';
 import type { RateLine, Route } from '@/amplify/types';
 import { Card } from '@/app/components/ui/core/Card';
 import { Badge } from '@/app/components/ui/core/Badge';
+import { StatTile } from '@/app/components/ui/data/StatTile';
 import { Switch } from '@/app/components/ui/forms/Switch';
 import type { CustomerOption } from '@/app/administrator/invoices/types';
 import { formatStopProperty, groupStopsByAgent, type StopSummary } from '@/app/administrator/invoices/stopFormatting';
 import { computeDriverSplitPreview } from '@/app/administrator/invoices/driverSplitPreview';
+import { getFinalizedRouteDistanceKm, getFinalizedRouteMinutes } from '@/app/administrator/invoices/routeInvoiceMetrics';
+import { formatDuration } from '@/lib/signRunBilling';
 import styles from './InvoicePreview.module.css';
 
 interface InvoicePreviewProps {
@@ -115,6 +118,10 @@ export default function InvoicePreview({
     billedAmount: preGstAmount,
     driverSplitPercent: customer?.driverSplitPercent,
   });
+
+  const routeMinutes = getFinalizedRouteMinutes(route);
+  const routeDistanceKm = getFinalizedRouteDistanceKm(route);
+  const routeNotFinalized = Boolean(route) && route?.status !== 'completed';
 
   if (!customer) {
     return null;
@@ -239,15 +246,18 @@ export default function InvoicePreview({
 
       <div className={styles.internalPanel}>
         <div className={styles.columnLabel}>Internal · driver split (not shown to the customer)</div>
-        <div className={styles.splitRow}>
-          <div>
-            <div className={styles.metaLine}>Driver share ({driverSplit.splitPercent}%)</div>
-            <div className={styles.splitAmount}>${driverSplit.driverShare.toFixed(2)}</div>
-          </div>
-          <div>
-            <div className={styles.metaLine}>We retain</div>
-            <div className={styles.splitAmount}>${driverSplit.retained.toFixed(2)}</div>
-          </div>
+        {routeNotFinalized && (
+          <div className={styles.metaLine}>Route not yet finalised — figures may change.</div>
+        )}
+        <div className={styles.statRow}>
+          <StatTile label="Duration" value={formatDuration(routeMinutes)} />
+          <StatTile label="Distance" value={`${routeDistanceKm.toFixed(1)} km`} />
+          <StatTile
+            label="Driver share"
+            value={`$${driverSplit.driverShare.toFixed(2)}`}
+            caption={`${driverSplit.splitPercent}% of $${preGstAmount.toFixed(2)} billed`}
+          />
+          <StatTile label="We retain" value={`$${driverSplit.retained.toFixed(2)}`} caption="ex GST" />
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { Route } from '@/amplify/types';
+import type { RateLine, Route } from '@/amplify/types';
 import type { CustomerOption, Invoice } from '@/app/administrator/invoices/types';
 
 type UseInvoiceDerivedFormEffectsParams = {
@@ -17,6 +17,11 @@ type UseInvoiceDerivedFormEffectsParams = {
   // When the selected customer has rate-card lines, the rate-line picker (not this
   // hook) owns totalAmount/gstAmount — see useRateLineTotals.
   hasRateLines?: boolean;
+  // Auto-fills any per_hour rate line's quantity from the finalized route's
+  // hours, skipping lines the admin has already typed a quantity into.
+  rateLines?: RateLine[];
+  setRateLineQuantities?: (updater: (prev: Record<string, string>) => Record<string, string>) => void;
+  manuallyEditedRateLineIds?: ReadonlySet<string>;
 };
 
 export const GST_RATE = 0.1;
@@ -70,6 +75,9 @@ export function useInvoiceDerivedFormEffects({
   setGstAmount,
   totalHours,
   hasRateLines = false,
+  rateLines = [],
+  setRateLineQuantities,
+  manuallyEditedRateLineIds,
 }: UseInvoiceDerivedFormEffectsParams) {
   useEffect(() => {
     if (invoiceNumberOverridden) return;
@@ -116,4 +124,29 @@ export function useInvoiceDerivedFormEffects({
     setGstAmount(gstAmount.toFixed(2));
     setTotalAmount(total.toFixed(2));
   }, [totalHours, routeId, routes, customers, setTotalAmount, setGstAmount, totalAmountOverridden, hasRateLines]);
+
+  useEffect(() => {
+    if (!hasRateLines || !setRateLineQuantities) return;
+
+    const hourlyLines = rateLines.filter(
+      (line) => line.unit === 'per_hour' && !manuallyEditedRateLineIds?.has(line.id)
+    );
+    if (hourlyLines.length === 0) return;
+
+    const selectedRoute = routes.find((route) => route.id === routeId);
+    const routeHours = getRouteDurationHours(selectedRoute);
+    const value = routeHours > 0 ? routeHours.toFixed(2) : '';
+
+    setRateLineQuantities((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const line of hourlyLines) {
+        if (next[line.id] !== value) {
+          next[line.id] = value;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [routeId, routes, rateLines, hasRateLines, manuallyEditedRateLineIds, setRateLineQuantities]);
 }

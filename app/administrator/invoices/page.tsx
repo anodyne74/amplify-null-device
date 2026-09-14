@@ -6,6 +6,7 @@ import OperatorRoute from '@/app/components/OperatorRoute';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { deleteInvoice, updateInvoice } from '@/lib/queries';
 import InvoiceListTable from '@/app/administrator/invoices/components/InvoiceListTable';
+import UninvoicedRoutesTable from '@/app/administrator/invoices/components/UninvoicedRoutesTable';
 import { useInvoiceDocumentActions } from '@/app/administrator/invoices/hooks/useInvoiceDocumentActions';
 import { useInvoiceBillingSettings } from '@/app/administrator/invoices/hooks/useInvoiceBillingSettings';
 import { useInvoiceUiState } from '@/app/administrator/invoices/hooks/useInvoiceUiState';
@@ -138,6 +139,10 @@ export default function InvoicesAdminPage() {
     return r?.routeCode ?? id.slice(0, 8);
   };
 
+  const uninvoicedCompletedRoutes = routes.filter(
+    (route) => route.status === 'completed' && !invoices.some((invoice) => invoice.routeId === route.id)
+  );
+
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
@@ -174,6 +179,12 @@ export default function InvoicesAdminPage() {
           </div>
         )}
         {uploadError && <div className={styles.warningBanner} role="alert" aria-live="assertive">{uploadError}</div>}
+
+        <UninvoicedRoutesTable
+          loading={loading}
+          routes={uninvoicedCompletedRoutes}
+          customerName={customerName}
+        />
 
         <InvoiceListTable
           loading={loading}

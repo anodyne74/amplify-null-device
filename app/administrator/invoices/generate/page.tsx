@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useRef, type FormEvent } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
+import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { createInvoice, createLineItem, updateCustomer } from '@/lib/queries';
@@ -19,7 +20,7 @@ import { useInvoicesDataState } from '@/app/administrator/invoices/hooks/useInvo
 import { buildLineItemInputs } from '@/app/administrator/invoices/rateLineHelpers';
 import styles from '../page.module.css';
 
-export default function GenerateInvoicePage() {
+function GenerateInvoiceContent() {
   const router = useRouter();
 
   const {
@@ -34,6 +35,7 @@ export default function GenerateInvoicePage() {
     customerId,
     setCustomerId,
     routeId,
+    setRouteId,
     invoiceNumber,
     setInvoiceNumber,
     invoiceNumberOverridden,
@@ -45,14 +47,25 @@ export default function GenerateInvoicePage() {
     gstAmount,
     setGstAmount,
     rateLineQuantities,
+    setRateLineQuantities,
+    manuallyEditedRateLineIds,
+    visibleRateLineIds,
     handleCustomerChange,
     handleRouteChange,
     handleInvoiceNumberChange,
     handleTotalAmountChange,
     handleRateLineQuantityChange,
+    handleAddRateLine,
+    handleRemoveRateLine,
   } = useInvoiceCreateState();
 
   const { rateLines } = useCustomerRateLines(customerId);
+
+  // Pre-fill from the "Generate invoice" link on the unbilled-routes list
+  // (/administrator/invoices/generate?routeId=...&customerId=...). Only runs
+  // once so it doesn't fight with later manual selections.
+  const searchParams = useSearchParams();
+  const appliedParamsRef = useRef(false);
 
   const {
     customers,
@@ -91,6 +104,16 @@ export default function GenerateInvoicePage() {
 
   useEffect(() => { void fetchData(); }, [fetchData]);
 
+  useEffect(() => {
+    if (appliedParamsRef.current) return;
+    const paramCustomerId = searchParams.get('customerId');
+    const paramRouteId = searchParams.get('routeId');
+    if (!paramCustomerId && !paramRouteId) return;
+    appliedParamsRef.current = true;
+    if (paramCustomerId) setCustomerId(paramCustomerId);
+    if (paramRouteId) setRouteId(paramRouteId);
+  }, [searchParams, setCustomerId, setRouteId]);
+
   useInvoiceDerivedFormEffects({
     invoices,
     invoiceNumberOverridden,
@@ -104,6 +127,9 @@ export default function GenerateInvoicePage() {
     setGstAmount,
     totalHours,
     hasRateLines: rateLines.length > 0,
+    rateLines,
+    setRateLineQuantities,
+    manuallyEditedRateLineIds,
   });
 
   useRateLineTotals({
@@ -156,7 +182,6 @@ export default function GenerateInvoicePage() {
   };
 
   return (
-    <OperatorRoute requireAdmin>
       <div className={styles.page}>
         <Breadcrumbs
           items={[
@@ -178,12 +203,15 @@ export default function GenerateInvoicePage() {
           customerRoutes={customerRoutes}
           rateLines={rateLines}
           rateLineQuantities={rateLineQuantities}
+          visibleRateLineIds={visibleRateLineIds}
           onCustomerChange={handleCustomerChange}
           onRouteChange={handleRouteChange}
           onInvoiceNumberChange={handleInvoiceNumberChange}
           onTotalHoursChange={setTotalHours}
           onTotalAmountChange={handleTotalAmountChange}
           onRateLineQuantityChange={handleRateLineQuantityChange}
+          onAddRateLine={handleAddRateLine}
+          onRemoveRateLine={handleRemoveRateLine}
           onSubmit={handleCreate}
         />
 
@@ -214,6 +242,15 @@ export default function GenerateInvoicePage() {
           />
         )}
       </div>
+  );
+}
+
+export default function GenerateInvoicePage() {
+  return (
+    <OperatorRoute requireAdmin>
+      <Suspense fallback={<LoadingSpinner message="Loading invoice form..." />}>
+        <GenerateInvoiceContent />
+      </Suspense>
     </OperatorRoute>
   );
 }

@@ -5,28 +5,56 @@ import Link from 'next/link';
 import { useCurrentUserId } from '@/lib/use-user-groups';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
-import type { Customer, Stop, Route } from '@/amplify/types';
+import type { Customer, Route } from '@/amplify/types';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getCustomer, getCustomerPortalContext, getUserSettings } from '@/lib/queries';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
-import { formatCurrency, formatDuration } from '@/lib/dashboardAnalytics';
+import { formatCurrency } from '@/lib/dashboardAnalytics';
 import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
-import { getFinalizedRouteDistanceKm, getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
-import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
+import type { RoutePhaseInput, RoutePhaseKey } from '@/lib/signRunPhase';
+import { summarizeOutstanding, summarizeSignsInField, formatWeekLabel } from '@/lib/adminDashboardOverview';
+import {
+  summarizePeriodActivity,
+  summarizeCurrentRoute,
+  summarizeStopsThisWeek,
+  summarizeThisWeekListings,
+  summarizeStopsByWeek,
+  summarizeSpendByWeek,
+  summarizeAgentActivity,
+  summarizeLatestInvoice,
+  type OverviewRoute,
+  type OverviewStop,
+  type OverviewInvoice,
+} from '@/lib/customerDashboardOverview';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
+import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
 import { StatTile } from '@/app/components/ui/data/StatTile';
-import MetricsVisualization, { type MetricsPeriod } from '../../components/MetricsVisualization';
-import { aggregateRouteData } from '@/lib/aggregateRouteData';
+import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import styles from './page.module.css';
 
-type CustomerInvoice = {
-  totalAmount?: number | null;
-  status?: string | null;
-  invoiceDate?: string | null;
-  createdAt?: string | null;
+function presentationOf(route: OverviewRoute) {
+  return getRouteStatusPresentation(route as unknown as RoutePhaseInput);
+}
+
+const ROUTE_STATUS_TONE: Record<RoutePhaseKey, BadgeProps['tone']> = {
+  planned: 'neutral',
+  signs_collected: 'info',
+  signs_placed: 'brand',
+  signs_picked_up: 'warning',
+  signs_returned: 'warning',
+  completed: 'success',
 };
+
+interface RecentRouteRow {
+  id: string;
+  routeCode: string;
+  badgeKey: RoutePhaseKey;
+  statusLabel: string;
+  stopCount: number;
+  createdAt?: string | null;
+}
 
 /**
  * Customer Dashboard
@@ -37,35 +65,11 @@ export default function CustomerDashboard() {
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
-  const [customer, setCustomer] = useState<Customer | null>(null);
   const [customerLoadError, setCustomerLoadError] = useState<string | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [activeRoutes, setActiveRoutes] = useState(0);
-  const [pendingInvoices, setPendingInvoices] = useState(0);
-  const [outstandingAmount, setOutstandingAmount] = useState(0);
-  const [totalStops, setTotalStops] = useState(0);
-  const [activeRouteStops, setActiveRouteStops] = useState(0);
-  const [stopCountsByRouteId, setStopCountsByRouteId] = useState<Record<string, number>>({});
-  const [totalSigns, setTotalSigns] = useState(0);
-
-  const [totalInvoicedAmount, setTotalInvoicedAmount] = useState(0);
-  const [totalCompletedRoutes, setTotalCompletedRoutes] = useState(0);
-  const [totalHours, setTotalHours] = useState(0);
-  const [totalDistance, setTotalDistance] = useState(0);
-  const [analyticsRoutes, setAnalyticsRoutes] = useState<Route[]>([]);
-  const [analyticsInvoices, setAnalyticsInvoices] = useState<CustomerInvoice[]>([]);
-
-  const [selectedPeriod, setSelectedPeriod] = useState<MetricsPeriod>('month');
-
-  const completedRoutesForAnalytics = useMemo(
-    () => analyticsRoutes.filter((route) => getRoutePhaseKey(route) === 'completed'),
-    [analyticsRoutes]
-  );
-
-  const groupedAnalytics = useMemo(
-    () => aggregateRouteData(completedRoutesForAnalytics, analyticsInvoices, selectedPeriod),
-    [completedRoutesForAnalytics, analyticsInvoices, selectedPeriod]
-  );
+  const [routes, setRoutes] = useState<OverviewRoute[]>([]);
+  const [stops, setStops] = useState<OverviewStop[]>([]);
+  const [invoices, setInvoices] = useState<OverviewInvoice[]>([]);
 
   useEffect(() => {
     if (!userId) return;
@@ -135,32 +139,11 @@ export default function CustomerDashboard() {
           return;
         }
 
-        setCustomer(nextCustomer);
-
         setStatsLoading(true);
         const routesResult = await listMyRoutes({ customerId: context.customerId, limit: 500 });
-        const routes = (routesResult.data as Route[]) ?? [];
+        const fetchedRoutes = (routesResult.data as Route[]) ?? [];
         if (!cancelled) {
-          setAnalyticsRoutes(routes);
-        }
-
-        const activeRouteIds = new Set(
-          routes
-            .filter((route) => {
-              const phaseKey = getRoutePhaseKey(route);
-              return phaseKey !== 'planned' && phaseKey !== 'completed';
-            })
-            .map((route) => route.id)
-        );
-
-        if (!cancelled) {
-          setActiveRoutes(activeRouteIds.size);
-          const completed = routes.filter((r) => getRoutePhaseKey(r) === 'completed');
-          setTotalCompletedRoutes(completed.length);
-          const totalMinutes = completed.reduce((sum, r) => sum + getFinalizedRouteDurationMinutes(r), 0);
-          setTotalHours(totalMinutes);
-          const totalDist = completed.reduce((sum, r) => sum + getFinalizedRouteDistanceKm(r), 0);
-          setTotalDistance(totalDist);
+          setRoutes(fetchedRoutes);
         }
 
         const client = generateClient<Schema>();
@@ -168,23 +151,9 @@ export default function CustomerDashboard() {
           filter: { customerId: { eq: context.customerId } },
           limit: 1000,
         });
-        const customerStops = ((stopResult.data as unknown as Stop[]) ?? []).filter(Boolean);
-
+        const customerStops = ((stopResult.data as unknown as OverviewStop[]) ?? []).filter(Boolean);
         if (!cancelled) {
-          setTotalStops(customerStops.length);
-          setActiveRouteStops(customerStops.filter((stop) => activeRouteIds.has(stop.routeId)).length);
-          setStopCountsByRouteId(
-            customerStops.reduce<Record<string, number>>((counts, stop) => {
-              counts[stop.routeId] = (counts[stop.routeId] || 0) + 1;
-              return counts;
-            }, {})
-          );
-          setTotalSigns(
-            customerStops.reduce(
-              (sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0),
-              0
-            )
-          );
+          setStops(customerStops);
         }
 
         if (context.role === 'account_owner') {
@@ -193,29 +162,11 @@ export default function CustomerDashboard() {
             userSub: userId,
             limit: 500,
           });
-          const invoiceItems = (invoiceResult.data as CustomerInvoice[]) ?? [];
-
           if (!cancelled) {
-            setAnalyticsInvoices(invoiceItems);
-            const totalInvoiced = invoiceItems.reduce(
-              (sum, invoice) => sum + (typeof invoice.totalAmount === 'number' ? invoice.totalAmount : 0),
-              0
-            );
-            const unpaidInvoices = invoiceItems.filter((invoice) => invoice.status !== 'paid');
-            const outstanding = unpaidInvoices.reduce(
-              (sum, invoice) => sum + (typeof invoice.totalAmount === 'number' ? invoice.totalAmount : 0),
-              0
-            );
-
-            setPendingInvoices(unpaidInvoices.length);
-            setOutstandingAmount(Number(outstanding.toFixed(2)));
-            setTotalInvoicedAmount(Number(totalInvoiced.toFixed(2)));
+            setInvoices((invoiceResult.data as OverviewInvoice[]) ?? []);
           }
         } else if (!cancelled) {
-          setPendingInvoices(0);
-          setOutstandingAmount(0);
-          setTotalInvoicedAmount(0);
-          setAnalyticsInvoices([]);
+          setInvoices([]);
         }
 
         if (!cancelled) {
@@ -235,26 +186,85 @@ export default function CustomerDashboard() {
   }, [userId]);
 
   const isAccountOwner = customerRole === 'account_owner';
-  const trackerRoutes = useMemo(
+
+  const periodActivity = useMemo(() => summarizePeriodActivity(routes, stops, invoices), [routes, stops, invoices]);
+  const outstanding = useMemo(() => summarizeOutstanding(invoices), [invoices]);
+  const currentRoute = useMemo(() => summarizeCurrentRoute(routes), [routes]);
+  const signsInField = useMemo(() => summarizeSignsInField(routes, stops), [routes, stops]);
+  const stopsThisWeek = useMemo(() => summarizeStopsThisWeek(stops), [stops]);
+  const weekListings = useMemo(() => summarizeThisWeekListings(stops, routes), [stops, routes]);
+  const stopsByWeek = useMemo(() => summarizeStopsByWeek(stops), [stops]);
+  const agentActivity = useMemo(() => summarizeAgentActivity(stops), [stops]);
+  const latestInvoice = useMemo(() => summarizeLatestInvoice(invoices), [invoices]);
+
+  const stopCountsByRouteId = useMemo(() => {
+    const counts = new Map<string, number>();
+    stops.forEach((stop) => {
+      if (!stop.routeId) return;
+      counts.set(stop.routeId, (counts.get(stop.routeId) || 0) + 1);
+    });
+    return counts;
+  }, [stops]);
+
+  const recentRoutes = useMemo<RecentRouteRow[]>(
     () =>
-      [...analyticsRoutes]
-        .sort((a, b) => {
-          // Routes still moving through a work phase sort first (earliest
-          // phase first, since those have the most work left), then planned,
-          // then completed/archived last.
-          const statusPriority = (route: Route) => {
-            const phaseKey = getRoutePhaseKey(route);
-            if (phaseKey === 'planned') return ROUTE_PHASE_KEYS.length;
-            if (phaseKey === 'completed') return ROUTE_PHASE_KEYS.length + 1;
-            return ROUTE_PHASE_KEYS.indexOf(phaseKey);
+      [...routes]
+        .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))
+        .slice(0, 8)
+        .map((route) => {
+          const { badgeKey, label } = presentationOf(route);
+          return {
+            id: route.id,
+            routeCode: route.routeCode || route.id.slice(0, 8),
+            badgeKey,
+            statusLabel: label,
+            stopCount: stopCountsByRouteId.get(route.id) || 0,
+            createdAt: route.createdAt,
           };
-          const priorityDelta = statusPriority(a) - statusPriority(b);
-          if (priorityDelta !== 0) return priorityDelta;
-          return String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? ''));
-        })
-        .slice(0, 4),
-    [analyticsRoutes]
+        }),
+    [routes, stopCountsByRouteId]
   );
+
+  const spendByWeek = useMemo(() => summarizeSpendByWeek(invoices), [invoices]);
+  const maxSpend = Math.max(1, ...spendByWeek.map((w) => w.amount));
+  const maxStops = Math.max(1, ...stopsByWeek.map((w) => w.stops));
+
+  const recentRouteColumns: DataColumn<RecentRouteRow>[] = [
+    { key: 'routeCode', header: 'Route' },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (row) => (
+        <Badge tone={ROUTE_STATUS_TONE[row.badgeKey]} size="sm">
+          {row.statusLabel}
+        </Badge>
+      ),
+    },
+    { key: 'stopCount', header: 'Stops', numeric: true },
+    {
+      key: 'createdAt',
+      header: 'Created',
+      render: (row) =>
+        row.createdAt
+          ? new Date(row.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+          : '—',
+    },
+    {
+      key: 'view',
+      header: '',
+      render: (row) => (
+        <Link href={`/customer/routes/${row.id}`} className="nd-btn nd-btn--ghost nd-btn--sm">
+          View
+        </Link>
+      ),
+    },
+  ];
+
+  const agentColumns: DataColumn<(typeof agentActivity)[number]>[] = [
+    { key: 'agent', header: 'Agent' },
+    { key: 'stops', header: 'Stops', numeric: true },
+    { key: 'signs', header: 'Signs', numeric: true },
+  ];
 
   return (
     <div className={styles.page}>
@@ -266,151 +276,172 @@ export default function CustomerDashboard() {
       {customerLoadError && <p className="nd-badge nd-badge--danger">{customerLoadError}</p>}
 
       <div className={styles.statsGrid}>
-        <StatTile label="Active routes" value={statsLoading ? '…' : activeRoutes} icon="route" />
         {isAccountOwner ? (
           <>
-            <StatTile label="Pending invoices" value={statsLoading ? '…' : pendingInvoices} icon="receipt" />
             <StatTile
-              label="Outstanding balance"
-              value={statsLoading ? '…' : formatCurrency(outstandingAmount)}
+              label="Invoiced this month"
+              value={statsLoading ? '…' : formatCurrency(periodActivity.invoicedCurrent)}
+              delta={statsLoading ? undefined : `${periodActivity.invoicedDeltaPercent}%`}
+              direction={periodActivity.invoicedDirection}
+              icon="receipt"
+            />
+            <StatTile
+              label="Outstanding"
+              value={statsLoading ? '…' : formatCurrency(outstanding.total)}
+              caption={`${outstanding.pastDueCount} invoice${outstanding.pastDueCount === 1 ? '' : 's'} past due`}
               icon="triangle-alert"
+            />
+            <StatTile
+              label="Routes completed"
+              value={statsLoading ? '…' : periodActivity.routesCompletedCurrent}
+              delta={statsLoading ? undefined : `${periodActivity.routesCompletedDeltaPercent}%`}
+              direction={periodActivity.routesCompletedDirection}
+              caption={`${periodActivity.stopsServiced} stops · ${periodActivity.signsHandled} signs`}
+              icon="route"
+            />
+            <StatTile
+              label="Avg cost per stop"
+              value={statsLoading ? '…' : formatCurrency(periodActivity.avgCostPerStop)}
+              delta={statsLoading ? undefined : `${periodActivity.avgCostPerStopDeltaPercent}%`}
+              direction={periodActivity.avgCostPerStopDirection}
+              icon="map-pin"
             />
           </>
         ) : (
-          <StatTile label="Active Route Stops" value={statsLoading ? '…' : activeRouteStops} icon="map-pin" />
+          <>
+            <StatTile
+              label="Current route"
+              value={statsLoading ? '…' : currentRoute ? currentRoute.routeCode || currentRoute.id.slice(0, 8) : '—'}
+              caption={statsLoading || !currentRoute ? undefined : presentationOf(currentRoute).label}
+              icon="route"
+            />
+            <StatTile
+              label="Signs in field"
+              value={statsLoading ? '…' : signsInField.toLocaleString()}
+              caption="placed, not yet picked up"
+              icon="map-pin"
+            />
+            <StatTile label="Stops this week" value={statsLoading ? '…' : stopsThisWeek} icon="calendar" />
+          </>
         )}
       </div>
 
-      {!isAccountOwner && (
-        <Card title="Route Tracker">
-          {trackerRoutes.length === 0 ? (
-            <p className={styles.mutedText}>No routes are available for review.</p>
-          ) : (
-            <div className={styles.trackerList}>
-              {trackerRoutes.map((route) => {
-                const routeLabel = route.routeCode || route.id.slice(0, 8);
-                const { label: statusLabel } = getRouteStatusPresentation(route);
-                const stopCount = stopCountsByRouteId[route.id] ?? 0;
-
-                return (
-                  <Link
-                    key={route.id}
-                    href={`/customer/routes/${route.id}`}
-                    className={styles.trackerCard}
-                    aria-label={`Review route ${routeLabel}`}
-                  >
-                    <div className={styles.trackerTopRow}>
-                      <strong>Route {routeLabel}</strong>
-                      <div className={styles.trackerBadgeColumn}>
-                        <span className="nd-badge nd-badge--sm nd-badge--info">{statusLabel}</span>
-                        <span className={styles.trackerStopCount}>
-                          {stopCount} {stopCount === 1 ? 'stop' : 'stops'}
-                        </span>
+      <div className={styles.mainGrid}>
+        {isAccountOwner ? (
+          <Card title="Spend by week" subtitle="Invoiced, ex GST">
+            {spendByWeek.length === 0 ? (
+              <p className={styles.emptyState}>No billing history yet.</p>
+            ) : (
+              <div className={styles.weeklyBars}>
+                {spendByWeek.map((week) => (
+                  <div key={week.weekStart} className={styles.weeklyBar}>
+                    <span className={styles.weeklyBarValue}>{formatCurrency(week.amount)}</span>
+                    <div className={styles.weeklyBarTrack}>
+                      <div
+                        className={styles.weeklyBarFill}
+                        style={{ height: `${Math.max(4, (week.amount / maxSpend) * 100)}%` }}
+                      />
+                    </div>
+                    <span className={styles.weeklyBarLabel}>{formatWeekLabel(week.weekStart)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        ) : (
+          <Card title="Stops serviced by week">
+            {stopsByWeek.length === 0 ? (
+              <p className={styles.emptyState}>No stop history yet.</p>
+            ) : (
+              <>
+                <div className={styles.weeklyBars}>
+                  {stopsByWeek.map((week) => (
+                    <div key={week.weekStart} className={styles.weeklyBar}>
+                      <span className={styles.weeklyBarValue}>{week.stops}</span>
+                      <div className={styles.weeklyBarTrack}>
+                        <div
+                          className={styles.weeklyBarFill}
+                          style={{ height: `${Math.max(4, (week.stops / maxStops) * 100)}%` }}
+                        />
                       </div>
+                      <span className={styles.weeklyBarLabel}>{formatWeekLabel(week.weekStart)}</span>
                     </div>
-                    <div className={styles.trackerMeta}>
-                      {route.createdAt
-                        ? new Date(route.createdAt).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })
-                        : 'Date unavailable'}
+                  ))}
+                </div>
+                <p className={styles.chartNote}>Costs sit with your account owner — invoices aren&apos;t shown here.</p>
+              </>
+            )}
+          </Card>
+        )}
+
+        {isAccountOwner ? (
+          <Card
+            title="Latest invoice"
+            footer={
+              <Link href="/customer/invoices" className="nd-btn nd-btn--secondary nd-btn--sm">
+                See billing history
+              </Link>
+            }
+          >
+            {statsLoading ? (
+              <p className={styles.mutedText}>Loading…</p>
+            ) : !latestInvoice ? (
+              <p className={styles.mutedText}>No invoices yet.</p>
+            ) : (
+              <div className={styles.invoiceSummary}>
+                <span className={styles.invoiceAmount}>{formatCurrency(latestInvoice.totalAmount)}</span>
+                <Badge tone={latestInvoice.status === 'paid' ? 'success' : 'info'} size="sm">
+                  {latestInvoice.status}
+                </Badge>
+                <span className={styles.invoiceMeta}>
+                  {latestInvoice.invoiceDate
+                    ? new Date(latestInvoice.invoiceDate).toLocaleDateString('en-AU', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })
+                    : 'Date unavailable'}
+                </span>
+              </div>
+            )}
+          </Card>
+        ) : (
+          <Card title="This week">
+            {weekListings.length === 0 ? (
+              <p className={styles.mutedText}>No activity recorded this week.</p>
+            ) : (
+              <div className={styles.weekList}>
+                {weekListings.map((row) => (
+                  <div key={row.id} className={styles.weekRow}>
+                    <Badge tone={ROUTE_STATUS_TONE[row.phaseKey]} size="sm">
+                      {row.phaseKey.replace(/_/g, ' ')}
+                    </Badge>
+                    <div className={styles.weekRowBody}>
+                      <div className={styles.weekRowLabel}>{row.label}</div>
+                      <div className={styles.weekRowWhen}>{row.when}</div>
                     </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
+      </div>
+
+      {isAccountOwner ? (
+        <Card title="Spend by agent" subtitle="Stops and signs on-charged, by agent" padded={false}>
+          <DataTable wrapped={false} columns={agentColumns} rows={agentActivity} empty="No agent activity yet." />
+        </Card>
+      ) : (
+        <Card title="Recent routes" padded={false}>
+          <DataTable
+            wrapped={false}
+            columns={recentRouteColumns}
+            rows={recentRoutes}
+            empty="No routes are available for review."
+          />
         </Card>
       )}
-
-      <Card title="Customer Totals">
-        <div className={styles.ndStatGrid}>
-          <div className="nd-stat">
-            <span className="nd-stat__label">Jobs completed</span>
-            <span className="nd-stat__value">{statsLoading ? '…' : totalCompletedRoutes}</span>
-          </div>
-          <div className="nd-stat">
-            <span className="nd-stat__label">Total distance</span>
-            <span className="nd-stat__value">{statsLoading ? '…' : `${totalDistance.toFixed(1)} km`}</span>
-          </div>
-          <div className="nd-stat">
-            <span className="nd-stat__label">Total stops</span>
-            <span className="nd-stat__value">{statsLoading ? '…' : totalStops}</span>
-          </div>
-          <div className="nd-stat">
-            <span className="nd-stat__label">Total signs</span>
-            <span className="nd-stat__value">{statsLoading ? '…' : totalSigns}</span>
-          </div>
-          <div className="nd-stat">
-            <span className="nd-stat__label">Total hours</span>
-            <span className="nd-stat__value">{statsLoading ? '…' : formatDuration(totalHours)}</span>
-          </div>
-          {isAccountOwner && (
-            <>
-              <div className="nd-stat">
-                <span className="nd-stat__label">Total invoiced amount</span>
-                <span className="nd-stat__value">{statsLoading ? '…' : formatCurrency(totalInvoicedAmount)}</span>
-              </div>
-              <div className="nd-stat">
-                <span className="nd-stat__label">Outstanding amount</span>
-                <span className="nd-stat__value">{statsLoading ? '…' : formatCurrency(outstandingAmount)}</span>
-              </div>
-              <div className="nd-stat">
-                <span className="nd-stat__label">Average per job</span>
-                <span className="nd-stat__value">
-                  {statsLoading || totalCompletedRoutes === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalCompletedRoutes)}
-                </span>
-              </div>
-              <div className="nd-stat">
-                <span className="nd-stat__label">Average per stop</span>
-                <span className="nd-stat__value">
-                  {statsLoading || totalStops === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalStops)}
-                </span>
-              </div>
-              <div className="nd-stat">
-                <span className="nd-stat__label">Average per sign</span>
-                <span className="nd-stat__value">
-                  {statsLoading || totalSigns === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalSigns)}
-                </span>
-              </div>
-              <div className="nd-stat">
-                <span className="nd-stat__label">Average per kilometer</span>
-                <span className="nd-stat__value">
-                  {statsLoading || totalDistance === 0 ? '…' : formatCurrency(totalInvoicedAmount / totalDistance)}
-                </span>
-              </div>
-            </>
-          )}
-        </div>
-      </Card>
-
-      <Card title={isAccountOwner ? 'Owner Capabilities' : 'Reviewer Capabilities'}>
-        <ul className={styles.capabilitiesList}>
-          <li>View your active routes in the Routes section</li>
-          {isAccountOwner ? (
-            <>
-              <li>Download invoices from the Invoices section</li>
-              <li>Check your statistics and billing info on the Dashboard</li>
-            </>
-          ) : (
-            <>
-              <li>Review planned and completed route progress</li>
-              <li>Invoice access is restricted to the account owner</li>
-            </>
-          )}
-        </ul>
-      </Card>
-
-      <MetricsVisualization
-        data={groupedAnalytics}
-        period={selectedPeriod}
-        onPeriodChange={setSelectedPeriod}
-        loading={statsLoading}
-        canShowFinancials={isAccountOwner}
-        scopeLabel={customer?.name ?? 'Customer routes'}
-      />
     </div>
   );
 }

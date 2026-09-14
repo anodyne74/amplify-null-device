@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import CustomerDashboard from '../page';
 import {
   getCustomer,
@@ -44,6 +44,12 @@ jest.mock('aws-amplify/data', () => ({
   }),
 }));
 
+const NOW = new Date();
+// Day 1 of the current month is guaranteed to be earlier than NOW (whatever
+// day the suite happens to run on), so this reliably sorts before NOW_ISO.
+const CURRENT_MONTH_DATE = new Date(NOW.getFullYear(), NOW.getMonth(), 1, 9, 0, 0).toISOString();
+const NOW_ISO = NOW.toISOString();
+
 describe('Customer Dashboard', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -60,29 +66,21 @@ describe('Customer Dashboard', () => {
     });
     (listMyRoutes as jest.Mock).mockResolvedValue({
       data: [
-        { id: 'route-1', routeCode: 'W19-26-001', status: 'signs_placed', createdAt: '2024-01-16T11:00:00Z' },
+        { id: 'route-1', routeCode: 'W19-26-001', status: 'signs_placed', createdAt: NOW_ISO },
         {
           id: 'route-2',
           routeCode: 'W19-26-002',
           status: 'completed',
-          createdAt: '2026-01-14T09:00:00Z',
-          actualEndTime: '2026-01-14T12:00:00Z',
-          actualDurationMinutes: 120,
-          signsPlacedDistanceKm: 12.5,
-          signsPickedUpDistanceKm: 10,
-          overrideDurationMinutes: 150,
-          overrideDistanceKm: 30,
-          stops: 2,
-          signsPlaced: 5,
-          signsPickedUp: 5,
+          createdAt: CURRENT_MONTH_DATE,
+          actualEndTime: CURRENT_MONTH_DATE,
         },
       ],
       errors: undefined,
     });
     (listMyInvoices as jest.Mock).mockResolvedValue({
       data: [
-        { id: 'inv-1', totalAmount: 1200, status: 'paid', invoiceDate: '2026-01-20T00:00:00Z' },
-        { id: 'inv-2', totalAmount: 800, status: 'sent', invoiceDate: '2026-01-21T00:00:00Z' },
+        { id: 'inv-1', totalAmount: 1200, status: 'paid', invoiceDate: CURRENT_MONTH_DATE },
+        { id: 'inv-2', totalAmount: 800, status: 'sent', invoiceDate: NOW_ISO },
       ],
       errors: undefined,
     });
@@ -91,33 +89,33 @@ describe('Customer Dashboard', () => {
         {
           id: 'stop-1',
           routeId: 'route-1',
-          sequence: 1,
           numberOfSigns: 3,
-          latitude: -37.8136,
-          longitude: 144.9631,
+          agent: 'Jamie Lee',
+          address: '1 Example St',
+          actualArrivalTime: NOW_ISO,
         },
         {
           id: 'stop-2',
           routeId: 'route-1',
-          sequence: 2,
           numberOfSigns: 2,
-          latitude: -37.814,
-          longitude: 144.9731,
+          agent: 'Jamie Lee',
+          address: '2 Example St',
+          actualArrivalTime: NOW_ISO,
         },
         {
           id: 'stop-3',
           routeId: 'route-2',
-          sequence: 1,
           numberOfSigns: 4,
-          latitude: -37.82,
-          longitude: 144.97,
+          agent: 'Pat Doe',
+          address: '3 Example St',
+          actualArrivalTime: NOW_ISO,
         },
       ],
       errors: undefined,
     });
   });
 
-  it('shows customer totals and performance metrics for account owner', async () => {
+  it('shows month-to-date financial stats, spend chart, latest invoice, and spend-by-agent table for the account owner', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({
       role: 'account_owner',
       customerId: 'cust-1',
@@ -129,39 +127,32 @@ describe('Customer Dashboard', () => {
     expect(screen.getByRole('heading', { name: /^dashboard$/i })).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /customer totals/i })).toBeInTheDocument();
+      expect(screen.getByText(/invoiced this month/i)).toBeInTheDocument();
     });
+    expect(screen.getByText(/^outstanding$/i)).toBeInTheDocument();
+    expect(screen.getByText(/routes completed/i)).toBeInTheDocument();
+    expect(screen.getByText(/avg cost per stop/i)).toBeInTheDocument();
 
-    expect(screen.getByText(/total invoiced amount/i)).toBeInTheDocument();
-    expect(screen.getByText(/outstanding amount/i)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /performance metrics/i })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: /revenue trend/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /spend by week/i })).toBeInTheDocument();
 
-    expect(screen.queryByText(/average signs per hour/i)).not.toBeInTheDocument();
-  });
-
-  it('calculates Total distance and Total hours from the route finalisation (override) values when present', async () => {
-    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
-      role: 'account_owner',
-      customerId: 'cust-1',
-    });
-
-    render(<CustomerDashboard />);
+    const latestInvoiceHeading = await screen.findByRole('heading', { name: /latest invoice/i });
+    const latestInvoiceCard = latestInvoiceHeading.closest('.nd-card') as HTMLElement;
+    // The most recently dated invoice (inv-2, $800, sent) should win over inv-1.
+    // ($800 also appears in "Outstanding" and the spend chart, so scope to the card.)
+    expect(within(latestInvoiceCard).getByText(/\$800\.00/)).toBeInTheDocument();
+    expect(within(latestInvoiceCard).getByText(/^sent$/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /see billing history/i })).toHaveAttribute('href', '/customer/invoices');
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /customer totals/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /spend by agent/i })).toBeInTheDocument();
     });
+    expect(screen.getByText('Jamie Lee')).toBeInTheDocument();
+    expect(screen.getByText('Pat Doe')).toBeInTheDocument();
 
-    // route-2 (the only completed route) has overrideDistanceKm: 30 and
-    // overrideDurationMinutes: 150, which should win over the raw
-    // signsPlaced/signsPickedUp distance sum (22.5) and actualDurationMinutes (120).
-    await waitFor(() => {
-      expect(screen.getByText(/^total distance$/i).closest('.nd-stat')).toHaveTextContent('30.0 km');
-    });
-    expect(screen.getByText(/^total hours$/i).closest('.nd-stat')).toHaveTextContent('2:30:00');
+    expect(screen.queryByRole('heading', { name: /recent routes/i })).not.toBeInTheDocument();
   });
 
-  it('hides financial dashboard surfaces for reviewer role', async () => {
+  it('hides financial dashboard surfaces for reviewer role and does not fetch invoices', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({
       role: 'read_only',
       customerId: 'cust-1',
@@ -172,44 +163,17 @@ describe('Customer Dashboard', () => {
     expect(await screen.findByText(/welcome, owner name · reviewer/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /route tracker/i })).toBeInTheDocument();
+      expect(screen.getByText(/current route/i)).toBeInTheDocument();
     });
 
-    expect(screen.queryByText(/pending invoices/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/outstanding balance/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/total invoiced amount/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/outstanding amount/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/total revenue/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/average revenue/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: /revenue trend/i })).not.toBeInTheDocument();
-  });
-
-  it('shows a route-first tracker for reviewer users without fetching invoices', async () => {
-    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
-      role: 'read_only',
-      customerId: 'cust-1',
-    });
-
-    render(<CustomerDashboard />);
-
-    expect(await screen.findByRole('heading', { name: /route tracker/i })).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(screen.getByRole('link', { name: /review route w19-26-001/i })).toHaveAttribute(
-        'href',
-        '/customer/routes/route-1'
-      );
-    });
-
-    expect(screen.getByRole('link', { name: /review route w19-26-002/i })).toHaveAttribute(
-      'href',
-      '/customer/routes/route-2'
-    );
+    expect(screen.queryByText(/invoiced this month/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^outstanding$/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /latest invoice/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /spend by agent/i })).not.toBeInTheDocument();
     expect(listMyInvoices).not.toHaveBeenCalled();
-    expect(screen.queryByText(/pending invoices/i)).not.toBeInTheDocument();
   });
 
-  it('renames "Route stops" to "Active Route Stops" and counts only stops on active routes', async () => {
+  it('shows the earliest active route as "Current route", signs in field, and stops this week for the reviewer', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({
       role: 'read_only',
       customerId: 'cust-1',
@@ -217,16 +181,21 @@ describe('Customer Dashboard', () => {
 
     render(<CustomerDashboard />);
 
-    // route-1 is signs_placed (active) with 2 stops; route-2 is completed
-    // with 1 stop — only the active route's stops should be counted.
-    await waitFor(() => {
-      expect(screen.getByText(/active route stops/i).closest('.nd-stat')).toHaveTextContent('2');
-    });
+    // route-1 (signs_placed) is still active, route-2 is completed — the
+    // active route should win the "Current route" tile. The route code also
+    // appears in the "Recent routes" table below, so scope to the stat tile.
+    const currentRouteTile = (await screen.findByText(/current route/i)).closest('.nd-stat') as HTMLElement;
+    expect(within(currentRouteTile).getByText('W19-26-001')).toBeInTheDocument();
+    expect(within(currentRouteTile).getByText(/signs placed/i)).toBeInTheDocument();
 
-    expect(screen.queryByText(/^route stops$/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/signs in field/i)).toBeInTheDocument();
+    // Signs on route-1's stops (3 + 2) count as "in field" since that route is signs_placed.
+    expect(screen.getByText('5')).toBeInTheDocument();
+
+    expect(screen.getByText(/stops this week/i)).toBeInTheDocument();
   });
 
-  it('shows the stop count under the phase badge and drops the "Review route..." action label', async () => {
+  it('lists recent routes with status badge, stop count, and a view link for the reviewer', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({
       role: 'read_only',
       customerId: 'cust-1',
@@ -234,12 +203,32 @@ describe('Customer Dashboard', () => {
 
     render(<CustomerDashboard />);
 
-    const routeLink = await screen.findByRole('link', { name: /review route w19-26-001/i });
-
     await waitFor(() => {
-      expect(routeLink).toHaveTextContent('2 stops');
+      expect(screen.getByRole('heading', { name: /recent routes/i })).toBeInTheDocument();
     });
-    expect(routeLink).not.toHaveTextContent(/review route w19-26-001/i);
+
+    const viewLinks = await screen.findAllByRole('link', { name: /view/i });
+    expect(viewLinks).toHaveLength(2);
+    expect(viewLinks[0]).toHaveAttribute('href', expect.stringMatching(/\/customer\/routes\/route-1|\/customer\/routes\/route-2/));
+
+    // The route code also appears in the "Current route" stat tile, so scope to the table.
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('W19-26-001')).toBeInTheDocument();
+    expect(within(table).getByText('W19-26-002')).toBeInTheDocument();
   });
 
+  it('shows a "This week" activity list with route-phase badges for the reviewer', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'read_only',
+      customerId: 'cust-1',
+    });
+
+    render(<CustomerDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /this week/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('1 Example St')).toBeInTheDocument();
+  });
 });

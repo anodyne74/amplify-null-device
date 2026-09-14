@@ -218,17 +218,11 @@
   color: var(--text-brand);
 }
 
-.splitRow {
-  display: flex;
-  gap: var(--space-6);
-  margin-top: var(--space-2);
-}
-
-.splitAmount {
-  font-family: var(--font-mono);
-  font-size: var(--text-lg);
-  font-weight: var(--fw-semibold);
-  color: var(--text-brand);
+.statRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+  margin-top: var(--space-3);
 }
 
 .sendingPanel {

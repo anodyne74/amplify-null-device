@@ -105,6 +105,7 @@ App URL: `http://localhost:3000`
 | `npm run generate:config` | Generate local `amplify_outputs.json` |
 | `npm run validate:amplify-outputs` | Validate generated Amplify outputs |
 | `npm run import:prep` | Prepare or apply a legacy tracker + route-list import bundle |
+| `npm run backfill:geocodes` | Backfill `Stop.latitude`/`longitude` for stops missing GPS coordinates |
 
 ## Configuration
 
@@ -215,6 +216,36 @@ Notes:
 - The current importer defaults stop service types to `delivery`.
 - Apply mode now defaults to `--auth-mode userPool` and requires a signed-in Cognito operator/administrator account.
 - If you see `No federated jwt`, you are using IAM/federated auth without valid identity credentials; switch to `--auth-mode userPool` and provide `IMPORT_PREP_USERNAME` / `IMPORT_PREP_PASSWORD`.
+- Apply mode copies `viewerSubs` onto every Route/Stop/Invoice/LineItem it writes, read from the target `Customer` record (never recomputed here — it's kept in sync elsewhere whenever `CustomerUser` membership changes). Without this, imported records are invisible in the customer portal, since those models use `ownersDefinedIn('viewerSubs')` authorization with no `customerId` fallback. If a customer's `viewerSubs` is empty at import time (no `CustomerUser` linked yet), re-run apply after linking a user to backfill it.
+- Apply mode also sets `Invoice.gstAmount` (10% of `totalAmount`) when the customer's `gstExclusive` flag is set.
+- Newly imported stops don't include GPS coordinates — see [Geocode Backfill](#geocode-backfill) below to populate `Stop.latitude`/`longitude` so they render on route maps.
+
+## Geocode Backfill
+
+Route/Stop maps (`RouteStopsMap` and the admin static map endpoint) only render stops that already have `latitude`/`longitude`. Legacy tracker imports don't set those fields, so newly imported stops (and any older stop created before geocoding existed) are silently omitted from maps until backfilled.
+
+Use `scripts/backfill-geocodes.js` to geocode every stop for a customer that's missing coordinates, using the Google Geocoding REST API directly (server-side — this script doesn't run in a browser, so it can't use the Maps JS SDK path that `lib/googleMaps.ts` uses in the app itself).
+
+```bash
+export IMPORT_PREP_USERNAME="operator-or-admin@example.com"
+export IMPORT_PREP_PASSWORD="your-password"
+export GOOGLE_MAPS_API_KEY="your-server-side-key"
+
+npm run backfill:geocodes -- \
+	--customer-id "YOUR_CUSTOMER_ID" \
+	--outputs-path amplify_outputs.json \
+	--mode dry-run
+```
+
+Re-run with `--mode apply --confirm-apply` to write `latitude`, `longitude`, and `formattedAddress` back to each `Stop`.
+
+Notes:
+
+- Requires `GOOGLE_MAPS_API_KEY` (or `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` as a fallback) in the environment.
+- **The key must not have an HTTP referrer restriction.** `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is normally referrer-restricted for browser use (Maps JS SDK), which the Geocoding REST API rejects outright (`API keys with referer restrictions cannot be used with this API`). Use a separate key restricted by IP or API instead, matching what `app/api/admin/static-route-map/route.ts` already expects via its own `GOOGLE_MAPS_API_KEY` env var.
+- By default only stops missing `latitude`/`longitude` are geocoded; pass `--force` to re-geocode stops that already have coordinates.
+- `--delay-ms` (default `200`) throttles requests between stops to stay under Google's per-second quota; `--limit` caps how many stops are processed in one run.
+- Same `--auth-mode`/`--outputs-path`/`--username`/`--password` conventions as `import-prep.js`.
 
 ## Deployment
 

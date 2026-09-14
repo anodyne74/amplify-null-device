@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useState } from 'react';
-import type { Route } from '@/amplify/types';
+import type { RateLine, Route } from '@/amplify/types';
 import type { CustomerOption, Invoice } from '@/app/administrator/invoices/types';
 import { useInvoiceDerivedFormEffects } from '@/app/administrator/invoices/hooks/useInvoiceDerivedFormEffects';
 
@@ -167,6 +167,111 @@ describe('useInvoiceDerivedFormEffects', () => {
     await waitFor(() => {
       expect(result.current.gstAmount).toBe('20.00');
       expect(result.current.totalAmount).toBe('220.00');
+    });
+  });
+
+  describe('auto-filling the per_hour rate line from route hours', () => {
+    const hoursLine: RateLine = {
+      id: 'line-hours',
+      customerId: 'customer-1',
+      label: 'Sign distribution & collection',
+      ratePerUnit: 60,
+      unit: 'per_hour',
+    } as RateLine;
+    const extraLine: RateLine = {
+      id: 'line-extra',
+      customerId: 'customer-1',
+      label: 'Extra sign',
+      ratePerUnit: 14,
+      unit: 'per_sign',
+    } as RateLine;
+
+    function renderWithRateLines(rateLines: RateLine[]) {
+      return renderHook(() => {
+        const [, setInvoiceNumber] = useState('');
+        const [routeId, setRouteId] = useState('');
+        const [totalHours, setTotalHours] = useState('0');
+        const [, setTotalAmount] = useState('0');
+        const [, setGstAmount] = useState('0');
+        const [invoiceNumberOverridden] = useState(false);
+        const [totalAmountOverridden] = useState(false);
+        const [rateLineQuantities, setRateLineQuantities] = useState<Record<string, string>>({});
+        const [manuallyEditedRateLineIds, setManuallyEditedRateLineIds] = useState<ReadonlySet<string>>(new Set());
+
+        useInvoiceDerivedFormEffects({
+          invoices,
+          invoiceNumberOverridden,
+          setInvoiceNumber,
+          routeId,
+          routes,
+          customers,
+          totalAmountOverridden,
+          setTotalHours,
+          setTotalAmount,
+          setGstAmount,
+          totalHours,
+          hasRateLines: rateLines.length > 0,
+          rateLines,
+          setRateLineQuantities,
+          manuallyEditedRateLineIds,
+        });
+
+        return {
+          routeId,
+          setRouteId,
+          rateLineQuantities,
+          manuallyEditedRateLineIds,
+          setManuallyEditedRateLineIds,
+        };
+      });
+    }
+
+    it('fills the per_hour line quantity with the finalized route hours', async () => {
+      const { result } = renderWithRateLines([hoursLine, extraLine]);
+
+      act(() => {
+        result.current.setRouteId('route-1');
+      });
+
+      await waitFor(() => {
+        expect(result.current.rateLineQuantities['line-hours']).toBe('2.00');
+      });
+      expect(result.current.rateLineQuantities['line-extra']).toBeUndefined();
+    });
+
+    it('does not overwrite a manually-edited quantity', async () => {
+      const { result } = renderWithRateLines([hoursLine]);
+
+      act(() => {
+        result.current.setRouteId('route-1');
+      });
+      await waitFor(() => {
+        expect(result.current.rateLineQuantities['line-hours']).toBe('2.00');
+      });
+
+      act(() => {
+        result.current.setManuallyEditedRateLineIds(new Set(['line-hours']));
+      });
+      act(() => {
+        result.current.setRouteId('');
+      });
+
+      await waitFor(() => {
+        expect(result.current.rateLineQuantities['line-hours']).toBe('2.00');
+      });
+    });
+
+    it('does nothing when the customer has no per_hour line', async () => {
+      const { result } = renderWithRateLines([extraLine]);
+
+      act(() => {
+        result.current.setRouteId('route-1');
+      });
+
+      await waitFor(() => {
+        expect(result.current.routeId).toBe('route-1');
+      });
+      expect(result.current.rateLineQuantities).toEqual({});
     });
   });
 });

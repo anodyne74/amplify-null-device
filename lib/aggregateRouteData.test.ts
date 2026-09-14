@@ -103,6 +103,27 @@ describe('aggregateRouteData', () => {
     ]);
   });
 
+  it('prefers overrideDurationMinutes/overrideDistanceKm over the raw measured values when set', () => {
+    const result = aggregateRouteData(
+      [
+        {
+          createdAt: '2026-05-01T10:00:00.000Z',
+          actualDurationMinutes: 120,
+          overrideDurationMinutes: 150,
+          signsPlacedDistanceKm: 50,
+          signsPickedUpDistanceKm: 20,
+          overrideDistanceKm: 100,
+          status: 'completed',
+        },
+      ],
+      [],
+      'day'
+    );
+
+    expect(result[0].totalDurationMinutes).toBe(150);
+    expect(result[0].totalDistanceKm).toBe(100);
+  });
+
   it('aggregates data by year', () => {
     const result = aggregateRouteData(mockRoutes, mockInvoices, 'year');
     expect(result).toEqual([

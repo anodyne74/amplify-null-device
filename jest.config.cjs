@@ -43,7 +43,7 @@ const config = {
       statements: 65,
     },
   },
-  testPathIgnorePatterns: ['/node_modules/', '/.next/'],
+  testPathIgnorePatterns: ['/node_modules/', '/.next/', '/.claude/worktrees/'],
   extensionsToTreatAsEsm: ['.ts', '.tsx'],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {

@@ -2,8 +2,10 @@ export type AnalyticsPeriod = 'day' | 'week' | 'month' | 'quarter' | 'year';
 
 interface RouteAnalyticsRecord {
   actualDurationMinutes?: number | null;
+  overrideDurationMinutes?: number | null;
   signsPlacedDistanceKm?: number | null;
   signsPickedUpDistanceKm?: number | null;
+  overrideDistanceKm?: number | null;
   stops?: number | unknown[] | null;
   signsPlaced?: number | null;
   signsPickedUp?: number | null;
@@ -70,9 +72,15 @@ export function aggregateRouteData(
           ? route.stops.length
           : 0;
 
+    // Operators can correct duration/distance at finalisation — prefer that
+    // override so these figures agree with what's billed.
+    const durationMinutes = route.overrideDurationMinutes ?? route.actualDurationMinutes ?? 0;
+    const distanceKm =
+      route.overrideDistanceKm ?? (route.signsPlacedDistanceKm || 0) + (route.signsPickedUpDistanceKm || 0);
+
     group.routesCompleted += 1;
-    group.totalDurationMinutes += route.actualDurationMinutes || 0;
-    group.totalDistanceKm += (route.signsPlacedDistanceKm || 0) + (route.signsPickedUpDistanceKm || 0);
+    group.totalDurationMinutes += durationMinutes;
+    group.totalDistanceKm += distanceKm;
     group.totalStops += stopCount;
     group.totalSignsPlaced += route.signsPlaced || 0;
     group.totalSignsPickedUp += route.signsPickedUp || 0;

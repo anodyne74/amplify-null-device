@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import InvoicePreview from './InvoicePreview';
 import type { CustomerOption } from '@/app/administrator/invoices/types';
+import type { Route } from '@/amplify/types';
 
 function baseProps() {
   const customer: CustomerOption = {
@@ -15,7 +16,13 @@ function baseProps() {
   return {
     invoiceNumber: 'INV-2044',
     customer,
-    route: { id: 'route-1', routeCode: 'R-101' } as never,
+    route: {
+      id: 'route-1',
+      routeCode: 'R-101',
+      status: 'completed',
+      overrideDurationMinutes: 245,
+      overrideDistanceKm: 18.4,
+    } as unknown as Route,
     rateLines: [],
     rateLineQuantities: {},
     totalHours: '4',
@@ -50,9 +57,29 @@ describe('InvoicePreview', () => {
     expect(screen.getByText('INV-2044')).toBeInTheDocument();
     expect(screen.getByText('1 Test St, Epping')).toBeInTheDocument();
     expect(screen.getByText("Betty O'Shea")).toBeInTheDocument();
-    expect(screen.getByText('Driver share (28.5%)')).toBeInTheDocument();
     // billedAmount (preGst) = 264 - 24 = 240; 28.5% of 240 = 68.40
     expect(screen.getByText('$68.40')).toBeInTheDocument();
+    expect(screen.getByText('28.5% of $240.00 billed')).toBeInTheDocument();
+  });
+
+  it('shows duration/distance/driver-split figures from the finalised route', () => {
+    render(<InvoicePreview {...baseProps()} />);
+
+    expect(screen.getByText('Duration')).toBeInTheDocument();
+    expect(screen.getByText('4h 5m')).toBeInTheDocument();
+    expect(screen.getByText('Distance')).toBeInTheDocument();
+    expect(screen.getByText('18.4 km')).toBeInTheDocument();
+    expect(screen.getByText('We retain')).toBeInTheDocument();
+    // retained = 240 - 68.40 = 171.60
+    expect(screen.getByText('$171.60')).toBeInTheDocument();
+    expect(screen.queryByText('Route not yet finalised — figures may change.')).not.toBeInTheDocument();
+  });
+
+  it('flags a not-yet-completed route as unfinalised', () => {
+    const props = baseProps();
+    render(<InvoicePreview {...props} route={{ ...props.route, status: 'in_progress' } as unknown as Route} />);
+
+    expect(screen.getByText('Route not yet finalised — figures may change.')).toBeInTheDocument();
   });
 
   it('shows a grouped-by-agent breakdown when the customer setting is on', () => {

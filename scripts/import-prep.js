@@ -224,6 +224,10 @@ function parseNumber(raw) {
   return Number.isFinite(value) ? value : null;
 }
 
+export function round2(value) {
+  return Math.round(value * 100) / 100;
+}
+
 function parseKilometers(raw) {
   if (!raw) return null;
   return parseNumber(String(raw).replace(/km/i, '').trim());
@@ -628,6 +632,27 @@ async function applyBundle(bundle, args) {
 
   const routeCache = new Map();
   const invoiceCache = new Map();
+  // customerId -> { viewerSubs, gstExclusive }. viewerSubs is never recomputed
+  // here -- it's copied forward from the Customer record, which is already kept
+  // in sync elsewhere (customer-access-activation Lambda, lib/queries.ts
+  // syncViewerSubsForCustomer) whenever CustomerUser membership changes. Without
+  // this, records created by this script would be invisible in the customer
+  // portal, since Route/Stop/Invoice/LineItem auth is ownersDefinedIn('viewerSubs')
+  // only -- there is no fallback to customerId.
+  const customerCache = new Map();
+
+  async function getCustomerContext(customerId) {
+    if (customerCache.has(customerId)) {
+      return customerCache.get(customerId);
+    }
+    const { data: customer } = await client.models.Customer.get({ id: customerId }, { authMode });
+    const context = {
+      viewerSubs: customer?.viewerSubs || [],
+      gstExclusive: Boolean(customer?.gstExclusive),
+    };
+    customerCache.set(customerId, context);
+    return context;
+  }
 
   const summary = {
     routesCreated: 0,
@@ -738,10 +763,13 @@ async function applyBundle(bundle, args) {
         route = routeLookup.data?.[0] || null;
       }
 
+      const customerContext = await getCustomerContext(record.customerId);
+
       const routePayload = {
         customerId: record.customerId,
         routeCode: record.route.routeCode,
         status: record.route.status,
+        viewerSubs: customerContext.viewerSubs,
         // Legacy tracker imports are always field-mode (2-phase) routes, not the
         // driving-mode sign-run flow — explicit false documents that rather than
         // relying on the field being left undefined.
@@ -793,6 +821,7 @@ async function applyBundle(bundle, args) {
         const stopPayload = {
           routeId: route.id,
           customerId: record.customerId,
+          viewerSubs: customerContext.viewerSubs,
           sequence: stopRecord.sequence,
           address: stopRecord.address,
           serviceType: isTerminalRoute ? 'pickup' : stopRecord.serviceType,
@@ -835,9 +864,15 @@ async function applyBundle(bundle, args) {
         invoiceNumber: record.invoice.invoiceNumber,
         invoiceDate: record.invoice.invoiceDate || new Date().toISOString().slice(0, 10),
         totalAmount: record.invoice.totalAmount ?? 0,
+        // GST applied at issue time -- stored so historical invoices stay accurate
+        // if Customer.gstExclusive changes later (see amplify/data/resource.ts).
+        ...(customerContext.gstExclusive && record.invoice.totalAmount !== null
+          ? { gstAmount: round2(record.invoice.totalAmount * 0.1) }
+          : {}),
         status: record.invoice.status,
         routeId: route.id,
         importedAt: new Date().toISOString(),
+        viewerSubs: customerContext.viewerSubs,
         ...(record.invoice.sentDate
           ? { emailSentAt: toIsoDateTime(record.invoice.sentDate) }
           : {}),
@@ -917,6 +952,7 @@ async function applyBundle(bundle, args) {
             invoiceId: invoice.id,
             routeId: route.id,
             customerId: record.customerId,
+            viewerSubs: customerContext.viewerSubs,
             description: record.lineItem.description,
             quantity: record.lineItem.quantity,
             ratePerUnit: record.lineItem.ratePerUnit,

@@ -4,7 +4,6 @@ import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { getIamDataClient } from '@/lib/server/iamDataClient';
 import outputs from '@/amplify_outputs.json';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
-import { getCustomer } from '@/lib/queries';
 import { APP_DOMAIN } from '@/lib/publicAppConfig';
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
@@ -101,7 +100,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Route has no assigned operator email' }, { status: 400 });
     }
 
-    const customerResult = await getCustomer(route.customerId);
+    // Must use the IAM-authenticated client here -- this SSR request has no
+    // signed-in Amplify session, so the plain data client (lib/queries.ts)
+    // throws NoValidAuthTokens (see lib/server/iamDataClient.ts for why).
+    const customerResult = await getDataClient().models.Customer.get({ id: route.customerId });
     const customer = customerResult.data as { name?: string | null } | null;
 
     const { data: stops } = await getDataClient().models.Stop.list({

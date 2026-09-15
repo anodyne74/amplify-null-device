@@ -11,7 +11,7 @@ const verifyMock = jest.fn();
 const sesSendMock = jest.fn();
 const routeGetMock = jest.fn();
 const stopListMock = jest.fn();
-const getCustomerMock = jest.fn();
+const customerGetMock = jest.fn();
 
 jest.mock('aws-jwt-verify', () => ({
   CognitoJwtVerifier: {
@@ -35,12 +35,9 @@ jest.mock('@/lib/server/iamDataClient', () => ({
     models: {
       Route: { get: routeGetMock },
       Stop: { list: stopListMock },
+      Customer: { get: customerGetMock },
     },
   }),
-}));
-
-jest.mock('@/lib/queries', () => ({
-  getCustomer: (...args: unknown[]) => getCustomerMock(...args),
 }));
 
 import { POST } from '@/app/api/admin/send-job-assigned-email/route';
@@ -64,7 +61,7 @@ describe('send job-assigned email API', () => {
     });
 
     stopListMock.mockResolvedValue({ data: [{ id: 's1' }, { id: 's2' }] });
-    getCustomerMock.mockResolvedValue({ data: { id: 'cust-1', name: 'Beltline Group' }, errors: undefined });
+    customerGetMock.mockResolvedValue({ data: { id: 'cust-1', name: 'Beltline Group' }, errors: undefined });
     sesSendMock.mockResolvedValue({ MessageId: 'ses-message-id-1' });
   });
 

@@ -5,7 +5,6 @@ import { getUrl } from 'aws-amplify/storage';
 import { getIamDataClient } from '@/lib/server/iamDataClient';
 import outputs from '@/amplify_outputs.json';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
-import { listCustomerUsers, getCustomer, updateInvoice } from '@/lib/queries';
 import { APP_DOMAIN } from '@/lib/publicAppConfig';
 import { buildInvoiceFileName } from '@/lib/invoiceFileName';
 
@@ -155,9 +154,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invoice PDF not uploaded' }, { status: 400 });
     }
 
-    // Query customer details
-    const customerResult = await getCustomer(invoice.customerId);
+    // Query customer details. Must use the IAM-authenticated client here --
+    // this SSR request has no signed-in Amplify session, so the plain data
+    // client (lib/queries.ts) throws NoValidAuthTokens (see
+    // lib/server/iamDataClient.ts for why).
+    const customerResult = await getDataClient().models.Customer.get({ id: invoice.customerId });
     if (customerResult.errors && customerResult.errors.length > 0) {
+      console.error('Errors fetching customer:', customerResult.errors);
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
@@ -170,7 +173,9 @@ export async function POST(request: NextRequest) {
     let toEmail = recipientEmail;
     if (!toEmail) {
       // Try to find primary contact (account_owner role)
-      const usersResult = await listCustomerUsers(invoice.customerId);
+      const usersResult = await getDataClient().models.CustomerUser.list({
+        filter: { customerId: { eq: invoice.customerId } },
+      });
       const customerUsers = (usersResult.data as Array<{ role?: string | null; email?: string | null }> | undefined) || [];
       const owner = customerUsers.find((row) => row.role === 'account_owner' && row.email);
       toEmail = owner?.email || customer.email;
@@ -289,7 +294,7 @@ export async function POST(request: NextRequest) {
     // Update invoice with emailSentAt timestamp
     try {
       const now = new Date().toISOString();
-      await updateInvoice(invoiceId, { emailSentAt: now });
+      await getDataClient().models.Invoice.update({ id: invoiceId, emailSentAt: now });
     } catch (err) {
       console.warn('Failed to update invoice emailSentAt:', err);
       // Don't fail the entire operation if timestamp update fails

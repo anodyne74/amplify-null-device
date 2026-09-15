@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { deleteInvoice, updateInvoice } from '@/lib/queries';
@@ -98,16 +97,6 @@ export default function InvoicesAdminPage() {
 
   useEffect(() => { void fetchData(); }, [fetchData]);
 
-  const handleRouteLink = async (invoiceId: string, newRouteId: string) => {
-    const result = await updateInvoice(invoiceId, { routeId: newRouteId || null });
-    if (result.errors && result.errors.length > 0) {
-      setError('Failed to update linked route.');
-      return;
-    }
-
-    updateInvoiceInState(invoiceId, { routeId: newRouteId || null });
-  };
-
   // Shared per-invoice mark-paid mutation (single row + bulk action).
   const markInvoicePaid = async (invoiceId: string): Promise<boolean> => {
     const result = await updateInvoice(invoiceId, { status: 'paid' });
@@ -138,6 +127,7 @@ export default function InvoicesAdminPage() {
     const r = routes.find((r) => r.id === id);
     return r?.routeCode ?? id.slice(0, 8);
   };
+  const paymentTermsDaysForCustomer = (id: string) => customers.find((c) => c.id === id)?.paymentTermsDays;
 
   const uninvoicedCompletedRoutes = routes.filter(
     (route) => route.status === 'completed' && !invoices.some((invoice) => invoice.routeId === route.id)
@@ -146,14 +136,7 @@ export default function InvoicesAdminPage() {
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
-        <PageHeader
-          title="Invoices"
-          actions={
-            <Link href="/administrator/invoices/generate" className="nd-btn nd-btn--primary nd-btn--md">
-              Generate invoice
-            </Link>
-          }
-        />
+        <PageHeader title="Invoices" />
 
         {/* Hidden file input for PDF upload */}
         <input
@@ -189,16 +172,13 @@ export default function InvoicesAdminPage() {
         <InvoiceListTable
           loading={loading}
           invoices={sortedInvoices}
-          routes={routes}
           uploadingId={uploadingId}
           pdfActionLoadingId={pdfActionLoadingId}
           emailingInvoiceId={emailingInvoiceId}
           customerName={customerName}
           routeCode={routeCode}
           isInvoicePaid={isInvoicePaid}
-          onRouteLink={(invoiceId, newRouteId) => {
-            void handleRouteLink(invoiceId, newRouteId);
-          }}
+          paymentTermsDaysForCustomer={paymentTermsDaysForCustomer}
           onGeneratePdf={(invoice) => {
             void handleGeneratePdf(invoice);
           }}

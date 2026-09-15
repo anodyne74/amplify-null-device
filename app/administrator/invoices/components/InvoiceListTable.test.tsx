@@ -1,7 +1,6 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentProps } from 'react';
-import type { Route } from '@/amplify/types';
 import type { Invoice } from '@/app/administrator/invoices/types';
 import InvoiceListTable from '@/app/administrator/invoices/components/InvoiceListTable';
 import ToastProvider from '@/app/components/ToastProvider';
@@ -20,25 +19,16 @@ function createInvoice(overrides: Partial<Invoice> = {}): Invoice {
 }
 
 function renderTable(invoices: Invoice[], overrides: Partial<ComponentProps<typeof InvoiceListTable>> = {}) {
-  const routes: Route[] = [
-    {
-      id: 'route-1',
-      customerId: 'cust-1',
-      routeCode: 'R-101',
-    },
-  ];
-
   const props: ComponentProps<typeof InvoiceListTable> = {
     loading: false,
     invoices,
-    routes,
     uploadingId: null,
     pdfActionLoadingId: null,
     emailingInvoiceId: null,
     customerName: () => 'Acme Customer',
     routeCode: () => 'R-101',
     isInvoicePaid: (status) => status === 'paid',
-    onRouteLink: jest.fn(),
+    paymentTermsDaysForCustomer: () => 14,
     onGeneratePdf: jest.fn(),
     onPdfAction: jest.fn(),
     onUploadClick: jest.fn(),

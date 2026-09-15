@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Route } from '@/amplify/types';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import AdminRowMenu from '@/app/components/AdminRowMenu';
 import { ADMIN_PAGE_SIZE, getPageSlice } from '@/app/components/AdminPagination';
@@ -7,21 +6,20 @@ import { useToast } from '@/app/components/ToastProvider';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
-import { Select } from '@/app/components/ui/forms/Select';
 import type { Invoice, InvoiceStatus } from '@/app/administrator/invoices/types';
 import styles from '../page.module.css';
 
 interface InvoiceListTableProps {
   loading: boolean;
   invoices: Invoice[];
-  routes: Route[];
   uploadingId: string | null;
   pdfActionLoadingId: string | null;
   emailingInvoiceId: string | null;
   customerName: (id: string) => string;
   routeCode: (id?: string | null) => string;
   isInvoicePaid: (status?: Invoice['status'] | string | null) => boolean;
-  onRouteLink: (invoiceId: string, routeId: string) => void;
+  /** Payment terms (in days) for the customer on an invoice, for overdue derivation. Defaults to 14 when unset. */
+  paymentTermsDaysForCustomer: (customerId: string) => number | null | undefined;
   onGeneratePdf: (invoice: Invoice) => void;
   onPdfAction: (invoice: Invoice, action: 'view' | 'download') => void;
   onUploadClick: (invoiceId: string) => void;
@@ -35,16 +33,23 @@ interface InvoiceListTableProps {
   onBulkMarkPaidInvoice?: (invoiceId: string) => Promise<boolean>;
 }
 
-function toTitleCase(value?: string | null) {
-  const normalized = String(value ?? '').trim().toLowerCase();
-  if (!normalized) return 'Draft';
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-}
+const DEFAULT_PAYMENT_TERMS_DAYS = 14;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-const STATUS_TONE: Record<string, BadgeProps['tone']> = {
+type DisplayStatus = 'draft' | 'sent' | 'overdue' | 'paid';
+
+const STATUS_TONE: Record<DisplayStatus, BadgeProps['tone']> = {
   paid: 'success',
   sent: 'info',
+  overdue: 'danger',
   draft: 'neutral',
+};
+
+const STATUS_LABEL: Record<DisplayStatus, string> = {
+  paid: 'Paid',
+  sent: 'Sent',
+  overdue: 'Overdue',
+  draft: 'Draft',
 };
 
 function inferInvoiceStatus(invoice: Invoice): InvoiceStatus {
@@ -52,6 +57,32 @@ function inferInvoiceStatus(invoice: Invoice): InvoiceStatus {
   if (normalized === 'paid') return 'paid';
   if (invoice.emailSentAt || normalized === 'sent') return 'sent';
   return 'draft';
+}
+
+/**
+ * "Overdue" isn't a persisted status (amplify/data/resource.ts's Invoice.status
+ * enum is draft/sent/paid only) -- it's derived here from the issue date plus
+ * the customer's payment terms, mirroring the design's deriveInvoice logic.
+ */
+function getDisplayStatus(
+  invoice: Invoice,
+  paymentTermsDays: number | null | undefined
+): { status: DisplayStatus; note?: string } {
+  const baseStatus = inferInvoiceStatus(invoice);
+  if (baseStatus === 'draft') return { status: 'draft', note: 'Not sent' };
+  if (baseStatus === 'paid') return { status: 'paid' };
+
+  const issueDate = invoice.invoiceDate ? new Date(invoice.invoiceDate) : null;
+  if (issueDate && !Number.isNaN(issueDate.getTime())) {
+    const dueDate = new Date(issueDate);
+    dueDate.setDate(dueDate.getDate() + (paymentTermsDays ?? DEFAULT_PAYMENT_TERMS_DAYS));
+    const daysOverdue = Math.floor((Date.now() - dueDate.getTime()) / MS_PER_DAY);
+    if (daysOverdue > 0) {
+      return { status: 'overdue', note: `${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue` };
+    }
+  }
+
+  return { status: 'sent', note: `Sent ${formatLocalDateTime(invoice.emailSentAt)}` };
 }
 
 export function formatLocalDateTime(iso: string | null | undefined): string {
@@ -78,14 +109,13 @@ type ConfirmAction =
 export default function InvoiceListTable({
   loading,
   invoices,
-  routes,
   uploadingId,
   pdfActionLoadingId,
   emailingInvoiceId,
   customerName,
   routeCode,
   isInvoicePaid,
-  onRouteLink,
+  paymentTermsDaysForCustomer,
   onGeneratePdf,
   onPdfAction,
   onUploadClick,
@@ -215,7 +245,11 @@ export default function InvoiceListTable({
   })();
 
   return (
-    <Card title="Invoice List" padded={loading || invoices.length === 0}>
+    <Card
+      title="Recent invoices"
+      subtitle="All customers · overdue is issue date plus that customer's payment terms"
+      padded={loading || invoices.length === 0}
+    >
       <ConfirmDialog
         open={confirmAction !== null}
         title={confirmDialogContent.title}
@@ -286,7 +320,6 @@ export default function InvoiceListTable({
                   <th scope="col">Route</th>
                   <th scope="col">Total</th>
                   <th scope="col">Status</th>
-                  <th scope="col">Sent</th>
                   <th scope="col">PDF</th>
                   <th scope="col">Actions</th>
                 </tr>
@@ -313,31 +346,27 @@ export default function InvoiceListTable({
                       )}
                     </td>
                     <td>{customerName(invoice.customerId)}</td>
-                    <td>
-                      <Select
-                        value={invoice.routeId ?? ''}
-                        onChange={(event) => onRouteLink(invoice.id, event.target.value)}
-                        aria-label={`Linked route for invoice ${invoice.invoiceNumber}`}
-                        size="sm"
-                      >
-                        <option value="">— None —</option>
-                        {routes
-                          .filter((route) => route.customerId === invoice.customerId)
-                          .map((route) => (
-                            <option key={route.id} value={route.id}>
-                              {routeCode(route.id)}
-                            </option>
-                          ))}
-                      </Select>
-                    </td>
+                    <td>{routeCode(invoice.routeId)}</td>
                     <td className={styles.numericCell}>${invoice.totalAmount.toFixed(2)}</td>
                     <td>
-                      <Badge tone={STATUS_TONE[inferInvoiceStatus(invoice)]} dot>
-                        {toTitleCase(inferInvoiceStatus(invoice))}
-                      </Badge>
-                    </td>
-                    <td>
-                      {formatLocalDateTime(invoice.emailSentAt)}
+                      {(() => {
+                        const { status, note } = getDisplayStatus(
+                          invoice,
+                          paymentTermsDaysForCustomer(invoice.customerId)
+                        );
+                        return (
+                          <div className={styles.statusCell}>
+                            <Badge tone={STATUS_TONE[status]} dot>
+                              {STATUS_LABEL[status]}
+                            </Badge>
+                            {note && (
+                              <div className={status === 'overdue' ? styles.statusNoteDanger : styles.statusNote}>
+                                {note}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td>
                       <div className={styles.pdfCell}>

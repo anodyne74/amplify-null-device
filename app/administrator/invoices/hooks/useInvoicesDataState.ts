@@ -68,6 +68,7 @@ export function useInvoicesDataState({
         viewerSubs?: string[] | null;
         driverSplitPercent?: number | null;
         groupLineItemsByAgent?: boolean | null;
+        paymentTermsDays?: number | null;
       }> = [];
       let nextToken: string | undefined;
 
@@ -88,6 +89,7 @@ export function useInvoicesDataState({
             viewerSubs?: string[] | null;
             driverSplitPercent?: number | null;
             groupLineItemsByAgent?: boolean | null;
+            paymentTermsDays?: number | null;
           }>) || [])
         );
         nextToken = result.nextToken ?? undefined;
@@ -149,6 +151,7 @@ export function useInvoicesDataState({
         viewerSubs?: string[] | null;
         driverSplitPercent?: number | null;
         groupLineItemsByAgent?: boolean | null;
+        paymentTermsDays?: number | null;
       }>) || []).map((customer) => ({
         id: customer.id,
         name: customer.name,
@@ -159,6 +162,7 @@ export function useInvoicesDataState({
         viewerSubs: customer.viewerSubs,
         driverSplitPercent: customer.driverSplitPercent,
         groupLineItemsByAgent: customer.groupLineItemsByAgent,
+        paymentTermsDays: customer.paymentTermsDays,
       }));
 
       const customersWithPrimary = await Promise.all(

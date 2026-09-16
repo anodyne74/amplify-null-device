@@ -137,7 +137,10 @@ export default function AdminRowMenu({
       <button
         ref={triggerRef}
         type="button"
-        className={styles.rowMenuTrigger}
+        // `nd-btn` opts this out of the generic `button:not(.nd-btn)` reset in
+        // globals.css, which would otherwise clobber rowMenuTrigger's pill
+        // radius/themed background with the plain squared/grey default.
+        className={mergeClasses('nd-btn', styles.rowMenuTrigger)}
         aria-label={ariaLabel}
         aria-haspopup="menu"
         aria-expanded={open}

@@ -103,7 +103,7 @@ function pluralizeInvoices(count: number) {
 }
 
 type ConfirmAction =
-  | { type: 'regenerate' | 'markPaid' | 'delete'; invoice: Invoice }
+  | { type: 'markPaid' | 'delete'; invoice: Invoice }
   | { type: 'bulkMarkPaid'; invoiceIds: string[] };
 
 export default function InvoiceListTable({
@@ -203,9 +203,7 @@ export default function InvoiceListTable({
       void handleBulkMarkPaid(confirmAction.invoiceIds);
       return;
     }
-    if (confirmAction.type === 'regenerate') {
-      onGeneratePdf(confirmAction.invoice);
-    } else if (confirmAction.type === 'delete') {
+    if (confirmAction.type === 'delete') {
       onDeleteInvoice(confirmAction.invoice.id);
     } else {
       onMarkPaid(confirmAction.invoice.id);
@@ -230,17 +228,10 @@ export default function InvoiceListTable({
         confirmLabel: 'Mark Paid',
       };
     }
-    if (confirmAction.type === 'delete') {
-      return {
-        title: 'Delete invoice?',
-        message: `Permanently delete invoice ${confirmAction.invoice.invoiceNumber}? This cannot be undone.`,
-        confirmLabel: 'Delete',
-      };
-    }
     return {
-      title: 'Regenerate invoice PDF?',
-      message: `Regenerate invoice ${confirmAction.invoice.invoiceNumber}? This will replace the attached PDF.`,
-      confirmLabel: 'Regenerate',
+      title: 'Delete invoice?',
+      message: `Permanently delete invoice ${confirmAction.invoice.invoiceNumber}? This cannot be undone.`,
+      confirmLabel: 'Delete',
     };
   })();
 
@@ -370,121 +361,93 @@ export default function InvoiceListTable({
                     </td>
                     <td>
                       <div className={styles.pdfCell}>
-                        {invoice.pdfS3Key ? (
-                          <div className={styles.pdfCellRow}>
-                            <Badge tone="success" size="sm">PDF Attached</Badge>
+                        <Badge tone={invoice.pdfS3Key ? 'success' : 'warning'} size="sm">
+                          {invoice.pdfS3Key ? 'PDF Attached' : 'PDF Missing'}
+                        </Badge>
+                        <AdminRowMenu ariaLabel={`More actions for invoice ${invoice.invoiceNumber}`}>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onPdfAction(invoice, 'view')}
+                            loading={pdfActionLoadingId === invoice.id}
+                            disabled={!invoice.pdfS3Key || uploadingId === invoice.id}
+                            aria-label={`View PDF for invoice ${invoice.invoiceNumber}`}
+                          >
+                            {pdfActionLoadingId === invoice.id ? 'Opening...' : 'View'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onUploadClick(invoice.id)}
+                            loading={uploadingId === invoice.id}
+                            disabled={pdfActionLoadingId === invoice.id}
+                            aria-label={`Upload PDF for invoice ${invoice.invoiceNumber}`}
+                          >
+                            {uploadingId === invoice.id ? 'Uploading...' : 'Upload'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onEmailInvoiceToPrimary(invoice)}
+                            loading={emailingInvoiceId === invoice.id}
+                            aria-label={`${invoice.emailSentAt ? 'Resend' : 'Email'} invoice ${invoice.invoiceNumber}`}
+                          >
+                            {emailingInvoiceId === invoice.id ? 'Preparing...' : invoice.emailSentAt ? 'Resend' : 'Email'}
+                          </Button>
+                          {!isInvoicePaid(inferInvoiceStatus(invoice)) && (
                             <Button
                               type="button"
-                              variant="ghost"
+                              variant="primary"
                               size="sm"
-                              onClick={() => onPdfAction(invoice, 'view')}
-                              loading={pdfActionLoadingId === invoice.id}
-                              disabled={uploadingId === invoice.id}
-                              aria-label={`View PDF for invoice ${invoice.invoiceNumber}`}
+                              onClick={() => setConfirmAction({ type: 'markPaid', invoice })}
+                              aria-label={`Mark invoice ${invoice.invoiceNumber} as paid`}
                             >
-                              {pdfActionLoadingId === invoice.id ? 'Opening...' : 'View'}
+                              Mark Paid
                             </Button>
-                            <AdminRowMenu ariaLabel={`More PDF actions for invoice ${invoice.invoiceNumber}`}>
-                              {!invoice.importedAt && (
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => setConfirmAction({ type: 'regenerate', invoice })}
-                                  loading={uploadingId === invoice.id}
-                                  disabled={pdfActionLoadingId === invoice.id}
-                                  aria-label={`Regenerate PDF for invoice ${invoice.invoiceNumber}`}
-                                >
-                                  {uploadingId === invoice.id ? 'Generating...' : 'Regenerate'}
-                                </Button>
-                              )}
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => onPdfAction(invoice, 'download')}
-                                loading={pdfActionLoadingId === invoice.id}
-                                disabled={uploadingId === invoice.id}
-                                aria-label={`Download PDF for invoice ${invoice.invoiceNumber}`}
-                              >
-                                {pdfActionLoadingId === invoice.id ? 'Preparing...' : 'Download'}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => onUploadClick(invoice.id)}
-                                disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
-                                aria-label={`Replace PDF for invoice ${invoice.invoiceNumber}`}
-                              >
-                                Replace
-                              </Button>
-                            </AdminRowMenu>
-                          </div>
-                        ) : (
-                          <div className={styles.pdfCellRow}>
-                            <Badge tone="warning" size="sm">PDF Missing</Badge>
-                            {!invoice.importedAt && (
-                              <Button
-                                type="button"
-                                variant="primary"
-                                size="sm"
-                                onClick={() => onGeneratePdf(invoice)}
-                                loading={uploadingId === invoice.id}
-                                aria-label={`Generate PDF for invoice ${invoice.invoiceNumber}`}
-                              >
-                                {uploadingId === invoice.id ? 'Generating...' : 'Generate PDF'}
-                              </Button>
-                            )}
-                            <AdminRowMenu ariaLabel={`More PDF actions for invoice ${invoice.invoiceNumber}`}>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => onUploadClick(invoice.id)}
-                                loading={uploadingId === invoice.id}
-                                aria-label={`Upload PDF for invoice ${invoice.invoiceNumber}`}
-                              >
-                                {uploadingId === invoice.id ? 'Uploading...' : 'Upload PDF'}
-                              </Button>
-                            </AdminRowMenu>
-                          </div>
-                        )}
+                          )}
+                          {inferInvoiceStatus(invoice) === 'draft' && (
+                            <Button
+                              type="button"
+                              variant="danger"
+                              size="sm"
+                              onClick={() => setConfirmAction({ type: 'delete', invoice })}
+                              aria-label={`Delete invoice ${invoice.invoiceNumber}`}
+                            >
+                              Delete
+                            </Button>
+                          )}
+                        </AdminRowMenu>
                       </div>
                     </td>
-                    <td className={styles.actionsCellWrap}>
+                    <td>
                       <div className={styles.actionsCell}>
-                        {!isInvoicePaid(inferInvoiceStatus(invoice)) && (
+                        {invoice.pdfS3Key ? (
                           <Button
                             type="button"
                             variant="primary"
                             size="sm"
-                            onClick={() => setConfirmAction({ type: 'markPaid', invoice })}
-                            aria-label={`Mark invoice ${invoice.invoiceNumber} as paid`}
+                            onClick={() => onPdfAction(invoice, 'view')}
+                            loading={pdfActionLoadingId === invoice.id}
+                            aria-label={`View invoice ${invoice.invoiceNumber}`}
                           >
-                            Mark Paid
+                            {pdfActionLoadingId === invoice.id ? 'Opening...' : 'View'}
                           </Button>
-                        )}
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => onEmailInvoiceToPrimary(invoice)}
-                          loading={emailingInvoiceId === invoice.id}
-                          aria-label={`${invoice.emailSentAt ? 'Resend' : 'Email'} invoice ${invoice.invoiceNumber}`}
-                        >
-                          {emailingInvoiceId === invoice.id ? 'Preparing...' : invoice.emailSentAt ? 'Resend' : 'Email'}
-                        </Button>
-                        {inferInvoiceStatus(invoice) === 'draft' && (
-                          <Button
-                            type="button"
-                            variant="danger"
-                            size="sm"
-                            onClick={() => setConfirmAction({ type: 'delete', invoice })}
-                            aria-label={`Delete invoice ${invoice.invoiceNumber}`}
-                          >
-                            Delete
-                          </Button>
+                        ) : (
+                          !invoice.importedAt && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => onGeneratePdf(invoice)}
+                              loading={uploadingId === invoice.id}
+                              aria-label={`Continue invoice ${invoice.invoiceNumber}`}
+                            >
+                              {uploadingId === invoice.id ? 'Generating...' : 'Continue'}
+                            </Button>
+                          )
                         )}
                       </div>
                     </td>

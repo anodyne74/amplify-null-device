@@ -1,10 +1,11 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import RoutesPage from '../page';
 import * as listAllRoutesModule from '@/lib/queries/ListAllRoutes';
 import * as listAllCustomersModule from '@/lib/queries/ListAllCustomers';
-import type { Route } from '@/amplify/types';
+import * as listAllStopsModule from '@/lib/queries/ListAllStops';
+import type { Route, Stop } from '@/amplify/types';
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn() }),
@@ -37,6 +38,7 @@ jest.mock('@/app/components/OperatorRoute', () => ({
 
 jest.mock('@/lib/queries/ListAllRoutes');
 jest.mock('@/lib/queries/ListAllCustomers');
+jest.mock('@/lib/queries/ListAllStops');
 
 const mockRoutes: Route[] = [
   {
@@ -55,6 +57,33 @@ const mockRoutes: Route[] = [
   },
 ];
 
+const mockStops: Stop[] = [
+  {
+    id: 'stop-1',
+    routeId: 'route-aaaa-1111',
+    customerId: 'cust-bbbb-2222',
+    address: '14 Cliff Rd, Epping NSW 2121',
+    agent: "Betty O'Shea",
+    numberOfSigns: 3,
+  },
+  {
+    id: 'stop-2',
+    routeId: 'route-cccc-3333',
+    customerId: 'cust-dddd-4444',
+    address: '14 Cliff Rd, Epping NSW 2121',
+    agent: "Betty O'Shea",
+    numberOfSigns: 3,
+  },
+  {
+    id: 'stop-3',
+    routeId: 'route-aaaa-1111',
+    customerId: 'cust-bbbb-2222',
+    address: '19 Ryedale Rd, Eastwood NSW 2122',
+    agent: 'Sam Whitton',
+    numberOfSigns: 4,
+  },
+];
+
 describe('Operator Routes List Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -65,6 +94,11 @@ describe('Operator Routes List Page', () => {
         { id: 'cust-dddd-4444', name: 'Globex Inc', email: 'globex@example.com' },
       ],
       errors: undefined,
+    });
+    (listAllStopsModule.listAllStops as jest.Mock).mockResolvedValue({
+      data: mockStops,
+      errors: undefined,
+      nextToken: undefined,
     });
   });
 
@@ -307,6 +341,107 @@ describe('Operator Routes List Page', () => {
       expect(screen.queryByText('W19-26-001')).not.toBeInTheDocument();
       expect(screen.getByText('W19-26-002')).toBeInTheDocument();
       expect(screen.getByText(/showing 1 of 1 routes/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('find a property', () => {
+    async function renderWithRoutes() {
+      (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
+        data: mockRoutes,
+        errors: undefined,
+      });
+
+      render(<RoutesPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('W19-26-001')).toBeInTheDocument();
+      });
+    }
+
+    it('shows the idle prompt before two characters are typed', async () => {
+      await renderWithRoutes();
+
+      expect(screen.getByText(/type at least two characters/i)).toBeInTheDocument();
+    });
+
+    it('narrows the routes table to routes containing a matched property', async () => {
+      await renderWithRoutes();
+
+      fireEvent.change(screen.getByLabelText(/property address, street, or suburb/i), {
+        target: { value: 'ryedale' },
+      });
+
+      const table = within(screen.getByRole('table'));
+      expect(table.getByText('W19-26-001')).toBeInTheDocument();
+      expect(table.queryByText('W19-26-002')).not.toBeInTheDocument();
+      expect(screen.getByText(/showing 1 of 2 routes with a property match/i)).toBeInTheDocument();
+    });
+
+    it('shows an amber no-results note when nothing matches', async () => {
+      await renderWithRoutes();
+
+      fireEvent.change(screen.getByLabelText(/property address, street, or suburb/i), {
+        target: { value: 'nonexistent street' },
+      });
+
+      expect(screen.getByText(/no property matches/i)).toBeInTheDocument();
+    });
+
+    it('isolates a single route when its chip is clicked, and restores it via Show all routes', async () => {
+      await renderWithRoutes();
+
+      // "14 Cliff Rd" is on both mock routes, so both stay visible after the search.
+      fireEvent.change(screen.getByLabelText(/property address, street, or suburb/i), {
+        target: { value: 'cliff' },
+      });
+
+      const table = () => within(screen.getByRole('table'));
+      expect(table().getByText('W19-26-001')).toBeInTheDocument();
+      expect(table().getByText('W19-26-002')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Focus route W19-26-001' }));
+
+      expect(screen.getByText(/showing w19-26-001 only/i)).toBeInTheDocument();
+      expect(table().getByText('W19-26-001')).toBeInTheDocument();
+      expect(table().queryByText('W19-26-002')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /show all routes/i }));
+
+      expect(table().getByText('W19-26-001')).toBeInTheDocument();
+      expect(table().getByText('W19-26-002')).toBeInTheDocument();
+      expect(screen.queryByText(/showing w19-26-001 only/i)).not.toBeInTheDocument();
+    });
+
+    it('resets via Clear search in the property card', async () => {
+      await renderWithRoutes();
+
+      fireEvent.change(screen.getByLabelText(/property address, street, or suburb/i), {
+        target: { value: 'ryedale' },
+      });
+      expect(screen.queryByText('W19-26-002')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /clear search/i }));
+
+      expect(screen.getByLabelText(/property address, street, or suburb/i)).toHaveValue('');
+      expect(screen.getByText('W19-26-001')).toBeInTheDocument();
+      expect(screen.getByText('W19-26-002')).toBeInTheDocument();
+    });
+
+    it('composes with the status filter', async () => {
+      await renderWithRoutes();
+
+      // Both routes carry a stop at "14 Cliff Rd", so the property filter alone keeps both.
+      fireEvent.change(screen.getByLabelText(/property address, street, or suburb/i), {
+        target: { value: 'cliff' },
+      });
+      const table = () => within(screen.getByRole('table'));
+      expect(table().getByText('W19-26-001')).toBeInTheDocument();
+      expect(table().getByText('W19-26-002')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /^signs placed$/i }));
+
+      expect(table().queryByText('W19-26-001')).not.toBeInTheDocument();
+      expect(table().getByText('W19-26-002')).toBeInTheDocument();
     });
   });
 

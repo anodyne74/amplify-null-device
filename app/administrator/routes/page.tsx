@@ -8,6 +8,7 @@ import OperatorRoute from '@/app/components/OperatorRoute';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { isAdmin } from '@/lib/amplify-config';
 import { useRoutesList, ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
+import { usePropertySearch } from '@/lib/usePropertySearch';
 import { formatRouteDate, formatRouteDuration } from '@/lib/routeListHelpers';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
 import PageHeader from '@/app/administrator/components/PageHeader';
@@ -16,6 +17,7 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Button } from '@/app/components/ui/core/Button';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
+import { PropertySearchCard } from './PropertySearchCard';
 import type { Route } from '@/amplify/types';
 import styles from './page.module.css';
 
@@ -54,12 +56,19 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
 
   const hasRefinements = searchQuery.trim() !== '' || dateFrom !== '' || dateTo !== '';
 
-  // Client-side search (route code / route id / customer name) and inclusive
-  // createdAt date-range filter, composed with the status-filtered list.
+  const propertySearch = usePropertySearch(filteredRoutes, customersById);
+  const { filterActive: propertyFilterActive, shownRouteIds, focusedRouteId } = propertySearch;
+  const shownRouteIdSet = useMemo(() => new Set(shownRouteIds), [shownRouteIds]);
+
+  // Client-side search (route code / route id / customer name), inclusive
+  // createdAt date-range filter, and property-search route filter, all
+  // composed with the status-filtered list.
   const visibleRoutes = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
     return filteredRoutes.filter((route) => {
+      if (propertyFilterActive && !shownRouteIdSet.has(route.id)) return false;
+
       if (query) {
         const customerName = customersById[route.customerId] || '';
         const matchesQuery = [route.routeCode || '', route.id, customerName].some((value) =>
@@ -77,7 +86,10 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
 
       return true;
     });
-  }, [filteredRoutes, customersById, searchQuery, dateFrom, dateTo]);
+  }, [filteredRoutes, customersById, searchQuery, dateFrom, dateTo, propertyFilterActive, shownRouteIdSet]);
+
+  const focusedRoute = focusedRouteId ? filteredRoutes.find((route) => route.id === focusedRouteId) : undefined;
+  const focusedRouteLabel = focusedRoute ? focusedRoute.routeCode || focusedRoute.id.slice(0, 8) : null;
 
   function clearRefinements() {
     setSearchQuery('');
@@ -168,6 +180,21 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       )}
       onRetry={onRetry}
     >
+      <PropertySearchCard search={propertySearch} />
+
+      {propertyFilterActive && (
+        <div className={styles.propertyFilterBar}>
+          <p className={styles.propertyFilterNote} role="status">
+            {focusedRouteLabel
+              ? `Showing ${focusedRouteLabel} only`
+              : `Showing ${visibleRoutes.length} of ${filteredRoutes.length} routes with a property match`}
+          </p>
+          <button type="button" className={styles.clearFiltersBtn} onClick={propertySearch.clear}>
+            Show all routes
+          </button>
+        </div>
+      )}
+
       <div className={styles.searchFilterRow}>
         <Field label="Search" htmlFor="routes-search" className={styles.searchField}>
           <Input

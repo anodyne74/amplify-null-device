@@ -34,6 +34,9 @@ function parseArgs(argv) {
     authMode: 'userPool',
     username: '',
     password: '',
+    defaultOperatorName: '',
+    defaultOperatorSub: '',
+    defaultOperatorEmail: '',
   };
 
   for (let i = 2; i < argv.length; i += 1) {
@@ -98,6 +101,21 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
+    if (arg === '--default-operator-name' && next) {
+      args.defaultOperatorName = next;
+      i += 1;
+      continue;
+    }
+    if (arg === '--default-operator-sub' && next) {
+      args.defaultOperatorSub = next;
+      i += 1;
+      continue;
+    }
+    if (arg === '--default-operator-email' && next) {
+      args.defaultOperatorEmail = next;
+      i += 1;
+      continue;
+    }
   }
 
   return args;
@@ -117,7 +135,16 @@ function usage() {
     [--route-status completed|archived] \
     [--auth-mode userPool|iam] \
     [--username <cognito-username-or-email>] \
-    [--password <cognito-password>]
+    [--password <cognito-password>] \
+    [--default-operator-name <name>] \
+    [--default-operator-sub <cognito-sub>] \
+    [--default-operator-email <email>]
+
+  Assigns every imported route to this operator (Route.assignedOperatorName/
+  Sub/Email) when provided. The sub/email are branch-specific (each Amplify
+  branch has its own Cognito user pool, so the same person has a different
+  sub per branch) so pass the values for whichever branch --outputs-path
+  points at.
 
   Auth notes:
     - Default auth mode is userPool and requires an operator/administrator user.
@@ -499,22 +526,30 @@ function buildBundle({
     const invoicePdfPath = trackerRecord.invoiceNumber
       ? (invoicePdfs.get(normalizeToken(trackerRecord.invoiceNumber)) || null)
       : null;
+    const completedAt =
+      toIsoDateTime(trackerRecord.lifecycle.paidDate) ||
+      toIsoDateTime(trackerRecord.lifecycle.sentDate) ||
+      new Date().toISOString();
     return {
       importKey: `${trackerRecord.routeCode}::${trackerRecord.invoiceNumber || 'NO-INVOICE'}`,
       customerId: args.customerId,
       route: {
         routeCode: trackerRecord.routeCode,
         status: args.routeStatus,
-        completedAt:
-          toIsoDateTime(trackerRecord.lifecycle.paidDate) ||
-          toIsoDateTime(trackerRecord.lifecycle.sentDate) ||
-          new Date().toISOString(),
+        completedAt,
         overrideSigns: trackerRecord.summary.signs,
         overrideStops: trackerRecord.summary.stops,
         overrideDistanceKm: trackerRecord.summary.kilometers,
         overrideDurationMinutes: trackerRecord.summary.durationMinutes,
         actualDurationMinutes: trackerRecord.summary.durationMinutes,
-        notes: `Legacy import (${trackerRecord.jobLabel || trackerRecord.routeCode})`,
+        // The Tracker sheet's Jobs tab "Job" column is the summary of the route
+        // as recorded by the business at the time — carried through verbatim
+        // rather than wrapped in a generic "Legacy import (...)" label.
+        notes: trackerRecord.jobLabel || trackerRecord.routeCode,
+        assignedOperatorName: args.defaultOperatorName || undefined,
+        assignedOperatorSub: args.defaultOperatorSub || undefined,
+        assignedOperatorEmail: args.defaultOperatorEmail || undefined,
+        assignedAt: args.defaultOperatorName ? completedAt : undefined,
       },
       invoice: {
         invoiceNumber: trackerRecord.invoiceNumber,
@@ -582,6 +617,22 @@ function buildBundle({
     ],
     records,
   };
+}
+
+// AppSync list() with a `filter` runs a DynamoDB scan/query where `limit` caps how many
+// items are examined BEFORE the filter is applied, not how many matches are returned. None
+// of these models have a secondary index for the fields we filter on, so a small limit (e.g.
+// 1) almost always misses real matches once the table has more rows than the limit, silently
+// causing "not found" and duplicate creates. Paginate through every page instead.
+async function listAllMatching(listFn, input, authMode) {
+  const items = [];
+  let nextToken;
+  do {
+    const page = await listFn({ ...input, nextToken }, { authMode });
+    items.push(...(page.data || []));
+    nextToken = page.nextToken;
+  } while (nextToken);
+  return items;
 }
 
 async function applyBundle(bundle, args) {
@@ -688,17 +739,17 @@ async function applyBundle(bundle, args) {
         const invoiceKey = `${record.customerId}::${record.invoice.invoiceNumber}`;
         let invoice = invoiceCache.get(invoiceKey);
         if (!invoice) {
-          const invoiceLookup = await client.models.Invoice.list(
+          const invoiceMatches = await listAllMatching(
+            client.models.Invoice.list,
             {
               filter: {
                 customerId: { eq: record.customerId },
                 invoiceNumber: { eq: record.invoice.invoiceNumber },
               },
-              limit: 1,
             },
-            { authMode }
+            authMode
           );
-          invoice = invoiceLookup.data?.[0] || null;
+          invoice = invoiceMatches[0] || null;
         }
 
         if (!invoice?.id) {
@@ -750,17 +801,17 @@ async function applyBundle(bundle, args) {
       let route = routeCache.get(routeKey);
 
       if (!route) {
-        const routeLookup = await client.models.Route.list(
+        const routeMatches = await listAllMatching(
+          client.models.Route.list,
           {
             filter: {
               customerId: { eq: record.customerId },
               routeCode: { eq: record.route.routeCode },
             },
-            limit: 1,
           },
-          { authMode }
+          authMode
         );
-        route = routeLookup.data?.[0] || null;
+        route = routeMatches[0] || null;
       }
 
       const customerContext = await getCustomerContext(record.customerId);
@@ -786,6 +837,10 @@ async function applyBundle(bundle, args) {
         overrideDurationMinutes: record.route.overrideDurationMinutes ?? undefined,
         actualDurationMinutes: record.route.actualDurationMinutes ?? undefined,
         notes: record.route.notes,
+        assignedOperatorName: record.route.assignedOperatorName,
+        assignedOperatorSub: record.route.assignedOperatorSub,
+        assignedOperatorEmail: record.route.assignedOperatorEmail,
+        assignedAt: record.route.assignedAt,
       };
 
       if (route?.id) {
@@ -805,12 +860,13 @@ async function applyBundle(bundle, args) {
 
       routeCache.set(routeKey, route);
 
-      const existingStops = await client.models.Stop.list(
-        { filter: { routeId: { eq: route.id } }, limit: 1000 },
-        { authMode }
+      const existingStops = await listAllMatching(
+        client.models.Stop.list,
+        { filter: { routeId: { eq: route.id } } },
+        authMode
       );
       const stopMap = new Map(
-        (existingStops.data || []).map((stop) => [`${stop.sequence}|${normalizeAddress(stop.address).toLowerCase()}`, stop])
+        existingStops.map((stop) => [`${stop.sequence}|${normalizeAddress(stop.address).toLowerCase()}`, stop])
       );
 
       for (const stopRecord of record.stops) {
@@ -846,17 +902,17 @@ async function applyBundle(bundle, args) {
       const invoiceKey = `${record.customerId}::${record.invoice.invoiceNumber}`;
       let invoice = invoiceCache.get(invoiceKey);
       if (!invoice) {
-        const invoiceLookup = await client.models.Invoice.list(
+        const invoiceMatches = await listAllMatching(
+          client.models.Invoice.list,
           {
             filter: {
               customerId: { eq: record.customerId },
               invoiceNumber: { eq: record.invoice.invoiceNumber },
             },
-            limit: 1,
           },
-          { authMode }
+          authMode
         );
-        invoice = invoiceLookup.data?.[0] || null;
+        invoice = invoiceMatches[0] || null;
       }
 
       const invoicePayload = {
@@ -932,17 +988,17 @@ async function applyBundle(bundle, args) {
 
       invoiceCache.set(invoiceKey, invoice);
 
-      const existingLineItems = await client.models.LineItem.list(
+      const existingLineItems = await listAllMatching(
+        client.models.LineItem.list,
         {
           filter: {
             invoiceId: { eq: invoice.id },
           },
-          limit: 50,
         },
-        { authMode }
+        authMode
       );
 
-      const hasLegacyLineItem = (existingLineItems.data || []).some((lineItem) =>
+      const hasLegacyLineItem = existingLineItems.some((lineItem) =>
         String(lineItem.description || '').startsWith('Legacy route')
       );
 

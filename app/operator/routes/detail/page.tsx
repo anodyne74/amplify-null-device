@@ -74,8 +74,11 @@ function isStopCompleted(stop: Stop) {
   return Boolean(stop.actualDepartureTime);
 }
 
-function getStopStatusLabel(stop: Stop, executionPhase?: ExecutionPhase | null) {
-  if (executionPhase) {
+function getStopStatusLabel(stop: Stop, executionPhase?: ExecutionPhase | null, routeStatus?: string | null) {
+  // Completed/archived routes (including legacy imports, which force every
+  // stop's serviceType to 'pickup' — see import-prep.js) always render fully
+  // done; the placement/pickup phase split only applies to routes still in progress.
+  if (executionPhase && routeStatus !== 'completed' && routeStatus !== 'archived') {
     if (isStopSkippedForPhase(stop, executionPhase)) {
       const marker = executionPhase === 'pickup' ? PICKUP_SKIPPED_MARKER : PLACEMENT_SKIPPED_MARKER;
       const reason = getMarkerReason(stop.notes, marker);
@@ -932,7 +935,10 @@ function RouteDetailContent() {
                   const agentInitials = getAgentBadgeInitials(agentName);
                   const agentBadgeTone = getAgentBadgeTone(agentName);
                   const isTopVisibleStop = stop.id === topVisibleStopId;
-                  const completedStop = isStopCompletedForPhase(stop, currentExecutionPhase);
+                  const completedStop =
+                    route?.status === 'completed' || route?.status === 'archived'
+                      ? isStopCompleted(stop)
+                      : isStopCompletedForPhase(stop, currentExecutionPhase);
 
                   const stopActions = canManagePlanning && !planningLocked ? (
                     <div className={styles.stopActionsRow}>
@@ -999,7 +1005,7 @@ function RouteDetailContent() {
                       sequence={stop.sequence ?? '?'}
                       serviceType={stop.serviceType}
                       address={getPrimaryAddressLine(stop.formattedAddress || stop.address)}
-                      statusLabel={getStopStatusLabel(stop, currentExecutionPhase)}
+                      statusLabel={getStopStatusLabel(stop, currentExecutionPhase, route?.status)}
                       agentInitials={agentInitials}
                       agentName={agentName}
                       agentBadgeTone={agentBadgeTone}

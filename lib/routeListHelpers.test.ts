@@ -103,5 +103,30 @@ describe('routeListHelpers', () => {
 
       expect(routes.map((route) => route.id)).toEqual(['route-10', 'route-2', 'route-1']);
     });
+
+    it('sorts route codes by year and week, not by week alone', () => {
+      // A plain (even numeric-aware) string compare would put W48-23-001 after
+      // W02-24-001, since 48 > 2 — this asserts year is compared first.
+      const routes = [
+        makeRoute({ id: 'a', routeCode: 'W48-23-001' }),
+        makeRoute({ id: 'b', routeCode: 'W02-24-001' }),
+        makeRoute({ id: 'c', routeCode: 'W37-26-001' }),
+      ];
+
+      routes.sort(compareRouteIdDesc);
+
+      expect(routes.map((route) => route.routeCode)).toEqual(['W37-26-001', 'W02-24-001', 'W48-23-001']);
+    });
+
+    it('breaks ties within the same week by sequence number', () => {
+      const routes = [
+        makeRoute({ id: 'a', routeCode: 'W36-26-001' }),
+        makeRoute({ id: 'b', routeCode: 'W36-26-002' }),
+      ];
+
+      routes.sort(compareRouteIdDesc);
+
+      expect(routes.map((route) => route.routeCode)).toEqual(['W36-26-002', 'W36-26-001']);
+    });
   });
 });

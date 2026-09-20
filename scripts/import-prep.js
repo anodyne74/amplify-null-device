@@ -34,6 +34,14 @@ function parseArgs(argv) {
     authMode: 'userPool',
     username: '',
     password: '',
+    defaultOperatorName: '',
+    defaultOperatorSub: '',
+    defaultOperatorEmail: '',
+    // name (lowercased) -> { name, sub, email }, built from repeatable --operator flags.
+    // Resolves the Tracker's per-row Operator column so routes/payouts spanning an
+    // operator handover (e.g. Adam -> Aishling) get the right assignee per row,
+    // rather than the single global --default-operator-* applied to every route.
+    operators: new Map(),
   };
 
   for (let i = 2; i < argv.length; i += 1) {
@@ -98,6 +106,30 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
+    if (arg === '--default-operator-name' && next) {
+      args.defaultOperatorName = next;
+      i += 1;
+      continue;
+    }
+    if (arg === '--default-operator-sub' && next) {
+      args.defaultOperatorSub = next;
+      i += 1;
+      continue;
+    }
+    if (arg === '--default-operator-email' && next) {
+      args.defaultOperatorEmail = next;
+      i += 1;
+      continue;
+    }
+    if (arg === '--operator' && next) {
+      const [name, sub, email] = next.split(':');
+      if (!name || !sub) {
+        throw new Error(`Invalid --operator value '${next}'. Expected Name:sub:email.`);
+      }
+      args.operators.set(name.trim().toLowerCase(), { name: name.trim(), sub: sub.trim(), email: (email || '').trim() });
+      i += 1;
+      continue;
+    }
   }
 
   return args;
@@ -117,7 +149,27 @@ function usage() {
     [--route-status completed|archived] \
     [--auth-mode userPool|iam] \
     [--username <cognito-username-or-email>] \
-    [--password <cognito-password>]
+    [--password <cognito-password>] \
+    [--default-operator-name <name>] \
+    [--default-operator-sub <cognito-sub>] \
+    [--default-operator-email <email>] \
+    [--operator <Name>:<cognito-sub>:<email>] [--operator <Name>:<cognito-sub>:<email> ...]
+
+  When the Tracker has an Operator column, each row's operator name is looked up
+  in the --operator map (repeatable) to assign Route.assignedOperatorName/Sub/Email
+  per row -- so a route handover between operators partway through the Tracker
+  (e.g. Adam -> Aishling) is preserved. If a row's Operator name isn't in the map,
+  no operator is assigned to that row and a warning is recorded (it does NOT fall
+  back to --default-operator-*, to avoid silently misattributing a route). Rows
+  with no Operator column value at all fall back to --default-operator-name/sub/email.
+
+  When the Tracker has a Split column, its dollar value becomes an OperatorPayout
+  for the row's resolved operator (skipped, with a warning, if no operator could
+  be resolved for that row).
+
+  Operator sub/email are branch-specific (each Amplify branch has its own Cognito
+  user pool, so the same person has a different sub per branch) so pass the values
+  for whichever branch --outputs-path points at.
 
   Auth notes:
     - Default auth mode is userPool and requires an operator/administrator user.
@@ -220,7 +272,9 @@ function parseCurrency(raw) {
 
 function parseNumber(raw) {
   if (raw === null || raw === undefined || raw === '') return null;
-  const value = Number(String(raw).replace(/[^\d.-]/g, ''));
+  const stripped = String(raw).replace(/[^\d.-]/g, '');
+  if (stripped === '' || stripped === '-' || stripped === '.') return null;
+  const value = Number(stripped);
   return Number.isFinite(value) ? value : null;
 }
 
@@ -321,6 +375,11 @@ function parseTracker(trackerPath) {
     throw new Error('Tracker CSV is missing one or more expected columns A-K.');
   }
 
+  // Optional -- older Tracker exports (or the CSV fixtures in import-prep.test.ts)
+  // don't have these columns, so they're not part of the A-K required check above.
+  const operatorCol = findCol('Operator');
+  const splitCol = findCol('Split');
+
   const records = [];
   const warnings = [];
 
@@ -342,11 +401,15 @@ function parseTracker(trackerPath) {
     const amount = parseCurrency(row[idx.amount]);
     const sentDate = parseLegacyDate(row[idx.sent]);
     const paidDate = parseLegacyDate(row[idx.paid]);
+    const operatorName = operatorCol >= 0 ? String(row[operatorCol] || '').trim() : '';
+    const splitAmount = splitCol >= 0 ? parseCurrency(row[splitCol]) : null;
 
     records.push({
       routeCode,
       jobLabel: String(row[idx.job] || '').trim(),
       invoiceNumber,
+      operatorName,
+      splitAmount,
       summary: {
         signs,
         stops,
@@ -368,11 +431,31 @@ function parseTracker(trackerPath) {
   return { records, warnings };
 }
 
+// Route-list CSVs come in 3 layouts (see legacy exports): a 5-column layout with
+// no auction/agent/signs data at all ('Check' at index 2), a 6-9-column "Sell"
+// layout with a combined auction-flag column and no agent column ('Check' at
+// index 3), and a 8-9-column layout with separate auction-flag (col C) and
+// agent-initials (col D) columns ('Check' at index 4). Detecting the 'Check'
+// header's position lets us handle all three without relying on exact column counts.
+function detectRouteListFormat(headerRow) {
+  const checkIdx = headerRow.findIndex((cell) => String(cell).trim().toLowerCase() === 'check');
+  if (checkIdx === 3) return { auctionCol: 2, agentCol: null };
+  if (checkIdx === 4) return { auctionCol: 2, agentCol: 3 };
+  return { auctionCol: null, agentCol: null };
+}
+
+const AUCTION_FLAG_SYMBOL = '\uD83C\uDD70\uFE0F';
+const AGENT_INITIALS_RE = /^[A-Za-z]{1,4}$/;
+const DEFAULT_AGENT = 'BO';
+
 function parseRouteListFile(filePath) {
   const raw = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '');
   const rows = parseCsv(raw);
   const fileName = path.basename(filePath);
   const routeCode = normalizeRouteCode(fileName);
+  const warnings = [];
+
+  const { auctionCol, agentCol } = rows.length > 0 ? detectRouteListFormat(rows[0]) : { auctionCol: null, agentCol: null };
 
   const stops = [];
   const seen = new Set();
@@ -396,11 +479,33 @@ function parseRouteListFile(filePath) {
       }
     }
 
+    const auctionRaw = auctionCol !== null ? String(row[auctionCol] || '').trim() : '';
+    const isAuction = auctionRaw === AUCTION_FLAG_SYMBOL;
+    if (auctionRaw && !isAuction) {
+      warnings.push(
+        `${fileName}: unrecognized auction-column value '${auctionRaw}' at stop ${sequence} (${address}) \u2014 not treated as an auction.`
+      );
+    }
+
+    const agentRaw = agentCol !== null ? String(row[agentCol] || '').trim() : '';
+    let agent = DEFAULT_AGENT;
+    if (agentRaw) {
+      if (AGENT_INITIALS_RE.test(agentRaw)) {
+        agent = agentRaw.toUpperCase();
+      } else {
+        warnings.push(
+          `${fileName}: unrecognized agent-column value '${agentRaw}' at stop ${sequence} (${address}) \u2014 defaulted agent to '${DEFAULT_AGENT}'.`
+        );
+      }
+    }
+
     stops.push({
       sequence,
       address,
       numberOfSigns: signCount,
       serviceType: 'delivery',
+      isAuction,
+      agent,
     });
   }
 
@@ -408,6 +513,7 @@ function parseRouteListFile(filePath) {
     routeCode,
     filePath,
     stops: stops.sort((a, b) => a.sequence - b.sequence),
+    warnings,
   };
 }
 
@@ -426,6 +532,7 @@ function buildRouteListIndex(routeListsDir) {
       warnings.push(`Route list file skipped (no route code in filename): ${path.basename(filePath)}`);
       continue;
     }
+    warnings.push(...parsed.warnings);
     index.set(parsed.routeCode, parsed);
   }
 
@@ -499,22 +606,62 @@ function buildBundle({
     const invoicePdfPath = trackerRecord.invoiceNumber
       ? (invoicePdfs.get(normalizeToken(trackerRecord.invoiceNumber)) || null)
       : null;
+    const completedAt =
+      toIsoDateTime(trackerRecord.lifecycle.paidDate) ||
+      toIsoDateTime(trackerRecord.lifecycle.sentDate) ||
+      new Date().toISOString();
+
+    const recordWarnings = [];
+    const operatorKey = trackerRecord.operatorName ? trackerRecord.operatorName.toLowerCase() : '';
+    let resolvedOperator = null;
+    if (operatorKey) {
+      resolvedOperator = args.operators.get(operatorKey) || null;
+      if (!resolvedOperator) {
+        recordWarnings.push(
+          `Row ${trackerRecord.source.trackerRow}: unknown operator '${trackerRecord.operatorName}' for ${trackerRecord.routeCode} — no operator assigned (pass --operator ${trackerRecord.operatorName}:<sub>:<email>).`
+        );
+      }
+    } else if (args.defaultOperatorName) {
+      resolvedOperator = { name: args.defaultOperatorName, sub: args.defaultOperatorSub, email: args.defaultOperatorEmail };
+    }
+
+    let payout = null;
+    if (trackerRecord.splitAmount !== null) {
+      if (resolvedOperator?.sub) {
+        payout = {
+          operatorSub: resolvedOperator.sub,
+          amount: trackerRecord.splitAmount,
+          status: trackerRecord.lifecycle.paidDate ? 'paid' : 'pending',
+          paidAt: trackerRecord.lifecycle.paidDate ? toIsoDateTime(trackerRecord.lifecycle.paidDate) : undefined,
+          notes: `Legacy import split for ${trackerRecord.routeCode}`,
+        };
+      } else {
+        recordWarnings.push(
+          `Row ${trackerRecord.source.trackerRow}: split amount present but no operator resolved for ${trackerRecord.routeCode} — payout not created.`
+        );
+      }
+    }
+
     return {
       importKey: `${trackerRecord.routeCode}::${trackerRecord.invoiceNumber || 'NO-INVOICE'}`,
       customerId: args.customerId,
       route: {
         routeCode: trackerRecord.routeCode,
         status: args.routeStatus,
-        completedAt:
-          toIsoDateTime(trackerRecord.lifecycle.paidDate) ||
-          toIsoDateTime(trackerRecord.lifecycle.sentDate) ||
-          new Date().toISOString(),
+        completedAt,
         overrideSigns: trackerRecord.summary.signs,
         overrideStops: trackerRecord.summary.stops,
         overrideDistanceKm: trackerRecord.summary.kilometers,
         overrideDurationMinutes: trackerRecord.summary.durationMinutes,
         actualDurationMinutes: trackerRecord.summary.durationMinutes,
-        notes: `Legacy import (${trackerRecord.jobLabel || trackerRecord.routeCode})`,
+        // The Tracker sheet's Jobs tab "Job" column is the summary of the route
+        // as recorded by the business at the time — carried through verbatim
+        // rather than wrapped in a generic "Legacy import (...)" label.
+        notes: trackerRecord.jobLabel || trackerRecord.routeCode,
+        assignedOperatorName: resolvedOperator?.name || undefined,
+        assignedOperatorSub: resolvedOperator?.sub || undefined,
+        assignedOperatorEmail: resolvedOperator?.email || undefined,
+        assignedAt: resolvedOperator?.name ? completedAt : undefined,
       },
       invoice: {
         invoiceNumber: trackerRecord.invoiceNumber,
@@ -532,6 +679,7 @@ function buildBundle({
         amount: trackerRecord.summary.amount,
       },
       stops: routeList?.stops || [],
+      payout,
       source: {
         trackerRow: trackerRecord.source.trackerRow,
         routeListFile: routeList ? path.basename(routeList.filePath) : null,
@@ -549,6 +697,7 @@ function buildBundle({
             ? [`Missing invoice PDF for ${trackerRecord.invoiceNumber}`]
             : []
         ),
+        ...recordWarnings,
       ],
     };
   });
@@ -568,6 +717,7 @@ function buildBundle({
       routesPrepared: records.length,
       invoicesPrepared: records.filter((record) => record.invoice.invoiceNumber).length,
       stopsPrepared: records.reduce((sum, record) => sum + record.stops.length, 0),
+      payoutsPrepared: records.filter((record) => record.payout).length,
       warnings:
         trackerWarnings.length +
         routeListWarnings.length +
@@ -582,6 +732,22 @@ function buildBundle({
     ],
     records,
   };
+}
+
+// AppSync list() with a `filter` runs a DynamoDB scan/query where `limit` caps how many
+// items are examined BEFORE the filter is applied, not how many matches are returned. None
+// of these models have a secondary index for the fields we filter on, so a small limit (e.g.
+// 1) almost always misses real matches once the table has more rows than the limit, silently
+// causing "not found" and duplicate creates. Paginate through every page instead.
+async function listAllMatching(listFn, input, authMode) {
+  const items = [];
+  let nextToken;
+  do {
+    const page = await listFn({ ...input, nextToken }, { authMode });
+    items.push(...(page.data || []));
+    nextToken = page.nextToken;
+  } while (nextToken);
+  return items;
 }
 
 async function applyBundle(bundle, args) {
@@ -662,6 +828,8 @@ async function applyBundle(bundle, args) {
     invoicesCreated: 0,
     invoicesUpdated: 0,
     lineItemsCreated: 0,
+    payoutsCreated: 0,
+    payoutsUpdated: 0,
     pdfsUploaded: 0,
     pdfsMissing: 0,
     pdfUploadErrors: 0,
@@ -688,17 +856,17 @@ async function applyBundle(bundle, args) {
         const invoiceKey = `${record.customerId}::${record.invoice.invoiceNumber}`;
         let invoice = invoiceCache.get(invoiceKey);
         if (!invoice) {
-          const invoiceLookup = await client.models.Invoice.list(
+          const invoiceMatches = await listAllMatching(
+            client.models.Invoice.list,
             {
               filter: {
                 customerId: { eq: record.customerId },
                 invoiceNumber: { eq: record.invoice.invoiceNumber },
               },
-              limit: 1,
             },
-            { authMode }
+            authMode
           );
-          invoice = invoiceLookup.data?.[0] || null;
+          invoice = invoiceMatches[0] || null;
         }
 
         if (!invoice?.id) {
@@ -750,17 +918,17 @@ async function applyBundle(bundle, args) {
       let route = routeCache.get(routeKey);
 
       if (!route) {
-        const routeLookup = await client.models.Route.list(
+        const routeMatches = await listAllMatching(
+          client.models.Route.list,
           {
             filter: {
               customerId: { eq: record.customerId },
               routeCode: { eq: record.route.routeCode },
             },
-            limit: 1,
           },
-          { authMode }
+          authMode
         );
-        route = routeLookup.data?.[0] || null;
+        route = routeMatches[0] || null;
       }
 
       const customerContext = await getCustomerContext(record.customerId);
@@ -786,6 +954,10 @@ async function applyBundle(bundle, args) {
         overrideDurationMinutes: record.route.overrideDurationMinutes ?? undefined,
         actualDurationMinutes: record.route.actualDurationMinutes ?? undefined,
         notes: record.route.notes,
+        assignedOperatorName: record.route.assignedOperatorName,
+        assignedOperatorSub: record.route.assignedOperatorSub,
+        assignedOperatorEmail: record.route.assignedOperatorEmail,
+        assignedAt: record.route.assignedAt,
       };
 
       if (route?.id) {
@@ -805,12 +977,13 @@ async function applyBundle(bundle, args) {
 
       routeCache.set(routeKey, route);
 
-      const existingStops = await client.models.Stop.list(
-        { filter: { routeId: { eq: route.id } }, limit: 1000 },
-        { authMode }
+      const existingStops = await listAllMatching(
+        client.models.Stop.list,
+        { filter: { routeId: { eq: route.id } } },
+        authMode
       );
       const stopMap = new Map(
-        (existingStops.data || []).map((stop) => [`${stop.sequence}|${normalizeAddress(stop.address).toLowerCase()}`, stop])
+        existingStops.map((stop) => [`${stop.sequence}|${normalizeAddress(stop.address).toLowerCase()}`, stop])
       );
 
       for (const stopRecord of record.stops) {
@@ -828,6 +1001,8 @@ async function applyBundle(bundle, args) {
           actualArrivalTime: isTerminalRoute ? completedAt : undefined,
           actualDepartureTime: isTerminalRoute ? completedAt : undefined,
           numberOfSigns: stopRecord.numberOfSigns ?? undefined,
+          agent: stopRecord.agent ?? undefined,
+          isAuction: stopRecord.isAuction ?? undefined,
         };
 
         if (existingStop?.id) {
@@ -839,6 +1014,31 @@ async function applyBundle(bundle, args) {
         }
       }
 
+      if (record.payout) {
+        const existingPayouts = await listAllMatching(
+          client.models.OperatorPayout.list,
+          { filter: { routeId: { eq: route.id }, operatorSub: { eq: record.payout.operatorSub } } },
+          authMode
+        );
+        const payoutPayload = {
+          operatorSub: record.payout.operatorSub,
+          customerId: record.customerId,
+          routeId: route.id,
+          amount: record.payout.amount,
+          status: record.payout.status,
+          paidAt: record.payout.paidAt,
+          notes: record.payout.notes,
+        };
+
+        if (existingPayouts[0]?.id) {
+          await client.models.OperatorPayout.update({ id: existingPayouts[0].id, ...payoutPayload }, { authMode });
+          summary.payoutsUpdated += 1;
+        } else {
+          await client.models.OperatorPayout.create(payoutPayload, { authMode });
+          summary.payoutsCreated += 1;
+        }
+      }
+
       if (!record.invoice.invoiceNumber) {
         continue;
       }
@@ -846,17 +1046,17 @@ async function applyBundle(bundle, args) {
       const invoiceKey = `${record.customerId}::${record.invoice.invoiceNumber}`;
       let invoice = invoiceCache.get(invoiceKey);
       if (!invoice) {
-        const invoiceLookup = await client.models.Invoice.list(
+        const invoiceMatches = await listAllMatching(
+          client.models.Invoice.list,
           {
             filter: {
               customerId: { eq: record.customerId },
               invoiceNumber: { eq: record.invoice.invoiceNumber },
             },
-            limit: 1,
           },
-          { authMode }
+          authMode
         );
-        invoice = invoiceLookup.data?.[0] || null;
+        invoice = invoiceMatches[0] || null;
       }
 
       const invoicePayload = {
@@ -932,17 +1132,17 @@ async function applyBundle(bundle, args) {
 
       invoiceCache.set(invoiceKey, invoice);
 
-      const existingLineItems = await client.models.LineItem.list(
+      const existingLineItems = await listAllMatching(
+        client.models.LineItem.list,
         {
           filter: {
             invoiceId: { eq: invoice.id },
           },
-          limit: 50,
         },
-        { authMode }
+        authMode
       );
 
-      const hasLegacyLineItem = (existingLineItems.data || []).some((lineItem) =>
+      const hasLegacyLineItem = existingLineItems.some((lineItem) =>
         String(lineItem.description || '').startsWith('Legacy route')
       );
 
@@ -979,6 +1179,7 @@ async function applyBundle(bundle, args) {
     `${summary.invoicesCreated} invoice(s) created, ${summary.invoicesUpdated} updated; ` +
     `${summary.stopsCreated} stop(s) created, ${summary.stopsUpdated} updated; ` +
     `${summary.lineItemsCreated} line item(s) created; ` +
+    `${summary.payoutsCreated} payout(s) created, ${summary.payoutsUpdated} updated; ` +
     `${summary.pdfsUploaded} PDF(s) uploaded, ${summary.pdfsMissing} missing, ${summary.pdfUploadErrors} upload error(s).`
   );
 

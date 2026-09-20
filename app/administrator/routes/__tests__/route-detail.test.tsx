@@ -4,6 +4,7 @@ import { render, screen, waitFor, within, fireEvent } from '@testing-library/rea
 import RouteDetailPage from '../detail/page';
 import * as getRouteDetailModule from '@/lib/queries/GetRouteDetail';
 import * as deleteStopModule from '@/lib/queries/DeleteStop';
+import * as queriesModule from '@/lib/queries';
 import type { Route, Stop } from '@/amplify/types';
 
 const mockOperatorRoute = jest.fn(({ children }: { children: React.ReactNode; requireAdmin?: boolean }) => <>{children}</>);
@@ -116,6 +117,37 @@ const mockStops: Stop[] = [
     sequence: 2,
     address: '200 Second Ave',
     serviceType: 'pickup',
+  },
+];
+
+// A legacy-imported completed route: import-prep.js stamps every phase
+// timestamp with the same single known date (no granular start/end was
+// recorded) and forces every stop's serviceType to 'pickup'.
+const mockLegacyCompletedRoute: Route = {
+  id: 'route-test-id-1234',
+  routeCode: 'W14-25-001',
+  customerId: 'cust-abcd-5678',
+  status: 'completed',
+  createdAt: '2024-03-01T10:00:00Z',
+  actualDurationMinutes: 165,
+  actualStartTime: '2025-04-15T00:00:00.000Z',
+  actualEndTime: '2025-04-15T00:00:00.000Z',
+  placementStartTime: '2025-04-15T00:00:00.000Z',
+  placementEndTime: '2025-04-15T00:00:00.000Z',
+  pickupStartTime: '2025-04-15T00:00:00.000Z',
+  pickupEndTime: '2025-04-15T00:00:00.000Z',
+  overrideRate: 30,
+};
+
+const mockLegacyCompletedStops: Stop[] = [
+  {
+    id: 'stop-1',
+    routeId: 'route-test-id-1234',
+    sequence: 1,
+    address: '100 First St',
+    serviceType: 'pickup',
+    actualDepartureTime: '2025-04-15T00:00:00.000Z',
+    numberOfSigns: 4,
   },
 ];
 
@@ -270,5 +302,49 @@ describe('Operator Route Detail Page', () => {
     const routesLink = within(breadcrumbs).getByRole('link', { name: 'Routes' });
     expect(routesLink).toHaveAttribute('href', '/administrator/routes');
     expect(within(breadcrumbs).getByText(/route w19-26-001/i)).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('shows a legacy-imported completed route\'s stops as done, not "Awaiting placement"', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValueOnce({
+      data: mockLegacyCompletedRoute,
+      errors: undefined,
+    });
+    (queriesModule.getRouteWithStops as jest.Mock).mockResolvedValueOnce({
+      stops: mockLegacyCompletedStops,
+      errors: undefined,
+    });
+    mockStopList.mockResolvedValue({ data: mockLegacyCompletedStops, errors: undefined });
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('100 First St')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Awaiting placement')).not.toBeInTheDocument();
+  });
+
+  it('derives Time Taken/Amount from actualDurationMinutes, not the 15+15min load/unload floor', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValueOnce({
+      data: mockLegacyCompletedRoute,
+      errors: undefined,
+    });
+    (queriesModule.getRouteWithStops as jest.Mock).mockResolvedValueOnce({
+      stops: mockLegacyCompletedStops,
+      errors: undefined,
+    });
+    mockStopList.mockResolvedValue({ data: mockLegacyCompletedStops, errors: undefined });
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /route summary/i })).toBeInTheDocument();
+    });
+
+    // 165 real minutes, not the 15+15=30min floor that identical phase start/end timestamps used to collapse to.
+    expect(screen.getAllByText('2h 45m').length).toBeGreaterThan(0);
+    expect(screen.queryByText('30 min')).not.toBeInTheDocument();
+    // overrideRate: 30/hr * 165min => $82.50, not the $15 the 30min floor produced.
+    expect(screen.getByText('$82.50')).toBeInTheDocument();
   });
 });

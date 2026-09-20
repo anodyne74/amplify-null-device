@@ -58,6 +58,10 @@ const PICKUP_SKIPPED_MARKER = 'PICKUP_SKIPPED';
 
 function phaseMinutes(start?: string | null, end?: string | null) {
   if (!start || !end) return null;
+  // Legacy-imported routes stamp every phase timestamp with the same single
+  // known date (no granular start/end was recorded), not a genuine 0-minute
+  // phase — treat that as unknown so it doesn't zero out a real duration.
+  if (start === end) return null;
   return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000));
 }
 
@@ -159,7 +163,11 @@ function getPhaseCompletionTime(stop: Stop, phase: ExecutionPhase) {
 }
 
 function getStopStatusLabel(stop: Stop, executionPhase?: ExecutionPhase | null, routeStatus?: string | null) {
-  if (executionPhase) {
+  // Completed/archived routes (including legacy imports, which force every
+  // stop's serviceType to 'pickup' — see import-prep.js) always render fully
+  // done, same convention as the route-level phase overview above; the
+  // placement/pickup phase split only applies to routes still in progress.
+  if (executionPhase && routeStatus !== 'completed' && routeStatus !== 'archived') {
     if (isStopSkippedForPhase(stop, executionPhase)) {
       return executionPhase === 'pickup' ? 'Pickup skipped' : 'Placement skipped';
     }

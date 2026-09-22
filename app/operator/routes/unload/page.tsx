@@ -40,7 +40,8 @@ function buildReconciliation(route: Route, stops: Stop[]): UnloadReconciliation 
       skipCount += 1;
     } else if (isStopCompletedForPhase(stop, 'pickup')) {
       doneCount += 1;
-      returnedTotal += stop.numberOfSigns ?? 0;
+      // Missing signs never count as collected — see Stop.missingSignsCount's schema comment.
+      returnedTotal += Math.max(0, (stop.numberOfSigns ?? 0) - (stop.missingSignsCount ?? 0));
     }
     missingTotal += stop.missingSignsCount ?? 0;
   }

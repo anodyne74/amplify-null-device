@@ -84,23 +84,23 @@ describe('Operator Unload page', () => {
 
     render(<OperatorUnloadPage />);
 
-    // s1 (9, done) + s2 (13, done) returned; s3 skipped; s4 never picked up.
-    expect(await screen.findByText('22 signs to return')).toBeInTheDocument();
+    // s1 (9, done) + s2 (13 - 2 missing, done) returned; s3 skipped; s4 never picked up.
+    expect(await screen.findByText('20 signs to return')).toBeInTheDocument();
     expect(screen.getByText('Beltline Group')).toBeInTheDocument();
     expect(screen.getByText('22 Dryburgh St, West Melbourne')).toBeInTheDocument();
-    expect(screen.getByText('22')).toBeInTheDocument();
+    expect(screen.getByText('20')).toBeInTheDocument();
     expect(screen.getByText('2 / 4')).toBeInTheDocument();
     expect(screen.getByText('1 stops')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
-    // 45 loaded · 22 returned · 2 missing · 21 still on site (45 - 22 - 2).
-    expect(screen.getByText('45 loaded · 22 returned · 2 reported missing · 21 still on site.')).toBeInTheDocument();
+    // 45 loaded · 20 returned · 2 missing · 23 still on site (45 - 20 - 2).
+    expect(screen.getByText('45 loaded · 20 returned · 2 reported missing · 23 still on site.')).toBeInTheDocument();
   });
 
   it('starts the unload through the confirm dialog, then shows the stamp and the confirm step', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
 
     render(<OperatorUnloadPage />);
-    await screen.findByText('22 signs to return');
+    await screen.findByText('20 signs to return');
 
     fireEvent.click(screen.getByRole('button', { name: 'Start unload' }));
 
@@ -114,7 +114,7 @@ describe('Operator Unload page', () => {
       );
     });
     expect(await screen.findByText(/^Unload started/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /confirm 22 signs returned/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /confirm 20 signs returned/i })).toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -122,7 +122,7 @@ describe('Operator Unload page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
 
     render(<OperatorUnloadPage />);
-    await screen.findByText('22 signs to return');
+    await screen.findByText('20 signs to return');
 
     fireEvent.click(screen.getByRole('button', { name: 'Start unload' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -139,9 +139,9 @@ describe('Operator Unload page', () => {
     });
 
     render(<OperatorUnloadPage />);
-    await screen.findByText('22 signs to return');
+    await screen.findByText('20 signs to return');
 
-    fireEvent.click(screen.getByRole('button', { name: /confirm 22 signs returned/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirm 20 signs returned/i }));
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
@@ -161,9 +161,9 @@ describe('Operator Unload page', () => {
     });
 
     render(<OperatorUnloadPage />);
-    await screen.findByText('22 signs to return');
+    await screen.findByText('20 signs to return');
 
-    fireEvent.click(screen.getByRole('button', { name: /confirm 22 signs returned/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirm 20 signs returned/i }));
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {

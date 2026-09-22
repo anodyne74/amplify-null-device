@@ -82,9 +82,9 @@ describe('Operator Finalise page', () => {
     render(<OperatorFinalisePage />);
 
     expect(await screen.findByText('Finalise route')).toBeInTheDocument();
-    // s1 (9, done) + s2 (13, done) returned; s3 skipped.
+    // s1 (9, done) + s2 (13 - 2 missing, done) returned; s3 skipped.
     expect(screen.getByText('2 / 3')).toBeInTheDocument();
-    expect(screen.getByText('22')).toBeInTheDocument(); // signs collected
+    expect(screen.getByText('20')).toBeInTheDocument(); // signs collected
     expect(screen.getByText('2')).toBeInTheDocument(); // signs missing
     // Cumulative of the completed phases' measured times, not the actualStartTime ->
     // actualEndTime wall clock: 0 (load) + 22 (placement) + 12 (pickup) + 18 (unload) = 52m.

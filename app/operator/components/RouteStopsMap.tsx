@@ -10,6 +10,7 @@ interface RouteStopsMapProps {
   stops: Stop[];
   activeStopId?: string | null;
   upcomingStopIds?: string[];
+  skippedStopIds?: string[];
   currentPosition?: { latitude: number; longitude: number } | null;
   mapTheme?: MapTheme;
   onStopSelect?: (stopId: string) => void;
@@ -108,6 +109,7 @@ export function RouteStopsMap({
   stops,
   activeStopId,
   upcomingStopIds = [],
+  skippedStopIds = [],
   currentPosition,
   mapTheme = 'light',
   onStopSelect,
@@ -136,6 +138,8 @@ export function RouteStopsMap({
   const mappedStops = orderedStops.filter(hasCoordinates);
   const upcomingStopKey = upcomingStopIds.join('|');
   const upcomingStopIdSet = useMemo(() => new Set(upcomingStopIds), [upcomingStopIds]);
+  const skippedStopKey = skippedStopIds.join('|');
+  const skippedStopIdSet = useMemo(() => new Set(skippedStopIds), [skippedStopIds]);
   const selectedMapTheme = getMapTheme(mapTheme);
 
   // Only set up independent geolocation if currentPosition is not provided
@@ -209,10 +213,18 @@ export function RouteStopsMap({
         tilePane.style.filter = selectedMapTheme.tileFilter || '';
       }
 
+      if (mappedStops.length > 1) {
+        L.polyline(
+          mappedStops.map((stop) => [stop.latitude, stop.longitude] as [number, number]),
+          { color: 'var(--indigo-300)', weight: 3, opacity: 0.6 }
+        ).addTo(map);
+      }
+
       mappedStops.forEach((stop) => {
         const isCompleted = Boolean(stop.actualDepartureTime);
         const isActive = stop.id === activeStop.id;
         const isUpcoming = upcomingStopIdSet.has(stop.id);
+        const isSkipped = skippedStopIdSet.has(stop.id);
 
         const serviceClass =
           stop.serviceType === 'pickup'
@@ -226,7 +238,7 @@ export function RouteStopsMap({
           serviceClass,
           isActive ? styles.stopMarkerActive : '',
           isUpcoming ? styles.stopMarkerUpcoming : '',
-          isCompleted ? styles.stopMarkerCompleted : '',
+          isSkipped ? styles.stopMarkerSkipped : isCompleted ? styles.stopMarkerCompleted : '',
         ]
           .filter(Boolean)
           .join(' ');
@@ -309,7 +321,7 @@ export function RouteStopsMap({
       headingRef.current = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStopId, stops, mapTheme, upcomingStopKey, presentation]);
+  }, [activeStopId, stops, mapTheme, upcomingStopKey, skippedStopKey, presentation]);
 
   useEffect(() => {
     if (!mapRef.current || !leafletRef.current) return;

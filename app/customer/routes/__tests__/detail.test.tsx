@@ -387,4 +387,18 @@ describe('Customer route detail tracker', () => {
 
     expect(screen.queryByRole('heading', { name: /how did this route go\?/i })).not.toBeInTheDocument();
   });
+
+  it('shows the finalised override duration, not actualDurationMinutes, once a route is completed', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: { ...route, status: 'completed', actualDurationMinutes: 130, overrideDurationMinutes: 150 },
+      stops,
+      errors: [],
+    });
+
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+
+    expect(screen.getByText('2h 30m')).toBeInTheDocument();
+  });
 });

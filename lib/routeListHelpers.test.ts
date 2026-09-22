@@ -23,6 +23,12 @@ describe('routeListHelpers', () => {
       expect(formatRouteDuration(makeRoute({ actualDurationMinutes: 75 }))).toBe('75 min');
     });
 
+    it('prefers the operator-confirmed override duration over actual duration', () => {
+      expect(
+        formatRouteDuration(makeRoute({ actualDurationMinutes: 75, overrideDurationMinutes: 90 }))
+      ).toBe('90 min');
+    });
+
     it('shows in-progress elapsed text when actively running', () => {
       const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2024-01-01T01:10:00Z').getTime());
 

@@ -70,6 +70,13 @@ describe('routeDetailHelpers', () => {
       expect(getRouteDurationMinutes(makeRoute({ actualDurationMinutes: -4 }))).toBe(0);
     });
 
+    it('prefers the operator-confirmed override duration over actual duration', () => {
+      expect(
+        getRouteDurationMinutes(makeRoute({ overrideDurationMinutes: 52, actualDurationMinutes: 35 }))
+      ).toBe(52);
+      expect(getRouteDurationMinutes(makeRoute({ overrideDurationMinutes: -4 }))).toBe(0);
+    });
+
     it('derives from placement start and pickup end when available', () => {
       expect(
         getRouteDurationMinutes(

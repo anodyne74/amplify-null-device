@@ -40,4 +40,13 @@ describe('RouteCard', () => {
     render(<RouteCard route={{ id: 'route-1', status: 'completed', actualDurationMinutes: 130 } as Route} />);
     expect(screen.getByText(/duration:/i).parentElement).toHaveTextContent('Duration: 2h 10m');
   });
+
+  it('prefers the finalised override duration once the route is completed', () => {
+    render(
+      <RouteCard
+        route={{ id: 'route-1', status: 'completed', actualDurationMinutes: 130, overrideDurationMinutes: 150 } as Route}
+      />
+    );
+    expect(screen.getByText(/duration:/i).parentElement).toHaveTextContent('Duration: 2h 30m');
+  });
 });

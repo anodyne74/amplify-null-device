@@ -18,6 +18,7 @@ import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } f
 import {
   getDisplayNotes,
   isStopCompletedForPhase,
+  isStopSkippedForPhase,
   PLACEMENT_DONE_MARKER,
   PLACEMENT_SKIPPED_MARKER,
   removeMarker,
@@ -333,6 +334,7 @@ export default function OperatorPlacementPage() {
             stops={stops}
             activeStopId={currentStop?.id}
             upcomingStopIds={upcomingStops.map((stop) => stop.id)}
+            skippedStopIds={stops.filter((stop) => isStopSkippedForPhase(stop, 'placement')).map((stop) => stop.id)}
             presentation="field"
           />
           <div className={stopCardStyles.glassCard}>

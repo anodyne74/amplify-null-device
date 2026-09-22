@@ -18,6 +18,7 @@ import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } f
 import {
   getDisplayNotes,
   isStopCompletedForPhase,
+  isStopSkippedForPhase,
   PICKUP_DONE_MARKER,
   PICKUP_SKIPPED_MARKER,
   removeMarker,
@@ -410,6 +411,7 @@ export default function OperatorPickupPage() {
             stops={stops}
             activeStopId={currentStop?.id}
             upcomingStopIds={upcomingStops.map((stop) => stop.id)}
+            skippedStopIds={stops.filter((stop) => isStopSkippedForPhase(stop, 'pickup')).map((stop) => stop.id)}
             presentation="field"
           />
           <div className={stopCardStyles.glassCard}>

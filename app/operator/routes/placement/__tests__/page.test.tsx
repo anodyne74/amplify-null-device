@@ -21,8 +21,21 @@ jest.mock('@/lib/queries', () => ({
 }));
 
 jest.mock('@/app/operator/components/RouteStopsMap', () => ({
-  RouteStopsMap: ({ stops, activeStopId }: { stops: Stop[]; activeStopId?: string | null }) => (
-    <div data-testid="placement-map" data-stop-count={stops.length} data-active-stop={activeStopId ?? ''} />
+  RouteStopsMap: ({
+    stops,
+    activeStopId,
+    skippedStopIds,
+  }: {
+    stops: Stop[];
+    activeStopId?: string | null;
+    skippedStopIds?: string[];
+  }) => (
+    <div
+      data-testid="placement-map"
+      data-stop-count={stops.length}
+      data-active-stop={activeStopId ?? ''}
+      data-skipped-stops={(skippedStopIds ?? []).join(',')}
+    />
   ),
 }));
 
@@ -180,6 +193,17 @@ describe('Operator Placement page', () => {
       );
     });
     expect(await screen.findByText('PLACEMENT · STOP 2 OF 2')).toBeInTheDocument();
+  });
+
+  it('passes already-skipped stops to the map as skippedStopIds', async () => {
+    const stops = baseStops();
+    stops[0] = { ...stops[0], notes: '[PLACEMENT_SKIPPED:2026-08-31T09:05:00.000Z|Gate locked]' } as Stop;
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops, errors: [] });
+
+    render(<OperatorPlacementPage />);
+    await screen.findByText('PLACEMENT · STOP 2 OF 2');
+
+    expect(screen.getByTestId('placement-map')).toHaveAttribute('data-skipped-stops', 's1');
   });
 
   it('opens the out-of-order sheet from the THEN list', async () => {

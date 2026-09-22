@@ -86,6 +86,12 @@
   filter: saturate(0.6);
 }
 
+.stopMarkerSkipped {
+  background: transparent;
+  border: 2px solid var(--border-default);
+  color: var(--text-subtle);
+}
+
 .deviceLabel {
   color: var(--text-heading);
   font-size: 12px;

@@ -40,6 +40,10 @@ export function formatCurrency(amount: number | null) {
 }
 
 export function getRouteDurationMinutes(route: Route) {
+  if (typeof route.overrideDurationMinutes === 'number') {
+    return Math.max(0, route.overrideDurationMinutes);
+  }
+
   if (typeof route.actualDurationMinutes === 'number') {
     return Math.max(0, route.actualDurationMinutes);
   }

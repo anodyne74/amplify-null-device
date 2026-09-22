@@ -2,6 +2,10 @@ import type { Route } from '@/amplify/types';
 export { formatRouteDate } from '@/lib/routeDetailHelpers';
 
 export function formatRouteDuration(route: Route) {
+  if (typeof route.overrideDurationMinutes === 'number') {
+    return `${route.overrideDurationMinutes} min`;
+  }
+
   if (typeof route.actualDurationMinutes === 'number') {
     return `${route.actualDurationMinutes} min`;
   }

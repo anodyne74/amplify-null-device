@@ -14,7 +14,7 @@ import { Tag } from '@/app/components/ui/core/Tag';
 import { Input } from '@/app/components/ui/forms/Input';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import type { Route } from '@/amplify/types';
-import { compareRouteIdDesc, formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
+import { compareRouteIdDesc, formatEstimatedDurationMinutes, getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
 import { formatRouteDate } from '@/lib/routeDetailHelpers';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS, type RoutePhaseKey } from '@/lib/signRunPhase';
@@ -141,7 +141,7 @@ export default function CustomerRoutesPage() {
       // it's calculated from the operator's finalisation, not an estimate.
       render: (route) =>
         getRoutePhaseKey(route) === 'completed'
-          ? formatEstimatedDurationMinutes(route.actualDurationMinutes as number | undefined)
+          ? formatEstimatedDurationMinutes(getFinalizedRouteDurationMinutes(route))
           : 'N/A',
     },
     {

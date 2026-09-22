@@ -178,6 +178,28 @@ describe('Customer Routes List Page', () => {
     expect(screen.getByText('2h 10m')).toBeInTheDocument(); // route-2 (completed), from actualDurationMinutes
   });
 
+  it('prefers the finalised override duration over actualDurationMinutes once completed', async () => {
+    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
+      data: [
+        {
+          id: 'route-2',
+          customerId: 'test-customer-1',
+          status: 'completed',
+          actualDurationMinutes: 130,
+          overrideDurationMinutes: 150,
+          createdAt: '2024-01-14T09:00:00Z',
+        },
+      ],
+      errors: undefined,
+    });
+
+    render(<RoutesPage />);
+
+    await screen.findAllByRole('link');
+
+    expect(screen.getByText('2h 30m')).toBeInTheDocument();
+  });
+
   it('handles empty route list gracefully', async () => {
     (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
       data: [],

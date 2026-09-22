@@ -18,6 +18,7 @@ import { Select } from '@/app/components/ui/forms/Select';
 import { ProgressBar } from '@/app/components/ui/data/ProgressBar';
 import type { Customer, Route, Stop } from '@/amplify/types';
 import { formatDurationHoursMinutes } from '@/lib/format';
+import { getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
 import { appendRouteInstruction, parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
@@ -299,7 +300,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
               {/* Total time is only known once the operator finalises the route,
                   so this stays N/A until then rather than showing an estimate. */}
               {currentPhase === 'completed'
-                ? formatDurationHoursMinutes(route.actualDurationMinutes as number | undefined)
+                ? formatDurationHoursMinutes(getFinalizedRouteDurationMinutes(route))
                 : 'N/A'}
             </span>
           </div>

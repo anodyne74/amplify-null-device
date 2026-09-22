@@ -89,6 +89,16 @@ describe('Operator Finalise page', () => {
     // Cumulative of the completed phases' measured times, not the actualStartTime ->
     // actualEndTime wall clock: 0 (load) + 22 (placement) + 12 (pickup) + 18 (unload) = 52m.
     expect(screen.getByText('52m')).toBeInTheDocument(); // duration
+    expect(screen.getByText('Loaded time')).toBeInTheDocument();
+    expect(screen.getByText('Returned time')).toBeInTheDocument();
+    expect(screen.getByText('0m')).toBeInTheDocument(); // loaded time — load never actually measured
+    expect(screen.getByText('18m')).toBeInTheDocument(); // returned time — measured unload duration
+
+    // Adjuster sub-labels show the recorded measured time, not a static floor label.
+    expect(screen.getByText('Not recorded')).toBeInTheDocument(); // load — start/confirm at the same instant
+    expect(screen.getByText('Recorded 22m')).toBeInTheDocument(); // placement
+    expect(screen.getByText('Recorded 12m')).toBeInTheDocument(); // pickup
+    expect(screen.getByText('Recorded 18m')).toBeInTheDocument(); // unload
 
     // load: 0 measured -> floored at 15m. placement: 22min -> round5 -> 20m.
     // pickup: 12min -> round5 -> 10m. unload: 18min -> round5 -> 20m. Total 65m.
@@ -99,6 +109,7 @@ describe('Operator Finalise page', () => {
     expect(screen.getByText(/not a 15 min increment/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /round up to 1h 15m/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /complete route/i })).toBeDisabled();
+    expect(screen.getByText('Total charged').closest('div')?.parentElement).toHaveClass('billPanelWarning');
   });
 
   it('rounding up brings the total to a 15 min increment and re-enables completion', async () => {
@@ -111,6 +122,7 @@ describe('Operator Finalise page', () => {
 
     expect(screen.getByText('Lands on a 15 min increment')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /complete route · 1h 15m/i })).toBeEnabled();
+    expect(screen.getByText('Total charged').closest('div')?.parentElement).toHaveClass('billPanelValid');
   });
 
   it('steppers adjust billed minutes, respecting each phase floor', async () => {

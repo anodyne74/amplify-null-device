@@ -88,23 +88,23 @@ export default function OperatorFinalisePage() {
 
   const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
   const summary = useMemo(() => buildSummary(stops), [stops]);
+  const measured = useMemo(() => (route ? measuredPhaseMinutes(route) : null), [route]);
 
   const defaults = useMemo(() => {
-    if (!route) return null;
-    const measured = measuredPhaseMinutes(route);
+    if (!route || !measured) return null;
     return {
       load: route.billedLoadMinutes ?? defaultBilledMinutes('load', measured.load),
       placement: route.billedPlacementMinutes ?? defaultBilledMinutes('placement', measured.placement),
       pickup: route.billedPickupMinutes ?? defaultBilledMinutes('pickup', measured.pickup),
       unload: route.billedUnloadMinutes ?? defaultBilledMinutes('unload', measured.unload),
     };
-  }, [route]);
+  }, [route, measured]);
 
   const billedMinutes = defaults ? { ...defaults, ...billedOverride } : null;
   const kmAdj = kmOverride ?? route?.overrideDistanceKm ?? 0;
   // Cumulative duration of the completed phases, not raw wall-clock start-to-end —
   // a phase with no recorded times (e.g. pickup/unload never actioned) contributes 0.
-  const duration = route ? sumBilledMinutes(measuredPhaseMinutes(route)) : 0;
+  const duration = measured ? sumBilledMinutes(measured) : 0;
 
   const bumpBilled = (phase: RouteExecutionPhase, step: number) => {
     if (!billedMinutes) return;
@@ -218,6 +218,14 @@ export default function OperatorFinalisePage() {
           <span className={shellStyles.statLabel}>Duration</span>
           <span className={shellStyles.statValue}>{formatDuration(duration)}</span>
         </div>
+        <div className={shellStyles.statCell}>
+          <span className={shellStyles.statLabel}>Loaded time</span>
+          <span className={shellStyles.statValue}>{formatDuration(measured?.load ?? 0)}</span>
+        </div>
+        <div className={shellStyles.statCell}>
+          <span className={shellStyles.statLabel}>Returned time</span>
+          <span className={shellStyles.statValue}>{formatDuration(measured?.unload ?? 0)}</span>
+        </div>
       </div>
 
       <div className={styles.adjustList}>
@@ -245,34 +253,46 @@ export default function OperatorFinalisePage() {
           </button>
         </div>
 
-        {PHASE_ROWS.map(({ key, label }) => (
-          <div className={styles.adjustRow} key={key}>
-            <div>
-              <span className={styles.adjustLabel}>{label}</span>
-              <span className={styles.adjustMeasured}>Min {MIN_BILLED_MINUTES[key]} min</span>
+        {PHASE_ROWS.map(({ key, label }) => {
+          const measuredForPhase = measured?.[key] ?? 0;
+          const floor = MIN_BILLED_MINUTES[key];
+          const measuredLabel =
+            measuredForPhase > 0
+              ? `Recorded ${formatDuration(measuredForPhase)}${floor > measuredForPhase ? ` · ${floor} min minimum` : ''}`
+              : 'Not recorded';
+          return (
+            <div className={styles.adjustRow} key={key}>
+              <div>
+                <span className={styles.adjustLabel}>{label}</span>
+                <span className={styles.adjustMeasured}>{measuredLabel}</span>
+              </div>
+              <button
+                type="button"
+                className={styles.stepperButtonMinus}
+                onClick={() => bumpBilled(key, -5)}
+                aria-label={`Decrease ${label} minutes`}
+              >
+                −
+              </button>
+              <span className={styles.adjustValue}>{formatDuration(billedMinutes![key])}</span>
+              <button
+                type="button"
+                className={styles.stepperButtonPlus}
+                onClick={() => bumpBilled(key, 5)}
+                aria-label={`Increase ${label} minutes`}
+              >
+                +
+              </button>
             </div>
-            <button
-              type="button"
-              className={styles.stepperButtonMinus}
-              onClick={() => bumpBilled(key, -5)}
-              aria-label={`Decrease ${label} minutes`}
-            >
-              −
-            </button>
-            <span className={styles.adjustValue}>{formatDuration(billedMinutes![key])}</span>
-            <button
-              type="button"
-              className={styles.stepperButtonPlus}
-              onClick={() => bumpBilled(key, 5)}
-              aria-label={`Increase ${label} minutes`}
-            >
-              +
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      <div className={billAligned ? styles.billPanel : `${styles.billPanel} ${styles.billPanelWarning}`}>
+      <div
+        className={
+          billAligned ? `${styles.billPanel} ${styles.billPanelValid}` : `${styles.billPanel} ${styles.billPanelWarning}`
+        }
+      >
         <div className={styles.billTotalRow}>
           <span>Total charged</span>
           <span className={styles.billTotalValue}>{formatDuration(billTotal)}</span>

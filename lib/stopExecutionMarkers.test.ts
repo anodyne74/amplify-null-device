@@ -4,6 +4,7 @@ import {
   getMarkerTimestamp,
   isStopCompletedForPhase,
   isStopSkippedForPhase,
+  PICKUP_DONE_MARKER,
   PICKUP_SKIPPED_MARKER,
   PLACEMENT_DONE_MARKER,
   PLACEMENT_SKIPPED_MARKER,
@@ -76,6 +77,24 @@ describe('isStopSkippedForPhase / isStopCompletedForPhase', () => {
     expect(
       isStopCompletedForPhase({ notes: null, serviceType: 'pickup', actualDepartureTime: '2026-08-31T10:00:00.000Z' }, 'pickup')
     ).toBe(true);
+  });
+
+  it('does not let a legacy-imported pickup-typed stop appear pickup-complete once Placement has settled it', () => {
+    // import-prep.js forces every legacy stop's serviceType to 'pickup', and
+    // Placement's settleStop writes actualDepartureTime for every stop it settles
+    // regardless of serviceType — so once a PLACEMENT_DONE marker exists, the
+    // actualDepartureTime + serviceType==='pickup' fallback must not fire for pickup.
+    const notes = upsertMarker('', PLACEMENT_DONE_MARKER, '2026-08-31T10:00:00.000Z');
+    const stop = { notes, serviceType: 'pickup', actualDepartureTime: '2026-08-31T10:00:00.000Z' };
+    expect(isStopCompletedForPhase(stop, 'placement')).toBe(true);
+    expect(isStopCompletedForPhase(stop, 'pickup')).toBe(false);
+  });
+
+  it('does not let a legacy stop appear placement-complete once Pickup has settled it', () => {
+    const notes = upsertMarker('', PICKUP_DONE_MARKER, '2026-08-31T10:00:00.000Z');
+    const stop = { notes, serviceType: 'delivery', actualDepartureTime: '2026-08-31T10:00:00.000Z' };
+    expect(isStopCompletedForPhase(stop, 'pickup')).toBe(true);
+    expect(isStopCompletedForPhase(stop, 'placement')).toBe(false);
   });
 });
 

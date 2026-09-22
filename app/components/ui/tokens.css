@@ -112,6 +112,7 @@
   --surface-inverse: var(--neutral-950);
   --surface-brand: var(--indigo-500);
   --surface-brand-subtle: var(--indigo-50);
+  --surface-violet-subtle: var(--violet-100);
   --surface-hover: var(--neutral-100);
   --surface-active: var(--neutral-200);
   --surface-overlay: rgba(20, 27, 56, 0.48);
@@ -168,6 +169,7 @@
   --surface-inverse: var(--neutral-0);
   --surface-brand: var(--indigo-500);
   --surface-brand-subtle: rgba(93, 101, 230, 0.18);
+  --surface-violet-subtle: rgba(177, 129, 232, 0.18);
   --surface-hover: rgba(255, 255, 255, 0.06);
   --surface-active: rgba(255, 255, 255, 0.1);
   --surface-overlay: rgba(10, 15, 34, 0.66);

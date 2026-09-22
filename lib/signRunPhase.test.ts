@@ -21,47 +21,47 @@ describe('getSignRunPhase', () => {
     expect(getSignRunPhase(baseRoute({ status: 'archived' }), 5)).toBeNull();
   });
 
-  it('defaults to Signs collected when executionPhase is unset', () => {
+  it('defaults to Load when executionPhase is unset', () => {
     const info = getSignRunPhase(baseRoute({ status: 'in_progress', executionPhase: null }), 5);
     expect(info?.phaseIdx).toBe(0);
     expect(info?.phase).toBe('signs_collected');
-    expect(info?.phaseLabel).toBe('Signs collected');
-    expect(info?.actionLabel).toBe('Collect signs');
+    expect(info?.phaseLabel).toBe('Load');
+    expect(info?.actionLabel).toBe('Load signs');
     expect(info?.tint).toBe('indigo');
     expect(info?.track).toEqual(['current', 'upcoming', 'upcoming', 'upcoming', 'upcoming']);
     expect(info?.overallTrack).toEqual(['done', 'current', 'upcoming', 'upcoming', 'upcoming', 'upcoming']);
-    expect(info?.phaseKicker).toBe('PHASE 1 OF 4 · SIGNS COLLECTED');
+    expect(info?.phaseKicker).toBe('PHASE 1 OF 4 · LOAD');
   });
 
-  it('reads Signs placed as indigo, phase 2 of 4', () => {
+  it('reads Placement as indigo, phase 2 of 4', () => {
     const info = getSignRunPhase(baseRoute({ status: 'in_progress', executionPhase: 'placement' }), 5);
     expect(info?.phaseIdx).toBe(1);
     expect(info?.phase).toBe('signs_placed');
-    expect(info?.phaseLabel).toBe('Signs placed');
+    expect(info?.phaseLabel).toBe('Placement');
     expect(info?.phaseNumberLabel).toBe('Phase 2 of 4');
     expect(info?.actionLabel).toBe('Place signs');
     expect(info?.tint).toBe('indigo');
     expect(info?.track).toEqual(['done', 'current', 'upcoming', 'upcoming', 'upcoming']);
     expect(info?.overallTrack).toEqual(['done', 'done', 'current', 'upcoming', 'upcoming', 'upcoming']);
-    expect(info?.phaseKicker).toBe('PHASE 2 OF 4 · SIGNS PLACED');
+    expect(info?.phaseKicker).toBe('PHASE 2 OF 4 · PLACEMENT');
   });
 
-  it('reads Signs picked up as violet, phase 3 of 4', () => {
+  it('reads Pickup as violet, phase 3 of 4', () => {
     const info = getSignRunPhase(baseRoute({ status: 'signs_placed', executionPhase: 'pickup' }), 5);
     expect(info?.phaseIdx).toBe(2);
     expect(info?.phase).toBe('signs_picked_up');
-    expect(info?.phaseLabel).toBe('Signs picked up');
+    expect(info?.phaseLabel).toBe('Pickup');
     expect(info?.actionLabel).toBe('Pick up signs');
     expect(info?.tint).toBe('violet');
     expect(info?.track).toEqual(['done', 'done', 'current', 'upcoming', 'upcoming']);
     expect(info?.overallTrack).toEqual(['done', 'done', 'done', 'current', 'upcoming', 'upcoming']);
   });
 
-  it('reads Signs returned as violet, phase 4 of 4', () => {
+  it('reads Unload as violet, phase 4 of 4', () => {
     const info = getSignRunPhase(baseRoute({ status: 'signs_picked_up', executionPhase: 'unload' }), 5);
     expect(info?.phaseIdx).toBe(3);
     expect(info?.phase).toBe('signs_returned');
-    expect(info?.phaseLabel).toBe('Signs returned');
+    expect(info?.phaseLabel).toBe('Unload');
     expect(info?.actionLabel).toBe('Return signs');
     expect(info?.tint).toBe('violet');
     expect(info?.track).toEqual(['done', 'done', 'done', 'current', 'upcoming']);
@@ -124,7 +124,7 @@ describe('getSignRunPhase', () => {
 
     it('falls back to the current phase label for an in-progress route', () => {
       const info = getSignRunPhase(baseRoute({ status: 'in_progress', executionPhase: 'pickup' }), 3);
-      expect(info?.statusLabel).toBe('Signs picked up');
+      expect(info?.statusLabel).toBe('Pickup');
     });
   });
 });

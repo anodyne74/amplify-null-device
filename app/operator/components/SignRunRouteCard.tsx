@@ -23,7 +23,7 @@ export interface SignRunRouteCardProps {
  * active/planned route now flows through this card (getSignRunPhase no
  * longer gates on drivingModeEnabled).
  *
- * Every phase (Signs collected/placed/picked up/returned/Finalise, phaseIdx
+ * Every phase (Load/Placement/Pickup/Unload/Finalise, phaseIdx
  * 0-4) routes to its own screen — routes/detail is the legacy 2-phase flow
  * and is never reached from here.
  */

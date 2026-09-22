@@ -95,6 +95,12 @@
   color: var(--status-warning-fg);
 }
 
+.billPanelValid {
+  background: var(--surface-brand-subtle);
+  border-color: var(--border-brand);
+  color: var(--text-brand);
+}
+
 .billTotalRow {
   display: flex;
   align-items: baseline;

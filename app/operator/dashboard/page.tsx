@@ -5,6 +5,7 @@ import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { getRouteWithStops } from '@/lib/queries';
 import { getSignRunPhase, getRoutePhaseKey } from '@/lib/signRunPhase';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import type { Route } from '@/amplify/types';
 import PageHeader from '@/app/operator/components/PageHeader';
 import { SignRunRouteCard } from '@/app/operator/components/SignRunRouteCard';
@@ -22,6 +23,7 @@ interface StopSummary {
  * Phone-optimized route execution entry point for planned + active routes.
  */
 export default function OperatorDashboard() {
+  const currentUserId = useCurrentUserId();
   const [routes, setRoutes] = useState<Route[]>([]);
   const [customersById, setCustomersById] = useState<Record<string, string>>({});
   const [stopSummaryByRouteId, setStopSummaryByRouteId] = useState<Record<string, StopSummary>>({});
@@ -54,22 +56,26 @@ export default function OperatorDashboard() {
     void loadRoutes();
   }, []);
 
+  // assignedOperatorSub is a display/notification tag, not an authorization scope
+  // (every operator keeps full Route access — see its schema comment), so routes
+  // never assigned to anyone still show up here rather than being orphaned.
+  const myRoutes = useMemo(
+    () => routes.filter((route) => !route.assignedOperatorSub || route.assignedOperatorSub === currentUserId),
+    [routes, currentUserId]
+  );
   const activeRoutes = useMemo(
     () =>
-      routes.filter((route) => {
+      myRoutes.filter((route) => {
         const phaseKey = getRoutePhaseKey(route);
         return phaseKey !== 'planned' && phaseKey !== 'completed';
       }),
-    [routes]
+    [myRoutes]
   );
   const plannedRoutes = useMemo(
-    () => routes.filter((route) => getRoutePhaseKey(route) === 'planned'),
-    [routes]
+    () => myRoutes.filter((route) => getRoutePhaseKey(route) === 'planned'),
+    [myRoutes]
   );
-  const priorityRoutes = useMemo(
-    () => [...activeRoutes, ...plannedRoutes].slice(0, 8),
-    [activeRoutes, plannedRoutes]
-  );
+  const priorityRoutes = useMemo(() => [...activeRoutes, ...plannedRoutes], [activeRoutes, plannedRoutes]);
 
   // Stop/sign counts for the "N stops · N signs" line and the header summary.
   // Bounded to the (at most 8) routes actually shown, in parallel.

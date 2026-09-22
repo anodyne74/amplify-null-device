@@ -88,6 +88,7 @@ import {
   upsertUserSettings,
   listCustomerRoutes,
   getRouteWithStops,
+  listAllStopsForRoute,
   getCustomerPortalContext,
   listCustomerInvoices,
   listInvoices,
@@ -432,6 +433,38 @@ describe('queries', () => {
       const result = await getRouteWithStops('r1');
 
       expect(mockStopList).toHaveBeenCalledTimes(2);
+      expect(result.stops.map((stop: { id: string }) => stop.id)).toEqual(['s1', 's2']);
+      expect(result.errors).toEqual([]);
+    });
+  });
+
+  describe('listAllStopsForRoute', () => {
+    it('pages through every Stop.list call until nextToken is exhausted', async () => {
+      mockStopList
+        .mockResolvedValueOnce({
+          data: [{ id: 's1', routeId: 'r1', sequence: 1 }],
+          errors: undefined,
+          nextToken: 'next-page',
+        })
+        .mockResolvedValueOnce({
+          data: [{ id: 's2', routeId: 'r1', sequence: 2 }],
+          errors: undefined,
+          nextToken: null,
+        });
+
+      const result = await listAllStopsForRoute('r1');
+
+      expect(mockStopList).toHaveBeenCalledTimes(2);
+      expect(mockStopList).toHaveBeenNthCalledWith(1, {
+        filter: { routeId: { eq: 'r1' } },
+        nextToken: undefined,
+        limit: 200,
+      });
+      expect(mockStopList).toHaveBeenNthCalledWith(2, {
+        filter: { routeId: { eq: 'r1' } },
+        nextToken: 'next-page',
+        limit: 200,
+      });
       expect(result.stops.map((stop: { id: string }) => stop.id)).toEqual(['s1', 's2']);
       expect(result.errors).toEqual([]);
     });

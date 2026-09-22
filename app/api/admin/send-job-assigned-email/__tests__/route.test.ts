@@ -133,4 +133,23 @@ describe('send job-assigned email API', () => {
       })
     );
   });
+
+  it('paginates through every Stop.list page to count all stops, not just the first page', async () => {
+    stopListMock
+      .mockResolvedValueOnce({ data: [{ id: 's1' }, { id: 's2' }], nextToken: 'next-page' })
+      .mockResolvedValueOnce({ data: [{ id: 's3' }, { id: 's4' }, { id: 's5' }], nextToken: null });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ routeId: 'route-1' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    expect(stopListMock).toHaveBeenCalledTimes(2);
+    const sentCommand = sesSendMock.mock.calls[0][0];
+    const templateData = JSON.parse(sentCommand.input.TemplateData);
+    expect(templateData.stopCount).toBe('5');
+  });
 });

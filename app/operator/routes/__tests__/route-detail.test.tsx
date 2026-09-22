@@ -54,6 +54,7 @@ jest.mock('@/lib/queries', () => ({
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+  listAllStopsForRoute: jest.fn(),
 }));
 jest.mock('@/lib/queries/UpdateStop', () => ({
   updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
@@ -66,18 +67,17 @@ let mockRouteUpdate: jest.Mock;
 let mockStopUpdate: jest.Mock;
 
 jest.mock('aws-amplify/data', () => {
-  const stopList = jest.fn();
   const routeUpdate = jest.fn();
   const stopUpdate = jest.fn();
   return {
     generateClient: jest.fn(() => ({
       models: {
-        Stop: { list: stopList, update: stopUpdate },
+        Stop: { update: stopUpdate },
         Route: { update: routeUpdate },
       },
     })),
     // expose for assignment below
-    __mocks: { stopList, routeUpdate, stopUpdate },
+    __mocks: { routeUpdate, stopUpdate },
   };
 });
 
@@ -114,9 +114,11 @@ describe('Operator Route Detail Page', () => {
     // Grab the mocks from inside the factory
     const amplifyData = require('aws-amplify/data');
     const { __mocks } = amplifyData;
-    mockStopList = __mocks.stopList;
     mockRouteUpdate = __mocks.routeUpdate;
     mockStopUpdate = __mocks.stopUpdate;
+
+    const queriesModule = require('@/lib/queries');
+    mockStopList = queriesModule.listAllStopsForRoute as jest.Mock;
 
     (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
       data: mockRoute,
@@ -124,8 +126,8 @@ describe('Operator Route Detail Page', () => {
     });
 
     mockStopList.mockResolvedValue({
-      data: mockStops,
-      errors: undefined,
+      stops: mockStops,
+      errors: [],
     });
 
     mockRouteUpdate.mockResolvedValue({ errors: undefined });
@@ -243,7 +245,7 @@ describe('Operator Route Detail Page', () => {
       },
       mockStops[1],
     ];
-    mockStopList.mockResolvedValue({ data: stopsWithCoords, errors: undefined });
+    mockStopList.mockResolvedValue({ stops: stopsWithCoords, errors: [] });
 
     render(<RouteDetailPage />);
 

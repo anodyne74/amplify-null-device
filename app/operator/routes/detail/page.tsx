@@ -42,6 +42,7 @@ import {
   deleteRoute,
   getCustomer,
   getUserSettings,
+  listAllStopsForRoute,
   updateRoute,
 } from '@/lib/queries';
 import type { MapTheme } from '@/lib/mapThemes';
@@ -160,10 +161,7 @@ function RouteDetailContent() {
   }, [mapTheme]);
 
   const fetchStops = useCallback(async () => {
-    const client = generateClient<Schema>();
-    const { data, errors } = await client.models.Stop.list({
-      filter: { routeId: { eq: id } },
-    });
+    const { stops: data, errors } = await listAllStopsForRoute(id);
     if (!errors || errors.length === 0) {
       const sorted = [...((data as unknown as Stop[]) || [])].sort(
         (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)

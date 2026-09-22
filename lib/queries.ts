@@ -338,6 +338,40 @@ export async function listCustomerRoutes(
 /**
  * Fetch a specific route with all its stops
  */
+/**
+ * Fetches every Stop for a route, paginating through Stop.list until
+ * nextToken is exhausted. A single unpaginated call is not enough — `limit`
+ * caps items *scanned* before the routeId filter is applied, not items
+ * *matched*, so a route's stops can span multiple pages even when there are
+ * far fewer than `limit` of them.
+ */
+export async function listAllStopsForRoute(routeId: string) {
+  const allStops: any[] = [];
+  const allStopErrors: unknown[] = [];
+  let nextToken: string | undefined;
+
+  do {
+    const { data: stopsPage, errors: stopsErrors, nextToken: pageNextToken } = await getClient().models.Stop.list({
+      filter: { routeId: { eq: routeId } },
+      nextToken,
+      limit: 200,
+    });
+
+    if (stopsErrors && stopsErrors.length > 0) {
+      console.error('Errors fetching stops:', stopsErrors);
+      allStopErrors.push(...stopsErrors);
+    }
+
+    if (stopsPage && stopsPage.length > 0) {
+      allStops.push(...stopsPage);
+    }
+
+    nextToken = pageNextToken ?? undefined;
+  } while (nextToken);
+
+  return { stops: allStops, errors: allStopErrors };
+}
+
 export async function getRouteWithStops(routeId: string) {
   try {
     const { data: route, errors: routeErrors } = await getClient().models.Route.get({ id: routeId });
@@ -351,29 +385,7 @@ export async function getRouteWithStops(routeId: string) {
       return { route: null, stops: [], errors: [] };
     }
 
-    // Fetch all stops for this route with pagination.
-    const allStops: any[] = [];
-    const allStopErrors: unknown[] = [];
-    let nextToken: string | undefined;
-
-    do {
-      const { data: stopsPage, errors: stopsErrors, nextToken: pageNextToken } = await getClient().models.Stop.list({
-        filter: { routeId: { eq: routeId } },
-        nextToken,
-        limit: 200,
-      });
-
-      if (stopsErrors && stopsErrors.length > 0) {
-        console.error('Errors fetching stops:', stopsErrors);
-        allStopErrors.push(...stopsErrors);
-      }
-
-      if (stopsPage && stopsPage.length > 0) {
-        allStops.push(...stopsPage);
-      }
-
-      nextToken = pageNextToken ?? undefined;
-    } while (nextToken);
+    const { stops: allStops, errors: allStopErrors } = await listAllStopsForRoute(routeId);
 
     const sortedStops = [...allStops].sort(
       (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)

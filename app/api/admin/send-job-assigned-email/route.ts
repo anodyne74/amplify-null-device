@@ -106,10 +106,23 @@ export async function POST(request: NextRequest) {
     const customerResult = await getDataClient().models.Customer.get({ id: route.customerId });
     const customer = customerResult.data as { name?: string | null } | null;
 
-    const { data: stops } = await getDataClient().models.Stop.list({
-      filter: { routeId: { eq: routeId } },
-      limit: 1000,
-    });
+    // Paginate rather than relying on a single large `limit` -- Stop.list's
+    // `limit` caps items *scanned* before the routeId filter is applied, not
+    // items *matched*, so a route's stops can span multiple pages even well
+    // under that cap.
+    const stops: unknown[] = [];
+    let stopsNextToken: string | undefined;
+    do {
+      const { data: stopsPage, nextToken: pageNextToken } = await getDataClient().models.Stop.list({
+        filter: { routeId: { eq: routeId } },
+        nextToken: stopsNextToken,
+        limit: 200,
+      });
+      if (stopsPage && stopsPage.length > 0) {
+        stops.push(...stopsPage);
+      }
+      stopsNextToken = pageNextToken ?? undefined;
+    } while (stopsNextToken);
 
     const configuredLogoUrl = process.env.SES_EMAIL_LOGO_URL?.trim();
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
@@ -120,7 +133,7 @@ export async function POST(request: NextRequest) {
       operatorName: route.assignedOperatorName || 'there',
       routeCode: route.routeCode || route.id,
       customerName: customer?.name || 'a customer',
-      stopCount: String((stops || []).length),
+      stopCount: String(stops.length),
       routeUrl: `${resolvedAppBaseUrl}/operator/routes/detail?id=${routeId}`,
       logoUrl,
       year: `${new Date().getUTCFullYear()}`,

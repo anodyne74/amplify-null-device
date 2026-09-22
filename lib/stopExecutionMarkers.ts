@@ -54,18 +54,28 @@ export function isStopCompletedForPhase(
   stop: { notes?: string | null; serviceType?: string | null; actualDepartureTime?: string | null },
   phase: ExecutionPhase
 ) {
+  // The actualDepartureTime + serviceType fallback below exists only to read stops
+  // completed under the old single-phase detail page, which never wrote a marker.
+  // Once either phase's marker is present, the stop is being tracked by the new
+  // flow, so actualDepartureTime must not be trusted on its own — Placement's
+  // settleStop writes it unconditionally for every stop it settles (regardless of
+  // serviceType), so without this guard a legacy-imported stop (serviceType forced
+  // to 'pickup' by import-prep.js) looks pickup-complete the moment Placement
+  // finishes it, hiding it from the Pickup screen entirely.
+  const hasAnyMarker = ALL_MARKERS.some((marker) => Boolean(getMarkerTimestamp(stop.notes, marker)));
+
   if (phase === 'placement') {
     return (
       Boolean(getMarkerTimestamp(stop.notes, PLACEMENT_DONE_MARKER)) ||
       Boolean(getMarkerTimestamp(stop.notes, PLACEMENT_SKIPPED_MARKER)) ||
-      (stop.serviceType !== 'pickup' && Boolean(stop.actualDepartureTime))
+      (!hasAnyMarker && stop.serviceType !== 'pickup' && Boolean(stop.actualDepartureTime))
     );
   }
 
   return (
     Boolean(getMarkerTimestamp(stop.notes, PICKUP_DONE_MARKER)) ||
     Boolean(getMarkerTimestamp(stop.notes, PICKUP_SKIPPED_MARKER)) ||
-    (stop.serviceType === 'pickup' && Boolean(stop.actualDepartureTime))
+    (!hasAnyMarker && stop.serviceType === 'pickup' && Boolean(stop.actualDepartureTime))
   );
 }
 

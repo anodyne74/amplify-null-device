@@ -42,7 +42,8 @@ function buildSummary(stops: Stop[]): FinaliseSummary {
   for (const stop of stops) {
     if (isStopCompletedForPhase(stop, 'pickup') && !isStopSkippedForPhase(stop, 'pickup')) {
       doneCount += 1;
-      returnedTotal += stop.numberOfSigns ?? 0;
+      // Missing signs never count as collected — see Stop.missingSignsCount's schema comment.
+      returnedTotal += Math.max(0, (stop.numberOfSigns ?? 0) - (stop.missingSignsCount ?? 0));
     }
     missingTotal += stop.missingSignsCount ?? 0;
   }

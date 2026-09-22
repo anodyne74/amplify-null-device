@@ -223,18 +223,18 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
 
     // --- Unload: reconcile against the load and confirm ---------------
     const unload = render(<OperatorUnloadPage />);
-    // s1 (9) + s2 (13) returned; s3 skipped; 1 reported missing on s2;
-    // 40 loaded - 22 returned - 1 missing = 17 still on site.
-    expect(await screen.findByText('22 signs to return')).toBeInTheDocument();
+    // s1 (9) + s2 (13 - 1 missing = 12) returned; s3 skipped; 1 reported missing on s2;
+    // 40 loaded - 21 returned - 1 missing = 18 still on site.
+    expect(await screen.findByText('21 signs to return')).toBeInTheDocument();
     expect(screen.getByText('2 / 3')).toBeInTheDocument();
     expect(screen.getByText('1 stops')).toBeInTheDocument();
-    expect(screen.getByText('40 loaded · 22 returned · 1 reported missing · 17 still on site.')).toBeInTheDocument();
+    expect(screen.getByText('40 loaded · 21 returned · 1 reported missing · 18 still on site.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Start unload' }));
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     await waitFor(() => expect(store.route.unloadStartedAt).toBe(T4));
 
-    fireEvent.click(await screen.findByRole('button', { name: /confirm 22 signs returned/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /confirm 21 signs returned/i }));
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
     expect(store.route.unloadConfirmedAt).toBe(T5);
@@ -249,7 +249,7 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
 
     // Independently recomputed by Finalise's own buildSummary — should match Unload.
     expect(screen.getByText('2 / 3')).toBeInTheDocument();
-    expect(screen.getByText('22')).toBeInTheDocument();
+    expect(screen.getByText('21')).toBeInTheDocument();
     expect(screen.getByText('1')).toBeInTheDocument();
     // Cumulative of the completed phases' measured times, not the actualStartTime ->
     // actualEndTime wall clock: 0 (load) + 20 (placement) + 12 (pickup) + 18 (unload) = 50 min.

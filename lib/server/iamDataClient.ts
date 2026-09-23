@@ -13,6 +13,13 @@ import outputs from '@/amplify_outputs.json';
  * any IAM caller for these models (amplify/backend.ts grants this Lambda's
  * own execution role, AmplifyHostingSSRCompute, appsync:GraphQL on this API).
  *
+ * Because that grant has no per-model IAM auth rule backing it, every call
+ * site is individually responsible for its own authorization -- routes
+ * should call authorizeIamRequest() (lib/server/authorizeIamRequest.ts)
+ * rather than this function directly, so they can't reach the client without
+ * that check running first. This function stays exported for
+ * authorizeIamRequest itself and for tests.
+ *
  * Getting a valid AWS signature is the part that's easy to get wrong here:
  * `Amplify.configure(outputs)` with no second argument defaults to a Cognito
  * Identity-Pool-based credentials provider (see aws-amplify's
@@ -53,3 +60,5 @@ export function getIamDataClient() {
   }
   return _client;
 }
+
+export type IamDataClient = ReturnType<typeof getIamDataClient>;

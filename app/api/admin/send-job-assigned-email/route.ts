@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SendTemplatedEmailCommand, SESClient } from '@aws-sdk/client-ses';
-import { CognitoJwtVerifier } from 'aws-jwt-verify';
-import { getIamDataClient } from '@/lib/server/iamDataClient';
-import outputs from '@/amplify_outputs.json';
+import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
 import { APP_DOMAIN } from '@/lib/publicAppConfig';
 
@@ -27,61 +25,13 @@ const jobAssignedTemplateName =
   process.env.SES_JOB_ASSIGNED_TEMPLATE_NAME ||
   customOutputs.sesJobAssignedTemplateName ||
   fallbackJobAssignedTemplateName;
-const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
-const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
-
-// See lib/server/iamDataClient.ts for why this needs to be a real IAM
-// signature (execution-role credentials), not just an enabled auth mode.
-const getDataClient = getIamDataClient;
-
-type VerifiedClaims = {
-  sub?: string;
-  email?: string;
-  'cognito:groups'?: string[];
-};
-
-let _verifier: ReturnType<typeof CognitoJwtVerifier.create> | null | undefined;
-function getVerifier() {
-  if (_verifier === undefined) {
-    _verifier = userPoolId && userPoolClientId
-      ? CognitoJwtVerifier.create({
-          userPoolId,
-          tokenUse: 'id',
-          clientId: userPoolClientId,
-        })
-      : null;
-  }
-  return _verifier;
-}
-
-function getBearerToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
-  return authHeader.slice('Bearer '.length).trim();
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const token = getBearerToken(request);
-    const verifier = getVerifier();
-    if (!token || !verifier) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await authorizeIamRequest(request, 'administrator');
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
-
-    let claims: VerifiedClaims;
-    try {
-      claims = (await verifier.verify(token)) as VerifiedClaims;
-    } catch (err) {
-      console.error('Token verification failed:', err);
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    const userGroups = claims['cognito:groups'] || [];
-    if (!userGroups.includes('administrator')) {
-      return NextResponse.json({ error: 'Forbidden: admin access required' }, { status: 403 });
-    }
+    const { client } = auth;
 
     const body = await request.json();
     const { routeId } = body;
@@ -90,7 +40,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'routeId is required' }, { status: 400 });
     }
 
-    const { data: route, errors: routeErrors } = await getDataClient().models.Route.get({ id: routeId });
+    const { data: route, errors: routeErrors } = await client.models.Route.get({ id: routeId });
     if (routeErrors || !route) {
       console.error('Route fetch errors:', routeErrors);
       return NextResponse.json({ error: 'Route not found' }, { status: 404 });
@@ -103,7 +53,7 @@ export async function POST(request: NextRequest) {
     // Must use the IAM-authenticated client here -- this SSR request has no
     // signed-in Amplify session, so the plain data client (lib/queries.ts)
     // throws NoValidAuthTokens (see lib/server/iamDataClient.ts for why).
-    const customerResult = await getDataClient().models.Customer.get({ id: route.customerId });
+    const customerResult = await client.models.Customer.get({ id: route.customerId });
     const customer = customerResult.data as { name?: string | null } | null;
 
     // Paginate rather than relying on a single large `limit` -- Stop.list's
@@ -113,7 +63,7 @@ export async function POST(request: NextRequest) {
     const stops: unknown[] = [];
     let stopsNextToken: string | undefined;
     do {
-      const { data: stopsPage, nextToken: pageNextToken } = await getDataClient().models.Stop.list({
+      const { data: stopsPage, nextToken: pageNextToken } = await client.models.Stop.list({
         filter: { routeId: { eq: routeId } },
         nextToken: stopsNextToken,
         limit: 200,

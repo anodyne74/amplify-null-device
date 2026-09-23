@@ -5,6 +5,7 @@ import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { getRouteWithStops } from '@/lib/queries';
 import { getSignRunPhase, getRoutePhaseKey } from '@/lib/signRunPhase';
+import { signsPlaced } from '@/lib/signRunTotals';
 import { useCurrentUserId } from '@/lib/use-user-groups';
 import type { Route } from '@/amplify/types';
 import PageHeader from '@/app/operator/components/PageHeader';
@@ -90,11 +91,7 @@ export default function OperatorDashboard() {
       const entries = await Promise.all(
         priorityRoutes.map(async (route) => {
           const { stops } = await getRouteWithStops(route.id);
-          const signsTotal = stops.reduce(
-            (sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0),
-            0
-          );
-          return [route.id, { stopCount: stops.length, signsTotal }] as const;
+          return [route.id, { stopCount: stops.length, signsTotal: signsPlaced(stops) }] as const;
         })
       );
       if (!cancelled) {

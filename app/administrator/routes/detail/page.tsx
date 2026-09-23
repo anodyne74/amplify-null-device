@@ -34,6 +34,7 @@ import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { getSignRunPhase, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS } from '@/lib/signRunPhase';
+import { signsCollected } from '@/lib/signRunTotals';
 import type { Route, Stop } from '@/amplify/types';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
@@ -758,10 +759,7 @@ function RouteDetailContent() {
   const routeDurationMinutes = route ? getRouteDurationMinutes(route) : null;
   const kilometersTravelled = calculateRouteDistanceKm(summaryStops);
   const totalStops = summaryStops.length;
-  const totalSigns = summaryStops.reduce(
-    (sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0),
-    0
-  );
+  const totalSigns = signsCollected(summaryStops);
   const billingDefaults = useMemo(() => {
     const durationMinutes = route?.overrideDurationMinutes ?? routeDurationMinutes ?? 0;
     const durationBuckets = deriveDurationBuckets(route, durationMinutes);

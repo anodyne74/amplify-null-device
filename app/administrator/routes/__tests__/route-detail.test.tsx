@@ -347,4 +347,36 @@ describe('Operator Route Detail Page', () => {
     // overrideRate: 30/hr * 165min => $82.50, not the $15 the 30min floor produced.
     expect(screen.getByText('$82.50')).toBeInTheDocument();
   });
+
+  it('excludes missing signs from "Total Number of Signs" — a stop returning 10 with 3 missing counts as 7', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValueOnce({
+      data: mockLegacyCompletedRoute,
+      errors: undefined,
+    });
+    const stopsWithMissingSigns: Stop[] = [
+      {
+        id: 'stop-1',
+        routeId: 'route-test-id-1234',
+        sequence: 1,
+        address: '100 First St',
+        serviceType: 'pickup',
+        notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]',
+        numberOfSigns: 10,
+        missingSignsCount: 3,
+      },
+    ];
+    (queriesModule.getRouteWithStops as jest.Mock).mockResolvedValueOnce({
+      stops: stopsWithMissingSigns,
+      errors: undefined,
+    });
+    mockStopList.mockResolvedValue({ data: stopsWithMissingSigns, errors: undefined });
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Total Number of Signs')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('7')).toBeInTheDocument();
+  });
 });

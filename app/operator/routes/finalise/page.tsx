@@ -8,7 +8,7 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { getRouteWithStops, updateRouteExecution } from '@/lib/queries';
 import { getSignRunPhase } from '@/lib/signRunPhase';
-import { isStopCompletedForPhase, isStopSkippedForPhase } from '@/lib/stopExecutionMarkers';
+import { reconcileSignRun } from '@/lib/signRunReconciliation';
 import {
   MIN_BILLED_MINUTES,
   measuredPhaseMinutes,
@@ -26,30 +26,6 @@ const PHASE_ROWS: Array<{ key: RouteExecutionPhase; label: string }> = [
   { key: 'pickup', label: 'Pickup' },
   { key: 'unload', label: 'Unload' },
 ];
-
-interface FinaliseSummary {
-  doneCount: number;
-  returnedTotal: number;
-  missingTotal: number;
-}
-
-/** Signs actually returned + stops truly completed at Pickup — same calc as Unload. */
-function buildSummary(stops: Stop[]): FinaliseSummary {
-  let doneCount = 0;
-  let returnedTotal = 0;
-  let missingTotal = 0;
-
-  for (const stop of stops) {
-    if (isStopCompletedForPhase(stop, 'pickup') && !isStopSkippedForPhase(stop, 'pickup')) {
-      doneCount += 1;
-      // Missing signs never count as collected — see Stop.missingSignsCount's schema comment.
-      returnedTotal += Math.max(0, (stop.numberOfSigns ?? 0) - (stop.missingSignsCount ?? 0));
-    }
-    missingTotal += stop.missingSignsCount ?? 0;
-  }
-
-  return { doneCount, returnedTotal, missingTotal };
-}
 
 export default function OperatorFinalisePage() {
   const router = useRouter();
@@ -88,7 +64,7 @@ export default function OperatorFinalisePage() {
   }, [routeId]);
 
   const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
-  const summary = useMemo(() => buildSummary(stops), [stops]);
+  const summary = useMemo(() => (route ? reconcileSignRun(route, stops) : null), [route, stops]);
   const measured = useMemo(() => (route ? measuredPhaseMinutes(route) : null), [route]);
 
   const defaults = useMemo(() => {
@@ -204,16 +180,16 @@ export default function OperatorFinalisePage() {
         <div className={shellStyles.statCell}>
           <span className={shellStyles.statLabel}>Stops completed</span>
           <span className={shellStyles.statValue}>
-            {summary.doneCount} / {stops.length}
+            {summary!.doneCount} / {stops.length}
           </span>
         </div>
         <div className={shellStyles.statCell}>
           <span className={shellStyles.statLabel}>Signs collected</span>
-          <span className={shellStyles.statValue}>{summary.returnedTotal}</span>
+          <span className={shellStyles.statValue}>{summary!.returnedTotal}</span>
         </div>
         <div className={shellStyles.statCell}>
           <span className={shellStyles.statLabel}>Signs missing</span>
-          <span className={shellStyles.statValue}>{summary.missingTotal}</span>
+          <span className={shellStyles.statValue}>{summary!.missingTotal}</span>
         </div>
         <div className={shellStyles.statCell}>
           <span className={shellStyles.statLabel}>Duration</span>

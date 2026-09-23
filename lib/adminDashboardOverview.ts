@@ -6,6 +6,7 @@
 import { getDateGroup } from './aggregateRouteData';
 import { getDeltaPercent, formatCurrency } from './dashboardAnalytics';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS, type RoutePhaseInput, type RoutePhaseKey } from './signRunPhase';
+import { signsPlaced } from './signRunTotals';
 
 export interface OverviewRoute {
   id: string;
@@ -208,9 +209,7 @@ export function summarizeOutstanding(invoices: OverviewInvoice[], now = new Date
 /** Signs currently placed (not yet picked up), summed across routes in the "signs placed" phase. */
 export function summarizeSignsInField(routes: OverviewRoute[], stops: OverviewStop[]): number {
   const placedRouteIds = new Set(routes.filter((route) => phaseKeyOf(route) === 'signs_placed').map((route) => route.id));
-  return stops
-    .filter((stop) => stop.routeId && placedRouteIds.has(stop.routeId))
-    .reduce((sum, stop) => sum + (stop.numberOfSigns || 0), 0);
+  return signsPlaced(stops.filter((stop) => stop.routeId && placedRouteIds.has(stop.routeId)));
 }
 
 export const ROUTE_STATUS_ORDER = ROUTE_PHASE_KEYS;
@@ -276,7 +275,7 @@ export function summarizeCustomersByVolume(
         name: customer.name || customer.id,
         routes: routeIds.size,
         stops: customerStops.length,
-        signs: customerStops.reduce((sum, stop) => sum + (stop.numberOfSigns || 0), 0),
+        signs: signsPlaced(customerStops),
         billed,
       };
     })

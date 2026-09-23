@@ -362,4 +362,32 @@ describe('Operator Route Detail Page', () => {
     expect(mockReplace).not.toHaveBeenCalled();
     expect(screen.getByRole('heading', { name: /route phase/i })).toBeInTheDocument();
   });
+
+  it('excludes missing signs from "Total Number of Signs" — a stop returning 10 with 3 missing counts as 7', async () => {
+    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
+      data: { ...mockRoute, status: 'completed' },
+      errors: undefined,
+    });
+    const stopsWithMissingSigns: Stop[] = [
+      {
+        id: 'stop-1',
+        routeId: 'route-test-id-1234',
+        sequence: 1,
+        address: '100 First St',
+        serviceType: 'pickup',
+        notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]',
+        numberOfSigns: 10,
+        missingSignsCount: 3,
+      },
+    ];
+    mockStopList.mockResolvedValue({ stops: stopsWithMissingSigns, errors: [] });
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Total Number of Signs')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('7')).toBeInTheDocument();
+  });
 });

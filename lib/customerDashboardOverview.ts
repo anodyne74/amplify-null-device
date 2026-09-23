@@ -8,6 +8,7 @@
 import { getDateGroup } from './aggregateRouteData';
 import { getDeltaPercent } from './dashboardAnalytics';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS, type RoutePhaseInput, type RoutePhaseKey } from './signRunPhase';
+import { signsPlaced } from './signRunTotals';
 
 export interface OverviewRoute {
   id: string;
@@ -134,7 +135,7 @@ export function summarizePeriodActivity(
     routesCompletedDeltaPercent: routesCompletedTrend.deltaPercent,
     routesCompletedDirection: routesCompletedTrend.direction,
     stopsServiced: currentStops.length,
-    signsHandled: currentStops.reduce((sum, stop) => sum + (stop.numberOfSigns || 0), 0),
+    signsHandled: signsPlaced(currentStops),
     avgCostPerStop,
     avgCostPerStopDeltaPercent: avgCostPerStopTrend.deltaPercent,
     avgCostPerStopDirection: avgCostPerStopTrend.direction,
@@ -260,17 +261,23 @@ export interface AgentActivityRow {
 
 /** Stops/signs grouped by the agent named on each stop, most active first. */
 export function summarizeAgentActivity(stops: OverviewStop[]): AgentActivityRow[] {
-  const byAgent = new Map<string, AgentActivityRow>();
+  const stopsByAgent = new Map<string, OverviewStop[]>();
 
   stops.forEach((stop) => {
     const agent = stop.agent?.trim() || 'Unassigned';
-    const row = byAgent.get(agent) ?? { id: agent, agent, stops: 0, signs: 0 };
-    row.stops += 1;
-    row.signs += stop.numberOfSigns || 0;
-    byAgent.set(agent, row);
+    const agentStops = stopsByAgent.get(agent) ?? [];
+    agentStops.push(stop);
+    stopsByAgent.set(agent, agentStops);
   });
 
-  return Array.from(byAgent.values()).sort((a, b) => b.stops - a.stops);
+  return Array.from(stopsByAgent.entries())
+    .map(([agent, agentStops]) => ({
+      id: agent,
+      agent,
+      stops: agentStops.length,
+      signs: signsPlaced(agentStops),
+    }))
+    .sort((a, b) => b.stops - a.stops);
 }
 
 export interface LatestInvoiceSummary {

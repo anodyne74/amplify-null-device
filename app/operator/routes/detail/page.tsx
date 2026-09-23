@@ -51,6 +51,7 @@ import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { getSignRunPhase, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS } from '@/lib/signRunPhase';
+import { signsCollected } from '@/lib/signRunTotals';
 import type { Route, Stop } from '@/amplify/types';
 import { parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import styles from './page.module.css';
@@ -577,10 +578,7 @@ function RouteDetailContent() {
   const kilometersTravelled = calculateRouteDistanceKm(summaryStops);
   const effectiveKilometersTravelled = route?.overrideDistanceKm ?? kilometersTravelled;
   const totalStops = summaryStops.length;
-  const totalSigns = summaryStops.reduce(
-    (sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0),
-    0
-  );
+  const totalSigns = signsCollected(summaryStops);
   const completionAmount =
     routeDurationMinutes !== null && customerRatePerHour !== null
       ? Number(((routeDurationMinutes / 60) * customerRatePerHour).toFixed(2))

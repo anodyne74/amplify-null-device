@@ -11,46 +11,10 @@ import { getRouteWithStops, getCustomer, updateRouteExecution } from '@/lib/quer
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { getSignRunPhase } from '@/lib/signRunPhase';
 import { formatClockTime } from '@/lib/signRunBilling';
-import { isStopCompletedForPhase, isStopSkippedForPhase } from '@/lib/stopExecutionMarkers';
+import { reconcileSignRun } from '@/lib/signRunReconciliation';
 import type { Route, Stop } from '@/amplify/types';
 import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
-
-interface UnloadReconciliation {
-  returnedTotal: number;
-  doneCount: number;
-  skipCount: number;
-  missingTotal: number;
-  loadedTotal: number;
-  stillOnSite: number;
-}
-
-/** Reconciles what came back against what went out — Pickup's PICKUP_DONE/
- * PICKUP_SKIPPED markers and missingSignsCount (lib/stopExecutionMarkers.ts,
- * set by app/operator/routes/pickup/page.tsx) against Load's loadedSignsCount. */
-function buildReconciliation(route: Route, stops: Stop[]): UnloadReconciliation {
-  let returnedTotal = 0;
-  let doneCount = 0;
-  let skipCount = 0;
-  let missingTotal = 0;
-
-  for (const stop of stops) {
-    const skipped = isStopSkippedForPhase(stop, 'pickup');
-    if (skipped) {
-      skipCount += 1;
-    } else if (isStopCompletedForPhase(stop, 'pickup')) {
-      doneCount += 1;
-      // Missing signs never count as collected — see Stop.missingSignsCount's schema comment.
-      returnedTotal += Math.max(0, (stop.numberOfSigns ?? 0) - (stop.missingSignsCount ?? 0));
-    }
-    missingTotal += stop.missingSignsCount ?? 0;
-  }
-
-  const loadedTotal = route.loadedSignsCount ?? 0;
-  const stillOnSite = Math.max(0, loadedTotal - returnedTotal - missingTotal);
-
-  return { returnedTotal, doneCount, skipCount, missingTotal, loadedTotal, stillOnSite };
-}
 
 export default function OperatorUnloadPage() {
   const router = useRouter();
@@ -101,7 +65,7 @@ export default function OperatorUnloadPage() {
   }, [routeId]);
 
   const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
-  const reconciliation = useMemo(() => (route ? buildReconciliation(route, stops) : null), [route, stops]);
+  const reconciliation = useMemo(() => (route ? reconcileSignRun(route, stops) : null), [route, stops]);
 
   const openDialog = (kind: 'start' | 'confirm') => setDialog({ kind, time: new Date().toISOString() });
   const closeDialog = () => {

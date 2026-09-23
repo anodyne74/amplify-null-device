@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GetTemplateCommand, SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses';
-import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import { getUrl } from 'aws-amplify/storage';
-import { getIamDataClient } from '@/lib/server/iamDataClient';
-import outputs from '@/amplify_outputs.json';
+import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
 import { APP_DOMAIN } from '@/lib/publicAppConfig';
 import { buildInvoiceFileName } from '@/lib/invoiceFileName';
@@ -28,41 +26,6 @@ const invoiceTemplateName =
   process.env.SES_INVOICE_TEMPLATE_NAME ||
   customOutputs.sesInvoiceTemplateName ||
   fallbackInvoiceTemplateName;
-const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
-const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
-
-// See lib/server/iamDataClient.ts for why this needs to be a real IAM
-// signature (execution-role credentials), not just an enabled auth mode.
-const getDataClient = getIamDataClient;
-
-type VerifiedClaims = {
-  sub?: string;
-  email?: string;
-  'cognito:groups'?: string[];
-};
-
-let _verifier: ReturnType<typeof CognitoJwtVerifier.create> | null | undefined;
-function getVerifier() {
-  if (_verifier === undefined) {
-    _verifier = userPoolId && userPoolClientId
-      ? CognitoJwtVerifier.create({
-          userPoolId,
-          tokenUse: 'id',
-          clientId: userPoolClientId,
-        })
-      : null;
-  }
-  return _verifier;
-}
-
-function getBearerToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
-  return authHeader.slice('Bearer '.length).trim();
-}
-
 function renderEmailTemplate(
   template: string,
   values: Record<string, string>
@@ -113,24 +76,11 @@ async function getTemplateParts() {
 export async function POST(request: NextRequest) {
   try {
     // Verify authentication and admin status
-    const token = getBearerToken(request);
-    const verifier = getVerifier();
-    if (!token || !verifier) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await authorizeIamRequest(request, 'administrator');
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
-
-    let claims: VerifiedClaims;
-    try {
-      claims = (await verifier.verify(token)) as VerifiedClaims;
-    } catch (err) {
-      console.error('Token verification failed:', err);
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    const userGroups = claims['cognito:groups'] || [];
-    if (!userGroups.includes('administrator')) {
-      return NextResponse.json({ error: 'Forbidden: admin access required' }, { status: 403 });
-    }
+    const { client } = auth;
 
     // Parse request body
     const body = await request.json();
@@ -141,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Query invoice details
-    const { data: invoice, errors: invoiceErrors } = await getDataClient().models.Invoice.get({
+    const { data: invoice, errors: invoiceErrors } = await client.models.Invoice.get({
       id: invoiceId,
     });
 
@@ -158,7 +108,7 @@ export async function POST(request: NextRequest) {
     // this SSR request has no signed-in Amplify session, so the plain data
     // client (lib/queries.ts) throws NoValidAuthTokens (see
     // lib/server/iamDataClient.ts for why).
-    const customerResult = await getDataClient().models.Customer.get({ id: invoice.customerId });
+    const customerResult = await client.models.Customer.get({ id: invoice.customerId });
     if (customerResult.errors && customerResult.errors.length > 0) {
       console.error('Errors fetching customer:', customerResult.errors);
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
@@ -173,7 +123,7 @@ export async function POST(request: NextRequest) {
     let toEmail = recipientEmail;
     if (!toEmail) {
       // Try to find primary contact (account_owner role)
-      const usersResult = await getDataClient().models.CustomerUser.list({
+      const usersResult = await client.models.CustomerUser.list({
         filter: { customerId: { eq: invoice.customerId } },
       });
       const customerUsers = (usersResult.data as Array<{ role?: string | null; email?: string | null }> | undefined) || [];
@@ -294,7 +244,7 @@ export async function POST(request: NextRequest) {
     // Update invoice with emailSentAt timestamp
     try {
       const now = new Date().toISOString();
-      await getDataClient().models.Invoice.update({ id: invoiceId, emailSentAt: now });
+      await client.models.Invoice.update({ id: invoiceId, emailSentAt: now });
     } catch (err) {
       console.warn('Failed to update invoice emailSentAt:', err);
       // Don't fail the entire operation if timestamp update fails

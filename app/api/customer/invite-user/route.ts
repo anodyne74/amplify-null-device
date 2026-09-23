@@ -1,43 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CognitoJwtVerifier } from 'aws-jwt-verify';
-import { getIamDataClient } from '@/lib/server/iamDataClient';
+import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
+import type { IamDataClient } from '@/lib/server/iamDataClient';
 import outputs from '@/amplify_outputs.json';
 import { createOrGetCognitoUser } from '@/app/api/admin/users/route';
 import { sendInvitationEmail } from '@/lib/emails/invitationEmail';
 
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
-const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
-
-// See lib/server/iamDataClient.ts for why this needs to be a real IAM
-// signature (execution-role credentials), not just an enabled auth mode.
-const getDataClient = getIamDataClient;
-
-type VerifiedClaims = {
-  sub?: string;
-  'cognito:groups'?: string[];
-};
-
-let _verifier: ReturnType<typeof CognitoJwtVerifier.create> | null | undefined;
-function getVerifier() {
-  if (_verifier === undefined) {
-    _verifier = userPoolId && userPoolClientId
-      ? CognitoJwtVerifier.create({
-          userPoolId,
-          tokenUse: 'id',
-          clientId: userPoolClientId,
-        })
-      : null;
-  }
-  return _verifier;
-}
-
-function getBearerToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
-  return authHeader.slice('Bearer '.length).trim();
-}
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -51,9 +19,7 @@ function emailDomain(email: string): string {
  * Cognito trigger vs. browser-session client in lib/queries.ts, which only
  * covers Route/Stop), so this is kept as its own copy rather than a shared
  * import across those boundaries. Worth consolidating in a future cleanup PR. */
-async function syncViewerSubsForCustomer(customerId: string, viewerSubs: string[]) {
-  const client = getDataClient();
-
+async function syncViewerSubsForCustomer(client: IamDataClient, customerId: string, viewerSubs: string[]) {
   const { data: routes } = await client.models.Route.list({
     filter: { customerId: { eq: customerId } },
     limit: 1000,
@@ -111,24 +77,11 @@ async function syncViewerSubsForCustomer(customerId: string, viewerSubs: string[
  */
 export async function POST(request: NextRequest) {
   try {
-    const token = getBearerToken(request);
-    const verifier = getVerifier();
-    if (!token || !verifier) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await authorizeIamRequest(request, 'customer');
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
-
-    let claims: VerifiedClaims;
-    try {
-      claims = (await verifier.verify(token)) as VerifiedClaims;
-    } catch (err) {
-      console.error('Token verification failed:', err);
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    const userGroups = claims['cognito:groups'] || [];
-    if (!userGroups.includes('customer') || !claims.sub) {
-      return NextResponse.json({ error: 'Forbidden: customer access required' }, { status: 403 });
-    }
+    const { claims, client } = auth;
 
     const body = (await request.json().catch(() => null)) as { email?: string; name?: string } | null;
     const rawEmail = body?.email?.trim();
@@ -137,8 +90,6 @@ export async function POST(request: NextRequest) {
     }
     const normalizedEmail = rawEmail.toLowerCase();
     const name = body?.name?.trim() || undefined;
-
-    const client = getDataClient();
 
     // The caller's own CustomerUser row -- never trust a client-supplied customerId,
     // this is the only source of truth for which customer they belong to, and their
@@ -214,7 +165,7 @@ export async function POST(request: NextRequest) {
       ),
     ];
     await client.models.Customer.update({ id: customerId, viewerSubs });
-    await syncViewerSubsForCustomer(customerId, viewerSubs);
+    await syncViewerSubsForCustomer(client, customerId, viewerSubs);
 
     let emailSent = false;
     if (cognitoUserCreated && temporaryPassword) {

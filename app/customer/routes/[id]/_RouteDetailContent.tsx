@@ -22,6 +22,7 @@ import { getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
 import { appendRouteInstruction, parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
+import { signsPlaced } from '@/lib/signRunTotals';
 import styles from './_RouteDetailContent.module.css';
 
 // Mirrors the existing .stopsAndMap collapse breakpoint in
@@ -223,7 +224,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const instructionsLocked = ROUTE_PHASE_KEYS.indexOf(currentPhase) >= ROUTE_PHASE_KEYS.indexOf('signs_placed');
 
   const routeLabel = route.routeCode || `${route.id.slice(0, 8)}...`;
-  const totalSigns = stops.reduce((sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0), 0);
+  const totalSigns = signsPlaced(stops);
   const deliveryStops = stops.filter((stop) => stop.serviceType === 'delivery');
   const placedDeliveryStops = deliveryStops.filter((stop) => Boolean(stop.actualDepartureTime));
   const pickupDueLabel = route.pickupStartTime ? formatDate(route.pickupStartTime) : 'TBC';

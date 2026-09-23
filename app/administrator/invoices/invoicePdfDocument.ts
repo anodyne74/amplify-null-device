@@ -2,6 +2,7 @@ import type { jsPDF } from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { buildInvoicePdfConfig } from './invoicePdfTheme';
 import { formatStopProperty, groupStopsByAgent, type StopSummary } from './stopFormatting';
+import { signsPlaced } from '@/lib/signRunTotals';
 
 type InvoicePdfConfig = ReturnType<typeof buildInvoicePdfConfig>;
 
@@ -261,7 +262,7 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
   y = config.margins.top;
 
   if (data.routeStops.length > 0) {
-    const totalSigns = data.routeStops.reduce((sum, stop) => sum + (stop.numberOfSigns ?? 0), 0);
+    const totalSigns = signsPlaced(data.routeStops);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(config.fonts.large);
@@ -273,7 +274,7 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
     doc.setFontSize(config.fonts.small);
     doc.setTextColor(...config.colors.labelMuted);
     doc.text(
-      `${data.routeStops.length} stop${data.routeStops.length === 1 ? '' : 's'} · ${totalSigns} signs placed and collected on route ${data.routeCode}.`,
+      `${data.routeStops.length} stop${data.routeStops.length === 1 ? '' : 's'} · ${totalSigns} signs placed on route ${data.routeCode}.`,
       contentLeft,
       y
     );

@@ -1,3 +1,5 @@
+import { signsPlaced } from '@/lib/signRunTotals';
+
 export interface StopSummary {
   address?: string | null;
   formattedAddress?: string | null;
@@ -61,7 +63,7 @@ export function groupStopsByAgent(stops: StopSummary[]): AgentStopGroup[] {
     return {
       agent,
       stops: agentStops,
-      signCount: agentStops.reduce((sum, stop) => sum + (stop.numberOfSigns ?? 0), 0),
+      signCount: signsPlaced(agentStops),
     };
   });
 }

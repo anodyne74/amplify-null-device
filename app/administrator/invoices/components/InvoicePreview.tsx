@@ -11,6 +11,7 @@ import { formatStopProperty, groupStopsByAgent, type StopSummary } from '@/app/a
 import { computeDriverSplitPreview } from '@/app/administrator/invoices/driverSplitPreview';
 import { getFinalizedRouteDistanceKm, getFinalizedRouteMinutes } from '@/app/administrator/invoices/routeInvoiceMetrics';
 import { formatDuration } from '@/lib/signRunBilling';
+import { signsPlaced } from '@/lib/signRunTotals';
 import styles from './InvoicePreview.module.css';
 
 interface InvoicePreviewProps {
@@ -111,7 +112,7 @@ export default function InvoicePreview({
 
   const subtotal = Number(lineRows.reduce((sum, row) => sum + row.total, 0).toFixed(2));
 
-  const totalSigns = stops.reduce((sum, stop) => sum + (stop.numberOfSigns ?? 0), 0);
+  const totalSigns = signsPlaced(stops);
   const agentGroups = useMemo(() => groupStopsByAgent(stops), [stops]);
 
   const driverSplit = computeDriverSplitPreview({

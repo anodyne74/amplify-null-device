@@ -79,6 +79,20 @@ export function isStopCompletedForPhase(
   );
 }
 
+export function getPhaseCompletionTime(stop: { notes?: string | null }, phase: ExecutionPhase) {
+  if (phase === 'placement') {
+    return (
+      getMarkerTimestamp(stop.notes, PLACEMENT_DONE_MARKER) ||
+      getMarkerTimestamp(stop.notes, PLACEMENT_SKIPPED_MARKER)
+    );
+  }
+
+  return (
+    getMarkerTimestamp(stop.notes, PICKUP_DONE_MARKER) ||
+    getMarkerTimestamp(stop.notes, PICKUP_SKIPPED_MARKER)
+  );
+}
+
 /** The driver-authored portion of Stop.notes, with every phase marker stripped —
  * for display, since notes is shared between free-text instructions and markers. */
 export function getDisplayNotes(notes: string | null | undefined) {

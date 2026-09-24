@@ -14,7 +14,7 @@ describe('RouteTimeline', () => {
   it('displays all 6 named phases', () => {
     render(<RouteTimeline route={mockRoute} />);
     expect(screen.getByText(/^Planned$/i)).toBeInTheDocument();
-    expect(screen.getByText(/^Signs collected$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Signs loaded$/i)).toBeInTheDocument();
     expect(screen.getByText(/^Signs placed$/i)).toBeInTheDocument();
     expect(screen.getByText(/^Signs picked up$/i)).toBeInTheDocument();
     expect(screen.getByText(/^Signs returned$/i)).toBeInTheDocument();

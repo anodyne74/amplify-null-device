@@ -39,3 +39,24 @@ export function signsCollected(stops: SignCountStop[]): number {
 export function missingSigns(stops: SignCountStop[]): number {
   return stops.reduce((sum, stop) => sum + (stop.missingSignsCount ?? 0), 0);
 }
+
+/** Groups stops by agent, preserving first-appearance order, with stops that have no
+ * agent bucketed under "Unassigned" rather than dropped. Bare grouping only — callers
+ * derive their own per-group aggregate (e.g. a sign count, or a timed/blank split). */
+export function groupByAgent<T extends { agent?: string | null }>(
+  stops: T[]
+): Array<{ agent: string; stops: T[] }> {
+  const order: string[] = [];
+  const byAgent = new Map<string, T[]>();
+
+  for (const stop of stops) {
+    const agent = stop.agent?.trim() || 'Unassigned';
+    if (!byAgent.has(agent)) {
+      byAgent.set(agent, []);
+      order.push(agent);
+    }
+    byAgent.get(agent)!.push(stop);
+  }
+
+  return order.map((agent) => ({ agent, stops: byAgent.get(agent)! }));
+}

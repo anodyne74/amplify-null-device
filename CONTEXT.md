@@ -13,8 +13,8 @@ One property visit on a Route, where signs are placed and later picked up.
 _Avoid_: Property, location, visit
 
 **Sign Run**:
-The phase flow a Route moves through: Placement (signs deployed) → Pickup (signs retrieved) → Load (signs collected onto the van) → Unload → Finalise. A Route's current phase is derived from which phase-completion timestamps are set, not from a separately stored "current phase" pointer.
-_Avoid_: Delivery run, job flow
+The phase flow a Route moves through: Load (signs collected from the customer, onto the van) → Placement (signs deployed) → Pickup (signs retrieved) → Unload (signs returned to the customer) → Finalise. A Route's current phase is derived from which phase-completion timestamps are set, not from a separately stored "current phase" pointer.
+_Avoid_: Delivery run, job flow. Also avoid calling the Load phase "signs collected" — that phrase is reserved for the Signs Collected metric below, a different phase and a different count.
 
 **Signs Placed**:
 The gross count of signs put out on a Route — `sum(Stop.numberOfSigns)`, no exclusions. Answers "how many signs are on this route," independent of what happens afterward.

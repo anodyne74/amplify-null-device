@@ -14,7 +14,7 @@ type RouteStatusBadgeProps = {
 // getRoutePhaseKey), so classes.badgeArchived is unused going forward.
 const STYLE_BUCKET: Record<RoutePhaseKey, 'badgePlanned' | 'badgeActive' | 'badgeCompleted'> = {
   planned: 'badgePlanned',
-  signs_collected: 'badgeActive',
+  signs_loaded: 'badgeActive',
   signs_placed: 'badgeActive',
   signs_picked_up: 'badgeActive',
   signs_returned: 'badgeActive',

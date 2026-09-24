@@ -11,6 +11,7 @@ import { getRouteWithStops, getCustomer, updateRouteExecution } from '@/lib/quer
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { getSignRunPhase } from '@/lib/signRunPhase';
 import { formatClockTime } from '@/lib/signRunBilling';
+import { groupByAgent, signsPlaced } from '@/lib/signRunTotals';
 import type { Route, Stop } from '@/amplify/types';
 import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
@@ -30,29 +31,21 @@ interface AgentBreakdownRow {
  * board, which carries the viewing-times rider -- and any remaining signs are
  * blank. */
 function buildBreakdown(stops: Stop[]): AgentBreakdownRow[] {
-  const rows: AgentBreakdownRow[] = [];
-  const indexByName = new Map<string, number>();
+  const stopsWithSigns = stops.filter((stop) => (stop.numberOfSigns ?? 0) > 0);
 
-  for (const stop of stops) {
-    const name = stop.agent?.trim() || 'Unassigned';
-    const signs = stop.numberOfSigns ?? 0;
-    if (signs === 0) continue;
-
-    let idx = indexByName.get(name);
-    if (idx === undefined) {
-      idx = rows.length;
-      indexByName.set(name, idx);
-      rows.push({ name, timed: 0, blank: 0 });
+  return groupByAgent(stopsWithSigns).map((group) => {
+    const row: AgentBreakdownRow = { name: group.agent, timed: 0, blank: 0 };
+    for (const stop of group.stops) {
+      const signs = stop.numberOfSigns ?? 0;
+      if (stop.isAuction) {
+        row.timed += signs;
+      } else {
+        row.timed += 1;
+        row.blank += signs - 1;
+      }
     }
-    if (stop.isAuction) {
-      rows[idx].timed += signs;
-    } else {
-      rows[idx].timed += 1;
-      rows[idx].blank += signs - 1;
-    }
-  }
-
-  return rows;
+    return row;
+  });
 }
 
 export default function OperatorLoadPage() {
@@ -113,7 +106,7 @@ export default function OperatorLoadPage() {
       ),
     [breakdown]
   );
-  const totalSigns = totals.timed + totals.blank;
+  const totalSigns = signsPlaced(stops);
 
   const openDialog = (kind: 'start' | 'confirm') => setDialog({ kind, time: new Date().toISOString() });
   const closeDialog = () => {

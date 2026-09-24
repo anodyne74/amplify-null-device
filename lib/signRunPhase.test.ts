@@ -24,7 +24,7 @@ describe('getSignRunPhase', () => {
   it('defaults to Load when executionPhase is unset', () => {
     const info = getSignRunPhase(baseRoute({ status: 'in_progress', executionPhase: null }), 5);
     expect(info?.phaseIdx).toBe(0);
-    expect(info?.phase).toBe('signs_collected');
+    expect(info?.phase).toBe('signs_loaded');
     expect(info?.phaseLabel).toBe('Load');
     expect(info?.actionLabel).toBe('Load signs');
     expect(info?.tint).toBe('indigo');
@@ -141,7 +141,7 @@ describe('getRoutePhaseKey', () => {
   });
 
   it('reads each in-progress sub-phase off executionPhase', () => {
-    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress', executionPhase: null }))).toBe('signs_collected');
+    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress', executionPhase: null }))).toBe('signs_loaded');
     expect(getRoutePhaseKey(baseRoute({ status: 'in_progress', executionPhase: 'placement' }))).toBe('signs_placed');
     expect(getRoutePhaseKey(baseRoute({ status: 'in_progress', executionPhase: 'pickup' }))).toBe('signs_picked_up');
     expect(getRoutePhaseKey(baseRoute({ status: 'in_progress', executionPhase: 'unload' }))).toBe('signs_returned');
@@ -155,7 +155,7 @@ describe('getRoutePhaseKey', () => {
   it('falls back to the status itself for pre-executionPhase legacy data', () => {
     // Oldest records predate the executionPhase field, so it's simply absent
     // — the legacy status is then the only record of which phase last completed.
-    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress' }))).toBe('signs_collected');
+    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress' }))).toBe('signs_loaded');
     expect(getRoutePhaseKey(baseRoute({ status: 'signs_placed' }))).toBe('signs_placed');
     expect(getRoutePhaseKey(baseRoute({ status: 'signs_picked_up' }))).toBe('signs_picked_up');
   });
@@ -187,7 +187,7 @@ describe('getRoutePhaseKey', () => {
       getRoutePhaseKey(
         baseRoute({ status: 'in_progress', executionPhase: 'placement', loadConfirmedAt: '2026-09-12T08:00:00.000Z' })
       )
-    ).toBe('signs_collected');
+    ).toBe('signs_loaded');
   });
 });
 
@@ -195,7 +195,7 @@ describe('ROUTE_PHASE_KEYS / ROUTE_PHASE_LABELS', () => {
   it('lists all 6 phases in flow order, each with a label', () => {
     expect(ROUTE_PHASE_KEYS).toEqual([
       'planned',
-      'signs_collected',
+      'signs_loaded',
       'signs_placed',
       'signs_picked_up',
       'signs_returned',

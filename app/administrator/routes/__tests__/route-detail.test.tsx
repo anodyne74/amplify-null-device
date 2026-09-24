@@ -218,6 +218,9 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByText('200 Second Ave')).toBeInTheDocument();
   });
 
+  // Smoke test for the shared lib/stopStatusLabel wiring — full label-case
+  // coverage (skip reasons, legacy-import fallback, etc.) lives in
+  // lib/stopStatusLabel.test.ts so it isn't duplicated per portal.
   it('shows "Load signs" instead of "Awaiting placement" for a planned route (#5)', async () => {
     render(<RouteDetailPage />);
 

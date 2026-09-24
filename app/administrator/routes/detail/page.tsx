@@ -35,6 +35,19 @@ import { updateStop } from '@/lib/queries/UpdateStop';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { getSignRunPhase, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS } from '@/lib/signRunPhase';
 import { signsCollected } from '@/lib/signRunTotals';
+import {
+  getMarkerTimestamp,
+  isStopCompletedForPhase,
+  isStopSkippedForPhase,
+  PICKUP_DONE_MARKER,
+  PICKUP_SKIPPED_MARKER,
+  PLACEMENT_DONE_MARKER,
+  PLACEMENT_SKIPPED_MARKER,
+  removeMarker,
+  upsertMarker,
+  type ExecutionPhase,
+} from '@/lib/stopExecutionMarkers';
+import { getStopStatusLabel } from '@/lib/stopStatusLabel';
 import type { Route, Stop } from '@/amplify/types';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
@@ -49,13 +62,6 @@ const RouteStopsMap = dynamic(
 
 const DEFAULT_SIGNS_COLLECTED_MINUTES = 15;
 const DEFAULT_SIGNS_RETURNED_MINUTES = 15;
-
-type ExecutionPhase = 'placement' | 'pickup';
-
-const PLACEMENT_DONE_MARKER = 'PLACEMENT_DONE';
-const PICKUP_DONE_MARKER = 'PICKUP_DONE';
-const PLACEMENT_SKIPPED_MARKER = 'PLACEMENT_SKIPPED';
-const PICKUP_SKIPPED_MARKER = 'PICKUP_SKIPPED';
 
 function phaseMinutes(start?: string | null, end?: string | null) {
   if (!start || !end) return null;
@@ -107,46 +113,8 @@ function getDurationTotalMinutes(values: {
   );
 }
 
-function removeMarker(notes: string, marker: string) {
-  return notes.replace(new RegExp(`(?:^|\\s)\\[${marker}:[^\\]]*\\]`, 'g'), ' ').replace(/\s+/g, ' ').trim();
-}
-
-function upsertMarker(notes: string | null | undefined, marker: string, atIso: string) {
-  const base = removeMarker(notes ?? '', marker);
-  return `${base}${base ? ' ' : ''}[${marker}:${atIso}]`;
-}
-
-function getMarkerTimestamp(notes: string | null | undefined, marker: string) {
-  if (!notes) return null;
-  const match = notes.match(new RegExp(`\\[${marker}:([^\\]]+)\\]`));
-  return match?.[1] ?? null;
-}
-
 function isStopCompleted(stop: Stop) {
   return Boolean(stop.actualDepartureTime);
-}
-
-function isStopSkippedForPhase(stop: Stop, phase: ExecutionPhase) {
-  if (phase === 'placement') {
-    return Boolean(getMarkerTimestamp(stop.notes, PLACEMENT_SKIPPED_MARKER));
-  }
-  return Boolean(getMarkerTimestamp(stop.notes, PICKUP_SKIPPED_MARKER));
-}
-
-function isStopCompletedForPhase(stop: Stop, phase: ExecutionPhase) {
-  if (phase === 'placement') {
-    return (
-      Boolean(getMarkerTimestamp(stop.notes, PLACEMENT_DONE_MARKER)) ||
-      Boolean(getMarkerTimestamp(stop.notes, PLACEMENT_SKIPPED_MARKER)) ||
-      (stop.serviceType !== 'pickup' && Boolean(stop.actualDepartureTime))
-    );
-  }
-
-  return (
-    Boolean(getMarkerTimestamp(stop.notes, PICKUP_DONE_MARKER)) ||
-    Boolean(getMarkerTimestamp(stop.notes, PICKUP_SKIPPED_MARKER)) ||
-    (stop.serviceType === 'pickup' && Boolean(stop.actualDepartureTime))
-  );
 }
 
 function getPhaseCompletionTime(stop: Stop, phase: ExecutionPhase) {
@@ -161,34 +129,6 @@ function getPhaseCompletionTime(stop: Stop, phase: ExecutionPhase) {
     getMarkerTimestamp(stop.notes, PICKUP_DONE_MARKER) ||
     getMarkerTimestamp(stop.notes, PICKUP_SKIPPED_MARKER)
   );
-}
-
-function getStopStatusLabel(stop: Stop, executionPhase?: ExecutionPhase | null, routeStatus?: string | null) {
-  // Completed/archived routes (including legacy imports, which force every
-  // stop's serviceType to 'pickup' — see import-prep.js) always render fully
-  // done, same convention as the route-level phase overview above; the
-  // placement/pickup phase split only applies to routes still in progress.
-  if (executionPhase && routeStatus !== 'completed' && routeStatus !== 'archived') {
-    if (isStopSkippedForPhase(stop, executionPhase)) {
-      return executionPhase === 'pickup' ? 'Pickup skipped' : 'Placement skipped';
-    }
-    if (isStopCompletedForPhase(stop, executionPhase)) {
-      return executionPhase === 'pickup' ? 'Signs collected' : 'Signs placed';
-    }
-    // The route hasn't started yet, so there's nothing to be "awaiting" —
-    // the operator still needs to load the signs onto the vehicle.
-    if (routeStatus === 'planned' && executionPhase === 'placement') {
-      return 'Load signs';
-    }
-    return executionPhase === 'pickup' ? 'Awaiting pickup' : 'Awaiting placement';
-  }
-
-  if (stop.notes?.startsWith('[SKIPPED]')) return 'Signs skipped';
-  if (stop.actualDepartureTime) {
-    return stop.serviceType === 'pickup' ? 'Signs collected' : 'Signs placed';
-  }
-  if (stop.actualArrivalTime) return 'At stop';
-  return 'Signs pending';
 }
 
 function isPlacementPhase(status?: string | null, executionPhase?: string | null) {

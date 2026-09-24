@@ -617,17 +617,18 @@ export async function updateRouteCustomerInstructions(routeId: string, customerI
 export async function deleteRoute(routeId: string) {
   try {
     const client = getClient();
-    const { data: stops, errors: stopListErrors } = await client.models.Stop.list({
-      filter: { routeId: { eq: routeId } },
-    });
+    // A single unpaginated Stop.list call only sees the first page — routes
+    // with more stops than that would have the rest silently orphaned. Page
+    // through every stop first, same as listAllStopsForRoute's other callers.
+    const { stops, errors: stopListErrors } = await listAllStopsForRoute(routeId);
 
-    if (stopListErrors && stopListErrors.length > 0) {
+    if (stopListErrors.length > 0) {
       console.error('Errors fetching route stops for deletion:', stopListErrors);
       return { data: null, errors: stopListErrors };
     }
 
     const stopDeletes = await Promise.all(
-      ((stops as Array<{ id: string }>) || []).map((stop) => client.models.Stop.delete({ id: stop.id }))
+      (stops as Array<{ id: string }>).map((stop) => client.models.Stop.delete({ id: stop.id }))
     );
 
     const childErrors = stopDeletes.flatMap((result) => result.errors || []);

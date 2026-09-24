@@ -149,7 +149,7 @@ describe('adminDashboardOverview', () => {
 
       expect(summarizeRouteStatusCounts(routes)).toEqual({
         planned: 2,
-        signs_collected: 0,
+        signs_loaded: 0,
         signs_placed: 0,
         signs_picked_up: 0,
         signs_returned: 0,

@@ -54,7 +54,7 @@ type StopSummary = {
 
 const ROUTE_STATUS_META: Record<OrderedRouteStatus, { label: string; tone: BadgeProps['tone'] }> = {
   planned: { label: 'Planned', tone: 'neutral' },
-  signs_collected: { label: 'Signs collected', tone: 'info' },
+  signs_loaded: { label: 'Signs loaded', tone: 'info' },
   signs_placed: { label: 'Signs placed', tone: 'brand' },
   signs_picked_up: { label: 'Signs picked up', tone: 'warning' },
   signs_returned: { label: 'Signs returned', tone: 'warning' },

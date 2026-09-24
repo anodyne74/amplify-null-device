@@ -14,7 +14,7 @@ interface RouteTimelineProps {
 // back to the nearest field that was already being written at the time.
 const PHASE_TIMESTAMP: Record<RoutePhaseKey, (route: Route) => string | null | undefined> = {
   planned: (route) => route.createdAt,
-  signs_collected: (route) => route.loadConfirmedAt ?? route.actualStartTime,
+  signs_loaded: (route) => route.loadConfirmedAt ?? route.actualStartTime,
   signs_placed: (route) => route.placementEndTime,
   signs_picked_up: (route) => route.pickupEndTime ?? route.actualEndTime,
   signs_returned: (route) => route.unloadConfirmedAt,

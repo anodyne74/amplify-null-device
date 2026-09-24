@@ -1,4 +1,4 @@
-import { signsPlaced } from '@/lib/signRunTotals';
+import { groupByAgent, signsPlaced } from '@/lib/signRunTotals';
 
 export interface StopSummary {
   address?: string | null;
@@ -46,24 +46,8 @@ export function formatStopProperty(stop: StopSummary): string {
  * so sign counts always reconcile with the flat total.
  */
 export function groupStopsByAgent(stops: StopSummary[]): AgentStopGroup[] {
-  const order: string[] = [];
-  const byAgent = new Map<string, StopSummary[]>();
-
-  for (const stop of stops) {
-    const agent = stop.agent?.trim() || 'Unassigned';
-    if (!byAgent.has(agent)) {
-      byAgent.set(agent, []);
-      order.push(agent);
-    }
-    byAgent.get(agent)!.push(stop);
-  }
-
-  return order.map((agent) => {
-    const agentStops = byAgent.get(agent)!;
-    return {
-      agent,
-      stops: agentStops,
-      signCount: signsPlaced(agentStops),
-    };
-  });
+  return groupByAgent(stops).map((group) => ({
+    ...group,
+    signCount: signsPlaced(group.stops),
+  }));
 }

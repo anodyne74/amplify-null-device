@@ -1,6 +1,6 @@
 /**
  * Derives every portal's presentation of a route's place in its 6-phase
- * lifecycle: Planned -> Signs collected -> Signs placed -> Signs picked up
+ * lifecycle: Planned -> Signs loaded -> Signs placed -> Signs picked up
  * -> Signs returned -> Route completed.
  *
  * Originally scoped to the driving-mode "Driver Sign Run" flow, this is now
@@ -19,7 +19,7 @@ export type SignRunTrackState = 'done' | 'current' | 'upcoming';
 /** Canonical 6-phase key, in flow order — the single source of truth for phase display. */
 export type RoutePhaseKey =
   | 'planned'
-  | 'signs_collected'
+  | 'signs_loaded'
   | 'signs_placed'
   | 'signs_picked_up'
   | 'signs_returned'
@@ -28,7 +28,7 @@ export type RoutePhaseKey =
 /** ROUTE_PHASE_KEYS, in flow order. */
 export const ROUTE_PHASE_KEYS: RoutePhaseKey[] = [
   'planned',
-  'signs_collected',
+  'signs_loaded',
   'signs_placed',
   'signs_picked_up',
   'signs_returned',
@@ -37,10 +37,16 @@ export const ROUTE_PHASE_KEYS: RoutePhaseKey[] = [
 
 /** Human label for each phase key, in the same order as ROUTE_PHASE_KEYS — the
  *  single source of truth for phase names everywhere they're rendered
- *  (read-only overview trackers, badges, filters, summary counts). */
+ *  (read-only overview trackers, badges, filters, summary counts).
+ *
+ *  signs_loaded deliberately avoids the word "collected": that word is
+ *  reserved everywhere else in the app (Stop status text, the Unload/Finalise
+ *  stat, and the Signs Collected metric in CONTEXT.md) for signs recovered
+ *  during Pickup — a different phase, a different count. signs_loaded is
+ *  signs collected *from the customer* before Placement even starts. */
 export const ROUTE_PHASE_LABELS: Record<RoutePhaseKey, string> = {
   planned: 'Planned',
-  signs_collected: 'Signs collected',
+  signs_loaded: 'Signs loaded',
   signs_placed: 'Signs placed',
   signs_picked_up: 'Signs picked up',
   signs_returned: 'Signs returned',
@@ -87,7 +93,7 @@ export interface SignRunPhaseInfo {
 }
 
 const PHASE_ORDER: Array<{ key: RouteExecutionPhase; phase: RoutePhaseKey; label: string; action: string }> = [
-  { key: 'load', phase: 'signs_collected', label: 'Load', action: 'Load signs' },
+  { key: 'load', phase: 'signs_loaded', label: 'Load', action: 'Load signs' },
   { key: 'placement', phase: 'signs_placed', label: 'Placement', action: 'Place signs' },
   { key: 'pickup', phase: 'signs_picked_up', label: 'Pickup', action: 'Pick up signs' },
   { key: 'unload', phase: 'signs_returned', label: 'Unload', action: 'Return signs' },
@@ -199,7 +205,7 @@ export function getRoutePhaseKey(route: RoutePhaseInput): RoutePhaseKey {
   if (route.unloadConfirmedAt) return 'completed';
   if (route.pickupEndTime) return 'signs_picked_up';
   if (route.placementEndTime) return 'signs_placed';
-  if (route.loadConfirmedAt) return 'signs_collected';
+  if (route.loadConfirmedAt) return 'signs_loaded';
 
   // Oldest records predate these completion timestamps entirely — fall back
   // to the phase executionPhase/status currently point at, the only record

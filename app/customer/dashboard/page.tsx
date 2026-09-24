@@ -40,7 +40,7 @@ function presentationOf(route: OverviewRoute) {
 
 const ROUTE_STATUS_TONE: Record<RoutePhaseKey, BadgeProps['tone']> = {
   planned: 'neutral',
-  signs_collected: 'info',
+  signs_loaded: 'info',
   signs_placed: 'brand',
   signs_picked_up: 'warning',
   signs_returned: 'warning',

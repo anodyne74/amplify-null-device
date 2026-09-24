@@ -1,4 +1,4 @@
-import { signsPlaced, signsCollected, missingSigns, type SignCountStop } from './signRunTotals';
+import { signsPlaced, signsCollected, missingSigns, groupByAgent, type SignCountStop } from './signRunTotals';
 import { PICKUP_DONE_MARKER, PICKUP_SKIPPED_MARKER, upsertMarker } from './stopExecutionMarkers';
 
 function pickupDoneStop(overrides: Partial<SignCountStop> = {}): SignCountStop {
@@ -87,5 +87,31 @@ describe('missingSigns', () => {
 
   it('treats missing missingSignsCount as 0', () => {
     expect(missingSigns([{ missingSignsCount: null }, { missingSignsCount: undefined }])).toBe(0);
+  });
+});
+
+describe('groupByAgent', () => {
+  it('groups stops by agent, preserving first-seen order', () => {
+    const groups = groupByAgent([
+      { agent: "Betty O'Shea", numberOfSigns: 3 },
+      { agent: 'David Mun', numberOfSigns: 2 },
+      { agent: "Betty O'Shea", numberOfSigns: 1 },
+    ]);
+
+    expect(groups.map((g) => g.agent)).toEqual(["Betty O'Shea", 'David Mun']);
+    expect(groups[0].stops).toHaveLength(2);
+    expect(groups[1].stops).toHaveLength(1);
+  });
+
+  it('buckets stops with no agent under Unassigned rather than dropping them', () => {
+    const groups = groupByAgent([{ agent: null }, { agent: '  ' }]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].agent).toBe('Unassigned');
+    expect(groups[0].stops).toHaveLength(2);
+  });
+
+  it('returns an empty array for no stops', () => {
+    expect(groupByAgent([])).toEqual([]);
   });
 });

@@ -4,7 +4,7 @@ import type { RoutePhaseInput, RoutePhaseKey } from '@/lib/signRunPhase';
 
 const ROUTE_STATUS_TONE: Record<RoutePhaseKey, BadgeProps['tone']> = {
   planned: 'warning',
-  signs_collected: 'info',
+  signs_loaded: 'info',
   signs_placed: 'info',
   signs_picked_up: 'info',
   signs_returned: 'info',

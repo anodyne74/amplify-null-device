@@ -3,8 +3,8 @@ import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 describe('getRouteStatusPresentation', () => {
   it('reads each in-progress sub-phase off executionPhase, with a readable label', () => {
     expect(getRouteStatusPresentation({ status: 'in_progress', executionPhase: null })).toEqual({
-      badgeKey: 'signs_collected',
-      label: 'signs collected',
+      badgeKey: 'signs_loaded',
+      label: 'signs loaded',
     });
 
     expect(getRouteStatusPresentation({ status: 'in_progress', executionPhase: 'placement' })).toEqual({

@@ -1,76 +1,58 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
-import { getRouteWithStops, getCustomer, updateRouteExecution } from '@/lib/queries';
+import { getCustomer, updateRouteExecution } from '@/lib/queries';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
-import { getSignRunPhase } from '@/lib/signRunPhase';
+import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
+import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
 import { formatClockTime } from '@/lib/signRunBilling';
 import { reconcileSignRun } from '@/lib/signRunReconciliation';
-import type { Route, Stop } from '@/amplify/types';
+import type { Route } from '@/amplify/types';
+import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
 
+interface UnloadScreenExtra {
+  customerName: string;
+  yardAddress: string | null;
+}
+
+async function fetchUnloadScreenExtra(route: Route): Promise<UnloadScreenExtra> {
+  const [customerResult, orgSettingsResult] = await Promise.all([
+    getCustomer(route.customerId),
+    getOrganizationSettings(),
+  ]);
+  return {
+    customerName: (customerResult.data as { name?: string } | null)?.name ?? '',
+    yardAddress: orgSettingsResult.data?.address ?? null,
+  };
+}
+
 export default function OperatorUnloadPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const routeId = searchParams.get('id');
-
-  const [route, setRoute] = useState<Route | null>(null);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [customerName, setCustomerName] = useState('');
-  const [yardAddress, setYardAddress] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const {
+    routeId,
+    route,
+    setRoute,
+    stops,
+    loading,
+    phaseInfo,
+    isOnPhase: isUnloadScreen,
+    extra,
+  } = useSignRunPhaseScreen({ phaseIdx: 3, fetchExtra: fetchUnloadScreenExtra });
+  const customerName = extra?.customerName ?? '';
+  const yardAddress = extra?.yardAddress ?? null;
   const [error, setError] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<{ kind: 'start' | 'confirm'; time: string } | null>(null);
+  const { dialog, openDialog, closeDialog, submitting, setSubmitting } = useTimestampConfirmDialog<
+    'start' | 'confirm'
+  >();
 
-  useEffect(() => {
-    if (!routeId) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-      const [{ route: fetchedRoute, stops: fetchedStops }, orgSettingsResult] = await Promise.all([
-        getRouteWithStops(routeId as string),
-        getOrganizationSettings(),
-      ]);
-      if (cancelled) return;
-
-      setRoute(fetchedRoute as Route | null);
-      setStops(fetchedStops as Stop[]);
-      setYardAddress(orgSettingsResult.data?.address ?? null);
-
-      if (fetchedRoute) {
-        const customerResult = await getCustomer(fetchedRoute.customerId);
-        if (!cancelled) {
-          setCustomerName((customerResult.data as { name?: string } | null)?.name ?? '');
-        }
-      }
-      if (!cancelled) setLoading(false);
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [routeId]);
-
-  const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
   const reconciliation = useMemo(() => (route ? reconcileSignRun(route, stops) : null), [route, stops]);
-
-  const openDialog = (kind: 'start' | 'confirm') => setDialog({ kind, time: new Date().toISOString() });
-  const closeDialog = () => {
-    if (!submitting) setDialog(null);
-  };
 
   const handleStartUnload = async (iso: string) => {
     if (!route) return;
@@ -86,7 +68,7 @@ export default function OperatorUnloadPage() {
     }
 
     setRoute((prev) => (prev ? { ...prev, unloadStartedAt: iso } : prev));
-    setDialog(null);
+    closeDialog();
   };
 
   const handleConfirmUnload = async (iso: string) => {
@@ -102,7 +84,7 @@ export default function OperatorUnloadPage() {
     if (result.errors && result.errors.length > 0) {
       setError('Could not confirm the unload. Try again.');
       setSubmitting(false);
-      setDialog(null);
+      closeDialog();
       return;
     }
 
@@ -110,31 +92,17 @@ export default function OperatorUnloadPage() {
   };
 
   if (!routeId) {
-    return (
-      <div className={shellStyles.page}>
-        <p className={shellStyles.mutedText}>No route selected.</p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
-    );
+    return <NoRouteSelected />;
   }
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
-  const isUnloadScreen = route && phaseInfo && phaseInfo.phaseIdx === 3 && stops.length > 0;
-
-  if (!isUnloadScreen) {
+  if (!isUnloadScreen || !route || !phaseInfo) {
     return (
-      <div className={shellStyles.page}>
-        <Breadcrumbs items={[{ label: 'Today', href: '/operator/dashboard' }, { label: 'Unload' }]} />
-        <p className={shellStyles.mutedText}>
-          {route ? 'This route is not currently on the Unload phase.' : 'Route not found.'}
-        </p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
+      <PhaseNotReady
+        phaseLabel="Unload"
+        message={route ? 'This route is not currently on the Unload phase.' : 'Route not found.'}
+      />
     );
   }
 

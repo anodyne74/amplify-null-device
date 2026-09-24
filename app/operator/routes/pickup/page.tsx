@@ -1,33 +1,32 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { Card } from '@/app/components/ui/core/Card';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
-import { getRouteWithStops, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
-import { getSignRunPhase } from '@/lib/signRunPhase';
+import { getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
+import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
+import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
+import { settleSignRunStop } from '@/lib/signRunStopSettlement';
 import { formatClockTime } from '@/lib/signRunBilling';
 import { getAgentBadgeInitials } from '@/lib/customerDefaults';
 import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } from '@/lib/routeDetailHelpers';
-import {
-  getDisplayNotes,
-  isStopCompletedForPhase,
-  isStopSkippedForPhase,
-  PICKUP_DONE_MARKER,
-  PICKUP_SKIPPED_MARKER,
-  removeMarker,
-  upsertMarker,
-} from '@/lib/stopExecutionMarkers';
+import { getDisplayNotes, isStopCompletedForPhase, isStopSkippedForPhase } from '@/lib/stopExecutionMarkers';
 import type { Route, Stop } from '@/amplify/types';
+import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
 import stopCardStyles from '../../components/signRunStopCard.module.css';
 import styles from './page.module.css';
+
+async function fetchCustomerName(route: Route) {
+  const customerResult = await getCustomer(route.customerId);
+  return (customerResult.data as { name?: string } | null)?.name ?? '';
+}
 
 const RouteStopsMap = dynamic(
   () => import('@/app/operator/components/RouteStopsMap').then((mod) => mod.RouteStopsMap),
@@ -66,58 +65,25 @@ function getLegLine(stops: Stop[], current: Stop): string | null {
 
 export default function OperatorPickupPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const routeId = searchParams.get('id');
-
-  const [route, setRoute] = useState<Route | null>(null);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [customerName, setCustomerName] = useState('');
-  const [loading, setLoading] = useState(true);
+  const {
+    routeId,
+    route,
+    setRoute,
+    stops,
+    setStops,
+    extra: customerName,
+    loading,
+    phaseInfo,
+    isOnPhase: isPickupScreen,
+  } = useSignRunPhaseScreen({ phaseIdx: 2, fetchExtra: fetchCustomerName });
   const [error, setError] = useState<string | null>(null);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [missingLogging, setMissingLogging] = useState<Record<string, boolean>>({});
   const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
   const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
-  const [submitting, setSubmitting] = useState(false);
-  const [dialog, setDialog] = useState<{ kind: 'start' | 'complete'; time: string } | null>(null);
-
-  useEffect(() => {
-    if (!routeId) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-      const { route: fetchedRoute, stops: fetchedStops } = await getRouteWithStops(routeId as string);
-      if (cancelled) return;
-
-      setRoute(fetchedRoute as Route | null);
-      setStops(fetchedStops as Stop[]);
-
-      if (fetchedRoute) {
-        const customerResult = await getCustomer(fetchedRoute.customerId);
-        if (!cancelled) {
-          setCustomerName((customerResult.data as { name?: string } | null)?.name ?? '');
-        }
-      }
-      if (!cancelled) setLoading(false);
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [routeId]);
-
-  const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
-  const isPickupScreen = route && phaseInfo && phaseInfo.phaseIdx === 2 && stops.length > 0;
-
-  const openDialog = (kind: 'start' | 'complete') => setDialog({ kind, time: new Date().toISOString() });
-  const closeDialog = () => {
-    if (!submitting) setDialog(null);
-  };
+  const { dialog, openDialog, closeDialog, submitting, setSubmitting } = useTimestampConfirmDialog<
+    'start' | 'complete'
+  >();
 
   const handleStartPickup = async (iso: string) => {
     if (!route) return;
@@ -133,7 +99,7 @@ export default function OperatorPickupPage() {
     }
 
     setRoute((prev) => (prev ? { ...prev, pickupStartTime: iso } : prev));
-    setDialog(null);
+    closeDialog();
   };
 
   const openStops = useMemo(() => stops.filter((stop) => !isStopCompletedForPhase(stop, 'pickup')), [stops]);
@@ -148,52 +114,28 @@ export default function OperatorPickupPage() {
   const closeStopSheet = () => setActionSheetStopId(null);
 
   const settleStop = useCallback(
-    async (stopId: string, marker: string, otherMarker: string, reason?: string) => {
+    async (stopId: string, action: 'complete' | 'skip', reason?: string) => {
       setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-      let succeeded = false;
-      try {
-        const now = new Date().toISOString();
-        const existingStop = stops.find((stop) => stop.id === stopId);
-        const withMarker = upsertMarker(existingStop?.notes, marker, now, reason);
-        const nextNotes = removeMarker(withMarker, otherMarker);
-        const { errors } = await updateStopExecution(stopId, {
-          actualArrivalTime: existingStop?.actualArrivalTime ?? now,
-          actualDepartureTime: now,
-          notes: nextNotes,
-        });
-
-        if (!errors || errors.length === 0) {
-          setStops((prev) =>
-            prev.map((stop) =>
-              stop.id === stopId
-                ? {
-                    ...stop,
-                    actualArrivalTime: existingStop?.actualArrivalTime ?? now,
-                    actualDepartureTime: now,
-                    notes: nextNotes,
-                  }
-                : stop
-            )
-          );
-          succeeded = true;
-        } else {
-          setError('Could not save that stop. Try again.');
-        }
-      } catch {
-        setError('Could not save that stop. Try again.');
-      }
+      const succeeded = await settleSignRunStop({
+        stopId,
+        stops,
+        phase: 'pickup',
+        action,
+        reason,
+        onSettled: (id, patch) => {
+          setStops((prev) => prev.map((stop) => (stop.id === id ? { ...stop, ...patch } : stop)));
+        },
+        onError: setError,
+      });
       setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
       return succeeded;
     },
-    [stops]
+    [stops, setStops]
   );
 
-  const handleStopCompleted = useCallback(
-    (stopId: string) => settleStop(stopId, PICKUP_DONE_MARKER, PICKUP_SKIPPED_MARKER),
-    [settleStop]
-  );
+  const handleStopCompleted = useCallback((stopId: string) => settleStop(stopId, 'complete'), [settleStop]);
   const handleSkipStop = useCallback(
-    (stopId: string, reason: string) => settleStop(stopId, PICKUP_SKIPPED_MARKER, PICKUP_DONE_MARKER, reason),
+    (stopId: string, reason: string) => settleStop(stopId, 'skip', reason),
     [settleStop]
   );
 
@@ -227,7 +169,7 @@ export default function OperatorPickupPage() {
       }
       setMissingLogging((prev) => ({ ...prev, [stopId]: false }));
     },
-    [stops]
+    [stops, setStops]
   );
 
   // Undo does not re-stamp time/location — it only walks the count back down,
@@ -269,7 +211,7 @@ export default function OperatorPickupPage() {
       }
       setMissingLogging((prev) => ({ ...prev, [stopId]: false }));
     },
-    [stops]
+    [stops, setStops]
   );
 
   // Settling the last stop doesn't close the phase on its own — the design leaves the
@@ -295,39 +237,29 @@ export default function OperatorPickupPage() {
         setError('Could not close out pickup. Try again.');
       }
       setSubmitting(false);
-      setDialog(null);
+      closeDialog();
     },
-    [route, router]
+    [route, router, closeDialog, setSubmitting]
   );
 
   if (!routeId) {
-    return (
-      <div className={shellStyles.page}>
-        <p className={shellStyles.mutedText}>No route selected.</p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
-    );
+    return <NoRouteSelected />;
   }
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
-  if (!isPickupScreen) {
+  if (!isPickupScreen || !route || !phaseInfo) {
     return (
-      <div className={shellStyles.page}>
-        <Breadcrumbs items={[{ label: 'Today', href: '/operator/dashboard' }, { label: 'Pickup' }]} />
-        <p className={shellStyles.mutedText}>
-          {!route
+      <PhaseNotReady
+        phaseLabel="Pickup"
+        message={
+          !route
             ? 'Route not found.'
             : stops.length === 0
             ? 'This route has no stops yet.'
-            : 'This route is not currently on the Pickup phase.'}
-        </p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
+            : 'This route is not currently on the Pickup phase.'
+        }
+      />
     );
   }
 

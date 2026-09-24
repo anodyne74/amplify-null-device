@@ -7,7 +7,8 @@ import ProtectedRoute from '@/app/components/ProtectedRoute';
 import CustomerShell from '@/app/customer/components/CustomerShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
-import { getCustomerPortalContext, getUserSettings } from '@/lib/queries';
+import { getUserSettings } from '@/lib/queries';
+import { useCustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { useSessionTimeout, useLogout } from '@/app/auth/sessionManager';
 
 const CUSTOMER_NAV = [
@@ -32,7 +33,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const userId = useCurrentUserId();
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
   const [userDisplayName, setUserDisplayName] = useState('');
-  const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
+  const { role: customerRole } = useCustomerPortalContext();
   const { logout } = useLogout();
   const { setMode: applyThemeMode } = useThemeMode();
 
@@ -79,23 +80,6 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
       cancelled = true;
     };
   }, [applyThemeMode, fallbackDisplayName, userId]);
-
-  useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-
-    void getCustomerPortalContext(userId)
-      .then((ctx) => {
-        if (!cancelled) setCustomerRole(ctx.role);
-      })
-      .catch(() => {
-        if (!cancelled) setCustomerRole('account_owner');
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;

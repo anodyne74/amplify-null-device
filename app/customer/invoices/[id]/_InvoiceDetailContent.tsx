@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useCurrentUserId } from '@/lib/use-user-groups';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getInvoiceDetail, type InvoiceDetail } from '@/lib/queries/GetInvoiceDetail';
-import { getCustomerPortalContext } from '@/lib/queries';
+import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { buildInvoiceFileName } from '@/lib/invoiceFileName';
 import InvoiceLineItems from '@/app/customer/components/InvoiceLineItems';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
@@ -21,79 +20,43 @@ interface InvoiceDetailContentProps {
   };
 }
 
+// Read-only customer users aren't authorized to read invoices at the
+// AppSync layer, so skip the fetch entirely rather than let it error.
+async function fetchInvoice(context: CustomerPortalContext, invoiceId: string): Promise<InvoiceDetail | null> {
+  if (context.role === 'read_only') {
+    return null;
+  }
+
+  const result = await getInvoiceDetail({
+    invoiceId,
+    customerId: context.customerId,
+    userSub: context.userId,
+  });
+
+  if (result.errors && result.errors.length > 0) {
+    throw new Error('Failed to load invoice');
+  }
+  if (!result.data) {
+    throw new Error('Invoice not found');
+  }
+  return result.data;
+}
+
 /**
  * Invoice Detail Page
  * Displays invoice with line items and download option
  */
 export default function InvoiceDetailContent({ params }: InvoiceDetailContentProps) {
-  const userId = useCurrentUserId();
   const router = useRouter();
   const { showToast } = useToast();
-  const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [readOnly, setReadOnly] = useState(false);
+  const {
+    role,
+    extra: invoice,
+    loading,
+    error,
+  } = useCustomerPortalContext({ fetchExtra: (context) => fetchInvoice(context, params.id) });
+  const readOnly = role === 'read_only';
   const [pdfActionLoading, setPdfActionLoading] = useState(false);
-
-  useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-
-    const fetchInvoice = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const context = await getCustomerPortalContext(userId);
-
-        if (context.role === 'read_only') {
-          if (!cancelled) {
-            setReadOnly(true);
-          }
-          return;
-        }
-
-        if (!context.customerId) {
-          if (!cancelled) {
-            setError('Could not resolve your customer account');
-          }
-          return;
-        }
-
-        const result = await getInvoiceDetail({
-          invoiceId: params.id,
-          customerId: context.customerId,
-          userSub: userId,
-        });
-
-        if (cancelled) return;
-
-        if (result.errors && result.errors.length > 0) {
-          setError('Failed to load invoice');
-          console.error('Error fetching invoice:', result.errors);
-        } else if (!result.data) {
-          setError('Invoice not found');
-        } else {
-          setInvoice(result.data);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError('Failed to load invoice');
-          console.error('Error fetching invoice:', err);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchInvoice();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userId, params.id]);
 
   const handlePdfAction = async (action: 'view' | 'download') => {
     if (!invoice?.pdfS3Key) return;

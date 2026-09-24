@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useCurrentUserId } from '@/lib/use-user-groups';
 import type { Customer } from '@/amplify/types';
-import { getCustomer, getCustomerPortalContext, updateCustomer } from '@/lib/queries';
+import { getCustomer, updateCustomer } from '@/lib/queries';
+import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
@@ -20,13 +20,23 @@ function parseCcEmails(value: string) {
     .filter(Boolean);
 }
 
+async function fetchBillingDetailsExtra(context: CustomerPortalContext): Promise<Customer | null> {
+  const result = await getCustomer(context.customerId);
+  if (result.errors && result.errors.length > 0) {
+    const firstError = result.errors[0] as { message?: string } | undefined;
+    throw new Error(firstError?.message ?? 'Could not load billing details.');
+  }
+  return result.data as Customer | null;
+}
+
 export default function CustomerBillingDetailsPage() {
-  const userId = useCurrentUserId();
-  const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('read_only');
-  const [customerId, setCustomerId] = useState<string | null>(null);
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const {
+    role: customerRole,
+    customerId,
+    extra: customer,
+    loading,
+    error: loadError,
+  } = useCustomerPortalContext({ fetchExtra: fetchBillingDetailsExtra });
 
   const [billingEmail, setBillingEmail] = useState('');
   const [billingCcEmailsText, setBillingCcEmailsText] = useState('');
@@ -44,52 +54,14 @@ export default function CustomerBillingDetailsPage() {
   const [addressSuccess, setAddressSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-
-    void getCustomerPortalContext(userId)
-      .then(async (context) => {
-        if (cancelled) return;
-        setCustomerRole(context.role);
-        setCustomerId(context.customerId);
-
-        if (!context.customerId) {
-          setLoadError('Could not resolve your customer account.');
-          setLoading(false);
-          return;
-        }
-
-        const result = await getCustomer(context.customerId);
-        if (cancelled) return;
-
-        if (result.errors && result.errors.length > 0) {
-          const firstError = result.errors[0] as { message?: string } | undefined;
-          setLoadError(firstError?.message ?? 'Could not load billing details.');
-          setLoading(false);
-          return;
-        }
-
-        const nextCustomer = result.data as Customer | null;
-        setCustomer(nextCustomer);
-        setBillingEmail(nextCustomer?.email ?? '');
-        setBillingCcEmailsText((nextCustomer?.billingCcEmails ?? []).join(', '));
-        setAttachAgentBreakdown(nextCustomer?.attachAgentBreakdown ?? true);
-        setCompanyName(nextCustomer?.companyName ?? '');
-        setGstAbn(nextCustomer?.gstAbn ?? '');
-        setAddressLine1(nextCustomer?.addressLine1 ?? '');
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setLoadError('Could not load billing details.');
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
+    if (!customer) return;
+    setBillingEmail(customer.email ?? '');
+    setBillingCcEmailsText((customer.billingCcEmails ?? []).join(', '));
+    setAttachAgentBreakdown(customer.attachAgentBreakdown ?? true);
+    setCompanyName(customer.companyName ?? '');
+    setGstAbn(customer.gstAbn ?? '');
+    setAddressLine1(customer.addressLine1 ?? '');
+  }, [customer]);
 
   const handleSaveEmail = async () => {
     if (!customerId) return;

@@ -737,6 +737,31 @@ describe('queries', () => {
       expect(result.errors).toBeUndefined();
     });
 
+    it('should delete stops spanning multiple Stop.list pages, not just the first', async () => {
+      mockStopList
+        .mockResolvedValueOnce({
+          data: [{ id: 's1' }],
+          errors: undefined,
+          nextToken: 'next-page',
+        })
+        .mockResolvedValueOnce({
+          data: [{ id: 's2' }],
+          errors: undefined,
+          nextToken: null,
+        });
+      mockStopDelete.mockResolvedValue({ data: {}, errors: undefined });
+      mockRouteDelete.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
+
+      const result = await deleteRoute('r1');
+
+      expect(mockStopList).toHaveBeenCalledTimes(2);
+      expect(mockStopDelete).toHaveBeenCalledTimes(2);
+      expect(mockStopDelete).toHaveBeenCalledWith({ id: 's1' });
+      expect(mockStopDelete).toHaveBeenCalledWith({ id: 's2' });
+      expect(mockRouteDelete).toHaveBeenCalledWith({ id: 'r1' });
+      expect(result.errors).toBeUndefined();
+    });
+
     it('should stop when stop list returns errors', async () => {
       mockStopList.mockResolvedValue({
         data: [],

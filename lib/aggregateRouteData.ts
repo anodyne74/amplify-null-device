@@ -1,3 +1,5 @@
+import { getFinalizedRouteDistanceKm, getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
+
 export type AnalyticsPeriod = 'day' | 'week' | 'month' | 'quarter' | 'year';
 
 interface RouteAnalyticsRecord {
@@ -72,11 +74,8 @@ export function aggregateRouteData(
           ? route.stops.length
           : 0;
 
-    // Operators can correct duration/distance at finalisation — prefer that
-    // override so these figures agree with what's billed.
-    const durationMinutes = route.overrideDurationMinutes ?? route.actualDurationMinutes ?? 0;
-    const distanceKm =
-      route.overrideDistanceKm ?? (route.signsPlacedDistanceKm || 0) + (route.signsPickedUpDistanceKm || 0);
+    const durationMinutes = getFinalizedRouteDurationMinutes(route);
+    const distanceKm = getFinalizedRouteDistanceKm(route);
 
     group.routesCompleted += 1;
     group.totalDurationMinutes += durationMinutes;

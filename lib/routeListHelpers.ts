@@ -1,24 +1,21 @@
 import type { Route } from '@/amplify/types';
+import { getRouteDurationMinutes } from '@/lib/routeDetailHelpers';
 export { formatRouteDate } from '@/lib/routeDetailHelpers';
 
 export function formatRouteDuration(route: Route) {
-  if (typeof route.overrideDurationMinutes === 'number') {
-    return `${route.overrideDurationMinutes} min`;
-  }
+  const minutes = getRouteDurationMinutes(route);
+  if (minutes === null) return '—';
 
-  if (typeof route.actualDurationMinutes === 'number') {
-    return `${route.actualDurationMinutes} min`;
-  }
+  // getRouteDurationMinutes only falls through to its live elapsed-time
+  // estimate for in-progress routes with no override/actual duration set —
+  // that's the one case worth labelling, so callers know the number is still
+  // moving rather than settled.
+  const isLiveEstimate =
+    route.status === 'in_progress' &&
+    typeof route.overrideDurationMinutes !== 'number' &&
+    typeof route.actualDurationMinutes !== 'number';
 
-  if (route.status === 'in_progress' && route.actualStartTime) {
-    const minutes = Math.max(
-      1,
-      Math.round((Date.now() - new Date(route.actualStartTime).getTime()) / 60000)
-    );
-    return `${minutes} min (in progress)`;
-  }
-
-  return '—';
+  return isLiveEstimate ? `${minutes} min (in progress)` : `${minutes} min`;
 }
 
 // Route codes are formatted W{week}-{year}-{sequence}, e.g. "W48-23-001" — week
@@ -57,13 +54,22 @@ export function formatEstimatedDurationMinutes(minutes?: number | null) {
 
 // Operators can correct the measured duration/distance at finalisation (the
 // same overrideDurationMinutes/overrideDistanceKm fields invoicing reads) —
-// these mirror that fallback so customer-facing totals agree with billing.
-export function getFinalizedRouteDurationMinutes(route: Route) {
+// these mirror that fallback so customer-facing and billing totals agree.
+// Deliberately no live in-progress fallback: unlike getRouteDurationMinutes,
+// these are for settled figures (customer views, invoices, analytics), which
+// should hold still rather than tick upward while a route is still running.
+export function getFinalizedRouteDurationMinutes(
+  route?: Pick<Route, 'overrideDurationMinutes' | 'actualDurationMinutes'> | null
+) {
+  if (!route) return 0;
   if (typeof route.overrideDurationMinutes === 'number') return route.overrideDurationMinutes;
   return typeof route.actualDurationMinutes === 'number' ? route.actualDurationMinutes : 0;
 }
 
-export function getFinalizedRouteDistanceKm(route: Route) {
+export function getFinalizedRouteDistanceKm(
+  route?: Pick<Route, 'overrideDistanceKm' | 'signsPlacedDistanceKm' | 'signsPickedUpDistanceKm'> | null
+) {
+  if (!route) return 0;
   if (typeof route.overrideDistanceKm === 'number') return route.overrideDistanceKm;
   return (
     (typeof route.signsPlacedDistanceKm === 'number' ? route.signsPlacedDistanceKm : 0) +

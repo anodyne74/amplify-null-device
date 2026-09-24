@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import type { Route } from '@/amplify/types';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
-import { getFinalizedRouteMinutes } from '@/app/administrator/invoices/routeInvoiceMetrics';
+import { getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
 import { formatDuration } from '@/lib/signRunBilling';
 import styles from '../page.module.css';
 
@@ -86,7 +86,7 @@ export default function UninvoicedRoutesTable({ loading, routes, customerName }:
                       <td>{customerName(route.customerId)}</td>
                       <td>{route.assignedOperatorName ?? '—'}</td>
                       <td>{formatScheduledDate(route.scheduledDate)}</td>
-                      <td>{formatDuration(getFinalizedRouteMinutes(route))}</td>
+                      <td>{formatDuration(getFinalizedRouteDurationMinutes(route))}</td>
                       <td className={styles.numericCell}>{route.overrideStops ?? '—'}</td>
                       <td className={styles.numericCell}>{route.overrideSigns ?? '—'}</td>
                     </tr>

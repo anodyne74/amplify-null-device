@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { RateLine, Route } from '@/amplify/types';
 import type { CustomerOption, Invoice } from '@/app/administrator/invoices/types';
+import { getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
 
 type UseInvoiceDerivedFormEffectsParams = {
   invoices: Invoice[];
@@ -57,9 +58,7 @@ function getNextInvoiceNumber(invoices: Invoice[]) {
 }
 
 function getRouteDurationHours(route?: Route | null) {
-  if (!route) return 0;
-  const minutes = route.overrideDurationMinutes ?? route.actualDurationMinutes ?? 0;
-  return Number((minutes / 60).toFixed(2));
+  return Number((getFinalizedRouteDurationMinutes(route) / 60).toFixed(2));
 }
 
 export function useInvoiceDerivedFormEffects({

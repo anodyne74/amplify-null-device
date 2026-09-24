@@ -15,14 +15,13 @@ import {
   UsernameExistsException,
   UserPoolAddOnNotEnabledException,
 } from '@aws-sdk/client-cognito-identity-provider';
-import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import outputs from '@/amplify_outputs.json';
 import { sendInvitationEmail } from '@/lib/emails/invitationEmail';
 import { sendStaffInvitationEmail } from '@/lib/emails/staffInvitationEmail';
+import { verifyIamCaller, type VerifiedClaims } from '@/lib/server/verifyIamCaller';
 
 const cognitoClient = new CognitoIdentityProviderClient({});
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
-const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
 const graphqlEndpoint = process.env.AMPLIFY_DATA_URL || outputs.data?.url;
 const ALLOWED_GROUPS = ['customer', 'operator', 'administrator'] as const;
 
@@ -328,37 +327,6 @@ export async function createOrGetCognitoUser({
   return { sub, username, created, temporaryPassword };
 }
 
-type VerifiedClaims = {
-  sub?: string;
-  email?: string;
-  name?: string;
-  username?: string;
-  'cognito:username'?: string;
-  'cognito:groups'?: string[];
-};
-
-let _verifier: ReturnType<typeof CognitoJwtVerifier.create> | null | undefined;
-function getVerifier() {
-  if (_verifier === undefined) {
-    _verifier = userPoolId && userPoolClientId
-      ? CognitoJwtVerifier.create({
-          userPoolId,
-          tokenUse: 'id',
-          clientId: userPoolClientId,
-        })
-      : null;
-  }
-  return _verifier;
-}
-
-function getBearerToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
-  return authHeader.slice('Bearer '.length).trim();
-}
-
 async function writeAuditLog(authToken: string, input: {
   operatorId?: string;
   eventType: 'login' | 'logout' | 'access_denied' | 'data_access' | 'data_modification' | 'data_deletion';
@@ -645,49 +613,28 @@ async function deleteAdministratorRecord(authToken: string, administratorId: str
   });
 }
 
-async function verifyToken(token: string): Promise<VerifiedClaims | null> {
-  const verifier = getVerifier();
-  if (!verifier) {
-    return null;
+async function ensureAdmin(request: NextRequest): Promise<{ claims: VerifiedClaims & { sub: string }; token: string } | { response: NextResponse }> {
+  const auth = await verifyIamCaller(request, 'administrator');
+  if (!auth.ok) {
+    if (auth.status === 403) {
+      const forwardedFor = request.headers.get('x-forwarded-for') || undefined;
+      const userAgent = request.headers.get('user-agent') || undefined;
+      await writeAuditLog(auth.token, {
+        operatorId: auth.claims.sub,
+        eventType: 'access_denied',
+        resourceType: 'operator',
+        resourceId: auth.claims.sub || 'unknown',
+        action: 'admin_user_management_attempt',
+        status: 'failure',
+        reason: auth.error,
+        ipAddress: forwardedFor,
+        userAgent,
+      });
+    }
+    return { response: NextResponse.json({ error: auth.error }, { status: auth.status }) };
   }
 
-  try {
-    return (await verifier.verify(token)) as VerifiedClaims;
-  } catch {
-    return null;
-  }
-}
-
-async function ensureAdmin(request: NextRequest): Promise<{ claims: VerifiedClaims; token: string } | { response: NextResponse }> {
-  const token = getBearerToken(request);
-  if (!token) {
-    return { response: NextResponse.json({ error: 'Missing authorization token.' }, { status: 401 }) };
-  }
-
-  const claims = await verifyToken(token);
-  if (!claims) {
-    return { response: NextResponse.json({ error: 'Invalid authorization token.' }, { status: 401 }) };
-  }
-
-  const groups = Array.isArray(claims['cognito:groups']) ? claims['cognito:groups'] : [];
-  if (!groups.includes('administrator')) {
-    const forwardedFor = request.headers.get('x-forwarded-for') || undefined;
-    const userAgent = request.headers.get('user-agent') || undefined;
-    await writeAuditLog(token, {
-      operatorId: claims.sub,
-      eventType: 'access_denied',
-      resourceType: 'operator',
-      resourceId: claims.sub || 'unknown',
-      action: 'admin_user_management_attempt',
-      status: 'failure',
-      reason: 'Administrator role required.',
-      ipAddress: forwardedFor,
-      userAgent,
-    });
-    return { response: NextResponse.json({ error: 'Administrator role required.' }, { status: 403 }) };
-  }
-
-  return { claims, token };
+  return { claims: auth.claims, token: auth.token };
 }
 
 export async function POST(request: NextRequest) {
@@ -1079,7 +1026,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'username and groupName are required.' }, { status: 400 });
       }
 
-      const actorUsername = authResult.claims['cognito:username'] || authResult.claims.username;
+      const actorUsername = authResult.claims['cognito:username'];
       if (body.groupName === 'administrator' && actorUsername && actorUsername === body.username) {
         return NextResponse.json(
           { error: 'Removing your own administrator role is not allowed.' },

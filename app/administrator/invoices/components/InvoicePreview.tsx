@@ -9,7 +9,7 @@ import { Switch } from '@/app/components/ui/forms/Switch';
 import type { CustomerOption } from '@/app/administrator/invoices/types';
 import { formatStopProperty, groupStopsByAgent, type StopSummary } from '@/app/administrator/invoices/stopFormatting';
 import { computeDriverSplitPreview } from '@/app/administrator/invoices/driverSplitPreview';
-import { getFinalizedRouteDistanceKm, getFinalizedRouteMinutes } from '@/app/administrator/invoices/routeInvoiceMetrics';
+import { getFinalizedRouteDistanceKm, getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
 import { formatDuration } from '@/lib/signRunBilling';
 import { signsPlaced } from '@/lib/signRunTotals';
 import styles from './InvoicePreview.module.css';
@@ -120,7 +120,7 @@ export default function InvoicePreview({
     driverSplitPercent: customer?.driverSplitPercent,
   });
 
-  const routeMinutes = getFinalizedRouteMinutes(route);
+  const routeMinutes = getFinalizedRouteDurationMinutes(route);
   const routeDistanceKm = getFinalizedRouteDistanceKm(route);
   const routeNotFinalized = Boolean(route) && route?.status !== 'completed';
 

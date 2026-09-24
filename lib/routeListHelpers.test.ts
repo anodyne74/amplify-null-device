@@ -47,6 +47,35 @@ describe('routeListHelpers', () => {
     it('returns fallback marker when duration cannot be derived', () => {
       expect(formatRouteDuration(makeRoute({ status: 'planned', actualDurationMinutes: undefined }))).toBe('—');
     });
+
+    it('uses the pickup-phase elapsed time once a route is on its pickup leg', () => {
+      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2024-01-01T02:05:00Z').getTime());
+
+      expect(
+        formatRouteDuration(
+          makeRoute({
+            status: 'in_progress',
+            executionPhase: 'pickup',
+            actualStartTime: '2024-01-01T01:00:00Z',
+            pickupStartTime: '2024-01-01T02:00:00Z',
+          })
+        )
+      ).toBe('5 min (in progress)');
+
+      nowSpy.mockRestore();
+    });
+
+    it('derives a settled duration from the placement/pickup window when actualDurationMinutes is missing', () => {
+      expect(
+        formatRouteDuration(
+          makeRoute({
+            status: 'completed',
+            placementStartTime: '2024-01-01T01:00:00Z',
+            pickupEndTime: '2024-01-01T02:30:00Z',
+          })
+        )
+      ).toBe('90 min');
+    });
   });
 
   describe('formatEstimatedDurationMinutes', () => {
@@ -62,6 +91,11 @@ describe('routeListHelpers', () => {
   });
 
   describe('getFinalizedRouteDurationMinutes', () => {
+    it('returns 0 when there is no route', () => {
+      expect(getFinalizedRouteDurationMinutes(null)).toBe(0);
+      expect(getFinalizedRouteDurationMinutes(undefined)).toBe(0);
+    });
+
     it('prefers overrideDurationMinutes when set', () => {
       expect(
         getFinalizedRouteDurationMinutes(makeRoute({ actualDurationMinutes: 120, overrideDurationMinutes: 150 }))
@@ -78,6 +112,11 @@ describe('routeListHelpers', () => {
   });
 
   describe('getFinalizedRouteDistanceKm', () => {
+    it('returns 0 when there is no route', () => {
+      expect(getFinalizedRouteDistanceKm(null)).toBe(0);
+      expect(getFinalizedRouteDistanceKm(undefined)).toBe(0);
+    });
+
     it('prefers overrideDistanceKm when set', () => {
       expect(
         getFinalizedRouteDistanceKm(

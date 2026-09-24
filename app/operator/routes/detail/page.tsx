@@ -21,13 +21,12 @@ import { isAdmin } from '@/lib/amplify-config';
 import { getAgentBadgeInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import {
-  calculateRouteDistanceKm,
   formatCurrency,
   formatElapsedMinutes,
   formatRouteDate,
   getPrimaryAddressLine,
-  getRouteDurationMinutes,
 } from '@/lib/routeDetailHelpers';
+import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
 import { isStopCompletedForPhase } from '@/lib/stopExecutionMarkers';
 import { getStopStatusLabel } from '@/lib/stopStatusLabel';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
@@ -44,8 +43,7 @@ import { MAP_THEMES } from '@/lib/mapThemes';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
-import { getSignRunPhase, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS } from '@/lib/signRunPhase';
-import { signsCollected } from '@/lib/signRunTotals';
+import { getSignRunPhase } from '@/lib/signRunPhase';
 import type { Route, Stop } from '@/amplify/types';
 import { parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import styles from './page.module.css';
@@ -65,10 +63,6 @@ const RouteStopsMap = dynamic(
     loading: () => <div className={styles.mapLoading}>Loading map preview...</div>,
   }
 );
-
-function isStopCompleted(stop: Stop) {
-  return Boolean(stop.actualDepartureTime);
-}
 
 function RouteDetailContent() {
   const router = useRouter();
@@ -537,17 +531,8 @@ function RouteDetailContent() {
     return stops;
   })();
   const topVisibleStopId = visibleStops[0]?.id ?? null;
-  const completedStops = stops.filter((stop) => isStopCompleted(stop));
-  const summaryStops = route?.status === 'completed' || route?.status === 'archived'
-    ? completedStops.length > 0
-      ? completedStops
-      : stops
-    : stops;
-  const routeDurationMinutes = route ? getRouteDurationMinutes(route) : null;
-  const kilometersTravelled = calculateRouteDistanceKm(summaryStops);
+  const { routeDurationMinutes, kilometersTravelled, totalStops, totalSigns } = computeRouteSummaryStats(route, stops);
   const effectiveKilometersTravelled = route?.overrideDistanceKm ?? kilometersTravelled;
-  const totalStops = summaryStops.length;
-  const totalSigns = signsCollected(summaryStops);
   const completionAmount =
     routeDurationMinutes !== null && customerRatePerHour !== null
       ? Number(((routeDurationMinutes / 60) * customerRatePerHour).toFixed(2))
@@ -566,26 +551,16 @@ function RouteDetailContent() {
 
   // Read-only phase overview — advancing a route through its phases is now
   // exclusively done from the Load/Placement/Pickup/Unload/Finalise screens,
-  // so this links there rather than offering a transition button.
-  // Completed/archived routes always render as fully done — archived is a
-  // legacy status and no longer gets its own presentation (see
-  // lib/signRunPhase.ts).
-  const phaseOverview = (() => {
-    if (!route) return null;
-    if (route.status === 'completed' || route.status === 'archived') {
-      return { track: ['done', 'done', 'done', 'done', 'done', 'done'] as const, caption: ROUTE_PHASE_LABELS.completed, href: null as string | null };
-    }
-    const info = getSignRunPhase(route, stops.length);
-    if (!info) return null;
-    const currentIdx = info.overallTrack.indexOf('current');
-    const idx = currentIdx === -1 ? info.overallTrack.length - 1 : currentIdx;
-    const screen = PHASE_SCREEN_HREF[info.phaseIdx];
-    return {
-      track: info.overallTrack,
-      caption: `${ROUTE_PHASE_LABELS[ROUTE_PHASE_KEYS[idx]]} · Phase ${idx + 1} of 6`,
-      href: screen ? `/operator/routes/${screen}?id=${route.id}` : null,
-    };
-  })();
+  // so this links there rather than offering a transition button (see
+  // lib/routeDetailSummary.ts).
+  const phaseOverviewInfo = getPhaseOverview(route, stops);
+  const phaseOverview = phaseOverviewInfo && {
+    ...phaseOverviewInfo,
+    href:
+      phaseOverviewInfo.phaseIdx !== null && route
+        ? `/operator/routes/${PHASE_SCREEN_HREF[phaseOverviewInfo.phaseIdx]}?id=${route.id}`
+        : null,
+  };
 
   useEffect(() => {
     if (!route) return;

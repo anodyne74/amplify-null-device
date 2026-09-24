@@ -21,22 +21,19 @@ import { isAdmin } from '@/lib/amplify-config';
 import { generateAgentInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import {
-  calculateRouteDistanceKm,
   formatCurrency,
   formatElapsedMinutes,
   formatRouteDate,
   formatRouteDateTime,
-  getRouteDurationMinutes,
 } from '@/lib/routeDetailHelpers';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
 import { createStop, deleteRoute, getCustomer, getRouteWithStops, getUserSettings, updateRoute, updateStopExecution } from '@/lib/queries';
 import { deleteStop } from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
-import { getSignRunPhase, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS } from '@/lib/signRunPhase';
-import { signsCollected } from '@/lib/signRunTotals';
+import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
 import {
-  getMarkerTimestamp,
+  getPhaseCompletionTime,
   isStopCompletedForPhase,
   isStopSkippedForPhase,
   PICKUP_DONE_MARKER,
@@ -110,24 +107,6 @@ function getDurationTotalMinutes(values: {
     Math.max(0, values.signsPlacedMinutes) +
     Math.max(0, values.signsPickedUpMinutes) +
     Math.max(0, values.signsReturnedMinutes)
-  );
-}
-
-function isStopCompleted(stop: Stop) {
-  return Boolean(stop.actualDepartureTime);
-}
-
-function getPhaseCompletionTime(stop: Stop, phase: ExecutionPhase) {
-  if (phase === 'placement') {
-    return (
-      getMarkerTimestamp(stop.notes, PLACEMENT_DONE_MARKER) ||
-      getMarkerTimestamp(stop.notes, PLACEMENT_SKIPPED_MARKER)
-    );
-  }
-
-  return (
-    getMarkerTimestamp(stop.notes, PICKUP_DONE_MARKER) ||
-    getMarkerTimestamp(stop.notes, PICKUP_SKIPPED_MARKER)
   );
 }
 
@@ -672,34 +651,13 @@ function RouteDetailContent() {
   })();
   const currentPhaseStopIds = new Set(visibleStops.map((stop) => stop.id));
   const topVisibleStopId = visibleStops[0]?.id ?? null;
-  const completedStops = stops.filter((stop) => isStopCompleted(stop));
-  const summaryStops = route?.status === 'completed' || route?.status === 'archived'
-    ? completedStops.length > 0
-      ? completedStops
-      : stops
-    : stops;
   // Read-only phase overview — phase advancement now happens exclusively on the
   // operator sign-run screens (Load/Placement/Pickup/Unload/Finalise), so this
   // page no longer offers transition buttons, just a summary of where the
-  // route sits in the 6-phase flow. Completed/archived routes always render
-  // as fully done — archived is a legacy status and no longer gets its own
-  // presentation (see lib/signRunPhase.ts).
-  const phaseOverview = (() => {
-    if (!route) return null;
-    if (route.status === 'completed' || route.status === 'archived') {
-      return { track: ['done', 'done', 'done', 'done', 'done', 'done'] as const, caption: ROUTE_PHASE_LABELS.completed };
-    }
-    const info = getSignRunPhase(route, stops.length);
-    if (!info) return null;
-    const currentIdx = info.overallTrack.indexOf('current');
-    const idx = currentIdx === -1 ? info.overallTrack.length - 1 : currentIdx;
-    return { track: info.overallTrack, caption: `${ROUTE_PHASE_LABELS[ROUTE_PHASE_KEYS[idx]]} · Phase ${idx + 1} of 6` };
-  })();
+  // route sits in the 6-phase flow (see lib/routeDetailSummary.ts).
+  const phaseOverview = getPhaseOverview(route, stops);
 
-  const routeDurationMinutes = route ? getRouteDurationMinutes(route) : null;
-  const kilometersTravelled = calculateRouteDistanceKm(summaryStops);
-  const totalStops = summaryStops.length;
-  const totalSigns = signsCollected(summaryStops);
+  const { routeDurationMinutes, kilometersTravelled, totalStops, totalSigns } = computeRouteSummaryStats(route, stops);
   const billingDefaults = useMemo(() => {
     const durationMinutes = route?.overrideDurationMinutes ?? routeDurationMinutes ?? 0;
     const durationBuckets = deriveDurationBuckets(route, durationMinutes);

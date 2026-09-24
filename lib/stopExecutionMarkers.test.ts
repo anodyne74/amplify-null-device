@@ -2,6 +2,7 @@ import {
   getDisplayNotes,
   getMarkerReason,
   getMarkerTimestamp,
+  getPhaseCompletionTime,
   isStopCompletedForPhase,
   isStopSkippedForPhase,
   PICKUP_DONE_MARKER,
@@ -95,6 +96,31 @@ describe('isStopSkippedForPhase / isStopCompletedForPhase', () => {
     const stop = { notes, serviceType: 'delivery', actualDepartureTime: '2026-08-31T10:00:00.000Z' };
     expect(isStopCompletedForPhase(stop, 'pickup')).toBe(true);
     expect(isStopCompletedForPhase(stop, 'placement')).toBe(false);
+  });
+});
+
+describe('getPhaseCompletionTime', () => {
+  it('reads a placement-done marker', () => {
+    const notes = upsertMarker('', PLACEMENT_DONE_MARKER, '2026-08-31T10:00:00.000Z');
+    expect(getPhaseCompletionTime({ notes }, 'placement')).toBe('2026-08-31T10:00:00.000Z');
+  });
+
+  it('reads a placement-skipped marker as its completion time too', () => {
+    const notes = upsertMarker('', PLACEMENT_SKIPPED_MARKER, '2026-08-31T10:00:00.000Z', 'Gate locked / no access');
+    expect(getPhaseCompletionTime({ notes }, 'placement')).toBe('2026-08-31T10:00:00.000Z');
+  });
+
+  it('reads pickup-done/skipped markers independently of placement', () => {
+    const doneNotes = upsertMarker('', PICKUP_DONE_MARKER, '2026-08-31T11:00:00.000Z');
+    expect(getPhaseCompletionTime({ notes: doneNotes }, 'pickup')).toBe('2026-08-31T11:00:00.000Z');
+
+    const skippedNotes = upsertMarker('', PICKUP_SKIPPED_MARKER, '2026-08-31T11:05:00.000Z', 'Signs already on site');
+    expect(getPhaseCompletionTime({ notes: skippedNotes }, 'pickup')).toBe('2026-08-31T11:05:00.000Z');
+  });
+
+  it('returns null when neither marker is present', () => {
+    expect(getPhaseCompletionTime({ notes: null }, 'placement')).toBeNull();
+    expect(getPhaseCompletionTime({ notes: 'Gate code 4821' }, 'pickup')).toBeNull();
   });
 });
 

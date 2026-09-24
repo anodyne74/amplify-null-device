@@ -1,20 +1,37 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
-import { getRouteWithStops, getCustomer, updateRouteExecution } from '@/lib/queries';
+import { getCustomer, updateRouteExecution } from '@/lib/queries';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
-import { getSignRunPhase } from '@/lib/signRunPhase';
+import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
+import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
 import { formatClockTime } from '@/lib/signRunBilling';
 import { groupByAgent, signsPlaced } from '@/lib/signRunTotals';
 import type { Route, Stop } from '@/amplify/types';
+import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
+
+interface LoadScreenExtra {
+  customerName: string;
+  yardAddress: string | null;
+}
+
+async function fetchLoadScreenExtra(route: Route): Promise<LoadScreenExtra> {
+  const [customerResult, orgSettingsResult] = await Promise.all([
+    getCustomer(route.customerId),
+    getOrganizationSettings(),
+  ]);
+  return {
+    customerName: (customerResult.data as { name?: string } | null)?.name ?? '',
+    yardAddress: orgSettingsResult.data?.address ?? null,
+  };
+}
 
 interface AgentBreakdownRow {
   name: string;
@@ -50,53 +67,23 @@ function buildBreakdown(stops: Stop[]): AgentBreakdownRow[] {
 
 export default function OperatorLoadPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const routeId = searchParams.get('id');
-
-  const [route, setRoute] = useState<Route | null>(null);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [customerName, setCustomerName] = useState('');
-  const [yardAddress, setYardAddress] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const {
+    routeId,
+    route,
+    setRoute,
+    stops,
+    loading,
+    phaseInfo,
+    isOnPhase: isValidLoadScreen,
+    extra,
+  } = useSignRunPhaseScreen({ phaseIdx: 0, requireStops: false, fetchExtra: fetchLoadScreenExtra });
+  const customerName = extra?.customerName ?? '';
+  const yardAddress = extra?.yardAddress ?? null;
   const [error, setError] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<{ kind: 'start' | 'confirm'; time: string } | null>(null);
+  const { dialog, openDialog, closeDialog, submitting, setSubmitting } = useTimestampConfirmDialog<
+    'start' | 'confirm'
+  >();
 
-  useEffect(() => {
-    if (!routeId) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-      const [{ route: fetchedRoute, stops: fetchedStops }, orgSettingsResult] = await Promise.all([
-        getRouteWithStops(routeId as string),
-        getOrganizationSettings(),
-      ]);
-      if (cancelled) return;
-
-      setRoute(fetchedRoute as Route | null);
-      setStops(fetchedStops as Stop[]);
-      setYardAddress(orgSettingsResult.data?.address ?? null);
-
-      if (fetchedRoute) {
-        const customerResult = await getCustomer(fetchedRoute.customerId);
-        if (!cancelled) {
-          setCustomerName((customerResult.data as { name?: string } | null)?.name ?? '');
-        }
-      }
-      if (!cancelled) setLoading(false);
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [routeId]);
-
-  const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
   const breakdown = useMemo(() => buildBreakdown(stops), [stops]);
   const totals = useMemo(
     () =>
@@ -107,11 +94,6 @@ export default function OperatorLoadPage() {
     [breakdown]
   );
   const totalSigns = signsPlaced(stops);
-
-  const openDialog = (kind: 'start' | 'confirm') => setDialog({ kind, time: new Date().toISOString() });
-  const closeDialog = () => {
-    if (!submitting) setDialog(null);
-  };
 
   const handleStartLoad = async (iso: string) => {
     if (!route) return;
@@ -132,7 +114,7 @@ export default function OperatorLoadPage() {
     setRoute((prev) =>
       prev ? { ...prev, loadStartedAt: iso, actualStartTime: prev.actualStartTime ?? iso } : prev
     );
-    setDialog(null);
+    closeDialog();
   };
 
   const handleConfirmLoad = async (iso: string) => {
@@ -150,7 +132,7 @@ export default function OperatorLoadPage() {
     if (result.errors && result.errors.length > 0) {
       setError('Could not confirm the load. Try again.');
       setSubmitting(false);
-      setDialog(null);
+      closeDialog();
       return;
     }
 
@@ -162,31 +144,17 @@ export default function OperatorLoadPage() {
   };
 
   if (!routeId) {
-    return (
-      <div className={shellStyles.page}>
-        <p className={shellStyles.mutedText}>No route selected.</p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
-    );
+    return <NoRouteSelected />;
   }
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
-  const isValidLoadScreen = route && phaseInfo && phaseInfo.phaseIdx === 0;
-
-  if (!isValidLoadScreen) {
+  if (!isValidLoadScreen || !route || !phaseInfo) {
     return (
-      <div className={shellStyles.page}>
-        <Breadcrumbs items={[{ label: 'Today', href: '/operator/dashboard' }, { label: 'Load' }]} />
-        <p className={shellStyles.mutedText}>
-          {route ? 'This route is not currently on the Load phase.' : 'Route not found.'}
-        </p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
+      <PhaseNotReady
+        phaseLabel="Load"
+        message={route ? 'This route is not currently on the Load phase.' : 'Route not found.'}
+      />
     );
   }
 

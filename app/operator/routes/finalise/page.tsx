@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
-import { getRouteWithStops, updateRouteExecution } from '@/lib/queries';
-import { getSignRunPhase } from '@/lib/signRunPhase';
+import { updateRouteExecution } from '@/lib/queries';
+import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { reconcileSignRun } from '@/lib/signRunReconciliation';
 import {
   MIN_BILLED_MINUTES,
@@ -16,7 +15,8 @@ import {
   sumBilledMinutes,
   formatDuration,
 } from '@/lib/signRunBilling';
-import type { Route, RouteExecutionPhase, Stop } from '@/amplify/types';
+import type { RouteExecutionPhase } from '@/amplify/types';
+import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
 
@@ -29,41 +29,19 @@ const PHASE_ROWS: Array<{ key: RouteExecutionPhase; label: string }> = [
 
 export default function OperatorFinalisePage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const routeId = searchParams.get('id');
-
-  const [route, setRoute] = useState<Route | null>(null);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    routeId,
+    route,
+    stops,
+    loading,
+    phaseInfo,
+    isOnPhase: isFinaliseScreen,
+  } = useSignRunPhaseScreen({ phaseIdx: 4 });
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [billedOverride, setBilledOverride] = useState<Partial<Record<RouteExecutionPhase, number>>>({});
   const [kmOverride, setKmOverride] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!routeId) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-      const { route: fetchedRoute, stops: fetchedStops } = await getRouteWithStops(routeId as string);
-      if (cancelled) return;
-
-      setRoute(fetchedRoute as Route | null);
-      setStops(fetchedStops as Stop[]);
-      setLoading(false);
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [routeId]);
-
-  const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
   const summary = useMemo(() => (route ? reconcileSignRun(route, stops) : null), [route, stops]);
   const measured = useMemo(() => (route ? measuredPhaseMinutes(route) : null), [route]);
 
@@ -126,29 +104,17 @@ export default function OperatorFinalisePage() {
   };
 
   if (!routeId) {
-    return (
-      <div className={shellStyles.page}>
-        <p className={shellStyles.mutedText}>No route selected.</p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
-    );
+    return <NoRouteSelected />;
   }
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
-  const isFinaliseScreen = route && phaseInfo && phaseInfo.phaseIdx === 4 && stops.length > 0;
-
-  if (!isFinaliseScreen) {
+  if (!isFinaliseScreen || !route || !phaseInfo) {
     return (
-      <div className={shellStyles.page}>
-        <Breadcrumbs items={[{ label: 'Today', href: '/operator/dashboard' }, { label: 'Finalise' }]} />
-        <p className={shellStyles.mutedText}>{route ? 'This route is not ready to finalise yet.' : 'Route not found.'}</p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
+      <PhaseNotReady
+        phaseLabel="Finalise"
+        message={route ? 'This route is not ready to finalise yet.' : 'Route not found.'}
+      />
     );
   }
 

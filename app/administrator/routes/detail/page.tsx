@@ -23,19 +23,14 @@ import {
   formatRouteDate,
   formatRouteDateTime,
 } from '@/lib/routeDetailHelpers';
-import { getUserSettings, updateRoute, updateStopExecution } from '@/lib/queries';
+import { getUserSettings, updateRoute } from '@/lib/queries';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
+import { settleSignRunStop } from '@/lib/signRunStopSettlement';
 import {
   getPhaseCompletionTime,
   isStopCompletedForPhase,
   isStopSkippedForPhase,
-  PICKUP_DONE_MARKER,
-  PICKUP_SKIPPED_MARKER,
-  PLACEMENT_DONE_MARKER,
-  PLACEMENT_SKIPPED_MARKER,
-  removeMarker,
-  upsertMarker,
   type ExecutionPhase,
 } from '@/lib/stopExecutionMarkers';
 import { getStopStatusLabel } from '@/lib/stopStatusLabel';
@@ -186,24 +181,15 @@ function RouteDetailContent() {
     if (!route || route.status !== 'in_progress' || !route.executionPhase) return;
 
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-    try {
-      const completedAt = new Date().toISOString();
-      const phase = route.executionPhase as ExecutionPhase;
-      const completionMarker = phase === 'pickup' ? PICKUP_DONE_MARKER : PLACEMENT_DONE_MARKER;
-      const skipMarker = phase === 'pickup' ? PICKUP_SKIPPED_MARKER : PLACEMENT_SKIPPED_MARKER;
-      const existingStop = stops.find((s) => s.id === stopId);
-      const arrivedAt = existingStop?.actualArrivalTime ?? completedAt;
-      const withDoneMarker = upsertMarker(existingStop?.notes, completionMarker, completedAt);
-      const normalizedNotes = removeMarker(withDoneMarker, skipMarker);
-      const { errors } = await updateStopExecution(stopId, {
-        actualArrivalTime: arrivedAt,
-        actualDepartureTime: completedAt,
-        notes: normalizedNotes,
-      });
-      if (!errors || errors.length === 0) {
-        await refetchStops();
-      }
-    } catch { /* ignore */ }
+    await settleSignRunStop({
+      stopId,
+      stops,
+      phase: route.executionPhase as ExecutionPhase,
+      action: 'complete',
+      onSettled: () => {
+        void refetchStops();
+      },
+    });
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
   }, [refetchStops, route, stops]);
 
@@ -211,23 +197,15 @@ function RouteDetailContent() {
     if (!route || route.status !== 'in_progress' || !route.executionPhase) return;
 
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-    try {
-      const now = new Date().toISOString();
-      const phase = route.executionPhase as ExecutionPhase;
-      const skipMarker = phase === 'pickup' ? PICKUP_SKIPPED_MARKER : PLACEMENT_SKIPPED_MARKER;
-      const doneMarker = phase === 'pickup' ? PICKUP_DONE_MARKER : PLACEMENT_DONE_MARKER;
-      const existingStop = stops.find((s) => s.id === stopId);
-      const withSkipMarker = upsertMarker(existingStop?.notes, skipMarker, now);
-      const skippedNotes = removeMarker(withSkipMarker, doneMarker);
-      const { errors } = await updateStopExecution(stopId, {
-        actualArrivalTime: now,
-        actualDepartureTime: now,
-        notes: skippedNotes,
-      });
-      if (!errors || errors.length === 0) {
-        await refetchStops();
-      }
-    } catch { /* ignore */ }
+    await settleSignRunStop({
+      stopId,
+      stops,
+      phase: route.executionPhase as ExecutionPhase,
+      action: 'skip',
+      onSettled: () => {
+        void refetchStops();
+      },
+    });
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
   }, [refetchStops, route, stops]);
 

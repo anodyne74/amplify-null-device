@@ -225,6 +225,19 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByText('200 Second Ave')).toBeInTheDocument();
   });
 
+  // Smoke test for the shared lib/stopStatusLabel wiring — full label-case
+  // coverage (skip reasons, legacy-import fallback, etc.) lives in
+  // lib/stopStatusLabel.test.ts so it isn't duplicated per portal.
+  it('shows "Load signs" for a planned route\'s stops', async () => {
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('100 First St')).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByText('Load signs').length).toBeGreaterThan(0);
+  });
+
   it('shows "Add Stop" button', async () => {
     render(<RouteDetailPage />);
 

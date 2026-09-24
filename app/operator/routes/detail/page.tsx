@@ -28,14 +28,8 @@ import {
   getPrimaryAddressLine,
   getRouteDurationMinutes,
 } from '@/lib/routeDetailHelpers';
-import {
-  getMarkerReason,
-  isStopCompletedForPhase,
-  isStopSkippedForPhase,
-  PICKUP_SKIPPED_MARKER,
-  PLACEMENT_SKIPPED_MARKER,
-  type ExecutionPhase,
-} from '@/lib/stopExecutionMarkers';
+import { isStopCompletedForPhase } from '@/lib/stopExecutionMarkers';
+import { getStopStatusLabel } from '@/lib/stopStatusLabel';
 import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
 import {
   createStop,
@@ -74,31 +68,6 @@ const RouteStopsMap = dynamic(
 
 function isStopCompleted(stop: Stop) {
   return Boolean(stop.actualDepartureTime);
-}
-
-function getStopStatusLabel(stop: Stop, executionPhase?: ExecutionPhase | null, routeStatus?: string | null) {
-  // Completed/archived routes (including legacy imports, which force every
-  // stop's serviceType to 'pickup' — see import-prep.js) always render fully
-  // done; the placement/pickup phase split only applies to routes still in progress.
-  if (executionPhase && routeStatus !== 'completed' && routeStatus !== 'archived') {
-    if (isStopSkippedForPhase(stop, executionPhase)) {
-      const marker = executionPhase === 'pickup' ? PICKUP_SKIPPED_MARKER : PLACEMENT_SKIPPED_MARKER;
-      const reason = getMarkerReason(stop.notes, marker);
-      const base = executionPhase === 'pickup' ? 'Pickup skipped' : 'Placement skipped';
-      return reason ? `${base} · ${reason}` : base;
-    }
-    if (isStopCompletedForPhase(stop, executionPhase)) {
-      return executionPhase === 'pickup' ? 'Signs collected' : 'Signs placed';
-    }
-    return executionPhase === 'pickup' ? 'Awaiting pickup' : 'Awaiting placement';
-  }
-
-  if (stop.notes?.startsWith('[SKIPPED]')) return 'Signs skipped';
-  if (stop.actualDepartureTime) {
-    return stop.serviceType === 'pickup' ? 'Signs collected' : 'Signs placed';
-  }
-  if (stop.actualArrivalTime) return 'At stop';
-  return 'Signs pending';
 }
 
 function RouteDetailContent() {

@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
@@ -17,9 +15,8 @@ import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
-import { isAdmin } from '@/lib/amplify-config';
+import { useRouteDetailData } from '@/lib/use-route-detail-data';
 import { getAgentBadgeInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
-import { geocodeAddress } from '@/lib/googleMaps';
 import {
   formatCurrency,
   formatElapsedMinutes,
@@ -29,22 +26,11 @@ import {
 import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
 import { isStopCompletedForPhase } from '@/lib/stopExecutionMarkers';
 import { getStopStatusLabel } from '@/lib/stopStatusLabel';
-import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import {
-  createStop,
-  deleteRoute,
-  getCustomer,
-  getUserSettings,
-  listAllStopsForRoute,
-  updateRoute,
-} from '@/lib/queries';
+import { getUserSettings, updateRoute } from '@/lib/queries';
 import type { MapTheme } from '@/lib/mapThemes';
 import { MAP_THEMES } from '@/lib/mapThemes';
-import { deleteStop } from '@/lib/queries/DeleteStop';
-import { updateStop } from '@/lib/queries/UpdateStop';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { getSignRunPhase } from '@/lib/signRunPhase';
-import type { Route, Stop } from '@/amplify/types';
 import { parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import styles from './page.module.css';
 
@@ -69,37 +55,51 @@ function RouteDetailContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id') ?? '';
   const { user } = useAuthenticator();
-  const canManagePlanning = isAdmin(user);
 
-  const [route, setRoute] = useState<Route | null>(null);
-  const [customerName, setCustomerName] = useState<string>('');
-  const [customerRatePerHour, setCustomerRatePerHour] = useState<number | null>(null);
-  const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [customerDefaults, setCustomerDefaults] = useState<{
-    standingInstructions?: string | null;
-    defaultNumberOfSigns?: number | null;
-    defaultAgentInitials?: string | null;
-    agentOptions?: string[] | null;
-  } | null>(null);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    route,
+    stops,
+    loading,
+    error,
+    customerName,
+    customerRatePerHour,
+    customerAddressOrigin,
+    customerDefaults,
+    canManagePlanning,
+    availableAgentsForStops,
+    defaultAgentForStops,
+    refetchRoute,
+    showAddStop,
+    addingStop,
+    addStopError,
+    openAddStop,
+    closeAddStop,
+    addStop,
+    editingStopId,
+    editingStop,
+    editStopError,
+    startEditingStop,
+    cancelEditingStop,
+    editStop,
+    deletingStopId,
+    pendingDeleteStopId,
+    confirmDeleteStop,
+    cancelDeleteStop,
+    deleteStop,
+    draggingStopId,
+    startDragging,
+    clearDragging,
+    reordering,
+    reorderError,
+    dropStop,
+    moveStop,
+    deletingRoute,
+    routePendingDelete,
+    confirmDeleteRoute,
+    cancelDeleteRoute,
+    deleteRoute,
+  } = useRouteDetailData(id, user);
 
-  const [showAddStop, setShowAddStop] = useState(false);
-  const [addingStop, setAddingStop] = useState(false);
-  const [addStopError, setAddStopError] = useState<string | null>(null);
-
-  const [editingStopId, setEditingStopId] = useState<string | null>(null);
-  const [editingStop, setEditingStop] = useState(false);
-  const [editStopError, setEditStopError] = useState<string | null>(null);
-  const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
-  const [pendingDeleteStopId, setPendingDeleteStopId] = useState<string | null>(null);
-  const [deletingStopId, setDeletingStopId] = useState<string | null>(null);
-  const [reordering, setReordering] = useState(false);
-  const [reorderError, setReorderError] = useState<string | null>(null);
-
-  const [deletingRoute, setDeletingRoute] = useState(false);
-  const [routePendingDelete, setRoutePendingDelete] = useState(false);
   const [distanceOverrideKm, setDistanceOverrideKm] = useState('');
   const [savingDistanceOverride, setSavingDistanceOverride] = useState(false);
   const [distanceOverrideError, setDistanceOverrideError] = useState<string | null>(null);
@@ -124,116 +124,13 @@ function RouteDetailContent() {
     }
   }, [mapTheme]);
 
-  const fetchStops = useCallback(async () => {
-    const { stops: data, errors } = await listAllStopsForRoute(id);
-    if (!errors || errors.length === 0) {
-      const sorted = [...((data as unknown as Stop[]) || [])].sort(
-        (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
-      );
-      setStops(sorted);
-    }
-  }, [id]);
-
-  const persistStopOrder = useCallback(
-    async (orderedStops: Stop[]) => {
-      const client = generateClient<Schema>();
-      const updates = orderedStops.map((stop, index) =>
-        client.models.Stop.update({ id: stop.id, sequence: index + 1 })
-      );
-      await Promise.all(updates);
-      await fetchStops();
-    },
-    [fetchStops]
-  );
-
-  const reorderStops = useCallback(
-    async (reorderedStops: Stop[]) => {
-      const resequenced = reorderedStops.map((stop, index) => ({
-        ...stop,
-        sequence: index + 1,
-      }));
-
-      setStops(resequenced);
-      setReordering(true);
-      setReorderError(null);
-
-      try {
-        await persistStopOrder(resequenced);
-      } catch {
-        setReorderError('Failed to save stop order. Restoring latest server order...');
-        await fetchStops();
-      } finally {
-        setReordering(false);
-      }
-    },
-    [fetchStops, persistStopOrder]
-  );
-
   useEffect(() => {
-    async function fetchAll() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const routeResult = await getRouteDetail(id);
-        if (routeResult.errors || !routeResult.data) {
-          setError('Failed to load route.');
-          return;
-        }
-        const loadedRoute = routeResult.data as unknown as Route;
-        setRoute(loadedRoute);
-        setPhaseDistanceKm({
-          signs_placed: loadedRoute.signsPlacedDistanceKm ?? 0,
-          signs_picked_up: loadedRoute.signsPickedUpDistanceKm ?? 0,
-        });
-
-        const customerResult = await getCustomer(loadedRoute.customerId);
-        if (!customerResult.errors || customerResult.errors.length === 0) {
-          const customer = customerResult.data as {
-            name?: string;
-            addressLine1?: string | null;
-            billingRatePerHour?: number | null;
-            standingInstructions?: string | null;
-            defaultNumberOfSigns?: number | null;
-            defaultAgentInitials?: string | null;
-            agentOptions?: string[] | null;
-          } | null;
-          setCustomerName(customer?.name || 'Unknown customer');
-          setCustomerRatePerHour(typeof customer?.billingRatePerHour === 'number' ? customer.billingRatePerHour : null);
-          setCustomerDefaults({
-            standingInstructions: customer?.standingInstructions ?? null,
-            defaultNumberOfSigns: customer?.defaultNumberOfSigns ?? null,
-            defaultAgentInitials: customer?.defaultAgentInitials ?? null,
-            agentOptions: customer?.agentOptions ?? null,
-          });
-
-          if (customer?.addressLine1) {
-            try {
-              const resolved = await geocodeAddress(customer.addressLine1);
-              setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
-            } catch {
-              setCustomerAddressOrigin(null);
-            }
-          } else {
-            setCustomerAddressOrigin(null);
-          }
-        }
-
-        await fetchStops();
-      } catch (err) {
-        console.error('Error loading route detail:', err);
-        setError('Failed to load route.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    if (id) {
-      fetchAll();
-    } else {
-      setError('No route was specified.');
-      setLoading(false);
-    }
-  }, [id, fetchStops]);
+    if (!route) return;
+    setPhaseDistanceKm({
+      signs_placed: route.signsPlacedDistanceKm ?? 0,
+      signs_picked_up: route.signsPickedUpDistanceKm ?? 0,
+    });
+  }, [route]);
 
   useEffect(() => {
     if (!user?.userId) return;
@@ -276,14 +173,7 @@ function RouteDetailContent() {
       if (errors && errors.length > 0) {
         setDistanceOverrideError('Failed to save distance override.');
       } else {
-        setRoute((current) =>
-          current
-            ? {
-                ...current,
-                overrideDistanceKm: Number(parsedDistance.toFixed(2)),
-              }
-            : current
-        );
+        await refetchRoute();
         setDistanceOverrideSuccess('Distance override saved.');
       }
     } catch {
@@ -291,231 +181,6 @@ function RouteDetailContent() {
     }
 
     setSavingDistanceOverride(false);
-  };
-
-  const handleAddStop = async (values: {
-    address: string;
-    serviceType: 'delivery' | 'pickup' | 'inspection';
-    numberOfSigns?: number;
-    agent?: string;
-    isAuction?: boolean;
-    notes?: string;
-    latitude?: number;
-    longitude?: number;
-    formattedAddress?: string;
-  }) => {
-    if (!route) return;
-    if (!canManagePlanning) {
-      setAddStopError('Only administrators can add planned stops.');
-      return;
-    }
-
-    setAddingStop(true);
-    setAddStopError(null);
-    try {
-      let lat = values.latitude;
-      let lng = values.longitude;
-      let formatted = values.formattedAddress ?? values.address;
-
-      if (lat === undefined || lng === undefined) {
-        const geocoded = await geocodeAddress(values.address);
-        lat = geocoded.latitude;
-        lng = geocoded.longitude;
-        formatted = geocoded.formattedAddress;
-      }
-
-      const result = await createStop({
-        routeId: route.id,
-        customerId: route.customerId,
-        sequence: stops.length + 1,
-        address: values.address,
-        formattedAddress: formatted,
-        latitude: lat,
-        longitude: lng,
-        serviceType: values.serviceType,
-        numberOfSigns: values.numberOfSigns,
-        agent: values.agent,
-        isAuction: values.isAuction,
-        notes: values.notes,
-      });
-      if (result.errors && result.errors.length > 0) {
-        setAddStopError('Failed to add stop.');
-      } else {
-        setShowAddStop(false);
-        await fetchStops();
-      }
-    } catch {
-      setAddStopError('Failed to add stop.');
-    }
-    setAddingStop(false);
-  };
-
-  const handleEditStop = async (values: {
-    address: string;
-    serviceType: 'delivery' | 'pickup' | 'inspection';
-    numberOfSigns?: number;
-    agent?: string;
-    isAuction?: boolean;
-    notes?: string;
-    latitude?: number;
-    longitude?: number;
-    formattedAddress?: string;
-  }) => {
-    if (!editingStopId) return;
-    if (!canManagePlanning) {
-      setEditStopError('Only administrators can edit planned stops.');
-      return;
-    }
-
-    setEditingStop(true);
-    setEditStopError(null);
-    try {
-      let lat = values.latitude;
-      let lng = values.longitude;
-      let formatted = values.formattedAddress ?? values.address;
-
-      if (lat === undefined || lng === undefined) {
-        // The address field wasn't (re)resolved via autocomplete on this save — the
-        // common case when only another field changed. Reuse the stop's existing
-        // coordinates instead of re-geocoding, so an unchanged address can't fail
-        // the whole save on a flaky Maps API call (mirrors the fix for #58).
-        const originalStop = stops.find((s) => s.id === editingStopId);
-        const addressUnchanged = originalStop?.address?.trim() === values.address.trim();
-        if (
-          addressUnchanged &&
-          typeof originalStop?.latitude === 'number' &&
-          typeof originalStop?.longitude === 'number'
-        ) {
-          lat = originalStop.latitude;
-          lng = originalStop.longitude;
-          formatted = originalStop.formattedAddress ?? formatted;
-        } else {
-          const geocoded = await geocodeAddress(values.address);
-          lat = geocoded.latitude;
-          lng = geocoded.longitude;
-          formatted = geocoded.formattedAddress;
-        }
-      }
-
-      const result = await updateStop({
-        id: editingStopId,
-        address: values.address,
-        formattedAddress: formatted,
-        latitude: lat,
-        longitude: lng,
-        serviceType: values.serviceType,
-        numberOfSigns: values.numberOfSigns,
-        agent: values.agent,
-        isAuction: values.isAuction,
-        notes: values.notes,
-      });
-      if (result.errors && result.errors.length > 0) {
-        const firstError = result.errors[0] as { message?: string } | undefined;
-        setEditStopError(firstError?.message ?? 'Failed to update stop.');
-      } else {
-        setEditingStopId(null);
-        await fetchStops();
-      }
-    } catch (error) {
-      setEditStopError(error instanceof Error ? error.message : 'Failed to update stop.');
-    }
-    setEditingStop(false);
-  };
-
-  const handleDeleteStop = async (stopId: string) => {
-    if (!canManagePlanning || deletingStopId) {
-      return;
-    }
-    setDeletingStopId(stopId);
-    setReorderError(null);
-    try {
-      const result = await deleteStop(stopId);
-      if (result.errors && result.errors.length > 0) {
-        setReorderError('Failed to delete stop. Please try again.');
-        return;
-      }
-
-      const remaining = stops.filter((s) => s.id !== stopId);
-      const client = generateClient<Schema>();
-      await Promise.all(
-        remaining.map((s, idx) =>
-          client.models.Stop.update({ id: s.id, sequence: idx + 1 })
-        )
-      );
-      setPendingDeleteStopId(null);
-      await fetchStops();
-    } catch {
-      setReorderError('Failed to delete stop. Please try again.');
-    } finally {
-      setDeletingStopId(null);
-    }
-  };
-
-  const handleDropStop = async (targetStopId: string) => {
-    if (!canManagePlanning || !draggingStopId || draggingStopId === targetStopId || reordering) {
-      setDraggingStopId(null);
-      return;
-    }
-
-    const fromIndex = stops.findIndex((stop) => stop.id === draggingStopId);
-    const toIndex = stops.findIndex((stop) => stop.id === targetStopId);
-
-    if (fromIndex === -1 || toIndex === -1) {
-      setDraggingStopId(null);
-      return;
-    }
-
-    const reordered = [...stops];
-    const [moved] = reordered.splice(fromIndex, 1);
-    reordered.splice(toIndex, 0, moved);
-
-    try {
-      await reorderStops(reordered);
-    } catch {
-      setReorderError('Failed to save stop order. Restoring latest server order...');
-      await fetchStops();
-    } finally {
-      setDraggingStopId(null);
-    }
-  };
-
-  const handleMoveStop = async (stopId: string, direction: 'up' | 'down') => {
-    if (!canManagePlanning || reordering) {
-      return;
-    }
-
-    const currentIndex = stops.findIndex((stop) => stop.id === stopId);
-    if (currentIndex === -1) {
-      return;
-    }
-
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (targetIndex < 0 || targetIndex >= stops.length) {
-      return;
-    }
-
-    const reordered = [...stops];
-    const [moved] = reordered.splice(currentIndex, 1);
-    reordered.splice(targetIndex, 0, moved);
-
-    await reorderStops(reordered);
-  };
-
-  const handleDeleteRoute = async () => {
-    if (!route || !canManagePlanning || deletingRoute) return;
-
-    setDeletingRoute(true);
-    setError(null);
-
-    const result = await deleteRoute(route.id);
-    if (result.errors && result.errors.length > 0) {
-      setError('Failed to delete route.');
-      setDeletingRoute(false);
-      setRoutePendingDelete(false);
-      return;
-    }
-
-    router.push('/operator/routes');
   };
 
   const planningLocked = route?.status !== 'planned';
@@ -537,15 +202,6 @@ function RouteDetailContent() {
     routeDurationMinutes !== null && customerRatePerHour !== null
       ? Number(((routeDurationMinutes / 60) * customerRatePerHour).toFixed(2))
       : null;
-  const availableAgentsForStops = useMemo(() => {
-    const customerAgents = customerDefaults?.agentOptions ?? [];
-    const routeAgents = stops
-      .map((stop) => stop.agent?.trim())
-      .filter((agent): agent is string => Boolean(agent));
-
-    return Array.from(new Set([...customerAgents, ...routeAgents]));
-  }, [customerDefaults?.agentOptions, stops]);
-  const defaultAgentForStops = customerDefaults?.defaultAgentInitials ?? availableAgentsForStops[0] ?? undefined;
   const placementDistance = phaseDistanceKm.signs_placed;
   const pickupDistance = phaseDistanceKm.signs_picked_up;
 
@@ -580,6 +236,11 @@ function RouteDetailContent() {
     const screen = info ? PHASE_SCREEN_HREF[info.phaseIdx] : undefined;
     router.replace(screen ? `/operator/routes/${screen}?id=${route.id}` : '/operator/routes');
   }, [route, stops.length, router]);
+
+  const handleConfirmDeleteRoute = async () => {
+    const ok = await deleteRoute();
+    if (ok) router.push('/operator/routes');
+  };
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
   if (route?.status === 'in_progress') {
@@ -619,7 +280,7 @@ function RouteDetailContent() {
                     size="sm"
                     variant="danger"
                     loading={deletingRoute}
-                    onClick={() => setRoutePendingDelete(true)}
+                    onClick={confirmDeleteRoute}
                   >
                     {deletingRoute ? 'Deleting...' : 'Delete Route'}
                   </Button>
@@ -798,11 +459,8 @@ function RouteDetailContent() {
             {showAddStop && !planningLocked && (
               <Card title="Add Stop">
                 <StopForm
-                  onSubmit={handleAddStop}
-                  onCancel={() => {
-                    setShowAddStop(false);
-                    setAddStopError(null);
-                  }}
+                  onSubmit={addStop}
+                  onCancel={closeAddStop}
                   addressSearchOrigin={customerAddressOrigin}
                   standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                   defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
@@ -831,7 +489,7 @@ function RouteDetailContent() {
               title={`Stops (${visibleStops.length})`}
               action={
                 canManagePlanning && !planningLocked && !showAddStop ? (
-                  <Button size="sm" onClick={() => setShowAddStop(true)}>
+                  <Button size="sm" onClick={openAddStop}>
                     Add Stop
                   </Button>
                 ) : undefined
@@ -853,11 +511,8 @@ function RouteDetailContent() {
                             isAuction: Boolean(stop.isAuction),
                             notes: stop.notes,
                           }}
-                          onSubmit={handleEditStop}
-                          onCancel={() => {
-                            setEditingStopId(null);
-                            setEditStopError(null);
-                          }}
+                          onSubmit={editStop}
+                          onCancel={cancelEditingStop}
                           addressSearchOrigin={customerAddressOrigin}
                           standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                           defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
@@ -885,7 +540,7 @@ function RouteDetailContent() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => { void handleMoveStop(stop.id, 'up'); }}
+                        onClick={() => { void moveStop(stop.id, 'up'); }}
                         disabled={index === 0 || reordering}
                       >
                         Move Up
@@ -893,7 +548,7 @@ function RouteDetailContent() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => { void handleMoveStop(stop.id, 'down'); }}
+                        onClick={() => { void moveStop(stop.id, 'down'); }}
                         disabled={index === visibleStops.length - 1 || reordering}
                       >
                         Move Down
@@ -901,7 +556,7 @@ function RouteDetailContent() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => setEditingStopId(stop.id)}
+                        onClick={() => startEditingStop(stop.id)}
                         disabled={reordering || !!deletingStopId}
                       >
                         Edit
@@ -912,7 +567,7 @@ function RouteDetailContent() {
                             size="sm"
                             variant="danger"
                             loading={deletingStopId === stop.id}
-                            onClick={() => { void handleDeleteStop(stop.id); }}
+                            onClick={() => { void deleteStop(stop.id); }}
                             disabled={reordering || !!deletingStopId}
                           >
                             {deletingStopId === stop.id ? 'Deleting...' : 'Confirm Delete'}
@@ -920,7 +575,7 @@ function RouteDetailContent() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => setPendingDeleteStopId(null)}
+                            onClick={cancelDeleteStop}
                             disabled={reordering || !!deletingStopId}
                           >
                             Cancel
@@ -930,7 +585,7 @@ function RouteDetailContent() {
                         <Button
                           size="sm"
                           variant="danger"
-                          onClick={() => setPendingDeleteStopId(stop.id)}
+                          onClick={() => confirmDeleteStop(stop.id)}
                           disabled={reordering || !!deletingStopId}
                         >
                           Delete
@@ -953,14 +608,14 @@ function RouteDetailContent() {
                       isCompleted={completedStop}
                       isDragging={draggingStopId === stop.id}
                       draggable={canManagePlanning && !planningLocked && !reordering}
-                      onDragStart={() => setDraggingStopId(stop.id)}
+                      onDragStart={() => startDragging(stop.id)}
                       onDragOver={(event) => {
                         if (canManagePlanning && !planningLocked) {
                           event.preventDefault();
                         }
                       }}
-                      onDrop={() => { void handleDropStop(stop.id); }}
-                      onDragEnd={() => setDraggingStopId(null)}
+                      onDrop={() => { void dropStop(stop.id); }}
+                      onDragEnd={clearDragging}
                       actions={stopActions}
                     />
                   );
@@ -978,10 +633,8 @@ function RouteDetailContent() {
         confirmLabel="Delete"
         tone="danger"
         busy={deletingRoute}
-        onConfirm={() => void handleDeleteRoute()}
-        onCancel={() => {
-          if (!deletingRoute) setRoutePendingDelete(false);
-        }}
+        onConfirm={() => void handleConfirmDeleteRoute()}
+        onCancel={cancelDeleteRoute}
       />
     </div>
   );

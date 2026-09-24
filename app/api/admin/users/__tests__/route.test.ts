@@ -87,7 +87,29 @@ describe('admin users API', () => {
 
     const response = await POST(request);
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ error: 'Missing authorization token.' });
+    await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' });
+  });
+
+  it('returns 403 and audit-logs the denied attempt for a verified non-administrator caller', async () => {
+    verifyMock.mockResolvedValue({ sub: 'sub-op', 'cognito:groups': ['operator'] });
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) } as any);
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsers' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden: admin access required' });
+
+    const auditCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('CreateAuditLog')
+    );
+    expect(auditCall).toBeDefined();
+    expect(JSON.parse(auditCall![1].body).variables.input).toEqual(
+      expect.objectContaining({ eventType: 'access_denied', resourceId: 'sub-op', reason: 'Forbidden: admin access required' })
+    );
   });
 
   it('blocks self removal of administrator group', async () => {

@@ -17,7 +17,7 @@ import { RouteForm, type RouteDraftStop } from '@/app/operator/components/RouteF
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
-import { createRoute, createStop, getRouteWithStops } from '@/lib/queries';
+import { createRoute, createStopsForRoute, getRouteWithStops } from '@/lib/queries';
 import { parseScheduleText } from '@/lib/parseSchedule';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
 import styles from './page.module.css';
@@ -251,38 +251,16 @@ export default function NewRoutePage() {
       }
 
       if (result.data?.id) {
-        const failedStops: string[] = [];
-        for (let index = 0; index < values.stops.length; index += 1) {
-          const stop = values.stops[index];
-          const stopResult = await createStop({
-            routeId: result.data.id,
-            customerId: values.customerId,
-            sequence: index + 1,
-            address: stop.address,
-            serviceType: stop.serviceType,
-            numberOfSigns: stop.numberOfSigns,
-            agent: stop.agent,
-            isAuction: stop.isAuction,
-            latitude: stop.latitude,
-            longitude: stop.longitude,
-            formattedAddress: stop.formattedAddress,
-            notes: stop.notes,
-          });
-
-          if (stopResult.errors && stopResult.errors.length > 0) {
-                const stopErrorMessage = (stopResult.errors as Array<{ message?: string }>)
-              .map((entry) => entry.message ?? String(entry))
-              .join('; ');
-                const failure = `#${index + 1} (${stop.address || 'Unknown address'}): ${stopErrorMessage || 'Unknown stop creation error'}`;
-            failedStops.push(failure);
-          }
-        }
+        const stopResults = await createStopsForRoute(result.data.id, values.customerId, values.stops);
+        const failedStops = stopResults
+          .filter((stopResult) => !stopResult.success)
+          .map((stopResult) => `#${stopResult.index + 1} (${stopResult.address || 'Unknown address'}): ${stopResult.errorMessage}`);
 
         if (failedStops.length > 0) {
           setSubmitError(`Route was created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}`);
-              setIsSubmitting(false);
-              return;
-            }
+          setIsSubmitting(false);
+          return;
+        }
 
         router.push(`/administrator/routes/detail?id=${result.data.id}`);
       } else {
@@ -473,30 +451,10 @@ export default function NewRoutePage() {
       if (!routeId) { setImportError('Route created but ID not returned.'); setIsUploading(false); return; }
 
       // 3. Create stops
-      const failedStops: string[] = [];
-      for (let i = 0; i < importDraftStops.length; i++) {
-        const stop = importDraftStops[i];
-        const stopResult = await createStop({
-          routeId,
-          customerId: importCustomerId,
-          sequence: i + 1,
-          address: stop.address,
-          serviceType: stop.serviceType,
-          numberOfSigns: stop.numberOfSigns,
-          agent: stop.agent,
-          isAuction: stop.isAuction,
-          latitude: stop.latitude,
-          longitude: stop.longitude,
-          formattedAddress: stop.formattedAddress,
-          notes: stop.notes,
-        });
-        if (stopResult.errors && stopResult.errors.length > 0) {
-          const stopErrorMessage = (stopResult.errors as Array<{ message?: string }>)
-            .map((entry) => entry.message ?? String(entry))
-            .join('; ');
-          failedStops.push(`#${i + 1} (${stop.address || 'Unknown address'}): ${stopErrorMessage || 'Unknown stop creation error'}`);
-        }
-      }
+      const stopResults = await createStopsForRoute(routeId, importCustomerId, importDraftStops);
+      const failedStops = stopResults
+        .filter((stopResult) => !stopResult.success)
+        .map((stopResult) => `#${stopResult.index + 1} (${stopResult.address || 'Unknown address'}): ${stopResult.errorMessage}`);
 
       if (failedStops.length > 0) {
         setImportError(`Route created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}`);

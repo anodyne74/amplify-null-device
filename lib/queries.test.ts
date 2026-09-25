@@ -10,6 +10,7 @@ const mockRouteCreate = jest.fn();
 const mockRouteUpdate = jest.fn();
 const mockRouteDelete = jest.fn();
 const mockStopList = jest.fn();
+const mockStopCreate = jest.fn();
 const mockStopDelete = jest.fn();
 const mockStopUpdate = jest.fn();
 const mockInvoiceList = jest.fn();
@@ -48,6 +49,7 @@ jest.mock('aws-amplify/data', () => ({
       },
       Stop: {
         list: mockStopList,
+        create: mockStopCreate,
         delete: mockStopDelete,
         update: mockStopUpdate,
       },
@@ -103,6 +105,7 @@ import {
   updateRouteExecution,
   updateStopExecution,
   deleteRoute,
+  createStopsForRoute,
   listCustomerUsers,
   listAllCustomerUsers,
   createCustomerUser,
@@ -798,6 +801,63 @@ describe('queries', () => {
       expect(result.data).toBeNull();
       expect(result.errors).toHaveLength(1);
       consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('createStopsForRoute', () => {
+    it('issues all stop-creation calls concurrently, not one at a time', async () => {
+      const resolvers: Array<(value: { data: { id: string }; errors: undefined }) => void> = [];
+      mockStopCreate.mockImplementation(
+        () => new Promise((resolve) => { resolvers.push(resolve); })
+      );
+
+      const stops = [
+        { address: 'a1', serviceType: 'delivery' as const },
+        { address: 'a2', serviceType: 'delivery' as const },
+        { address: 'a3', serviceType: 'delivery' as const },
+      ];
+
+      const resultPromise = createStopsForRoute('r1', 'c1', stops);
+
+      // Flush microtasks without resolving any create call. A sequential
+      // await-in-a-loop implementation would have only issued the first call
+      // by this point; a concurrent implementation issues all of them upfront.
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(mockStopCreate).toHaveBeenCalledTimes(3);
+
+      resolvers.forEach((resolve, i) => resolve({ data: { id: `s${i}` }, errors: undefined }));
+      const results = await resultPromise;
+
+      expect(results).toHaveLength(3);
+      expect(results.every((r) => r.success)).toBe(true);
+    });
+
+    it('reports per-stop success and failure without failing the whole batch', async () => {
+      mockStopCreate
+        .mockResolvedValueOnce({ data: { id: 's1' }, errors: undefined })
+        .mockResolvedValueOnce({ data: null, errors: [{ message: 'address invalid' }] })
+        .mockResolvedValueOnce({ data: { id: 's3' }, errors: undefined });
+
+      const stops = [
+        { address: 'a1', serviceType: 'delivery' as const },
+        { address: 'a2', serviceType: 'delivery' as const },
+        { address: 'a3', serviceType: 'delivery' as const },
+      ];
+
+      const results = await createStopsForRoute('r1', 'c1', stops);
+
+      expect(results).toEqual([
+        { index: 0, address: 'a1', success: true },
+        { index: 1, address: 'a2', success: false, errorMessage: 'address invalid' },
+        { index: 2, address: 'a3', success: true },
+      ]);
+      expect(mockStopCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ routeId: 'r1', customerId: 'c1', sequence: 1, address: 'a1' })
+      );
+      expect(mockStopCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ routeId: 'r1', customerId: 'c1', sequence: 2, address: 'a2' })
+      );
     });
   });
 

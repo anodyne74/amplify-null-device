@@ -716,6 +716,65 @@ export async function createStop(input: {
   }
 }
 
+export interface CreateStopsForRouteInput {
+  address: string;
+  serviceType: 'delivery' | 'pickup' | 'inspection';
+  numberOfSigns?: number;
+  agent?: string;
+  isAuction?: boolean;
+  latitude?: number;
+  longitude?: number;
+  formattedAddress?: string;
+  notes?: string;
+}
+
+export interface CreateStopsForRouteResult {
+  index: number;
+  address: string;
+  success: boolean;
+  errorMessage?: string;
+}
+
+/**
+ * Create every stop for a newly-created route concurrently, rather than one round
+ * trip at a time — for routes with 15-28 stops a serial loop measurably delayed
+ * route creation. Returns a per-stop success/failure result (in input order) so
+ * callers can report which specific stops failed and why.
+ */
+export async function createStopsForRoute(
+  routeId: string,
+  customerId: string,
+  stops: CreateStopsForRouteInput[]
+): Promise<CreateStopsForRouteResult[]> {
+  return Promise.all(
+    stops.map(async (stop, index) => {
+      const stopResult = await createStop({
+        routeId,
+        customerId,
+        sequence: index + 1,
+        address: stop.address,
+        serviceType: stop.serviceType,
+        numberOfSigns: stop.numberOfSigns,
+        agent: stop.agent,
+        isAuction: stop.isAuction,
+        latitude: stop.latitude,
+        longitude: stop.longitude,
+        formattedAddress: stop.formattedAddress,
+        notes: stop.notes,
+      });
+
+      if (stopResult.errors && stopResult.errors.length > 0) {
+        const errorMessage = (stopResult.errors as Array<{ message?: string }>)
+          .map((entry) => entry.message ?? String(entry))
+          .join('; ') || 'Unknown stop creation error';
+        return { index, address: stop.address, success: false, errorMessage };
+      }
+
+      return { index, address: stop.address, success: true };
+    })
+  );
+}
+
 /**
  * Create an invoice for a customer.
  */

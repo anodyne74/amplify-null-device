@@ -5,7 +5,7 @@ import type { Route } from '@/amplify/types';
 import { compareRouteIdDesc } from '@/lib/routeListHelpers';
 import { deleteRoute } from '@/lib/queries';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
+import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS, type RoutePhaseKey } from '@/lib/signRunPhase';
 
 export type StatusFilter = RoutePhaseKey | 'all';
@@ -15,31 +15,23 @@ export type StatusFilter = RoutePhaseKey | 'all';
 export const ROUTE_STATUS_FILTERS: StatusFilter[] = ['all', ...ROUTE_PHASE_KEYS];
 
 export function useRoutesList(canDeleteRoutes: boolean) {
-  const [routes, setRoutes] = useState<Route[]>([]);
+  const { routes: liveRoutes, loading: routesLoading, error: routesError } = useLiveAllRoutes();
   const [customersById, setCustomersById] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [customersLoading, setCustomersLoading] = useState(true);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [deletingRouteId, setDeletingRouteId] = useState<string | null>(null);
   const [routePendingDelete, setRoutePendingDelete] = useState<Route | null>(null);
+  // Optimistic overlay: a successfully deleted route disappears immediately
+  // rather than waiting for the delete event to arrive back over the live
+  // subscription.
+  const [locallyDeletedIds, setLocallyDeletedIds] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
-    async function fetchRoutes() {
-      setLoading(true);
-      setError(null);
+    async function fetchCustomers() {
+      setCustomersLoading(true);
 
-      const [routesResult, customersResult] = await Promise.all([
-        listAllRoutes({ limit: 500 }),
-        listAllCustomers({ limit: 200 }),
-      ]);
-
-      if (routesResult.errors && routesResult.errors.length > 0) {
-        setError('Failed to load routes.');
-      } else {
-        const sortedRoutes = [...((routesResult.data as unknown as Route[]) || [])].sort(compareRouteIdDesc);
-        setRoutes(sortedRoutes);
-      }
-
+      const customersResult = await listAllCustomers({ limit: 200 });
       if (!customersResult.errors || customersResult.errors.length === 0) {
         const mapped = (customersResult.data as Array<{ id: string; name: string }>).reduce(
           (acc, customer) => {
@@ -51,11 +43,19 @@ export function useRoutesList(canDeleteRoutes: boolean) {
         setCustomersById(mapped);
       }
 
-      setLoading(false);
+      setCustomersLoading(false);
     }
 
-    void fetchRoutes();
+    void fetchCustomers();
   }, []);
+
+  const routes = useMemo(
+    () => [...liveRoutes].filter((route) => !locallyDeletedIds.has(route.id)).sort(compareRouteIdDesc),
+    [liveRoutes, locallyDeletedIds]
+  );
+
+  const loading = routesLoading || customersLoading;
+  const error = routesError ? 'Failed to load routes.' : deleteError;
 
   const filteredRoutes = useMemo(
     () => (statusFilter === 'all' ? routes : routes.filter((route) => getRoutePhaseKey(route) === statusFilter)),
@@ -76,17 +76,17 @@ export function useRoutesList(canDeleteRoutes: boolean) {
     if (!canDeleteRoutes || deletingRouteId) return;
 
     setDeletingRouteId(route.id);
-    setError(null);
+    setDeleteError(null);
 
     const result = await deleteRoute(route.id);
     if (result.errors && result.errors.length > 0) {
-      setError('Failed to delete route.');
+      setDeleteError('Failed to delete route.');
       setDeletingRouteId(null);
       setRoutePendingDelete(null);
       return;
     }
 
-    setRoutes((prev) => prev.filter((currentRoute) => currentRoute.id !== route.id));
+    setLocallyDeletedIds((prev) => new Set(prev).add(route.id));
     setDeletingRouteId(null);
     setRoutePendingDelete(null);
   }

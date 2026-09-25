@@ -16,6 +16,7 @@ import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { useRouteDetailData } from '@/lib/use-route-detail-data';
+import { useLiveRoute } from '@/lib/useLiveRoutes';
 import { useRouteOverride } from '@/lib/useRouteOverride';
 import { getAgentBadgeInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import {
@@ -62,7 +63,7 @@ function RouteDetailContent() {
   const { user } = useAuthenticator();
 
   const {
-    route,
+    route: routeFromHook,
     stops,
     loading,
     error,
@@ -80,6 +81,12 @@ function RouteDetailContent() {
     reorder,
     deleteRoute: deleteRouteCapability,
   } = useRouteDetailData(id, user);
+  // Route fields (status, instructions, ...) are kept live over this
+  // subscription; stops stay a one-shot fetch per the issue's scope. Falls
+  // back to the one-shot route while the subscription is still syncing, so
+  // there's no flash of "not found".
+  const { route: liveRoute } = useLiveRoute(routeFromHook ? id : null);
+  const route = liveRoute ?? routeFromHook ?? null;
 
   const { kilometersTravelled } = computeRouteSummaryStats(route, stops);
   const {

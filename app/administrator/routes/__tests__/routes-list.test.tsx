@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import RoutesPage from '../page';
-import * as listAllRoutesModule from '@/lib/queries/ListAllRoutes';
+import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
 import * as listAllCustomersModule from '@/lib/queries/ListAllCustomers';
 import * as listAllStopsModule from '@/lib/queries/ListAllStops';
 import type { Route, Stop } from '@/amplify/types';
@@ -36,7 +36,9 @@ jest.mock('@/app/components/OperatorRoute', () => ({
   default: (props: { children: React.ReactNode; requireAdmin?: boolean }) => operatorRouteMock(props),
 }));
 
-jest.mock('@/lib/queries/ListAllRoutes');
+jest.mock('@/lib/useLiveRoutes', () => ({
+  useLiveAllRoutes: jest.fn(),
+}));
 jest.mock('@/lib/queries/ListAllCustomers');
 jest.mock('@/lib/queries/ListAllStops');
 
@@ -103,17 +105,13 @@ describe('Operator Routes List Page', () => {
   });
 
   it('renders loading spinner initially', async () => {
-    // Never resolves during this check
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockReturnValue(new Promise(() => {}));
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: true, error: null });
     render(<RoutesPage />);
     expect(screen.getByText(/loading routes/i)).toBeInTheDocument();
   });
 
   it('renders routes list after data loads', async () => {
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-      data: mockRoutes,
-      errors: undefined,
-    });
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -131,10 +129,7 @@ describe('Operator Routes List Page', () => {
   });
 
   it('shows "Create New Route" link', async () => {
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [],
-      errors: undefined,
-    });
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -148,10 +143,7 @@ describe('Operator Routes List Page', () => {
   });
 
   it('shows empty state when no routes', async () => {
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [],
-      errors: undefined,
-    });
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -161,10 +153,7 @@ describe('Operator Routes List Page', () => {
   });
 
   it('shows error when fetch fails', async () => {
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [],
-      errors: [{ message: 'Network error' }],
-    });
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: 'Network error' });
 
     render(<RoutesPage />);
 
@@ -174,15 +163,7 @@ describe('Operator Routes List Page', () => {
   });
 
   it('shows a Retry button on fetch error and refetches when clicked', async () => {
-    (listAllRoutesModule.listAllRoutes as jest.Mock)
-      .mockResolvedValueOnce({
-        data: [],
-        errors: [{ message: 'Network error' }],
-      })
-      .mockResolvedValueOnce({
-        data: mockRoutes,
-        errors: undefined,
-      });
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: 'Network error' });
 
     render(<RoutesPage />);
 
@@ -193,21 +174,19 @@ describe('Operator Routes List Page', () => {
     const retryButton = screen.getByRole('button', { name: /retry/i });
     expect(retryButton).toBeInTheDocument();
 
+    // Retry remounts the list section, which re-subscribes via useLiveAllRoutes.
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
     fireEvent.click(retryButton);
 
     await waitFor(() => {
       expect(screen.getByText('W19-26-001')).toBeInTheDocument();
     });
 
-    expect(listAllRoutesModule.listAllRoutes).toHaveBeenCalledTimes(2);
     expect(screen.queryByText(/failed to load routes/i)).not.toBeInTheDocument();
   });
 
   it('shows a create CTA in the empty state linking to the new route page', async () => {
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [],
-      errors: undefined,
-    });
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -220,10 +199,7 @@ describe('Operator Routes List Page', () => {
   });
 
   it('keeps the status filter visible when a filtered status has no routes', async () => {
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-      data: mockRoutes,
-      errors: undefined,
-    });
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -242,10 +218,7 @@ describe('Operator Routes List Page', () => {
 
   describe('search and date filters', () => {
     async function renderWithRoutes() {
-      (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-        data: mockRoutes,
-        errors: undefined,
-      });
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
       render(<RoutesPage />);
 
@@ -346,10 +319,7 @@ describe('Operator Routes List Page', () => {
 
   describe('find a property', () => {
     async function renderWithRoutes() {
-      (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-        data: mockRoutes,
-        errors: undefined,
-      });
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
       render(<RoutesPage />);
 
@@ -447,7 +417,7 @@ describe('Operator Routes List Page', () => {
 
   it('uses the admin-only guard on the routes page', () => {
     // Keep data requests pending so this assertion-only test does not race async state updates.
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockReturnValue(new Promise(() => {}));
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: true, error: null });
     (listAllCustomersModule.listAllCustomers as jest.Mock).mockReturnValue(new Promise(() => {}));
 
     render(<RoutesPage />);

@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { getRouteWithStops } from '@/lib/queries';
+import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
 import { getSignRunPhase, getRoutePhaseKey } from '@/lib/signRunPhase';
 import { signsPlaced } from '@/lib/signRunTotals';
 import { useCurrentUserId } from '@/lib/use-user-groups';
-import type { Route } from '@/amplify/types';
 import PageHeader from '@/app/operator/components/PageHeader';
 import { SignRunRouteCard } from '@/app/operator/components/SignRunRouteCard';
 import { Card } from '@/app/components/ui/core/Card';
@@ -21,26 +20,23 @@ interface StopSummary {
 
 /**
  * Operator Dashboard ("Today" screen)
- * Phone-optimized route execution entry point for planned + active routes.
+ * Phone-optimized route execution entry point for planned + active routes,
+ * kept live via useLiveAllRoutes so status/assignment changes appear without
+ * a reload.
  */
 export default function OperatorDashboard() {
   const currentUserId = useCurrentUserId();
-  const [routes, setRoutes] = useState<Route[]>([]);
+  const { routes, loading: routesLoading } = useLiveAllRoutes();
   const [customersById, setCustomersById] = useState<Record<string, string>>({});
+  const [customersLoading, setCustomersLoading] = useState(true);
   const [stopSummaryByRouteId, setStopSummaryByRouteId] = useState<Record<string, StopSummary>>({});
-  const [loading, setLoading] = useState(true);
+  const loading = routesLoading || customersLoading;
 
   useEffect(() => {
-    async function loadRoutes() {
-      setLoading(true);
-      const [routesResult, customersResult] = await Promise.all([
-        listAllRoutes({ limit: 100 }),
-        listAllCustomers({ limit: 200 }),
-      ]);
+    async function loadCustomers() {
+      setCustomersLoading(true);
+      const customersResult = await listAllCustomers({ limit: 200 });
 
-      if (!routesResult.errors || routesResult.errors.length === 0) {
-        setRoutes((routesResult.data as Route[]) || []);
-      }
       if (!customersResult.errors || customersResult.errors.length === 0) {
         const mapped = (customersResult.data as Array<{ id: string; name: string }>).reduce(
           (acc, customer) => {
@@ -52,9 +48,9 @@ export default function OperatorDashboard() {
         setCustomersById(mapped);
       }
 
-      setLoading(false);
+      setCustomersLoading(false);
     }
-    void loadRoutes();
+    void loadCustomers();
   }, []);
 
   // assignedOperatorSub is a display/notification tag, not an authorization scope

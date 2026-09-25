@@ -2,6 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import RouteDetailPage from '../detail/page';
+import { useLiveRoute } from '@/lib/useLiveRoutes';
 import * as getRouteDetailModule from '@/lib/queries/GetRouteDetail';
 import * as deleteStopModule from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
@@ -44,6 +45,12 @@ jest.mock('@/lib/amplify-config', () => ({
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+// Live route subscription is exercised in its own test below; elsewhere it
+// stays null so the page falls back to the one-shot fetched route.
+jest.mock('@/lib/useLiveRoutes', () => ({
+  useLiveRoute: jest.fn(() => ({ route: null, loading: false, error: null })),
 }));
 
 // Mock query modules
@@ -111,6 +118,9 @@ describe('Operator Route Detail Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    // clearAllMocks() doesn't reset a mockReturnValue set by a prior test.
+    (useLiveRoute as jest.Mock).mockReturnValue({ route: null, loading: false, error: null });
+
     // Grab the mocks from inside the factory
     const amplifyData = require('aws-amplify/data');
     const { __mocks } = amplifyData;
@@ -163,6 +173,27 @@ describe('Operator Route Detail Page', () => {
     // Edit link should target the existing administrator route edit page
     const editLink = screen.getByRole('link', { name: /edit route/i });
     expect(editLink).toHaveAttribute('href', expect.stringContaining('/administrator/routes/edit?id=route-test-id-1234'));
+  });
+
+  it('reflects a route status change pushed over the live subscription, without a manual reload', async () => {
+    const { rerender } = render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/loading route/i)).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('planned')).toBeInTheDocument();
+
+    (useLiveRoute as jest.Mock).mockReturnValue({
+      route: { ...mockRoute, status: 'signs_placed' },
+      loading: false,
+      error: null,
+    });
+    rerender(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('signs placed')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('planned')).not.toBeInTheDocument();
   });
 
   it('shows customer-posted special instructions read-only, newest first', async () => {

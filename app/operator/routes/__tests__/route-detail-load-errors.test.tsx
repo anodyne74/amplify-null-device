@@ -47,6 +47,10 @@ jest.mock('@/app/components/ToastProvider', () => ({
   useToast: () => ({ showToast: jest.fn() }),
 }));
 
+jest.mock('@/lib/useLiveRoutes', () => ({
+  useLiveRoute: jest.fn(() => ({ route: null, loading: false, error: null })),
+}));
+
 jest.mock('@/lib/queries/GetRouteDetail');
 jest.mock('@/lib/queries/DeleteStop', () => ({
   deleteStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),

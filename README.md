@@ -68,7 +68,6 @@ Amplify Data schema currently defines 17 entities:
 - CustomerClosureBlock
 - RateLine
 - OperatorPayout
-- VanSignCount
 
 ## Getting Started
 

@@ -139,10 +139,6 @@ export default function OperatorLoadPage() {
     router.push('/operator/dashboard');
   };
 
-  const handleRecount = () => {
-    router.push('/operator/van-count');
-  };
-
   if (!routeId) {
     return <NoRouteSelected />;
   }
@@ -225,19 +221,14 @@ export default function OperatorLoadPage() {
           Start load
         </button>
       ) : (
-        <>
-          <button
-            type="button"
-            className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
-            onClick={() => openDialog('confirm')}
-            disabled={submitting}
-          >
-            {`Confirm ${totalSigns} signs loaded`}
-          </button>
-          <button type="button" className={shellStyles.secondaryButton} onClick={handleRecount} disabled={submitting}>
-            Count differs — recount
-          </button>
-        </>
+        <button
+          type="button"
+          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          onClick={() => openDialog('confirm')}
+          disabled={submitting}
+        >
+          {`Confirm ${totalSigns} signs loaded`}
+        </button>
       )}
 
       <p className={shellStyles.footnote}>

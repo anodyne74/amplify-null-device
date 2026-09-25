@@ -161,20 +161,6 @@ describe('Operator Load page', () => {
     expect(push).toHaveBeenCalledWith('/operator/dashboard');
   });
 
-  it('routes to van count on "Count differs — recount"', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({
-      route: baseRoute({ loadStartedAt: '2026-09-12T07:37:00.000Z' }),
-      stops: baseStops(),
-      errors: [],
-    });
-
-    render(<OperatorLoadPage />);
-    await screen.findByText('45 signs to load');
-
-    fireEvent.click(screen.getByRole('button', { name: /count differs/i }));
-    expect(push).toHaveBeenCalledWith('/operator/van-count');
-  });
-
   it('shows a guard message when the route is not on the Load phase', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ status: 'in_progress', executionPhase: 'pickup' }),

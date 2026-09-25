@@ -73,10 +73,9 @@ describe('OperatorLayout', () => {
 
     expect(screen.getByTestId('nav-item-Dashboard')).toBeInTheDocument();
     expect(screen.getByTestId('nav-item-Routes')).toBeInTheDocument();
-    expect(screen.getByTestId('nav-item-Van Count')).toBeInTheDocument();
     expect(screen.getByTestId('nav-item-Service Calendar')).toBeInTheDocument();
     expect(screen.getByTestId('nav-item-Settings')).toBeInTheDocument();
-    expect(screen.getByTestId('nav').children).toHaveLength(5);
+    expect(screen.getByTestId('nav').children).toHaveLength(4);
   });
 
   it('wires up route-assignment notifications for the signed-in operator, app-wide', () => {

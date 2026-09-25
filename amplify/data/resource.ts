@@ -22,7 +22,6 @@ import { operatorStatusActivation } from '../functions/operator-status-activatio
  * - CustomerClosureBlock: Days a customer's agency is closed
  * - RateLine: Named, priced lines on a customer's rate card
  * - OperatorPayout: Driver-split payouts owed to operators for a customer's billing period
- * - VanSignCount: An operator's daily count of signs on their van
  *
  * Authorization Rules:
  * - Customers can only access their own data (routes, invoices, payments)
@@ -402,27 +401,6 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.ownerDefinedIn('operatorSub').identityClaim('sub').to(['read']),
-      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
-    ]),
-
-  /**
-   * VanSignCount - An operator's count of signs physically on their van, taken once per
-   * day before leaving the yard. operatorSub is a genuine Cognito sub (same pattern as
-   * OperatorPayout above), so each operator only ever reads/writes their own count.
-   */
-  VanSignCount: a
-    .model({
-      operatorSub: a.string().required(),
-      countDate: a.date().required(),
-      standardCount: a.integer().required(),
-      auctionCount: a.integer().required(),
-      frameCount: a.integer().required(),
-      countedAt: a.datetime(),
-      createdAt: a.datetime(),
-      updatedAt: a.datetime(),
-    })
-    .authorization((allow) => [
-      allow.ownerDefinedIn('operatorSub').identityClaim('sub').to(['read', 'create', 'update']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
     ]),
 

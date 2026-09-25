@@ -30,6 +30,52 @@ export interface StopFormValues {
   formattedAddress?: string;
 }
 
+export interface AddStopCapability {
+  visible: boolean;
+  open: () => void;
+  close: () => void;
+  adding: boolean;
+  error: string | null;
+  add: (values: StopFormValues) => Promise<void>;
+}
+
+export interface EditStopCapability {
+  stopId: string | null;
+  editing: boolean;
+  error: string | null;
+  start: (stopId: string) => void;
+  cancel: () => void;
+  save: (values: StopFormValues) => Promise<void>;
+}
+
+export interface DeleteStopCapability {
+  deletingId: string | null;
+  pendingId: string | null;
+  confirm: (stopId: string) => void;
+  cancel: () => void;
+  remove: (stopId: string) => Promise<void>;
+}
+
+export interface ReorderCapability {
+  draggingStopId: string | null;
+  startDragging: (stopId: string) => void;
+  clearDragging: () => void;
+  reordering: boolean;
+  /** Also surfaces deleteStop's remove() failures — both operations resequence
+   * the stop list through the same persistStopOrder() path. */
+  error: string | null;
+  dropStop: (targetStopId: string) => Promise<void>;
+  moveStop: (stopId: string, direction: 'up' | 'down') => Promise<void>;
+}
+
+export interface DeleteRouteCapability {
+  pending: boolean;
+  deleting: boolean;
+  confirm: () => void;
+  cancel: () => void;
+  remove: () => Promise<boolean>;
+}
+
 /**
  * Shared fetch/reorder/CRUD engine behind the Operator and Administrator Route
  * Detail pages. Deliberately excludes anything that diverges between the two
@@ -432,6 +478,50 @@ export function useRouteDetailData(id: string, user: unknown) {
   }, [customerDefaults?.agentOptions, stops]);
   const defaultAgentForStops = customerDefaults?.defaultAgentInitials ?? availableAgentsForStops[0] ?? undefined;
 
+  const addStopCapability: AddStopCapability = {
+    visible: showAddStop,
+    open: openAddStop,
+    close: closeAddStop,
+    adding: addingStop,
+    error: addStopError,
+    add: addStop,
+  };
+
+  const editStopCapability: EditStopCapability = {
+    stopId: editingStopId,
+    editing: editingStop,
+    error: editStopError,
+    start: startEditingStop,
+    cancel: cancelEditingStop,
+    save: editStop,
+  };
+
+  const deleteStopCapability: DeleteStopCapability = {
+    deletingId: deletingStopId,
+    pendingId: pendingDeleteStopId,
+    confirm: confirmDeleteStop,
+    cancel: cancelDeleteStop,
+    remove: deleteStop,
+  };
+
+  const reorderCapability: ReorderCapability = {
+    draggingStopId,
+    startDragging,
+    clearDragging,
+    reordering,
+    error: reorderError,
+    dropStop,
+    moveStop,
+  };
+
+  const deleteRouteCapability: DeleteRouteCapability = {
+    pending: routePendingDelete,
+    deleting: deletingRoute,
+    confirm: confirmDeleteRoute,
+    cancel: cancelDeleteRoute,
+    remove: deleteRoute,
+  };
+
   return {
     route,
     stops,
@@ -448,39 +538,11 @@ export function useRouteDetailData(id: string, user: unknown) {
     refetchStops,
     refetchRoute,
 
-    showAddStop,
-    addingStop,
-    addStopError,
-    openAddStop,
-    closeAddStop,
-    addStop,
-
-    editingStopId,
-    editingStop,
-    editStopError,
-    startEditingStop,
-    cancelEditingStop,
-    editStop,
-
-    deletingStopId,
-    pendingDeleteStopId,
-    confirmDeleteStop,
-    cancelDeleteStop,
-    deleteStop,
-
-    draggingStopId,
-    startDragging,
-    clearDragging,
-    reordering,
-    reorderError,
-    dropStop,
-    moveStop,
-
-    deletingRoute,
-    routePendingDelete,
-    confirmDeleteRoute,
-    cancelDeleteRoute,
-    deleteRoute,
+    addStop: addStopCapability,
+    editStop: editStopCapability,
+    deleteStop: deleteStopCapability,
+    reorder: reorderCapability,
+    deleteRoute: deleteRouteCapability,
   };
 }
 

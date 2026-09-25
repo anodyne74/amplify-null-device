@@ -16,6 +16,7 @@ import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { useRouteDetailData } from '@/lib/use-route-detail-data';
+import { useRouteOverride } from '@/lib/useRouteOverride';
 import { getAgentBadgeInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import {
   formatCurrency,
@@ -26,7 +27,7 @@ import {
 import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
 import { isStopCompletedForPhase } from '@/lib/stopExecutionMarkers';
 import { getStopStatusLabel } from '@/lib/stopStatusLabel';
-import { getUserSettings, updateRoute } from '@/lib/queries';
+import { getUserSettings } from '@/lib/queries';
 import type { MapTheme } from '@/lib/mapThemes';
 import { MAP_THEMES } from '@/lib/mapThemes';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
@@ -50,6 +51,10 @@ const RouteStopsMap = dynamic(
   }
 );
 
+interface DistanceOverrideValues {
+  distanceKm: string;
+}
+
 function RouteDetailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -69,41 +74,36 @@ function RouteDetailContent() {
     availableAgentsForStops,
     defaultAgentForStops,
     refetchRoute,
-    showAddStop,
-    addingStop,
-    addStopError,
-    openAddStop,
-    closeAddStop,
-    addStop,
-    editingStopId,
-    editingStop,
-    editStopError,
-    startEditingStop,
-    cancelEditingStop,
-    editStop,
-    deletingStopId,
-    pendingDeleteStopId,
-    confirmDeleteStop,
-    cancelDeleteStop,
-    deleteStop,
-    draggingStopId,
-    startDragging,
-    clearDragging,
-    reordering,
-    reorderError,
-    dropStop,
-    moveStop,
-    deletingRoute,
-    routePendingDelete,
-    confirmDeleteRoute,
-    cancelDeleteRoute,
-    deleteRoute,
+    addStop: addStopCapability,
+    editStop: editStopCapability,
+    deleteStop: deleteStopCapability,
+    reorder,
+    deleteRoute: deleteRouteCapability,
   } = useRouteDetailData(id, user);
 
-  const [distanceOverrideKm, setDistanceOverrideKm] = useState('');
-  const [savingDistanceOverride, setSavingDistanceOverride] = useState(false);
-  const [distanceOverrideError, setDistanceOverrideError] = useState<string | null>(null);
-  const [distanceOverrideSuccess, setDistanceOverrideSuccess] = useState<string | null>(null);
+  const { kilometersTravelled } = computeRouteSummaryStats(route, stops);
+  const {
+    values: distanceOverride,
+    setValues: setDistanceOverride,
+    saving: savingDistanceOverride,
+    error: distanceOverrideError,
+    success: distanceOverrideSuccess,
+    save: saveDistanceOverride,
+  } = useRouteOverride<DistanceOverrideValues>({
+    route,
+    refetchRoute,
+    computeDefaults: () => ({ distanceKm: (route?.overrideDistanceKm ?? kilometersTravelled).toFixed(2) }),
+    buildPayload: (values) => ({ overrideDistanceKm: Number(Number(values.distanceKm).toFixed(2)) }),
+    validate: (values) => {
+      const parsed = Number(values.distanceKm);
+      if (Number.isNaN(parsed) || parsed < 0) {
+        return 'Distance must be a number greater than or equal to 0.';
+      }
+      return null;
+    },
+    errorMessage: 'Failed to save distance override.',
+    successMessage: 'Distance override saved.',
+  });
 
   const [phaseDistanceKm, setPhaseDistanceKm] = useState({
     signs_placed: 0,
@@ -151,38 +151,6 @@ function RouteDetailContent() {
     };
   }, [user?.userId]);
 
-  const handleSaveDistanceOverride = async () => {
-    if (!route || !canManagePlanning) return;
-
-    const parsedDistance = Number(distanceOverrideKm);
-    if (Number.isNaN(parsedDistance) || parsedDistance < 0) {
-      setDistanceOverrideError('Distance must be a number greater than or equal to 0.');
-      setDistanceOverrideSuccess(null);
-      return;
-    }
-
-    setSavingDistanceOverride(true);
-    setDistanceOverrideError(null);
-    setDistanceOverrideSuccess(null);
-
-    try {
-      const { errors } = await updateRoute(route.id, {
-        overrideDistanceKm: Number(parsedDistance.toFixed(2)),
-      });
-
-      if (errors && errors.length > 0) {
-        setDistanceOverrideError('Failed to save distance override.');
-      } else {
-        await refetchRoute();
-        setDistanceOverrideSuccess('Distance override saved.');
-      }
-    } catch {
-      setDistanceOverrideError('Failed to save distance override.');
-    }
-
-    setSavingDistanceOverride(false);
-  };
-
   const planningLocked = route?.status !== 'planned';
   const currentExecutionPhase = route?.executionPhase === 'pickup' ? 'pickup' : 'placement';
   const pickupPhaseStops = stops.filter((stop) => stop.serviceType !== 'inspection');
@@ -196,7 +164,7 @@ function RouteDetailContent() {
     return stops;
   })();
   const topVisibleStopId = visibleStops[0]?.id ?? null;
-  const { routeDurationMinutes, kilometersTravelled, totalStops, totalSigns } = computeRouteSummaryStats(route, stops);
+  const { routeDurationMinutes, totalStops, totalSigns } = computeRouteSummaryStats(route, stops);
   const effectiveKilometersTravelled = route?.overrideDistanceKm ?? kilometersTravelled;
   const completionAmount =
     routeDurationMinutes !== null && customerRatePerHour !== null
@@ -218,14 +186,6 @@ function RouteDetailContent() {
         : null,
   };
 
-  useEffect(() => {
-    if (!route) return;
-    const initialDistance = route.overrideDistanceKm ?? kilometersTravelled;
-    setDistanceOverrideKm(initialDistance.toFixed(2));
-    setDistanceOverrideError(null);
-    setDistanceOverrideSuccess(null);
-  }, [kilometersTravelled, route]);
-
   // In-progress routes now run exclusively through the dedicated Load/
   // Placement/Pickup/Unload/Finalise screens — operator field mode on this
   // page is retired. Send the operator to the right phase screen instead of
@@ -238,7 +198,7 @@ function RouteDetailContent() {
   }, [route, stops.length, router]);
 
   const handleConfirmDeleteRoute = async () => {
-    const ok = await deleteRoute();
+    const ok = await deleteRouteCapability.remove();
     if (ok) router.push('/operator/routes');
   };
 
@@ -279,10 +239,10 @@ function RouteDetailContent() {
                   <Button
                     size="sm"
                     variant="danger"
-                    loading={deletingRoute}
-                    onClick={confirmDeleteRoute}
+                    loading={deleteRouteCapability.deleting}
+                    onClick={deleteRouteCapability.confirm}
                   >
-                    {deletingRoute ? 'Deleting...' : 'Delete Route'}
+                    {deleteRouteCapability.deleting ? 'Deleting...' : 'Delete Route'}
                   </Button>
                 </div>
               )}
@@ -412,8 +372,8 @@ function RouteDetailContent() {
                           type="number"
                           min="0"
                           step="0.01"
-                          value={distanceOverrideKm}
-                          onChange={(event) => setDistanceOverrideKm(event.target.value)}
+                          value={distanceOverride.distanceKm}
+                          onChange={(event) => setDistanceOverride({ distanceKm: event.target.value })}
                           disabled={savingDistanceOverride}
                         />
                         <Button
@@ -421,7 +381,7 @@ function RouteDetailContent() {
                           size="sm"
                           loading={savingDistanceOverride}
                           onClick={() => {
-                            void handleSaveDistanceOverride();
+                            void saveDistanceOverride();
                           }}
                           disabled={savingDistanceOverride}
                         >
@@ -452,34 +412,34 @@ function RouteDetailContent() {
             {canManagePlanning && !planningLocked && (
               <div className={styles.reorderHint}>Drag and drop stop cards to change sequence.</div>
             )}
-            {reordering && <div className={styles.reorderStatus}>Saving updated stop order...</div>}
-            {reorderError && <div className={styles.errorBanner}>{reorderError}</div>}
+            {reorder.reordering && <div className={styles.reorderStatus}>Saving updated stop order...</div>}
+            {reorder.error && <div className={styles.errorBanner}>{reorder.error}</div>}
 
             {/* Add Stop Form */}
-            {showAddStop && !planningLocked && (
+            {addStopCapability.visible && !planningLocked && (
               <Card title="Add Stop">
                 <StopForm
-                  onSubmit={addStop}
-                  onCancel={closeAddStop}
+                  onSubmit={addStopCapability.add}
+                  onCancel={addStopCapability.close}
                   addressSearchOrigin={customerAddressOrigin}
                   standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                   defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
                   defaultAgentInitials={defaultAgentForStops}
                   availableAgents={availableAgentsForStops}
-                  isSubmitting={addingStop}
-                  error={addStopError}
+                  isSubmitting={addStopCapability.adding}
+                  error={addStopCapability.error}
                   submitLabel="Add Stop"
                 />
               </Card>
             )}
 
-            {visibleStops.length === 0 && !showAddStop && route?.status === 'signs_placed' && (
+            {visibleStops.length === 0 && !addStopCapability.visible && route?.status === 'signs_placed' && (
               <div className={styles.emptyState}>
                 Ready for pickup phase. Continue from the route phase panel above.
               </div>
             )}
 
-            {stops.length === 0 && !showAddStop && (
+            {stops.length === 0 && !addStopCapability.visible && (
               <div className={styles.emptyState}>
                 No stops yet. Click &quot;Add Stop&quot; to add the first one.
               </div>
@@ -488,8 +448,8 @@ function RouteDetailContent() {
             <Card
               title={`Stops (${visibleStops.length})`}
               action={
-                canManagePlanning && !planningLocked && !showAddStop ? (
-                  <Button size="sm" onClick={openAddStop}>
+                canManagePlanning && !planningLocked && !addStopCapability.visible ? (
+                  <Button size="sm" onClick={addStopCapability.open}>
                     Add Stop
                   </Button>
                 ) : undefined
@@ -498,7 +458,7 @@ function RouteDetailContent() {
             >
               <div className={styles.stopsList}>
                 {visibleStops.map((stop, index) => {
-                  if (editingStopId === stop.id) {
+                  if (editStopCapability.stopId === stop.id) {
                     return (
                       <div key={stop.id} className={styles.editFormWrap}>
                         <h3 className={styles.formHeading}>Edit Stop</h3>
@@ -511,15 +471,15 @@ function RouteDetailContent() {
                             isAuction: Boolean(stop.isAuction),
                             notes: stop.notes,
                           }}
-                          onSubmit={editStop}
-                          onCancel={cancelEditingStop}
+                          onSubmit={editStopCapability.save}
+                          onCancel={editStopCapability.cancel}
                           addressSearchOrigin={customerAddressOrigin}
                           standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                           defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
                           defaultAgentInitials={defaultAgentForStops}
                           availableAgents={availableAgentsForStops}
-                          isSubmitting={editingStop}
-                          error={editStopError}
+                          isSubmitting={editStopCapability.editing}
+                          error={editStopCapability.error}
                           submitLabel="Save Changes"
                         />
                       </div>
@@ -540,43 +500,43 @@ function RouteDetailContent() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => { void moveStop(stop.id, 'up'); }}
-                        disabled={index === 0 || reordering}
+                        onClick={() => { void reorder.moveStop(stop.id, 'up'); }}
+                        disabled={index === 0 || reorder.reordering}
                       >
                         Move Up
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => { void moveStop(stop.id, 'down'); }}
-                        disabled={index === visibleStops.length - 1 || reordering}
+                        onClick={() => { void reorder.moveStop(stop.id, 'down'); }}
+                        disabled={index === visibleStops.length - 1 || reorder.reordering}
                       >
                         Move Down
                       </Button>
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => startEditingStop(stop.id)}
-                        disabled={reordering || !!deletingStopId}
+                        onClick={() => editStopCapability.start(stop.id)}
+                        disabled={reorder.reordering || !!deleteStopCapability.deletingId}
                       >
                         Edit
                       </Button>
-                      {pendingDeleteStopId === stop.id ? (
+                      {deleteStopCapability.pendingId === stop.id ? (
                         <>
                           <Button
                             size="sm"
                             variant="danger"
-                            loading={deletingStopId === stop.id}
-                            onClick={() => { void deleteStop(stop.id); }}
-                            disabled={reordering || !!deletingStopId}
+                            loading={deleteStopCapability.deletingId === stop.id}
+                            onClick={() => { void deleteStopCapability.remove(stop.id); }}
+                            disabled={reorder.reordering || !!deleteStopCapability.deletingId}
                           >
-                            {deletingStopId === stop.id ? 'Deleting...' : 'Confirm Delete'}
+                            {deleteStopCapability.deletingId === stop.id ? 'Deleting...' : 'Confirm Delete'}
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={cancelDeleteStop}
-                            disabled={reordering || !!deletingStopId}
+                            onClick={deleteStopCapability.cancel}
+                            disabled={reorder.reordering || !!deleteStopCapability.deletingId}
                           >
                             Cancel
                           </Button>
@@ -585,8 +545,8 @@ function RouteDetailContent() {
                         <Button
                           size="sm"
                           variant="danger"
-                          onClick={() => confirmDeleteStop(stop.id)}
-                          disabled={reordering || !!deletingStopId}
+                          onClick={() => deleteStopCapability.confirm(stop.id)}
+                          disabled={reorder.reordering || !!deleteStopCapability.deletingId}
                         >
                           Delete
                         </Button>
@@ -606,16 +566,16 @@ function RouteDetailContent() {
                       agentBadgeTone={agentBadgeTone}
                       isTop={isTopVisibleStop}
                       isCompleted={completedStop}
-                      isDragging={draggingStopId === stop.id}
-                      draggable={canManagePlanning && !planningLocked && !reordering}
-                      onDragStart={() => startDragging(stop.id)}
+                      isDragging={reorder.draggingStopId === stop.id}
+                      draggable={canManagePlanning && !planningLocked && !reorder.reordering}
+                      onDragStart={() => reorder.startDragging(stop.id)}
                       onDragOver={(event) => {
                         if (canManagePlanning && !planningLocked) {
                           event.preventDefault();
                         }
                       }}
-                      onDrop={() => { void dropStop(stop.id); }}
-                      onDragEnd={clearDragging}
+                      onDrop={() => { void reorder.dropStop(stop.id); }}
+                      onDragEnd={reorder.clearDragging}
                       actions={stopActions}
                     />
                   );
@@ -627,14 +587,14 @@ function RouteDetailContent() {
       )}
 
       <ConfirmDialog
-        open={routePendingDelete}
+        open={deleteRouteCapability.pending}
         title="Delete route?"
         message={`Delete route ${route?.routeCode || route?.id.slice(0, 8)}? This will also delete all stops on the route.`}
         confirmLabel="Delete"
         tone="danger"
-        busy={deletingRoute}
+        busy={deleteRouteCapability.deleting}
         onConfirm={() => void handleConfirmDeleteRoute()}
-        onCancel={cancelDeleteRoute}
+        onCancel={deleteRouteCapability.cancel}
       />
     </div>
   );

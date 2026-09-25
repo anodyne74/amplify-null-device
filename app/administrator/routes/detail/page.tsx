@@ -16,6 +16,7 @@ import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { useRouteDetailData } from '@/lib/use-route-detail-data';
+import { useRouteOverride } from '@/lib/useRouteOverride';
 import { getAgentBadgeInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import {
   formatCurrency,
@@ -23,7 +24,7 @@ import {
   formatRouteDate,
   formatRouteDateTime,
 } from '@/lib/routeDetailHelpers';
-import { getUserSettings, updateRoute } from '@/lib/queries';
+import { getUserSettings } from '@/lib/queries';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
 import { settleSignRunStop } from '@/lib/signRunStopSettlement';
@@ -99,6 +100,41 @@ function getDurationTotalMinutes(values: {
   );
 }
 
+interface BillingOverrideValues {
+  signs: number;
+  stops: number;
+  distanceKm: number;
+  signsCollectedMinutes: number;
+  signsPlacedMinutes: number;
+  signsPickedUpMinutes: number;
+  signsReturnedMinutes: number;
+  ratePerHour: number;
+  amount: number;
+}
+
+// Every Invoice Values field routes through here — the duration/rate fields
+// recompute `amount` off the shared formula; signs/stops/distance/amount
+// itself are just recorded as typed, matching the pre-extraction behavior.
+const RECOMPUTE_AMOUNT_FIELDS: ReadonlySet<keyof BillingOverrideValues> = new Set([
+  'signsCollectedMinutes',
+  'signsPlacedMinutes',
+  'signsPickedUpMinutes',
+  'signsReturnedMinutes',
+  'ratePerHour',
+]);
+
+function updateBillingFieldValue(
+  current: BillingOverrideValues,
+  key: keyof BillingOverrideValues,
+  rawValue: string
+): BillingOverrideValues {
+  const next = { ...current, [key]: Number(rawValue) };
+  if (!RECOMPUTE_AMOUNT_FIELDS.has(key)) return next;
+
+  const amount = Number(((getDurationTotalMinutes(next) / 60) * next.ratePerHour).toFixed(2));
+  return { ...next, amount };
+}
+
 function isPlacementPhase(status?: string | null, executionPhase?: string | null) {
   return status === 'in_progress' && executionPhase === 'placement';
 }
@@ -127,55 +163,69 @@ function RouteDetailContent() {
     defaultAgentForStops,
     refetchStops,
     refetchRoute,
-    showAddStop,
-    addingStop,
-    addStopError,
-    openAddStop,
-    closeAddStop,
-    addStop,
-    editingStopId,
-    editingStop,
-    editStopError,
-    startEditingStop,
-    cancelEditingStop,
-    editStop,
-    deletingStopId,
-    pendingDeleteStopId,
-    confirmDeleteStop,
-    cancelDeleteStop,
-    deleteStop,
-    draggingStopId,
-    startDragging,
-    clearDragging,
-    reordering,
-    reorderError,
-    dropStop,
-    moveStop,
-    deletingRoute,
-    routePendingDelete,
-    confirmDeleteRoute,
-    cancelDeleteRoute,
-    deleteRoute,
+    addStop: addStopCapability,
+    editStop: editStopCapability,
+    deleteStop: deleteStopCapability,
+    reorder,
+    deleteRoute: deleteRouteCapability,
   } = useRouteDetailData(id, user);
 
   const [dragOverStopId, setDragOverStopId] = useState<string | null>(null);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
-  const [savingBillingOverrides, setSavingBillingOverrides] = useState(false);
-  const [billingOverrideError, setBillingOverrideError] = useState<string | null>(null);
-  const [billingOverrideSuccess, setBillingOverrideSuccess] = useState<string | null>(null);
-  const [billingOverrides, setBillingOverrides] = useState({
-    signs: 0,
-    stops: 0,
-    distanceKm: 0,
-    signsCollectedMinutes: DEFAULT_SIGNS_COLLECTED_MINUTES,
-    signsPlacedMinutes: 0,
-    signsPickedUpMinutes: 0,
-    signsReturnedMinutes: DEFAULT_SIGNS_RETURNED_MINUTES,
-    ratePerHour: 0,
-    amount: 0,
-  });
-
   const [mapTheme, setMapTheme] = useState<MapTheme>('light');
+
+  const { routeDurationMinutes, kilometersTravelled, totalStops, totalSigns } = computeRouteSummaryStats(route, stops);
+  const billingDefaults = useMemo(() => {
+    const durationMinutes = route?.overrideDurationMinutes ?? routeDurationMinutes ?? 0;
+    const durationBuckets = deriveDurationBuckets(route, durationMinutes);
+    const totalDurationMinutes = getDurationTotalMinutes(durationBuckets);
+    const ratePerHour = route?.overrideRate ?? customerRatePerHour;
+    const amount =
+      route?.overrideAmount ??
+      (ratePerHour !== null
+        ? Number(((totalDurationMinutes / 60) * ratePerHour).toFixed(2))
+        : 0);
+
+    return {
+      signs: route?.overrideSigns ?? totalSigns,
+      stops: route?.overrideStops ?? totalStops,
+      distanceKm: route?.overrideDistanceKm ?? kilometersTravelled,
+      ...durationBuckets,
+      durationMinutes: totalDurationMinutes,
+      ratePerHour: ratePerHour ?? 0,
+      amount,
+    };
+  }, [
+    customerRatePerHour,
+    kilometersTravelled,
+    route,
+    routeDurationMinutes,
+    totalSigns,
+    totalStops,
+  ]);
+
+  const {
+    values: billingOverrides,
+    setValues: setBillingOverrides,
+    saving: savingBillingOverrides,
+    error: billingOverrideError,
+    success: billingOverrideSuccess,
+    save: saveBillingOverrides,
+  } = useRouteOverride<BillingOverrideValues>({
+    route,
+    refetchRoute,
+    computeDefaults: () => billingDefaults,
+    buildPayload: (values) => ({
+      overrideSigns: values.signs,
+      overrideStops: values.stops,
+      overrideDistanceKm: values.distanceKm,
+      overrideDurationMinutes: getDurationTotalMinutes(values),
+      overrideRate: values.ratePerHour,
+      overrideAmount: values.amount,
+    }),
+    errorMessage: 'Failed to save invoice values.',
+    successMessage: 'Invoice values saved.',
+  });
 
   const handleStopCompleted = useCallback(async (stopId: string) => {
     if (!route || route.status !== 'in_progress' || !route.executionPhase) return;
@@ -228,37 +278,6 @@ function RouteDetailContent() {
     };
   }, [user?.userId]);
 
-  const handleSaveBillingOverrides = async () => {
-    if (!route || !canManagePlanning) return;
-
-    setSavingBillingOverrides(true);
-    setBillingOverrideError(null);
-    setBillingOverrideSuccess(null);
-
-    try {
-      const overrideDurationMinutes = getDurationTotalMinutes(billingOverrides);
-      const { errors } = await updateRoute(route.id, {
-        overrideSigns: billingOverrides.signs,
-        overrideStops: billingOverrides.stops,
-        overrideDistanceKm: billingOverrides.distanceKm,
-        overrideDurationMinutes,
-        overrideRate: billingOverrides.ratePerHour,
-        overrideAmount: billingOverrides.amount,
-      });
-
-      if (errors && errors.length > 0) {
-        setBillingOverrideError('Failed to save invoice values.');
-      } else {
-        await refetchRoute();
-        setBillingOverrideSuccess('Invoice values saved.');
-      }
-    } catch {
-      setBillingOverrideError('Failed to save invoice values.');
-    }
-
-    setSavingBillingOverrides(false);
-  };
-
   const planningLocked = route?.status !== 'planned';
   const currentExecutionPhase: ExecutionPhase = route?.executionPhase === 'pickup' ? 'pickup' : 'placement';
   const placementPhaseStops = stops.filter((stop) => stop.serviceType !== 'pickup');
@@ -284,47 +303,12 @@ function RouteDetailContent() {
   // route sits in the 6-phase flow (see lib/routeDetailSummary.ts).
   const phaseOverview = getPhaseOverview(route, stops);
 
-  const { routeDurationMinutes, kilometersTravelled, totalStops, totalSigns } = computeRouteSummaryStats(route, stops);
-  const billingDefaults = useMemo(() => {
-    const durationMinutes = route?.overrideDurationMinutes ?? routeDurationMinutes ?? 0;
-    const durationBuckets = deriveDurationBuckets(route, durationMinutes);
-    const totalDurationMinutes = getDurationTotalMinutes(durationBuckets);
-    const ratePerHour = route?.overrideRate ?? customerRatePerHour;
-    const amount =
-      route?.overrideAmount ??
-      (ratePerHour !== null
-        ? Number(((totalDurationMinutes / 60) * ratePerHour).toFixed(2))
-        : 0);
-
-    return {
-      signs: route?.overrideSigns ?? totalSigns,
-      stops: route?.overrideStops ?? totalStops,
-      distanceKm: route?.overrideDistanceKm ?? kilometersTravelled,
-      ...durationBuckets,
-      durationMinutes: totalDurationMinutes,
-      ratePerHour: ratePerHour ?? 0,
-      amount,
-    };
-  }, [
-    customerRatePerHour,
-    kilometersTravelled,
-    route,
-    routeDurationMinutes,
-    totalSigns,
-    totalStops,
-  ]);
-
-  useEffect(() => {
-    if (!route) return;
-    setBillingOverrides(billingDefaults);
-    setBillingOverrideError(null);
-    setBillingOverrideSuccess(null);
-  }, [billingDefaults, route]);
-
-  const pendingDeleteStop = pendingDeleteStopId ? stops.find((s) => s.id === pendingDeleteStopId) ?? null : null;
+  const pendingDeleteStop = deleteStopCapability.pendingId
+    ? stops.find((s) => s.id === deleteStopCapability.pendingId) ?? null
+    : null;
 
   const handleConfirmDeleteRoute = async () => {
-    const ok = await deleteRoute();
+    const ok = await deleteRouteCapability.remove();
     if (ok) router.push('/administrator/routes');
   };
 
@@ -362,10 +346,10 @@ function RouteDetailContent() {
                   <Button
                     size="sm"
                     variant="danger"
-                    loading={deletingRoute}
-                    onClick={confirmDeleteRoute}
+                    loading={deleteRouteCapability.deleting}
+                    onClick={deleteRouteCapability.confirm}
                   >
-                    {deletingRoute ? 'Deleting...' : 'Delete Route'}
+                    {deleteRouteCapability.deleting ? 'Deleting...' : 'Delete Route'}
                   </Button>
                 )}
               </div>
@@ -452,10 +436,7 @@ function RouteDetailContent() {
                           min="0"
                           value={billingOverrides.signs}
                           onChange={(event) =>
-                            setBillingOverrides((current) => ({
-                              ...current,
-                              signs: Number(event.target.value),
-                            }))
+                            setBillingOverrides((current) => updateBillingFieldValue(current, 'signs', event.target.value))
                           }
                         />
                       </Field>
@@ -465,10 +446,7 @@ function RouteDetailContent() {
                           min="0"
                           value={billingOverrides.stops}
                           onChange={(event) =>
-                            setBillingOverrides((current) => ({
-                              ...current,
-                              stops: Number(event.target.value),
-                            }))
+                            setBillingOverrides((current) => updateBillingFieldValue(current, 'stops', event.target.value))
                           }
                         />
                       </Field>
@@ -479,10 +457,7 @@ function RouteDetailContent() {
                           step="0.01"
                           value={billingOverrides.distanceKm}
                           onChange={(event) =>
-                            setBillingOverrides((current) => ({
-                              ...current,
-                              distanceKm: Number(event.target.value),
-                            }))
+                            setBillingOverrides((current) => updateBillingFieldValue(current, 'distanceKm', event.target.value))
                           }
                         />
                       </Field>
@@ -492,22 +467,7 @@ function RouteDetailContent() {
                           min="0"
                           value={billingOverrides.signsCollectedMinutes}
                           onChange={(event) =>
-                            setBillingOverrides((current) => {
-                              const signsCollectedMinutes = Number(event.target.value);
-                              const amount = Number(
-                                ((
-                                  getDurationTotalMinutes({
-                                    ...current,
-                                    signsCollectedMinutes,
-                                  }) / 60
-                                ) * current.ratePerHour).toFixed(2)
-                              );
-                              return {
-                                ...current,
-                                signsCollectedMinutes,
-                                amount,
-                              };
-                            })
+                            setBillingOverrides((current) => updateBillingFieldValue(current, 'signsCollectedMinutes', event.target.value))
                           }
                         />
                       </Field>
@@ -517,22 +477,7 @@ function RouteDetailContent() {
                           min="0"
                           value={billingOverrides.signsPlacedMinutes}
                           onChange={(event) =>
-                            setBillingOverrides((current) => {
-                              const signsPlacedMinutes = Number(event.target.value);
-                              const amount = Number(
-                                ((
-                                  getDurationTotalMinutes({
-                                    ...current,
-                                    signsPlacedMinutes,
-                                  }) / 60
-                                ) * current.ratePerHour).toFixed(2)
-                              );
-                              return {
-                                ...current,
-                                signsPlacedMinutes,
-                                amount,
-                              };
-                            })
+                            setBillingOverrides((current) => updateBillingFieldValue(current, 'signsPlacedMinutes', event.target.value))
                           }
                         />
                       </Field>
@@ -542,22 +487,7 @@ function RouteDetailContent() {
                           min="0"
                           value={billingOverrides.signsPickedUpMinutes}
                           onChange={(event) =>
-                            setBillingOverrides((current) => {
-                              const signsPickedUpMinutes = Number(event.target.value);
-                              const amount = Number(
-                                ((
-                                  getDurationTotalMinutes({
-                                    ...current,
-                                    signsPickedUpMinutes,
-                                  }) / 60
-                                ) * current.ratePerHour).toFixed(2)
-                              );
-                              return {
-                                ...current,
-                                signsPickedUpMinutes,
-                                amount,
-                              };
-                            })
+                            setBillingOverrides((current) => updateBillingFieldValue(current, 'signsPickedUpMinutes', event.target.value))
                           }
                         />
                       </Field>
@@ -567,22 +497,7 @@ function RouteDetailContent() {
                           min="0"
                           value={billingOverrides.signsReturnedMinutes}
                           onChange={(event) =>
-                            setBillingOverrides((current) => {
-                              const signsReturnedMinutes = Number(event.target.value);
-                              const amount = Number(
-                                ((
-                                  getDurationTotalMinutes({
-                                    ...current,
-                                    signsReturnedMinutes,
-                                  }) / 60
-                                ) * current.ratePerHour).toFixed(2)
-                              );
-                              return {
-                                ...current,
-                                signsReturnedMinutes,
-                                amount,
-                              };
-                            })
+                            setBillingOverrides((current) => updateBillingFieldValue(current, 'signsReturnedMinutes', event.target.value))
                           }
                         />
                       </Field>
@@ -601,15 +516,7 @@ function RouteDetailContent() {
                           step="0.01"
                           value={billingOverrides.ratePerHour}
                           onChange={(event) =>
-                            setBillingOverrides((current) => {
-                              const ratePerHour = Number(event.target.value);
-                              const amount = Number(((getDurationTotalMinutes(current) / 60) * ratePerHour).toFixed(2));
-                              return {
-                                ...current,
-                                ratePerHour,
-                                amount,
-                              };
-                            })
+                            setBillingOverrides((current) => updateBillingFieldValue(current, 'ratePerHour', event.target.value))
                           }
                         />
                       </Field>
@@ -620,10 +527,7 @@ function RouteDetailContent() {
                           step="0.01"
                           value={billingOverrides.amount}
                           onChange={(event) =>
-                            setBillingOverrides((current) => ({
-                              ...current,
-                              amount: Number(event.target.value),
-                            }))
+                            setBillingOverrides((current) => updateBillingFieldValue(current, 'amount', event.target.value))
                           }
                         />
                       </Field>
@@ -634,7 +538,7 @@ function RouteDetailContent() {
                         type="button"
                         loading={savingBillingOverrides}
                         disabled={savingBillingOverrides}
-                        onClick={handleSaveBillingOverrides}
+                        onClick={() => { void saveBillingOverrides(); }}
                       >
                         {savingBillingOverrides ? 'Saving…' : 'Save Invoice Values'}
                       </Button>
@@ -661,28 +565,28 @@ function RouteDetailContent() {
             {canManagePlanning && !planningLocked && (
               <div className={styles.reorderHint}>Drag and drop stop cards to change sequence.</div>
             )}
-            {reordering && <div className={styles.reorderStatus}>Saving updated stop order...</div>}
-            {reorderError && <div className={styles.errorBanner}>{reorderError}</div>}
+            {reorder.reordering && <div className={styles.reorderStatus}>Saving updated stop order...</div>}
+            {reorder.error && <div className={styles.errorBanner}>{reorder.error}</div>}
 
             {/* Add Stop Form */}
-            {showAddStop && !planningLocked && (
+            {addStopCapability.visible && !planningLocked && (
               <Card title="Add Stop">
                 <StopForm
-                  onSubmit={addStop}
-                  onCancel={closeAddStop}
+                  onSubmit={addStopCapability.add}
+                  onCancel={addStopCapability.close}
                   addressSearchOrigin={customerAddressOrigin}
                   standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                   defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
                   defaultAgentInitials={defaultAgentForStops}
                   availableAgents={availableAgentsForStops}
-                  isSubmitting={addingStop}
-                  error={addStopError}
+                  isSubmitting={addStopCapability.adding}
+                  error={addStopCapability.error}
                   submitLabel="Add Stop"
                 />
               </Card>
             )}
 
-            {visibleStops.length === 0 && !showAddStop && (route?.status === 'in_progress' || route?.status === 'signs_placed') && (
+            {visibleStops.length === 0 && !addStopCapability.visible && (route?.status === 'in_progress' || route?.status === 'signs_placed') && (
               <div className={styles.emptyState}>
                 {isPlacementPhase(route?.status, route?.executionPhase)
                   ? 'All signs are placed. Start the pickup phase to continue.'
@@ -694,7 +598,7 @@ function RouteDetailContent() {
               </div>
             )}
 
-            {stops.length === 0 && !showAddStop && (
+            {stops.length === 0 && !addStopCapability.visible && (
               <div className={styles.emptyState}>
                 No stops yet. Click &quot;Add Stop&quot; to add the first one.
               </div>
@@ -703,8 +607,8 @@ function RouteDetailContent() {
             <Card
               title={`Stops (${stops.length})${visibleStops.length !== stops.length ? ` - In Current Phase: ${visibleStops.length}` : ''}`}
               action={
-                canManagePlanning && !planningLocked && !showAddStop ? (
-                  <Button size="sm" onClick={openAddStop}>
+                canManagePlanning && !planningLocked && !addStopCapability.visible ? (
+                  <Button size="sm" onClick={addStopCapability.open}>
                     Add Stop
                   </Button>
                 ) : undefined
@@ -713,7 +617,7 @@ function RouteDetailContent() {
             >
               <div className={styles.stopsList}>
                 {stops.map((stop, index) => {
-                  if (editingStopId === stop.id) {
+                  if (editStopCapability.stopId === stop.id) {
                     return (
                       <div key={stop.id} className={styles.editFormWrap}>
                         <h3 className={styles.formHeading}>Edit Stop</h3>
@@ -726,15 +630,15 @@ function RouteDetailContent() {
                             isAuction: Boolean(stop.isAuction),
                             notes: stop.notes,
                           }}
-                          onSubmit={editStop}
-                          onCancel={cancelEditingStop}
+                          onSubmit={editStopCapability.save}
+                          onCancel={editStopCapability.cancel}
                           addressSearchOrigin={customerAddressOrigin}
                           standingInstructions={customerDefaults?.standingInstructions ?? undefined}
                           defaultNumberOfSigns={customerDefaults?.defaultNumberOfSigns ?? undefined}
                           defaultAgentInitials={defaultAgentForStops}
                           availableAgents={availableAgentsForStops}
-                          isSubmitting={editingStop}
-                          error={editStopError}
+                          isSubmitting={editStopCapability.editing}
+                          error={editStopCapability.error}
                           submitLabel="Save Changes"
                         />
                       </div>
@@ -758,33 +662,33 @@ function RouteDetailContent() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => { void moveStop(stop.id, 'up'); }}
-                          disabled={index === 0 || reordering}
+                          onClick={() => { void reorder.moveStop(stop.id, 'up'); }}
+                          disabled={index === 0 || reorder.reordering}
                         >
                           Move Up
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => { void moveStop(stop.id, 'down'); }}
-                          disabled={index === stops.length - 1 || reordering}
+                          onClick={() => { void reorder.moveStop(stop.id, 'down'); }}
+                          disabled={index === stops.length - 1 || reorder.reordering}
                         >
                           Move Down
                         </Button>
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() => startEditingStop(stop.id)}
-                          disabled={reordering || !!deletingStopId}
+                          onClick={() => editStopCapability.start(stop.id)}
+                          disabled={reorder.reordering || !!deleteStopCapability.deletingId}
                         >
                           Edit
                         </Button>
                         <Button
                           size="sm"
                           variant="danger"
-                          loading={deletingStopId === stop.id}
-                          onClick={() => confirmDeleteStop(stop.id)}
-                          disabled={reordering || !!deletingStopId}
+                          loading={deleteStopCapability.deletingId === stop.id}
+                          onClick={() => deleteStopCapability.confirm(stop.id)}
+                          disabled={reorder.reordering || !!deleteStopCapability.deletingId}
                         >
                           Delete
                         </Button>
@@ -840,10 +744,10 @@ function RouteDetailContent() {
                       isAuction={Boolean(stop.isAuction)}
                       isTop={isTopVisibleStop}
                       isCompleted={completedStop}
-                      isDragging={draggingStopId === stop.id}
-                      isDropTarget={dragOverStopId === stop.id && draggingStopId !== stop.id}
-                      draggable={canManagePlanning && !planningLocked && !reordering}
-                      onDragStart={() => startDragging(stop.id)}
+                      isDragging={reorder.draggingStopId === stop.id}
+                      isDropTarget={dragOverStopId === stop.id && reorder.draggingStopId !== stop.id}
+                      draggable={canManagePlanning && !planningLocked && !reorder.reordering}
+                      onDragStart={() => reorder.startDragging(stop.id)}
                       onDragOver={(event) => {
                         if (canManagePlanning && !planningLocked) {
                           event.preventDefault();
@@ -855,10 +759,10 @@ function RouteDetailContent() {
                       }}
                       onDrop={() => {
                         setDragOverStopId(null);
-                        void dropStop(stop.id);
+                        void reorder.dropStop(stop.id);
                       }}
                       onDragEnd={() => {
-                        clearDragging();
+                        reorder.clearDragging();
                         setDragOverStopId(null);
                       }}
                       actions={stopActions}
@@ -872,27 +776,27 @@ function RouteDetailContent() {
       )}
 
       <ConfirmDialog
-        open={pendingDeleteStopId !== null}
+        open={deleteStopCapability.pendingId !== null}
         title="Delete stop?"
         message={`Delete stop${pendingDeleteStop?.address ? ` at ${pendingDeleteStop.address}` : ''}?`}
         confirmLabel="Delete"
         tone="danger"
-        busy={deletingStopId === pendingDeleteStopId}
+        busy={deleteStopCapability.deletingId === deleteStopCapability.pendingId}
         onConfirm={() => {
-          if (pendingDeleteStopId) void deleteStop(pendingDeleteStopId);
+          if (deleteStopCapability.pendingId) void deleteStopCapability.remove(deleteStopCapability.pendingId);
         }}
-        onCancel={cancelDeleteStop}
+        onCancel={deleteStopCapability.cancel}
       />
 
       <ConfirmDialog
-        open={routePendingDelete}
+        open={deleteRouteCapability.pending}
         title="Delete route?"
         message={`Delete route ${route?.routeCode || route?.id.slice(0, 8)}? This will also delete all stops on the route.`}
         confirmLabel="Delete"
         tone="danger"
-        busy={deletingRoute}
+        busy={deleteRouteCapability.deleting}
         onConfirm={() => void handleConfirmDeleteRoute()}
-        onCancel={cancelDeleteRoute}
+        onCancel={deleteRouteCapability.cancel}
       />
     </div>
   );

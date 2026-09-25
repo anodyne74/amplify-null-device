@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { useLiveRoutes, useLiveRoute } from '@/lib/useLiveRoutes';
+import { useLiveRoutes, useLiveRoute, useLiveAllRoutes } from '@/lib/useLiveRoutes';
 
 const mockObserveQuery = jest.fn();
 
@@ -169,5 +169,83 @@ describe('useLiveRoute', () => {
 
     expect(result.current.route).toBeNull();
     expect(result.current.loading).toBe(false);
+  });
+});
+
+describe('useLiveAllRoutes', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('subscribes without a filter and reflects the initial sync', () => {
+    const feed = makeObservable();
+    mockObserveQuery.mockReturnValue(feed.observable);
+
+    const { result } = renderHook(() => useLiveAllRoutes());
+
+    expect(mockObserveQuery).toHaveBeenCalledWith({});
+    expect(result.current.loading).toBe(true);
+
+    act(() => {
+      feed.emit({ items: [{ id: 'route-1' }, { id: 'route-2' }], isSynced: true });
+    });
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.routes).toEqual([{ id: 'route-1' }, { id: 'route-2' }]);
+  });
+
+  it('reflects a route newly appearing (e.g. a new assignment) pushed over the same subscription', () => {
+    const feed = makeObservable();
+    mockObserveQuery.mockReturnValue(feed.observable);
+
+    const { result } = renderHook(() => useLiveAllRoutes());
+
+    act(() => {
+      feed.emit({ items: [{ id: 'route-1' }], isSynced: true });
+    });
+    act(() => {
+      feed.emit({ items: [{ id: 'route-1' }, { id: 'route-2' }], isSynced: true });
+    });
+
+    expect(result.current.routes).toEqual([{ id: 'route-1' }, { id: 'route-2' }]);
+  });
+
+  it('surfaces a subscription error', () => {
+    const feed = makeObservable();
+    mockObserveQuery.mockReturnValue(feed.observable);
+
+    const { result } = renderHook(() => useLiveAllRoutes());
+
+    act(() => {
+      feed.emitError(new Error('connection lost'));
+    });
+
+    expect(result.current.error).toBe('connection lost');
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('resubscribes when the window regains focus, resyncing after a dropped connection', () => {
+    const firstFeed = makeObservable();
+    const secondFeed = makeObservable();
+    mockObserveQuery.mockReturnValueOnce(firstFeed.observable).mockReturnValueOnce(secondFeed.observable);
+
+    renderHook(() => useLiveAllRoutes());
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    expect(firstFeed.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(mockObserveQuery).toHaveBeenCalledTimes(2);
+  });
+
+  it('unsubscribes on unmount', () => {
+    const feed = makeObservable();
+    mockObserveQuery.mockReturnValue(feed.observable);
+
+    const { unmount } = renderHook(() => useLiveAllRoutes());
+    unmount();
+
+    expect(feed.unsubscribe).toHaveBeenCalledTimes(1);
   });
 });

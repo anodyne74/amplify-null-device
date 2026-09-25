@@ -1,12 +1,12 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { Route } from '@/amplify/types';
 import { useRoutesList } from '@/lib/useRoutesList';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
+import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { deleteRoute } from '@/lib/queries';
 
-jest.mock('@/lib/queries/ListAllRoutes', () => ({
-  listAllRoutes: jest.fn(),
+jest.mock('@/lib/useLiveRoutes', () => ({
+  useLiveAllRoutes: jest.fn(),
 }));
 
 jest.mock('@/lib/queries/ListAllCustomers', () => ({
@@ -45,9 +45,10 @@ describe('useRoutesList', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    (listAllRoutes as jest.Mock).mockResolvedValue({
-      data: mockRoutes,
-      errors: undefined,
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({
+      routes: mockRoutes,
+      loading: false,
+      error: null,
     });
 
     (listAllCustomers as jest.Mock).mockResolvedValue({
@@ -84,10 +85,11 @@ describe('useRoutesList', () => {
     });
   });
 
-  it('surfaces loading error when route fetch fails', async () => {
-    (listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [],
-      errors: [{ message: 'network' }],
+  it('surfaces loading error when the live route feed fails', async () => {
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({
+      routes: [],
+      loading: false,
+      error: 'connection lost',
     });
 
     const { result } = renderHook(() => useRoutesList(true));
@@ -113,6 +115,29 @@ describe('useRoutesList', () => {
 
     expect(result.current.statusFilter).toBe('completed');
     expect(result.current.filteredRoutes.map((route) => route.id)).toEqual(['route-2', 'route-1']);
+  });
+
+  it('reflects a live status change pushed over useLiveAllRoutes, without a manual reload', async () => {
+    const { result, rerender } = renderHook(() => useRoutesList(true));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    act(() => {
+      result.current.setStatusFilter('completed');
+    });
+    expect(result.current.filteredRoutes.map((route) => route.id)).toEqual(['route-2', 'route-1']);
+
+    // route-10 moves to 'completed' server-side.
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({
+      routes: mockRoutes.map((route) => (route.id === 'route-10' ? { ...route, status: 'completed' } : route)),
+      loading: false,
+      error: null,
+    });
+    rerender();
+
+    expect(result.current.filteredRoutes.map((route) => route.id)).toEqual(['route-10', 'route-2', 'route-1']);
   });
 
   it('deletes a route when permitted', async () => {

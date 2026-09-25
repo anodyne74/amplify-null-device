@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import OperatorDashboard from '../page';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
+import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { getRouteWithStops } from '@/lib/queries';
 import type { Route } from '@/amplify/types';
@@ -11,8 +11,8 @@ jest.mock('@/lib/use-user-groups', () => ({
   useCurrentUserId: () => 'operator-me',
 }));
 
-jest.mock('@/lib/queries/ListAllRoutes', () => ({
-  listAllRoutes: jest.fn(),
+jest.mock('@/lib/useLiveRoutes', () => ({
+  useLiveAllRoutes: jest.fn(),
 }));
 
 jest.mock('@/lib/queries/ListAllCustomers', () => ({
@@ -42,13 +42,14 @@ describe('Operator Dashboard (Today)', () => {
   });
 
   it('shows unassigned routes and routes assigned to the signed-in operator, but excludes routes assigned to other operators', async () => {
-    (listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({
+      routes: [
         baseRoute({ id: 'route-unassigned', routeCode: 'W25-08-101' }),
         baseRoute({ id: 'route-mine', routeCode: 'W25-08-102', assignedOperatorSub: 'operator-me' }),
         baseRoute({ id: 'route-other', routeCode: 'W25-08-103', assignedOperatorSub: 'operator-someone-else' }),
       ],
-      errors: undefined,
+      loading: false,
+      error: null,
     });
 
     render(<OperatorDashboard />);
@@ -56,5 +57,28 @@ describe('Operator Dashboard (Today)', () => {
     await waitFor(() => expect(screen.getByText('W25-08-101')).toBeInTheDocument());
     expect(screen.getByText('W25-08-102')).toBeInTheDocument();
     expect(screen.queryByText('W25-08-103')).not.toBeInTheDocument();
+  });
+
+  it('reflects a route newly assigned to the signed-in operator, pushed over useLiveAllRoutes without a manual reload', async () => {
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({
+      routes: [baseRoute({ id: 'route-other', routeCode: 'W25-08-103', assignedOperatorSub: 'operator-someone-else' })],
+      loading: false,
+      error: null,
+    });
+
+    const { rerender } = render(<OperatorDashboard />);
+
+    await waitFor(() => expect(screen.getByText(/no planned or active routes/i)).toBeInTheDocument());
+
+    // Reassigned to the signed-in operator server-side — should appear
+    // without a reload.
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({
+      routes: [baseRoute({ id: 'route-other', routeCode: 'W25-08-103', assignedOperatorSub: 'operator-me' })],
+      loading: false,
+      error: null,
+    });
+    rerender(<OperatorDashboard />);
+
+    await waitFor(() => expect(screen.getByText('W25-08-103')).toBeInTheDocument());
   });
 });

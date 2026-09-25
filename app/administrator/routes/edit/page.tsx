@@ -107,6 +107,7 @@ function RouteEditContent() {
   const [notifying, setNotifying] = useState(false);
   const [notifyError, setNotifyError] = useState<string | null>(null);
   const [notifySuccess, setNotifySuccess] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
   const fetchStops = useCallback(async () => {
     if (!routeId) return;
@@ -275,6 +276,7 @@ function RouteEditContent() {
 
     setSaving(true);
     setError(null);
+    setSaveSuccess(null);
 
     const selectedOperator = operators.find((op) => op.sub === assignedOperatorSub);
     const assignmentChanged = assignedOperatorSub !== initialAssignedOperatorSub;
@@ -291,13 +293,21 @@ function RouteEditContent() {
         : {}),
     });
 
+    setSaving(false);
+
     if (result.errors && result.errors.length > 0) {
       setError('Failed to update route.');
-      setSaving(false);
       return;
     }
 
-    router.push(`/administrator/routes/detail?id=${routeId}`);
+    // Reflect the assignment that was just persisted so "Notify Operator"
+    // becomes available immediately — previously this only ever reflected
+    // the route as it was when the page first loaded (#267), and the admin
+    // had to leave and re-open the edit screen to notify a newly-assigned
+    // operator.
+    setSavedAssignedOperatorEmail(selectedOperator?.email || null);
+    setInitialAssignedOperatorSub(selectedOperator?.sub || '');
+    setSaveSuccess('Route saved.');
   };
 
   const handleNotifyOperator = async () => {
@@ -609,6 +619,7 @@ function RouteEditContent() {
               {notifying ? 'Notifying...' : 'Notify Operator'}
             </Button>
           </div>
+          {saveSuccess && <p className={styles.successText}>{saveSuccess}</p>}
           {notifyError && <div className={styles.errorBanner}>{notifyError}</div>}
           {notifySuccess && <p className={styles.successText}>{notifySuccess}</p>}
         </form>

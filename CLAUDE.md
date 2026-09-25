@@ -99,6 +99,20 @@ jest.mock('@aws-amplify/ui-react');
 
 **"Cannot find module amplify_outputs.json"** — Run `npm run generate:config`.
 
+## Agent skills
+
+### Issue tracker
+
+Issues live in this repo's GitHub Issues (`anodyne74/amplify-null-device`), via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default canonical label strings (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`); `bug`/`enhancement` already existed under their canonical names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

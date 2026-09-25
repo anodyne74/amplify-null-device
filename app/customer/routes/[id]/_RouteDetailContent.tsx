@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useCurrentUserId } from '@/lib/use-user-groups';
-import { getCustomer, getCustomerPortalContext, getRouteWithStops, listCustomerUsers, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
+import { getCustomer, getRouteWithStops, listCustomerUsers, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
+import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
@@ -41,18 +41,69 @@ interface RouteDetailContentProps {
   };
 }
 
+interface RouteDetailData {
+  route: Route;
+  stops: Stop[];
+  customer: Customer | null;
+  customerUsers: CustomerUserSummary[];
+}
+
+async function fetchRouteDetailData(context: CustomerPortalContext, routeId: string): Promise<RouteDetailData> {
+  const result = await getRouteWithStops(routeId);
+
+  if (result.errors && result.errors.length > 0) {
+    throw new Error('Failed to load route details');
+  }
+  if (!result.route) {
+    throw new Error('Route not found');
+  }
+
+  const fetchedRoute = result.route as unknown as Route;
+  if (fetchedRoute.customerId !== context.customerId) {
+    throw new Error('You do not have permission to view this route');
+  }
+
+  const stops = [...((result.stops as unknown as Stop[]) ?? [])].sort(
+    (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
+  );
+
+  // Best-effort: resolves authorSub -> name for the instructions feed below.
+  // CustomerUser is only readable by its own owner (self) or the account
+  // owner (all rows) — a read_only viewer gets back just their own record,
+  // so entries authored by a teammate fall back to the stored agentLabel.
+  const [{ data: fetchedCustomer }, { data: fetchedCustomerUsers }] = await Promise.all([
+    getCustomer(context.customerId),
+    listCustomerUsers(context.customerId),
+  ]);
+
+  return {
+    route: { ...fetchedRoute, stops } as Route,
+    stops,
+    customer: (fetchedCustomer as unknown as Customer) || null,
+    customerUsers: (fetchedCustomerUsers as unknown as CustomerUserSummary[]) || [],
+  };
+}
+
 /**
  * Customer Route Detail Page
  * Shows full route information with stops and timeline
  */
 export default function RouteDetailContent({ params }: RouteDetailContentProps) {
-  const userId = useCurrentUserId();
-  const [route, setRoute] = useState<Route | null>(null);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [customerUsers, setCustomerUsers] = useState<CustomerUserSummary[]>([]);
+  const {
+    userId,
+    data,
+    setData,
+    loading,
+    error,
+  } = useCustomerPortalContext({
+    fetchData: (context) => fetchRouteDetailData(context, params.id),
+    fetchDataDeps: [params.id],
+  });
+  const route = data?.route ?? null;
+  const stops = data?.stops ?? [];
+  const customer = data?.customer ?? null;
+  const customerUsers = data?.customerUsers ?? [];
+
   const [instructionsExpanded, setInstructionsExpanded] = useState(true);
   const [instructionsDraft, setInstructionsDraft] = useState('');
   const [instructionsAgent, setInstructionsAgent] = useState('');
@@ -66,72 +117,21 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
   const isNarrow = useIsNarrowViewport(NARROW_BREAKPOINT_PX);
 
+  // Keyed on route.id (stable across the optimistic updates handleAddInstruction/
+  // handleSendFeedback make via setData) so those updates don't clobber
+  // in-progress edits to instructionsAgent/feedbackTone/feedbackNote.
   useEffect(() => {
-    if (!params.id || !userId) return;
-    const currentUserId = userId;
-    let cancelled = false;
+    if (!route) return;
+    setFeedbackTone((route.customerFeedbackTone as 'good' | 'issue' | null) ?? null);
+    setFeedbackNote(route.customerFeedbackNote || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route?.id]);
 
-    async function fetchRoute() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const context = await getCustomerPortalContext(currentUserId);
-        const result = await getRouteWithStops(params.id);
-
-        if (cancelled) return;
-
-        if (result.errors && result.errors.length > 0) {
-          setError('Failed to load route details');
-        } else if (result.route) {
-          const fetchedRoute = result.route as unknown as Route;
-          if (!context.customerId || fetchedRoute.customerId !== context.customerId) {
-            setError('You do not have permission to view this route');
-          } else {
-            const fetchedStops = [...((result.stops as unknown as Stop[]) ?? [])].sort(
-              (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
-            );
-            setStops(fetchedStops);
-            setRoute({ ...fetchedRoute, stops: fetchedStops } as Route);
-            setFeedbackTone((fetchedRoute.customerFeedbackTone as 'good' | 'issue' | null) ?? null);
-            setFeedbackNote(fetchedRoute.customerFeedbackNote || '');
-
-            const { data: fetchedCustomer } = await getCustomer(context.customerId);
-            if (!cancelled && fetchedCustomer) {
-              const customerRecord = fetchedCustomer as unknown as Customer;
-              setCustomer(customerRecord);
-              setInstructionsAgent(customerRecord.agentOptions?.[0] ?? '');
-            }
-
-            // Best-effort: resolves authorSub -> name for the instructions feed below.
-            // CustomerUser is only readable by its own owner (self) or the account
-            // owner (all rows) — a read_only viewer gets back just their own record,
-            // so entries authored by a teammate fall back to the stored agentLabel.
-            const { data: fetchedCustomerUsers } = await listCustomerUsers(context.customerId);
-            if (!cancelled && fetchedCustomerUsers) {
-              setCustomerUsers(fetchedCustomerUsers as unknown as CustomerUserSummary[]);
-            }
-          }
-        } else {
-          setError('Route not found');
-        }
-      } catch {
-        if (!cancelled) {
-          setError('Failed to load route details');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    fetchRoute();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [params.id, userId]);
+  useEffect(() => {
+    if (!customer) return;
+    setInstructionsAgent(customer.agentOptions?.[0] ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer?.id]);
 
   const handleAddInstruction = async () => {
     if (!route || !instructionsDraft.trim() || instructionsLocked) return;
@@ -153,7 +153,9 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
       return;
     }
 
-    setRoute({ ...route, customerInstructions: nextValue, updatedAt: new Date().toISOString() });
+    setData((prev) =>
+      prev ? { ...prev, route: { ...prev.route, customerInstructions: nextValue, updatedAt: new Date().toISOString() } } : prev
+    );
     setInstructionsDraft('');
     setInstructionsSuccess('Instruction added.');
     setSavingInstructions(false);
@@ -176,7 +178,9 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
       return;
     }
 
-    setRoute({ ...route, customerFeedbackTone: feedbackTone, customerFeedbackNote: feedbackNote });
+    setData((prev) =>
+      prev ? { ...prev, route: { ...prev.route, customerFeedbackTone: feedbackTone, customerFeedbackNote: feedbackNote } } : prev
+    );
     setFeedbackSuccess('Feedback sent — thank you.');
     setSavingFeedback(false);
   };

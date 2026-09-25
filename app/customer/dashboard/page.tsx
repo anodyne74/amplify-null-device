@@ -7,7 +7,9 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 import type { Customer, Route } from '@/amplify/types';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
-import { getCustomer, getCustomerPortalContext, getUserSettings } from '@/lib/queries';
+import { getCustomer, getUserSettings } from '@/lib/queries';
+import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { unwrapOrThrow } from '@/lib/graphqlResult';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import { formatCurrency } from '@/lib/dashboardAnalytics';
@@ -56,6 +58,41 @@ interface RecentRouteRow {
   createdAt?: string | null;
 }
 
+interface DashboardData {
+  routes: OverviewRoute[];
+  stops: OverviewStop[];
+  invoices: OverviewInvoice[];
+}
+
+async function fetchDashboardData(context: CustomerPortalContext): Promise<DashboardData> {
+  const nextCustomer = unwrapOrThrow(await getCustomer(context.customerId), 'Could not load customer defaults.') as Customer | null;
+  if (!nextCustomer) {
+    return { routes: [], stops: [], invoices: [] };
+  }
+
+  const routesResult = await listMyRoutes({ customerId: context.customerId, limit: 500 });
+  const routes = (routesResult.data as Route[]) ?? [];
+
+  const client = generateClient<Schema>();
+  const stopResult = await client.models.Stop.list({
+    filter: { customerId: { eq: context.customerId } },
+    limit: 1000,
+  });
+  const stops = ((stopResult.data as unknown as OverviewStop[]) ?? []).filter(Boolean);
+
+  let invoices: OverviewInvoice[] = [];
+  if (context.role === 'account_owner') {
+    const invoiceResult = await listMyInvoices({
+      customerId: context.customerId,
+      userSub: context.userId,
+      limit: 500,
+    });
+    invoices = (invoiceResult.data as OverviewInvoice[]) ?? [];
+  }
+
+  return { routes, stops, invoices };
+}
+
 /**
  * Customer Dashboard
  * Shows overview of routes, invoices, and statistics
@@ -64,12 +101,21 @@ export default function CustomerDashboard() {
   const userId = useCurrentUserId();
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
-  const [customerLoadError, setCustomerLoadError] = useState<string | null>(null);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [routes, setRoutes] = useState<OverviewRoute[]>([]);
-  const [stops, setStops] = useState<OverviewStop[]>([]);
-  const [invoices, setInvoices] = useState<OverviewInvoice[]>([]);
+  const {
+    role: customerRole,
+    error: customerLoadError,
+    loading: statsLoading,
+    data,
+  } = useCustomerPortalContext({
+    fetchData: fetchDashboardData,
+    // account_owner while loading matches the pre-refactor default: every
+    // stat tile below is individually gated on statsLoading, not this role,
+    // so this only picks which tile layout briefly shows before it resolves.
+    defaultRole: 'account_owner',
+  });
+  const routes = useMemo(() => data?.routes ?? [], [data]);
+  const stops = useMemo(() => data?.stops ?? [], [data]);
+  const invoices = useMemo(() => data?.invoices ?? [], [data]);
 
   useEffect(() => {
     if (!userId) return;
@@ -107,83 +153,6 @@ export default function CustomerDashboard() {
       cancelled = true;
     };
   }, [fallbackDisplayName, userId]);
-
-  useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-
-    void getCustomerPortalContext(userId)
-      .then(async (context) => {
-        if (!cancelled) {
-          setCustomerRole(context.role);
-        }
-
-        if (!context.customerId) {
-          if (!cancelled) {
-            setCustomerLoadError('Could not resolve your customer account.');
-          }
-          return;
-        }
-
-        const customerResult = await getCustomer(context.customerId);
-        if (cancelled || (customerResult.errors && customerResult.errors.length > 0)) {
-          if (!cancelled) {
-            const firstError = customerResult.errors?.[0] as { message?: string } | undefined;
-            setCustomerLoadError(firstError?.message ?? 'Could not load customer defaults.');
-          }
-          return;
-        }
-
-        const nextCustomer = customerResult.data as Customer | null;
-        if (!nextCustomer) {
-          return;
-        }
-
-        setStatsLoading(true);
-        const routesResult = await listMyRoutes({ customerId: context.customerId, limit: 500 });
-        const fetchedRoutes = (routesResult.data as Route[]) ?? [];
-        if (!cancelled) {
-          setRoutes(fetchedRoutes);
-        }
-
-        const client = generateClient<Schema>();
-        const stopResult = await client.models.Stop.list({
-          filter: { customerId: { eq: context.customerId } },
-          limit: 1000,
-        });
-        const customerStops = ((stopResult.data as unknown as OverviewStop[]) ?? []).filter(Boolean);
-        if (!cancelled) {
-          setStops(customerStops);
-        }
-
-        if (context.role === 'account_owner') {
-          const invoiceResult = await listMyInvoices({
-            customerId: context.customerId,
-            userSub: userId,
-            limit: 500,
-          });
-          if (!cancelled) {
-            setInvoices((invoiceResult.data as OverviewInvoice[]) ?? []);
-          }
-        } else if (!cancelled) {
-          setInvoices([]);
-        }
-
-        if (!cancelled) {
-          setStatsLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCustomerRole('account_owner');
-          setStatsLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
 
   const isAccountOwner = customerRole === 'account_owner';
 

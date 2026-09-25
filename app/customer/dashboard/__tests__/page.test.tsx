@@ -185,12 +185,16 @@ describe('Customer Dashboard', () => {
     // active route should win the "Current route" tile. The route code also
     // appears in the "Recent routes" table below, so scope to the stat tile.
     const currentRouteTile = (await screen.findByText(/current route/i)).closest('.nd-stat') as HTMLElement;
-    expect(within(currentRouteTile).getByText('W19-26-001')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(currentRouteTile).getByText('W19-26-001')).toBeInTheDocument();
+    });
     expect(within(currentRouteTile).getByText(/signs placed/i)).toBeInTheDocument();
 
     expect(screen.getByText(/signs in field/i)).toBeInTheDocument();
     // Signs on route-1's stops (3 + 2) count as "in field" since that route is signs_placed.
-    expect(screen.getByText('5')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('5')).toBeInTheDocument();
+    });
 
     expect(screen.getByText(/stops this week/i)).toBeInTheDocument();
   });
@@ -229,6 +233,8 @@ describe('Customer Dashboard', () => {
       expect(screen.getByRole('heading', { name: /this week/i })).toBeInTheDocument();
     });
 
-    expect(screen.getByText('1 Example St')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('1 Example St')).toBeInTheDocument();
+    });
   });
 });

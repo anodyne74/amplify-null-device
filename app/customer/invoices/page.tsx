@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useCurrentUserId } from '@/lib/use-user-groups';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
-import { getCustomerPortalContext, getCustomer } from '@/lib/queries';
+import { getCustomer } from '@/lib/queries';
+import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { InvoiceStatusPill, InvoiceActions } from '@/app/customer/components/InvoiceListItem';
@@ -59,74 +59,47 @@ function downloadInvoicesCsv(invoices: Invoice[]) {
   URL.revokeObjectURL(url);
 }
 
+async function fetchCustomerName(context: CustomerPortalContext): Promise<string | undefined> {
+  const { data } = await getCustomer(context.customerId);
+  return data?.name || undefined;
+}
+
 /**
  * Customer Invoices List Page
  * Displays all customer's invoices with filtering options
  */
 export default function InvoicesPage() {
-  const userId = useCurrentUserId();
+  const {
+    userId,
+    role,
+    customerId,
+    data: customerName,
+    loading: contextLoading,
+    error: contextError,
+  } = useCustomerPortalContext({ fetchData: fetchCustomerName });
+  const readOnly = role === 'read_only';
+
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [customerName, setCustomerName] = useState<string | undefined>(undefined);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [readOnly, setReadOnly] = useState(false);
+  const [invoicesLoading, setInvoicesLoading] = useState(true);
+  const [invoicesError, setInvoicesError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-
-    const fetchCustomerName = async () => {
-      try {
-        const context = await getCustomerPortalContext(userId);
-        if (!context.customerId) return;
-        const { data } = await getCustomer(context.customerId);
-        if (!cancelled) {
-          setCustomerName(data?.name || undefined);
-        }
-      } catch (err) {
-        console.error('Error fetching customer name:', err);
-      }
-    };
-
-    fetchCustomerName();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
-
-  useEffect(() => {
-    if (!userId) return;
+    if (!userId || !customerId || readOnly) {
+      setInvoicesLoading(false);
+      return;
+    }
     let cancelled = false;
 
     const fetchInvoices = async () => {
-      setLoading(true);
-      setError(null);
+      setInvoicesLoading(true);
+      setInvoicesError(null);
 
       try {
-        const context = await getCustomerPortalContext(userId);
-
-        if (context.role === 'read_only') {
-          if (!cancelled) {
-            setReadOnly(true);
-            setInvoices([]);
-          }
-          return;
-        }
-
-        if (!context.customerId) {
-          if (!cancelled) {
-            setError('Could not resolve your customer account');
-            setInvoices([]);
-          }
-          return;
-        }
-
         const result = await listMyInvoices({
-          customerId: context.customerId,
+          customerId,
           userSub: userId,
           startDate: startDate || undefined,
           endDate: endDate || undefined,
@@ -137,19 +110,19 @@ export default function InvoicesPage() {
 
         if (result.errors && result.errors.length > 0) {
           const message = (result.errors[0] as Error | undefined)?.message;
-          setError(message?.includes('reviewer users cannot view invoices') ? 'Access denied' : 'Failed to load invoices');
+          setInvoicesError(message?.includes('reviewer users cannot view invoices') ? 'Access denied' : 'Failed to load invoices');
           console.error('Error fetching invoices:', result.errors);
         } else {
           setInvoices((result.data as Invoice[]) || []);
         }
       } catch (err) {
         if (!cancelled) {
-          setError('Failed to load invoices');
+          setInvoicesError('Failed to load invoices');
           console.error('Error fetching invoices:', err);
         }
       } finally {
         if (!cancelled) {
-          setLoading(false);
+          setInvoicesLoading(false);
         }
       }
     };
@@ -159,7 +132,10 @@ export default function InvoicesPage() {
     return () => {
       cancelled = true;
     };
-  }, [userId, startDate, endDate]);
+  }, [userId, customerId, readOnly, startDate, endDate]);
+
+  const loading = contextLoading || invoicesLoading;
+  const error = invoicesError || contextError;
 
   const handleClearFilters = () => {
     setStartDate('');
@@ -216,7 +192,7 @@ export default function InvoicesPage() {
       key: 'action',
       header: '',
       width: 190,
-      render: (invoice) => <InvoiceActions invoice={invoice} customerName={customerName} />,
+      render: (invoice) => <InvoiceActions invoice={invoice} customerName={customerName ?? undefined} />,
     },
   ];
 

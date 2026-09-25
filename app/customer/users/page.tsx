@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useCurrentUserId } from '@/lib/use-user-groups';
+import { useCallback, useState } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { getCustomer, getCustomerPortalContext, listCustomerUsers } from '@/lib/queries';
+import { getCustomer, listCustomerUsers } from '@/lib/queries';
+import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
@@ -39,15 +39,38 @@ function roleLabel(role?: string | null) {
   return role === 'account_owner' ? 'Account owner' : 'Read only';
 }
 
-export default function CustomerTeamPage() {
-  const userId = useCurrentUserId();
+interface UsersData {
+  customer: Customer | null;
+  teammates: TeammateRow[];
+}
 
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [isAccountOwner, setIsAccountOwner] = useState(false);
-  const [customerId, setCustomerId] = useState<string | null>(null);
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [teammates, setTeammates] = useState<TeammateRow[]>([]);
+async function fetchUsersData(context: CustomerPortalContext): Promise<UsersData> {
+  try {
+    const [customerResult, teammatesResult] = await Promise.all([
+      getCustomer(context.customerId),
+      listCustomerUsers(context.customerId),
+    ]);
+    return {
+      customer: (customerResult.data as unknown as Customer) || null,
+      teammates: (teammatesResult.data as TeammateRow[]) || [],
+    };
+  } catch {
+    throw new Error('Could not load your team.');
+  }
+}
+
+export default function CustomerTeamPage() {
+  const {
+    role,
+    customerId,
+    data,
+    setData,
+    loading,
+    error: loadError,
+  } = useCustomerPortalContext({ fetchData: fetchUsersData });
+  const isAccountOwner = role === 'account_owner';
+  const customer = data?.customer ?? null;
+  const teammates = data?.teammates ?? [];
 
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -55,46 +78,13 @@ export default function CustomerTeamPage() {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
 
-  const loadTeammates = useCallback(async (id: string) => {
-    const { data } = await listCustomerUsers(id);
-    setTeammates((data as TeammateRow[]) || []);
-  }, []);
-
-  useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-
-    void getCustomerPortalContext(userId)
-      .then(async (context) => {
-        if (cancelled) return;
-        setIsAccountOwner(context.role === 'account_owner');
-        setCustomerId(context.customerId);
-
-        if (!context.customerId) {
-          setLoadError('Could not resolve your customer account.');
-          setLoading(false);
-          return;
-        }
-
-        const [customerResult] = await Promise.all([
-          getCustomer(context.customerId),
-          loadTeammates(context.customerId),
-        ]);
-        if (cancelled) return;
-        setCustomer((customerResult.data as unknown as Customer) || null);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setLoadError('Could not load your team.');
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userId, loadTeammates]);
+  const loadTeammates = useCallback(
+    async (id: string) => {
+      const { data: teammateData } = await listCustomerUsers(id);
+      setData((prev) => (prev ? { ...prev, teammates: (teammateData as TeammateRow[]) || [] } : prev));
+    },
+    [setData]
+  );
 
   const handleInvite = async () => {
     if (!email.trim()) {

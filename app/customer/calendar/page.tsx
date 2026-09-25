@@ -1,46 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useCurrentUserId } from '@/lib/use-user-groups';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { ServiceCalendar } from '@/app/components/ServiceCalendar';
-import { getCustomer, getCustomerPortalContext } from '@/lib/queries';
+import { getCustomer } from '@/lib/queries';
+import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
+
+async function fetchViewerSubs(context: CustomerPortalContext): Promise<string[]> {
+  const result = await getCustomer(context.customerId);
+  return (result.data?.viewerSubs as string[] | null) || [];
+}
 
 export default function CustomerCalendarPage() {
   const userId = useCurrentUserId();
-  const [customerId, setCustomerId] = useState<string | null>(null);
-  const [role, setRole] = useState<'account_owner' | 'read_only'>('read_only');
-  const [viewerSubs, setViewerSubs] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-
-    void getCustomerPortalContext(userId)
-      .then(async (context) => {
-        if (cancelled) return;
-        setRole(context.role);
-        setCustomerId(context.customerId || null);
-
-        if (context.customerId) {
-          const result = await getCustomer(context.customerId);
-          if (!cancelled) {
-            setViewerSubs((result.data?.viewerSubs as string[] | null) || []);
-          }
-        }
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
+  const { role, customerId, data: viewerSubs, loading } = useCustomerPortalContext({
+    fetchData: fetchViewerSubs,
+  });
 
   if (loading) {
     return <LoadingSpinner message="Loading calendar..." />;
@@ -55,7 +32,7 @@ export default function CustomerCalendarPage() {
             customerId={customerId}
             role={role === 'account_owner' ? 'customer-admin' : 'customer-readonly'}
             currentUserSub={userId}
-            viewerSubs={viewerSubs}
+            viewerSubs={viewerSubs ?? []}
           />
         )}
       </div>

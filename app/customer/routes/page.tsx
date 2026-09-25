@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useCurrentUserId } from '@/lib/use-user-groups';
+import { useEffect, useMemo, useState } from 'react';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
-import { getCustomerPortalContext } from '@/lib/queries';
+import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/customer/components/PageHeader';
@@ -38,64 +37,22 @@ const STATUS_CHIPS: { id: ChipFilter; label: string }[] = [
  * Customer Routes List Page
  * Displays all routes for the current customer with filtering and sorting
  */
-export default function CustomerRoutesPage() {
-  const userId = useCurrentUserId();
+async function fetchRoutesData(context: CustomerPortalContext): Promise<Route[]> {
+  const result = await listMyRoutes({ customerId: context.customerId, limit: 50 });
+  if (result.errors) {
+    throw new Error('Failed to load routes');
+  }
+  return (result.data as unknown as Route[]) ?? [];
+}
 
-  const [routes, setRoutes] = useState<Route[]>([]);
+export default function CustomerRoutesPage() {
+  const { data, loading, error } = useCustomerPortalContext({ fetchData: fetchRoutesData });
+  const routes = useMemo(() => data ?? [], [data]);
+
   const [filteredRoutes, setFilteredRoutes] = useState<Route[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ChipFilter>('all');
   const [searchText, setSearchText] = useState('');
   const isNarrow = useIsNarrowViewport(NARROW_LIST_BREAKPOINT_PX);
-
-  useEffect(() => {
-    if (!userId) return;
-    const currentUserId = userId;
-    let cancelled = false;
-
-    async function fetchRoutes() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const context = await getCustomerPortalContext(currentUserId);
-
-        if (!context.customerId) {
-          if (!cancelled) {
-            setError('Could not resolve your customer account');
-            setRoutes([]);
-          }
-          return;
-        }
-
-        const result = await listMyRoutes({ customerId: context.customerId, limit: 50 });
-
-        if (cancelled) return;
-
-        if (result.errors) {
-          setError('Failed to load routes');
-        } else if (result.data) {
-          setRoutes(result.data as unknown as Route[]);
-        }
-      } catch {
-        if (!cancelled) {
-          setError('Failed to load routes');
-          setRoutes([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    fetchRoutes();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
 
   // Apply filtering and sorting
   useEffect(() => {

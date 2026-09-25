@@ -399,16 +399,20 @@ export default function CustomerDashboard() {
 
       {isAccountOwner ? (
         <Card title="Spend by agent" subtitle="Stops and signs on-charged, by agent" padded={false}>
-          <DataTable wrapped={false} columns={agentColumns} rows={agentActivity} empty="No agent activity yet." />
+          <div className="nd-table-scroll">
+            <DataTable wrapped={false} columns={agentColumns} rows={agentActivity} empty="No agent activity yet." />
+          </div>
         </Card>
       ) : (
         <Card title="Recent routes" padded={false}>
-          <DataTable
-            wrapped={false}
-            columns={recentRouteColumns}
-            rows={recentRoutes}
-            empty="No routes are available for review."
-          />
+          <div className="nd-table-scroll">
+            <DataTable
+              wrapped={false}
+              columns={recentRouteColumns}
+              rows={recentRoutes}
+              empty="No routes are available for review."
+            />
+          </div>
         </Card>
       )}
     </div>

@@ -149,6 +149,10 @@ describe('Customer Dashboard', () => {
     expect(screen.getByText('Jamie Lee')).toBeInTheDocument();
     expect(screen.getByText('Pat Doe')).toBeInTheDocument();
 
+    // Reachable via horizontal scroll on narrow viewports (issue #264) rather
+    // than overflowing the card with no way to reach the off-screen columns.
+    expect(screen.getByRole('table').closest('.nd-table-scroll')).toBeInTheDocument();
+
     expect(screen.queryByRole('heading', { name: /recent routes/i })).not.toBeInTheDocument();
   });
 
@@ -219,6 +223,10 @@ describe('Customer Dashboard', () => {
     const table = screen.getByRole('table');
     expect(within(table).getByText('W19-26-001')).toBeInTheDocument();
     expect(within(table).getByText('W19-26-002')).toBeInTheDocument();
+
+    // Reachable via horizontal scroll on narrow viewports (issue #264) rather
+    // than overflowing the card with no way to reach the off-screen columns.
+    expect(table.closest('.nd-table-scroll')).toBeInTheDocument();
   });
 
   it('shows a "This week" activity list with route-phase badges for the reviewer', async () => {

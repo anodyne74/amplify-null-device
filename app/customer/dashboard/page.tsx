@@ -9,6 +9,7 @@ import type { Customer, Route } from '@/amplify/types';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getCustomer, getUserSettings } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { unwrapOrThrow } from '@/lib/graphqlResult';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import { formatCurrency } from '@/lib/dashboardAnalytics';
@@ -57,20 +58,14 @@ interface RecentRouteRow {
   createdAt?: string | null;
 }
 
-interface DashboardExtra {
+interface DashboardData {
   routes: OverviewRoute[];
   stops: OverviewStop[];
   invoices: OverviewInvoice[];
 }
 
-async function fetchDashboardExtra(context: CustomerPortalContext): Promise<DashboardExtra> {
-  const customerResult = await getCustomer(context.customerId);
-  if (customerResult.errors && customerResult.errors.length > 0) {
-    const firstError = customerResult.errors[0] as { message?: string } | undefined;
-    throw new Error(firstError?.message ?? 'Could not load customer defaults.');
-  }
-
-  const nextCustomer = customerResult.data as Customer | null;
+async function fetchDashboardData(context: CustomerPortalContext): Promise<DashboardData> {
+  const nextCustomer = unwrapOrThrow(await getCustomer(context.customerId), 'Could not load customer defaults.') as Customer | null;
   if (!nextCustomer) {
     return { routes: [], stops: [], invoices: [] };
   }
@@ -110,11 +105,17 @@ export default function CustomerDashboard() {
     role: customerRole,
     error: customerLoadError,
     loading: statsLoading,
-    extra,
-  } = useCustomerPortalContext({ fetchExtra: fetchDashboardExtra });
-  const routes = useMemo(() => extra?.routes ?? [], [extra]);
-  const stops = useMemo(() => extra?.stops ?? [], [extra]);
-  const invoices = useMemo(() => extra?.invoices ?? [], [extra]);
+    data,
+  } = useCustomerPortalContext({
+    fetchData: fetchDashboardData,
+    // account_owner while loading matches the pre-refactor default: every
+    // stat tile below is individually gated on statsLoading, not this role,
+    // so this only picks which tile layout briefly shows before it resolves.
+    defaultRole: 'account_owner',
+  });
+  const routes = useMemo(() => data?.routes ?? [], [data]);
+  const stops = useMemo(() => data?.stops ?? [], [data]);
+  const invoices = useMemo(() => data?.invoices ?? [], [data]);
 
   useEffect(() => {
     if (!userId) return;

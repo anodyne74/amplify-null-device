@@ -15,8 +15,8 @@ async function fetchViewerSubs(context: CustomerPortalContext): Promise<string[]
 
 export default function CustomerCalendarPage() {
   const userId = useCurrentUserId();
-  const { role, customerId, extra: viewerSubs, loading } = useCustomerPortalContext({
-    fetchExtra: fetchViewerSubs,
+  const { role, customerId, data: viewerSubs, loading } = useCustomerPortalContext({
+    fetchData: fetchViewerSubs,
   });
 
   if (loading) {

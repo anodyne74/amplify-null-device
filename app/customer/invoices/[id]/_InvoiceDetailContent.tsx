@@ -51,10 +51,13 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
   const { showToast } = useToast();
   const {
     role,
-    extra: invoice,
+    data: invoice,
     loading,
     error,
-  } = useCustomerPortalContext({ fetchExtra: (context) => fetchInvoice(context, params.id) });
+  } = useCustomerPortalContext({
+    fetchData: (context) => fetchInvoice(context, params.id),
+    fetchDataDeps: [params.id],
+  });
   const readOnly = role === 'read_only';
   const [pdfActionLoading, setPdfActionLoading] = useState(false);
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { Customer } from '@/amplify/types';
 import { getCustomer, updateCustomer } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { unwrapOrThrow } from '@/lib/graphqlResult';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
@@ -20,23 +21,19 @@ function parseCcEmails(value: string) {
     .filter(Boolean);
 }
 
-async function fetchBillingDetailsExtra(context: CustomerPortalContext): Promise<Customer | null> {
+async function fetchBillingDetailsData(context: CustomerPortalContext): Promise<Customer | null> {
   const result = await getCustomer(context.customerId);
-  if (result.errors && result.errors.length > 0) {
-    const firstError = result.errors[0] as { message?: string } | undefined;
-    throw new Error(firstError?.message ?? 'Could not load billing details.');
-  }
-  return result.data as Customer | null;
+  return unwrapOrThrow(result, 'Could not load billing details.') as Customer | null;
 }
 
 export default function CustomerBillingDetailsPage() {
   const {
     role: customerRole,
     customerId,
-    extra: customer,
+    data: customer,
     loading,
     error: loadError,
-  } = useCustomerPortalContext({ fetchExtra: fetchBillingDetailsExtra });
+  } = useCustomerPortalContext({ fetchData: fetchBillingDetailsData });
 
   const [billingEmail, setBillingEmail] = useState('');
   const [billingCcEmailsText, setBillingCcEmailsText] = useState('');

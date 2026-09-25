@@ -73,10 +73,10 @@ export default function InvoicesPage() {
     userId,
     role,
     customerId,
-    extra: customerName,
+    data: customerName,
     loading: contextLoading,
     error: contextError,
-  } = useCustomerPortalContext({ fetchExtra: fetchCustomerName });
+  } = useCustomerPortalContext({ fetchData: fetchCustomerName });
   const readOnly = role === 'read_only';
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);

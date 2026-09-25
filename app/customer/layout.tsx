@@ -8,7 +8,7 @@ import CustomerShell from '@/app/customer/components/CustomerShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/queries';
-import { useCustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { CustomerPortalContextProvider, useCustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { useSessionTimeout, useLogout } from '@/app/auth/sessionManager';
 
 const CUSTOMER_NAV = [
@@ -30,6 +30,21 @@ const READ_ONLY_HIDDEN_PATHS = ['/customer/invoices', '/customer/billing-details
  * Includes session timeout after 30 minutes of inactivity.
  */
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
+  return (
+    // account_owner while loading matches the pre-refactor default here: this
+    // only affects nav-item visibility (READ_ONLY_HIDDEN_PATHS below), never a
+    // data fetch, so showing the fuller nav briefly for the common
+    // account-owner case beats flashing the reduced nav for everyone.
+    <CustomerPortalContextProvider defaultRole="account_owner">
+      <CustomerLayoutContent>{children}</CustomerLayoutContent>
+    </CustomerPortalContextProvider>
+  );
+}
+
+// Rendered beneath CustomerPortalContextProvider so both this component's own
+// useCustomerPortalContext() call and every page's below it share the one
+// resolved role/customerId instead of each fetching it independently.
+function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
   const userId = useCurrentUserId();
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
   const [userDisplayName, setUserDisplayName] = useState('');

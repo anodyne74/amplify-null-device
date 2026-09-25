@@ -39,12 +39,12 @@ function roleLabel(role?: string | null) {
   return role === 'account_owner' ? 'Account owner' : 'Read only';
 }
 
-interface UsersExtra {
+interface UsersData {
   customer: Customer | null;
   teammates: TeammateRow[];
 }
 
-async function fetchUsersExtra(context: CustomerPortalContext): Promise<UsersExtra> {
+async function fetchUsersData(context: CustomerPortalContext): Promise<UsersData> {
   try {
     const [customerResult, teammatesResult] = await Promise.all([
       getCustomer(context.customerId),
@@ -63,14 +63,14 @@ export default function CustomerTeamPage() {
   const {
     role,
     customerId,
-    extra,
-    setExtra,
+    data,
+    setData,
     loading,
     error: loadError,
-  } = useCustomerPortalContext({ fetchExtra: fetchUsersExtra });
+  } = useCustomerPortalContext({ fetchData: fetchUsersData });
   const isAccountOwner = role === 'account_owner';
-  const customer = extra?.customer ?? null;
-  const teammates = extra?.teammates ?? [];
+  const customer = data?.customer ?? null;
+  const teammates = data?.teammates ?? [];
 
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -80,10 +80,10 @@ export default function CustomerTeamPage() {
 
   const loadTeammates = useCallback(
     async (id: string) => {
-      const { data } = await listCustomerUsers(id);
-      setExtra((prev) => (prev ? { ...prev, teammates: (data as TeammateRow[]) || [] } : prev));
+      const { data: teammateData } = await listCustomerUsers(id);
+      setData((prev) => (prev ? { ...prev, teammates: (teammateData as TeammateRow[]) || [] } : prev));
     },
-    [setExtra]
+    [setData]
   );
 
   const handleInvite = async () => {

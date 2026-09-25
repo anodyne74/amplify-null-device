@@ -37,7 +37,7 @@ const STATUS_CHIPS: { id: ChipFilter; label: string }[] = [
  * Customer Routes List Page
  * Displays all routes for the current customer with filtering and sorting
  */
-async function fetchRoutesExtra(context: CustomerPortalContext): Promise<Route[]> {
+async function fetchRoutesData(context: CustomerPortalContext): Promise<Route[]> {
   const result = await listMyRoutes({ customerId: context.customerId, limit: 50 });
   if (result.errors) {
     throw new Error('Failed to load routes');
@@ -46,8 +46,8 @@ async function fetchRoutesExtra(context: CustomerPortalContext): Promise<Route[]
 }
 
 export default function CustomerRoutesPage() {
-  const { extra, loading, error } = useCustomerPortalContext({ fetchExtra: fetchRoutesExtra });
-  const routes = useMemo(() => extra ?? [], [extra]);
+  const { data, loading, error } = useCustomerPortalContext({ fetchData: fetchRoutesData });
+  const routes = useMemo(() => data ?? [], [data]);
 
   const [filteredRoutes, setFilteredRoutes] = useState<Route[]>([]);
   const [statusFilter, setStatusFilter] = useState<ChipFilter>('all');

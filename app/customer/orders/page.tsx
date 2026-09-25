@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { Customer, StandingPickupDay } from '@/amplify/types';
 import { getCustomer, updateCustomer } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { unwrapOrThrow } from '@/lib/graphqlResult';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
@@ -29,24 +30,20 @@ function formatUpdatedAt(value?: string | null) {
   return new Date(value).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-async function fetchOrdersExtra(context: CustomerPortalContext): Promise<Customer | null> {
+async function fetchOrdersData(context: CustomerPortalContext): Promise<Customer | null> {
   const result = await getCustomer(context.customerId);
-  if (result.errors && result.errors.length > 0) {
-    const firstError = result.errors[0] as { message?: string } | undefined;
-    throw new Error(firstError?.message ?? 'Could not load standing orders.');
-  }
-  return result.data as Customer | null;
+  return unwrapOrThrow(result, 'Could not load standing orders.') as Customer | null;
 }
 
 export default function CustomerStandingOrdersPage() {
   const {
     role: customerRole,
     customerId,
-    extra: customer,
-    setExtra: setCustomer,
+    data: customer,
+    setData: setCustomer,
     loading,
     error: loadError,
-  } = useCustomerPortalContext({ fetchExtra: fetchOrdersExtra });
+  } = useCustomerPortalContext({ fetchData: fetchOrdersData });
 
   const [standingInstructions, setStandingInstructions] = useState('');
   const [defaultNumberOfSigns, setDefaultNumberOfSigns] = useState('');

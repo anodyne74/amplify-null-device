@@ -41,14 +41,14 @@ interface RouteDetailContentProps {
   };
 }
 
-interface RouteDetailExtra {
+interface RouteDetailData {
   route: Route;
   stops: Stop[];
   customer: Customer | null;
   customerUsers: CustomerUserSummary[];
 }
 
-async function fetchRouteDetailExtra(context: CustomerPortalContext, routeId: string): Promise<RouteDetailExtra> {
+async function fetchRouteDetailData(context: CustomerPortalContext, routeId: string): Promise<RouteDetailData> {
   const result = await getRouteWithStops(routeId);
 
   if (result.errors && result.errors.length > 0) {
@@ -91,15 +91,18 @@ async function fetchRouteDetailExtra(context: CustomerPortalContext, routeId: st
 export default function RouteDetailContent({ params }: RouteDetailContentProps) {
   const {
     userId,
-    extra,
-    setExtra,
+    data,
+    setData,
     loading,
     error,
-  } = useCustomerPortalContext({ fetchExtra: (context) => fetchRouteDetailExtra(context, params.id) });
-  const route = extra?.route ?? null;
-  const stops = extra?.stops ?? [];
-  const customer = extra?.customer ?? null;
-  const customerUsers = extra?.customerUsers ?? [];
+  } = useCustomerPortalContext({
+    fetchData: (context) => fetchRouteDetailData(context, params.id),
+    fetchDataDeps: [params.id],
+  });
+  const route = data?.route ?? null;
+  const stops = data?.stops ?? [];
+  const customer = data?.customer ?? null;
+  const customerUsers = data?.customerUsers ?? [];
 
   const [instructionsExpanded, setInstructionsExpanded] = useState(true);
   const [instructionsDraft, setInstructionsDraft] = useState('');
@@ -115,7 +118,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const isNarrow = useIsNarrowViewport(NARROW_BREAKPOINT_PX);
 
   // Keyed on route.id (stable across the optimistic updates handleAddInstruction/
-  // handleSendFeedback make via setExtra) so those updates don't clobber
+  // handleSendFeedback make via setData) so those updates don't clobber
   // in-progress edits to instructionsAgent/feedbackTone/feedbackNote.
   useEffect(() => {
     if (!route) return;
@@ -150,7 +153,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
       return;
     }
 
-    setExtra((prev) =>
+    setData((prev) =>
       prev ? { ...prev, route: { ...prev.route, customerInstructions: nextValue, updatedAt: new Date().toISOString() } } : prev
     );
     setInstructionsDraft('');
@@ -175,7 +178,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
       return;
     }
 
-    setExtra((prev) =>
+    setData((prev) =>
       prev ? { ...prev, route: { ...prev.route, customerFeedbackTone: feedbackTone, customerFeedbackNote: feedbackNote } } : prev
     );
     setFeedbackSuccess('Feedback sent — thank you.');

@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorLayout from '@/app/operator/layout';
+import { useOperatorRouteNotifications } from '@/lib/useOperatorRouteNotifications';
 
 jest.mock('@aws-amplify/ui-react', () => ({
   useAuthenticator: jest.fn(),
@@ -12,6 +13,14 @@ jest.mock('@/lib/amplify-config', () => ({
 
 jest.mock('@/app/components/AmplifyThemeProvider', () => ({
   useThemeMode: () => ({ mode: 'system', resolvedMode: 'dark', setMode: jest.fn() }),
+}));
+
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => 'op-1',
+}));
+
+jest.mock('@/lib/useOperatorRouteNotifications', () => ({
+  useOperatorRouteNotifications: jest.fn(),
 }));
 
 jest.mock('@/app/components/OperatorRoute', () => {
@@ -68,5 +77,15 @@ describe('OperatorLayout', () => {
     expect(screen.getByTestId('nav-item-Service Calendar')).toBeInTheDocument();
     expect(screen.getByTestId('nav-item-Settings')).toBeInTheDocument();
     expect(screen.getByTestId('nav').children).toHaveLength(5);
+  });
+
+  it('wires up route-assignment notifications for the signed-in operator, app-wide', () => {
+    render(
+      <OperatorLayout>
+        <div>Test content</div>
+      </OperatorLayout>
+    );
+
+    expect(useOperatorRouteNotifications).toHaveBeenCalledWith('op-1');
   });
 });

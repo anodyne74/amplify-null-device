@@ -8,6 +8,8 @@ import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/queries';
 import { useLogout } from '@/app/auth/sessionManager';
+import { useCurrentUserId } from '@/lib/use-user-groups';
+import { useOperatorRouteNotifications } from '@/lib/useOperatorRouteNotifications';
 
 const OPERATOR_NAV = [
   { href: '/operator/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
@@ -28,6 +30,8 @@ export default function OperatorLayout({ children }: { children: React.ReactNode
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
   const [userDisplayName, setUserDisplayName] = useState('');
   const { setMode: applyThemeMode } = useThemeMode();
+  const operatorSub = useCurrentUserId();
+  useOperatorRouteNotifications(operatorSub ?? null);
 
   useEffect(() => {
     if (!user?.userId) return;

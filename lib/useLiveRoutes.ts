@@ -27,7 +27,10 @@ const IDLE_STATE: LiveRoutesState = { items: [], loading: false, error: null };
  * blip, backgrounded tab) can go stale without observeQuery surfacing an
  * error, so refreshing on focus bounds how long that staleness can last.
  */
-function useObservedRoutes(field: 'customerId' | 'id' | null, value: string | null): LiveRoutesState {
+function useObservedRoutes(
+  field: 'customerId' | 'id' | 'assignedOperatorSub' | null,
+  value: string | null
+): LiveRoutesState {
   const [state, setState] = useState<LiveRoutesState>(IDLE_STATE);
   const [resyncToken, setResyncToken] = useState(0);
   const active = field === null || value !== null;
@@ -101,5 +104,17 @@ export function useLiveAllRoutes(): {
   error: string | null;
 } {
   const { items, loading, error } = useObservedRoutes(null, null);
+  return { routes: items, loading, error };
+}
+
+/** Live Route list scoped to the routes currently assigned to one operator —
+ * used to detect newly-assigned routes and instruction changes for in-app
+ * notifications (see lib/useOperatorRouteNotifications.ts). */
+export function useLiveOperatorRoutes(operatorSub: string | null): {
+  routes: Route[];
+  loading: boolean;
+  error: string | null;
+} {
+  const { items, loading, error } = useObservedRoutes('assignedOperatorSub', operatorSub);
   return { routes: items, loading, error };
 }

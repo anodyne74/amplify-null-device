@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { useLiveRoutes, useLiveRoute, useLiveAllRoutes } from '@/lib/useLiveRoutes';
+import { useLiveRoutes, useLiveRoute, useLiveAllRoutes, useLiveOperatorRoutes } from '@/lib/useLiveRoutes';
 
 const mockObserveQuery = jest.fn();
 
@@ -247,5 +247,35 @@ describe('useLiveAllRoutes', () => {
     unmount();
 
     expect(feed.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('useLiveOperatorRoutes', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('starts idle and does not subscribe without an operatorSub', () => {
+    const { result } = renderHook(() => useLiveOperatorRoutes(null));
+
+    expect(result.current.routes).toEqual([]);
+    expect(result.current.loading).toBe(false);
+    expect(mockObserveQuery).not.toHaveBeenCalled();
+  });
+
+  it('subscribes with an assignedOperatorSub filter and reflects the initial sync', () => {
+    const feed = makeObservable();
+    mockObserveQuery.mockReturnValue(feed.observable);
+
+    const { result } = renderHook(() => useLiveOperatorRoutes('op-1'));
+
+    expect(mockObserveQuery).toHaveBeenCalledWith({ filter: { assignedOperatorSub: { eq: 'op-1' } } });
+
+    act(() => {
+      feed.emit({ items: [{ id: 'route-1', assignedOperatorSub: 'op-1' }], isSynced: true });
+    });
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.routes).toEqual([{ id: 'route-1', assignedOperatorSub: 'op-1' }]);
   });
 });

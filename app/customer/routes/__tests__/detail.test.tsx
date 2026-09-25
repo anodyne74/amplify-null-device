@@ -10,6 +10,7 @@ import {
   updateRoute,
   updateRouteCustomerInstructions,
 } from '@/lib/queries';
+import { useLiveRoute } from '@/lib/useLiveRoutes';
 
 jest.mock('@/lib/use-user-groups', () => ({
   useCurrentUserId: () => 'viewer-sub-1',
@@ -41,6 +42,13 @@ jest.mock('@/lib/queries', () => ({
   listCustomerUsers: jest.fn(),
   updateRouteCustomerInstructions: jest.fn(),
   updateRoute: jest.fn(),
+}));
+
+// Default to "nothing live yet" so the one-shot getRouteWithStops fetch
+// drives these tests, same as before useLiveRoute was introduced. Tests
+// that exercise the live-update path override this per-test.
+jest.mock('@/lib/useLiveRoutes', () => ({
+  useLiveRoute: jest.fn(() => ({ route: null, loading: false, error: null })),
 }));
 
 jest.mock('@/app/operator/components/RouteStopsMap', () => ({
@@ -130,6 +138,7 @@ describe('Customer route detail tracker', () => {
       errors: undefined,
     });
     (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (useLiveRoute as jest.Mock).mockReturnValue({ route: null, loading: false, error: null });
   });
 
   it('lets a read-only customer user view their route tracker with map and stops', async () => {
@@ -386,6 +395,24 @@ describe('Customer route detail tracker', () => {
     await screen.findByRole('heading', { name: /route w19-26-001/i });
 
     expect(screen.queryByRole('heading', { name: /how did this route go\?/i })).not.toBeInTheDocument();
+  });
+
+  it('reflects a live status change pushed over useLiveRoute, without a manual reload', async () => {
+    const { rerender } = render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    expect(await screen.findByText('in progress')).toBeInTheDocument();
+
+    // Simulate the AppSync subscription pushing a status change made
+    // server-side (e.g. by an operator), independent of the one-shot fetch.
+    (useLiveRoute as jest.Mock).mockReturnValue({
+      route: { ...route, status: 'completed' },
+      loading: false,
+      error: null,
+    });
+    rerender(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    expect(await screen.findByText('completed')).toBeInTheDocument();
+    expect(screen.queryByText('in progress')).not.toBeInTheDocument();
   });
 
   it('shows the finalised override duration, not actualDurationMinutes, once a route is completed', async () => {

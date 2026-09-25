@@ -5,13 +5,13 @@ import Link from 'next/link';
 import { useCurrentUserId } from '@/lib/use-user-groups';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
-import type { Customer, Route } from '@/amplify/types';
+import type { Customer } from '@/amplify/types';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getCustomer, getUserSettings } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { useLiveRoutes } from '@/lib/useLiveRoutes';
 import { unwrapOrThrow } from '@/lib/graphqlResult';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
-import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import { formatCurrency } from '@/lib/dashboardAnalytics';
 import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 import type { RoutePhaseInput, RoutePhaseKey } from '@/lib/signRunPhase';
@@ -59,7 +59,6 @@ interface RecentRouteRow {
 }
 
 interface DashboardData {
-  routes: OverviewRoute[];
   stops: OverviewStop[];
   invoices: OverviewInvoice[];
 }
@@ -67,11 +66,8 @@ interface DashboardData {
 async function fetchDashboardData(context: CustomerPortalContext): Promise<DashboardData> {
   const nextCustomer = unwrapOrThrow(await getCustomer(context.customerId), 'Could not load customer defaults.') as Customer | null;
   if (!nextCustomer) {
-    return { routes: [], stops: [], invoices: [] };
+    return { stops: [], invoices: [] };
   }
-
-  const routesResult = await listMyRoutes({ customerId: context.customerId, limit: 500 });
-  const routes = (routesResult.data as Route[]) ?? [];
 
   const client = generateClient<Schema>();
   const stopResult = await client.models.Stop.list({
@@ -90,7 +86,7 @@ async function fetchDashboardData(context: CustomerPortalContext): Promise<Dashb
     invoices = (invoiceResult.data as OverviewInvoice[]) ?? [];
   }
 
-  return { routes, stops, invoices };
+  return { stops, invoices };
 }
 
 /**
@@ -104,8 +100,9 @@ export default function CustomerDashboard() {
   const {
     role: customerRole,
     error: customerLoadError,
-    loading: statsLoading,
+    loading: dataLoading,
     data,
+    customerId,
   } = useCustomerPortalContext({
     fetchData: fetchDashboardData,
     // account_owner while loading matches the pre-refactor default: every
@@ -113,7 +110,8 @@ export default function CustomerDashboard() {
     // so this only picks which tile layout briefly shows before it resolves.
     defaultRole: 'account_owner',
   });
-  const routes = useMemo(() => data?.routes ?? [], [data]);
+  const { routes, loading: routesLoading, error: routesError } = useLiveRoutes(customerId);
+  const statsLoading = dataLoading || routesLoading;
   const stops = useMemo(() => data?.stops ?? [], [data]);
   const invoices = useMemo(() => data?.invoices ?? [], [data]);
 
@@ -242,7 +240,9 @@ export default function CustomerDashboard() {
         subtitle={`Welcome,${displayName ? ` ${displayName}` : ''} · ${isAccountOwner ? 'Owner' : 'Reviewer'}`}
       />
 
-      {customerLoadError && <p className="nd-badge nd-badge--danger">{customerLoadError}</p>}
+      {(customerLoadError || routesError) && (
+        <p className="nd-badge nd-badge--danger">{customerLoadError || routesError}</p>
+      )}
 
       <div className={styles.statsGrid}>
         {isAccountOwner ? (

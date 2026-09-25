@@ -3,6 +3,7 @@
  * These utilities encapsulate the data fetching patterns and enable type-safe operations
  */
 
+import { fetchAuthSession } from 'aws-amplify/auth';
 import { normalizeCustomerDefaults } from '@/lib/customerDefaults';
 import { getDataClient } from '@/lib/data-client';
 import type { RouteStatus } from '@/amplify/types';
@@ -600,9 +601,27 @@ export interface RouteExecutionUpdateInput {
 
 /**
  * Execution-only route updates for operators (status and timing fields only).
+ *
+ * Sign Run phase transitions (Start Placement, Complete Pickup, etc.) have been
+ * reported taking 20-30s in the field with no matching AppSync/DynamoDB latency
+ * (#266) — the leading theory is a stalled Cognito token refresh happening before
+ * the mutation is even sent. Timing the token check separately from the mutation
+ * itself is meant to confirm or rule that out from a real occurrence in the field.
  */
 export async function updateRouteExecution(routeId: string, updates: RouteExecutionUpdateInput) {
-  return updateRoute(routeId, updates);
+  const authCheckStart = performance.now();
+  await fetchAuthSession();
+  const authCheckMs = Math.round(performance.now() - authCheckStart);
+
+  const mutationStart = performance.now();
+  const result = await updateRoute(routeId, updates);
+  const mutationMs = Math.round(performance.now() - mutationStart);
+
+  console.info(
+    `[sign-run-timing] route=${routeId} authCheckMs=${authCheckMs} mutationMs=${mutationMs} totalMs=${authCheckMs + mutationMs}`
+  );
+
+  return result;
 }
 
 /**

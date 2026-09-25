@@ -1,8 +1,8 @@
 'use client';
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import RoutesPage from '../page';
-import * as listMyRoutesModule from '@/lib/queries/ListMyRoutes';
+import { useLiveRoutes } from '@/lib/useLiveRoutes';
 import { getCustomerPortalContext } from '@/lib/queries';
 import type { Route } from '@/amplify/types';
 
@@ -26,7 +26,9 @@ jest.mock('@/lib/use-user-groups', () => ({
 }));
 
 // Mock the queries
-jest.mock('@/lib/queries/ListMyRoutes');
+jest.mock('@/lib/useLiveRoutes', () => ({
+  useLiveRoutes: jest.fn(),
+}));
 jest.mock('@/lib/queries', () => ({
   getCustomerPortalContext: jest.fn(),
 }));
@@ -43,6 +45,13 @@ jest.mock('@/app/components/ProtectedRoute', () => {
     return <>{children}</>;
   };
 });
+
+// The status chips and the RouteStatusPill badges can render the same text
+// (e.g. "Signs placed"), so chip clicks must be scoped to the filter row.
+function clickStatusChip(label: string | RegExp) {
+  const chips = document.querySelector('.chips') as HTMLElement;
+  fireEvent.click(within(chips).getByText(label));
+}
 
 describe('Customer Routes List Page', () => {
   const mockRoutes: Route[] = [
@@ -76,13 +85,11 @@ describe('Customer Routes List Page', () => {
       role: 'read_only',
       customerId: 'test-customer-1',
     });
+    (useLiveRoutes as jest.Mock).mockReturnValue({ routes: [], loading: true, error: null });
   });
 
   it('fetches and displays routes on mount', async () => {
-    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
-      data: mockRoutes,
-      errors: undefined,
-    });
+    (useLiveRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -94,10 +101,7 @@ describe('Customer Routes List Page', () => {
   });
 
   it('displays error message when fetch fails', async () => {
-    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
-      data: null,
-      errors: [{ message: 'Failed to load routes' }],
-    });
+    (useLiveRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: 'Failed to load routes' });
 
     render(<RoutesPage />);
 
@@ -107,10 +111,7 @@ describe('Customer Routes List Page', () => {
   });
 
   it('filters routes by phase, with no separate Archived chip', async () => {
-    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
-      data: mockRoutes,
-      errors: undefined,
-    });
+    (useLiveRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -120,7 +121,7 @@ describe('Customer Routes List Page', () => {
 
     expect(screen.queryByText(/^Archived$/i)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText(/^Signs placed$/i));
+    clickStatusChip(/^Signs placed$/i);
 
     await waitFor(() => {
       const routeLinks = screen.getAllByRole('link');
@@ -129,10 +130,7 @@ describe('Customer Routes List Page', () => {
   });
 
   it('displays correct route count for each filter', async () => {
-    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
-      data: mockRoutes,
-      errors: undefined,
-    });
+    (useLiveRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -146,10 +144,7 @@ describe('Customer Routes List Page', () => {
   });
 
   it('sorts by route id descending by default', async () => {
-    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
-      data: mockRoutes,
-      errors: undefined,
-    });
+    (useLiveRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -165,10 +160,7 @@ describe('Customer Routes List Page', () => {
   });
 
   it('shows Duration as N/A until a route is completed, then its actual duration', async () => {
-    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
-      data: mockRoutes,
-      errors: undefined,
-    });
+    (useLiveRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -179,8 +171,8 @@ describe('Customer Routes List Page', () => {
   });
 
   it('prefers the finalised override duration over actualDurationMinutes once completed', async () => {
-    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
-      data: [
+    (useLiveRoutes as jest.Mock).mockReturnValue({
+      routes: [
         {
           id: 'route-2',
           customerId: 'test-customer-1',
@@ -190,7 +182,8 @@ describe('Customer Routes List Page', () => {
           createdAt: '2024-01-14T09:00:00Z',
         },
       ],
-      errors: undefined,
+      loading: false,
+      error: null,
     });
 
     render(<RoutesPage />);
@@ -201,10 +194,7 @@ describe('Customer Routes List Page', () => {
   });
 
   it('handles empty route list gracefully', async () => {
-    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
-      data: [],
-      errors: undefined,
-    });
+    (useLiveRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -216,10 +206,7 @@ describe('Customer Routes List Page', () => {
   });
 
   it('filters routes by route code search text', async () => {
-    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
-      data: mockRoutes,
-      errors: undefined,
-    });
+    (useLiveRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -237,20 +224,41 @@ describe('Customer Routes List Page', () => {
     expect(screen.getByText(/Showing 1 routes/i)).toBeInTheDocument();
   });
 
-  it('calls listMyRoutes with the portal context customer ID instead of the user sub', async () => {
-    (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
-      data: mockRoutes,
-      errors: undefined,
-    });
+  it('calls useLiveRoutes with the portal context customer ID instead of the user sub', async () => {
+    (useLiveRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
     render(<RoutesPage />);
 
     await waitFor(() => {
-      expect(listMyRoutesModule.listMyRoutes).toHaveBeenCalledWith(
-        expect.objectContaining({
-          customerId: 'test-customer-1',
-        })
-      );
+      expect(useLiveRoutes).toHaveBeenCalledWith('test-customer-1');
+    });
+  });
+
+  it('reflects a live status change pushed after the initial render, without a manual reload', async () => {
+    (useLiveRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+
+    const { rerender } = render(<RoutesPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading routes/i)).not.toBeInTheDocument();
+    });
+    clickStatusChip(/^Signs placed$/i);
+    await waitFor(() => {
+      const routeLinks = screen.getAllByRole('link');
+      expect(routeLinks.map((link) => link.getAttribute('href'))).toEqual(['/customer/routes/route-3']);
+    });
+
+    // route-3 moves to 'completed' server-side — a live update should push
+    // that through useLiveRoutes and drop it out of the active filter.
+    (useLiveRoutes as jest.Mock).mockReturnValue({
+      routes: mockRoutes.map((route) => (route.id === 'route-3' ? { ...route, status: 'completed' } : route)),
+      loading: false,
+      error: null,
+    });
+    rerender(<RoutesPage />);
+
+    await waitFor(() => {
+      expect(screen.queryAllByRole('link')).toHaveLength(0);
     });
   });
 
@@ -273,10 +281,7 @@ describe('Customer Routes List Page', () => {
     });
 
     it('renders a stacked RouteCard list instead of the DataTable', async () => {
-      (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
-        data: mockRoutes,
-        errors: undefined,
-      });
+      (useLiveRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
       render(<RoutesPage />);
 
@@ -288,10 +293,7 @@ describe('Customer Routes List Page', () => {
     });
 
     it('shows an empty-state message when there are no routes', async () => {
-      (listMyRoutesModule.listMyRoutes as jest.Mock).mockResolvedValue({
-        data: [],
-        errors: undefined,
-      });
+      (useLiveRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: null });
 
       render(<RoutesPage />);
 

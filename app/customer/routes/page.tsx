@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
-import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { useEffect, useState } from 'react';
+import { useCustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { useLiveRoutes } from '@/lib/useLiveRoutes';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/customer/components/PageHeader';
@@ -35,19 +35,14 @@ const STATUS_CHIPS: { id: ChipFilter; label: string }[] = [
 
 /**
  * Customer Routes List Page
- * Displays all routes for the current customer with filtering and sorting
+ * Displays all routes for the current customer with filtering and sorting,
+ * kept live via useLiveRoutes so status changes appear without a reload.
  */
-async function fetchRoutesData(context: CustomerPortalContext): Promise<Route[]> {
-  const result = await listMyRoutes({ customerId: context.customerId, limit: 50 });
-  if (result.errors) {
-    throw new Error('Failed to load routes');
-  }
-  return (result.data as unknown as Route[]) ?? [];
-}
-
 export default function CustomerRoutesPage() {
-  const { data, loading, error } = useCustomerPortalContext({ fetchData: fetchRoutesData });
-  const routes = useMemo(() => data ?? [], [data]);
+  const { customerId, loading: contextLoading, error: contextError } = useCustomerPortalContext();
+  const { routes, loading: routesLoading, error: routesError } = useLiveRoutes(customerId);
+  const loading = contextLoading || routesLoading;
+  const error = contextError || routesError;
 
   const [filteredRoutes, setFilteredRoutes] = useState<Route[]>([]);
   const [statusFilter, setStatusFilter] = useState<ChipFilter>('all');

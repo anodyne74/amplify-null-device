@@ -6,7 +6,7 @@ import {
   getCustomer,
   getCustomerPortalContext,
 } from '@/lib/queries';
-import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
+import { useLiveRoutes } from '@/lib/useLiveRoutes';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 
 jest.mock('@/app/dashboard.module.css', () => ({}));
@@ -25,8 +25,8 @@ jest.mock('@/lib/queries', () => ({
   getCustomerPortalContext: jest.fn(),
 }));
 
-jest.mock('@/lib/queries/ListMyRoutes', () => ({
-  listMyRoutes: jest.fn(),
+jest.mock('@/lib/useLiveRoutes', () => ({
+  useLiveRoutes: jest.fn(),
 }));
 
 jest.mock('@/lib/queries/ListMyInvoices', () => ({
@@ -64,8 +64,8 @@ describe('Customer Dashboard', () => {
       },
       errors: undefined,
     });
-    (listMyRoutes as jest.Mock).mockResolvedValue({
-      data: [
+    (useLiveRoutes as jest.Mock).mockReturnValue({
+      routes: [
         { id: 'route-1', routeCode: 'W19-26-001', status: 'signs_placed', createdAt: NOW_ISO },
         {
           id: 'route-2',
@@ -75,7 +75,8 @@ describe('Customer Dashboard', () => {
           actualEndTime: CURRENT_MONTH_DATE,
         },
       ],
-      errors: undefined,
+      loading: false,
+      error: null,
     });
     (listMyInvoices as jest.Mock).mockResolvedValue({
       data: [
@@ -227,6 +228,42 @@ describe('Customer Dashboard', () => {
     // Reachable via horizontal scroll on narrow viewports (issue #264) rather
     // than overflowing the card with no way to reach the off-screen columns.
     expect(table.closest('.nd-table-scroll')).toBeInTheDocument();
+  });
+
+  it('reflects a live route status change pushed over useLiveRoutes, without a manual reload', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
+      role: 'read_only',
+      customerId: 'cust-1',
+    });
+
+    const { rerender } = render(<CustomerDashboard />);
+
+    const currentRouteTile = (await screen.findByText(/current route/i)).closest('.nd-stat') as HTMLElement;
+    await waitFor(() => {
+      expect(within(currentRouteTile).getByText(/signs placed/i)).toBeInTheDocument();
+    });
+
+    // route-1 is completed server-side — the dashboard should stop treating
+    // it as the active "current route" without a reload.
+    (useLiveRoutes as jest.Mock).mockReturnValue({
+      routes: [
+        { id: 'route-1', routeCode: 'W19-26-001', status: 'completed', createdAt: NOW_ISO },
+        {
+          id: 'route-2',
+          routeCode: 'W19-26-002',
+          status: 'completed',
+          createdAt: CURRENT_MONTH_DATE,
+          actualEndTime: CURRENT_MONTH_DATE,
+        },
+      ],
+      loading: false,
+      error: null,
+    });
+    rerender(<CustomerDashboard />);
+
+    await waitFor(() => {
+      expect(within(currentRouteTile).queryByText(/signs placed/i)).not.toBeInTheDocument();
+    });
   });
 
   it('shows a "This week" activity list with route-phase badges for the reviewer', async () => {

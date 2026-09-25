@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getCustomer, getRouteWithStops, listCustomerUsers, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { useLiveRoute } from '@/lib/useLiveRoutes';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
@@ -99,7 +100,12 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
     fetchData: (context) => fetchRouteDetailData(context, params.id),
     fetchDataDeps: [params.id],
   });
-  const route = data?.route ?? null;
+  // Route fields (status, instructions, feedback, ...) are kept live over
+  // this subscription; stops/customer/customerUsers above stay a one-shot
+  // fetch per the issue's scope. Falls back to the one-shot route while the
+  // subscription is still syncing, so there's no flash of "not found".
+  const { route: liveRoute } = useLiveRoute(data ? params.id : null);
+  const route = liveRoute ?? data?.route ?? null;
   const stops = data?.stops ?? [];
   const customer = data?.customer ?? null;
   const customerUsers = data?.customerUsers ?? [];

@@ -80,6 +80,11 @@ jest.mock('aws-amplify/data', () => ({
   }),
 }));
 
+const mockFetchAuthSession = jest.fn();
+jest.mock('aws-amplify/auth', () => ({
+  fetchAuthSession: () => mockFetchAuthSession(),
+}));
+
 import {
   listCustomers,
   getCustomer,
@@ -116,6 +121,7 @@ import {
 describe('queries', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFetchAuthSession.mockResolvedValue({ tokens: { idToken: { toString: () => 'mock-id-token' } } });
   });
 
   describe('listCustomers', () => {
@@ -879,6 +885,22 @@ describe('queries', () => {
         executionPhase: 'placement',
       });
       expect(result.data).toEqual({ id: 'r1', status: 'in_progress' });
+    });
+
+    it('checks the auth session before the mutation and logs the timing split (#266)', async () => {
+      const consoleInfoSpy = jest.spyOn(console, 'info').mockImplementation();
+      mockRouteUpdate.mockResolvedValue({
+        data: { id: 'r1', status: 'in_progress' },
+        errors: undefined,
+      });
+
+      await updateRouteExecution('r1', { status: 'in_progress' });
+
+      expect(mockFetchAuthSession).toHaveBeenCalledTimes(1);
+      expect(consoleInfoSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/^\[sign-run-timing\] route=r1 authCheckMs=\d+ mutationMs=\d+ totalMs=\d+$/)
+      );
+      consoleInfoSpy.mockRestore();
     });
   });
 

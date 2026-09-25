@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useRef, type FormEvent } from 'react';
+import { Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
@@ -10,10 +10,8 @@ import { createInvoice, createLineItem, updateCustomer } from '@/lib/queries';
 import InvoiceCreateForm from '@/app/administrator/invoices/components/InvoiceCreateForm';
 import InvoicePreview from '@/app/administrator/invoices/components/InvoicePreview';
 import { useInvoiceBillingSettings } from '@/app/administrator/invoices/hooks/useInvoiceBillingSettings';
-import { useInvoiceCreateState } from '@/app/administrator/invoices/hooks/useInvoiceCreateState';
-import { useInvoiceDerivedFormEffects } from '@/app/administrator/invoices/hooks/useInvoiceDerivedFormEffects';
-import { useCustomerRateLines } from '@/app/administrator/invoices/hooks/useCustomerRateLines';
-import { useRateLineTotals } from '@/app/administrator/invoices/hooks/useRateLineTotals';
+import { useInvoiceDraft } from '@/app/administrator/invoices/hooks/useInvoiceDraft';
+import { useNextInvoiceNumber } from '@/app/administrator/invoices/hooks/useNextInvoiceNumber';
 import { useRouteStopsPreview } from '@/app/administrator/invoices/hooks/useRouteStopsPreview';
 import { useInvoiceUiState } from '@/app/administrator/invoices/hooks/useInvoiceUiState';
 import { useInvoicesDataState } from '@/app/administrator/invoices/hooks/useInvoicesDataState';
@@ -31,35 +29,8 @@ function GenerateInvoiceContent() {
     setLoading,
   } = useInvoiceUiState();
 
-  const {
-    customerId,
-    setCustomerId,
-    routeId,
-    setRouteId,
-    invoiceNumber,
-    setInvoiceNumber,
-    invoiceNumberOverridden,
-    totalHours,
-    setTotalHours,
-    totalAmountOverridden,
-    setTotalAmount,
-    totalAmount,
-    gstAmount,
-    setGstAmount,
-    rateLineQuantities,
-    setRateLineQuantities,
-    manuallyEditedRateLineIds,
-    visibleRateLineIds,
-    handleCustomerChange,
-    handleRouteChange,
-    handleInvoiceNumberChange,
-    handleTotalAmountChange,
-    handleRateLineQuantityChange,
-    handleAddRateLine,
-    handleRemoveRateLine,
-  } = useInvoiceCreateState();
-
-  const { rateLines } = useCustomerRateLines(customerId);
+  const [customerId, setCustomerId] = useState('');
+  const [routeId, setRouteId] = useState('');
 
   // Pre-fill from the "Generate invoice" link on the unbilled-routes list
   // (/administrator/invoices/generate?routeId=...&customerId=...). Only runs
@@ -75,8 +46,21 @@ function GenerateInvoiceContent() {
     updateCustomerInState,
   } = useInvoicesDataState({ customerId, setCustomerId, setError, setLoading });
 
-  const selectedCustomer = customers.find((entry) => entry.id === customerId);
-  const selectedRoute = routes.find((route) => route.id === routeId);
+  const {
+    selectedCustomer,
+    selectedRoute,
+    totalHours,
+    setTotalHours,
+    totalAmount,
+    gstAmount,
+    rateLines,
+    selectCustomer,
+    selectRoute,
+    overrideTotal,
+  } = useInvoiceDraft({ customerId, setCustomerId, routeId, setRouteId, customers, routes });
+
+  const { invoiceNumber, setInvoiceNumber } = useNextInvoiceNumber(invoices);
+
   const { stops: previewStops, loading: previewStopsLoading } = useRouteStopsPreview(routeId);
 
   const handleToggleGroupByAgent = async (nextValue: boolean) => {
@@ -114,33 +98,6 @@ function GenerateInvoiceContent() {
     if (paramRouteId) setRouteId(paramRouteId);
   }, [searchParams, setCustomerId, setRouteId]);
 
-  useInvoiceDerivedFormEffects({
-    invoices,
-    invoiceNumberOverridden,
-    setInvoiceNumber,
-    routeId,
-    routes,
-    customers,
-    totalAmountOverridden,
-    setTotalHours,
-    setTotalAmount,
-    setGstAmount,
-    totalHours,
-    hasRateLines: rateLines.length > 0,
-    rateLines,
-    setRateLineQuantities,
-    manuallyEditedRateLineIds,
-  });
-
-  useRateLineTotals({
-    rateLines,
-    quantities: rateLineQuantities,
-    customer: selectedCustomer,
-    totalAmountOverridden,
-    setTotalAmount,
-    setGstAmount,
-  });
-
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();
     if (!customerId) { setError('Select a customer first.'); return; }
@@ -165,10 +122,10 @@ function GenerateInvoiceContent() {
     }
 
     const newInvoiceId = (result.data as { id?: string } | null)?.id;
-    if (newInvoiceId && rateLines.length > 0) {
+    if (newInvoiceId && rateLines.items.length > 0) {
       const lineItemInputs = buildLineItemInputs({
-        rateLines,
-        quantities: rateLineQuantities,
+        rateLines: rateLines.items,
+        quantities: rateLines.quantities,
         invoiceId: newInvoiceId,
         customerId,
         routeId: routeId || undefined,
@@ -201,17 +158,17 @@ function GenerateInvoiceContent() {
           saving={saving}
           customers={customers}
           customerRoutes={customerRoutes}
-          rateLines={rateLines}
-          rateLineQuantities={rateLineQuantities}
-          visibleRateLineIds={visibleRateLineIds}
-          onCustomerChange={handleCustomerChange}
-          onRouteChange={handleRouteChange}
-          onInvoiceNumberChange={handleInvoiceNumberChange}
+          rateLines={rateLines.items}
+          rateLineQuantities={rateLines.quantities}
+          visibleRateLineIds={rateLines.visibleIds}
+          onCustomerChange={selectCustomer}
+          onRouteChange={selectRoute}
+          onInvoiceNumberChange={setInvoiceNumber}
           onTotalHoursChange={setTotalHours}
-          onTotalAmountChange={handleTotalAmountChange}
-          onRateLineQuantityChange={handleRateLineQuantityChange}
-          onAddRateLine={handleAddRateLine}
-          onRemoveRateLine={handleRemoveRateLine}
+          onTotalAmountChange={overrideTotal}
+          onRateLineQuantityChange={rateLines.setQuantity}
+          onAddRateLine={rateLines.add}
+          onRemoveRateLine={rateLines.remove}
           onSubmit={handleCreate}
         />
 
@@ -222,8 +179,8 @@ function GenerateInvoiceContent() {
             invoiceNumber={invoiceNumber}
             customer={selectedCustomer}
             route={selectedRoute}
-            rateLines={rateLines}
-            rateLineQuantities={rateLineQuantities}
+            rateLines={rateLines.items}
+            rateLineQuantities={rateLines.quantities}
             totalHours={totalHours}
             totalAmount={totalAmount}
             gstAmount={gstAmount}

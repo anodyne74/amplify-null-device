@@ -9,10 +9,10 @@ import { Card } from '@/app/components/ui/core/Card';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
-import { getCustomer, updateRouteExecution } from '@/lib/queries';
+import { getCustomer } from '@/lib/queries';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
-import { settleSignRunStop } from '@/lib/signRunStopSettlement';
+import { runSignRunTransition, runStopSettlement } from '@/lib/signRunTransitions';
 import { formatClockTime } from '@/lib/signRunBilling';
 import { getAgentBadgeInitials } from '@/lib/customerDefaults';
 import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } from '@/lib/routeDetailHelpers';
@@ -89,15 +89,15 @@ export default function OperatorPlacementPage() {
     setSubmitting(true);
     setError(null);
 
-    const { errors } = await updateRouteExecution(route.id, { placementStartTime: iso });
+    const result = await runSignRunTransition(route, { type: 'startPlacement', at: iso });
 
     setSubmitting(false);
-    if (errors && errors.length > 0) {
-      setError('Could not start placement. Try again.');
+    if ('error' in result) {
+      setError(result.error);
       return;
     }
 
-    setRoute((prev) => (prev ? { ...prev, placementStartTime: iso } : prev));
+    setRoute(result.route);
     closeDialog();
   };
 
@@ -114,20 +114,17 @@ export default function OperatorPlacementPage() {
 
   const settleStop = useCallback(
     async (stopId: string, action: 'complete' | 'skip', reason?: string) => {
+      const stop = stops.find((s) => s.id === stopId);
+      if (!stop) return false;
       setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-      const succeeded = await settleSignRunStop({
-        stopId,
-        stops,
-        phase: 'placement',
-        action,
-        reason,
-        onSettled: (id, patch) => {
-          setStops((prev) => prev.map((stop) => (stop.id === id ? { ...stop, ...patch } : stop)));
-        },
-        onError: setError,
-      });
+      const result = await runStopSettlement(stop, { phase: 'placement', action, reason });
+      if ('error' in result) {
+        setError(result.error);
+      } else {
+        setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, ...result.patch } : s)));
+      }
       setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-      return succeeded;
+      return !('error' in result);
     },
     [stops, setStops]
   );
@@ -147,19 +144,12 @@ export default function OperatorPlacementPage() {
       if (!route) return;
       setSubmitting(true);
       setError(null);
-      try {
-        const { errors } = await updateRouteExecution(route.id, {
-          executionPhase: 'pickup',
-          placementEndTime: iso,
-        });
-        if (!errors || errors.length === 0) {
-          router.push('/operator/dashboard');
-          return;
-        }
-        setError('Could not close out placement. Try again.');
-      } catch {
-        setError('Could not close out placement. Try again.');
+      const result = await runSignRunTransition(route, { type: 'completePlacement', at: iso });
+      if (!('error' in result)) {
+        router.push('/operator/dashboard');
+        return;
       }
+      setError(result.error);
       setSubmitting(false);
       closeDialog();
     },

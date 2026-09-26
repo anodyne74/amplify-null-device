@@ -2,7 +2,8 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import OperatorUnloadPage from '../page';
-import { getRouteWithStops, getCustomer, updateRouteExecution } from '@/lib/queries';
+import { getRouteWithStops, getCustomer } from '@/lib/queries';
+import { planSignRunTransition, runSignRunTransition } from '@/lib/signRunTransitions';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import type { Route, Stop } from '@/amplify/types';
 
@@ -17,8 +18,12 @@ jest.mock('next/navigation', () => ({
 jest.mock('@/lib/queries', () => ({
   getRouteWithStops: jest.fn(),
   getCustomer: jest.fn(),
-  updateRouteExecution: jest.fn(),
 }));
+
+jest.mock('@/lib/signRunTransitions', () => {
+  const actual = jest.requireActual('@/lib/signRunTransitions');
+  return { ...actual, runSignRunTransition: jest.fn() };
+});
 
 jest.mock('@/lib/queries/OrganizationSettings', () => ({
   getOrganizationSettings: jest.fn(),
@@ -76,7 +81,11 @@ describe('Operator Unload page', () => {
       data: { address: '22 Dryburgh St, West Melbourne' },
       errors: undefined,
     });
-    (updateRouteExecution as jest.Mock).mockResolvedValue({ data: { id: 'route-1' }, errors: undefined });
+    // Real planner, stubbed write: the page gets back the route it would after a successful save.
+    (runSignRunTransition as jest.Mock).mockImplementation(async (route, transition) => {
+      const plan = planSignRunTransition(route, transition);
+      return 'patch' in plan ? { route: { ...route, ...plan.patch } } : { error: plan.refused };
+    });
   });
 
   it('shows the reconciliation stats and against-the-load summary', async () => {
@@ -108,9 +117,9 @@ describe('Operator Unload page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
-      expect(updateRouteExecution).toHaveBeenCalledWith(
-        'route-1',
-        expect.objectContaining({ unloadStartedAt: expect.any(String) })
+      expect(runSignRunTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'route-1' }),
+        expect.objectContaining({ type: 'startUnload' })
       );
     });
     expect(await screen.findByText(/^Unload started/)).toBeInTheDocument();
@@ -127,7 +136,7 @@ describe('Operator Unload page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start unload' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    expect(updateRouteExecution).not.toHaveBeenCalled();
+    expect(runSignRunTransition).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Start unload' })).toBeInTheDocument();
   });
 
@@ -145,33 +154,12 @@ describe('Operator Unload page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
-      expect(updateRouteExecution).toHaveBeenCalledWith(
-        'route-1',
-        expect.objectContaining({ unloadConfirmedAt: expect.any(String), actualEndTime: expect.any(String) })
+      expect(runSignRunTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'route-1' }),
+        expect.objectContaining({ type: 'confirmUnload' })
       );
     });
     expect(push).toHaveBeenCalledWith('/operator/dashboard');
-  });
-
-  it('does not overwrite an already-recorded actualEndTime', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({
-      route: baseRoute({ unloadStartedAt: '2026-09-12T07:37:00.000Z', actualEndTime: '2026-08-31T09:00:00.000Z' }),
-      stops: baseStops(),
-      errors: [],
-    });
-
-    render(<OperatorUnloadPage />);
-    await screen.findByText('20 signs to return');
-
-    fireEvent.click(screen.getByRole('button', { name: /confirm 20 signs returned/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
-
-    await waitFor(() => {
-      expect(updateRouteExecution).toHaveBeenCalledWith(
-        'route-1',
-        expect.objectContaining({ actualEndTime: '2026-08-31T09:00:00.000Z' })
-      );
-    });
   });
 
   it('shows a guard message when the route is not on the Unload phase', async () => {
@@ -184,7 +172,7 @@ describe('Operator Unload page', () => {
     render(<OperatorUnloadPage />);
 
     expect(await screen.findByText(/not currently on the unload phase/i)).toBeInTheDocument();
-    expect(updateRouteExecution).not.toHaveBeenCalled();
+    expect(runSignRunTransition).not.toHaveBeenCalled();
   });
 
   it('shows a guard message when the route is not found', async () => {

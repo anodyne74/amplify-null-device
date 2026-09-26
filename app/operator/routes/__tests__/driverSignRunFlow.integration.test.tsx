@@ -6,7 +6,7 @@ import OperatorPlacementPage from '../placement/page';
 import OperatorPickupPage from '../pickup/page';
 import OperatorUnloadPage from '../unload/page';
 import OperatorFinalisePage from '../finalise/page';
-import { getRouteWithStops, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
+import { getRouteWithStops, getCustomer, updateRoute, updateStopExecution } from '@/lib/queries';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import type { Route, Stop } from '@/amplify/types';
 
@@ -33,8 +33,13 @@ jest.mock('next/navigation', () => ({
 jest.mock('@/lib/queries', () => ({
   getRouteWithStops: jest.fn(),
   getCustomer: jest.fn(),
-  updateRouteExecution: jest.fn(),
+  updateRoute: jest.fn(),
   updateStopExecution: jest.fn(),
+}));
+
+// lib/signRunTransitions checks the auth session before every route write (#266).
+jest.mock('aws-amplify/auth', () => ({
+  fetchAuthSession: jest.fn().mockResolvedValue({}),
 }));
 
 jest.mock('@/lib/queries/OrganizationSettings', () => ({
@@ -102,8 +107,14 @@ function initialStops(): Stop[] {
 describe('Driver Sign Run — full Load through Finalise flow', () => {
   let store: { route: Route; stops: Stop[] };
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
+    // Quiet the per-write [sign-run-timing] log.
+    jest.spyOn(console, 'info').mockImplementation(() => {});
     store = {
       route: {
         id: routeId,
@@ -126,7 +137,7 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
       data: { address: '22 Dryburgh St, West Melbourne' },
       errors: undefined,
     });
-    (updateRouteExecution as jest.Mock).mockImplementation(async (id: string, updates: Partial<Route>) => {
+    (updateRoute as jest.Mock).mockImplementation(async (id: string, updates: Partial<Route>) => {
       const patched: Record<string, unknown> = { ...updates };
       for (const key of Object.keys(patched)) {
         if (key in FIXED_TIMES) patched[key] = FIXED_TIMES[key];
@@ -271,7 +282,7 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     fireEvent.click(completeButton);
 
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
-    expect(updateRouteExecution).toHaveBeenCalledWith(routeId, {
+    expect(updateRoute).toHaveBeenCalledWith(routeId, {
       billedLoadMinutes: 15,
       billedPlacementMinutes: 20,
       billedPickupMinutes: 10,

@@ -27,7 +27,7 @@ import {
 import { getUserSettings } from '@/lib/queries';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
-import { settleSignRunStop } from '@/lib/signRunStopSettlement';
+import { runStopSettlement, stopPhaseOf } from '@/lib/signRunTransitions';
 import {
   getPhaseCompletionTime,
   isStopCompletedForPhase,
@@ -135,14 +135,6 @@ function updateBillingFieldValue(
   return { ...next, amount };
 }
 
-function isPlacementPhase(status?: string | null, executionPhase?: string | null) {
-  return status === 'in_progress' && executionPhase === 'placement';
-}
-
-function isPickupPhase(status?: string | null, executionPhase?: string | null) {
-  return status === 'in_progress' && executionPhase === 'pickup';
-}
-
 function RouteDetailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -228,34 +220,28 @@ function RouteDetailContent() {
   });
 
   const handleStopCompleted = useCallback(async (stopId: string) => {
-    if (!route || route.status !== 'in_progress' || !route.executionPhase) return;
+    const phase = route?.status === 'in_progress' ? stopPhaseOf(route) : null;
+    const stop = stops.find((s) => s.id === stopId);
+    if (!phase || !stop) return;
 
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-    await settleSignRunStop({
-      stopId,
-      stops,
-      phase: route.executionPhase as ExecutionPhase,
-      action: 'complete',
-      onSettled: () => {
-        void refetchStops();
-      },
-    });
+    const result = await runStopSettlement(stop, { phase, action: 'complete' });
+    if (!('error' in result)) {
+      void refetchStops();
+    }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
   }, [refetchStops, route, stops]);
 
   const handleSkipStop = useCallback(async (stopId: string) => {
-    if (!route || route.status !== 'in_progress' || !route.executionPhase) return;
+    const phase = route?.status === 'in_progress' ? stopPhaseOf(route) : null;
+    const stop = stops.find((s) => s.id === stopId);
+    if (!phase || !stop) return;
 
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-    await settleSignRunStop({
-      stopId,
-      stops,
-      phase: route.executionPhase as ExecutionPhase,
-      action: 'skip',
-      onSettled: () => {
-        void refetchStops();
-      },
-    });
+    const result = await runStopSettlement(stop, { phase, action: 'skip' });
+    if (!('error' in result)) {
+      void refetchStops();
+    }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
   }, [refetchStops, route, stops]);
 
@@ -282,14 +268,13 @@ function RouteDetailContent() {
   const currentExecutionPhase: ExecutionPhase = route?.executionPhase === 'pickup' ? 'pickup' : 'placement';
   const placementPhaseStops = stops.filter((stop) => stop.serviceType !== 'pickup');
   const pickupPhaseStops = stops.filter((stop) => stop.serviceType !== 'inspection');
+  const stopPhase = route ? stopPhaseOf(route) : null;
   const visibleStops = (() => {
-    if (!route) return stops;
-
-    if (isPlacementPhase(route.status, route.executionPhase)) {
+    if (stopPhase === 'placement') {
       return placementPhaseStops.filter((stop) => !isStopCompletedForPhase(stop, 'placement'));
     }
 
-    if (route.status === 'signs_placed' || isPickupPhase(route.status, route.executionPhase)) {
+    if (stopPhase === 'pickup') {
       return pickupPhaseStops.filter((stop) => !isStopCompletedForPhase(stop, 'pickup'));
     }
 
@@ -588,7 +573,7 @@ function RouteDetailContent() {
 
             {visibleStops.length === 0 && !addStopCapability.visible && (route?.status === 'in_progress' || route?.status === 'signs_placed') && (
               <div className={styles.emptyState}>
-                {isPlacementPhase(route?.status, route?.executionPhase)
+                {stopPhase === 'placement'
                   ? 'All signs are placed. Start the pickup phase to continue.'
                   : route?.status === 'signs_placed'
                   ? 'Ready for pickup phase. Click Start Route to begin pickup.'

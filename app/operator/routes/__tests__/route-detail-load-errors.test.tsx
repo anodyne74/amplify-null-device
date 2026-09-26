@@ -62,7 +62,6 @@ jest.mock('@/lib/queries', () => ({
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateStopExecution: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-  updateRouteExecution: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));
 jest.mock('@/lib/queries/UpdateStop', () => ({

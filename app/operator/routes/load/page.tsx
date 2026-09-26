@@ -6,10 +6,11 @@ import Breadcrumbs from '@/app/components/Breadcrumbs';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
-import { getCustomer, updateRouteExecution } from '@/lib/queries';
+import { getCustomer } from '@/lib/queries';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
+import { runSignRunTransition } from '@/lib/signRunTransitions';
 import { formatClockTime } from '@/lib/signRunBilling';
 import { groupByAgent, signsPlaced } from '@/lib/signRunTotals';
 import type { Route, Stop } from '@/amplify/types';
@@ -100,20 +101,15 @@ export default function OperatorLoadPage() {
     setSubmitting(true);
     setError(null);
 
-    const result = await updateRouteExecution(route.id, {
-      loadStartedAt: iso,
-      actualStartTime: route.actualStartTime ?? iso,
-    });
+    const result = await runSignRunTransition(route, { type: 'startLoad', at: iso });
 
     setSubmitting(false);
-    if (result.errors && result.errors.length > 0) {
-      setError('Could not start the load. Try again.');
+    if ('error' in result) {
+      setError(result.error);
       return;
     }
 
-    setRoute((prev) =>
-      prev ? { ...prev, loadStartedAt: iso, actualStartTime: prev.actualStartTime ?? iso } : prev
-    );
+    setRoute(result.route);
     closeDialog();
   };
 
@@ -122,15 +118,10 @@ export default function OperatorLoadPage() {
     setSubmitting(true);
     setError(null);
 
-    const result = await updateRouteExecution(route.id, {
-      loadConfirmedAt: iso,
-      loadedSignsCount: totalSigns,
-      executionPhase: 'placement',
-      status: route.status === 'planned' ? 'in_progress' : route.status ?? 'in_progress',
-    });
+    const result = await runSignRunTransition(route, { type: 'confirmLoad', at: iso, loadedSignsCount: totalSigns });
 
-    if (result.errors && result.errors.length > 0) {
-      setError('Could not confirm the load. Try again.');
+    if ('error' in result) {
+      setError(result.error);
       setSubmitting(false);
       closeDialog();
       return;

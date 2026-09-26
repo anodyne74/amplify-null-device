@@ -90,19 +90,41 @@
   gap: var(--space-5);
 }
 
-.agentList {
+.agentBadges {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.agentRow {
-  display: flex;
+.agentBadge {
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-circle);
+  background: var(--nd-agent-badge-bg, var(--surface-hover));
+  color: var(--nd-agent-badge-fg, var(--text-body));
+  font-size: var(--text-sm);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.02em;
 }
 
-.agentName {
-  font-size: var(--text-sm);
-  color: var(--text-heading);
+.agentDefaultStar {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-circle);
+  background: var(--surface-card);
+  color: var(--nd-status-warning);
+  box-shadow: 0 0 0 1px var(--border-subtle);
 }

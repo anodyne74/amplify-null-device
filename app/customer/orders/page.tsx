@@ -7,15 +7,16 @@ import { unwrapOrThrow } from '@/lib/graphqlResult';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
-import { Avatar } from '@/app/components/ui/core/Avatar';
+import { Icon } from '@/app/components/ui/core/Icon';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { Switch } from '@/app/components/ui/forms/Switch';
 import styles from './page.module.css';
 import { getCustomer, updateCustomer } from '@/lib/customers';
+import { getAgentBadgeInitials, getAgentBadgeTone, normalizeAgentOptions } from '@/lib/customerDefaults';
 
-const PICKUP_DAYS: { value: StandingPickupDay; label: string }[] = [
+const COLLECTION_DAYS: { value: StandingPickupDay; label: string }[] = [
   { value: 'monday', label: 'Monday' },
   { value: 'tuesday', label: 'Tuesday' },
   { value: 'wednesday', label: 'Wednesday' },
@@ -48,7 +49,6 @@ export default function CustomerStandingOrdersPage() {
   const [standingInstructions, setStandingInstructions] = useState('');
   const [defaultNumberOfSigns, setDefaultNumberOfSigns] = useState('');
   const [standingPickupDay, setStandingPickupDay] = useState<StandingPickupDay>('saturday');
-  const [notifyOnLowSigns, setNotifyOnLowSigns] = useState(true);
   const [sendMissingSignsReport, setSendMissingSignsReport] = useState(true);
 
   const [saving, setSaving] = useState(false);
@@ -62,7 +62,6 @@ export default function CustomerStandingOrdersPage() {
       typeof customer.defaultNumberOfSigns === 'number' ? String(customer.defaultNumberOfSigns) : ''
     );
     setStandingPickupDay((customer.standingPickupDay as StandingPickupDay | null) ?? 'saturday');
-    setNotifyOnLowSigns(customer.notifyOnLowSigns ?? true);
     setSendMissingSignsReport(customer.sendMissingSignsReport ?? true);
   }, [customer]);
 
@@ -86,7 +85,6 @@ export default function CustomerStandingOrdersPage() {
       standingInstructions,
       defaultNumberOfSigns: parsedSigns,
       standingPickupDay,
-      notifyOnLowSigns,
       sendMissingSignsReport,
     });
 
@@ -105,7 +103,13 @@ export default function CustomerStandingOrdersPage() {
     setSaving(false);
   };
 
-  const agentOptions = customer?.agentOptions ?? [];
+  // Same list and order the admin agent editor shows: the first agent is the
+  // default, and a legacy customer with only defaultAgentName still gets it.
+  const agents =
+    normalizeAgentOptions(
+      (customer?.agentOptions ?? []).filter((agent): agent is string => Boolean(agent)),
+      customer?.defaultAgentName ?? undefined
+    ) ?? [];
   const isAccountOwner = customerRole === 'account_owner';
   const lastUpdated = formatUpdatedAt(customer?.updatedAt);
 
@@ -145,14 +149,14 @@ export default function CustomerStandingOrdersPage() {
                       disabled={saving}
                     />
                   </Field>
-                  <Field label="Standing pickup day" htmlFor="orders-pickup-day">
+                  <Field label="Standing sign collection day" htmlFor="orders-collection-day">
                     <Select
-                      id="orders-pickup-day"
+                      id="orders-collection-day"
                       value={standingPickupDay}
                       onChange={(e) => setStandingPickupDay(e.target.value as StandingPickupDay)}
                       disabled={saving}
                     >
-                      {PICKUP_DAYS.map((day) => (
+                      {COLLECTION_DAYS.map((day) => (
                         <option key={day.value} value={day.value}>
                           {day.label}
                         </option>
@@ -162,15 +166,9 @@ export default function CustomerStandingOrdersPage() {
                 </div>
 
                 <Switch
-                  checked={notifyOnLowSigns}
-                  onChange={(e) => setNotifyOnLowSigns(e.target.checked)}
-                  label="Tell us if you run short of signs and update the count"
-                  disabled={saving}
-                />
-                <Switch
                   checked={sendMissingSignsReport}
                   onChange={(e) => setSendMissingSignsReport(e.target.checked)}
-                  label="Send a list of missing signs after every pickup"
+                  label="Send a list of missing signs after every sign collection"
                   disabled={saving}
                 />
 
@@ -192,9 +190,9 @@ export default function CustomerStandingOrdersPage() {
                     <div className={styles.statValue}>{defaultNumberOfSigns || '—'}</div>
                   </div>
                   <div>
-                    <div className={styles.statLabel}>Pickup day</div>
+                    <div className={styles.statLabel}>Sign collection day</div>
                     <div className={styles.statValue}>
-                      {PICKUP_DAYS.find((day) => day.value === standingPickupDay)?.label ?? '—'}
+                      {COLLECTION_DAYS.find((day) => day.value === standingPickupDay)?.label ?? '—'}
                     </div>
                   </div>
                   <div>
@@ -211,17 +209,39 @@ export default function CustomerStandingOrdersPage() {
 
           <div className={styles.sidebar}>
             <Card title="Agents on this account" subtitle="Codes appear on the operator run sheet">
-              {agentOptions.length === 0 ? (
+              {agents.length === 0 ? (
                 <p className={styles.mutedText}>No agents configured yet.</p>
               ) : (
-                <div className={styles.agentList}>
-                  {agentOptions.map((agent) => (
-                    <div key={agent} className={styles.agentRow}>
-                      <Avatar name={agent} size="sm" />
-                      <span className={styles.agentName}>{agent}</span>
-                    </div>
-                  ))}
-                </div>
+                <ul className={styles.agentBadges} aria-label="Agents on this account">
+                  {agents.map((agent, index) => {
+                    const isDefault = index === 0;
+                    const label = isDefault ? `${agent} (default agent)` : agent;
+                    const tone = getAgentBadgeTone(agent);
+                    return (
+                      <li key={agent}>
+                        <span
+                          role="img"
+                          aria-label={label}
+                          title={label}
+                          className={styles.agentBadge}
+                          style={
+                            {
+                              '--nd-agent-badge-bg': tone.backgroundColor,
+                              '--nd-agent-badge-fg': tone.color,
+                            } as React.CSSProperties
+                          }
+                        >
+                          <span aria-hidden="true">{getAgentBadgeInitials(agent)}</span>
+                          {isDefault && (
+                            <span className={styles.agentDefaultStar} data-testid="default-agent-star" aria-hidden="true">
+                              <Icon name="star" size={11} />
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </Card>
           </div>

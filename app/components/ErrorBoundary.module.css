@@ -3,7 +3,7 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  min-height: var(--viewport-h);
   background: var(--surface-page);
   padding: var(--space-7);
 }

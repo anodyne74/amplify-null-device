@@ -92,6 +92,36 @@
   color: var(--text-subtle);
 }
 
+/* Location Precision (#283): a dashed ring hints an Interpolated pin; an
+   Approximate pin also carries a "?" badge so it can't be mistaken for the door. */
+.stopMarkerInterpolated,
+.stopMarkerApproximate {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--surface-page) 70%, transparent);
+}
+
+.stopMarkerApproximate {
+  position: relative;
+}
+
+.stopMarkerApproximate::after {
+  content: '?';
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--status-warning);
+  color: var(--text-on-brand);
+  border: 1px solid var(--surface-page);
+  font-size: 10px;
+  font-weight: 800;
+}
+
 .deviceLabel {
   color: var(--text-heading);
   font-size: 12px;

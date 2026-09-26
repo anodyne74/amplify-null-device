@@ -26,9 +26,8 @@ interface StopFormProps {
     agent?: string;
     isAuction?: boolean;
     notes?: string;
-    latitude?: number;
-    longitude?: number;
-    formattedAddress?: string;
+    /** The autocomplete pick, if the address was chosen from suggestions on this edit. */
+    resolvedLocation?: ResolvedAddress;
   }) => Promise<void>;
   onCancel: () => void;
   addressSearchOrigin?: { latitude: number; longitude: number } | null;
@@ -115,9 +114,7 @@ export function StopForm({
       agent: agent.trim() || undefined,
       isAuction,
       notes: notes || undefined,
-      latitude: resolvedAddress?.latitude,
-      longitude: resolvedAddress?.longitude,
-      formattedAddress: resolvedAddress?.formattedAddress,
+      resolvedLocation: resolvedAddress ?? undefined,
     });
   };
 

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Circle as LeafletCircle, CircleMarker as LeafletCircleMarker, Map as LeafletMap } from 'leaflet';
 import type { Stop } from '@/amplify/types';
+import { locationPrecisionIndicator } from '@/lib/locationPrecision';
 import { getMapTheme, type MapTheme } from '@/lib/mapThemes';
 import styles from './RouteStopsMap.module.css';
 
@@ -233,9 +234,13 @@ export function RouteStopsMap({
             ? styles.stopMarkerInspection
             : styles.stopMarkerDelivery;
 
+        const precisionIndicator = locationPrecisionIndicator(stop.locationPrecision);
+
         const markerClasses = [
           styles.stopMarker,
           serviceClass,
+          precisionIndicator?.level === 'subtle' ? styles.stopMarkerInterpolated : '',
+          precisionIndicator?.level === 'clear' ? styles.stopMarkerApproximate : '',
           isActive ? styles.stopMarkerActive : '',
           isUpcoming ? styles.stopMarkerUpcoming : '',
           isSkipped ? styles.stopMarkerSkipped : isCompleted ? styles.stopMarkerCompleted : '',
@@ -253,7 +258,8 @@ export function RouteStopsMap({
           keyboard: true,
         }).addTo(map);
 
-        marker.bindTooltip(stop.formattedAddress || stop.address || 'Unknown address', {
+        const stopAddress = stop.formattedAddress || stop.address || 'Unknown address';
+        marker.bindTooltip(precisionIndicator ? `${stopAddress} · ${precisionIndicator.label}` : stopAddress, {
           direction: 'top',
           offset: [0, -14],
           opacity: 0.95,

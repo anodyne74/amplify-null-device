@@ -14,6 +14,7 @@ import { Select } from '@/app/components/ui/forms/Select';
 import { Tabs } from '@/app/components/ui/navigation/Tabs';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { RouteForm, type RouteDraftStop } from '@/app/operator/components/RouteForm';
+import { pickStopLocationFields } from '@/lib/locationPrecision';
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseScheduleText } from '@/lib/parseSchedule';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
@@ -288,6 +289,8 @@ export default function NewRoutePage() {
       const normalizedLongitude = normalizeOptionalNumber(stop.longitude);
       const normalizedSigns = normalizeOptionalNumber(stop.numberOfSigns);
       return {
+        // The source Stop's precision and address components travel with its pin.
+        ...pickStopLocationFields(stop),
         address: stop.address?.trim() || stop.formattedAddress?.trim() || 'Unknown address',
         serviceType: normalizeCopiedServiceType(stop.serviceType),
         numberOfSigns: normalizedSigns,

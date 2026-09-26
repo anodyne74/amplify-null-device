@@ -63,7 +63,7 @@ jest.mock('@/lib/customers', () => ({
   updateCustomer: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/invoices', () => ({
   listCustomerInvoices: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
 }));
 

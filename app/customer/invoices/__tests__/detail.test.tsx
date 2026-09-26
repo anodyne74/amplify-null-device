@@ -3,8 +3,8 @@ import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import InvoiceDetailContent from '../[id]/_InvoiceDetailContent';
 import ToastProvider from '@/app/components/ToastProvider';
-import { getInvoiceDetail } from '@/lib/queries/GetInvoiceDetail';
 import { getCustomerPortalContext } from '@/lib/customers';
+import { getInvoiceDetail } from '@/lib/invoices';
 
 const renderWithToast = (ui: React.ReactElement) => render(<ToastProvider>{ui}</ToastProvider>);
 
@@ -23,7 +23,7 @@ jest.mock('@/lib/use-user-groups', () => ({
   useCurrentUserId: () => 'owner-sub-1',
 }));
 
-jest.mock('@/lib/queries/GetInvoiceDetail', () => ({
+jest.mock('@/lib/invoices', () => ({
   getInvoiceDetail: jest.fn(),
 }));
 

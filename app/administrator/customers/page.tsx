@@ -21,11 +21,11 @@ import {
   setDefaultAgentOption as setDefaultAgentOptionIn,
 } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
-import { listCustomerInvoices } from '@/lib/queries';
 import { buildOnboardingChecklist, type ChecklistItem } from '@/lib/customerOnboardingChecklist';
 import styles from './page.module.css';
 import { listCustomerRoutes } from '@/lib/routes';
 import { createCustomer, listAllCustomerUsers, listCustomerUsers, listAllCustomers, updateCustomer } from '@/lib/customers';
+import { listCustomerInvoices } from '@/lib/invoices';
 
 const usdFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',

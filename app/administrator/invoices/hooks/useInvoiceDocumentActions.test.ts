@@ -1,11 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
 import { useInvoiceDocumentActions } from './useInvoiceDocumentActions';
-import { getInvoiceWithLineItems, updateInvoicePdfKey } from '@/lib/queries';
 import { uploadData } from 'aws-amplify/storage';
 import { autoTable } from 'jspdf-autotable';
 import type { Invoice } from '@/app/administrator/invoices/types';
 import type { CustomerOption } from '@/app/administrator/invoices/types';
 import { getRouteWithStops } from '@/lib/routes';
+import { getInvoiceWithLineItems, updateInvoicePdfKey } from '@/lib/invoices';
 
 // GitHub issue #65: Generate PDF threw because `invoice.totalAmount.toFixed(2)`
 // was called unguarded — any invoice row with a null/undefined totalAmount
@@ -17,7 +17,7 @@ jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/invoices', () => ({
   getInvoiceWithLineItems: jest.fn(),
   updateInvoice: jest.fn(),
   updateInvoicePdfKey: jest.fn(),

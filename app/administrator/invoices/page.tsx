@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PageHeader from '@/app/administrator/components/PageHeader';
-import { deleteInvoice, updateInvoice } from '@/lib/queries';
 import InvoiceListTable from '@/app/administrator/invoices/components/InvoiceListTable';
 import UninvoicedRoutesTable from '@/app/administrator/invoices/components/UninvoicedRoutesTable';
 import { useInvoiceDocumentActions } from '@/app/administrator/invoices/hooks/useInvoiceDocumentActions';
@@ -12,6 +11,7 @@ import { useInvoiceUiState } from '@/app/administrator/invoices/hooks/useInvoice
 import { useInvoicesDataState } from '@/app/administrator/invoices/hooks/useInvoicesDataState';
 import type { Invoice } from '@/app/administrator/invoices/types';
 import styles from './page.module.css';
+import { deleteInvoice, updateInvoice } from '@/lib/invoices';
 
 function normalizeInvoiceStatus(status?: Invoice['status'] | string | null) {
   return String(status ?? '').trim().toLowerCase();

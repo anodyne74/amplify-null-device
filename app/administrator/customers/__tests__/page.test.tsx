@@ -2,8 +2,8 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import CustomersAdminPage from '../page';
-import { createCustomer, listAllCustomerUsers, listCustomers, updateCustomer } from '@/lib/queries';
 import { geocodeAddress } from '@/lib/googleMaps';
+import { createCustomer, listAllCustomerUsers, listAllCustomers, updateCustomer } from '@/lib/customers';
 
 jest.mock('@/app/dashboard.module.css', () => ({}));
 
@@ -54,14 +54,17 @@ jest.mock('@/lib/routes', () => ({
   listCustomerRoutes: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   createCustomer: jest.fn(),
   createCustomerUser: jest.fn(),
   listAllCustomerUsers: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
   listCustomerUsers: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
-  listCustomerInvoices: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
-  listCustomers: jest.fn(),
+  listAllCustomers: jest.fn(),
   updateCustomer: jest.fn(),
+}));
+
+jest.mock('@/lib/queries', () => ({
+  listCustomerInvoices: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
 }));
 
 describe('Operator Customers Page', () => {
@@ -78,7 +81,7 @@ describe('Operator Customers Page', () => {
   });
 
   it('submits create customer with standing instructions and defaults', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
 
     render(<CustomersAdminPage />);
 
@@ -119,7 +122,7 @@ describe('Operator Customers Page', () => {
   });
 
   it('saves edited defaults from the configure panel', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({
+    (listAllCustomers as jest.Mock).mockResolvedValue({
       data: [
         {
           id: 'c-1',
@@ -188,7 +191,7 @@ describe('Operator Customers Page', () => {
   });
 
   it('sets an agent as the default by clicking its tag', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({
+    (listAllCustomers as jest.Mock).mockResolvedValue({
       data: [
         {
           id: 'c-1',
@@ -224,7 +227,7 @@ describe('Operator Customers Page', () => {
   });
 
   it('suspends and reactivates a customer account from the configure panel', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({
+    (listAllCustomers as jest.Mock).mockResolvedValue({
       data: [
         {
           id: 'c-1',
@@ -258,7 +261,7 @@ describe('Operator Customers Page', () => {
   });
 
   it('does not re-geocode an unchanged address when saving other edits (#58)', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({
+    (listAllCustomers as jest.Mock).mockResolvedValue({
       data: [
         {
           id: 'c-1',
@@ -306,7 +309,7 @@ describe('Operator Customers Page', () => {
   });
 
   it('navigates to payment details for the selected customer', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({
+    (listAllCustomers as jest.Mock).mockResolvedValue({
       data: [
         {
           id: 'c-1',
@@ -331,7 +334,7 @@ describe('Operator Customers Page', () => {
   });
 
   it('shows a per-customer user count from listAllCustomerUsers', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({
+    (listAllCustomers as jest.Mock).mockResolvedValue({
       data: [
         { id: 'c-1', name: 'Acme Corp', email: 'a@example.com', billingRatePerHour: 95, status: 'active' },
       ],
@@ -355,7 +358,7 @@ describe('Operator Customers Page', () => {
   });
 
   it('sorts the customer list by name', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({
+    (listAllCustomers as jest.Mock).mockResolvedValue({
       data: [
         { id: 'c-1', name: 'Zenith Co', email: 'z@example.com', billingRatePerHour: 95, status: 'active' },
         { id: 'c-2', name: 'Acme Corp', email: 'a@example.com', billingRatePerHour: 95, status: 'inactive' },
@@ -389,7 +392,7 @@ describe('Operator Customers Page', () => {
   });
 
   it('offers a retry action when loading customers fails', async () => {
-    (listCustomers as jest.Mock)
+    (listAllCustomers as jest.Mock)
       .mockResolvedValueOnce({ data: null, errors: [new Error('network')] })
       .mockResolvedValueOnce({
         data: [

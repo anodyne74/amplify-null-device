@@ -15,11 +15,11 @@ import { Tabs } from '@/app/components/ui/navigation/Tabs';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { RouteForm, type RouteDraftStop } from '@/app/operator/components/RouteForm';
 import { extractScheduleText } from '@/lib/extractScheduleText';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { parseScheduleText } from '@/lib/parseSchedule';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
 import styles from './page.module.css';
 import { listAllRoutes, createRoute, createStopsForRoute, getRouteWithStops } from '@/lib/routes';
+import { listAllCustomers } from '@/lib/customers';
 
 function todayDateKey() {
   const now = new Date();

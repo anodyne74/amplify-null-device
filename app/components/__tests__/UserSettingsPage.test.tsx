@@ -22,9 +22,12 @@ jest.mock('@/lib/amplify-config', () => ({
   fetchUserDisplayName: (...args: unknown[]) => fetchUserDisplayNameMock(...args),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomer: (...args: unknown[]) => getCustomerMock(...args),
   getCustomerPortalContext: (...args: unknown[]) => getCustomerPortalContextMock(...args),
+}));
+
+jest.mock('@/lib/queries', () => ({
   getUserSettings: (...args: unknown[]) => getUserSettingsMock(...args),
   upsertUserSettings: (...args: unknown[]) => upsertUserSettingsMock(...args),
 }));

@@ -12,15 +12,14 @@ import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { Switch } from '@/app/components/ui/forms/Switch';
 import { StatTile } from '@/app/components/ui/data/StatTile';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listRateLines } from '@/lib/queries/ListRateLines';
 import { createRateLine } from '@/lib/queries/CreateRateLine';
 import { deleteRateLine } from '@/lib/queries/DeleteRateLine';
-import { getCustomer, updateCustomer } from '@/lib/queries';
 import { getOrganizationSettings, upsertOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { computeDriverSplit, type DriverSplitResult } from '@/lib/driverSplit';
 import type { BillingCycle, Customer, RateLine, RateLineUnit } from '@/amplify/types';
 import styles from './page.module.css';
+import { listAllCustomers, getCustomer, updateCustomer } from '@/lib/customers';
 
 const CYCLE_OPTIONS: { value: BillingCycle; label: string }[] = [
   { value: 'weekly', label: 'Weekly' },

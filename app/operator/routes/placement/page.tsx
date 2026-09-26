@@ -9,7 +9,6 @@ import { Card } from '@/app/components/ui/core/Card';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
-import { getCustomer } from '@/lib/queries';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
 import { runSignRunTransition, runStopSettlement } from '@/lib/signRunTransitions';
@@ -22,6 +21,7 @@ import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
 import stopCardStyles from '../../components/signRunStopCard.module.css';
 import styles from './page.module.css';
+import { getCustomer } from '@/lib/customers';
 
 async function fetchCustomerName(route: Route) {
   const customerResult = await getCustomer(route.customerId);

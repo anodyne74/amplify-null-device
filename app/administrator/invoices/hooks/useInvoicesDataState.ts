@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { Route } from '@/amplify/types';
 import type { CustomerOption, Invoice } from '@/app/administrator/invoices/types';
-import { listCustomerUsers, listCustomers, listInvoices } from '@/lib/queries';
+import { listInvoices } from '@/lib/queries';
 import { listAllRoutes } from '@/lib/routes';
+import { listCustomerUsers, listAllCustomers } from '@/lib/customers';
 
 type UseInvoicesDataStateParams = {
   customerId: string;
@@ -58,7 +59,7 @@ export function useInvoicesDataState({
     setError(null);
 
     const [customersResult, invoicesResult, routesResult] = await Promise.all([
-      listCustomers(),
+      listAllCustomers(),
       listInvoices(),
       listAllRoutes(),
     ]);

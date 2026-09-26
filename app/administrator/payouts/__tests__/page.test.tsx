@@ -2,13 +2,12 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import AdministratorPayoutsPage from '../page';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listOperatorPayouts } from '@/lib/queries/ListOperatorPayouts';
 import { createOperatorPayout } from '@/lib/queries/CreateOperatorPayout';
 import { updateOperatorPayout } from '@/lib/queries/UpdateOperatorPayout';
-import { getCustomer } from '@/lib/queries';
 import { computeDriverSplit } from '@/lib/driverSplit';
 import { callApi } from '@/lib/apiClient';
+import { listAllCustomers, getCustomer } from '@/lib/customers';
 
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
@@ -19,8 +18,9 @@ jest.mock('@/lib/apiClient', () => ({
   callApi: jest.fn(),
 }));
 
-jest.mock('@/lib/queries/ListAllCustomers', () => ({
+jest.mock('@/lib/customers', () => ({
   listAllCustomers: jest.fn(),
+  getCustomer: jest.fn(),
 }));
 
 jest.mock('@/lib/queries/ListOperatorPayouts', () => ({
@@ -33,10 +33,6 @@ jest.mock('@/lib/queries/CreateOperatorPayout', () => ({
 
 jest.mock('@/lib/queries/UpdateOperatorPayout', () => ({
   updateOperatorPayout: jest.fn(),
-}));
-
-jest.mock('@/lib/queries', () => ({
-  getCustomer: jest.fn(),
 }));
 
 jest.mock('@/lib/driverSplit', () => ({

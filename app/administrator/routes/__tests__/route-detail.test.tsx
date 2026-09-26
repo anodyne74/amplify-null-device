@@ -62,7 +62,7 @@ jest.mock('@/lib/routes', () => ({
   updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn().mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined }),
 }));
 

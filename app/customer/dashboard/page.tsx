@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useCurrentUserId } from '@/lib/use-user-groups';
 import type { Customer } from '@/amplify/types';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
-import { getCustomer, getUserSettings } from '@/lib/queries';
+import { getUserSettings } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { useLiveRoutes } from '@/lib/useLiveRoutes';
 import { unwrapOrThrow } from '@/lib/graphqlResult';
@@ -34,6 +34,7 @@ import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
 import { StatTile } from '@/app/components/ui/data/StatTile';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import styles from './page.module.css';
+import { getCustomer } from '@/lib/customers';
 
 function presentationOf(route: OverviewRoute) {
   return getRouteStatusPresentation(route as unknown as RoutePhaseInput);

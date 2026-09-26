@@ -6,10 +6,10 @@ import OperatorPlacementPage from '../placement/page';
 import OperatorPickupPage from '../pickup/page';
 import OperatorUnloadPage from '../unload/page';
 import OperatorFinalisePage from '../finalise/page';
-import { getCustomer } from '@/lib/queries';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import type { Route, Stop } from '@/amplify/types';
 import { getRouteWithStops, updateRoute, updateStopExecution } from '@/lib/routes';
+import { getCustomer } from '@/lib/customers';
 
 /**
  * Walks a single route through every screen of the Driver Sign Run flow —
@@ -37,7 +37,7 @@ jest.mock('@/lib/routes', () => ({
   updateStopExecution: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
 }));
 

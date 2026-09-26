@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Route } from '@/amplify/types';
 import { compareRouteIdDesc } from '@/lib/routeListHelpers';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS, type RoutePhaseKey } from '@/lib/signRunPhase';
 import { deleteRoute } from '@/lib/routes';
+import { listAllCustomers } from '@/lib/customers';
 
 export type StatusFilter = RoutePhaseKey | 'all';
 

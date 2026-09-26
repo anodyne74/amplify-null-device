@@ -13,14 +13,13 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listOperatorPayouts } from '@/lib/queries/ListOperatorPayouts';
 import { createOperatorPayout } from '@/lib/queries/CreateOperatorPayout';
 import { updateOperatorPayout } from '@/lib/queries/UpdateOperatorPayout';
-import { getCustomer } from '@/lib/queries';
 import { computeDriverSplit, type DriverSplitResult } from '@/lib/driverSplit';
 import type { Customer, OperatorPayout, OperatorPayoutStatus } from '@/amplify/types';
 import styles from './page.module.css';
+import { listAllCustomers, getCustomer } from '@/lib/customers';
 
 type StatusFilter = 'all' | OperatorPayoutStatus;
 

@@ -5,11 +5,8 @@ import { ServiceCalendar } from '../ServiceCalendar';
 import { listOperatorAvailabilityBlocks } from '@/lib/queries/ListOperatorAvailabilityBlocks';
 import { createOperatorAvailabilityBlock } from '@/lib/queries/CreateOperatorAvailabilityBlock';
 import { deleteOperatorAvailabilityBlock } from '@/lib/queries/DeleteOperatorAvailabilityBlock';
-import { listCustomerClosureBlocks } from '@/lib/queries/ListCustomerClosureBlocks';
-import { createCustomerClosureBlock } from '@/lib/queries/CreateCustomerClosureBlock';
-import { deleteCustomerClosureBlock } from '@/lib/queries/DeleteCustomerClosureBlock';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listMyRoutes } from '@/lib/routes';
+import { listCustomerClosureBlocks, createCustomerClosureBlock, deleteCustomerClosureBlock, listAllCustomers } from '@/lib/customers';
 
 jest.mock('@/lib/queries/ListOperatorAvailabilityBlocks', () => ({
   listOperatorAvailabilityBlocks: jest.fn(),
@@ -20,18 +17,13 @@ jest.mock('@/lib/queries/CreateOperatorAvailabilityBlock', () => ({
 jest.mock('@/lib/queries/DeleteOperatorAvailabilityBlock', () => ({
   deleteOperatorAvailabilityBlock: jest.fn(),
 }));
-jest.mock('@/lib/queries/ListCustomerClosureBlocks', () => ({
+jest.mock('@/lib/customers', () => ({
   listCustomerClosureBlocks: jest.fn(),
-}));
-jest.mock('@/lib/queries/CreateCustomerClosureBlock', () => ({
   createCustomerClosureBlock: jest.fn(),
-}));
-jest.mock('@/lib/queries/DeleteCustomerClosureBlock', () => ({
   deleteCustomerClosureBlock: jest.fn(),
-}));
-jest.mock('@/lib/queries/ListAllCustomers', () => ({
   listAllCustomers: jest.fn(),
 }));
+
 jest.mock('@/lib/routes', () => ({
   listMyRoutes: jest.fn(),
 }));

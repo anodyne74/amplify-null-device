@@ -5,8 +5,6 @@ import { useCurrentUserId } from '@/lib/use-user-groups';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
 import {
-  getCustomer,
-  getCustomerPortalContext,
   getUserSettings,
   upsertUserSettings,
   type MapThemeSetting,
@@ -21,6 +19,7 @@ import { Select } from '@/app/components/ui/forms/Select';
 import { Switch } from '@/app/components/ui/forms/Switch';
 import { Tabs } from '@/app/components/ui/navigation/Tabs';
 import styles from './UserSettingsPage.module.css';
+import { getCustomer, getCustomerPortalContext } from '@/lib/customers';
 
 type RoleVariant = 'administrator' | 'operator' | 'customer';
 type SettingsTab = 'user' | 'customer';

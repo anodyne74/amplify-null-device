@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import type { Customer } from '@/amplify/types';
-import { getCustomer, updateCustomer } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { unwrapOrThrow } from '@/lib/graphqlResult';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
@@ -13,6 +12,7 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Switch } from '@/app/components/ui/forms/Switch';
 import styles from './page.module.css';
+import { getCustomer, updateCustomer } from '@/lib/customers';
 
 function parseCcEmails(value: string) {
   return value

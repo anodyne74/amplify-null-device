@@ -2,8 +2,9 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import AdminHomePage from '../page';
-import { listInvoices, listCustomerUsers } from '@/lib/queries';
+import { listInvoices } from '@/lib/queries';
 import { listAllRoutes, listAllStops } from '@/lib/routes';
+import { listAllCustomers, listCustomerUsers } from '@/lib/customers';
 
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
@@ -15,21 +16,13 @@ jest.mock('@/lib/routes', () => ({
   listAllStops: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
-  listInvoices: jest.fn(),
+jest.mock('@/lib/customers', () => ({
+  listAllCustomers: jest.fn(),
   listCustomerUsers: jest.fn(),
 }));
 
-const mockCustomerList = jest.fn();
-
-jest.mock('aws-amplify/data', () => ({
-  generateClient: () => ({
-    models: {
-      Customer: {
-        list: mockCustomerList,
-      },
-    },
-  }),
+jest.mock('@/lib/queries', () => ({
+  listInvoices: jest.fn(),
 }));
 
 describe('Administrator dashboard overview', () => {
@@ -68,12 +61,11 @@ describe('Administrator dashboard overview', () => {
       errors: undefined,
     });
 
-    mockCustomerList.mockResolvedValue({
+    (listAllCustomers as jest.Mock).mockResolvedValue({
       data: [
         { id: 'customer-1', name: 'Acme Corp' },
         { id: 'customer-2', name: 'Beta Signs' },
       ],
-      nextToken: undefined,
       errors: undefined,
     });
   });

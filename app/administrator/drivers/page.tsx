@@ -17,13 +17,13 @@ import { StatTile } from '@/app/components/ui/data/StatTile';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { listOperators } from '@/lib/queries/ListOperators';
 import { updateOperator } from '@/lib/queries/UpdateOperator';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { getDateGroup } from '@/lib/aggregateRouteData';
 import { formatDurationCompact } from '@/lib/dashboardAnalytics';
 import { summarizeRoutesStopsThisMonth, summarizeAverageRouteDuration } from '@/lib/adminDashboardOverview';
 import type { BillingCycle, Operator, OperatorStatus, Route } from '@/amplify/types';
 import styles from './page.module.css';
 import { listAllRoutes, listAllStops } from '@/lib/routes';
+import { listAllCustomers } from '@/lib/customers';
 
 type CognitoOperator = {
   id?: string;

@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from 'react';
 import { callApi } from '@/lib/apiClient';
-import { getCustomer, listCustomerUsers } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
@@ -11,6 +10,7 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import type { Customer } from '@/amplify/types';
 import styles from './page.module.css';
+import { getCustomer, listCustomerUsers } from '@/lib/customers';
 
 interface TeammateRow {
   id: string;

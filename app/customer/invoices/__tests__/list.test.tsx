@@ -3,7 +3,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import InvoicesPage from '../page';
 import * as listMyInvoicesModule from '@/lib/queries/ListMyInvoices';
-import { getCustomerPortalContext, getCustomer } from '@/lib/queries';
+import { getCustomerPortalContext, getCustomer } from '@/lib/customers';
 
 // Mock the router
 jest.mock('next/navigation', () => ({
@@ -24,7 +24,7 @@ jest.mock('@/app/components/LoadingSpinner', () => {
 
 // Mock the listMyInvoices function
 jest.spyOn(listMyInvoicesModule, 'listMyInvoices');
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomerPortalContext: jest.fn(),
   getCustomer: jest.fn(),
 }));

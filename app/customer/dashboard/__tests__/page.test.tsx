@@ -2,12 +2,9 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import CustomerDashboard from '../page';
-import {
-  getCustomer,
-  getCustomerPortalContext,
-} from '@/lib/queries';
 import { useLiveRoutes } from '@/lib/useLiveRoutes';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
+import { getCustomer, getCustomerPortalContext } from '@/lib/customers';
 
 jest.mock('@/app/dashboard.module.css', () => ({}));
 
@@ -20,7 +17,7 @@ jest.mock('@/lib/amplify-config', () => ({
   getUserEmail: () => 'owner@example.com',
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
   getCustomerPortalContext: jest.fn(),
 }));

@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import CustomerLayout from '../layout';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'aws-amplify/auth';
-import { getCustomerPortalContext } from '@/lib/queries';
+import { getCustomerPortalContext } from '@/lib/customers';
 
 // Mock the router
 jest.mock('next/navigation', () => ({
@@ -42,7 +42,7 @@ jest.mock('@/lib/amplify-config', () => ({
   getUserGroups: jest.fn(() => ['customer']),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomerPortalContext: jest.fn(),
 }));
 

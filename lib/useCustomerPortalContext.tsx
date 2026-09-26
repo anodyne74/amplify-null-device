@@ -11,7 +11,7 @@ import {
   type SetStateAction,
 } from 'react';
 import { useCurrentUserId } from '@/lib/use-user-groups';
-import { getCustomerPortalContext } from '@/lib/queries';
+import { getCustomerPortalContext } from '@/lib/customers';
 
 export interface CustomerPortalContext {
   userId: string;

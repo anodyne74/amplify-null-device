@@ -2,13 +2,9 @@ import '@testing-library/jest-dom';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Route, Stop } from '@/amplify/types';
 import RouteDetailContent from '../[id]/_RouteDetailContent';
-import {
-  getCustomer,
-  getCustomerPortalContext,
-  listCustomerUsers,
-} from '@/lib/queries';
 import type { RouteWithStopsFeedHandlers } from '@/lib/routeWithStopsFeed';
 import { getRouteWithStops, updateRoute, updateRouteCustomerInstructions } from '@/lib/routes';
+import { getCustomer, getCustomerPortalContext, listCustomerUsers } from '@/lib/customers';
 
 jest.mock('@/lib/use-user-groups', () => ({
   useCurrentUserId: () => 'viewer-sub-1',
@@ -25,7 +21,7 @@ jest.mock('@/lib/routes', () => ({
   updateRoute: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
   getCustomerPortalContext: jest.fn(),
   listCustomerUsers: jest.fn(),

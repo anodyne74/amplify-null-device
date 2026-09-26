@@ -2,14 +2,14 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { Route } from '@/amplify/types';
 import { useRoutesList } from '@/lib/useRoutesList';
 import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { deleteRoute } from '@/lib/routes';
+import { listAllCustomers } from '@/lib/customers';
 
 jest.mock('@/lib/useLiveRoutes', () => ({
   useLiveAllRoutes: jest.fn(),
 }));
 
-jest.mock('@/lib/queries/ListAllCustomers', () => ({
+jest.mock('@/lib/customers', () => ({
   listAllCustomers: jest.fn(),
 }));
 

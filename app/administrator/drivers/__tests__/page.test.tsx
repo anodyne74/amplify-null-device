@@ -4,9 +4,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AdministratorDriversPage from '../page';
 import { listOperators } from '@/lib/queries/ListOperators';
 import { updateOperator } from '@/lib/queries/UpdateOperator';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { ApiError, callApi } from '@/lib/apiClient';
 import { listAllRoutes, listAllStops } from '@/lib/routes';
+import { listAllCustomers } from '@/lib/customers';
 
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
@@ -26,7 +26,7 @@ jest.mock('@/lib/queries/UpdateOperator', () => ({
   updateOperator: jest.fn(),
 }));
 
-jest.mock('@/lib/queries/ListAllCustomers', () => ({
+jest.mock('@/lib/customers', () => ({
   listAllCustomers: jest.fn(),
 }));
 

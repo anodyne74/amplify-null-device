@@ -3,7 +3,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import RoutesPage from '../page';
 import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
-import * as listAllCustomersModule from '@/lib/queries/ListAllCustomers';
+import * as listAllCustomersModule from '@/lib/customers';
 import { listAllStops } from '@/lib/routes';
 import type { Route, Stop } from '@/amplify/types';
 
@@ -39,7 +39,7 @@ jest.mock('@/app/components/OperatorRoute', () => ({
 jest.mock('@/lib/useLiveRoutes', () => ({
   useLiveAllRoutes: jest.fn(),
 }));
-jest.mock('@/lib/queries/ListAllCustomers');
+jest.mock('@/lib/customers');
 jest.mock('@/lib/routes', () => ({
   listAllStops: jest.fn(),
 }));

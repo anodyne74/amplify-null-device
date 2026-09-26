@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Stop } from '@/amplify/types';
 import { isAdmin } from '@/lib/amplify-config';
 import { geocodeAddress } from '@/lib/googleMaps';
-import { getCustomer } from '@/lib/queries';
 import { useRouteWithStops } from '@/lib/useRouteWithStops';
 import {
   createStop,
@@ -13,6 +12,7 @@ import {
   resequenceStops,
   updateStop as updateStopQuery,
 } from '@/lib/routes';
+import { getCustomer } from '@/lib/customers';
 
 export interface CustomerDefaults {
   standingInstructions?: string | null;

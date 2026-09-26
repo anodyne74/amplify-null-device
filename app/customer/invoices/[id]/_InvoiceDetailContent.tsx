@@ -13,6 +13,7 @@ import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import styles from './_InvoiceDetailContent.module.css';
 import { getInvoiceDetail, type InvoiceDetail } from '@/lib/invoices';
+import { getInvoiceRouteLabel } from '@/lib/customerInvoiceList';
 
 interface InvoiceDetailContentProps {
   params: {
@@ -181,7 +182,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
                 <div>
                   <p className={styles.infoLabel}>Route</p>
                   <a href={`/customer/routes/${invoice.routeId}`} className={styles.routeLink}>
-                    View Route →
+                    {getInvoiceRouteLabel(invoice)} →
                   </a>
                 </div>
               )}

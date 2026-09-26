@@ -47,12 +47,6 @@
   color: var(--text-subtle);
 }
 
-.footerSummary {
-  margin-top: var(--space-6);
-  color: var(--text-subtle);
-  font-size: var(--text-sm);
-}
-
 .accessPanelTitle {
   margin: 0 0 var(--space-2);
   font-size: var(--text-md);

@@ -1,14 +1,10 @@
 'use client';
 
-import AdminActionButton from '@/app/components/AdminActionButton';
-import styles from '@/app/dashboard.module.css';
+import { Button } from '@/app/components/ui/core/Button';
+import { PAGE_SIZE, getPageRange } from '@/lib/pagination';
+import styles from './CustomerPagination.module.css';
 
-import { PAGE_SIZE, getPageRange, getPageSlice } from '@/lib/pagination';
-
-export const ADMIN_PAGE_SIZE = PAGE_SIZE;
-export { getPageSlice };
-
-interface AdminPaginationProps {
+interface CustomerPaginationProps {
   /** Current 1-based page (clamped internally). */
   page: number;
   totalItems: number;
@@ -18,39 +14,44 @@ interface AdminPaginationProps {
   itemsLabel?: string;
 }
 
-export default function AdminPagination({
+/** Previous/Next pager for customer portal lists; pair with getPageSlice. */
+export default function CustomerPagination({
   page,
   totalItems,
   onPageChange,
-  pageSize = ADMIN_PAGE_SIZE,
+  pageSize = PAGE_SIZE,
   itemsLabel = 'items',
-}: AdminPaginationProps) {
+}: CustomerPaginationProps) {
   if (totalItems <= 0) return null;
 
   const { currentPage, totalPages, start, end } = getPageRange(totalItems, page, pageSize);
 
   return (
-    <nav className={styles.paginationBar} aria-label={`${itemsLabel} pagination`}>
-      <p className={styles.paginationSummary} aria-live="polite">
+    <nav className={styles.bar} aria-label={`${itemsLabel} pagination`}>
+      <p className={styles.summary} aria-live="polite">
         Showing {start}–{end} of {totalItems} {itemsLabel}
       </p>
-      <div className={styles.paginationControls}>
-        <AdminActionButton
+      <div className={styles.controls}>
+        <Button
           variant="secondary"
+          size="sm"
+          iconLeft="chevron-left"
           disabled={currentPage <= 1}
           onClick={() => onPageChange(currentPage - 1)}
           aria-label={`Previous page of ${itemsLabel}`}
         >
           Previous
-        </AdminActionButton>
-        <AdminActionButton
+        </Button>
+        <Button
           variant="secondary"
+          size="sm"
+          iconRight="chevron-right"
           disabled={currentPage >= totalPages}
           onClick={() => onPageChange(currentPage + 1)}
           aria-label={`Next page of ${itemsLabel}`}
         >
           Next
-        </AdminActionButton>
+        </Button>
       </div>
     </nav>
   );

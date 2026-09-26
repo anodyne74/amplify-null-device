@@ -7,6 +7,9 @@ const mockInvoiceUpdate = jest.fn();
 const mockLineItemCreate = jest.fn();
 const mockLineItemDelete = jest.fn();
 const mockLineItemList = jest.fn();
+const mockRouteGet = jest.fn();
+const mockRouteList = jest.fn();
+const mockCustomerGet = jest.fn();
 
 jest.mock('aws-amplify/data', () => ({
   generateClient: () => ({
@@ -23,6 +26,13 @@ jest.mock('aws-amplify/data', () => ({
         delete: mockLineItemDelete,
         list: mockLineItemList,
       },
+      Route: {
+        get: mockRouteGet,
+        list: mockRouteList,
+      },
+      Customer: {
+        get: mockCustomerGet,
+      },
     },
   }),
 }));
@@ -36,6 +46,8 @@ import {
   deleteInvoice,
   updateInvoicePdfKey,
   createLineItem,
+  listMyInvoices,
+  getInvoiceDetail,
 } from './invoices';
 
 describe('invoices', () => {
@@ -247,6 +259,82 @@ describe('invoices', () => {
 
       expect(mockLineItemCreate).toHaveBeenCalled();
       expect(result.data).toEqual({ id: 'li-1' });
+    });
+  });
+
+  describe('listMyInvoices route codes', () => {
+    it("attaches each invoice's Route Code from the customer's routes", async () => {
+      mockInvoiceList.mockResolvedValue({
+        data: [
+          { id: 'i1', customerId: 'c1', routeId: 'r1' },
+          { id: 'i2', customerId: 'c1', routeId: null },
+        ],
+        errors: undefined,
+      });
+      mockRouteList.mockResolvedValue({ data: [{ id: 'r1', routeCode: 'W39-26-001' }], errors: undefined });
+
+      const result = await listMyInvoices({ customerId: 'c1' });
+
+      expect(mockRouteList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filter: { customerId: { eq: 'c1' } },
+          selectionSet: ['id', 'routeCode'],
+        })
+      );
+      expect(result.errors).toBeUndefined();
+      expect(result.data).toEqual([
+        { id: 'i1', customerId: 'c1', routeId: 'r1', routeCode: 'W39-26-001' },
+        { id: 'i2', customerId: 'c1', routeId: null, routeCode: null },
+      ]);
+    });
+
+    it('skips the route lookup when no invoice has a route', async () => {
+      mockInvoiceList.mockResolvedValue({ data: [{ id: 'i1', customerId: 'c1' }], errors: undefined });
+
+      await listMyInvoices({ customerId: 'c1' });
+
+      expect(mockRouteList).not.toHaveBeenCalled();
+    });
+
+    it('still returns the invoices when the routes cannot be read', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      mockInvoiceList.mockResolvedValue({ data: [{ id: 'i1', customerId: 'c1', routeId: 'r1' }], errors: undefined });
+      mockRouteList.mockRejectedValue(new Error('Not Authorized'));
+
+      const result = await listMyInvoices({ customerId: 'c1' });
+
+      expect(result.errors).toBeUndefined();
+      expect(result.data).toEqual([{ id: 'i1', customerId: 'c1', routeId: 'r1', routeCode: null }]);
+      warn.mockRestore();
+    });
+  });
+
+  describe('getInvoiceDetail route code', () => {
+    beforeEach(() => {
+      mockInvoiceGet.mockResolvedValue({ data: { id: 'i1', customerId: 'c1', routeId: 'r1' } });
+      mockCustomerGet.mockResolvedValue({ data: { name: 'Acme' } });
+      mockLineItemList.mockResolvedValue({ data: [], errors: undefined });
+    });
+
+    it("includes the invoice's Route Code", async () => {
+      mockRouteGet.mockResolvedValue({ data: { id: 'r1', routeCode: 'W39-26-001' } });
+
+      const result = await getInvoiceDetail({ invoiceId: 'i1', customerId: 'c1' });
+
+      expect(mockRouteGet).toHaveBeenCalledWith({ id: 'r1' }, { selectionSet: ['id', 'routeCode'] });
+      expect(result.data?.routeCode).toBe('W39-26-001');
+    });
+
+    it('still loads the invoice when the route cannot be read', async () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      mockRouteGet.mockRejectedValue(new Error('Not Authorized'));
+
+      const result = await getInvoiceDetail({ invoiceId: 'i1', customerId: 'c1' });
+
+      expect(result.errors).toBeUndefined();
+      expect(result.data?.routeId).toBe('r1');
+      expect(result.data?.routeCode).toBeUndefined();
+      warn.mockRestore();
     });
   });
 });

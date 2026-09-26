@@ -7,6 +7,7 @@
 import { getCustomerPortalContext } from '@/lib/customers';
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
+import { getRouteCode, listCustomerRouteCodes } from '@/lib/routes';
 
 /**
  * Fetch invoices for a single customer (admin customers panel — onboarding checklist).
@@ -243,6 +244,7 @@ export interface InvoiceDetail {
   totalAmount?: number;
   status?: string;
   routeId?: string;
+  routeCode?: string;
   pdfS3Key?: string;
   lineItems?: Array<{
     id?: string;
@@ -305,6 +307,8 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
       return { data: null, errors: lineItemsErrors };
     }
 
+    const routeCode = invoice.routeId ? await getRouteCode(invoice.routeId) : undefined;
+
     // Transform to plain JavaScript object
     const detail: InvoiceDetail = {
       id: invoice.id || '',
@@ -317,6 +321,7 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
       totalAmount: invoice.totalAmount || undefined,
       status: invoice.status || undefined,
       routeId: invoice.routeId || undefined,
+      routeCode,
       pdfS3Key: invoice.pdfS3Key || undefined,
       lineItems: (lineItems || []).map((item: any) => ({
         id: item.id,
@@ -385,7 +390,17 @@ export async function listMyInvoices(params: ListMyInvoicesParams) {
       return { data: [], errors };
     }
 
-    return { data, errors: undefined };
+    const routeCodes = data.some((invoice) => invoice.routeId)
+      ? await listCustomerRouteCodes(params.customerId)
+      : new Map<string, string>();
+
+    return {
+      data: data.map((invoice) => ({
+        ...invoice,
+        routeCode: (invoice.routeId && routeCodes.get(invoice.routeId)) || null,
+      })),
+      errors: undefined,
+    };
   } catch (error) {
     console.error('Error listing customer invoices:', error);
     return { data: [], errors: [error as Error] };

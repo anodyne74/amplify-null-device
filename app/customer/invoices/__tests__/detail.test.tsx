@@ -92,4 +92,28 @@ describe('Customer invoice detail', () => {
     expect(replaceMock).not.toHaveBeenCalled();
     expect(getInvoiceDetail).not.toHaveBeenCalled();
   });
+
+  it('links the route by its Route Code', async () => {
+    (getInvoiceDetail as jest.Mock).mockResolvedValue({
+      data: { id: 'inv-1', customerId: 'cust-1', invoiceNumber: 'INV-001', routeId: 'route-uuid-0001', routeCode: 'W03-24-001', lineItems: [] },
+      errors: undefined,
+    });
+
+    renderWithToast(<InvoiceDetailContent params={{ id: 'inv-1' }} />);
+
+    const link = await screen.findByRole('link', { name: /W03-24-001/ });
+    expect(link).toHaveAttribute('href', '/customer/routes/route-uuid-0001');
+    expect(screen.queryByText(/View Route/)).not.toBeInTheDocument();
+  });
+
+  it('falls back to a short route ID when the route has no code', async () => {
+    (getInvoiceDetail as jest.Mock).mockResolvedValue({
+      data: { id: 'inv-1', customerId: 'cust-1', invoiceNumber: 'INV-001', routeId: 'abcdef1234567890', lineItems: [] },
+      errors: undefined,
+    });
+
+    renderWithToast(<InvoiceDetailContent params={{ id: 'inv-1' }} />);
+
+    expect(await screen.findByRole('link', { name: /abcdef12/ })).toHaveAttribute('href', '/customer/routes/abcdef1234567890');
+  });
 });

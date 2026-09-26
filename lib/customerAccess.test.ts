@@ -186,4 +186,61 @@ describe('syncCustomerAccess', () => {
     expect(tables.Stop[0].viewerSubs).toEqual(['sub-owner', 'sub-read']);
     expect(tables.CustomerClosureBlock[0].viewerSubs).toEqual(['sub-owner', 'sub-read']);
   });
+
+  it("logs each failed record's model and id as it happens, not only at the end (#309)", async () => {
+    const tables = customerTables();
+    const { client, failUpdates } = fakeClient(tables);
+    failUpdates.add('s2');
+
+    await syncCustomerAccess(client, 'c1');
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Stop s2'),
+      expect.anything()
+    );
+  });
+
+  it("stamps every one of a Route's Stops, however they're spread across list pages (#309)", async () => {
+    const tables = customerTables();
+    // W39-26-001: ten Stops interleaved with another customer's in scan order.
+    tables.Stop = Array.from({ length: 10 }, (_, index) => [
+      { id: `w39-${index + 1}`, routeId: 'r1' },
+      { id: `other-${index + 1}`, routeId: 'r-other' },
+    ]).flat();
+    const { client } = fakeClient(tables);
+
+    await syncCustomerAccess(client, 'c1');
+
+    const unstamped = tables.Stop.filter((stop) => stop.routeId === 'r1' && !stop.viewerSubs);
+    expect(unstamped).toEqual([]);
+    expect(tables.Stop.filter((stop) => stop.routeId === 'r-other' && stop.viewerSubs)).toEqual([]);
+  });
+
+  it('reads Stops in one walk, not a table scan per Route (#309)', async () => {
+    const tables = customerTables();
+    tables.Route.push(...Array.from({ length: 20 }, (_, index) => ({ id: `r-extra-${index}`, customerId: 'c1' })));
+    const { client, models } = fakeClient(tables);
+
+    await syncCustomerAccess(client, 'c1');
+
+    const walksStarted = models.Stop.list.mock.calls.filter(([options]) => !options.nextToken);
+    expect(walksStarted).toHaveLength(1);
+  });
+
+  it('skips records that already carry the current viewers, so an interrupted sync resumes where it stopped (#309)', async () => {
+    const tables = customerTables();
+    // Same viewers in a different order still counts as already stamped.
+    tables.Route[0].viewerSubs = ['sub-read', 'sub-owner'];
+    tables.Stop[0].viewerSubs = ['sub-owner', 'sub-read'];
+    tables.Stop[2].viewerSubs = ['sub-owner']; // stale: must be rewritten
+    const { client, models } = fakeClient(tables);
+
+    const result = await syncCustomerAccess(client, 'c1');
+
+    const updatedIds = (model: string) => models[model].update.mock.calls.map(([input]) => input.id);
+    expect(updatedIds('Route')).toEqual(['r2']);
+    expect(updatedIds('Stop').sort()).toEqual(['s2', 's3']);
+    expect(tables.Stop[2].viewerSubs).toEqual(['sub-owner', 'sub-read']);
+    expect(result.updated).toMatchObject({ Route: 1, Stop: 2 });
+  });
 });

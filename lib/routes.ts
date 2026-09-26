@@ -289,9 +289,31 @@ export async function updateStopExecution(stopId: string, updates: StopExecution
 }
 
 /**
- * Create a stop within a route.
- * customerId MUST be the owning customer's identity (sub) so the tenant-based
- * ownerDefinedIn('customerId') authorization rule grants customer read access.
+ * The customer's current viewers (Customer.viewerSubs), which a new Stop needs
+ * for customer read access. On failure this logs and returns undefined: the
+ * Stop is still created, and syncCustomerAccess stamps it on the customer's
+ * next portal visit.
+ */
+async function getCustomerViewerSubs(customerId: string): Promise<string[] | undefined> {
+  try {
+    const { data, errors } = await getDataClient().models.Customer.get({ id: customerId }, { selectionSet: ['viewerSubs'] });
+
+    if (errors) {
+      console.error(`Errors reading viewers for customer ${customerId}:`, errors);
+      return undefined;
+    }
+
+    return (data?.viewerSubs ?? []).filter((sub): sub is string => Boolean(sub));
+  } catch (error) {
+    console.error(`Error reading viewers for customer ${customerId}:`, error);
+    return undefined;
+  }
+}
+
+/**
+ * Create a stop within a route. Customers read Stops only through viewerSubs,
+ * so a Stop is stamped with the customer's current viewers -- looked up here
+ * unless the caller passes them.
  */
 export async function createStop(input: {
   routeId: string;
@@ -310,7 +332,8 @@ export async function createStop(input: {
   notes?: string;
 }) {
   try {
-    const { data, errors } = await getDataClient().models.Stop.create(input);
+    const viewerSubs = input.viewerSubs ?? (await getCustomerViewerSubs(input.customerId));
+    const { data, errors } = await getDataClient().models.Stop.create(viewerSubs ? { ...input, viewerSubs } : input);
 
     if (errors) {
       console.error('Errors creating stop:', errors);
@@ -353,11 +376,14 @@ export async function createStopsForRoute(
   customerId: string,
   stops: CreateStopsForRouteInput[]
 ): Promise<CreateStopsForRouteResult[]> {
+  const viewerSubs = await getCustomerViewerSubs(customerId);
+
   return Promise.all(
     stops.map(async (stop, index) => {
       const stopResult = await createStop({
         routeId,
         customerId,
+        viewerSubs,
         sequence: index + 1,
         address: stop.address,
         serviceType: stop.serviceType,

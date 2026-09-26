@@ -8,6 +8,7 @@ const mockStopList = jest.fn();
 const mockStopCreate = jest.fn();
 const mockStopDelete = jest.fn();
 const mockStopUpdate = jest.fn();
+const mockCustomerGet = jest.fn();
 
 jest.mock('aws-amplify/data', () => ({
   generateClient: () => ({
@@ -25,6 +26,9 @@ jest.mock('aws-amplify/data', () => ({
         delete: mockStopDelete,
         update: mockStopUpdate,
       },
+      Customer: {
+        get: mockCustomerGet,
+      },
     },
   }),
 }));
@@ -37,6 +41,7 @@ import {
   updateRoute,
   updateStopExecution,
   deleteRoute,
+  createStop,
   createStopsForRoute,
   listCustomerStops,
   resequenceStops,
@@ -45,6 +50,7 @@ import {
 describe('routes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockCustomerGet.mockResolvedValue({ data: { viewerSubs: ['owner-sub', 'viewer-sub'] }, errors: undefined });
   });
 
   describe('listCustomerRoutes', () => {
@@ -337,11 +343,10 @@ describe('routes', () => {
 
       const resultPromise = createStopsForRoute('r1', 'c1', stops);
 
-      // Flush microtasks without resolving any create call. A sequential
-      // await-in-a-loop implementation would have only issued the first call
-      // by this point; a concurrent implementation issues all of them upfront.
-      await Promise.resolve();
-      await Promise.resolve();
+      // Let the customer lookup settle without resolving any create call. A
+      // sequential await-in-a-loop implementation would have only issued the
+      // first call by this point; a concurrent one issues all of them upfront.
+      await new Promise((resolve) => setTimeout(resolve, 0));
       expect(mockStopCreate).toHaveBeenCalledTimes(3);
 
       resolvers.forEach((resolve, i) => resolve({ data: { id: `s${i}` }, errors: undefined }));
@@ -376,6 +381,57 @@ describe('routes', () => {
       expect(mockStopCreate).toHaveBeenCalledWith(
         expect.objectContaining({ routeId: 'r1', customerId: 'c1', sequence: 2, address: 'a2' })
       );
+    });
+  });
+
+  describe('stamping customer viewers at creation', () => {
+    it('createStopsForRoute gives every Stop the customer\'s current viewers, looking them up once', async () => {
+      mockStopCreate.mockResolvedValue({ data: { id: 's' }, errors: undefined });
+
+      await createStopsForRoute('r1', 'c1', [
+        { address: 'a1', serviceType: 'delivery' },
+        { address: 'a2', serviceType: 'pickup' },
+      ]);
+
+      expect(mockCustomerGet).toHaveBeenCalledTimes(1);
+      expect(mockCustomerGet).toHaveBeenCalledWith({ id: 'c1' }, { selectionSet: ['viewerSubs'] });
+      expect(mockStopCreate).toHaveBeenCalledTimes(2);
+      mockStopCreate.mock.calls.forEach(([input]) => {
+        expect(input.viewerSubs).toEqual(['owner-sub', 'viewer-sub']);
+      });
+    });
+
+    it('createStop looks up the customer\'s viewers when none are given', async () => {
+      mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+
+      await createStop({ routeId: 'r1', customerId: 'c1', sequence: 1, address: 'a1', serviceType: 'delivery' });
+
+      expect(mockCustomerGet).toHaveBeenCalledWith({ id: 'c1' }, { selectionSet: ['viewerSubs'] });
+      expect(mockStopCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ routeId: 'r1', viewerSubs: ['owner-sub', 'viewer-sub'] })
+      );
+    });
+
+    it('createStop uses the viewers it is given without a lookup', async () => {
+      mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+
+      await createStop({ routeId: 'r1', customerId: 'c1', viewerSubs: ['given'], sequence: 1, address: 'a1', serviceType: 'delivery' });
+
+      expect(mockCustomerGet).not.toHaveBeenCalled();
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ viewerSubs: ['given'] }));
+    });
+
+    it('still creates the Stop when the customer lookup fails, leaving it for the access sync', async () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockCustomerGet.mockRejectedValue(new Error('network'));
+      mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+
+      const results = await createStopsForRoute('r1', 'c1', [{ address: 'a1', serviceType: 'delivery' }]);
+
+      expect(results).toEqual([{ index: 0, address: 'a1', success: true }]);
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.not.objectContaining({ viewerSubs: expect.anything() }));
+      expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
     });
   });
 

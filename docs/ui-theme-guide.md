@@ -82,6 +82,7 @@ Prefer reusable primitives and semantic classes for:
 - Panels
 - Primary and secondary action buttons
 - Status badges
+- Agent initials badges (`AgentBadge`)
 - Tables
 - Field groups
 - Empty states

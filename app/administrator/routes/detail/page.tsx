@@ -17,7 +17,6 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { useRouteDetailData } from '@/lib/use-route-detail-data';
 import { useRouteOverride } from '@/lib/useRouteOverride';
-import { getAgentBadgeInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import {
   formatCurrency,
   formatElapsedMinutes,
@@ -636,8 +635,6 @@ function RouteDetailContent() {
                   const phaseSkipped = isStopSkippedForPhase(stop, currentExecutionPhase);
                   const phaseCompletedAt = getPhaseCompletionTime(stop, currentExecutionPhase) ?? stop.actualDepartureTime;
                   const agentName = stop.agent?.trim() || 'Unassigned';
-                  const agentInitials = getAgentBadgeInitials(agentName);
-                  const agentBadgeTone = getAgentBadgeTone(agentName);
 
                   let stopActions: React.ReactNode = null;
                   if (canManagePlanning && !planningLocked) {
@@ -722,9 +719,7 @@ function RouteDetailContent() {
                       serviceType={stop.serviceType}
                       address={stop.formattedAddress || stop.address || ''}
                       statusLabel={getStopStatusLabel(stop, currentExecutionPhase, route?.status)}
-                      agentInitials={agentInitials}
                       agentName={agentName}
-                      agentBadgeTone={agentBadgeTone}
                       isAuction={Boolean(stop.isAuction)}
                       isTop={isTopVisibleStop}
                       isCompleted={completedStop}

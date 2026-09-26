@@ -202,6 +202,12 @@
 .nd-avatar--lg{width:48px;height:48px;font-size:var(--text-md)}
 .nd-avatar img{width:100%;height:100%;object-fit:cover}
 
+/* Agent badge — tone comes from getAgentBadgeTone via --nd-agent-badge-bg/-fg */
+.nd-agent-badge{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:var(--radius-circle);border:var(--border-hairline) solid var(--border-subtle);background:var(--nd-agent-badge-bg,var(--surface-hover));color:var(--nd-agent-badge-fg,var(--text-body));font-weight:var(--fw-bold);letter-spacing:0.02em}
+.nd-agent-badge--sm{width:32px;height:32px;font-family:var(--font-mono);font-size:var(--text-xs)}
+.nd-agent-badge--md{width:36px;height:36px;font-size:var(--text-sm)}
+.nd-agent-badge__star{position:absolute;top:-4px;right:-4px;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:var(--radius-circle);background:var(--surface-card);color:var(--nd-status-warning);box-shadow:0 0 0 1px var(--border-subtle)}
+
 /* Logo */
 .nd-logo{display:inline-flex;align-items:center;gap:var(--space-4)}
 .nd-logo img{display:block}

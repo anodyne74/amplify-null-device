@@ -7,14 +7,14 @@ import { unwrapOrThrow } from '@/lib/graphqlResult';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
-import { Icon } from '@/app/components/ui/core/Icon';
+import { AgentBadge } from '@/app/components/ui/core/AgentBadge';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { Switch } from '@/app/components/ui/forms/Switch';
 import styles from './page.module.css';
 import { getCustomer, updateCustomer } from '@/lib/customers';
-import { getAgentBadgeInitials, getAgentBadgeTone, normalizeAgentOptions } from '@/lib/customerDefaults';
+import { normalizeAgentOptions } from '@/lib/customerDefaults';
 
 const COLLECTION_DAYS: { value: StandingPickupDay; label: string }[] = [
   { value: 'monday', label: 'Monday' },
@@ -213,34 +213,11 @@ export default function CustomerStandingOrdersPage() {
                 <p className={styles.mutedText}>No agents configured yet.</p>
               ) : (
                 <ul className={styles.agentBadges} aria-label="Agents on this account">
-                  {agents.map((agent, index) => {
-                    const isDefault = index === 0;
-                    const label = isDefault ? `${agent} (default agent)` : agent;
-                    const tone = getAgentBadgeTone(agent);
-                    return (
-                      <li key={agent}>
-                        <span
-                          role="img"
-                          aria-label={label}
-                          title={label}
-                          className={styles.agentBadge}
-                          style={
-                            {
-                              '--nd-agent-badge-bg': tone.backgroundColor,
-                              '--nd-agent-badge-fg': tone.color,
-                            } as React.CSSProperties
-                          }
-                        >
-                          <span aria-hidden="true">{getAgentBadgeInitials(agent)}</span>
-                          {isDefault && (
-                            <span className={styles.agentDefaultStar} data-testid="default-agent-star" aria-hidden="true">
-                              <Icon name="star" size={11} />
-                            </span>
-                          )}
-                        </span>
-                      </li>
-                    );
-                  })}
+                  {agents.map((agent, index) => (
+                    <li key={agent}>
+                      <AgentBadge agentName={agent} isDefault={index === 0} />
+                    </li>
+                  ))}
                 </ul>
               )}
             </Card>

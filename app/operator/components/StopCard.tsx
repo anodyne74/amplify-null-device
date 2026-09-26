@@ -1,6 +1,7 @@
 'use client';
 
 import type { DragEvent, ReactNode } from 'react';
+import { AgentBadge } from '@/app/components/ui/core/AgentBadge';
 import styles from './StopCard.module.css';
 
 const SERVICE_TYPE_CLASS: Record<string, string> = {
@@ -20,9 +21,7 @@ interface StopCardProps {
   serviceType?: string | null;
   address: string;
   statusLabel: string;
-  agentInitials: string;
   agentName: string;
-  agentBadgeTone: { backgroundColor: string; color: string };
   isTop?: boolean;
   isCompleted?: boolean;
   isDragging?: boolean;
@@ -40,9 +39,7 @@ export default function StopCard({
   serviceType,
   address,
   statusLabel,
-  agentInitials,
   agentName,
-  agentBadgeTone,
   isTop = false,
   isCompleted = false,
   isDragging = false,
@@ -71,19 +68,7 @@ export default function StopCard({
         <div className={styles.status}>{statusLabel}</div>
       </div>
 
-      <span
-        className={styles.agentBadge}
-        aria-label={agentName}
-        title={agentName}
-        style={
-          {
-            '--nd-agent-badge-bg': agentBadgeTone.backgroundColor,
-            '--nd-agent-badge-fg': agentBadgeTone.color,
-          } as React.CSSProperties
-        }
-      >
-        {agentInitials}
-      </span>
+      <AgentBadge agentName={agentName} size="sm" />
 
       {actions && <div className={styles.actions}>{actions}</div>}
     </div>

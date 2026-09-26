@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { generateAgentInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
+import { getAgentBadgeInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
@@ -229,20 +229,25 @@ export function StopForm({
           <div className={styles.agentBadgeGroup} role="radiogroup" aria-label="Listing Agent">
             {agentOptions.map((option) => {
               const selected = agent === option;
-              const agentInitials = generateAgentInitials(option) ?? option.slice(0, 2).toUpperCase();
+              const tone = getAgentBadgeTone(option);
               return (
                 <button
                   key={option}
                   type="button"
-                  className={`${styles.agentBadge} ${agentInitials.length <= 2 ? styles.agentBadgeCircle : ''} ${selected ? styles.agentBadgeSelected : ''}`}
+                  className={`${styles.agentBadge} ${selected ? styles.agentBadgeSelected : ''}`}
                   onClick={() => setAgent(selected ? '' : option)}
                   disabled={isSubmitting}
                   aria-pressed={selected}
                   aria-label={option}
                   title={option}
-                  style={getAgentBadgeTone(option)}
+                  style={
+                    {
+                      '--nd-agent-badge-bg': tone.backgroundColor,
+                      '--nd-agent-badge-fg': tone.color,
+                    } as React.CSSProperties
+                  }
                 >
-                  {agentInitials}
+                  {getAgentBadgeInitials(option)}
                 </button>
               );
             })}

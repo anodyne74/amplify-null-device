@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     // Query customer details. Must use the IAM-authenticated client here --
     // this SSR request has no signed-in Amplify session, so the plain data
-    // client (lib/queries.ts) throws NoValidAuthTokens (see
+    // client (lib/data-client.ts) throws NoValidAuthTokens (see
     // lib/server/iamDataClient.ts for why).
     const customerResult = await client.models.Customer.get({ id: invoice.customerId });
     if (customerResult.errors && customerResult.errors.length > 0) {

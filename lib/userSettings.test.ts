@@ -1,4 +1,4 @@
-// Mock the Amplify client BEFORE importing the queries
+// Mock the Amplify client BEFORE importing lib/userSettings
 const mockUserSettingsList = jest.fn();
 const mockUserSettingsCreate = jest.fn();
 const mockUserSettingsUpdate = jest.fn();
@@ -18,9 +18,9 @@ jest.mock('aws-amplify/data', () => ({
 import {
   getUserSettings,
   upsertUserSettings,
-} from './queries';
+} from './userSettings';
 
-describe('queries', () => {
+describe('userSettings', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });

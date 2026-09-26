@@ -6,7 +6,7 @@ import OperatorRoute from '@/app/components/OperatorRoute';
 import AdminShell from '@/app/administrator/components/AdminShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
-import { getUserSettings } from '@/lib/queries';
+import { getUserSettings } from '@/lib/userSettings';
 import { useLogout } from '@/app/auth/sessionManager';
 
 const ADMIN_NAV = [

@@ -1,35 +1,9 @@
 /**
- * GraphQL-like query helpers for Amplify Data
- * These utilities encapsulate the data fetching patterns and enable type-safe operations
+ * A user's own UserSettings (display name, theme, map style) as the browser
+ * reads and writes it through the signed-in user's data client.
  */
-
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
-
-function getClient() {
-  return getDataClient();
-}
-
-function getUserSettingsModel() {
-  const model = (getClient().models as unknown as Record<string, unknown>).UserSettings as
-    | {
-        list: (args: unknown) => Promise<{ data?: unknown[]; errors?: unknown[] }>;
-        create: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
-        update: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
-      }
-    | undefined;
-
-  if (!model) {
-    return {
-      model: null,
-      error: new Error(
-        'UserSettings model is not available in the current backend schema. Deploy backend changes and refresh amplify outputs.'
-      ),
-    };
-  }
-
-  return { model, error: null };
-}
 
 export type ThemeModeSetting = 'system' | 'light' | 'dark';
 export type MapThemeSetting = 'light' | 'dark' | 'satellite' | 'streets';
@@ -49,12 +23,7 @@ export interface UserSettingsRecord {
  */
 export async function getUserSettings(userSub: string) {
   try {
-    const { model, error: modelError } = getUserSettingsModel();
-    if (!model) {
-      return { data: null, errors: [modelError] };
-    }
-
-    const { data, errors } = await listAll(getClient(), 'UserSettings', {
+    const { data, errors } = await listAll(getDataClient(), 'UserSettings', {
       filter: { userSub: { eq: userSub } },
     });
 
@@ -83,11 +52,6 @@ export async function upsertUserSettings(
   }>
 ) {
   try {
-    const { model, error: modelError } = getUserSettingsModel();
-    if (!model) {
-      return { data: null, errors: [modelError] };
-    }
-
     const current = await getUserSettings(userSub);
     if (current.errors && current.errors.length > 0) {
       return { data: null, errors: current.errors };
@@ -96,7 +60,7 @@ export async function upsertUserSettings(
     const nowIso = new Date().toISOString();
 
     if (current.data?.id) {
-      const { data, errors } = await model.update({
+      const { data, errors } = await getDataClient().models.UserSettings.update({
         id: current.data.id,
         ...updates,
         updatedAt: nowIso,
@@ -108,7 +72,7 @@ export async function upsertUserSettings(
       return { data, errors };
     }
 
-    const { data, errors } = await model.create({
+    const { data, errors } = await getDataClient().models.UserSettings.create({
       userSub,
       ...updates,
       defaultTheme: updates.defaultTheme ?? 'system',

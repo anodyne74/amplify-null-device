@@ -7,7 +7,7 @@ import ProtectedRoute from '@/app/components/ProtectedRoute';
 import CustomerShell from '@/app/customer/components/CustomerShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
-import { getUserSettings } from '@/lib/queries';
+import { getUserSettings } from '@/lib/userSettings';
 import { CustomerPortalContextProvider, useCustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { useSessionTimeout, useLogout } from '@/app/auth/sessionManager';
 

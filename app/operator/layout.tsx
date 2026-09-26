@@ -6,7 +6,7 @@ import OperatorRoute from '@/app/components/OperatorRoute';
 import OperatorShell from '@/app/operator/components/OperatorShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
-import { getUserSettings } from '@/lib/queries';
+import { getUserSettings } from '@/lib/userSettings';
 import { useLogout } from '@/app/auth/sessionManager';
 import { useCurrentUserId } from '@/lib/use-user-groups';
 import { useOperatorRouteNotifications } from '@/lib/useOperatorRouteNotifications';

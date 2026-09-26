@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Must use the IAM-authenticated client here -- this SSR request has no
-    // signed-in Amplify session, so the plain data client (lib/queries.ts)
+    // signed-in Amplify session, so the plain data client (lib/data-client.ts)
     // throws NoValidAuthTokens (see lib/server/iamDataClient.ts for why).
     const customerResult = await client.models.Customer.get({ id: route.customerId });
     const customer = customerResult.data as { name?: string | null } | null;

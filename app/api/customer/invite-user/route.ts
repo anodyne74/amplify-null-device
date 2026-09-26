@@ -5,6 +5,7 @@ import { createOrGetCognitoUser } from '@/app/api/admin/users/route';
 import { sendInvitationEmail } from '@/lib/emails/invitationEmail';
 import { listAll } from '@/lib/listAll';
 import { syncCustomerAccess } from '@/lib/customerAccess';
+import { isFeatureOnForCustomer } from '@/lib/server/featureFlags';
 
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
 
@@ -22,6 +23,10 @@ function emailDomain(email: string): string {
  * as sync-profile-access) since CustomerUser's own authorization only grants
  * account_owner/read_only a `read` scope -- they cannot create CustomerUser
  * rows or call Cognito Admin* APIs from their own session.
+ *
+ * Behind the account-owner-invite Feature Flag (#298): refused unless it's on
+ * for the caller's Customer, and a failed flag check counts as off. Staff
+ * invite paths (/api/admin/users) never check it.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -53,6 +58,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: only the account owner can invite teammates' }, { status: 403 });
     }
     const customerId = ownRow.customerId;
+
+    if (!(await isFeatureOnForCustomer(client, customerId, 'account-owner-invite'))) {
+      return NextResponse.json({ error: "Inviting teammates isn't available for your account." }, { status: 403 });
+    }
 
     const { data: customer } = await client.models.Customer.get({ id: customerId });
     if (!customer) {

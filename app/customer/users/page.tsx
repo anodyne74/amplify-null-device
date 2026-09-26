@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { callApi } from '@/lib/apiClient';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { useFeatureFlags } from '@/lib/useFeatureFlags';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
@@ -53,6 +54,9 @@ export default function CustomerTeamPage() {
     error: loadError,
   } = useCustomerPortalContext({ fetchData: fetchUsersData });
   const isAccountOwner = role === 'account_owner';
+  // account-owner-invite (#298): while off -- or still loading, or failed -- no
+  // invite card or invite wording for anyone; the team list is unaffected.
+  const inviteOn = useFeatureFlags().isOn('account-owner-invite');
   const customer = data?.customer ?? null;
   const teammates = data?.teammates ?? [];
 
@@ -114,11 +118,16 @@ export default function CustomerTeamPage() {
 
   return (
     <div>
-      <PageHeader title="Team" subtitle="Invite teammates into your company's portal access." />
+      <PageHeader
+        title="Team"
+        subtitle={
+          inviteOn ? "Invite teammates into your company's portal access." : "People with access to your company's portal."
+        }
+      />
 
       {loadError && <div className={styles.errorBanner} role="alert">{loadError}</div>}
 
-      {isAccountOwner ? (
+      {!inviteOn ? null : isAccountOwner ? (
         <Card
           className={styles.inviteCard}
           title="Invite a teammate"

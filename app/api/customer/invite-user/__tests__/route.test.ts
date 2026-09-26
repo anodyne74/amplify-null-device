@@ -14,6 +14,7 @@ const customerGetMock = jest.fn();
 const createOrGetCognitoUserMock = jest.fn();
 const sendInvitationEmailMock = jest.fn();
 const syncCustomerAccessMock = jest.fn();
+const featureFlagSettingListMock = jest.fn();
 
 jest.mock('aws-jwt-verify', () => ({
   CognitoJwtVerifier: {
@@ -30,6 +31,7 @@ jest.mock('@/lib/server/iamDataClient', () => ({
     models: {
       CustomerUser: { list: customerUserListMock, create: customerUserCreateMock },
       Customer: { get: customerGetMock },
+      FeatureFlagSetting: { list: featureFlagSettingListMock },
     },
   }),
 }));
@@ -92,6 +94,9 @@ describe('customer invite-user API', () => {
     });
     sendInvitationEmailMock.mockResolvedValue(undefined);
     syncCustomerAccessMock.mockResolvedValue({ updated: {}, errors: [] });
+    featureFlagSettingListMock.mockResolvedValue({
+      data: [{ id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['cust-1'] }],
+    });
   });
 
   it('returns 401 when token is missing', async () => {
@@ -233,5 +238,56 @@ describe('customer invite-user API', () => {
     const response = await POST(makeRequest({ email: 'teammate@rangeproperty.com.au' }));
     expect(response.status).toBe(404);
     expect(createOrGetCognitoUserMock).not.toHaveBeenCalled();
+  });
+
+  describe('account-owner-invite flag', () => {
+    function expectNothingCreatedOrSent() {
+      expect(createOrGetCognitoUserMock).not.toHaveBeenCalled();
+      expect(customerUserCreateMock).not.toHaveBeenCalled();
+      expect(syncCustomerAccessMock).not.toHaveBeenCalled();
+      expect(sendInvitationEmailMock).not.toHaveBeenCalled();
+    }
+
+    it('refuses with 403 when the flag is off for the caller\'s Customer, creating and sending nothing', async () => {
+      featureFlagSettingListMock.mockResolvedValue({
+        data: [{ id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['cust-other'] }],
+      });
+
+      const response = await POST(makeRequest({ email: 'teammate@rangeproperty.com.au' }));
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toEqual({
+        error: "Inviting teammates isn't available for your account.",
+      });
+      expectNothingCreatedOrSent();
+    });
+
+    it('refuses when the flag has no stored setting (Off by default)', async () => {
+      featureFlagSettingListMock.mockResolvedValue({ data: [] });
+
+      const response = await POST(makeRequest({ email: 'teammate@rangeproperty.com.au' }));
+
+      expect(response.status).toBe(403);
+      expectNothingCreatedOrSent();
+    });
+
+    it('refuses when the flag check fails', async () => {
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+      featureFlagSettingListMock.mockRejectedValue(new Error('network down'));
+
+      const response = await POST(makeRequest({ email: 'teammate@rangeproperty.com.au' }));
+
+      expect(response.status).toBe(403);
+      expectNothingCreatedOrSent();
+    });
+
+    it('invites as before when the flag is on for Everyone', async () => {
+      featureFlagSettingListMock.mockResolvedValue({ data: [{ id: 'account-owner-invite', state: 'everyone' }] });
+
+      const response = await POST(makeRequest({ email: 'teammate@rangeproperty.com.au' }));
+
+      expect(response.status).toBe(200);
+      expect(customerUserCreateMock).toHaveBeenCalled();
+    });
   });
 });

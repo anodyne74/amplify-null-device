@@ -217,14 +217,19 @@ export default function CustomersAdminPage() {
 
     const users = (usersResult.errors && usersResult.errors.length > 0 ? [] : usersResult.data) as CustomerUser[];
 
+    const onFlags = flagSettingsResult.errors ? null : resolveOnFlags(flagSettingsResult.data, customer.id);
+
     setChecklists((prev) => ({
       ...prev,
-      [customer.id]: buildOnboardingChecklist(customer, users, routesResult.data ?? [], invoicesResult.data ?? []),
+      [customer.id]: buildOnboardingChecklist(
+        customer,
+        users,
+        routesResult.data ?? [],
+        invoicesResult.data ?? [],
+        onFlags ?? []
+      ),
     }));
-    setOnFeatureFlags((prev) => ({
-      ...prev,
-      [customer.id]: flagSettingsResult.errors ? null : resolveOnFlags(flagSettingsResult.data, customer.id),
-    }));
+    setOnFeatureFlags((prev) => ({ ...prev, [customer.id]: onFlags }));
     setChecklistLoading((prev) => ({ ...prev, [customer.id]: false }));
   }, []);
 

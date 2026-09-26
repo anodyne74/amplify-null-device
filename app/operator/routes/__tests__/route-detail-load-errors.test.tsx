@@ -2,8 +2,8 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import RouteDetailPage from '../detail/page';
-import * as getRouteDetailModule from '@/lib/queries/GetRouteDetail';
 import { getCustomer } from '@/lib/queries';
+import type { RouteWithStopsFeedHandlers } from '@/lib/routeWithStopsFeed';
 import type { Route } from '@/amplify/types';
 
 // GitHub issue #57: opening a route from the operator portal could hang on the
@@ -47,18 +47,23 @@ jest.mock('@/app/components/ToastProvider', () => ({
   useToast: () => ({ showToast: jest.fn() }),
 }));
 
-jest.mock('@/lib/useLiveRoutes', () => ({
-  useLiveRoute: jest.fn(() => ({ route: null, loading: false, error: null })),
+// Nothing is pushed live unless a test does so through mockFeed.
+const mockFeed: { handlers: RouteWithStopsFeedHandlers | null } = { handlers: null };
+jest.mock('@/lib/routeWithStopsFeed', () => ({
+  subscribeRouteWithStops: (_routeId: string, handlers: RouteWithStopsFeedHandlers) => {
+    mockFeed.handlers = handlers;
+    return () => {};
+  },
 }));
 
-jest.mock('@/lib/queries/GetRouteDetail');
+// What getRouteWithStops resolves to; tests override route/stops per case.
+const mockFetched: { route: unknown; stops: unknown[] } = { route: null, stops: [] };
 jest.mock('@/lib/queries/DeleteStop', () => ({
   deleteStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));
 jest.mock('@/lib/queries', () => ({
   getCustomer: jest.fn(),
-  getRouteWithStops: jest.fn().mockResolvedValue({ stops: [], errors: undefined }),
-  listAllStopsForRoute: jest.fn().mockResolvedValue({ stops: [], errors: [] }),
+  getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched, errors: [] })),
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateStopExecution: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
@@ -90,10 +95,7 @@ describe('Operator Route Detail Page — load-failure handling (#57)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     searchParamId = 'route-test-id-1234';
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: mockRoute,
-      errors: undefined,
-    });
+    mockFetched.route = mockRoute;
     (getCustomer as jest.Mock).mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined });
   });
 

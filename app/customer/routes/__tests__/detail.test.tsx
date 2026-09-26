@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Route, Stop } from '@/amplify/types';
 import RouteDetailContent from '../[id]/_RouteDetailContent';
 import {
@@ -10,7 +10,7 @@ import {
   updateRoute,
   updateRouteCustomerInstructions,
 } from '@/lib/queries';
-import { useLiveRoute } from '@/lib/useLiveRoutes';
+import type { RouteWithStopsFeedHandlers } from '@/lib/routeWithStopsFeed';
 
 jest.mock('@/lib/use-user-groups', () => ({
   useCurrentUserId: () => 'viewer-sub-1',
@@ -44,11 +44,14 @@ jest.mock('@/lib/queries', () => ({
   updateRoute: jest.fn(),
 }));
 
-// Default to "nothing live yet" so the one-shot getRouteWithStops fetch
-// drives these tests, same as before useLiveRoute was introduced. Tests
-// that exercise the live-update path override this per-test.
-jest.mock('@/lib/useLiveRoutes', () => ({
-  useLiveRoute: jest.fn(() => ({ route: null, loading: false, error: null })),
+// Nothing is pushed live unless a test does so through mockFeed, so the
+// one-shot getRouteWithStops fetch drives these tests by default.
+const mockFeed: { handlers: RouteWithStopsFeedHandlers | null } = { handlers: null };
+jest.mock('@/lib/routeWithStopsFeed', () => ({
+  subscribeRouteWithStops: (_routeId: string, handlers: RouteWithStopsFeedHandlers) => {
+    mockFeed.handlers = handlers;
+    return () => {};
+  },
 }));
 
 jest.mock('@/app/operator/components/RouteStopsMap', () => ({
@@ -138,7 +141,6 @@ describe('Customer route detail tracker', () => {
       errors: undefined,
     });
     (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
-    (useLiveRoute as jest.Mock).mockReturnValue({ route: null, loading: false, error: null });
   });
 
   it('lets a read-only customer user view their route tracker with map and stops', async () => {
@@ -397,22 +399,30 @@ describe('Customer route detail tracker', () => {
     expect(screen.queryByRole('heading', { name: /how did this route go\?/i })).not.toBeInTheDocument();
   });
 
-  it('reflects a live status change pushed over useLiveRoute, without a manual reload', async () => {
-    const { rerender } = render(<RouteDetailContent params={{ id: 'route-1' }} />);
+  it('reflects a live status change pushed over the live feed, without a manual reload', async () => {
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
 
     expect(await screen.findByText('in progress')).toBeInTheDocument();
 
     // Simulate the AppSync subscription pushing a status change made
     // server-side (e.g. by an operator), independent of the one-shot fetch.
-    (useLiveRoute as jest.Mock).mockReturnValue({
-      route: { ...route, status: 'completed' },
-      loading: false,
-      error: null,
-    });
-    rerender(<RouteDetailContent params={{ id: 'route-1' }} />);
+    act(() => mockFeed.handlers?.onRoute({ ...route, status: 'completed' }));
 
     expect(await screen.findByText('completed')).toBeInTheDocument();
     expect(screen.queryByText('in progress')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [{ route: null, stops: [], errors: [{ message: 'boom' }] }, 'Failed to load route details'],
+    [{ route: null, stops: [], errors: [] }, 'Route not found'],
+    [{ route: { ...route, customerId: 'cust-other' }, stops, errors: [] }, 'You do not have permission to view this route'],
+  ])('shows an error in place of the route: %#', async (fetched, message) => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue(fetched);
+
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /route w19-26-001/i })).not.toBeInTheDocument();
   });
 
   it('shows the finalised override duration, not actualDurationMinutes, once a route is completed', async () => {

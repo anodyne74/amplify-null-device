@@ -28,7 +28,7 @@ const IDLE_STATE: LiveRoutesState = { items: [], loading: false, error: null };
  * error, so refreshing on focus bounds how long that staleness can last.
  */
 function useObservedRoutes(
-  field: 'customerId' | 'id' | 'assignedOperatorSub' | null,
+  field: 'customerId' | 'assignedOperatorSub' | null,
   value: string | null
 ): LiveRoutesState {
   const [state, setState] = useState<LiveRoutesState>(IDLE_STATE);
@@ -81,18 +81,6 @@ export function useLiveRoutes(customerId: string | null): {
 } {
   const { items, loading, error } = useObservedRoutes('customerId', customerId);
   return { routes: items, loading, error };
-}
-
-/** Live single Route, for the customer and operator route detail pages.
- * Resolves to null (never loading forever) if the route doesn't exist or
- * isn't visible to the caller. */
-export function useLiveRoute(routeId: string | null): {
-  route: Route | null;
-  loading: boolean;
-  error: string | null;
-} {
-  const { items, loading, error } = useObservedRoutes('id', routeId);
-  return { route: items[0] ?? null, loading, error };
 }
 
 /** Live Route list for every route in the system, for the operator dashboard

@@ -1,9 +1,8 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
+import { act, render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import RouteDetailPage from '../detail/page';
-import { useLiveRoute } from '@/lib/useLiveRoutes';
-import * as getRouteDetailModule from '@/lib/queries/GetRouteDetail';
+import type { RouteWithStopsFeedHandlers } from '@/lib/routeWithStopsFeed';
 import * as deleteStopModule from '@/lib/queries/DeleteStop';
 import { updateStop } from '@/lib/queries/UpdateStop';
 import { geocodeAddress } from '@/lib/googleMaps';
@@ -47,21 +46,26 @@ jest.mock('@/app/components/OperatorRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-// Live route subscription is exercised in its own test below; elsewhere it
-// stays null so the page falls back to the one-shot fetched route.
-jest.mock('@/lib/useLiveRoutes', () => ({
-  useLiveRoute: jest.fn(() => ({ route: null, loading: false, error: null })),
+// Nothing is pushed live unless a test does so through mockFeed.
+const mockFeed: { handlers: RouteWithStopsFeedHandlers | null } = { handlers: null };
+jest.mock('@/lib/routeWithStopsFeed', () => ({
+  subscribeRouteWithStops: (_routeId: string, handlers: RouteWithStopsFeedHandlers) => {
+    mockFeed.handlers = handlers;
+    return () => {};
+  },
 }));
 
+// What getRouteWithStops resolves to; tests override route/stops per case.
+const mockFetched: { route: unknown; stops: unknown[] } = { route: null, stops: [] };
+
 // Mock query modules
-jest.mock('@/lib/queries/GetRouteDetail');
 jest.mock('@/lib/queries/DeleteStop');
 jest.mock('@/lib/queries', () => ({
   getCustomer: jest.fn().mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined }),
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-  listAllStopsForRoute: jest.fn(),
+  getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched, errors: [] })),
 }));
 jest.mock('@/lib/queries/UpdateStop', () => ({
   updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
@@ -69,7 +73,6 @@ jest.mock('@/lib/queries/UpdateStop', () => ({
 
 // Mock generateClient from aws-amplify/data
 // Note: factory is hoisted, so we define mocks inside and expose via module variable
-let mockStopList: jest.Mock;
 let mockRouteUpdate: jest.Mock;
 let mockStopUpdate: jest.Mock;
 
@@ -118,27 +121,14 @@ describe('Operator Route Detail Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // clearAllMocks() doesn't reset a mockReturnValue set by a prior test.
-    (useLiveRoute as jest.Mock).mockReturnValue({ route: null, loading: false, error: null });
-
     // Grab the mocks from inside the factory
     const amplifyData = require('aws-amplify/data');
     const { __mocks } = amplifyData;
     mockRouteUpdate = __mocks.routeUpdate;
     mockStopUpdate = __mocks.stopUpdate;
 
-    const queriesModule = require('@/lib/queries');
-    mockStopList = queriesModule.listAllStopsForRoute as jest.Mock;
-
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: mockRoute,
-      errors: undefined,
-    });
-
-    mockStopList.mockResolvedValue({
-      stops: mockStops,
-      errors: [],
-    });
+    mockFetched.route = mockRoute;
+    mockFetched.stops = mockStops;
 
     mockRouteUpdate.mockResolvedValue({ errors: undefined });
     mockStopUpdate.mockResolvedValue({ errors: undefined });
@@ -176,19 +166,14 @@ describe('Operator Route Detail Page', () => {
   });
 
   it('reflects a route status change pushed over the live subscription, without a manual reload', async () => {
-    const { rerender } = render(<RouteDetailPage />);
+    render(<RouteDetailPage />);
 
     await waitFor(() => {
       expect(screen.queryByText(/loading route/i)).not.toBeInTheDocument();
     });
     expect(screen.getByText('planned')).toBeInTheDocument();
 
-    (useLiveRoute as jest.Mock).mockReturnValue({
-      route: { ...mockRoute, status: 'signs_placed' },
-      loading: false,
-      error: null,
-    });
-    rerender(<RouteDetailPage />);
+    act(() => mockFeed.handlers?.onRoute({ ...mockRoute, status: 'signs_placed' }));
 
     await waitFor(() => {
       expect(screen.getByText('signs placed')).toBeInTheDocument();
@@ -197,19 +182,16 @@ describe('Operator Route Detail Page', () => {
   });
 
   it('shows customer-posted special instructions read-only, newest first', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: {
-        ...mockRoute,
-        customerInstructions: JSON.stringify({
-          v: 1,
-          entries: [
-            { text: 'Extra signs at the front', agentLabel: "Betty O'Shea", createdAt: '2026-08-20T01:00:00.000Z' },
-            { text: 'Watch for the dog', agentLabel: 'David Mun', createdAt: '2026-08-21T01:00:00.000Z' },
-          ],
-        }),
-      },
-      errors: undefined,
-    });
+    mockFetched.route = {
+      ...mockRoute,
+      customerInstructions: JSON.stringify({
+        v: 1,
+        entries: [
+          { text: 'Extra signs at the front', agentLabel: "Betty O'Shea", createdAt: '2026-08-20T01:00:00.000Z' },
+          { text: 'Watch for the dog', agentLabel: 'David Mun', createdAt: '2026-08-21T01:00:00.000Z' },
+        ],
+      }),
+    };
 
     render(<RouteDetailPage />);
 
@@ -231,10 +213,7 @@ describe('Operator Route Detail Page', () => {
   });
 
   it('shows a legacy plain-text customerInstructions value without a count/agent label', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: { ...mockRoute, customerInstructions: 'Old freeform note' },
-      errors: undefined,
-    });
+    mockFetched.route = { ...mockRoute, customerInstructions: 'Old freeform note' };
 
     render(<RouteDetailPage />);
 
@@ -289,7 +268,7 @@ describe('Operator Route Detail Page', () => {
       },
       mockStops[1],
     ];
-    mockStopList.mockResolvedValue({ stops: stopsWithCoords, errors: [] });
+    mockFetched.stops = stopsWithCoords;
 
     render(<RouteDetailPage />);
 
@@ -368,16 +347,13 @@ describe('Operator Route Detail Page', () => {
   // rendering an in-page execution UI (see app/operator/routes/{load,
   // placement,pickup,unload,finalise}/page.tsx).
   it('redirects an in-progress route to its active phase screen instead of rendering field mode', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: {
-        ...mockRoute,
-        status: 'in_progress',
-        executionPhase: 'placement',
-        actualStartTime: '2024-03-01T10:00:00Z',
-        placementStartTime: '2024-03-01T10:00:00Z',
-      },
-      errors: undefined,
-    });
+    mockFetched.route = {
+      ...mockRoute,
+      status: 'in_progress',
+      executionPhase: 'placement',
+      actualStartTime: '2024-03-01T10:00:00Z',
+      placementStartTime: '2024-03-01T10:00:00Z',
+    };
 
     render(<RouteDetailPage />);
 
@@ -389,10 +365,7 @@ describe('Operator Route Detail Page', () => {
   });
 
   it('redirects a legacy signs_placed route to the pickup phase screen', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: { ...mockRoute, status: 'signs_placed' },
-      errors: undefined,
-    });
+    mockFetched.route = { ...mockRoute, status: 'signs_placed' };
 
     render(<RouteDetailPage />);
 
@@ -408,10 +381,7 @@ describe('Operator Route Detail Page', () => {
   });
 
   it('excludes missing signs from "Total Number of Signs" — a stop returning 10 with 3 missing counts as 7', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: { ...mockRoute, status: 'completed' },
-      errors: undefined,
-    });
+    mockFetched.route = { ...mockRoute, status: 'completed' };
     const stopsWithMissingSigns: Stop[] = [
       {
         id: 'stop-1',
@@ -424,7 +394,7 @@ describe('Operator Route Detail Page', () => {
         missingSignsCount: 3,
       },
     ];
-    mockStopList.mockResolvedValue({ stops: stopsWithMissingSigns, errors: [] });
+    mockFetched.stops = stopsWithMissingSigns;
 
     render(<RouteDetailPage />);
 

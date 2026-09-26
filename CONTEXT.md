@@ -13,8 +13,12 @@ One visit to a Property on a Route, where signs are placed and later picked up.
 _Avoid_: Property (when you mean the single visit), location, visit
 
 **Property**:
-The real-world address a Stop visits; many Stops, across many Routes and Customers, can share one Property. Identified by its geocoded place, with its street, suburb and postcode recorded, so two Stops are the same Property when they resolve to the same place. A Stop that couldn't be geocoded is an unverified address and is matched on its entered text.
+The real-world address a Stop visits; many Stops, across many Routes and Customers, can share one Property. Identified by street number, street, suburb and postcode, never by map coordinates or a geocoder's place identifier, so one address is always one Property even when its pin is wrong. Where the geocoder and the entered address disagree on suburb, the entered address wins.
 _Avoid_: Location, site, address (when you mean the place rather than the text)
+
+**Location Precision**:
+How well a Property's pin matches the real address: Precise (rooftop), Interpolated (estimated along the street, usually within a few houses), Approximate (e.g. the middle of the street, possibly far from the house), or Confirmed (set by hand, so it outranks the others and is never overwritten). Only Approximate needs fixing. Precision affects maps, never Property identity or Property History.
+_Avoid_: Accuracy, geocode quality, verified/unverified
 
 **Property History**:
 The record of every Route that has visited a Property, grouped by Property and explorable by suburb, street or exact address.

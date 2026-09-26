@@ -2,7 +2,8 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import OperatorLoadPage from '../page';
-import { getRouteWithStops, getCustomer, updateRouteExecution } from '@/lib/queries';
+import { getRouteWithStops, getCustomer } from '@/lib/queries';
+import { planSignRunTransition, runSignRunTransition } from '@/lib/signRunTransitions';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import type { Route, Stop } from '@/amplify/types';
 
@@ -17,8 +18,12 @@ jest.mock('next/navigation', () => ({
 jest.mock('@/lib/queries', () => ({
   getRouteWithStops: jest.fn(),
   getCustomer: jest.fn(),
-  updateRouteExecution: jest.fn(),
 }));
+
+jest.mock('@/lib/signRunTransitions', () => {
+  const actual = jest.requireActual('@/lib/signRunTransitions');
+  return { ...actual, runSignRunTransition: jest.fn() };
+});
 
 jest.mock('@/lib/queries/OrganizationSettings', () => ({
   getOrganizationSettings: jest.fn(),
@@ -54,7 +59,11 @@ describe('Operator Load page', () => {
       data: { address: '22 Dryburgh St, West Melbourne' },
       errors: undefined,
     });
-    (updateRouteExecution as jest.Mock).mockResolvedValue({ data: { id: 'route-1' }, errors: undefined });
+    // Real planner, stubbed write: the page gets back the route it would after a successful save.
+    (runSignRunTransition as jest.Mock).mockImplementation(async (route, transition) => {
+      const plan = planSignRunTransition(route, transition);
+      return 'patch' in plan ? { route: { ...route, ...plan.patch } } : { error: plan.refused };
+    });
   });
 
   it('shows the per-agent breakdown, totals and yard address', async () => {
@@ -112,9 +121,9 @@ describe('Operator Load page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
-      expect(updateRouteExecution).toHaveBeenCalledWith(
-        'route-1',
-        expect.objectContaining({ loadStartedAt: expect.any(String) })
+      expect(runSignRunTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'route-1' }),
+        expect.objectContaining({ type: 'startLoad' })
       );
     });
     expect(await screen.findByText(/^Load started/)).toBeInTheDocument();
@@ -131,7 +140,7 @@ describe('Operator Load page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start load' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    expect(updateRouteExecution).not.toHaveBeenCalled();
+    expect(runSignRunTransition).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Start load' })).toBeInTheDocument();
   });
 
@@ -149,13 +158,9 @@ describe('Operator Load page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
-      expect(updateRouteExecution).toHaveBeenCalledWith(
-        'route-1',
-        expect.objectContaining({
-          loadedSignsCount: 45,
-          executionPhase: 'placement',
-          status: 'in_progress',
-        })
+      expect(runSignRunTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'route-1' }),
+        expect.objectContaining({ type: 'confirmLoad', loadedSignsCount: 45 })
       );
     });
     expect(push).toHaveBeenCalledWith('/operator/dashboard');
@@ -171,7 +176,7 @@ describe('Operator Load page', () => {
     render(<OperatorLoadPage />);
 
     expect(await screen.findByText(/not currently on the load phase/i)).toBeInTheDocument();
-    expect(updateRouteExecution).not.toHaveBeenCalled();
+    expect(runSignRunTransition).not.toHaveBeenCalled();
   });
 
   it('shows a guard message when the route is not found', async () => {

@@ -36,6 +36,10 @@ _Avoid_: Expiry, archive (Route already uses "archived")
 The phase flow a Route moves through: Load (signs collected from the customer, onto the van) → Placement (signs deployed) → Pickup (signs retrieved) → Unload (signs returned to the customer) → Finalise. A Route's current phase is derived from which phase-completion timestamps are set, not from a separately stored "current phase" pointer.
 _Avoid_: Delivery run, job flow. Also avoid calling the Load phase "signs collected" — that phrase is reserved for the Signs Collected metric below, a different phase and a different count.
 
+**Sign Run Transition**:
+One operator action that moves a Route along its Sign Run — start or confirm Load, start or complete Placement, start or complete Pickup, start or confirm Unload, Finalise. Each is only allowed from its own phase; one attempted from any other phase is refused and nothing is written.
+_Avoid_: Status change, phase update
+
 **Signs Placed**:
 The gross count of signs put out on a Route — `sum(Stop.numberOfSigns)`, no exclusions. Answers "how many signs are on this route," independent of what happens afterward.
 _Avoid_: Total signs, sign count

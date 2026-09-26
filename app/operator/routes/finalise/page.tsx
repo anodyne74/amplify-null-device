@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
-import { updateRouteExecution } from '@/lib/queries';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { reconcileSignRun } from '@/lib/signRunReconciliation';
+import { runSignRunTransition } from '@/lib/signRunTransitions';
 import {
   MIN_BILLED_MINUTES,
   measuredPhaseMinutes,
@@ -84,18 +84,10 @@ export default function OperatorFinalisePage() {
     setConfirming(true);
     setError(null);
 
-    const result = await updateRouteExecution(route.id, {
-      billedLoadMinutes: billedMinutes.load,
-      billedPlacementMinutes: billedMinutes.placement,
-      billedPickupMinutes: billedMinutes.pickup,
-      billedUnloadMinutes: billedMinutes.unload,
-      overrideDurationMinutes: billTotal,
-      overrideDistanceKm: kmAdj,
-      status: 'completed',
-    });
+    const result = await runSignRunTransition(route, { type: 'finalise', billedMinutes, distanceKm: kmAdj });
 
-    if (result.errors && result.errors.length > 0) {
-      setError('Could not complete the route. Try again.');
+    if ('error' in result) {
+      setError(result.error);
       setConfirming(false);
       return;
     }

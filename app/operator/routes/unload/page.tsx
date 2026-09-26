@@ -6,10 +6,11 @@ import Breadcrumbs from '@/app/components/Breadcrumbs';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
-import { getCustomer, updateRouteExecution } from '@/lib/queries';
+import { getCustomer } from '@/lib/queries';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
+import { runSignRunTransition } from '@/lib/signRunTransitions';
 import { formatClockTime } from '@/lib/signRunBilling';
 import { reconcileSignRun } from '@/lib/signRunReconciliation';
 import type { Route } from '@/amplify/types';
@@ -59,15 +60,15 @@ export default function OperatorUnloadPage() {
     setSubmitting(true);
     setError(null);
 
-    const result = await updateRouteExecution(route.id, { unloadStartedAt: iso });
+    const result = await runSignRunTransition(route, { type: 'startUnload', at: iso });
 
     setSubmitting(false);
-    if (result.errors && result.errors.length > 0) {
-      setError('Could not start the unload. Try again.');
+    if ('error' in result) {
+      setError(result.error);
       return;
     }
 
-    setRoute((prev) => (prev ? { ...prev, unloadStartedAt: iso } : prev));
+    setRoute(result.route);
     closeDialog();
   };
 
@@ -76,13 +77,10 @@ export default function OperatorUnloadPage() {
     setSubmitting(true);
     setError(null);
 
-    const result = await updateRouteExecution(route.id, {
-      unloadConfirmedAt: iso,
-      actualEndTime: route.actualEndTime ?? iso,
-    });
+    const result = await runSignRunTransition(route, { type: 'confirmUnload', at: iso });
 
-    if (result.errors && result.errors.length > 0) {
-      setError('Could not confirm the unload. Try again.');
+    if ('error' in result) {
+      setError(result.error);
       setSubmitting(false);
       closeDialog();
       return;

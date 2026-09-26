@@ -2,7 +2,8 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import OperatorFinalisePage from '../page';
-import { getRouteWithStops, updateRouteExecution } from '@/lib/queries';
+import { getRouteWithStops } from '@/lib/queries';
+import { planSignRunTransition, runSignRunTransition } from '@/lib/signRunTransitions';
 import type { Route, Stop } from '@/amplify/types';
 
 const push = jest.fn();
@@ -15,8 +16,12 @@ jest.mock('next/navigation', () => ({
 
 jest.mock('@/lib/queries', () => ({
   getRouteWithStops: jest.fn(),
-  updateRouteExecution: jest.fn(),
 }));
+
+jest.mock('@/lib/signRunTransitions', () => {
+  const actual = jest.requireActual('@/lib/signRunTransitions');
+  return { ...actual, runSignRunTransition: jest.fn() };
+});
 
 function baseRoute(overrides: Partial<Route> = {}): Route {
   return {
@@ -73,7 +78,11 @@ describe('Operator Finalise page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     searchParamId = 'route-1';
-    (updateRouteExecution as jest.Mock).mockResolvedValue({ data: { id: 'route-1' }, errors: undefined });
+    // Real planner, stubbed write: the page gets back the route it would after a successful save.
+    (runSignRunTransition as jest.Mock).mockImplementation(async (route, transition) => {
+      const plan = planSignRunTransition(route, transition);
+      return 'patch' in plan ? { route: { ...route, ...plan.patch } } : { error: plan.refused };
+    });
   });
 
   it('shows the summary stats, measured defaults, and a warning state when the total is off a 15 min increment', async () => {
@@ -165,14 +174,10 @@ describe('Operator Finalise page', () => {
     fireEvent.click(screen.getByRole('button', { name: /complete route · 1h 15m/i }));
 
     await waitFor(() => {
-      expect(updateRouteExecution).toHaveBeenCalledWith('route-1', {
-        billedLoadMinutes: 15,
-        billedPlacementMinutes: 20,
-        billedPickupMinutes: 10,
-        billedUnloadMinutes: 30,
-        overrideDurationMinutes: 75,
-        overrideDistanceKm: 0.5,
-        status: 'completed',
+      expect(runSignRunTransition).toHaveBeenCalledWith(expect.objectContaining({ id: 'route-1' }), {
+        type: 'finalise',
+        billedMinutes: { load: 15, placement: 20, pickup: 10, unload: 30 },
+        distanceKm: 0.5,
       });
     });
     expect(push).toHaveBeenCalledWith('/operator/dashboard');
@@ -186,7 +191,7 @@ describe('Operator Finalise page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /back to today/i }));
 
-    expect(updateRouteExecution).not.toHaveBeenCalled();
+    expect(runSignRunTransition).not.toHaveBeenCalled();
     expect(push).toHaveBeenCalledWith('/operator/dashboard');
   });
 
@@ -200,7 +205,7 @@ describe('Operator Finalise page', () => {
     render(<OperatorFinalisePage />);
 
     expect(await screen.findByText(/not ready to finalise yet/i)).toBeInTheDocument();
-    expect(updateRouteExecution).not.toHaveBeenCalled();
+    expect(runSignRunTransition).not.toHaveBeenCalled();
   });
 
   it('shows a guard message when the route is not found', async () => {

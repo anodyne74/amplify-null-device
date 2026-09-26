@@ -2,7 +2,8 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import OperatorPickupPage from '../page';
-import { getRouteWithStops, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
+import { getRouteWithStops, getCustomer, updateStopExecution } from '@/lib/queries';
+import { planSignRunTransition, runSignRunTransition } from '@/lib/signRunTransitions';
 import type { Route, Stop } from '@/amplify/types';
 
 const push = jest.fn();
@@ -16,9 +17,13 @@ jest.mock('next/navigation', () => ({
 jest.mock('@/lib/queries', () => ({
   getRouteWithStops: jest.fn(),
   getCustomer: jest.fn(),
-  updateRouteExecution: jest.fn(),
   updateStopExecution: jest.fn(),
 }));
+
+jest.mock('@/lib/signRunTransitions', () => {
+  const actual = jest.requireActual('@/lib/signRunTransitions');
+  return { ...actual, runSignRunTransition: jest.fn() };
+});
 
 jest.mock('@/app/operator/components/RouteStopsMap', () => ({
   RouteStopsMap: ({
@@ -88,7 +93,11 @@ describe('Operator Pickup page', () => {
     jest.clearAllMocks();
     searchParamId = 'route-1';
     (getCustomer as jest.Mock).mockResolvedValue({ data: { name: 'Beltline Group' }, errors: undefined });
-    (updateRouteExecution as jest.Mock).mockResolvedValue({ data: { id: 'route-1' }, errors: undefined });
+    // Real planner, stubbed write: the page gets back the route it would after a successful save.
+    (runSignRunTransition as jest.Mock).mockImplementation(async (route, transition) => {
+      const plan = planSignRunTransition(route, transition);
+      return 'patch' in plan ? { route: { ...route, ...plan.patch } } : { error: plan.refused };
+    });
     (updateStopExecution as jest.Mock).mockResolvedValue({ data: { id: 's1' }, errors: undefined });
   });
 
@@ -117,7 +126,7 @@ describe('Operator Pickup page', () => {
     expect(await screen.findByText('2 stops to pick up')).toBeInTheDocument();
     expect(screen.getByText(/tap start once you're on the road/i)).toBeInTheDocument();
     expect(screen.queryByTestId('pickup-map')).not.toBeInTheDocument();
-    expect(updateRouteExecution).not.toHaveBeenCalled();
+    expect(runSignRunTransition).not.toHaveBeenCalled();
   });
 
   it('starts pickup through the confirm dialog', async () => {
@@ -135,9 +144,9 @@ describe('Operator Pickup page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
-      expect(updateRouteExecution).toHaveBeenCalledWith(
-        'route-1',
-        expect.objectContaining({ pickupStartTime: expect.any(String) })
+      expect(runSignRunTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'route-1' }),
+        expect.objectContaining({ type: 'startPickup' })
       );
     });
     expect(await screen.findByText('PICKUP · STOP 1 OF 2')).toBeInTheDocument();
@@ -156,7 +165,7 @@ describe('Operator Pickup page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start pickup' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    expect(updateRouteExecution).not.toHaveBeenCalled();
+    expect(runSignRunTransition).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Start pickup' })).toBeInTheDocument();
   });
 
@@ -237,7 +246,7 @@ describe('Operator Pickup page', () => {
     expect(screen.getByRole('button', { name: /complete pickup/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^skip$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /sign missing/i })).not.toBeInTheDocument();
-    expect(updateRouteExecution).not.toHaveBeenCalledWith('route-1', expect.objectContaining({ executionPhase: 'unload' }));
+    expect(runSignRunTransition).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'completePickup' }));
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -258,9 +267,9 @@ describe('Operator Pickup page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
-      expect(updateRouteExecution).toHaveBeenCalledWith(
-        'route-1',
-        expect.objectContaining({ executionPhase: 'unload', pickupEndTime: expect.any(String) })
+      expect(runSignRunTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'route-1' }),
+        expect.objectContaining({ type: 'completePickup' })
       );
     });
     expect(push).toHaveBeenCalledWith('/operator/dashboard');

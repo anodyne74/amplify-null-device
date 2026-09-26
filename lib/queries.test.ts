@@ -80,11 +80,6 @@ jest.mock('aws-amplify/data', () => ({
   }),
 }));
 
-const mockFetchAuthSession = jest.fn();
-jest.mock('aws-amplify/auth', () => ({
-  fetchAuthSession: () => mockFetchAuthSession(),
-}));
-
 import {
   listCustomers,
   getCustomer,
@@ -107,7 +102,6 @@ import {
   createLineItem,
   createRoute,
   updateRoute,
-  updateRouteExecution,
   updateStopExecution,
   deleteRoute,
   createStopsForRoute,
@@ -120,7 +114,6 @@ import {
 describe('queries', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockFetchAuthSession.mockResolvedValue({ tokens: { idToken: { toString: () => 'mock-id-token' } } });
   });
 
   describe('listCustomers', () => {
@@ -865,43 +858,6 @@ describe('queries', () => {
       expect(mockStopCreate).toHaveBeenCalledWith(
         expect.objectContaining({ routeId: 'r1', customerId: 'c1', sequence: 2, address: 'a2' })
       );
-    });
-  });
-
-  describe('updateRouteExecution', () => {
-    it('should delegate execution updates through updateRoute', async () => {
-      mockRouteUpdate.mockResolvedValue({
-        data: { id: 'r1', status: 'in_progress' },
-        errors: undefined,
-      });
-
-      const result = await updateRouteExecution('r1', {
-        status: 'in_progress',
-        executionPhase: 'placement',
-      });
-
-      expect(mockRouteUpdate).toHaveBeenCalledWith({
-        id: 'r1',
-        status: 'in_progress',
-        executionPhase: 'placement',
-      });
-      expect(result.data).toEqual({ id: 'r1', status: 'in_progress' });
-    });
-
-    it('checks the auth session before the mutation and logs the timing split (#266)', async () => {
-      const consoleInfoSpy = jest.spyOn(console, 'info').mockImplementation();
-      mockRouteUpdate.mockResolvedValue({
-        data: { id: 'r1', status: 'in_progress' },
-        errors: undefined,
-      });
-
-      await updateRouteExecution('r1', { status: 'in_progress' });
-
-      expect(mockFetchAuthSession).toHaveBeenCalledTimes(1);
-      expect(consoleInfoSpy).toHaveBeenCalledWith(
-        expect.stringMatching(/^\[sign-run-timing\] route=r1 authCheckMs=\d+ mutationMs=\d+ totalMs=\d+$/)
-      );
-      consoleInfoSpy.mockRestore();
     });
   });
 

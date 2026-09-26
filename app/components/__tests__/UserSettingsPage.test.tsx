@@ -41,8 +41,6 @@ describe('UserSettingsPage', () => {
     fetchUserDisplayNameMock.mockResolvedValue('Fallback Name');
     getUserSettingsMock.mockResolvedValue({ data: null, errors: undefined });
     upsertUserSettingsMock.mockResolvedValue({ data: { id: 'settings-1' }, errors: undefined });
-    getCustomerPortalContextMock.mockResolvedValue({ role: 'read_only', customerId: 'customer-1', errors: undefined });
-    getCustomerMock.mockResolvedValue({ data: null, errors: undefined });
   });
 
   it('loads and displays persisted settings for administrator', async () => {
@@ -115,28 +113,32 @@ describe('UserSettingsPage', () => {
     expect(toggle).not.toBeChecked();
   });
 
-  it('shows customer settings only for account owners', async () => {
+  it('shows account owners only their user settings, with no Customer settings tab (#306)', async () => {
     getCustomerPortalContextMock.mockResolvedValue({ role: 'account_owner', customerId: 'customer-1', errors: undefined });
-    getCustomerMock.mockResolvedValue({
-      data: {
-        name: 'Acme Corp',
-        companyName: 'Acme Holdings',
-        email: 'accounts@acme.test',
-        addressLine1: '100 Main St',
-        standingInstructions: 'Place signs near the front gate.',
-      },
-      errors: undefined,
-    });
 
     render(<UserSettingsPage title="Settings" roleVariant="customer" />);
 
-    expect(await screen.findByRole('tab', { name: /customer settings/i })).toBeInTheDocument();
+    await screen.findByDisplayValue('Fallback Name');
 
-    fireEvent.click(screen.getByRole('tab', { name: /customer settings/i }));
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /customer settings/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Customer profile and preferences.')).toBeInTheDocument();
+    expect(getCustomerPortalContextMock).not.toHaveBeenCalled();
+    expect(getCustomerMock).not.toHaveBeenCalled();
+  });
 
-    expect(screen.getByText('Place signs near the front gate.')).toBeInTheDocument();
-    expect(screen.getByText('Acme Holdings')).toBeInTheDocument();
-    expect(screen.getByText('accounts@acme.test')).toBeInTheDocument();
+  it.each(['customer', 'operator'] as const)('saves settings for %s', async (roleVariant) => {
+    render(<UserSettingsPage title="Settings" roleVariant={roleVariant} />);
+
+    await screen.findByDisplayValue('Fallback Name');
+    fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }));
+
+    expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
+    expect(upsertUserSettingsMock).toHaveBeenCalledWith('user-1', {
+      name: 'Fallback Name',
+      defaultTheme: 'dark',
+      mapTheme: 'light',
+    });
   });
 
   it('shows auth error when trying to save without a user', async () => {

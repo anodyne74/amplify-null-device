@@ -53,9 +53,9 @@ export function getAgentBadgeTone(agentName?: string): AgentBadgeTone {
   const tones: AgentBadgeTone[] = [
     { backgroundColor: 'var(--nd-status-active)', color: 'var(--nd-text-inverse)' },
     { backgroundColor: 'var(--nd-operator-accent)', color: 'var(--nd-text-inverse)' },
-    { backgroundColor: 'var(--nd-customer-accent)', color: 'var(--nd-bg-base)' },
+    { backgroundColor: 'var(--nd-customer-accent)', color: 'var(--nd-color-text-on-accent)' },
     { backgroundColor: 'var(--nd-status-planned)', color: 'var(--nd-text-inverse)' },
-    { backgroundColor: 'var(--nd-status-completed)', color: 'var(--nd-bg-base)' },
+    { backgroundColor: 'var(--nd-status-completed)', color: 'var(--nd-color-text-on-accent)' },
     { backgroundColor: 'var(--nd-status-danger)', color: 'var(--nd-text-inverse)' },
   ];
 

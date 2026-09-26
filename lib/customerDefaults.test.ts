@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   generateAgentInitials,
   getAgentBadgeTone,
@@ -91,7 +93,33 @@ describe('customerDefaults', () => {
   it('returns a safe fallback tone when no name is provided', () => {
     expect(getAgentBadgeTone()).toEqual({
       backgroundColor: 'var(--nd-status-completed)',
-      color: 'var(--nd-bg-base)',
+      color: 'var(--nd-color-text-on-accent)',
     });
+  });
+
+  it('uses white text on the customer-accent tone', () => {
+    // Find a name that hashes to the customer-accent tone rather than hard-coding the hash.
+    const onAccent = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6']
+      .map((name) => getAgentBadgeTone(name))
+      .find((tone) => tone.backgroundColor === 'var(--nd-customer-accent)');
+    expect(onAccent).toEqual({
+      backgroundColor: 'var(--nd-customer-accent)',
+      color: 'var(--nd-color-text-on-accent)',
+    });
+  });
+
+  it('only returns tokens defined in the global stylesheets (#320)', () => {
+    const css = ['app/globals.css', 'app/components/ui/tokens.css']
+      .map((file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8'))
+      .join('\n');
+    const names = ['', 'BO', 'DM', 'KP', ...Array.from({ length: 12 }, (_, i) => `Agent ${String.fromCharCode(65 + i)}`)];
+    const tokens = new Set(
+      names
+        .flatMap((name) => Object.values(getAgentBadgeTone(name || undefined)))
+        .flatMap((value) => [...value.matchAll(/var\((--[\w-]+)\)/g)].map((match) => match[1]))
+    );
+    for (const token of tokens) {
+      expect(css).toMatch(new RegExp(`${token}\\s*:`));
+    }
   });
 });

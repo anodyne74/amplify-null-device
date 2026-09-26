@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { callApi } from '@/lib/apiClient';
 import { getCustomer, listCustomerUsers } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import PageHeader from '@/app/customer/components/PageHeader';
@@ -17,22 +17,6 @@ interface TeammateRow {
   name?: string | null;
   email?: string | null;
   role?: string | null;
-}
-
-async function callInviteApi(email: string, name?: string) {
-  const session = await fetchAuthSession();
-  const idToken = session.tokens?.idToken?.toString();
-  if (!idToken) throw new Error('No session token found. Please sign in again.');
-
-  const response = await fetch('/api/customer/invite-user', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ email, name }),
-  });
-
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload?.error || 'Failed to send invite.');
-  return payload;
 }
 
 function roleLabel(role?: string | null) {
@@ -96,7 +80,10 @@ export default function CustomerTeamPage() {
     setInviteSuccess(null);
 
     try {
-      const payload = await callInviteApi(email.trim(), name.trim() || undefined);
+      const payload = await callApi<{ emailSent?: boolean }>('/api/customer/invite-user', {
+        email: email.trim(),
+        name: name.trim() || undefined,
+      });
       setInviteSuccess(
         payload?.emailSent
           ? `Invited ${email.trim()} — they'll receive an email with a temporary password.`

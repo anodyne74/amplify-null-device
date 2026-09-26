@@ -5,7 +5,7 @@ import RouteEditPage from '../edit/page';
 import * as routeDetailModule from '@/lib/queries/GetRouteDetail';
 import * as customersModule from '@/lib/queries/ListAllCustomers';
 import * as queriesModule from '@/lib/queries';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { callApi } from '@/lib/apiClient';
 import type { Route, Stop } from '@/amplify/types';
 
 const mockRouterPush = jest.fn();
@@ -15,8 +15,8 @@ jest.mock('next/navigation', () => ({
   useSearchParams: () => ({ get: (key: string) => (key === 'id' ? 'route-test-id-1234' : null) }),
 }));
 
-jest.mock('aws-amplify/auth', () => ({
-  fetchAuthSession: jest.fn(),
+jest.mock('@/lib/apiClient', () => ({
+  callApi: jest.fn(),
 }));
 
 jest.mock('@aws-amplify/ui-react', () => ({
@@ -126,25 +126,11 @@ describe('Administrator Route Edit Page', () => {
     const { __mocks } = amplifyData;
     mockStopList = __mocks.stopList;
 
-    (fetchAuthSession as jest.Mock).mockResolvedValue({
-      tokens: { idToken: { toString: () => 'mock-id-token' } },
+    (callApi as jest.Mock).mockImplementation(async (path: string) => {
+      if (path === '/api/admin/users') return { users: mockOperators };
+      if (path === '/api/admin/send-job-assigned-email') return { sentTo: 'operator-one@example.com' };
+      return {};
     });
-
-    global.fetch = jest.fn((url: string) => {
-      if (typeof url === 'string' && url.includes('/api/admin/users')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ users: mockOperators }),
-        });
-      }
-      if (typeof url === 'string' && url.includes('/api/admin/send-job-assigned-email')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ sentTo: 'operator-one@example.com' }),
-        });
-      }
-      return Promise.resolve({ ok: true, json: async () => ({}) });
-    }) as unknown as typeof fetch;
 
     (routeDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
       data: mockRoute,
@@ -273,10 +259,7 @@ describe('Administrator Route Edit Page', () => {
     fireEvent.click(screen.getByRole('button', { name: /notify operator/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/admin/send-job-assigned-email',
-        expect.objectContaining({ body: JSON.stringify({ routeId: 'route-test-id-1234' }) })
-      );
+      expect(callApi).toHaveBeenCalledWith('/api/admin/send-job-assigned-email', { routeId: 'route-test-id-1234' });
     });
   });
 

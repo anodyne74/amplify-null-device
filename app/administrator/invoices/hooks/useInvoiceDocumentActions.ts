@@ -1,5 +1,5 @@
 import type { ChangeEvent, MutableRefObject, RefObject } from 'react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { ApiError, callApi } from '@/lib/apiClient';
 import { getUrl, uploadData } from 'aws-amplify/storage';
 import type { Route } from '@/amplify/types';
 import { buildInvoicePdfConfig } from '@/app/administrator/invoices/invoicePdfTheme';
@@ -369,34 +369,10 @@ export function useInvoiceDocumentActions({
     setSuccessMessage(null);
 
     try {
-      const session = await fetchAuthSession();
-      const idToken = session.tokens?.idToken?.toString();
-
-      if (!idToken) {
-        setError('Authentication required. Please log in again.');
-        return;
-      }
-
-      const response = await fetch('/api/admin/send-invoice-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          invoiceId: invoice.id,
-          recipientEmail: primaryEmail,
-        }),
+      const result = await callApi<{ sentTo: string }>('/api/admin/send-invoice-email', {
+        invoiceId: invoice.id,
+        recipientEmail: primaryEmail,
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.error || `Failed to send email (status ${response.status})`;
-        setError(errorMessage);
-        return;
-      }
-
-      const result = await response.json();
       setError(null);
       setSuccessMessage(`Invoice ${invoice.invoiceNumber} emailed to ${result.sentTo}.`);
 
@@ -417,6 +393,10 @@ export function useInvoiceDocumentActions({
         emailSentAt: sentAt,
       });
     } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+        return;
+      }
       console.error('Email invoice action failed:', err);
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(`Unable to send invoice email. ${message}`);

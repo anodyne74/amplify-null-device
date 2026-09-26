@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { callApi } from '@/lib/apiClient';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/administrator/components/PageHeader';
@@ -103,46 +103,17 @@ export default function AdministratorDriversPage() {
   const [resendPending, setResendPending] = useState(false);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
 
-  const callAdminApi = useCallback(async (body: Record<string, unknown>) => {
-    const session = await fetchAuthSession();
-    const idToken = session.tokens?.idToken?.toString();
-    if (!idToken) throw new Error('No session token found. Please sign in again.');
-
-    const response = await fetch('/api/admin/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-      body: JSON.stringify(body),
-    });
-
-    const payload = await response.json();
-    if (!response.ok) {
-      throw new Error(payload?.error || 'Request failed.');
-    }
-    return payload;
-  }, []);
-
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const session = await fetchAuthSession();
-      const idToken = session.tokens?.idToken?.toString();
-      if (!idToken) throw new Error('No session token found. Please sign in again.');
-
-      const [usersResponse, operatorsResult, customersResult, routesResult, stopsResult] = await Promise.all([
-        fetch('/api/admin/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-          body: JSON.stringify({ action: 'listUsersInGroup', groupName: 'operator' }),
-        }),
+      const [usersPayload, operatorsResult, customersResult, routesResult, stopsResult] = await Promise.all([
+        callApi('/api/admin/users', { action: 'listUsersInGroup', groupName: 'operator' }),
         listOperators(),
         listAllCustomers(),
         listAllRoutes(),
         listAllStops(),
       ]);
-
-      const usersPayload = await usersResponse.json();
-      if (!usersResponse.ok) throw new Error(usersPayload?.error || 'Could not load drivers.');
 
       const cognitoOperators = (usersPayload.users as CognitoOperator[]) || [];
       const records = (operatorsResult.data as Operator[]) || [];
@@ -235,7 +206,7 @@ export default function AdministratorDriversPage() {
     setInviteSuccess(null);
 
     try {
-      const result = await callAdminApi({
+      const result = await callApi('/api/admin/users', {
         action: 'createUser',
         email,
         name: inviteName.trim() || undefined,
@@ -265,7 +236,7 @@ export default function AdministratorDriversPage() {
     setResendMessage(null);
     setSaveError(null);
     try {
-      const result = await callAdminApi({
+      const result = await callApi('/api/admin/users', {
         action: 'resendInvite',
         email: selected.email,
         groupName: 'operator',

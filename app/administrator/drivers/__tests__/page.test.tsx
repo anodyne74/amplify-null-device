@@ -7,16 +7,16 @@ import { updateOperator } from '@/lib/queries/UpdateOperator';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { listAllStops } from '@/lib/queries/ListAllStops';
+import { ApiError, callApi } from '@/lib/apiClient';
 
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('aws-amplify/auth', () => ({
-  fetchAuthSession: jest.fn(async () => ({
-    tokens: { idToken: { toString: () => 'test-token' } },
-  })),
+jest.mock('@/lib/apiClient', () => ({
+  ...jest.requireActual('@/lib/apiClient'),
+  callApi: jest.fn(),
 }));
 
 jest.mock('@/lib/queries/ListOperators', () => ({
@@ -39,30 +39,25 @@ jest.mock('@/lib/queries/ListAllStops', () => ({
   listAllStops: jest.fn(),
 }));
 
+const operatorUsers = {
+  users: [
+    { id: 'sub-1', name: 'Jane Driver', email: 'jane@nulldevice.dev' },
+    { id: 'sub-2', name: 'Amir Driver', email: 'amir@nulldevice.dev' },
+  ],
+};
+
+/** Answers /api/admin/users by action; anything not listed gets the operator group. */
+function mockUsersApi(byAction: Record<string, () => unknown> = {}) {
+  (callApi as jest.Mock).mockImplementation(async (_path: string, body: { action: string }) =>
+    byAction[body.action] ? byAction[body.action]() : operatorUsers
+  );
+}
+
 describe('Administrator Drivers page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    global.fetch = jest.fn(async (_url: string, init?: RequestInit) => {
-      const action = init?.body ? JSON.parse(init.body as string).action : undefined;
-
-      if (action === 'createUser') {
-        return {
-          ok: true,
-          json: async () => ({ user: { sub: 'new-sub' }, created: true, emailSent: true }),
-        };
-      }
-
-      return {
-        ok: true,
-        json: async () => ({
-          users: [
-            { id: 'sub-1', name: 'Jane Driver', email: 'jane@nulldevice.dev' },
-            { id: 'sub-2', name: 'Amir Driver', email: 'amir@nulldevice.dev' },
-          ],
-        }),
-      };
-    }) as jest.Mock;
+    mockUsersApi({ createUser: () => ({ user: { sub: 'new-sub' }, created: true, emailSent: true }) });
 
     (listOperators as jest.Mock).mockResolvedValue({
       data: [
@@ -202,23 +197,7 @@ describe('Administrator Drivers page', () => {
   });
 
   it('resends the invite for an onboarding driver', async () => {
-    global.fetch = jest.fn(async (_url: string, init?: RequestInit) => {
-      const action = init?.body ? JSON.parse(init.body as string).action : undefined;
-
-      if (action === 'resendInvite') {
-        return { ok: true, json: async () => ({ emailSent: true }) };
-      }
-
-      return {
-        ok: true,
-        json: async () => ({
-          users: [
-            { id: 'sub-1', name: 'Jane Driver', email: 'jane@nulldevice.dev' },
-            { id: 'sub-2', name: 'Amir Driver', email: 'amir@nulldevice.dev' },
-          ],
-        }),
-      };
-    }) as jest.Mock;
+    mockUsersApi({ resendInvite: () => ({ emailSent: true }) });
 
     render(<AdministratorDriversPage />);
 
@@ -227,17 +206,12 @@ describe('Administrator Drivers page', () => {
     fireEvent.click(screen.getByRole('button', { name: /resend invite/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/admin/users',
-        expect.objectContaining({
-          body: JSON.stringify({
-            action: 'resendInvite',
-            email: 'amir@nulldevice.dev',
-            groupName: 'operator',
-            name: 'Amir Driver',
-          }),
-        })
-      );
+      expect(callApi).toHaveBeenCalledWith('/api/admin/users', {
+        action: 'resendInvite',
+        email: 'amir@nulldevice.dev',
+        groupName: 'operator',
+        name: 'Amir Driver',
+      });
     });
 
     expect(await screen.findByText(/invitation resent to amir@nulldevice.dev/i)).toBeInTheDocument();
@@ -253,7 +227,7 @@ describe('Administrator Drivers page', () => {
   });
 
   it('shows an empty state when there are no drivers', async () => {
-    global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ users: [] }) })) as jest.Mock;
+    (callApi as jest.Mock).mockResolvedValue({ users: [] });
     (listOperators as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
 
     render(<AdministratorDriversPage />);
@@ -275,17 +249,12 @@ describe('Administrator Drivers page', () => {
     fireEvent.click(screen.getByRole('button', { name: /^send invite$/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/admin/users',
-        expect.objectContaining({
-          body: JSON.stringify({
-            action: 'createUser',
-            email: 'new-driver@nulldevice.dev',
-            name: 'New Driver',
-            groupName: 'operator',
-          }),
-        })
-      );
+      expect(callApi).toHaveBeenCalledWith('/api/admin/users', {
+        action: 'createUser',
+        email: 'new-driver@nulldevice.dev',
+        name: 'New Driver',
+        groupName: 'operator',
+      });
     });
 
     expect(await screen.findByText(/they’ll get an email with a temporary password/i)).toBeInTheDocument();
@@ -293,26 +262,7 @@ describe('Administrator Drivers page', () => {
   });
 
   it('tells the admin when the login was created but the invitation email failed to send', async () => {
-    global.fetch = jest.fn(async (_url: string, init?: RequestInit) => {
-      const action = init?.body ? JSON.parse(init.body as string).action : undefined;
-
-      if (action === 'createUser') {
-        return {
-          ok: true,
-          json: async () => ({ user: { sub: 'new-sub' }, created: true, emailSent: false }),
-        };
-      }
-
-      return {
-        ok: true,
-        json: async () => ({
-          users: [
-            { id: 'sub-1', name: 'Jane Driver', email: 'jane@nulldevice.dev' },
-            { id: 'sub-2', name: 'Amir Driver', email: 'amir@nulldevice.dev' },
-          ],
-        }),
-      };
-    }) as jest.Mock;
+    mockUsersApi({ createUser: () => ({ user: { sub: 'new-sub' }, created: true, emailSent: false }) });
 
     render(<AdministratorDriversPage />);
 
@@ -327,20 +277,11 @@ describe('Administrator Drivers page', () => {
   });
 
   it('shows an error and keeps the form filled in when inviting a driver fails', async () => {
-    global.fetch = jest.fn(async (_url: string, init?: RequestInit) => {
-      const action = init?.body ? JSON.parse(init.body as string).action : undefined;
-
-      if (action === 'createUser') {
-        return { ok: false, json: async () => ({ error: 'Could not create a login for this email.' }) };
-      }
-
-      return {
-        ok: true,
-        json: async () => ({
-          users: [{ id: 'sub-1', name: 'Jane Driver', email: 'jane@nulldevice.dev' }],
-        }),
-      };
-    }) as jest.Mock;
+    mockUsersApi({
+      createUser: () => {
+        throw new ApiError('Could not create a login for this email.', 400);
+      },
+    });
 
     render(<AdministratorDriversPage />);
 

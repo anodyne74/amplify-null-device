@@ -24,8 +24,9 @@ jest.mock('aws-amplify/storage', () => ({
   uploadData: jest.fn(),
 }));
 
-jest.mock('aws-amplify/auth', () => ({
-  fetchAuthSession: jest.fn().mockResolvedValue({ tokens: { idToken: { toString: () => 'token' } } }),
+jest.mock('@/lib/apiClient', () => ({
+  ...jest.requireActual('@/lib/apiClient'),
+  callApi: jest.fn(),
 }));
 
 jest.mock('@/lib/extractScheduleText', () => ({

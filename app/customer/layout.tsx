@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useCurrentUserId } from '@/lib/use-user-groups';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { callApi } from '@/lib/apiClient';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import CustomerShell from '@/app/customer/components/CustomerShell';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
@@ -99,20 +99,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!userId) return;
 
-    void fetchAuthSession()
-      .then((session) => {
-        const idToken = session.tokens?.idToken?.toString();
-        if (!idToken) return;
-        return fetch('/api/customer/sync-profile-access', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({}),
-        });
-      })
-      .catch(() => {
+    callApi('/api/customer/sync-profile-access', {}).catch(() => {
         // Non-blocking: existing accounts self-heal on a later visit if this fails.
       });
   }, [userId]);

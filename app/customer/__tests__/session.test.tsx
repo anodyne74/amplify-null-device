@@ -19,16 +19,13 @@ jest.mock('@/lib/use-user-groups', () => ({
 }));
 
 jest.mock('aws-amplify/auth', () => ({
-  fetchAuthSession: jest.fn(async () => ({
-    tokens: {
-      idToken: {
-        toString: () => 'test-token',
-      },
-    },
-  })),
   // useLogout() calls this directly rather than going through
   // useAuthenticator() -- see app/auth/sessionManager.ts for why.
   signOut: jest.fn(),
+}));
+
+jest.mock('@/lib/apiClient', () => ({
+  callApi: jest.fn(async () => ({})),
 }));
 
 // Mock the ProtectedRoute component

@@ -3,13 +3,15 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import CustomerTeamPage from '../page';
 import { getCustomer, getCustomerPortalContext, listCustomerUsers } from '@/lib/queries';
+import { ApiError, callApi } from '@/lib/apiClient';
 
 jest.mock('@/lib/use-user-groups', () => ({
   useCurrentUserId: () => 'user-sub-1',
 }));
 
-jest.mock('aws-amplify/auth', () => ({
-  fetchAuthSession: jest.fn().mockResolvedValue({ tokens: { idToken: { toString: () => 'id-token-value' } } }),
+jest.mock('@/lib/apiClient', () => ({
+  ...jest.requireActual('@/lib/apiClient'),
+  callApi: jest.fn(),
 }));
 
 jest.mock('@/lib/queries', () => ({
@@ -17,8 +19,6 @@ jest.mock('@/lib/queries', () => ({
   getCustomerPortalContext: jest.fn(),
   listCustomerUsers: jest.fn(),
 }));
-
-const originalFetch = global.fetch;
 
 describe('Customer Team page', () => {
   beforeEach(() => {
@@ -33,11 +33,6 @@ describe('Customer Team page', () => {
       ],
       errors: undefined,
     });
-    global.fetch = jest.fn();
-  });
-
-  afterAll(() => {
-    global.fetch = originalFetch;
   });
 
   it('shows the invite form and current team for an account owner', async () => {
@@ -74,10 +69,7 @@ describe('Customer Team page', () => {
 
   it('sends an invite and shows a success message', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, user: { sub: 'sub-new' }, emailSent: true }),
-    });
+    (callApi as jest.Mock).mockResolvedValue({ success: true, user: { sub: 'sub-new' }, emailSent: true });
 
     render(<CustomerTeamPage />);
 
@@ -89,13 +81,10 @@ describe('Customer Team page', () => {
     fireEvent.click(screen.getByRole('button', { name: /send invite/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
-        '/api/customer/invite-user',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({ Authorization: 'Bearer id-token-value' }),
-        })
-      );
+      expect(callApi).toHaveBeenCalledWith('/api/customer/invite-user', {
+        email: 'teammate@rangeproperty.com.au',
+        name: undefined,
+      });
     });
 
     expect(await screen.findByText(/invited teammate@rangeproperty\.com\.au/i)).toBeInTheDocument();
@@ -103,10 +92,9 @@ describe('Customer Team page', () => {
 
   it('shows an error message when the invite fails', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: false,
-      json: async () => ({ error: 'Invited emails must use the @rangeproperty.com.au domain.' }),
-    });
+    (callApi as jest.Mock).mockRejectedValue(
+      new ApiError('Invited emails must use the @rangeproperty.com.au domain.', 400)
+    );
 
     render(<CustomerTeamPage />);
 
@@ -122,10 +110,7 @@ describe('Customer Team page', () => {
 
   it('tells the account owner when the invite email could not be sent', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, user: { sub: 'sub-new' }, emailSent: false }),
-    });
+    (callApi as jest.Mock).mockResolvedValue({ success: true, user: { sub: 'sub-new' }, emailSent: false });
 
     render(<CustomerTeamPage />);
 

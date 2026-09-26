@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { callApi } from '@/lib/apiClient';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/administrator/components/PageHeader';
@@ -40,19 +40,11 @@ function operatorLabel(operatorSub: string, operatorName?: string) {
 }
 
 async function fetchDriverNamesBySub(): Promise<Map<string, string>> {
-  const session = await fetchAuthSession();
-  const idToken = session.tokens?.idToken?.toString();
-  if (!idToken) return new Map();
-
-  const response = await fetch('/api/admin/users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ action: 'listUsersInGroup', groupName: 'operator' }),
+  const payload = await callApi<{ users?: Array<{ sub?: string; name?: string }> }>('/api/admin/users', {
+    action: 'listUsersInGroup',
+    groupName: 'operator',
   });
-  if (!response.ok) return new Map();
-
-  const payload = await response.json();
-  const users = (payload.users as Array<{ sub?: string; name?: string }> | undefined) || [];
+  const users = payload.users || [];
   return new Map(users.filter((u): u is { sub: string; name: string } => Boolean(u.sub && u.name)).map((u) => [u.sub, u.name]));
 }
 
@@ -83,6 +75,7 @@ export default function AdministratorPayoutsPage() {
     let cancelled = false;
     setLoading(true);
 
+    // Best-effort: without names, payouts fall back to operatorLabel()'s short sub.
     Promise.all([listAllCustomers(), listOperatorPayouts(), fetchDriverNamesBySub().catch(() => new Map<string, string>())]).then(
       ([customerResult, payoutResult, driverNames]) => {
         if (cancelled) return;

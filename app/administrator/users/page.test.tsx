@@ -8,15 +8,11 @@ import {
   listAllCustomerUsers,
   listCustomers,
 } from '@/lib/queries';
+import { ApiError, callApi } from '@/lib/apiClient';
 
-jest.mock('aws-amplify/auth', () => ({
-  fetchAuthSession: jest.fn(async () => ({
-    tokens: {
-      idToken: {
-        toString: () => 'test-token',
-      },
-    },
-  })),
+jest.mock('@/lib/apiClient', () => ({
+  ...jest.requireActual('@/lib/apiClient'),
+  callApi: jest.fn(),
 }));
 
 jest.mock('@/app/components/OperatorRoute', () => ({
@@ -37,6 +33,7 @@ const mockListAllCustomerUsers = listAllCustomerUsers as jest.MockedFunction<typ
 const mockCreateCustomerUser = createCustomerUser as jest.MockedFunction<typeof createCustomerUser>;
 const mockUpdateCustomerUser = updateCustomerUser as jest.MockedFunction<typeof updateCustomerUser>;
 const mockDeleteCustomerUser = deleteCustomerUser as jest.MockedFunction<typeof deleteCustomerUser>;
+const mockCallApi = callApi as jest.Mock;
 
 describe('UsersAdminPage customer access actions', () => {
   beforeEach(() => {
@@ -65,10 +62,7 @@ describe('UsersAdminPage customer access actions', () => {
     mockUpdateCustomerUser.mockResolvedValue({ data: {}, errors: [] } as any);
     mockDeleteCustomerUser.mockResolvedValue({ data: {}, errors: [] } as any);
 
-    global.fetch = jest.fn(async () => ({
-      ok: true,
-      json: async () => ({ users: [] }),
-    })) as jest.Mock;
+    mockCallApi.mockResolvedValue({ users: [] });
   });
 
   afterEach(() => {
@@ -127,18 +121,14 @@ describe('UsersAdminPage customer access actions', () => {
     });
     // Access is revoked server-side, with the removed sub as a hint so an
     // eventually-consistent read can't leave it behind.
-    expect(global.fetch).toHaveBeenCalledWith(
-      '/api/admin/sync-customer-access',
-      expect.objectContaining({ body: JSON.stringify({ customerId: 'cust-1', removed: 'sub-1' }) })
-    );
+    expect(mockCallApi).toHaveBeenCalledWith('/api/admin/sync-customer-access', { customerId: 'cust-1', removed: 'sub-1' });
   });
 
   it('tells the admin when the user was removed but revoking their access failed', async () => {
-    global.fetch = jest.fn(async (url) =>
-      url === '/api/admin/sync-customer-access'
-        ? { ok: false, json: async () => ({ error: 'Access sync finished with 2 error(s).' }) }
-        : { ok: true, json: async () => ({ users: [] }) }
-    ) as jest.Mock;
+    mockCallApi.mockImplementation(async (path: string) => {
+      if (path === '/api/admin/sync-customer-access') throw new ApiError('Access sync finished with 2 error(s).', 500);
+      return { users: [] };
+    });
 
     render(<UsersAdminPage />);
 
@@ -183,23 +173,13 @@ describe('UsersAdminPage customer access actions', () => {
   });
 
   it('creates a real Cognito login (instead of a pending placeholder) when the invited email has no existing account', async () => {
-    global.fetch = jest.fn(async (_url, init) => {
-      const body = JSON.parse((init as RequestInit).body as string) as { action: string };
-      if (body.action === 'getUserByEmail') {
-        return { ok: false, json: async () => ({ error: 'No user found.' }) };
-      }
+    mockCallApi.mockImplementation(async (_path: string, body: { action: string }) => {
+      if (body.action === 'getUserByEmail') throw new ApiError('No user found.', 404);
       if (body.action === 'createUser') {
-        return {
-          ok: true,
-          json: async () => ({
-            user: { sub: 'brand-new-sub', username: 'new@agency.com.au' },
-            created: true,
-            emailSent: true,
-          }),
-        };
+        return { user: { sub: 'brand-new-sub', username: 'new@agency.com.au' }, created: true, emailSent: true };
       }
-      return { ok: true, json: async () => ({}) };
-    }) as jest.Mock;
+      return {};
+    });
 
     render(<UsersAdminPage />);
 
@@ -219,40 +199,29 @@ describe('UsersAdminPage customer access actions', () => {
     });
 
     expect(await screen.findByText(/branded invitation/i)).toBeInTheDocument();
-    expect(global.fetch).toHaveBeenCalledWith(
-      '/api/admin/sync-customer-access',
-      expect.objectContaining({ body: JSON.stringify({ customerId: 'cust-1', added: 'brand-new-sub' }) })
-    );
-
-    const calls = (global.fetch as jest.Mock).mock.calls;
-    const createUserCall = calls.find(([, init]) => JSON.parse(init.body).action === 'createUser');
-    expect(createUserCall).toBeTruthy();
-    expect(JSON.parse(createUserCall![1].body)).toMatchObject({
-      action: 'createUser',
-      email: 'new@agency.com.au',
-      groupName: 'customer',
-      customerName: 'Acme Customer',
+    expect(mockCallApi).toHaveBeenCalledWith('/api/admin/sync-customer-access', {
+      customerId: 'cust-1',
+      added: 'brand-new-sub',
     });
+    expect(mockCallApi).toHaveBeenCalledWith(
+      '/api/admin/users',
+      expect.objectContaining({
+        action: 'createUser',
+        email: 'new@agency.com.au',
+        groupName: 'customer',
+        customerName: 'Acme Customer',
+      })
+    );
   });
 
   it('tells the admin when the login was created but the invitation email failed to send', async () => {
-    global.fetch = jest.fn(async (_url, init) => {
-      const body = JSON.parse((init as RequestInit).body as string) as { action: string };
-      if (body.action === 'getUserByEmail') {
-        return { ok: false, json: async () => ({ error: 'No user found.' }) };
-      }
+    mockCallApi.mockImplementation(async (_path: string, body: { action: string }) => {
+      if (body.action === 'getUserByEmail') throw new ApiError('No user found.', 404);
       if (body.action === 'createUser') {
-        return {
-          ok: true,
-          json: async () => ({
-            user: { sub: 'brand-new-sub', username: 'new@agency.com.au' },
-            created: true,
-            emailSent: false,
-          }),
-        };
+        return { user: { sub: 'brand-new-sub', username: 'new@agency.com.au' }, created: true, emailSent: false };
       }
-      return { ok: true, json: async () => ({}) };
-    }) as jest.Mock;
+      return {};
+    });
 
     render(<UsersAdminPage />);
 
@@ -269,19 +238,13 @@ describe('UsersAdminPage customer access actions', () => {
   });
 
   it('shows a Resend action for a pending invite and resends it', async () => {
-    global.fetch = jest.fn(async (_url, init) => {
-      const body = JSON.parse((init as RequestInit).body as string) as { action: string; groupName?: string };
+    mockCallApi.mockImplementation(async (_path: string, body: { action: string; groupName?: string }) => {
       if (body.action === 'listUsersInGroup' && body.groupName === 'customer') {
-        return {
-          ok: true,
-          json: async () => ({ users: [{ sub: 'sub-1', status: 'FORCE_CHANGE_PASSWORD' }] }),
-        };
+        return { users: [{ sub: 'sub-1', status: 'FORCE_CHANGE_PASSWORD' }] };
       }
-      if (body.action === 'resendInvite') {
-        return { ok: true, json: async () => ({ emailSent: true }) };
-      }
-      return { ok: true, json: async () => ({}) };
-    }) as jest.Mock;
+      if (body.action === 'resendInvite') return { emailSent: true };
+      return {};
+    });
 
     render(<UsersAdminPage />);
 
@@ -292,13 +255,9 @@ describe('UsersAdminPage customer access actions', () => {
       expect(screen.getByText('Invitation resent to read@example.com.')).toBeInTheDocument();
     });
 
-    const calls = (global.fetch as jest.Mock).mock.calls;
-    const resendCall = calls.find(([, init]) => JSON.parse(init.body).action === 'resendInvite');
-    expect(resendCall).toBeTruthy();
-    expect(JSON.parse(resendCall![1].body)).toMatchObject({
-      action: 'resendInvite',
-      email: 'read@example.com',
-      groupName: 'customer',
-    });
+    expect(mockCallApi).toHaveBeenCalledWith(
+      '/api/admin/users',
+      expect.objectContaining({ action: 'resendInvite', email: 'read@example.com', groupName: 'customer' })
+    );
   });
 });

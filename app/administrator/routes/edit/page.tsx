@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { callApi } from '@/lib/apiClient';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
@@ -41,29 +41,6 @@ type OperatorOption = {
   name: string;
   email: string;
 };
-
-async function callAdminApi(body: Record<string, unknown>) {
-  const session = await fetchAuthSession();
-  const idToken = session.tokens?.idToken?.toString();
-  if (!idToken) {
-    throw new Error('No session token found. Please sign in again.');
-  }
-
-  const response = await fetch('/api/admin/users', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${idToken}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload?.error || 'Request failed.');
-  }
-  return payload;
-}
 
 const RouteStopsMap = dynamic(
   () => import('@/app/operator/components/RouteStopsMap').then((mod) => mod.RouteStopsMap),
@@ -159,7 +136,10 @@ function RouteEditContent() {
       const [routeResult, customersResult, operatorsResult] = await Promise.all([
         getRouteDetail(routeId),
         listAllCustomers(),
-        callAdminApi({ action: 'listUsersInGroup', groupName: 'operator' }).catch(() => ({ users: [] })),
+        callApi<{ users?: Array<{ sub?: string; name?: string; email?: string }> }>('/api/admin/users', {
+          action: 'listUsersInGroup',
+          groupName: 'operator',
+        }).catch(() => ({ users: [] })),
       ]);
 
       if (routeResult.errors || !routeResult.data) {
@@ -176,7 +156,7 @@ function RouteEditContent() {
       setInitialAssignedOperatorSub(route.assignedOperatorSub || '');
       setSavedAssignedOperatorEmail(route.assignedOperatorEmail || null);
 
-      const operatorUsers = (operatorsResult.users as Array<{ sub?: string; name?: string; email?: string }> | undefined) || [];
+      const operatorUsers = operatorsResult.users || [];
       setOperators(
         operatorUsers
           .filter((u): u is { sub: string; name: string; email: string } => Boolean(u.sub && u.email))
@@ -317,26 +297,7 @@ function RouteEditContent() {
     setNotifySuccess(null);
 
     try {
-      const session = await fetchAuthSession();
-      const idToken = session.tokens?.idToken?.toString();
-      if (!idToken) {
-        throw new Error('No session token found. Please sign in again.');
-      }
-
-      const response = await fetch('/api/admin/send-job-assigned-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ routeId }),
-      });
-
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to notify operator.');
-      }
-
+      const payload = await callApi<{ sentTo: string }>('/api/admin/send-job-assigned-email', { routeId });
       setNotifySuccess(`Notified ${payload.sentTo}.`);
     } catch (err) {
       setNotifyError(err instanceof Error ? err.message : 'Failed to notify operator.');

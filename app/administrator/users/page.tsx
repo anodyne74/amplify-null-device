@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { callApi } from '@/lib/apiClient';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PageHeader from '@/app/administrator/components/PageHeader';
@@ -112,48 +112,25 @@ export default function UsersAdminPage() {
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState<'account_owner' | 'read_only'>('read_only');
 
-  const callAdminApi = useCallback(async (body: Record<string, unknown>, path = '/api/admin/users') => {
-    const session = await fetchAuthSession();
-    const idToken = session.tokens?.idToken?.toString();
-    if (!idToken) {
-      throw new Error('No session token found. Please sign in again.');
-    }
-
-    const response = await fetch(path, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    const payload = await response.json();
-    if (!response.ok) {
-      throw new Error(payload?.error || 'Request failed.');
-    }
-    return payload;
-  }, []);
-
   // Re-stamps the customer's records server-side (lib/customerAccess.ts) and
   // returns an error message rather than throwing -- the membership change
   // itself has already been saved by the time this runs.
   const syncCustomerAccess = useCallback(
     async (customerId: string, change: { added?: string; removed?: string }) => {
       try {
-        await callAdminApi({ customerId, ...change }, '/api/admin/sync-customer-access');
+        await callApi('/api/admin/sync-customer-access', { customerId, ...change });
         return null;
       } catch (e) {
         return e instanceof Error ? e.message : 'Access sync failed.';
       }
     },
-    [callAdminApi]
+    []
   );
 
   const resolveUserByEmail = useCallback(async (email: string): Promise<CognitoUser> => {
-    const payload = await callAdminApi({ action: 'getUserByEmail', email });
+    const payload = await callApi('/api/admin/users', { action: 'getUserByEmail', email });
     return payload.user as CognitoUser;
-  }, [callAdminApi]);
+  }, []);
 
   const customerUsersForSelected = useMemo(
     () => allCustomerUsers.filter((user) => user.customerId === selectedCustomerId),
@@ -267,16 +244,16 @@ export default function UsersAdminPage() {
   // pool-wide preview from loadUsers().
   const loadCustomerGroupUsers = useCallback(async () => {
     try {
-      const payload = await callAdminApi({ action: 'listUsersInGroup', groupName: 'customer' });
+      const payload = await callApi('/api/admin/users', { action: 'listUsersInGroup', groupName: 'customer' });
       setCustomerGroupCognitoUsers((payload.users as CognitoUser[]) || []);
     } catch {
       // Non-blocking -- rows just fall back to "Active" with no last-seen date.
     }
-  }, [callAdminApi]);
+  }, []);
 
   const loadActivityStats = useCallback(async () => {
     try {
-      const payload = await callAdminApi({ action: 'getUserActivityStats' });
+      const payload = await callApi('/api/admin/users', { action: 'getUserActivityStats' });
       setActivityStats({
         pendingInvites: (payload.pendingInvites as number) ?? 0,
         signedInLast7Days: (payload.signedInLast7Days as number) ?? 0,
@@ -285,7 +262,7 @@ export default function UsersAdminPage() {
     } catch {
       // Non-blocking -- the rest of the page works without activity stats.
     }
-  }, [callAdminApi]);
+  }, []);
 
   useEffect(() => {
     void loadCustomers();
@@ -341,13 +318,13 @@ export default function UsersAdminPage() {
       if (resolvedUser?.sub && resolvedUser.username) {
         // Already has a Cognito account -- just make sure they're in the customer group.
         assignedUserSub = resolvedUser.sub;
-        const userGroupsPayload = await callAdminApi({
+        const userGroupsPayload = await callApi('/api/admin/users', {
           action: 'listGroupsForUser',
           username: resolvedUser.username,
         });
         const userGroups = (userGroupsPayload.groups as string[]) || [];
         if (!userGroups.includes('customer')) {
-          await callAdminApi({
+          await callApi('/api/admin/users', {
             action: 'addUserToGroup',
             username: resolvedUser.username,
             groupName: 'customer',
@@ -358,7 +335,7 @@ export default function UsersAdminPage() {
         // now and invite them (Cognito emails a temporary password), rather than
         // pre-assigning a placeholder record for a self-service signup that no
         // longer exists.
-        const createPayload = await callAdminApi({
+        const createPayload = await callApi('/api/admin/users', {
           action: 'createUser',
           email: normalizedEmail,
           name: newUserName || undefined,
@@ -550,7 +527,7 @@ export default function UsersAdminPage() {
     setAccessError(null);
     setAccessSuccess(null);
     try {
-      const payload = await callAdminApi({
+      const payload = await callApi('/api/admin/users', {
         action: 'resendInvite',
         email: row.email,
         groupName: 'customer',

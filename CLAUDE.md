@@ -80,7 +80,7 @@ Use the `useUserGroups()` hook (`lib/use-user-groups.ts`) to fetch and cache gro
 - `lib/amplify-config.ts` — Amplify initialization, auth helpers
 - `app/auth/session.ts` + `sessionManager.ts` — session management
 - `app/components/PortalLayout.*` — shared sidebar + navigation layout used by all portals
-- `app/api/` — Next.js API routes: `send-invoice-email/`, `static-route-map/`, `users/`
+- `app/api/` — Next.js API routes: `send-invoice-email/`, `users/`
 
 ### Testing
 

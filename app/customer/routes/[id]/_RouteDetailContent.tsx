@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getCustomer, listCustomerUsers, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
+import { getCustomer, listCustomerUsers } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { useRouteWithStops } from '@/lib/useRouteWithStops';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
@@ -25,6 +25,7 @@ import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
 import { signsPlaced } from '@/lib/signRunTotals';
 import styles from './_RouteDetailContent.module.css';
+import { updateRoute, updateRouteCustomerInstructions } from '@/lib/routes';
 
 // Mirrors the existing .stopsAndMap collapse breakpoint in
 // _RouteDetailContent.module.css, so the JS-driven reorder below and the

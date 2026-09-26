@@ -1,15 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
 import type { Stop } from '@/amplify/types';
 import { isAdmin } from '@/lib/amplify-config';
 import { geocodeAddress } from '@/lib/googleMaps';
-import { createStop, deleteRoute as deleteRouteQuery, getCustomer } from '@/lib/queries';
-import { deleteStop as deleteStopQuery } from '@/lib/queries/DeleteStop';
-import { updateStop as updateStopQuery } from '@/lib/queries/UpdateStop';
+import { getCustomer } from '@/lib/queries';
 import { useRouteWithStops } from '@/lib/useRouteWithStops';
+import {
+  createStop,
+  deleteRoute as deleteRouteQuery,
+  deleteStop as deleteStopQuery,
+  resequenceStops,
+  updateStop as updateStopQuery,
+} from '@/lib/routes';
 
 export interface CustomerDefaults {
   standingInstructions?: string | null;
@@ -122,11 +125,7 @@ export function useRouteDetailData(id: string, user: unknown) {
 
   const persistStopOrder = useCallback(
     async (orderedStops: Stop[]) => {
-      const client = generateClient<Schema>();
-      const updates = orderedStops.map((stop, index) =>
-        client.models.Stop.update({ id: stop.id, sequence: index + 1 })
-      );
-      await Promise.all(updates);
+      await resequenceStops(orderedStops.map((stop) => stop.id));
       await refetch();
     },
     [refetch]

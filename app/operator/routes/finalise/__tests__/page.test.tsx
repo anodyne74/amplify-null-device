@@ -2,9 +2,9 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import OperatorFinalisePage from '../page';
-import { getRouteWithStops } from '@/lib/queries';
 import { planSignRunTransition, runSignRunTransition } from '@/lib/signRunTransitions';
 import type { Route, Stop } from '@/amplify/types';
+import { getRouteWithStops } from '@/lib/routes';
 
 const push = jest.fn();
 let searchParamId: string | null = 'route-1';
@@ -19,7 +19,7 @@ jest.mock('next/navigation', () => ({
   useSearchParams: () => ({ get: (key: string) => (key === 'id' ? searchParamId : null) }),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
 }));
 

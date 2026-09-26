@@ -5,12 +5,10 @@ import RouteDetailContent from '../[id]/_RouteDetailContent';
 import {
   getCustomer,
   getCustomerPortalContext,
-  getRouteWithStops,
   listCustomerUsers,
-  updateRoute,
-  updateRouteCustomerInstructions,
 } from '@/lib/queries';
 import type { RouteWithStopsFeedHandlers } from '@/lib/routeWithStopsFeed';
+import { getRouteWithStops, updateRoute, updateRouteCustomerInstructions } from '@/lib/routes';
 
 jest.mock('@/lib/use-user-groups', () => ({
   useCurrentUserId: () => 'viewer-sub-1',
@@ -21,27 +19,16 @@ jest.mock('@/app/components/ProtectedRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/lib/queries/GetRouteDetail', () => ({
-  getRouteDetail: jest.fn().mockResolvedValue({
-    data: {
-      id: 'route-1',
-      routeCode: 'W19-26-001',
-      customerId: 'cust-1',
-      status: 'in_progress',
-      executionPhase: 'placement',
-      createdAt: '2024-01-15T10:00:00Z',
-    },
-    errors: undefined,
-  }),
+jest.mock('@/lib/routes', () => ({
+  getRouteWithStops: jest.fn(),
+  updateRouteCustomerInstructions: jest.fn(),
+  updateRoute: jest.fn(),
 }));
 
 jest.mock('@/lib/queries', () => ({
   getCustomer: jest.fn(),
   getCustomerPortalContext: jest.fn(),
-  getRouteWithStops: jest.fn(),
   listCustomerUsers: jest.fn(),
-  updateRouteCustomerInstructions: jest.fn(),
-  updateRoute: jest.fn(),
 }));
 
 // Nothing is pushed live unless a test does so through mockFeed, so the

@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useCurrentUserId } from '@/lib/use-user-groups';
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
 import type { Customer } from '@/amplify/types';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getCustomer, getUserSettings } from '@/lib/queries';
@@ -12,6 +10,7 @@ import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useC
 import { useLiveRoutes } from '@/lib/useLiveRoutes';
 import { unwrapOrThrow } from '@/lib/graphqlResult';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
+import { listCustomerStops } from '@/lib/routes';
 import { formatCurrency } from '@/lib/dashboardAnalytics';
 import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 import type { RoutePhaseInput, RoutePhaseKey } from '@/lib/signRunPhase';
@@ -35,7 +34,6 @@ import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
 import { StatTile } from '@/app/components/ui/data/StatTile';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import styles from './page.module.css';
-import { listAll } from '@/lib/listAll';
 
 function presentationOf(route: OverviewRoute) {
   return getRouteStatusPresentation(route as unknown as RoutePhaseInput);
@@ -70,10 +68,7 @@ async function fetchDashboardData(context: CustomerPortalContext): Promise<Dashb
     return { stops: [], invoices: [] };
   }
 
-  const client = generateClient<Schema>();
-  const stopResult = await listAll(client, 'Stop', {
-    filter: { customerId: { eq: context.customerId } },
-  });
+  const stopResult = await listCustomerStops(context.customerId);
   const stops = ((stopResult.data as unknown as OverviewStop[]) ?? []).filter(Boolean);
 
   let invoices: OverviewInvoice[] = [];

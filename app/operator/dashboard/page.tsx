@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { getRouteWithStops } from '@/lib/queries';
 import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
 import { getSignRunPhase, getRoutePhaseKey } from '@/lib/signRunPhase';
 import { signsPlaced } from '@/lib/signRunTotals';
@@ -12,6 +11,7 @@ import { SignRunRouteCard } from '@/app/operator/components/SignRunRouteCard';
 import { Card } from '@/app/components/ui/core/Card';
 import { StatTile } from '@/app/components/ui/data/StatTile';
 import styles from './page.module.css';
+import { getRouteWithStops } from '@/lib/routes';
 
 interface StopSummary {
   stopCount: number;

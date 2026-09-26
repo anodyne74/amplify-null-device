@@ -58,28 +58,18 @@ jest.mock('@/lib/routeWithStopsFeed', () => ({
 
 // What getRouteWithStops resolves to; tests override route/stops per case.
 const mockFetched: { route: unknown; stops: unknown[] } = { route: null, stops: [] };
-jest.mock('@/lib/queries/DeleteStop', () => ({
+jest.mock('@/lib/routes', () => ({
   deleteStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-}));
-jest.mock('@/lib/queries', () => ({
-  getCustomer: jest.fn(),
   getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched, errors: [] })),
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateStopExecution: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-}));
-jest.mock('@/lib/queries/UpdateStop', () => ({
   updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));
 
-jest.mock('aws-amplify/data', () => ({
-  generateClient: jest.fn(() => ({
-    models: {
-      Stop: { list: jest.fn().mockResolvedValue({ data: [], errors: undefined }), update: jest.fn() },
-      Route: { update: jest.fn() },
-    },
-  })),
+jest.mock('@/lib/queries', () => ({
+  getCustomer: jest.fn(),
 }));
 
 const mockRoute: Route = {

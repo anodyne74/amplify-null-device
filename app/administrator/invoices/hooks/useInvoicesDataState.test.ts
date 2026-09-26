@@ -1,10 +1,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { useInvoicesDataState } from '@/app/administrator/invoices/hooks/useInvoicesDataState';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { listCustomerUsers, listCustomers, listInvoices } from '@/lib/queries';
+import { listAllRoutes } from '@/lib/routes';
 
-jest.mock('@/lib/queries/ListAllRoutes', () => ({
+jest.mock('@/lib/routes', () => ({
   listAllRoutes: jest.fn(),
 }));
 

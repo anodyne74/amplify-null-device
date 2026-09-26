@@ -8,9 +8,10 @@ import { DEFAULT_COMPANY_BILLING_DETAILS } from '@/lib/companyBilling';
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseInvoiceText } from '@/lib/parseInvoice';
 import { BILLING_EMAIL } from '@/lib/publicAppConfig';
-import { getInvoiceWithLineItems, getRouteWithStops, updateInvoice, updateInvoicePdfKey } from '@/lib/queries';
+import { getInvoiceWithLineItems, updateInvoice, updateInvoicePdfKey } from '@/lib/queries';
 import { buildInvoiceFileName } from '@/lib/invoiceFileName';
 import type { StopSummary } from '@/app/administrator/invoices/stopFormatting';
+import { getRouteWithStops } from '@/lib/routes';
 
 type UseInvoiceDocumentActionsParams = {
   customers: CustomerOption[];

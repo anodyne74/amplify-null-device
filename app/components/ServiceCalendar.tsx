@@ -15,8 +15,8 @@ import { listCustomerClosureBlocks } from '@/lib/queries/ListCustomerClosureBloc
 import { createCustomerClosureBlock } from '@/lib/queries/CreateCustomerClosureBlock';
 import { deleteCustomerClosureBlock } from '@/lib/queries/DeleteCustomerClosureBlock';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import styles from './ServiceCalendar.module.css';
+import { listMyRoutes } from '@/lib/routes';
 
 export type ServiceCalendarRole = 'staff' | 'customer-admin' | 'customer-readonly';
 

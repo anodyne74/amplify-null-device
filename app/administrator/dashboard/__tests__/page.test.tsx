@@ -2,20 +2,16 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import AdminHomePage from '../page';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
-import { listAllStops } from '@/lib/queries/ListAllStops';
 import { listInvoices, listCustomerUsers } from '@/lib/queries';
+import { listAllRoutes, listAllStops } from '@/lib/routes';
 
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-jest.mock('@/lib/queries/ListAllRoutes', () => ({
+jest.mock('@/lib/routes', () => ({
   listAllRoutes: jest.fn(),
-}));
-
-jest.mock('@/lib/queries/ListAllStops', () => ({
   listAllStops: jest.fn(),
 }));
 

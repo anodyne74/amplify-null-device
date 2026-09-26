@@ -16,14 +16,12 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { geocodeAddress } from '@/lib/googleMaps';
-import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { createStop, getRouteWithStops, getUserSettings, updateRoute } from '@/lib/queries';
-import { deleteStop } from '@/lib/queries/DeleteStop';
-import { updateStop } from '@/lib/queries/UpdateStop';
+import { getUserSettings } from '@/lib/queries';
 import type { Route, Stop } from '@/amplify/types';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
+import { createStop, getRouteWithStops, updateRoute, deleteStop, updateStop, resequenceStops } from '@/lib/routes';
 
 type CustomerOption = {
   id: string;
@@ -105,16 +103,9 @@ function RouteEditContent() {
     }));
     setStops(resequenced);
 
-    const updates = await Promise.all(
-      resequenced.map((stop) =>
-        updateStop({
-          id: stop.id,
-          sequence: stop.sequence,
-        })
-      )
-    );
-
-    if (updates.some((result) => result.errors && result.errors.length > 0)) {
+    try {
+      await resequenceStops(resequenced.map((stop) => stop.id));
+    } catch {
       setStopError('Failed to save stop order. Reloading latest order.');
       await fetchStops();
     }
@@ -134,7 +125,7 @@ function RouteEditContent() {
       setError(null);
 
       const [routeResult, customersResult, operatorsResult] = await Promise.all([
-        getRouteDetail(routeId),
+        getRouteWithStops(routeId),
         listAllCustomers(),
         callApi<{ users?: Array<{ sub?: string; name?: string; email?: string }> }>('/api/admin/users', {
           action: 'listUsersInGroup',
@@ -142,13 +133,13 @@ function RouteEditContent() {
         }).catch(() => ({ users: [] })),
       ]);
 
-      if (routeResult.errors || !routeResult.data) {
+      if (!routeResult.route) {
         setError('Failed to load route.');
         setLoading(false);
         return;
       }
 
-      const route = routeResult.data as unknown as Route;
+      const route = routeResult.route as unknown as Route;
       setRouteCode(route.routeCode || route.id.slice(0, 8));
       setCustomerId(route.customerId);
       setNotes(route.notes || '');
@@ -178,13 +169,16 @@ function RouteEditContent() {
         );
       }
 
-      await fetchStops();
+      // A Stop list error leaves the stops empty rather than failing the page.
+      if (!routeResult.errors || routeResult.errors.length === 0) {
+        setStops(routeResult.stops as unknown as Stop[]);
+      }
 
       setLoading(false);
     }
 
     void load();
-  }, [routeId, fetchStops]);
+  }, [routeId]);
 
   useEffect(() => {
     const selected = customers.find((c) => c.id === customerId);

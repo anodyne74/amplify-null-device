@@ -1,9 +1,9 @@
 import { act, renderHook } from '@testing-library/react';
 import { useRouteOverride } from '@/lib/useRouteOverride';
-import { updateRoute } from '@/lib/queries';
 import type { Route } from '@/amplify/types';
+import { updateRoute } from '@/lib/routes';
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
   updateRoute: jest.fn(),
 }));
 

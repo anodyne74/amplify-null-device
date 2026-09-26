@@ -3,10 +3,9 @@ import React from 'react';
 import { act, render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import RouteDetailPage from '../detail/page';
 import type { RouteWithStopsFeedHandlers } from '@/lib/routeWithStopsFeed';
-import * as deleteStopModule from '@/lib/queries/DeleteStop';
-import { updateStop } from '@/lib/queries/UpdateStop';
 import { geocodeAddress } from '@/lib/googleMaps';
 import type { Route, Stop } from '@/amplify/types';
+import { deleteStop, updateStop } from '@/lib/routes';
 
 jest.mock('@/lib/googleMaps', () => ({
   geocodeAddress: jest.fn(),
@@ -59,37 +58,19 @@ jest.mock('@/lib/routeWithStopsFeed', () => ({
 const mockFetched: { route: unknown; stops: unknown[] } = { route: null, stops: [] };
 
 // Mock query modules
-jest.mock('@/lib/queries/DeleteStop');
-jest.mock('@/lib/queries', () => ({
-  getCustomer: jest.fn().mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined }),
+jest.mock('@/lib/routes', () => ({
+  deleteStop: jest.fn(),
+  resequenceStops: jest.fn().mockResolvedValue(undefined),
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched, errors: [] })),
-}));
-jest.mock('@/lib/queries/UpdateStop', () => ({
   updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));
 
-// Mock generateClient from aws-amplify/data
-// Note: factory is hoisted, so we define mocks inside and expose via module variable
-let mockRouteUpdate: jest.Mock;
-let mockStopUpdate: jest.Mock;
-
-jest.mock('aws-amplify/data', () => {
-  const routeUpdate = jest.fn();
-  const stopUpdate = jest.fn();
-  return {
-    generateClient: jest.fn(() => ({
-      models: {
-        Stop: { update: stopUpdate },
-        Route: { update: routeUpdate },
-      },
-    })),
-    // expose for assignment below
-    __mocks: { routeUpdate, stopUpdate },
-  };
-});
+jest.mock('@/lib/queries', () => ({
+  getCustomer: jest.fn().mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined }),
+}));
 
 const mockRoute: Route = {
   id: 'route-test-id-1234',
@@ -121,19 +102,10 @@ describe('Operator Route Detail Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Grab the mocks from inside the factory
-    const amplifyData = require('aws-amplify/data');
-    const { __mocks } = amplifyData;
-    mockRouteUpdate = __mocks.routeUpdate;
-    mockStopUpdate = __mocks.stopUpdate;
-
     mockFetched.route = mockRoute;
     mockFetched.stops = mockStops;
 
-    mockRouteUpdate.mockResolvedValue({ errors: undefined });
-    mockStopUpdate.mockResolvedValue({ errors: undefined });
-
-    (deleteStopModule.deleteStop as jest.Mock).mockResolvedValue({
+    (deleteStop as jest.Mock).mockResolvedValue({
       data: {},
       errors: undefined,
     });
@@ -313,7 +285,7 @@ describe('Operator Route Detail Page', () => {
     fireEvent.click(screen.getByRole('button', { name: /confirm delete/i }));
 
     await waitFor(() => {
-      expect(deleteStopModule.deleteStop).toHaveBeenCalledWith('stop-1');
+      expect(deleteStop).toHaveBeenCalledWith('stop-1');
     });
   });
 

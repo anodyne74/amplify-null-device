@@ -1,10 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
 import { useInvoiceDocumentActions } from './useInvoiceDocumentActions';
-import { getInvoiceWithLineItems, getRouteWithStops, updateInvoicePdfKey } from '@/lib/queries';
+import { getInvoiceWithLineItems, updateInvoicePdfKey } from '@/lib/queries';
 import { uploadData } from 'aws-amplify/storage';
 import { autoTable } from 'jspdf-autotable';
 import type { Invoice } from '@/app/administrator/invoices/types';
 import type { CustomerOption } from '@/app/administrator/invoices/types';
+import { getRouteWithStops } from '@/lib/routes';
 
 // GitHub issue #65: Generate PDF threw because `invoice.totalAmount.toFixed(2)`
 // was called unguarded — any invoice row with a null/undefined totalAmount
@@ -12,9 +13,12 @@ import type { CustomerOption } from '@/app/administrator/invoices/types';
 // generation instead of degrading gracefully like every other numeric field
 // in this function.
 
+jest.mock('@/lib/routes', () => ({
+  getRouteWithStops: jest.fn(),
+}));
+
 jest.mock('@/lib/queries', () => ({
   getInvoiceWithLineItems: jest.fn(),
-  getRouteWithStops: jest.fn(),
   updateInvoice: jest.fn(),
   updateInvoicePdfKey: jest.fn(),
 }));

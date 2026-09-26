@@ -33,15 +33,9 @@ jest.mock('@/lib/queries/ListMyInvoices', () => ({
   listMyInvoices: jest.fn(),
 }));
 
-const mockStopList = jest.fn();
-jest.mock('aws-amplify/data', () => ({
-  generateClient: () => ({
-    models: {
-      Stop: {
-        list: mockStopList,
-      },
-    },
-  }),
+const mockListCustomerStops = jest.fn();
+jest.mock('@/lib/routes', () => ({
+  listCustomerStops: (...args: unknown[]) => mockListCustomerStops(...args),
 }));
 
 const NOW = new Date();
@@ -85,7 +79,7 @@ describe('Customer Dashboard', () => {
       ],
       errors: undefined,
     });
-    mockStopList.mockResolvedValue({
+    mockListCustomerStops.mockResolvedValue({
       data: [
         {
           id: 'stop-1',
@@ -202,34 +196,6 @@ describe('Customer Dashboard', () => {
     });
 
     expect(screen.getByText(/stops this week/i)).toBeInTheDocument();
-  });
-
-  it('counts stops from every Stop.list page, not just the first', async () => {
-    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
-      role: 'read_only',
-      customerId: 'cust-1',
-    });
-    // `limit` caps items scanned before the customerId filter, so route-1's
-    // stops can land on different pages.
-    mockStopList.mockReset();
-    mockStopList
-      .mockResolvedValueOnce({
-        data: [{ id: 'stop-1', routeId: 'route-1', numberOfSigns: 3, agent: 'Jamie Lee', address: '1 Example St' }],
-        nextToken: 'page-2',
-      })
-      .mockResolvedValueOnce({
-        data: [{ id: 'stop-2', routeId: 'route-1', numberOfSigns: 2, agent: 'Jamie Lee', address: '2 Example St' }],
-        nextToken: null,
-      });
-
-    render(<CustomerDashboard />);
-
-    expect(await screen.findByText(/signs in field/i)).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByText('5')).toBeInTheDocument();
-    });
-    expect(mockStopList).toHaveBeenCalledTimes(2);
-    expect(mockStopList).toHaveBeenLastCalledWith(expect.objectContaining({ nextToken: 'page-2' }));
   });
 
   it('lists recent routes with status badge, stop count, and a view link for the reviewer', async () => {

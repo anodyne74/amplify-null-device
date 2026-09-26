@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { Route, Stop } from '@/amplify/types';
-import { listAllStops } from '@/lib/queries/ListAllStops';
 import {
   buildPropertyMatches,
   countDistinctProperties,
@@ -10,6 +9,7 @@ import {
   type PropertyMatch,
   type PropertyMatchScope,
 } from '@/lib/propertySearchHelpers';
+import { listAllStops } from '@/lib/routes';
 
 /** Backs the administrator Routes "Find a property" card — searches every
  *  stop's address across all routes, independent of the routes hook's own

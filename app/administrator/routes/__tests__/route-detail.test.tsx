@@ -2,9 +2,9 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import RouteDetailPage from '../detail/page';
-import * as deleteStopModule from '@/lib/queries/DeleteStop';
 import type { RouteWithStopsFeedHandlers } from '@/lib/routeWithStopsFeed';
 import type { Route, Stop } from '@/amplify/types';
+import { deleteStop } from '@/lib/routes';
 
 const mockOperatorRoute = jest.fn(({ children }: { children: React.ReactNode; requireAdmin?: boolean }) => <>{children}</>);
 
@@ -52,37 +52,19 @@ jest.mock('@/lib/routeWithStopsFeed', () => ({
 
 // What getRouteWithStops resolves to; tests override route/stops per case.
 const mockFetched: { route: unknown; stops: unknown[] } = { route: null, stops: [] };
-jest.mock('@/lib/queries/DeleteStop');
-jest.mock('@/lib/queries', () => ({
-  getCustomer: jest.fn().mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined }),
+jest.mock('@/lib/routes', () => ({
+  deleteStop: jest.fn(),
+  resequenceStops: jest.fn().mockResolvedValue(undefined),
   getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched, errors: [] })),
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-}));
-jest.mock('@/lib/queries/UpdateStop', () => ({
   updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));
 
-// Mock generateClient from aws-amplify/data
-// Note: factory is hoisted, so we define mocks inside and expose via module variable
-let mockRouteUpdate: jest.Mock;
-let mockStopUpdate: jest.Mock;
-
-jest.mock('aws-amplify/data', () => {
-  const routeUpdate = jest.fn();
-  const stopUpdate = jest.fn();
-  return {
-    generateClient: jest.fn(() => ({
-      models: {
-        Stop: { update: stopUpdate },
-        Route: { update: routeUpdate },
-      },
-    })),
-    // expose for assignment below
-    __mocks: { routeUpdate, stopUpdate },
-  };
-});
+jest.mock('@/lib/queries', () => ({
+  getCustomer: jest.fn().mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined }),
+}));
 
 const mockRoute: Route = {
   id: 'route-test-id-1234',
@@ -145,20 +127,11 @@ describe('Operator Route Detail Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Grab the mocks from inside the factory
-    const amplifyData = require('aws-amplify/data');
-    const { __mocks } = amplifyData;
-    mockRouteUpdate = __mocks.routeUpdate;
-    mockStopUpdate = __mocks.stopUpdate;
-
     mockFetched.route = mockRoute;
 
     mockFetched.stops = mockStops;
 
-    mockRouteUpdate.mockResolvedValue({ errors: undefined });
-    mockStopUpdate.mockResolvedValue({ errors: undefined });
-
-    (deleteStopModule.deleteStop as jest.Mock).mockResolvedValue({
+    (deleteStop as jest.Mock).mockResolvedValue({
       data: {},
       errors: undefined,
     });
@@ -236,12 +209,12 @@ describe('Operator Route Detail Page', () => {
     fireEvent.click(stopDeleteButtons[0]);
 
     const dialog = screen.getByRole('alertdialog', { name: 'Delete stop?' });
-    expect(deleteStopModule.deleteStop).not.toHaveBeenCalled();
+    expect(deleteStop).not.toHaveBeenCalled();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
     await waitFor(() => {
-      expect(deleteStopModule.deleteStop).toHaveBeenCalledWith('stop-1');
+      expect(deleteStop).toHaveBeenCalledWith('stop-1');
     });
     await waitFor(() => {
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
@@ -262,7 +235,7 @@ describe('Operator Route Detail Page', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-    expect(deleteStopModule.deleteStop).not.toHaveBeenCalled();
+    expect(deleteStop).not.toHaveBeenCalled();
   });
 
   it('shows a read-only phase tracker for planned routes instead of transition buttons', async () => {

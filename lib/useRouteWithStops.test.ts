@@ -13,7 +13,7 @@ const mockGetRouteWithStops = jest.fn();
 const mockRouteObserveQuery = jest.fn();
 const mockStopObserveQuery = jest.fn();
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
   getRouteWithStops: (...args: unknown[]) => mockGetRouteWithStops(...args),
 }));
 

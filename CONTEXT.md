@@ -67,3 +67,7 @@ _Avoid_: Customer Admin, customer administrator
 **Customer Access Sync**:
 Rewriting who may read a Customer's records after its users change — every record the Customer owns carries the list of its users (and, on the Customer itself, the Account Owner), and all of them are restamped together whenever a user is added, removed or activated. Derived from the Customer's current users, never supplied by the caller; a sync that can't read the full user list changes nothing.
 _Avoid_: viewerSubs sync, backfill, profile access sync
+
+**Feature Flag**:
+A temporary switch that gradually rolls out one customer portal feature, Customer by Customer, until it's on for everyone and the switch is removed. Its state is **Off** (the default), **Selected Customers**, or **Everyone** (which includes Customers created later). Switching a flag Off pauses it without forgetting its Selected Customers. Only administrators change it, and all users of one Customer always see the same thing. While a flag is off for a Customer, that Customer's users can't use the feature at all and see no sign of it. Flags limit customer users only, never operators or administrators acting for a Customer.
+_Avoid_: Toggle, entitlement, plan feature (a flag is never a permanent difference between Customers)

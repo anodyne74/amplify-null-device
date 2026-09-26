@@ -2,6 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { StopForm } from '../StopForm';
+import { getAgentBadgeTone } from '@/lib/customerDefaults';
 
 const noop = jest.fn();
 
@@ -106,6 +107,26 @@ describe('StopForm', () => {
     expect(screen.getByText(/call before arriving/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/number of signs/i)).toHaveValue(3);
     expect(screen.getByRole('button', { name: /jamie lee/i })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('shows each agent with the same initials and colour as their badge elsewhere (#321)', () => {
+    render(<StopForm onSubmit={noop} onCancel={noop} availableAgents={['Mary Anne Smith', 'Pat Doe']} />);
+
+    const agent = screen.getByRole('button', { name: 'Mary Anne Smith' });
+    expect(agent).toHaveTextContent(/^MA$/);
+    const tone = getAgentBadgeTone('Mary Anne Smith');
+    expect(agent.style.getPropertyValue('--nd-agent-badge-bg')).toBe(tone.backgroundColor);
+    expect(agent.style.getPropertyValue('--nd-agent-badge-fg')).toBe(tone.color);
+  });
+
+  it('deselects an agent when it is clicked again', () => {
+    render(<StopForm onSubmit={noop} onCancel={noop} availableAgents={['Jamie Lee', 'Pat Doe']} />);
+
+    const agent = screen.getByRole('button', { name: 'Pat Doe' });
+    fireEvent.click(agent);
+    expect(agent).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(agent);
+    expect(agent).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('submits the selected agent badge', async () => {

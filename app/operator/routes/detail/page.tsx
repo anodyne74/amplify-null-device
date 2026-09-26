@@ -17,7 +17,6 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { useRouteDetailData } from '@/lib/use-route-detail-data';
 import { useRouteOverride } from '@/lib/useRouteOverride';
-import { getAgentBadgeInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import {
   formatCurrency,
   formatElapsedMinutes,
@@ -487,8 +486,6 @@ function RouteDetailContent() {
                   }
 
                   const agentName = stop.agent?.trim() || 'Unassigned';
-                  const agentInitials = getAgentBadgeInitials(agentName);
-                  const agentBadgeTone = getAgentBadgeTone(agentName);
                   const isTopVisibleStop = stop.id === topVisibleStopId;
                   const completedStop =
                     route?.status === 'completed' || route?.status === 'archived'
@@ -561,9 +558,7 @@ function RouteDetailContent() {
                       serviceType={stop.serviceType}
                       address={getPrimaryAddressLine(stop.formattedAddress || stop.address)}
                       statusLabel={getStopStatusLabel(stop, currentExecutionPhase, route?.status)}
-                      agentInitials={agentInitials}
                       agentName={agentName}
-                      agentBadgeTone={agentBadgeTone}
                       isTop={isTopVisibleStop}
                       isCompleted={completedStop}
                       isDragging={reorder.draggingStopId === stop.id}

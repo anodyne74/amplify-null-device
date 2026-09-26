@@ -75,7 +75,7 @@ export async function upsertUserSettings(
     const { data, errors } = await getDataClient().models.UserSettings.create({
       userSub,
       ...updates,
-      defaultTheme: updates.defaultTheme ?? 'system',
+      defaultTheme: updates.defaultTheme ?? 'light',
       mapTheme: updates.mapTheme ?? 'light',
       createdAt: nowIso,
       updatedAt: nowIso,

@@ -83,6 +83,15 @@ describe('userSettings', () => {
       expect(mockUserSettingsCreate).toHaveBeenCalled();
       expect(result.data).toEqual({ id: 'settings-new' });
     });
+
+    it('stores light when a row is created without an explicit theme (#307)', async () => {
+      mockUserSettingsList.mockResolvedValue({ data: [], errors: undefined });
+      mockUserSettingsCreate.mockResolvedValue({ data: { id: 'settings-new' }, errors: undefined });
+
+      await upsertUserSettings('user-2', { name: 'New User' });
+
+      expect(mockUserSettingsCreate).toHaveBeenCalledWith(expect.objectContaining({ defaultTheme: 'light' }));
+    });
   });
 
 });

@@ -221,6 +221,29 @@ describe('Customer Dashboard', () => {
     expect(table.closest('.nd-table-scroll')).toBeInTheDocument();
   });
 
+  it('dates and sorts recent routes by route date, newest first, not by import date (#314)', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'read_only', customerId: 'cust-1' });
+    (useLiveRoutes as jest.Mock).mockReturnValue({
+      routes: [
+        // Imported the same day, so createdAt would put W02-24 first.
+        { id: 'old', routeCode: 'W02-24-001', status: 'completed', actualStartTime: '2024-01-15T00:00:00Z', createdAt: '2026-09-18T04:00:02Z' },
+        { id: 'new', routeCode: 'W36-26-001', status: 'completed', actualStartTime: '2026-09-01T00:00:00Z', createdAt: '2026-09-18T04:00:01Z' },
+      ],
+      loading: false,
+      error: null,
+    });
+
+    render(<CustomerDashboard />);
+
+    const table = await screen.findByRole('table');
+    expect(within(table).getByRole('columnheader', { name: 'Date' })).toBeInTheDocument();
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(within(rows[0]).getByText('W36-26-001')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('1 Sept 2026')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('W02-24-001')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('15 Jan 2024')).toBeInTheDocument();
+  });
+
   it('reflects a live route status change pushed over useLiveRoutes, without a manual reload', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({
       role: 'read_only',

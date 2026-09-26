@@ -5,6 +5,7 @@ import {
   formatElapsedMinutes,
   formatRouteDate,
   formatRouteDateTime,
+  getRouteDate,
   getRouteDurationMinutes,
 } from '@/lib/routeDetailHelpers';
 
@@ -34,6 +35,46 @@ describe('routeDetailHelpers', () => {
       expect(formatRouteDate('2024-01-10T10:00:00Z')).toBe('Jan 10, 2024');
       expect(formatRouteDate(undefined)).toBe('—');
       expect(formatRouteDate(null)).toBe('—');
+    });
+  });
+
+  describe('getRouteDate', () => {
+    it('uses scheduledDate when it is set', () => {
+      expect(
+        getRouteDate({ scheduledDate: '2026-03-02', actualStartTime: '2026-03-05T00:00:00Z', createdAt: '2026-09-18T04:00:00Z' })
+      ).toBe('2026-03-02');
+    });
+
+    it('falls back to the UTC date of actualStartTime', () => {
+      expect(getRouteDate({ actualStartTime: '2024-01-15T00:00:00Z', createdAt: '2026-09-18T04:00:00Z' })).toBe('2024-01-15');
+      expect(getRouteDate({ scheduledDate: null, actualStartTime: '2024-01-15T23:30:00Z' })).toBe('2024-01-15');
+    });
+
+    it('falls back to the UTC date of createdAt', () => {
+      expect(getRouteDate({ createdAt: '2026-09-18T04:00:00Z' })).toBe('2026-09-18');
+    });
+
+    it('is null when the route has no date at all', () => {
+      expect(getRouteDate({})).toBeNull();
+      expect(getRouteDate({ scheduledDate: null, actualStartTime: null, createdAt: null })).toBeNull();
+    });
+  });
+
+  describe('formatRouteDate with a route date', () => {
+    const originalTz = process.env.TZ;
+    afterEach(() => {
+      process.env.TZ = originalTz;
+    });
+
+    it('shows a date-only value as that calendar day, west of UTC too', () => {
+      process.env.TZ = 'America/Los_Angeles';
+      expect(formatRouteDate(getRouteDate({ actualStartTime: '2024-01-15T00:00:00Z' }))).toBe('Jan 15, 2024');
+      expect(formatRouteDate('2026-03-02')).toBe('Mar 2, 2026');
+    });
+
+    it('shows a date-only value as that calendar day, east of UTC too', () => {
+      process.env.TZ = 'Pacific/Auckland';
+      expect(formatRouteDate('2024-01-15')).toBe('Jan 15, 2024');
     });
   });
 

@@ -11,6 +11,7 @@ import { useLiveRoutes } from '@/lib/useLiveRoutes';
 import { unwrapOrThrow } from '@/lib/graphqlResult';
 import { listCustomerStops } from '@/lib/routes';
 import { formatCurrency } from '@/lib/dashboardAnalytics';
+import { getRouteDate } from '@/lib/routeDetailHelpers';
 import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
 import type { RoutePhaseInput, RoutePhaseKey } from '@/lib/signRunPhase';
 import { summarizeOutstanding, summarizeSignsInField, formatWeekLabel } from '@/lib/adminDashboardOverview';
@@ -55,7 +56,8 @@ interface RecentRouteRow {
   badgeKey: RoutePhaseKey;
   statusLabel: string;
   stopCount: number;
-  createdAt?: string | null;
+  /** YYYY-MM-DD, see getRouteDate. */
+  routeDate: string | null;
 }
 
 interface DashboardData {
@@ -171,9 +173,10 @@ export default function CustomerDashboard() {
   const recentRoutes = useMemo<RecentRouteRow[]>(
     () =>
       [...routes]
-        .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))
+        .map((route) => ({ route, routeDate: getRouteDate(route) }))
+        .sort((a, b) => String(b.routeDate ?? '').localeCompare(String(a.routeDate ?? '')))
         .slice(0, 8)
-        .map((route) => {
+        .map(({ route, routeDate }) => {
           const { badgeKey, label } = presentationOf(route);
           return {
             id: route.id,
@@ -181,7 +184,7 @@ export default function CustomerDashboard() {
             badgeKey,
             statusLabel: label,
             stopCount: stopCountsByRouteId.get(route.id) || 0,
-            createdAt: route.createdAt,
+            routeDate,
           };
         }),
     [routes, stopCountsByRouteId]
@@ -204,11 +207,11 @@ export default function CustomerDashboard() {
     },
     { key: 'stopCount', header: 'Stops', numeric: true },
     {
-      key: 'createdAt',
-      header: 'Created',
+      key: 'routeDate',
+      header: 'Date',
       render: (row) =>
-        row.createdAt
-          ? new Date(row.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+        row.routeDate
+          ? new Date(row.routeDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
           : '—',
     },
     {

@@ -2,6 +2,7 @@
 
 import type { Route } from '@/amplify/types';
 import { Icon } from '@/app/components/ui/core/Icon';
+import { formatRouteDate, getRouteDate } from '@/lib/routeDetailHelpers';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS, type RoutePhaseKey } from '@/lib/signRunPhase';
 import styles from './RouteTimeline.module.css';
 
@@ -13,7 +14,7 @@ interface RouteTimelineProps {
 // routes predate loadConfirmedAt/unloadConfirmedAt, so those two phases fall
 // back to the nearest field that was already being written at the time.
 const PHASE_TIMESTAMP: Record<RoutePhaseKey, (route: Route) => string | null | undefined> = {
-  planned: (route) => route.createdAt,
+  planned: (route) => getRouteDate(route),
   signs_loaded: (route) => route.loadConfirmedAt ?? route.actualStartTime,
   signs_placed: (route) => route.placementEndTime,
   signs_picked_up: (route) => route.pickupEndTime ?? route.actualEndTime,
@@ -57,12 +58,15 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
             {/* Timestamp */}
             {status.timestamp && (
               <p className={styles.stepTimestamp}>
-                {new Date(status.timestamp).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {/* The planned step is the route's date, a day with no time. */}
+                {status.id === 'planned'
+                  ? formatRouteDate(status.timestamp)
+                  : new Date(status.timestamp).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
               </p>
             )}
 

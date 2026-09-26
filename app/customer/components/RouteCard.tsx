@@ -2,7 +2,7 @@
 
 import RouteStatusBadge from '@/app/components/RouteStatusBadge';
 import type { Route } from '@/amplify/types';
-import { formatRouteDate } from '@/lib/routeDetailHelpers';
+import { formatRouteDate, getRouteDate } from '@/lib/routeDetailHelpers';
 import { formatEstimatedDurationMinutes, getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
 import { getRoutePhaseKey } from '@/lib/signRunPhase';
 import styles from './RouteCard.module.css';
@@ -17,7 +17,7 @@ interface RouteCardProps {
  */
 export default function RouteCard({ route }: RouteCardProps) {
   const stopCount = route.stops?.length || 0;
-  const createdDate = formatRouteDate(route.createdAt);
+  const routeDate = getRouteDate(route);
   const displayCode = route.routeCode || `${route.id.slice(0, 8)}...`;
 
   return (
@@ -43,10 +43,10 @@ export default function RouteCard({ route }: RouteCardProps) {
             : 'N/A'}
         </p>
 
-        {route.createdAt && (
+        {routeDate && (
           <p className={styles.meta}>
-            <strong>Created:</strong>{' '}
-            {createdDate}
+            <strong>Date:</strong>{' '}
+            {formatRouteDate(routeDate)}
           </p>
         )}
       </div>

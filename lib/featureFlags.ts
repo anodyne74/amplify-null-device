@@ -18,7 +18,13 @@ export interface FeatureFlagDefinition {
   description: string;
 }
 
-export const FEATURE_FLAGS = {} satisfies Record<string, FeatureFlagDefinition>;
+export const FEATURE_FLAGS = {
+  'account-owner-invite': {
+    label: 'Account Owner invites teammates',
+    description:
+      "Account Owners can invite teammates from their portal's Team page. Staff can always add Customer users from the admin portal.",
+  },
+} satisfies Record<string, FeatureFlagDefinition>;
 
 export type FeatureFlagName = keyof typeof FEATURE_FLAGS;
 

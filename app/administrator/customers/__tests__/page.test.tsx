@@ -72,22 +72,6 @@ jest.mock('@/lib/queries/FeatureFlagSettings', () => ({
   listFeatureFlagSettings: jest.fn(),
 }));
 
-// The registry ships empty (#297); register test-only flags.
-jest.mock('@/lib/featureFlags', () => {
-  const actual = jest.requireActual('@/lib/featureFlags');
-  const registry = {
-    alpha: { label: 'Alpha feature', description: '' },
-    beta: { label: 'Beta feature', description: '' },
-  };
-  return {
-    ...actual,
-    FEATURE_FLAGS: registry,
-    FEATURE_FLAG_NAMES: Object.keys(registry),
-    resolveOnFlags: (settings: unknown[], customerId: string) =>
-      actual.resolveOnFlags(settings, customerId, Object.keys(registry)),
-  };
-});
-
 describe('Operator Customers Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -442,7 +426,7 @@ describe('Operator Customers Page', () => {
     });
     expect(screen.queryByText('Failed to load customers.')).not.toBeInTheDocument();
   });
-  describe('feature flags on summary', () => {
+  describe('feature flags', () => {
     async function openAcme() {
       (listAllCustomers as jest.Mock).mockResolvedValue({
         data: [{ id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', status: 'active', addressLine1: '1 St' }],
@@ -453,11 +437,10 @@ describe('Operator Customers Page', () => {
       await screen.findByRole('heading', { name: /configure — acme corp/i });
     }
 
-    it('lists the flags on for the Customer, resolved the shared way', async () => {
+    it('lists the flags on for the Customer and keeps "First teammate invited" in the checklist', async () => {
       (listFeatureFlagSettings as jest.Mock).mockResolvedValue({
         data: [
-          { id: 'alpha', state: 'selected', selectedCustomerIds: ['c-1'] },
-          { id: 'beta', state: 'selected', selectedCustomerIds: ['c-2'] },
+          { id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['c-1'] },
           { id: 'retired', state: 'everyone' },
         ],
         errors: undefined,
@@ -465,20 +448,29 @@ describe('Operator Customers Page', () => {
       await openAcme();
 
       const list = await screen.findByRole('list', { name: 'Feature flags on' });
-      expect(within(list).getByText('Alpha feature')).toBeInTheDocument();
-      expect(within(list).queryByText('Beta feature')).not.toBeInTheDocument();
+      expect(within(list).getByText('Account Owner invites teammates')).toBeInTheDocument();
       expect(within(list).queryByText('retired')).not.toBeInTheDocument();
+      expect(screen.getByText('First teammate invited')).toBeInTheDocument();
     });
 
-    it('says so when no flags are on', async () => {
+    it('omits "First teammate invited" and says no flags are on when account-owner-invite is off', async () => {
+      (listFeatureFlagSettings as jest.Mock).mockResolvedValue({
+        data: [{ id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['c-2'] }],
+        errors: undefined,
+      });
       await openAcme();
+
       expect(await screen.findByText(/this Customer sees no flagged features/)).toBeInTheDocument();
+      expect(screen.getByText('First route built')).toBeInTheDocument();
+      expect(screen.queryByText('First teammate invited')).not.toBeInTheDocument();
     });
 
-    it('says so when the flags cannot be read', async () => {
+    it('says so, and omits the teammate item, when the flags cannot be read', async () => {
       (listFeatureFlagSettings as jest.Mock).mockResolvedValue({ data: [], errors: [new Error('boom')] });
       await openAcme();
+
       expect(await screen.findByText('Could not load feature flags.')).toBeInTheDocument();
+      expect(screen.queryByText('First teammate invited')).not.toBeInTheDocument();
     });
   });
 });

@@ -4,6 +4,8 @@
  * from records already fetched for a customer — no new model, no new writes.
  */
 
+import type { FeatureFlagName } from './featureFlags';
+
 export interface ChecklistCustomer {
   createdAt?: string | null;
   defaultAgentInitials?: string | null;
@@ -44,7 +46,8 @@ function formatWhen(iso: string | null): string | null {
 }
 
 /**
- * Five milestones, worst-case-honest: each "when" is only shown if we actually have a
+ * Up to five milestones ("First teammate invited" only while account-owner-invite
+ * is on for the Customer), worst-case-honest: each "when" is only shown if we actually have a
  * date for it (e.g. "default agent assigned" has no tracked timestamp, so it's left blank
  * rather than guessing).
  */
@@ -52,11 +55,13 @@ export function buildOnboardingChecklist(
   customer: ChecklistCustomer,
   customerUsers: ChecklistCustomerUser[],
   routes: ChecklistRoute[],
-  invoices: ChecklistInvoice[]
+  invoices: ChecklistInvoice[],
+  /** The Feature Flags on for this Customer (lib/featureFlags.ts's resolveOnFlags). */
+  onFlags: readonly FeatureFlagName[]
 ): ChecklistItem[] {
   const sentInvoices = invoices.filter((invoice) => invoice.status === 'sent' || invoice.status === 'paid');
 
-  return [
+  const items: ChecklistItem[] = [
     {
       id: 'account-created',
       label: 'Account created',
@@ -88,4 +93,10 @@ export function buildOnboardingChecklist(
       when: formatWhen(earliest(sentInvoices.map((invoice) => invoice.invoiceDate))),
     },
   ];
+
+  // A Customer whose Account Owner can't invite teammates isn't asked to --
+  // the item is dropped rather than left looking incomplete (#298). A
+  // display-only exception to flags never limiting staff: admins can still
+  // add Customer users themselves.
+  return onFlags.includes('account-owner-invite') ? items : items.filter((item) => item.id !== 'teammate-invited');
 }

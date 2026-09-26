@@ -60,16 +60,17 @@ describe('UserSettingsPage', () => {
     expect(screen.getByLabelText('Map Theme')).toHaveValue('satellite');
   });
 
-  it('applies the saved default theme on load, not just after saving (#80)', async () => {
+  it("leaves applying the saved default theme to the theme provider, so an in-session change isn't undone (#307)", async () => {
     getUserSettingsMock.mockResolvedValue({
-      data: { name: 'Saved Name', defaultTheme: 'light', mapTheme: 'light' },
+      data: { name: 'Saved Name', defaultTheme: 'dark', mapTheme: 'light' },
       errors: undefined,
     });
 
     render(<UserSettingsPage title="Settings" roleVariant="operator" />);
 
     await screen.findByDisplayValue('Saved Name');
-    expect(setModeMock).toHaveBeenCalledWith('light');
+    expect(screen.getByLabelText('Default Theme')).toBeChecked();
+    expect(setModeMock).not.toHaveBeenCalled();
   });
 
   it('does not force a theme mode when no settings have been saved yet', async () => {
@@ -106,11 +107,12 @@ describe('UserSettingsPage', () => {
 
     const toggle = screen.getByLabelText('Default Theme');
     expect(toggle).toHaveAttribute('role', 'switch');
-    expect(toggle).toBeChecked(); // defaults to dark
+    expect(toggle).not.toBeChecked(); // defaults to light (#307)
+    expect(screen.getByText('Light', { selector: 'span' })).toBeInTheDocument();
     expect(screen.queryByText('System')).not.toBeInTheDocument();
 
     fireEvent.click(toggle);
-    expect(toggle).not.toBeChecked();
+    expect(toggle).toBeChecked();
   });
 
   it('shows account owners only their user settings, with no Customer settings tab (#306)', async () => {
@@ -136,7 +138,7 @@ describe('UserSettingsPage', () => {
     expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
     expect(upsertUserSettingsMock).toHaveBeenCalledWith('user-1', {
       name: 'Fallback Name',
-      defaultTheme: 'dark',
+      defaultTheme: 'light',
       mapTheme: 'light',
     });
   });
@@ -159,10 +161,10 @@ describe('UserSettingsPage', () => {
 
     render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
 
-    // Defaults to dark (checked); toggling it off selects light.
-    expect(screen.getByLabelText('Default Theme')).toBeChecked();
-    fireEvent.click(screen.getByLabelText('Default Theme'));
+    // Defaults to light (unchecked); toggling it on selects dark.
     expect(screen.getByLabelText('Default Theme')).not.toBeChecked();
+    fireEvent.click(screen.getByLabelText('Default Theme'));
+    expect(screen.getByLabelText('Default Theme')).toBeChecked();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }));
     expect(await screen.findByText('Failed to save settings. Please try again.')).toBeInTheDocument();
@@ -171,7 +173,7 @@ describe('UserSettingsPage', () => {
     expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(setModeMock).toHaveBeenCalledWith('light');
+      expect(setModeMock).toHaveBeenCalledWith('dark');
     });
   });
 });

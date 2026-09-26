@@ -32,7 +32,7 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
 
   const [name, setName] = useState('');
-  const [defaultTheme, setDefaultTheme] = useState<ThemeModeSetting>('dark');
+  const [defaultTheme, setDefaultTheme] = useState<ThemeModeSetting>('light');
   const [mapTheme, setMapTheme] = useState<MapThemeSetting>('light');
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -66,16 +66,9 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
         }
 
         setName(result.data.name?.trim() || fallbackDisplayName);
-        const loadedTheme = result.data.defaultTheme as ThemeModeSetting | null;
-        setDefaultTheme(loadedTheme || 'dark');
-        // The saved default is only ever applied to the actual rendered theme when the
-        // user hits Save (see handleSave's setMode call) -- it was never re-applied when
-        // settings load on a fresh session, so a saved "Light" default silently reverted
-        // to whatever AmplifyThemeProvider's own localStorage/system fallback was on the
-        // next visit (#80). Apply it here too, once we know what was actually saved.
-        if (loadedTheme) {
-          setMode(loadedTheme);
-        }
+        // Only the form field: AmplifyThemeProvider applies the saved default once
+        // per sign-in (#307), so reapplying it here would undo an in-session change.
+        setDefaultTheme((result.data.defaultTheme as ThemeModeSetting | null) || 'light');
         setMapTheme((result.data.mapTheme as MapThemeSetting | null) || 'light');
       })
       .catch(() => {
@@ -85,7 +78,7 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
     return () => {
       cancelled = true;
     };
-  }, [fallbackDisplayName, userId, setMode]);
+  }, [fallbackDisplayName, userId]);
 
   const handleSave = async () => {
     if (!userId) {

@@ -5,7 +5,6 @@ import { useCurrentUserId } from '@/lib/use-user-groups';
 import { callApi } from '@/lib/apiClient';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import CustomerShell from '@/app/customer/components/CustomerShell';
-import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/userSettings';
 import { CustomerPortalContextProvider, useCustomerPortalContext } from '@/lib/useCustomerPortalContext';
@@ -50,7 +49,6 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
   const [userDisplayName, setUserDisplayName] = useState('');
   const { role: customerRole } = useCustomerPortalContext();
   const { logout } = useLogout();
-  const { setMode: applyThemeMode } = useThemeMode();
 
   useSessionTimeout();
 
@@ -82,19 +80,15 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           setUserDisplayName(configuredName || fallbackDisplayName);
         }
-
-        const defaultTheme = result.data?.defaultTheme;
-        if (cancelled || !defaultTheme) return;
-        applyThemeMode(defaultTheme);
       })
       .catch(() => {
-        // Non-blocking: keep current theme if settings cannot be loaded.
+        // Non-blocking: keep the fallback display name if settings cannot be loaded.
       });
 
     return () => {
       cancelled = true;
     };
-  }, [applyThemeMode, fallbackDisplayName, userId]);
+  }, [fallbackDisplayName, userId]);
 
   useEffect(() => {
     if (!userId) return;

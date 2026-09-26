@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import OperatorShell from '@/app/operator/components/OperatorShell';
-import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/userSettings';
 import { useLogout } from '@/app/auth/sessionManager';
@@ -28,7 +27,6 @@ export default function OperatorLayout({ children }: { children: React.ReactNode
   const { logout } = useLogout();
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
   const [userDisplayName, setUserDisplayName] = useState('');
-  const { setMode: applyThemeMode } = useThemeMode();
   const operatorSub = useCurrentUserId();
   useOperatorRouteNotifications(operatorSub ?? null);
 
@@ -60,19 +58,15 @@ export default function OperatorLayout({ children }: { children: React.ReactNode
         if (!cancelled) {
           setUserDisplayName(configuredName || fallbackDisplayName);
         }
-
-        const defaultTheme = result.data?.defaultTheme;
-        if (cancelled || !defaultTheme) return;
-        applyThemeMode(defaultTheme);
       })
       .catch(() => {
-        // Non-blocking: keep current theme if settings cannot be loaded.
+        // Non-blocking: keep the fallback display name if settings cannot be loaded.
       });
 
     return () => {
       cancelled = true;
     };
-  }, [applyThemeMode, fallbackDisplayName, user?.userId]);
+  }, [fallbackDisplayName, user?.userId]);
 
   return (
     <OperatorRoute>

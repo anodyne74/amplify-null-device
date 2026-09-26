@@ -53,6 +53,22 @@ function clickStatusChip(label: string | RegExp) {
   fireEvent.click(within(chips).getByText(label));
 }
 
+// Routes W01-26-001, W01-26-002, ... for tests that need more than one page.
+const makeRoutes = (count: number): Route[] =>
+  Array.from({ length: count }, (_, index) => {
+    const seq = String(index + 1).padStart(3, '0');
+    return {
+      id: `route-${seq}`,
+      customerId: 'test-customer-1',
+      routeCode: `W01-26-${seq}`,
+      status: index % 2 === 0 ? 'planned' : 'completed',
+      createdAt: '2026-01-01T00:00:00Z',
+    } as Route;
+  });
+const hrefs = () => screen.getAllByRole('link').map((link) => link.getAttribute('href'));
+const next = () => screen.getByRole('button', { name: 'Next page of routes' });
+const previous = () => screen.getByRole('button', { name: 'Previous page of routes' });
+
 describe('Customer Routes List Page', () => {
   const mockRoutes: Route[] = [
     {
@@ -221,7 +237,7 @@ describe('Customer Routes List Page', () => {
       expect(routeLinks.map((link) => link.getAttribute('href'))).toEqual(['/customer/routes/route-2']);
     });
 
-    expect(screen.getByText(/Showing 1 routes/i)).toBeInTheDocument();
+    expect(screen.getByText('Showing 1–1 of 1 routes')).toBeInTheDocument();
   });
 
   it('calls useLiveRoutes with the portal context customer ID instead of the user sub', async () => {
@@ -262,6 +278,87 @@ describe('Customer Routes List Page', () => {
     });
   });
 
+  describe('with more than one page of routes', () => {
+
+    async function renderOnPageTwo(routes: Route[]) {
+      (useLiveRoutes as jest.Mock).mockReturnValue({ routes, loading: false, error: null });
+      const view = render(<RoutesPage />);
+      await screen.findByText(`Showing 1–25 of ${routes.length} routes`);
+      fireEvent.click(next());
+      return view;
+    }
+
+    it('shows the newest 25 routes, then the rest on the next page', async () => {
+      (useLiveRoutes as jest.Mock).mockReturnValue({ routes: makeRoutes(30), loading: false, error: null });
+
+      render(<RoutesPage />);
+
+      await screen.findByText('Showing 1–25 of 30 routes');
+      expect(hrefs()).toHaveLength(25);
+      expect(hrefs()[0]).toBe('/customer/routes/route-030');
+      expect(previous()).toBeDisabled();
+      expect(screen.getByText(/Click on any route to view details and stops/)).toBeInTheDocument();
+
+      fireEvent.click(next());
+
+      expect(screen.getByText('Showing 26–30 of 30 routes')).toBeInTheDocument();
+      expect(hrefs()).toEqual([
+        '/customer/routes/route-005',
+        '/customer/routes/route-004',
+        '/customer/routes/route-003',
+        '/customer/routes/route-002',
+        '/customer/routes/route-001',
+      ]);
+      expect(next()).toBeDisabled();
+    });
+
+    it('returns to page 1 when the phase chip changes', async () => {
+      await renderOnPageTwo(makeRoutes(60));
+      expect(screen.getByText('Showing 26–50 of 60 routes')).toBeInTheDocument();
+
+      clickStatusChip(/^Planned$/i);
+      clickStatusChip(/^All$/i);
+
+      expect(screen.getByText('Showing 1–25 of 60 routes')).toBeInTheDocument();
+    });
+
+    it('returns to page 1 when the search text changes', async () => {
+      await renderOnPageTwo(makeRoutes(60));
+
+      fireEvent.change(screen.getByLabelText(/search route code/i), { target: { value: 'W01' } });
+
+      expect(screen.getByText('Showing 1–25 of 60 routes')).toBeInTheDocument();
+    });
+
+    it('stays on the same page when a live update adds a route', async () => {
+      const { rerender } = await renderOnPageTwo(makeRoutes(30));
+
+      (useLiveRoutes as jest.Mock).mockReturnValue({ routes: makeRoutes(31), loading: false, error: null });
+      rerender(<RoutesPage />);
+
+      expect(screen.getByText('Showing 26–31 of 31 routes')).toBeInTheDocument();
+    });
+
+    it('moves back to the last page when a live update removes the current one', async () => {
+      const { rerender } = await renderOnPageTwo(makeRoutes(30));
+
+      (useLiveRoutes as jest.Mock).mockReturnValue({ routes: makeRoutes(20), loading: false, error: null });
+      rerender(<RoutesPage />);
+
+      expect(screen.getByText('Showing 1–20 of 20 routes')).toBeInTheDocument();
+      expect(hrefs()).toHaveLength(20);
+    });
+
+    it('shows no pagination bar when there are no routes', async () => {
+      (useLiveRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: null });
+
+      render(<RoutesPage />);
+
+      await screen.findByText(/No routes found/i);
+      expect(screen.queryByRole('navigation', { name: 'routes pagination' })).not.toBeInTheDocument();
+    });
+  });
+
   describe('narrow viewport', () => {
     beforeEach(() => {
       Object.defineProperty(window, 'matchMedia', {
@@ -290,6 +387,17 @@ describe('Customer Routes List Page', () => {
         ['/customer/routes/route-1', '/customer/routes/route-2', '/customer/routes/route-3'].sort()
       );
       expect(screen.queryByText('Route ID')).not.toBeInTheDocument();
+    });
+
+    it('pages the card list 25 at a time too', async () => {
+      (useLiveRoutes as jest.Mock).mockReturnValue({ routes: makeRoutes(30), loading: false, error: null });
+
+      render(<RoutesPage />);
+
+      await screen.findByText('Showing 1–25 of 30 routes');
+      expect(hrefs()).toHaveLength(25);
+      fireEvent.click(next());
+      expect(hrefs()).toHaveLength(5);
     });
 
     it('shows an empty-state message when there are no routes', async () => {

@@ -46,6 +46,11 @@
   color: var(--text-body);
 }
 
+.summary .summaryHint {
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
+}
+
 .summarySubtext {
   margin-top: var(--space-2) !important;
   font-size: var(--text-sm);

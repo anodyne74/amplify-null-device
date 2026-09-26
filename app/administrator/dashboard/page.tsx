@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { listInvoices, listCustomerUsers } from '@/lib/queries';
+import { listInvoices } from '@/lib/queries';
 import type { Route } from '@/amplify/types';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PageHeader from '@/app/administrator/components/PageHeader';
@@ -28,6 +27,7 @@ import {
 } from '@/lib/adminDashboardOverview';
 import styles from './page.module.css';
 import { listAllRoutes, listAllStops } from '@/lib/routes';
+import { listAllCustomers, listCustomerUsers } from '@/lib/customers';
 
 type Invoice = {
   id: string;

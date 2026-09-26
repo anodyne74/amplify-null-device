@@ -4,7 +4,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import InvoiceDetailContent from '../[id]/_InvoiceDetailContent';
 import ToastProvider from '@/app/components/ToastProvider';
 import { getInvoiceDetail } from '@/lib/queries/GetInvoiceDetail';
-import { getCustomerPortalContext } from '@/lib/queries';
+import { getCustomerPortalContext } from '@/lib/customers';
 
 const renderWithToast = (ui: React.ReactElement) => render(<ToastProvider>{ui}</ToastProvider>);
 
@@ -27,7 +27,7 @@ jest.mock('@/lib/queries/GetInvoiceDetail', () => ({
   getInvoiceDetail: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomerPortalContext: jest.fn(),
 }));
 

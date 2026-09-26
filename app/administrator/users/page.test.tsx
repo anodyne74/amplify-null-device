@@ -1,14 +1,8 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import UsersAdminPage from '@/app/administrator/users/page';
-import {
-  createCustomerUser,
-  deleteCustomerUser,
-  updateCustomerUser,
-  listAllCustomerUsers,
-  listCustomers,
-} from '@/lib/queries';
 import { ApiError, callApi } from '@/lib/apiClient';
+import { createCustomerUser, deleteCustomerUser, updateCustomerUser, listAllCustomerUsers, listAllCustomers } from '@/lib/customers';
 
 jest.mock('@/lib/apiClient', () => ({
   ...jest.requireActual('@/lib/apiClient'),
@@ -20,15 +14,15 @@ jest.mock('@/app/components/OperatorRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   createCustomerUser: jest.fn(),
   deleteCustomerUser: jest.fn(),
   updateCustomerUser: jest.fn(),
   listAllCustomerUsers: jest.fn(),
-  listCustomers: jest.fn(),
+  listAllCustomers: jest.fn(),
 }));
 
-const mockListCustomers = listCustomers as jest.MockedFunction<typeof listCustomers>;
+const mockListCustomers = listAllCustomers as jest.MockedFunction<typeof listAllCustomers>;
 const mockListAllCustomerUsers = listAllCustomerUsers as jest.MockedFunction<typeof listAllCustomerUsers>;
 const mockCreateCustomerUser = createCustomerUser as jest.MockedFunction<typeof createCustomerUser>;
 const mockUpdateCustomerUser = updateCustomerUser as jest.MockedFunction<typeof updateCustomerUser>;

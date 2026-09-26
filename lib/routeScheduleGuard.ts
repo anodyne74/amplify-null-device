@@ -8,7 +8,7 @@
  * "new route" import flow) at creation time.
  */
 import { listOperatorAvailabilityBlocks } from '@/lib/queries/ListOperatorAvailabilityBlocks';
-import { listCustomerClosureBlocks } from '@/lib/queries/ListCustomerClosureBlocks';
+import { listCustomerClosureBlocks } from '@/lib/customers';
 
 export interface RouteDateBlockResult {
   blocked: boolean;

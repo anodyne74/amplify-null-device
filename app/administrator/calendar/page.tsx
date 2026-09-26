@@ -8,9 +8,9 @@ import PageHeader from '@/app/administrator/components/PageHeader';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Select } from '@/app/components/ui/forms/Select';
 import { ServiceCalendar } from '@/app/components/ServiceCalendar';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import type { Customer } from '@/amplify/types';
 import styles from './page.module.css';
+import { listAllCustomers } from '@/lib/customers';
 
 export default function AdministratorCalendarPage() {
   const { user } = useAuthenticator();

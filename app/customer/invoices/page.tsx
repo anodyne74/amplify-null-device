@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
-import { getCustomer } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/customer/components/PageHeader';
@@ -16,6 +15,7 @@ import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import type { Invoice } from '@/amplify/types';
 import { formatInvoiceCurrency } from '@/lib/format';
 import styles from './page.module.css';
+import { getCustomer } from '@/lib/customers';
 
 function formatDate(dateString?: string | null) {
   if (!dateString) return 'N/A';

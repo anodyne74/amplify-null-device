@@ -5,10 +5,10 @@ import {
   useCustomerPortalContext,
   type CustomerPortalContext,
 } from '@/lib/useCustomerPortalContext';
-import { getCustomerPortalContext } from '@/lib/queries';
 import { useCurrentUserId } from '@/lib/use-user-groups';
+import { getCustomerPortalContext } from '@/lib/customers';
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomerPortalContext: jest.fn(),
 }));
 

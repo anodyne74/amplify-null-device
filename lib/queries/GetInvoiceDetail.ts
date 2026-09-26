@@ -2,9 +2,9 @@
  * Get invoice detail with line items
  * Used to display invoice detail page with itemized charges
  */
-import { getCustomerPortalContext } from '@/lib/queries';
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
+import { getCustomerPortalContext } from '@/lib/customers';
 
 export interface GetInvoiceDetailParams {
   invoiceId: string;

@@ -15,17 +15,11 @@ import { Radio } from '@/app/components/ui/forms/Radio';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { StatTile } from '@/app/components/ui/data/StatTile';
 import { Dialog } from '@/app/components/ui/feedback/Dialog';
-import {
-  createCustomerUser,
-  deleteCustomerUser,
-  updateCustomerUser,
-  listAllCustomerUsers,
-  listCustomers,
-} from '@/lib/queries';
 import CustomerUserTableRow, {
   type CustomerUserRowData,
 } from '@/app/administrator/users/components/CustomerUserTableRow';
 import styles from './page.module.css';
+import { createCustomerUser, deleteCustomerUser, updateCustomerUser, listAllCustomerUsers, listAllCustomers } from '@/lib/customers';
 
 type CognitoUser = {
   id?: string;
@@ -206,7 +200,7 @@ export default function UsersAdminPage() {
 
   // ── Customer Access ──────────────────────────────────────────────
   const loadCustomers = useCallback(async () => {
-    const result = await listCustomers();
+    const result = await listAllCustomers();
     if (result.errors && result.errors.length > 0) {
       return;
     }

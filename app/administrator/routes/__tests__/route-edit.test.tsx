@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RouteEditPage from '../edit/page';
-import * as customersModule from '@/lib/queries/ListAllCustomers';
+import * as customersModule from '@/lib/customers';
 import * as queriesModule from '@/lib/queries';
 import * as routesModule from '@/lib/routes';
 import { callApi } from '@/lib/apiClient';
@@ -59,7 +59,7 @@ jest.mock('@/app/operator/components/RouteStopsMap', () => ({
   ),
 }));
 
-jest.mock('@/lib/queries/ListAllCustomers');
+jest.mock('@/lib/customers');
 jest.mock('@/lib/queries');
 jest.mock('@/lib/routes');
 

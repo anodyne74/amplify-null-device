@@ -1,11 +1,11 @@
 import { checkRouteDateBlocked } from './routeScheduleGuard';
 import { listOperatorAvailabilityBlocks } from '@/lib/queries/ListOperatorAvailabilityBlocks';
-import { listCustomerClosureBlocks } from '@/lib/queries/ListCustomerClosureBlocks';
+import { listCustomerClosureBlocks } from '@/lib/customers';
 
 jest.mock('@/lib/queries/ListOperatorAvailabilityBlocks', () => ({
   listOperatorAvailabilityBlocks: jest.fn(),
 }));
-jest.mock('@/lib/queries/ListCustomerClosureBlocks', () => ({
+jest.mock('@/lib/customers', () => ({
   listCustomerClosureBlocks: jest.fn(),
 }));
 

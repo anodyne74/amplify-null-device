@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import CustomerCalendarPage from '../page';
-import { getCustomer, getCustomerPortalContext } from '@/lib/queries';
+import { getCustomer, getCustomerPortalContext } from '@/lib/customers';
 
 jest.mock('@/lib/use-user-groups', () => ({
   useCurrentUserId: () => 'reviewer-sub',
@@ -13,7 +13,7 @@ jest.mock('@/app/components/ProtectedRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
   getCustomerPortalContext: jest.fn(),
 }));

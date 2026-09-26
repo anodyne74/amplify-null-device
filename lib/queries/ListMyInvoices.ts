@@ -2,9 +2,9 @@
  * List customer's invoices with optional date filtering
  * Used to display invoice list in customer portal
  */
-import { getCustomerPortalContext } from '@/lib/queries';
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
+import { getCustomerPortalContext } from '@/lib/customers';
 
 export interface ListMyInvoicesParams {
   customerId: string;

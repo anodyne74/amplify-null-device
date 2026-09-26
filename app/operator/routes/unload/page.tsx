@@ -6,7 +6,6 @@ import Breadcrumbs from '@/app/components/Breadcrumbs';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
-import { getCustomer } from '@/lib/queries';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
@@ -17,6 +16,7 @@ import type { Route } from '@/amplify/types';
 import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
+import { getCustomer } from '@/lib/customers';
 
 interface UnloadScreenExtra {
   customerName: string;

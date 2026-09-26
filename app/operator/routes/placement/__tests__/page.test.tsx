@@ -2,10 +2,10 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import OperatorPlacementPage from '../page';
-import { getCustomer } from '@/lib/queries';
 import { planSignRunTransition, runSignRunTransition } from '@/lib/signRunTransitions';
 import type { Route, Stop } from '@/amplify/types';
 import { getRouteWithStops, updateStopExecution } from '@/lib/routes';
+import { getCustomer } from '@/lib/customers';
 
 const push = jest.fn();
 let searchParamId: string | null = 'route-1';
@@ -25,7 +25,7 @@ jest.mock('@/lib/routes', () => ({
   updateStopExecution: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
 }));
 

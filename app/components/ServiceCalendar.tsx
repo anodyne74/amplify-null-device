@@ -11,12 +11,9 @@ import type { OperatorAvailabilityBlock, CustomerClosureBlock } from '@/amplify/
 import { listOperatorAvailabilityBlocks } from '@/lib/queries/ListOperatorAvailabilityBlocks';
 import { createOperatorAvailabilityBlock } from '@/lib/queries/CreateOperatorAvailabilityBlock';
 import { deleteOperatorAvailabilityBlock } from '@/lib/queries/DeleteOperatorAvailabilityBlock';
-import { listCustomerClosureBlocks } from '@/lib/queries/ListCustomerClosureBlocks';
-import { createCustomerClosureBlock } from '@/lib/queries/CreateCustomerClosureBlock';
-import { deleteCustomerClosureBlock } from '@/lib/queries/DeleteCustomerClosureBlock';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import styles from './ServiceCalendar.module.css';
 import { listMyRoutes } from '@/lib/routes';
+import { listCustomerClosureBlocks, createCustomerClosureBlock, deleteCustomerClosureBlock, listAllCustomers } from '@/lib/customers';
 
 export type ServiceCalendarRole = 'staff' | 'customer-admin' | 'customer-readonly';
 

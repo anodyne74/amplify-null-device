@@ -2,13 +2,12 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AdministratorPaymentDetailsPage from '../page';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listRateLines } from '@/lib/queries/ListRateLines';
 import { createRateLine } from '@/lib/queries/CreateRateLine';
 import { deleteRateLine } from '@/lib/queries/DeleteRateLine';
-import { getCustomer, updateCustomer } from '@/lib/queries';
 import { computeDriverSplit } from '@/lib/driverSplit';
 import { getOrganizationSettings, upsertOrganizationSettings } from '@/lib/queries/OrganizationSettings';
+import { listAllCustomers, getCustomer, updateCustomer } from '@/lib/customers';
 
 jest.mock('next/navigation', () => ({
   useSearchParams: () => ({ get: () => null }),
@@ -24,8 +23,10 @@ jest.mock('@/app/components/OperatorRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/lib/queries/ListAllCustomers', () => ({
+jest.mock('@/lib/customers', () => ({
   listAllCustomers: jest.fn(),
+  getCustomer: jest.fn(),
+  updateCustomer: jest.fn(),
 }));
 
 jest.mock('@/lib/queries/ListRateLines', () => ({
@@ -38,11 +39,6 @@ jest.mock('@/lib/queries/CreateRateLine', () => ({
 
 jest.mock('@/lib/queries/DeleteRateLine', () => ({
   deleteRateLine: jest.fn(),
-}));
-
-jest.mock('@/lib/queries', () => ({
-  getCustomer: jest.fn(),
-  updateCustomer: jest.fn(),
 }));
 
 jest.mock('@/lib/driverSplit', () => ({

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import type { Customer, StandingPickupDay } from '@/amplify/types';
-import { getCustomer, updateCustomer } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { unwrapOrThrow } from '@/lib/graphqlResult';
 import PageHeader from '@/app/customer/components/PageHeader';
@@ -14,6 +13,7 @@ import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { Switch } from '@/app/components/ui/forms/Switch';
 import styles from './page.module.css';
+import { getCustomer, updateCustomer } from '@/lib/customers';
 
 const PICKUP_DAYS: { value: StandingPickupDay; label: string }[] = [
   { value: 'monday', label: 'Monday' },

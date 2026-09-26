@@ -3,8 +3,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import RoutesPage from '../page';
 import { useLiveRoutes } from '@/lib/useLiveRoutes';
-import { getCustomerPortalContext } from '@/lib/queries';
 import type { Route } from '@/amplify/types';
+import { getCustomerPortalContext } from '@/lib/customers';
 
 // Mock Next.js router first
 jest.mock('next/navigation', () => ({
@@ -29,7 +29,7 @@ jest.mock('@/lib/use-user-groups', () => ({
 jest.mock('@/lib/useLiveRoutes', () => ({
   useLiveRoutes: jest.fn(),
 }));
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomerPortalContext: jest.fn(),
 }));
 

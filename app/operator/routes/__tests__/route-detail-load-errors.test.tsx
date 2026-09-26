@@ -2,9 +2,9 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import RouteDetailPage from '../detail/page';
-import { getCustomer } from '@/lib/queries';
 import type { RouteWithStopsFeedHandlers } from '@/lib/routeWithStopsFeed';
 import type { Route } from '@/amplify/types';
+import { getCustomer } from '@/lib/customers';
 
 // GitHub issue #57: opening a route from the operator portal could hang on the
 // loading spinner forever if `id` was missing on first render, or if anything
@@ -68,7 +68,7 @@ jest.mock('@/lib/routes', () => ({
   updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
 }));
 

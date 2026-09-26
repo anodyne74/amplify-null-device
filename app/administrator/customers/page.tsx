@@ -21,17 +21,11 @@ import {
   setDefaultAgentOption as setDefaultAgentOptionIn,
 } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
-import {
-  createCustomer,
-  listAllCustomerUsers,
-  listCustomerInvoices,
-  listCustomerUsers,
-  listCustomers,
-  updateCustomer,
-} from '@/lib/queries';
+import { listCustomerInvoices } from '@/lib/queries';
 import { buildOnboardingChecklist, type ChecklistItem } from '@/lib/customerOnboardingChecklist';
 import styles from './page.module.css';
 import { listCustomerRoutes } from '@/lib/routes';
+import { createCustomer, listAllCustomerUsers, listCustomerUsers, listAllCustomers, updateCustomer } from '@/lib/customers';
 
 const usdFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -181,7 +175,7 @@ export default function CustomersAdminPage() {
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    const result = await listCustomers();
+    const result = await listAllCustomers();
     if (result.errors && result.errors.length > 0) {
       setLoadError('Failed to load customers.');
       setCustomers([]);

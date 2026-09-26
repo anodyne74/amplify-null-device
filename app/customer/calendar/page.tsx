@@ -5,8 +5,8 @@ import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { ServiceCalendar } from '@/app/components/ServiceCalendar';
-import { getCustomer } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { getCustomer } from '@/lib/customers';
 
 async function fetchViewerSubs(context: CustomerPortalContext): Promise<string[]> {
   const result = await getCustomer(context.customerId);

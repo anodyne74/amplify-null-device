@@ -2,13 +2,13 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import CustomerStandingOrdersPage from '../page';
-import { getCustomer, getCustomerPortalContext, updateCustomer } from '@/lib/queries';
+import { getCustomer, getCustomerPortalContext, updateCustomer } from '@/lib/customers';
 
 jest.mock('@/lib/use-user-groups', () => ({
   useCurrentUserId: () => 'user-sub-1',
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
   getCustomerPortalContext: jest.fn(),
   updateCustomer: jest.fn(),

@@ -16,12 +16,12 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { geocodeAddress } from '@/lib/googleMaps';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { getUserSettings } from '@/lib/queries';
 import type { Route, Stop } from '@/amplify/types';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
 import { createStop, getRouteWithStops, updateRoute, deleteStop, updateStop, resequenceStops } from '@/lib/routes';
+import { listAllCustomers } from '@/lib/customers';
 
 type CustomerOption = {
   id: string;

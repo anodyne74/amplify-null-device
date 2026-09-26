@@ -221,7 +221,7 @@ Notes:
 
 ## Geocode Backfill
 
-Route/Stop maps (`RouteStopsMap` and the admin static map endpoint) only render stops that already have `latitude`/`longitude`. Legacy tracker imports don't set those fields, so newly imported stops (and any older stop created before geocoding existed) are silently omitted from maps until backfilled.
+Route/Stop maps (`RouteStopsMap`) only render stops that already have `latitude`/`longitude`. Legacy tracker imports don't set those fields, so newly imported stops (and any older stop created before geocoding existed) are silently omitted from maps until backfilled.
 
 Use `scripts/backfill-geocodes.js` to geocode every stop for a customer that's missing coordinates, using the Google Geocoding REST API directly (server-side — this script doesn't run in a browser, so it can't use the Maps JS SDK path that `lib/googleMaps.ts` uses in the app itself).
 
@@ -241,7 +241,7 @@ Re-run with `--mode apply --confirm-apply` to write `latitude`, `longitude`, and
 Notes:
 
 - Requires `GOOGLE_MAPS_API_KEY` (or `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` as a fallback) in the environment.
-- **The key must not have an HTTP referrer restriction.** `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is normally referrer-restricted for browser use (Maps JS SDK), which the Geocoding REST API rejects outright (`API keys with referer restrictions cannot be used with this API`). Use a separate key restricted by IP or API instead, matching what `app/api/admin/static-route-map/route.ts` already expects via its own `GOOGLE_MAPS_API_KEY` env var.
+- **The key must not have an HTTP referrer restriction.** `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is normally referrer-restricted for browser use (Maps JS SDK), which the Geocoding REST API rejects outright (`API keys with referer restrictions cannot be used with this API`). Use a separate key restricted by IP or API instead, set as `GOOGLE_MAPS_API_KEY`.
 - By default only stops missing `latitude`/`longitude` are geocoded; pass `--force` to re-geocode stops that already have coordinates.
 - `--delay-ms` (default `200`) throttles requests between stops to stay under Google's per-second quota; `--limit` caps how many stops are processed in one run.
 - Same `--auth-mode`/`--outputs-path`/`--username`/`--password` conventions as `import-prep.js`.

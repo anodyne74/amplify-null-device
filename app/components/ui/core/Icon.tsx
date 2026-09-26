@@ -39,6 +39,7 @@ import {
   KeyRound,
   Star,
   Send,
+  Flag,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -85,6 +86,7 @@ const ICONS: Record<string, LucideIcon> = {
   'key-round': KeyRound,
   star: Star,
   send: Send,
+  flag: Flag,
 };
 
 export interface IconProps extends Omit<React.SVGProps<SVGSVGElement>, 'name'> {

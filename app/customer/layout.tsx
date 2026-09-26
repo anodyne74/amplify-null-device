@@ -9,8 +9,12 @@ import { fetchUserDisplayName } from '@/lib/amplify-config';
 import { getUserSettings } from '@/lib/userSettings';
 import { CustomerPortalContextProvider, useCustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { useSessionTimeout, useLogout } from '@/app/auth/sessionManager';
+import { FeatureFlagsProvider, useFeatureFlags } from '@/lib/useFeatureFlags';
+import type { FeatureFlagName } from '@/lib/featureFlags';
+import type { CustomerNavItem } from '@/app/customer/components/CustomerShell';
 
-const CUSTOMER_NAV = [
+// featureFlag: the entry only shows while that Feature Flag is on for the Customer.
+const CUSTOMER_NAV: (CustomerNavItem & { featureFlag?: FeatureFlagName })[] = [
   { href: '/customer/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
   { href: '/customer/routes', label: 'Routes', icon: 'route' },
   { href: '/customer/invoices', label: 'Invoices', icon: 'file-text' },
@@ -35,7 +39,9 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     // data fetch, so showing the fuller nav briefly for the common
     // account-owner case beats flashing the reduced nav for everyone.
     <CustomerPortalContextProvider defaultRole="account_owner">
-      <CustomerLayoutContent>{children}</CustomerLayoutContent>
+      <FeatureFlagsProvider>
+        <CustomerLayoutContent>{children}</CustomerLayoutContent>
+      </FeatureFlagsProvider>
     </CustomerPortalContextProvider>
   );
 }
@@ -48,6 +54,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
   const [userDisplayName, setUserDisplayName] = useState('');
   const { role: customerRole } = useCustomerPortalContext();
+  const { isOn } = useFeatureFlags();
   const { logout } = useLogout();
 
   useSessionTimeout();
@@ -99,8 +106,13 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
   }, [userId]);
 
   const navItems = useMemo(
-    () => (customerRole === 'read_only' ? CUSTOMER_NAV.filter((item) => !READ_ONLY_HIDDEN_PATHS.includes(item.href)) : CUSTOMER_NAV),
-    [customerRole]
+    () =>
+      CUSTOMER_NAV.filter(
+        (item) =>
+          (customerRole !== 'read_only' || !READ_ONLY_HIDDEN_PATHS.includes(item.href)) &&
+          (!item.featureFlag || isOn(item.featureFlag))
+      ),
+    [customerRole, isOn]
   );
 
   return (

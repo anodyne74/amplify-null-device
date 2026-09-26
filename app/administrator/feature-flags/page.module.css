@@ -1,0 +1,47 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.emptyState {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.flag {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.stateRow {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.stateSelect {
+  width: 240px;
+}
+
+.note {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.customerList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-2) var(--space-4);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}

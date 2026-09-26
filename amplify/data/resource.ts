@@ -18,6 +18,7 @@ import { operatorStatusActivation } from '../functions/operator-status-activatio
  * - Administrator: Administrator profile details synced from Cognito
  * - UserSettings: Per-user UI preferences
  * - OrganizationSettings: Null Device's own invoice remittance details (single row)
+ * - FeatureFlagSetting: stored state of each Feature Flag (administrator-only)
  * - OperatorAvailabilityBlock: Days Null Device has no drivers available for a customer
  * - CustomerClosureBlock: Days a customer's agency is closed
  * - RateLine: Named, priced lines on a customer's rate card
@@ -444,11 +445,12 @@ const schema = a.schema({
       customerId: a.id(), // Optional: associated customer
       operatorId: a.id(), // Optional: user who performed action
       eventType: a.enum(['login', 'logout', 'access_denied', 'data_access', 'data_modification', 'data_deletion']),
-      resourceType: a.enum(['customer', 'route', 'invoice', 'payment', 'operator']),
+      resourceType: a.enum(['customer', 'route', 'invoice', 'payment', 'operator', 'feature_flag']),
       resourceId: a.id(),
       action: a.string().required(),
       status: a.enum(['success', 'failure']),
       reason: a.string(), // Why access was denied (if applicable)
+      details: a.json(), // Optional structured detail, e.g. a feature flag change's old/new state and affected Customers
       ipAddress: a.string(),
       userAgent: a.string(),
       timestamp: a.datetime().required(),
@@ -610,6 +612,27 @@ const schema = a.schema({
       // Read-only for operators: the Driver Sign Run flow's Load/Unload screens show
       // this row's `address` as the yard address (no dedicated yard field exists).
       allow.groups(['operator']).to(['read']),
+    ]),
+
+  /**
+   * FeatureFlagSetting - the stored state of one Feature Flag (CONTEXT.md, ADR 0005).
+   * The id is the flag name from lib/featureFlags.ts's registry; a registered flag
+   * with no row is Off. selectedCustomerIds is kept while the flag is Off so
+   * switching back to Selected restores it. Administrator-only: customers get just
+   * their on-flag names from /api/customer/feature-flags, and every change goes
+   * through /api/admin/feature-flags so it is audited.
+   */
+  FeatureFlagSetting: a
+    .model({
+      state: a.enum(['off', 'selected', 'everyone']),
+      selectedCustomerIds: a.id().array(),
+      everyoneSince: a.datetime(), // Set when the state moves to Everyone, cleared when it leaves
+      updatedBy: a.string(), // Cognito sub of the administrator who last changed it
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [
+      allow.groups(['administrator']).to(['read']),
     ]),
 }).authorization((allow) => [
   allow.resource(customerAccessActivation).to(['query', 'mutate']),

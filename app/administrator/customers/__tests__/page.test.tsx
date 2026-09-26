@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import CustomersAdminPage from '../page';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { createCustomer, listAllCustomerUsers, listAllCustomers, updateCustomer } from '@/lib/customers';
+import { listFeatureFlagSettings } from '@/lib/queries/FeatureFlagSettings';
 
 jest.mock('@/app/dashboard.module.css', () => ({}));
 
@@ -67,6 +68,26 @@ jest.mock('@/lib/invoices', () => ({
   listCustomerInvoices: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
 }));
 
+jest.mock('@/lib/queries/FeatureFlagSettings', () => ({
+  listFeatureFlagSettings: jest.fn(),
+}));
+
+// The registry ships empty (#297); register test-only flags.
+jest.mock('@/lib/featureFlags', () => {
+  const actual = jest.requireActual('@/lib/featureFlags');
+  const registry = {
+    alpha: { label: 'Alpha feature', description: '' },
+    beta: { label: 'Beta feature', description: '' },
+  };
+  return {
+    ...actual,
+    FEATURE_FLAGS: registry,
+    FEATURE_FLAG_NAMES: Object.keys(registry),
+    resolveOnFlags: (settings: unknown[], customerId: string) =>
+      actual.resolveOnFlags(settings, customerId, Object.keys(registry)),
+  };
+});
+
 describe('Operator Customers Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -78,6 +99,7 @@ describe('Operator Customers Page', () => {
     (createCustomer as jest.Mock).mockResolvedValue({ data: { id: 'c-new' }, errors: undefined });
     (updateCustomer as jest.Mock).mockResolvedValue({ data: { id: 'c-1' }, errors: undefined });
     (listAllCustomerUsers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listFeatureFlagSettings as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
   });
 
   it('submits create customer with standing instructions and defaults', async () => {
@@ -419,5 +441,44 @@ describe('Operator Customers Page', () => {
       expect(screen.getByText('Acme Corp')).toBeInTheDocument();
     });
     expect(screen.queryByText('Failed to load customers.')).not.toBeInTheDocument();
+  });
+  describe('feature flags on summary', () => {
+    async function openAcme() {
+      (listAllCustomers as jest.Mock).mockResolvedValue({
+        data: [{ id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', status: 'active', addressLine1: '1 St' }],
+        errors: undefined,
+      });
+      render(<CustomersAdminPage />);
+      fireEvent.click(await screen.findByRole('button', { name: /configure customer acme corp/i }));
+      await screen.findByRole('heading', { name: /configure — acme corp/i });
+    }
+
+    it('lists the flags on for the Customer, resolved the shared way', async () => {
+      (listFeatureFlagSettings as jest.Mock).mockResolvedValue({
+        data: [
+          { id: 'alpha', state: 'selected', selectedCustomerIds: ['c-1'] },
+          { id: 'beta', state: 'selected', selectedCustomerIds: ['c-2'] },
+          { id: 'retired', state: 'everyone' },
+        ],
+        errors: undefined,
+      });
+      await openAcme();
+
+      const list = await screen.findByRole('list', { name: 'Feature flags on' });
+      expect(within(list).getByText('Alpha feature')).toBeInTheDocument();
+      expect(within(list).queryByText('Beta feature')).not.toBeInTheDocument();
+      expect(within(list).queryByText('retired')).not.toBeInTheDocument();
+    });
+
+    it('says so when no flags are on', async () => {
+      await openAcme();
+      expect(await screen.findByText(/this Customer sees no flagged features/)).toBeInTheDocument();
+    });
+
+    it('says so when the flags cannot be read', async () => {
+      (listFeatureFlagSettings as jest.Mock).mockResolvedValue({ data: [], errors: [new Error('boom')] });
+      await openAcme();
+      expect(await screen.findByText('Could not load feature flags.')).toBeInTheDocument();
+    });
   });
 });

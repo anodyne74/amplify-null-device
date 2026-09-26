@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { geocodePlaceId } from '@/lib/googleMaps';
+import type { GeocodedLocation } from '@/lib/locationPrecision';
 import styles from './AddressAutocompleteInput.module.css';
 
-export interface ResolvedAddress {
-  formattedAddress: string;
-  latitude: number;
-  longitude: number;
-}
+/** An autocomplete pick, geocoded by place ID so it carries its Location Precision. */
+export type ResolvedAddress = GeocodedLocation;
 
 interface Prediction {
   placeId: string;
@@ -178,39 +177,7 @@ export function AddressAutocompleteInput({
     }
 
     try {
-      const response = await fetch(
-        `https://places.googleapis.com/v1/places/${encodeURIComponent(prediction.placeId)}`,
-        {
-          headers: {
-            'X-Goog-Api-Key': apiKey,
-            'X-Goog-FieldMask': 'formattedAddress,location',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        let details = '';
-        try {
-          const payload = await response.json();
-          details = payload?.error?.message || '';
-        } catch {
-          // no-op: response body may not be JSON
-        }
-        throw new Error(
-          `Failed to resolve selected address coordinates (${response.status}).${details ? ` ${details}` : ''}`
-        );
-      }
-
-      const payload = await response.json();
-      const latitude = payload?.location?.latitude;
-      const longitude = payload?.location?.longitude;
-      const formattedAddress = payload?.formattedAddress ?? prediction.description;
-
-      if (typeof latitude === 'number' && typeof longitude === 'number') {
-        onResolved({ formattedAddress, latitude, longitude });
-      } else {
-        onResolved(null);
-      }
+      onResolved(await geocodePlaceId(prediction.placeId));
     } catch (error) {
       onResolved(null);
       setLoadError(

@@ -6,7 +6,6 @@ import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import PageHeader from '@/app/administrator/components/PageHeader';
-import { createInvoice, createLineItem } from '@/lib/queries';
 import InvoiceCreateForm from '@/app/administrator/invoices/components/InvoiceCreateForm';
 import InvoicePreview from '@/app/administrator/invoices/components/InvoicePreview';
 import { useInvoiceBillingSettings } from '@/app/administrator/invoices/hooks/useInvoiceBillingSettings';
@@ -18,6 +17,7 @@ import { useInvoicesDataState } from '@/app/administrator/invoices/hooks/useInvo
 import { buildLineItemInputs } from '@/app/administrator/invoices/rateLineHelpers';
 import styles from '../page.module.css';
 import { updateCustomer } from '@/lib/customers';
+import { createInvoice, createLineItem } from '@/lib/invoices';
 
 function GenerateInvoiceContent() {
   const router = useRouter();

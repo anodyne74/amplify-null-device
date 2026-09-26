@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { Route } from '@/amplify/types';
 import type { CustomerOption, Invoice } from '@/app/administrator/invoices/types';
-import { listInvoices } from '@/lib/queries';
 import { listAllRoutes } from '@/lib/routes';
 import { listCustomerUsers, listAllCustomers } from '@/lib/customers';
+import { listInvoices } from '@/lib/invoices';
 
 type UseInvoicesDataStateParams = {
   customerId: string;

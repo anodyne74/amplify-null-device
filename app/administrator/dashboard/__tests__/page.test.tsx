@@ -2,9 +2,9 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import AdminHomePage from '../page';
-import { listInvoices } from '@/lib/queries';
 import { listAllRoutes, listAllStops } from '@/lib/routes';
 import { listAllCustomers, listCustomerUsers } from '@/lib/customers';
+import { listInvoices } from '@/lib/invoices';
 
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
@@ -21,7 +21,7 @@ jest.mock('@/lib/customers', () => ({
   listCustomerUsers: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/invoices', () => ({
   listInvoices: jest.fn(),
 }));
 

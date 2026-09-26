@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getInvoiceDetail, type InvoiceDetail } from '@/lib/queries/GetInvoiceDetail';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { buildInvoiceFileName } from '@/lib/invoiceFileName';
 import InvoiceLineItems from '@/app/customer/components/InvoiceLineItems';
@@ -13,6 +12,7 @@ import { InvoiceStatusPill } from '@/app/customer/components/InvoiceListItem';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import styles from './_InvoiceDetailContent.module.css';
+import { getInvoiceDetail, type InvoiceDetail } from '@/lib/invoices';
 
 interface InvoiceDetailContentProps {
   params: {

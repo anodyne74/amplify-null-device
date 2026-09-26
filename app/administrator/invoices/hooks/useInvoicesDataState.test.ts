@@ -1,9 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { useInvoicesDataState } from '@/app/administrator/invoices/hooks/useInvoicesDataState';
-import { listInvoices } from '@/lib/queries';
 import { listAllRoutes } from '@/lib/routes';
 import { listCustomerUsers, listAllCustomers } from '@/lib/customers';
+import { listInvoices } from '@/lib/invoices';
 
 jest.mock('@/lib/routes', () => ({
   listAllRoutes: jest.fn(),
@@ -14,7 +14,7 @@ jest.mock('@/lib/customers', () => ({
   listAllCustomers: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/invoices', () => ({
   listInvoices: jest.fn(),
 }));
 

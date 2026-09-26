@@ -2,7 +2,7 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import InvoicesPage from '../page';
-import * as listMyInvoicesModule from '@/lib/queries/ListMyInvoices';
+import * as listMyInvoicesModule from '@/lib/invoices';
 import { getCustomerPortalContext, getCustomer } from '@/lib/customers';
 
 // Mock the router

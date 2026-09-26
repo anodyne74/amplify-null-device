@@ -3,8 +3,8 @@ import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import CustomerDashboard from '../page';
 import { useLiveRoutes } from '@/lib/useLiveRoutes';
-import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { getCustomer, getCustomerPortalContext } from '@/lib/customers';
+import { listMyInvoices } from '@/lib/invoices';
 
 jest.mock('@/app/dashboard.module.css', () => ({}));
 
@@ -26,7 +26,7 @@ jest.mock('@/lib/useLiveRoutes', () => ({
   useLiveRoutes: jest.fn(),
 }));
 
-jest.mock('@/lib/queries/ListMyInvoices', () => ({
+jest.mock('@/lib/invoices', () => ({
   listMyInvoices: jest.fn(),
 }));
 

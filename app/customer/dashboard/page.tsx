@@ -9,7 +9,6 @@ import { getUserSettings } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { useLiveRoutes } from '@/lib/useLiveRoutes';
 import { unwrapOrThrow } from '@/lib/graphqlResult';
-import { listMyInvoices } from '@/lib/queries/ListMyInvoices';
 import { listCustomerStops } from '@/lib/routes';
 import { formatCurrency } from '@/lib/dashboardAnalytics';
 import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
@@ -35,6 +34,7 @@ import { StatTile } from '@/app/components/ui/data/StatTile';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import styles from './page.module.css';
 import { getCustomer } from '@/lib/customers';
+import { listMyInvoices } from '@/lib/invoices';
 
 function presentationOf(route: OverviewRoute) {
   return getRouteStatusPresentation(route as unknown as RoutePhaseInput);

@@ -8,6 +8,7 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { RouteStatusPill } from '@/app/customer/components/RouteListItem';
 import RouteCard from '@/app/customer/components/RouteCard';
+import CustomerPagination from '@/app/customer/components/CustomerPagination';
 import { Card } from '@/app/components/ui/core/Card';
 import { Tag } from '@/app/components/ui/core/Tag';
 import { Input } from '@/app/components/ui/forms/Input';
@@ -16,6 +17,7 @@ import type { Route } from '@/amplify/types';
 import { compareRouteIdDesc, formatEstimatedDurationMinutes, getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
 import { formatRouteDate } from '@/lib/routeDetailHelpers';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
+import { getPageSlice } from '@/lib/pagination';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS, type RoutePhaseKey } from '@/lib/signRunPhase';
 import styles from './page.module.css';
 
@@ -47,6 +49,7 @@ export default function CustomerRoutesPage() {
   const [filteredRoutes, setFilteredRoutes] = useState<Route[]>([]);
   const [statusFilter, setStatusFilter] = useState<ChipFilter>('all');
   const [searchText, setSearchText] = useState('');
+  const [page, setPage] = useState(1);
   const isNarrow = useIsNarrowViewport(NARROW_LIST_BREAKPOINT_PX);
 
   // Apply filtering and sorting
@@ -68,6 +71,18 @@ export default function CustomerRoutesPage() {
 
     setFilteredRoutes(filtered);
   }, [routes, statusFilter, searchText]);
+
+  // Only a filter or search change starts again from page 1; live updates to
+  // `routes` keep the page, which getPageSlice clamps if it no longer exists.
+  const handleStatusChange = (status: ChipFilter) => {
+    setStatusFilter(status);
+    setPage(1);
+  };
+  const handleSearchChange = (value: string) => {
+    setSearchText(value);
+    setPage(1);
+  };
+  const { currentPage, pageRows } = getPageSlice(filteredRoutes, page);
 
   if (loading) {
     return <LoadingSpinner message="Loading routes..." />;
@@ -120,7 +135,7 @@ export default function CustomerRoutesPage() {
         <div className={styles.filtersRow}>
           <div className={styles.chips}>
             {STATUS_CHIPS.map((chip) => (
-              <Tag key={chip.id} selected={statusFilter === chip.id} onClick={() => setStatusFilter(chip.id)}>
+              <Tag key={chip.id} selected={statusFilter === chip.id} onClick={() => handleStatusChange(chip.id)}>
                 {chip.label}
               </Tag>
             ))}
@@ -131,7 +146,7 @@ export default function CustomerRoutesPage() {
               aria-label="Search route code"
               iconLeft="search"
               value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search route code"
             />
           </div>
@@ -140,7 +155,7 @@ export default function CustomerRoutesPage() {
         {isNarrow ? (
           filteredRoutes.length > 0 ? (
             <div className={styles.cardList}>
-              {filteredRoutes.map((route) => (
+              {pageRows.map((route) => (
                 <RouteCard key={route.id} route={route} />
               ))}
             </div>
@@ -151,13 +166,19 @@ export default function CustomerRoutesPage() {
           )
         ) : (
           <Card padded={false}>
-            <DataTable columns={columns} rows={filteredRoutes} wrapped={false} empty="No routes found." />
+            <DataTable columns={columns} rows={pageRows} wrapped={false} empty="No routes found." />
           </Card>
         )}
 
+        <CustomerPagination
+          page={currentPage}
+          totalItems={filteredRoutes.length}
+          onPageChange={setPage}
+          itemsLabel="routes"
+        />
+
         <div className={styles.summary}>
-          <p>Showing {filteredRoutes.length} routes</p>
-          <p className={styles.summarySubtext}>Click on any route to view details and stops</p>
+          <p className={styles.summaryHint}>Click on any route to view details and stops</p>
         </div>
       </div>
     </ProtectedRoute>

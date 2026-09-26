@@ -41,6 +41,41 @@ export async function listCustomerRoutes(
 }
 
 /**
+ * Route Codes by route ID, for screens that only need to label a route (the
+ * customer invoice list). A label must never stop the caller loading, so a
+ * failed lookup returns what it could read, and callers fall back to a short ID.
+ */
+export async function listCustomerRouteCodes(customerId: string): Promise<Map<string, string>> {
+  const codes = new Map<string, string>();
+  try {
+    const { data, errors } = await listAll(getDataClient(), 'Route', {
+      filter: { customerId: { eq: customerId } },
+      selectionSet: ['id', 'routeCode'],
+    });
+    if (errors.length > 0) {
+      console.warn('Some route codes could not be read:', errors);
+    }
+    for (const route of data) {
+      if (route.id && route.routeCode) codes.set(route.id, route.routeCode);
+    }
+  } catch (error) {
+    console.warn('Could not read route codes:', error);
+  }
+  return codes;
+}
+
+/** One route's Route Code; undefined when it has none or can't be read. */
+export async function getRouteCode(routeId: string): Promise<string | undefined> {
+  try {
+    const { data } = await getDataClient().models.Route.get({ id: routeId }, { selectionSet: ['id', 'routeCode'] });
+    return data?.routeCode || undefined;
+  } catch (error) {
+    console.warn('Could not read route code:', error);
+    return undefined;
+  }
+}
+
+/**
  * Fetches every Stop for a route (see lib/listAll.ts for why one page isn't
  * enough).
  */

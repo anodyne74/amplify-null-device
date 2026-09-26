@@ -11,16 +11,19 @@ import { Tag } from '@/app/components/ui/core/Tag';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
+import CustomerPagination from '@/app/customer/components/CustomerPagination';
 import type { Invoice } from '@/amplify/types';
 import { formatInvoiceCurrency } from '@/lib/format';
+import {
+  buildInvoicesCsv,
+  compareInvoiceDateDesc,
+  formatInvoiceDate,
+  getInvoiceRouteLabel,
+} from '@/lib/customerInvoiceList';
+import { getPageSlice } from '@/lib/pagination';
 import styles from './page.module.css';
 import { getCustomer } from '@/lib/customers';
 import { listMyInvoices } from '@/lib/invoices';
-
-function formatDate(dateString?: string | null) {
-  if (!dateString) return 'N/A';
-  return new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-}
 
 type StatusFilter = 'all' | 'draft' | 'sent' | 'paid';
 
@@ -31,23 +34,11 @@ const STATUS_CHIPS: { id: StatusFilter; label: string }[] = [
   { id: 'paid', label: 'Paid' },
 ];
 
-function csvEscape(value: string) {
-  return `"${value.replace(/"/g, '""')}"`;
-}
+// Invoice plus the Route Code listMyInvoices resolves for it.
+type InvoiceRow = Invoice & { routeCode?: string | null };
 
-function downloadInvoicesCsv(invoices: Invoice[]) {
-  const header = ['Invoice #', 'Route ID', 'Date', 'Period start', 'Period end', 'Amount', 'Status'];
-  const rows = invoices.map((invoice) => [
-    invoice.invoiceNumber || invoice.id,
-    invoice.routeId || '',
-    formatDate(invoice.invoiceDate),
-    formatDate(invoice.periodStartDate),
-    formatDate(invoice.periodEndDate),
-    formatInvoiceCurrency(invoice.totalAmount),
-    invoice.status || '',
-  ]);
-
-  const csv = [header, ...rows].map((row) => row.map((cell) => csvEscape(String(cell))).join(',')).join('\r\n');
+function downloadInvoicesCsv(invoices: InvoiceRow[]) {
+  const csv = buildInvoicesCsv(invoices);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -79,12 +70,13 @@ export default function InvoicesPage() {
   } = useCustomerPortalContext({ fetchData: fetchCustomerName });
   const readOnly = role === 'read_only';
 
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [invoicesLoading, setInvoicesLoading] = useState(true);
   const [invoicesError, setInvoicesError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     if (!userId || !customerId || readOnly) {
@@ -112,7 +104,7 @@ export default function InvoicesPage() {
           setInvoicesError(message?.includes('reviewer users cannot view invoices') ? 'Access denied' : 'Failed to load invoices');
           console.error('Error fetching invoices:', result.errors);
         } else {
-          setInvoices((result.data as Invoice[]) || []);
+          setInvoices((result.data as InvoiceRow[]) || []);
         }
       } catch (err) {
         if (!cancelled) {
@@ -136,9 +128,24 @@ export default function InvoicesPage() {
   const loading = contextLoading || invoicesLoading;
   const error = invoicesError || contextError;
 
+  // Any filter change starts the list again from its first page.
+  const handleStatusChange = (status: StatusFilter) => {
+    setStatusFilter(status);
+    setPage(1);
+  };
+  const handleStartDateChange = (value: string) => {
+    setStartDate(value);
+    setPage(1);
+  };
+  const handleEndDateChange = (value: string) => {
+    setEndDate(value);
+    setPage(1);
+  };
+
   const handleClearFilters = () => {
     setStartDate('');
     setEndDate('');
+    setPage(1);
   };
 
   if (loading) {
@@ -157,9 +164,12 @@ export default function InvoicesPage() {
     );
   }
 
-  const filteredInvoices = invoices.filter((invoice) => statusFilter === 'all' || invoice.status === statusFilter);
+  const filteredInvoices = invoices
+    .filter((invoice) => statusFilter === 'all' || invoice.status === statusFilter)
+    .sort(compareInvoiceDateDesc);
+  const { currentPage, pageRows } = getPageSlice(filteredInvoices, page);
 
-  const columns: DataColumn<Invoice>[] = [
+  const columns: DataColumn<InvoiceRow>[] = [
     {
       key: 'id',
       header: 'Invoice #',
@@ -174,16 +184,16 @@ export default function InvoicesPage() {
       header: 'Route',
       render: (invoice) =>
         invoice.routeId ? (
-          <a href={`/customer/routes/${invoice.routeId}`}>View Route</a>
+          <a href={`/customer/routes/${invoice.routeId}`}>{getInvoiceRouteLabel(invoice)}</a>
         ) : (
           <span style={{ color: 'var(--text-subtle)' }}>—</span>
         ),
     },
-    { key: 'date', header: 'Date', render: (invoice) => formatDate(invoice.invoiceDate) },
+    { key: 'date', header: 'Date', render: (invoice) => formatInvoiceDate(invoice.invoiceDate) },
     {
       key: 'period',
       header: 'Period',
-      render: (invoice) => `${formatDate(invoice.periodStartDate)} – ${formatDate(invoice.periodEndDate)}`,
+      render: (invoice) => `${formatInvoiceDate(invoice.periodStartDate)} – ${formatInvoiceDate(invoice.periodEndDate)}`,
     },
     { key: 'total', header: 'Amount', numeric: true, render: (invoice) => formatInvoiceCurrency(invoice.totalAmount) },
     { key: 'status', header: 'Status', render: (invoice) => <InvoiceStatusPill status={invoice.status} /> },
@@ -201,7 +211,7 @@ export default function InvoicesPage() {
 
       <div className={styles.chipsRow}>
         {STATUS_CHIPS.map((chip) => (
-          <Tag key={chip.id} selected={statusFilter === chip.id} onClick={() => setStatusFilter(chip.id)}>
+          <Tag key={chip.id} selected={statusFilter === chip.id} onClick={() => handleStatusChange(chip.id)}>
             {chip.label}
           </Tag>
         ))}
@@ -218,10 +228,10 @@ export default function InvoicesPage() {
 
       <div className={styles.filterSection}>
         <Field label="Start date" htmlFor="sd">
-          <Input id="sd" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <Input id="sd" type="date" value={startDate} onChange={(e) => handleStartDateChange(e.target.value)} />
         </Field>
         <Field label="End date" htmlFor="ed">
-          <Input id="ed" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          <Input id="ed" type="date" value={endDate} onChange={(e) => handleEndDateChange(e.target.value)} />
         </Field>
         <Button variant="secondary" onClick={handleClearFilters}>
           Clear filters
@@ -233,7 +243,7 @@ export default function InvoicesPage() {
       <Card padded={false}>
         <DataTable
           columns={columns}
-          rows={filteredInvoices}
+          rows={pageRows}
           wrapped={false}
           empty={
             <div>
@@ -246,11 +256,12 @@ export default function InvoicesPage() {
         />
       </Card>
 
-      {filteredInvoices.length > 0 && (
-        <div className={styles.footerSummary}>
-          Showing {filteredInvoices.length} invoice{filteredInvoices.length !== 1 ? 's' : ''}
-        </div>
-      )}
+      <CustomerPagination
+        page={currentPage}
+        totalItems={filteredInvoices.length}
+        onPageChange={setPage}
+        itemsLabel="invoices"
+      />
     </div>
   );
 }

@@ -39,7 +39,7 @@ export default function OperatorUnloadPage() {
   const {
     routeId,
     route,
-    setRoute,
+    patchRoute,
     stops,
     loading,
     phaseInfo,
@@ -68,7 +68,7 @@ export default function OperatorUnloadPage() {
       return;
     }
 
-    setRoute(result.route);
+    patchRoute(result.route);
     closeDialog();
   };
 

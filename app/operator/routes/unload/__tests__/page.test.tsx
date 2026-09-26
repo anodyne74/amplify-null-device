@@ -10,6 +10,11 @@ import type { Route, Stop } from '@/amplify/types';
 const push = jest.fn();
 let searchParamId: string | null = 'route-1';
 
+// The live feed is inert here; these tests drive the screen through the fetch.
+jest.mock('@/lib/routeWithStopsFeed', () => ({
+  subscribeRouteWithStops: () => () => {},
+}));
+
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
   useSearchParams: () => ({ get: (key: string) => (key === 'id' ? searchParamId : null) }),

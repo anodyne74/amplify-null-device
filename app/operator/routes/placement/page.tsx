@@ -68,9 +68,9 @@ export default function OperatorPlacementPage() {
   const {
     routeId,
     route,
-    setRoute,
+    patchRoute,
     stops,
-    setStops,
+    patchStop,
     extra: customerName,
     loading,
     phaseInfo,
@@ -97,7 +97,7 @@ export default function OperatorPlacementPage() {
       return;
     }
 
-    setRoute(result.route);
+    patchRoute(result.route);
     closeDialog();
   };
 
@@ -121,12 +121,12 @@ export default function OperatorPlacementPage() {
       if ('error' in result) {
         setError(result.error);
       } else {
-        setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, ...result.patch } : s)));
+        patchStop(stopId, result.patch);
       }
       setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
       return !('error' in result);
     },
-    [stops, setStops]
+    [stops, patchStop]
   );
 
   const handleStopCompleted = useCallback((stopId: string) => settleStop(stopId, 'complete'), [settleStop]);

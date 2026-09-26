@@ -2,27 +2,21 @@
  * List all routes (for operators, no customer filter)
  */
 import { getDataClient } from '@/lib/data-client';
+import { listAll } from '@/lib/listAll';
 
-export interface ListAllRoutesParams {
-  limit?: number;
-  nextToken?: string;
-}
-
-export async function listAllRoutes(params?: ListAllRoutesParams) {
+/** Every Route, paginated through to the end -- see lib/listAll.ts. */
+export async function listAllRoutes() {
   try {
-    const { data, errors, nextToken } = await getDataClient().models.Route.list({
-      limit: params?.limit || 50,
-      nextToken: params?.nextToken,
-    });
+    const { data, errors } = await listAll(getDataClient(), 'Route');
 
-    if (errors) {
+    if (errors.length > 0) {
       console.error('Errors fetching routes:', errors);
-      return { data: [], errors, nextToken: undefined };
+      return { data: [], errors };
     }
 
-    return { data: data || [], errors: undefined, nextToken };
+    return { data, errors: undefined };
   } catch (error) {
     console.error('Error listing all routes:', error);
-    return { data: [], errors: [error as Error], nextToken: undefined };
+    return { data: [], errors: [error as Error] };
   }
 }

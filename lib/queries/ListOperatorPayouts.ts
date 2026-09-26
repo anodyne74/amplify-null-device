@@ -2,28 +2,21 @@
  * List operator payouts (admin — cross-customer, cross-operator)
  */
 import { getDataClient } from '@/lib/data-client';
+import { listAll } from '@/lib/listAll';
 
-export interface ListOperatorPayoutsParams {
-  limit?: number;
-  nextToken?: string;
-}
-
-export async function listOperatorPayouts(params?: ListOperatorPayoutsParams) {
+export async function listOperatorPayouts() {
   try {
-    const { data, errors, nextToken } = await getDataClient().models.OperatorPayout.list({
-      limit: params?.limit || 200,
-      nextToken: params?.nextToken,
-    });
+    const { data, errors } = await listAll(getDataClient(), 'OperatorPayout');
 
-    if (errors) {
+    if (errors.length > 0) {
       console.error('Errors fetching operator payouts:', errors);
-      return { data: [], errors, nextToken: undefined };
+      return { data: [], errors };
     }
 
-    const sorted = [...(data || [])].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-    return { data: sorted, errors: undefined, nextToken };
+    const sorted = [...data].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    return { data: sorted, errors: undefined };
   } catch (error) {
     console.error('Error listing operator payouts:', error);
-    return { data: [], errors: [error as Error], nextToken: undefined };
+    return { data: [], errors: [error as Error] };
   }
 }

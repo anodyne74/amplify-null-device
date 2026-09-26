@@ -158,7 +158,7 @@ function RouteEditContent() {
 
       const [routeResult, customersResult, operatorsResult] = await Promise.all([
         getRouteDetail(routeId),
-        listAllCustomers({ limit: 200 }),
+        listAllCustomers(),
         callAdminApi({ action: 'listUsersInGroup', groupName: 'operator' }).catch(() => ({ users: [] })),
       ]);
 

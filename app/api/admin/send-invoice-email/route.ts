@@ -5,6 +5,7 @@ import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
 import { APP_DOMAIN } from '@/lib/publicAppConfig';
 import { buildInvoiceFileName } from '@/lib/invoiceFileName';
+import { listAll } from '@/lib/listAll';
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
 function sanitizeNamePart(value: string, fallback: string) {
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
     let toEmail = recipientEmail;
     if (!toEmail) {
       // Try to find primary contact (account_owner role)
-      const usersResult = await client.models.CustomerUser.list({
+      const usersResult = await listAll(client, 'CustomerUser', {
         filter: { customerId: { eq: invoice.customerId } },
       });
       const customerUsers = (usersResult.data as Array<{ role?: string | null; email?: string | null }> | undefined) || [];

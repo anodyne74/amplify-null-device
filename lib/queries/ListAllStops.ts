@@ -2,27 +2,21 @@
  * List all stops (for admin dashboard aggregation — signs in field, stops serviced)
  */
 import { getDataClient } from '@/lib/data-client';
+import { listAll } from '@/lib/listAll';
 
-export interface ListAllStopsParams {
-  limit?: number;
-  nextToken?: string;
-}
-
-export async function listAllStops(params?: ListAllStopsParams) {
+/** Every Stop, paginated through to the end -- see lib/listAll.ts. */
+export async function listAllStops() {
   try {
-    const { data, errors, nextToken } = await getDataClient().models.Stop.list({
-      limit: params?.limit || 100,
-      nextToken: params?.nextToken,
-    });
+    const { data, errors } = await listAll(getDataClient(), 'Stop');
 
-    if (errors) {
+    if (errors.length > 0) {
       console.error('Errors fetching stops:', errors);
-      return { data: [], errors, nextToken: undefined };
+      return { data: [], errors };
     }
 
-    return { data: data || [], errors: undefined, nextToken };
+    return { data, errors: undefined };
   } catch (error) {
     console.error('Error listing all stops:', error);
-    return { data: [], errors: [error as Error], nextToken: undefined };
+    return { data: [], errors: [error as Error] };
   }
 }

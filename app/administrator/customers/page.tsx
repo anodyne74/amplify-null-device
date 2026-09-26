@@ -181,23 +181,15 @@ export default function CustomersAdminPage() {
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    const allCustomers: Customer[] = [];
-    let nextToken: string | undefined;
+    const result = await listCustomers();
+    if (result.errors && result.errors.length > 0) {
+      setLoadError('Failed to load customers.');
+      setCustomers([]);
+      setLoading(false);
+      return;
+    }
 
-    do {
-      const result = await listCustomers({ limit: 100, nextToken });
-      if (result.errors && result.errors.length > 0) {
-        setLoadError('Failed to load customers.');
-        setCustomers([]);
-        setLoading(false);
-        return;
-      }
-
-      allCustomers.push(...((result.data as Customer[]) ?? []));
-      nextToken = result.nextToken ?? undefined;
-    } while (nextToken);
-
-    setCustomers(allCustomers);
+    setCustomers(result.data as Customer[]);
     setLoading(false);
   }, []);
 
@@ -220,8 +212,8 @@ export default function CustomersAdminPage() {
 
     const [usersResult, routesResult, invoicesResult] = await Promise.all([
       listCustomerUsers(customer.id),
-      listCustomerRoutes(customer.id, { limit: 5 }),
-      listCustomerInvoices(customer.id, { limit: 5 }),
+      listCustomerRoutes(customer.id),
+      listCustomerInvoices(customer.id),
     ]);
 
     const users = (usersResult.errors && usersResult.errors.length > 0 ? [] : usersResult.data) as CustomerUser[];

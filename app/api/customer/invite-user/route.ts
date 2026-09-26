@@ -4,6 +4,7 @@ import type { IamDataClient } from '@/lib/server/iamDataClient';
 import outputs from '@/amplify_outputs.json';
 import { createOrGetCognitoUser } from '@/app/api/admin/users/route';
 import { sendInvitationEmail } from '@/lib/emails/invitationEmail';
+import { listAll } from '@/lib/listAll';
 
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
 
@@ -20,17 +21,15 @@ function emailDomain(email: string): string {
  * covers Route/Stop), so this is kept as its own copy rather than a shared
  * import across those boundaries. Worth consolidating in a future cleanup PR. */
 async function syncViewerSubsForCustomer(client: IamDataClient, customerId: string, viewerSubs: string[]) {
-  const { data: routes } = await client.models.Route.list({
+  const { data: routes } = await listAll(client, 'Route', {
     filter: { customerId: { eq: customerId } },
-    limit: 1000,
   });
   for (const route of routes || []) {
     if (!route?.id) continue;
     await client.models.Route.update({ id: route.id, viewerSubs });
 
-    const { data: stops } = await client.models.Stop.list({
+    const { data: stops } = await listAll(client, 'Stop', {
       filter: { routeId: { eq: route.id } },
-      limit: 1000,
     });
     for (const stop of stops || []) {
       if (!stop?.id) continue;
@@ -38,27 +37,24 @@ async function syncViewerSubsForCustomer(client: IamDataClient, customerId: stri
     }
   }
 
-  const { data: invoices } = await client.models.Invoice.list({
+  const { data: invoices } = await listAll(client, 'Invoice', {
     filter: { customerId: { eq: customerId } },
-    limit: 1000,
   });
   for (const invoice of invoices || []) {
     if (!invoice?.id) continue;
     await client.models.Invoice.update({ id: invoice.id, viewerSubs });
   }
 
-  const { data: lineItems } = await client.models.LineItem.list({
+  const { data: lineItems } = await listAll(client, 'LineItem', {
     filter: { customerId: { eq: customerId } },
-    limit: 1000,
   });
   for (const lineItem of lineItems || []) {
     if (!lineItem?.id) continue;
     await client.models.LineItem.update({ id: lineItem.id, viewerSubs });
   }
 
-  const { data: paymentRecords } = await client.models.PaymentRecord.list({
+  const { data: paymentRecords } = await listAll(client, 'PaymentRecord', {
     filter: { customerId: { eq: customerId } },
-    limit: 1000,
   });
   for (const paymentRecord of paymentRecords || []) {
     if (!paymentRecord?.id) continue;
@@ -94,9 +90,8 @@ export async function POST(request: NextRequest) {
     // The caller's own CustomerUser row -- never trust a client-supplied customerId,
     // this is the only source of truth for which customer they belong to, and their
     // own role must be account_owner to invite anyone.
-    const { data: ownRows } = await client.models.CustomerUser.list({
+    const { data: ownRows } = await listAll(client, 'CustomerUser', {
       filter: { userSub: { eq: claims.sub } },
-      limit: 100,
     });
     const ownRow = (ownRows || []).find((row) => row?.customerId);
     if (!ownRow?.customerId) {
@@ -122,9 +117,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { data: existingRows } = await client.models.CustomerUser.list({
+    const { data: existingRows } = await listAll(client, 'CustomerUser', {
       filter: { customerId: { eq: customerId } },
-      limit: 1000,
     });
     const alreadyInvited = (existingRows || []).some(
       (row) => (row.email || '').trim().toLowerCase() === normalizedEmail

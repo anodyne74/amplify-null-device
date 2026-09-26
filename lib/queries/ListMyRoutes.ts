@@ -1,35 +1,32 @@
 /**
- * List customer's routes with pagination
+ * List every route for a customer
  * Used to display route list in customer portal
  */
 import { getDataClient } from '@/lib/data-client';
+import { listAll } from '@/lib/listAll';
 
 export interface ListMyRoutesParams {
-  limit?: number;
-  nextToken?: string;
   customerId: string;
 }
 
 export async function listMyRoutes(params: ListMyRoutesParams) {
   try {
-    const { data, errors, nextToken } = await getDataClient().models.Route.list({
+    const { data, errors } = await listAll(getDataClient(), 'Route', {
       filter: {
         customerId: {
           eq: params.customerId,
         },
       },
-      limit: params.limit || 20,
-      nextToken: params.nextToken,
     });
 
-    if (errors) {
+    if (errors.length > 0) {
       console.error('Errors fetching routes:', errors);
-      return { data: [], errors, nextToken: undefined };
+      return { data: [], errors };
     }
 
-    return { data: data || [], errors: undefined, nextToken };
+    return { data, errors: undefined };
   } catch (error) {
     console.error('Error listing customer routes:', error);
-    return { data: [], errors: [error as Error], nextToken: undefined };
+    return { data: [], errors: [error as Error] };
   }
 }

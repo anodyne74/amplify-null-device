@@ -4,10 +4,9 @@
  */
 import { getCustomerPortalContext } from '@/lib/queries';
 import { getDataClient } from '@/lib/data-client';
+import { listAll } from '@/lib/listAll';
 
 export interface ListMyInvoicesParams {
-  limit?: number;
-  nextToken?: string;
   customerId: string;
   userSub?: string;
   startDate?: string; // ISO 8601 format (YYYY-MM-DD)
@@ -22,7 +21,6 @@ export async function listMyInvoices(params: ListMyInvoicesParams) {
         return {
           data: [],
           errors: [new Error('Access denied: reviewer users cannot view invoices.')],
-          nextToken: undefined,
         };
       }
     }
@@ -45,20 +43,18 @@ export async function listMyInvoices(params: ListMyInvoicesParams) {
       }
     }
 
-    const { data, errors, nextToken } = await getDataClient().models.Invoice.list({
+    const { data, errors } = await listAll(getDataClient(), 'Invoice', {
       filter,
-      limit: params.limit || 20,
-      nextToken: params.nextToken,
     });
 
-    if (errors) {
+    if (errors.length > 0) {
       console.error('Errors fetching invoices:', errors);
-      return { data: [], errors, nextToken: undefined };
+      return { data: [], errors };
     }
 
-    return { data: data || [], errors: undefined, nextToken };
+    return { data, errors: undefined };
   } catch (error) {
     console.error('Error listing customer invoices:', error);
-    return { data: [], errors: [error as Error], nextToken: undefined };
+    return { data: [], errors: [error as Error] };
   }
 }

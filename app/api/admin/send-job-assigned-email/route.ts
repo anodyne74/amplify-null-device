@@ -3,6 +3,7 @@ import { SendTemplatedEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
 import { APP_DOMAIN } from '@/lib/publicAppConfig';
+import { listAll } from '@/lib/listAll';
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
 
@@ -56,23 +57,7 @@ export async function POST(request: NextRequest) {
     const customerResult = await client.models.Customer.get({ id: route.customerId });
     const customer = customerResult.data as { name?: string | null } | null;
 
-    // Paginate rather than relying on a single large `limit` -- Stop.list's
-    // `limit` caps items *scanned* before the routeId filter is applied, not
-    // items *matched*, so a route's stops can span multiple pages even well
-    // under that cap.
-    const stops: unknown[] = [];
-    let stopsNextToken: string | undefined;
-    do {
-      const { data: stopsPage, nextToken: pageNextToken } = await client.models.Stop.list({
-        filter: { routeId: { eq: routeId } },
-        nextToken: stopsNextToken,
-        limit: 200,
-      });
-      if (stopsPage && stopsPage.length > 0) {
-        stops.push(...stopsPage);
-      }
-      stopsNextToken = pageNextToken ?? undefined;
-    } while (stopsNextToken);
+    const { data: stops } = await listAll(client, 'Stop', { filter: { routeId: { eq: routeId } } });
 
     const configuredLogoUrl = process.env.SES_EMAIL_LOGO_URL?.trim();
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();

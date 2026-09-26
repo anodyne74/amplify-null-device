@@ -21,7 +21,7 @@ export default function AdministratorCalendarPage() {
   useEffect(() => {
     let cancelled = false;
 
-    void listAllCustomers({ limit: 200 }).then((result) => {
+    void listAllCustomers().then((result) => {
       if (cancelled) return;
       const list = (result.data as Customer[]) || [];
       setCustomers(list);

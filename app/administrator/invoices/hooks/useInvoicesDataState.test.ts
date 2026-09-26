@@ -19,18 +19,14 @@ describe('useInvoicesDataState', () => {
     jest.clearAllMocks();
   });
 
-  it('loads paginated customers/invoices/routes, enriches primary email, and sorts invoices', async () => {
-    (listCustomers as jest.Mock)
-      .mockResolvedValueOnce({
-        data: [{ id: 'customer-1', name: 'Acme', email: 'fallback@acme.test', billingRatePerHour: 120 }],
-        errors: undefined,
-        nextToken: 'next-customers',
-      })
-      .mockResolvedValueOnce({
-        data: [{ id: 'customer-2', name: 'Globex', email: 'ops@globex.test', billingRatePerHour: 95 }],
-        errors: undefined,
-        nextToken: null,
-      });
+  it('loads customers/invoices/routes, enriches primary email, and sorts invoices', async () => {
+    (listCustomers as jest.Mock).mockResolvedValue({
+      data: [
+        { id: 'customer-1', name: 'Acme', email: 'fallback@acme.test', billingRatePerHour: 120 },
+        { id: 'customer-2', name: 'Globex', email: 'ops@globex.test', billingRatePerHour: 95 },
+      ],
+      errors: undefined,
+    });
 
     (listCustomerUsers as jest.Mock)
       .mockResolvedValueOnce({
@@ -40,40 +36,31 @@ describe('useInvoicesDataState', () => {
         data: [],
       });
 
-    (listInvoices as jest.Mock)
-      .mockResolvedValueOnce({
-        data: [
-          {
-            id: 'invoice-1',
-            invoiceNumber: 'INV-100',
-            customerId: 'customer-1',
-            totalAmount: 100,
-            createdAt: '2026-01-01T10:00:00Z',
-            invoiceDate: '2026-01-01',
-          },
-        ],
-        errors: undefined,
-        nextToken: 'next-invoices',
-      })
-      .mockResolvedValueOnce({
-        data: [
-          {
-            id: 'invoice-2',
-            invoiceNumber: 'INV-101',
-            customerId: 'customer-2',
-            totalAmount: 200,
-            createdAt: '2026-01-03T10:00:00Z',
-            invoiceDate: '2026-01-03',
-          },
-        ],
-        errors: undefined,
-        nextToken: null,
-      });
+    (listInvoices as jest.Mock).mockResolvedValue({
+      data: [
+        {
+          id: 'invoice-1',
+          invoiceNumber: 'INV-100',
+          customerId: 'customer-1',
+          totalAmount: 100,
+          createdAt: '2026-01-01T10:00:00Z',
+          invoiceDate: '2026-01-01',
+        },
+        {
+          id: 'invoice-2',
+          invoiceNumber: 'INV-101',
+          customerId: 'customer-2',
+          totalAmount: 200,
+          createdAt: '2026-01-03T10:00:00Z',
+          invoiceDate: '2026-01-03',
+        },
+      ],
+      errors: undefined,
+    });
 
     (listAllRoutes as jest.Mock).mockResolvedValue({
       data: [{ id: 'route-1', customerId: 'customer-1', routeCode: 'R1', actualDurationMinutes: 120 }],
-      errors: undefined,
-      nextToken: null,
+      errors: undefined
     });
 
     const { result } = renderHook(() => {
@@ -107,19 +94,18 @@ describe('useInvoicesDataState', () => {
     expect(result.current.routes).toHaveLength(1);
     expect(result.current.invoices).toHaveLength(2);
     expect(result.current.sortedInvoices.map((invoice) => invoice.id)).toEqual(['invoice-2', 'invoice-1']);
-    expect(listCustomers).toHaveBeenCalledTimes(2);
-    expect(listInvoices).toHaveBeenCalledTimes(2);
+    expect(listCustomers).toHaveBeenCalledTimes(1);
+    expect(listInvoices).toHaveBeenCalledTimes(1);
   });
 
   it('sets invoice load error when invoice query returns errors', async () => {
     (listCustomers as jest.Mock).mockResolvedValue({
       data: [{ id: 'customer-1', name: 'Acme', email: 'fallback@acme.test' }],
-      errors: undefined,
-      nextToken: null,
+      errors: undefined
     });
     (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [] });
-    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: null });
-    (listInvoices as jest.Mock).mockResolvedValue({ data: [], errors: [{ message: 'boom' }], nextToken: null });
+    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listInvoices as jest.Mock).mockResolvedValue({ data: [], errors: [{ message: 'boom' }] });
 
     const { result } = renderHook(() => {
       const [customerId, setCustomerId] = useState('');
@@ -147,16 +133,15 @@ describe('useInvoicesDataState', () => {
   });
 
   it('removes an invoice from state via removeInvoiceFromState (#63)', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: null });
+    (listCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
     (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [] });
-    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: null });
+    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
     (listInvoices as jest.Mock).mockResolvedValue({
       data: [
         { id: 'invoice-1', invoiceNumber: 'INV-100', customerId: 'customer-1', totalAmount: 100 },
         { id: 'invoice-2', invoiceNumber: 'INV-101', customerId: 'customer-1', totalAmount: 200 },
       ],
-      errors: undefined,
-      nextToken: null,
+      errors: undefined
     });
 
     const { result } = renderHook(() => {
@@ -187,12 +172,11 @@ describe('useInvoicesDataState', () => {
         { id: 'customer-1', name: 'Acme', groupLineItemsByAgent: false },
         { id: 'customer-2', name: 'Beta', groupLineItemsByAgent: false },
       ],
-      errors: undefined,
-      nextToken: null,
+      errors: undefined
     });
     (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [] });
-    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: null });
-    (listInvoices as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: null });
+    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listInvoices as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
 
     const { result } = renderHook(() => {
       const [customerId, setCustomerId] = useState('');

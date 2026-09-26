@@ -103,7 +103,6 @@ export default function InvoicesPage() {
           userSub: userId,
           startDate: startDate || undefined,
           endDate: endDate || undefined,
-          limit: 50,
         });
 
         if (cancelled) return;

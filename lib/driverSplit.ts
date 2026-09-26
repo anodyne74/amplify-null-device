@@ -7,6 +7,7 @@
  * flat-rate fallback used by invoice creation.
  */
 import { getDataClient } from '@/lib/data-client';
+import { listAll } from '@/lib/listAll';
 
 export interface OperatorSplitSummary {
   operatorSub: string;
@@ -49,18 +50,16 @@ export async function computeDriverSplit(params: ComputeDriverSplitParams): Prom
 
   const client = getDataClient();
 
-  const { data: completedRoutes } = await client.models.Route.list({
+  const { data: completedRoutes, errors: routeErrors } = await listAll(client, 'Route', {
     filter: { customerId: { eq: customerId }, status: { eq: 'completed' } },
-    limit: 200,
   });
 
   let routes = (completedRoutes || []).filter((route) =>
     inPeriod(route.actualEndTime || route.updatedAt || route.createdAt, periodStartDate, periodEndDate)
   );
 
-  const { data: customerStops } = await client.models.Stop.list({
+  const { data: customerStops, errors: stopErrors } = await listAll(client, 'Stop', {
     filter: { customerId: { eq: customerId } },
-    limit: 1000,
   });
 
   const stopsByRoute = new Map<string, typeof customerStops>();
@@ -78,10 +77,16 @@ export async function computeDriverSplit(params: ComputeDriverSplitParams): Prom
     });
   }
 
-  const { data: customerLineItems } = await client.models.LineItem.list({
+  const { data: customerLineItems, errors: lineItemErrors } = await listAll(client, 'LineItem', {
     filter: { customerId: { eq: customerId } },
-    limit: 1000,
   });
+
+  // Payouts are created from this result, so a partial read must fail loudly
+  // rather than under-pay.
+  const listErrors = [...routeErrors, ...stopErrors, ...lineItemErrors];
+  if (listErrors.length > 0) {
+    throw new Error(`Could not load every route, stop and line item for this customer (${listErrors.length} errors).`);
+  }
 
   const lineItemTotalByRoute = new Map<string, number>();
   for (const item of customerLineItems || []) {

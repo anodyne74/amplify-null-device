@@ -41,7 +41,7 @@ function getExcelStyleWeekPrefix(date = new Date()) {
 
 async function generateNextRouteCode() {
   const prefix = getExcelStyleWeekPrefix();
-  const result = await listAllRoutes({ limit: 500 });
+  const result = await listAllRoutes();
   if (result.errors && result.errors.length > 0) {
     return `${prefix}-001`;
   }
@@ -161,7 +161,7 @@ export default function NewRoutePage() {
   useEffect(() => {
     async function fetchCustomers() {
       setLoadingCustomers(true);
-      const result = await listAllCustomers({ limit: 100 });
+      const result = await listAllCustomers();
       if (!result.errors || result.errors.length === 0) {
         setCustomers(
           (result.data as any[]).map((c) => ({
@@ -189,7 +189,7 @@ export default function NewRoutePage() {
     let cancelled = false;
 
     async function fetchRoutesForCopy() {
-      const result = await listAllRoutes({ limit: 500 });
+      const result = await listAllRoutes();
       if (cancelled) return;
       if (result.errors && result.errors.length > 0) {
         return;

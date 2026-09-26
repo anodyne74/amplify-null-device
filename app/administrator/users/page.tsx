@@ -230,19 +230,12 @@ export default function UsersAdminPage() {
 
   // ── Customer Access ──────────────────────────────────────────────
   const loadCustomers = useCallback(async () => {
-    const allCustomers: CustomerSummary[] = [];
-    let nextToken: string | undefined;
+    const result = await listCustomers();
+    if (result.errors && result.errors.length > 0) {
+      return;
+    }
 
-    do {
-      const result = await listCustomers({ limit: 100, nextToken });
-      if (result.errors && result.errors.length > 0) {
-        return;
-      }
-
-      allCustomers.push(...((result.data as CustomerSummary[]) ?? []));
-      nextToken = result.nextToken ?? undefined;
-    } while (nextToken);
-
+    const allCustomers = result.data as CustomerSummary[];
     setCustomers(allCustomers);
     if (allCustomers.length > 0 && !selectedCustomerId) {
       setSelectedCustomerId(allCustomers[0].id);

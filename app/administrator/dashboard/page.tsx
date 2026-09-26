@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
+import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
 import { listAllStops } from '@/lib/queries/ListAllStops';
 import { listInvoices, listCustomerUsers } from '@/lib/queries';
@@ -95,80 +94,11 @@ export default function AdminHomePage() {
     async function loadDashboard() {
       setLoading(true);
       try {
-        const fetchAllRoutes = async () => {
-          const allRoutes: Route[] = [];
-          let nextToken: string | undefined;
-
-          do {
-            const pageResult = await listAllRoutes({ limit: 500, nextToken });
-            if (pageResult.errors && pageResult.errors.length > 0) {
-              return { data: [] as Route[], errors: pageResult.errors };
-            }
-
-            allRoutes.push(...((pageResult.data as Route[]) || []));
-            nextToken = pageResult.nextToken ?? undefined;
-          } while (nextToken);
-
-          return { data: allRoutes, errors: undefined };
-        };
-
-        const fetchAllInvoices = async () => {
-          const allInvoices: Invoice[] = [];
-          let nextToken: string | undefined;
-
-          do {
-            const pageResult = await listInvoices({ limit: 500, nextToken });
-            if (pageResult.errors && pageResult.errors.length > 0) {
-              return { data: [] as Invoice[], errors: pageResult.errors };
-            }
-
-            allInvoices.push(...((pageResult.data as Invoice[]) || []));
-            nextToken = pageResult.nextToken ?? undefined;
-          } while (nextToken);
-
-          return { data: allInvoices, errors: undefined };
-        };
-
-        const fetchAllCustomers = async () => {
-          const client = generateClient<Schema>();
-          const allCustomers: CustomerSummary[] = [];
-          let nextToken: string | undefined;
-
-          do {
-            const pageResult = await client.models.Customer.list({ limit: 200, nextToken });
-            if (pageResult.errors && pageResult.errors.length > 0) {
-              return { data: [] as CustomerSummary[], errors: pageResult.errors };
-            }
-
-            allCustomers.push(...((pageResult.data as CustomerSummary[]) ?? []));
-            nextToken = pageResult.nextToken ?? undefined;
-          } while (nextToken);
-
-          return { data: allCustomers, errors: undefined };
-        };
-
-        const fetchAllStops = async () => {
-          const allStops: StopSummary[] = [];
-          let nextToken: string | undefined;
-
-          do {
-            const pageResult = await listAllStops({ limit: 500, nextToken });
-            if (pageResult.errors && pageResult.errors.length > 0) {
-              return { data: [] as StopSummary[], errors: pageResult.errors };
-            }
-
-            allStops.push(...((pageResult.data as StopSummary[]) || []));
-            nextToken = pageResult.nextToken ?? undefined;
-          } while (nextToken);
-
-          return { data: allStops, errors: undefined };
-        };
-
         const [routeResult, invoiceResult, customerResult, stopResult] = await Promise.all([
-          fetchAllRoutes(),
-          fetchAllInvoices(),
-          fetchAllCustomers(),
-          fetchAllStops(),
+          listAllRoutes(),
+          listInvoices(),
+          listAllCustomers(),
+          listAllStops(),
         ]);
 
         if (!routeResult.errors || routeResult.errors.length === 0) {
@@ -183,7 +113,7 @@ export default function AdminHomePage() {
 
         let loadedCustomers: CustomerSummary[] = [];
         if (!customerResult.errors || customerResult.errors.length === 0) {
-          loadedCustomers = customerResult.data ?? [];
+          loadedCustomers = (customerResult.data as CustomerSummary[]) ?? [];
           setCustomers(loadedCustomers);
         }
 

@@ -35,6 +35,7 @@ import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
 import { StatTile } from '@/app/components/ui/data/StatTile';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import styles from './page.module.css';
+import { listAll } from '@/lib/listAll';
 
 function presentationOf(route: OverviewRoute) {
   return getRouteStatusPresentation(route as unknown as RoutePhaseInput);
@@ -70,9 +71,8 @@ async function fetchDashboardData(context: CustomerPortalContext): Promise<Dashb
   }
 
   const client = generateClient<Schema>();
-  const stopResult = await client.models.Stop.list({
+  const stopResult = await listAll(client, 'Stop', {
     filter: { customerId: { eq: context.customerId } },
-    limit: 1000,
   });
   const stops = ((stopResult.data as unknown as OverviewStop[]) ?? []).filter(Boolean);
 
@@ -81,7 +81,6 @@ async function fetchDashboardData(context: CustomerPortalContext): Promise<Dashb
     const invoiceResult = await listMyInvoices({
       customerId: context.customerId,
       userSub: context.userId,
-      limit: 500,
     });
     invoices = (invoiceResult.data as OverviewInvoice[]) ?? [];
   }

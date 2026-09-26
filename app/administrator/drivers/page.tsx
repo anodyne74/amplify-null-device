@@ -129,40 +129,16 @@ export default function AdministratorDriversPage() {
       const idToken = session.tokens?.idToken?.toString();
       if (!idToken) throw new Error('No session token found. Please sign in again.');
 
-      const fetchAllRoutes = async () => {
-        const allRoutes: Route[] = [];
-        let nextToken: string | undefined;
-        do {
-          const pageResult = await listAllRoutes({ limit: 500, nextToken });
-          if (pageResult.errors && pageResult.errors.length > 0) break;
-          allRoutes.push(...((pageResult.data as Route[]) || []));
-          nextToken = pageResult.nextToken ?? undefined;
-        } while (nextToken);
-        return allRoutes;
-      };
-
-      const fetchAllStops = async () => {
-        const allStops: StopSummary[] = [];
-        let nextToken: string | undefined;
-        do {
-          const pageResult = await listAllStops({ limit: 500, nextToken });
-          if (pageResult.errors && pageResult.errors.length > 0) break;
-          allStops.push(...((pageResult.data as StopSummary[]) || []));
-          nextToken = pageResult.nextToken ?? undefined;
-        } while (nextToken);
-        return allStops;
-      };
-
-      const [usersResponse, operatorsResult, customersResult, allRoutes, allStops] = await Promise.all([
+      const [usersResponse, operatorsResult, customersResult, routesResult, stopsResult] = await Promise.all([
         fetch('/api/admin/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
           body: JSON.stringify({ action: 'listUsersInGroup', groupName: 'operator' }),
         }),
         listOperators(),
-        listAllCustomers({ limit: 200 }),
-        fetchAllRoutes(),
-        fetchAllStops(),
+        listAllCustomers(),
+        listAllRoutes(),
+        listAllStops(),
       ]);
 
       const usersPayload = await usersResponse.json();
@@ -179,8 +155,8 @@ export default function AdministratorDriversPage() {
 
       setDrivers(merged);
       setCustomers((customersResult.data as CustomerSummary[]) || []);
-      setRoutes(allRoutes);
-      setStops(allStops);
+      setRoutes(routesResult.data as Route[]);
+      setStops(stopsResult.data as StopSummary[]);
       setSelectedId((current) => (current && merged.some((d) => d.id === current) ? current : merged[0]?.id || ''));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load drivers.');

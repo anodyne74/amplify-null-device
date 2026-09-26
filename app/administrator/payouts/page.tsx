@@ -83,7 +83,7 @@ export default function AdministratorPayoutsPage() {
     let cancelled = false;
     setLoading(true);
 
-    Promise.all([listAllCustomers({ limit: 200 }), listOperatorPayouts(), fetchDriverNamesBySub().catch(() => new Map<string, string>())]).then(
+    Promise.all([listAllCustomers(), listOperatorPayouts(), fetchDriverNamesBySub().catch(() => new Map<string, string>())]).then(
       ([customerResult, payoutResult, driverNames]) => {
         if (cancelled) return;
         const customerList = (customerResult.data as { id: string; name: string }[]) || [];
@@ -118,14 +118,21 @@ export default function AdministratorPayoutsPage() {
       return;
     }
 
-    const result = await computeDriverSplit({
-      customerId: createCustomerId,
-      billingRatePerHour: customer.billingRatePerHour || 0,
-      driverSplitPercent: customer.driverSplitPercent || 0,
-      paySplitOnCompletedStopsOnly: customer.paySplitOnCompletedStopsOnly ?? false,
-      periodStartDate: periodStart,
-      periodEndDate: periodEnd,
-    });
+    let result: Awaited<ReturnType<typeof computeDriverSplit>>;
+    try {
+      result = await computeDriverSplit({
+        customerId: createCustomerId,
+        billingRatePerHour: customer.billingRatePerHour || 0,
+        driverSplitPercent: customer.driverSplitPercent || 0,
+        paySplitOnCompletedStopsOnly: customer.paySplitOnCompletedStopsOnly ?? false,
+        periodStartDate: periodStart,
+        periodEndDate: periodEnd,
+      });
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : 'Could not compute the driver split.');
+      setPreviewLoading(false);
+      return;
+    }
 
     if (result.byOperator.length === 0) {
       setPreviewError('No completed routes for that customer in this period.');

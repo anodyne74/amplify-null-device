@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
-import { getRouteWithStops } from '@/lib/queries';
 import { subscribeRouteWithStops } from '@/lib/routeWithStopsFeed';
 import type { Route, Stop } from '@/amplify/types';
+import { getRouteWithStops } from '@/lib/routes';
 
 const LOAD_ERROR = 'Failed to load route.';
 

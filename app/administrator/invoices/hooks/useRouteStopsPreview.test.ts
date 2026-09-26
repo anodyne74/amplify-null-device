@@ -1,8 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { useRouteStopsPreview } from './useRouteStopsPreview';
-import { getRouteWithStops } from '@/lib/queries';
+import { getRouteWithStops } from '@/lib/routes';
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
 }));
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Route } from '@/amplify/types';
-import { updateRoute } from '@/lib/queries';
+import { updateRoute } from '@/lib/routes';
 
 type RouteUpdatePayload = Parameters<typeof updateRoute>[1];
 

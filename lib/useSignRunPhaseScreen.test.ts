@@ -10,7 +10,7 @@ jest.mock('next/navigation', () => ({
   useSearchParams: () => ({ get: (key: string) => (key === 'id' ? 'route-1' : null) }),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
   getRouteWithStops: (...args: unknown[]) => mockGetRouteWithStops(...args),
 }));
 

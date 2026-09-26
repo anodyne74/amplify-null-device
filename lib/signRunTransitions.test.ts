@@ -2,7 +2,7 @@ const mockUpdateRoute = jest.fn();
 const mockUpdateStopExecution = jest.fn();
 const mockFetchAuthSession = jest.fn();
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
   updateRoute: (...args: unknown[]) => mockUpdateRoute(...args),
   updateStopExecution: (...args: unknown[]) => mockUpdateStopExecution(...args),
 }));

@@ -2,9 +2,9 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RouteEditPage from '../edit/page';
-import * as routeDetailModule from '@/lib/queries/GetRouteDetail';
 import * as customersModule from '@/lib/queries/ListAllCustomers';
 import * as queriesModule from '@/lib/queries';
+import * as routesModule from '@/lib/routes';
 import { callApi } from '@/lib/apiClient';
 import type { Route, Stop } from '@/amplify/types';
 
@@ -59,29 +59,9 @@ jest.mock('@/app/operator/components/RouteStopsMap', () => ({
   ),
 }));
 
-jest.mock('@/lib/queries/GetRouteDetail');
 jest.mock('@/lib/queries/ListAllCustomers');
 jest.mock('@/lib/queries');
-jest.mock('@/lib/queries/DeleteStop', () => ({
-  deleteStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-}));
-jest.mock('@/lib/queries/UpdateStop', () => ({
-  updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-}));
-
-let mockStopList: jest.Mock;
-
-jest.mock('aws-amplify/data', () => {
-  const stopList = jest.fn();
-  return {
-    generateClient: jest.fn(() => ({
-      models: {
-        Stop: { list: stopList },
-      },
-    })),
-    __mocks: { stopList },
-  };
-});
+jest.mock('@/lib/routes');
 
 const mockRoute: Route = {
   id: 'route-test-id-1234',
@@ -122,19 +102,10 @@ describe('Administrator Route Edit Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    const amplifyData = require('aws-amplify/data');
-    const { __mocks } = amplifyData;
-    mockStopList = __mocks.stopList;
-
     (callApi as jest.Mock).mockImplementation(async (path: string) => {
       if (path === '/api/admin/users') return { users: mockOperators };
       if (path === '/api/admin/send-job-assigned-email') return { sentTo: 'operator-one@example.com' };
       return {};
-    });
-
-    (routeDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: mockRoute,
-      errors: undefined,
     });
 
     (customersModule.listAllCustomers as jest.Mock).mockResolvedValue({
@@ -147,19 +118,14 @@ describe('Administrator Route Edit Page', () => {
       errors: undefined,
     });
 
-    (queriesModule.getRouteWithStops as jest.Mock).mockResolvedValue({
+    (routesModule.getRouteWithStops as jest.Mock).mockResolvedValue({
       route: mockRoute,
       stops: mockStops,
       errors: undefined,
     });
 
-    (queriesModule.createStop as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
-    (queriesModule.updateRoute as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
-
-    mockStopList.mockResolvedValue({
-      data: mockStops,
-      errors: undefined,
-    });
+    (routesModule.createStop as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
+    (routesModule.updateRoute as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
   });
 
   it('syncs selected marker when a stop card is clicked', async () => {
@@ -214,7 +180,7 @@ describe('Administrator Route Edit Page', () => {
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
-      expect(queriesModule.updateRoute).toHaveBeenCalledWith(
+      expect(routesModule.updateRoute).toHaveBeenCalledWith(
         'route-test-id-1234',
         expect.objectContaining({ routeCode: 'W19-26-999' })
       );
@@ -229,7 +195,7 @@ describe('Administrator Route Edit Page', () => {
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
     expect(await screen.findByText('Route code is required.')).toBeInTheDocument();
-    expect(queriesModule.updateRoute).not.toHaveBeenCalled();
+    expect(routesModule.updateRoute).not.toHaveBeenCalled();
   });
 
   it('enables Notify Operator after assigning a previously-unassigned route and saving, without navigating away (#267)', async () => {
@@ -245,7 +211,7 @@ describe('Administrator Route Edit Page', () => {
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
-      expect(queriesModule.updateRoute).toHaveBeenCalledWith(
+      expect(routesModule.updateRoute).toHaveBeenCalledWith(
         'route-test-id-1234',
         expect.objectContaining({ assignedOperatorEmail: 'operator-one@example.com' })
       );
@@ -264,12 +230,13 @@ describe('Administrator Route Edit Page', () => {
   });
 
   it('enables Notify Operator for the new operator after reassigning an already-assigned route and saving', async () => {
-    (routeDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: {
+    (routesModule.getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: {
         ...mockRoute,
         assignedOperatorSub: 'op-sub-1',
         assignedOperatorEmail: 'operator-one@example.com',
       },
+      stops: mockStops,
       errors: undefined,
     });
 
@@ -283,7 +250,7 @@ describe('Administrator Route Edit Page', () => {
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
-      expect(queriesModule.updateRoute).toHaveBeenCalledWith(
+      expect(routesModule.updateRoute).toHaveBeenCalledWith(
         'route-test-id-1234',
         expect.objectContaining({ assignedOperatorEmail: 'operator-two@example.com' })
       );
@@ -296,12 +263,13 @@ describe('Administrator Route Edit Page', () => {
   });
 
   it('keeps Notify Operator disabled when saving a route with no assigned operator', async () => {
-    (routeDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: {
+    (routesModule.getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: {
         ...mockRoute,
         assignedOperatorSub: 'op-sub-1',
         assignedOperatorEmail: 'operator-one@example.com',
       },
+      stops: mockStops,
       errors: undefined,
     });
 
@@ -314,7 +282,7 @@ describe('Administrator Route Edit Page', () => {
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
-      expect(queriesModule.updateRoute).toHaveBeenCalledWith(
+      expect(routesModule.updateRoute).toHaveBeenCalledWith(
         'route-test-id-1234',
         expect.objectContaining({ assignedOperatorEmail: null })
       );
@@ -326,12 +294,13 @@ describe('Administrator Route Edit Page', () => {
   });
 
   it('starts with Notify Operator enabled when re-opening the edit page for an already-assigned route (regression)', async () => {
-    (routeDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: {
+    (routesModule.getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: {
         ...mockRoute,
         assignedOperatorSub: 'op-sub-1',
         assignedOperatorEmail: 'operator-one@example.com',
       },
+      stops: mockStops,
       errors: undefined,
     });
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getRouteWithStops } from '@/lib/queries';
 import type { StopSummary } from '@/app/administrator/invoices/stopFormatting';
+import { getRouteWithStops } from '@/lib/routes';
 
 /**
  * Fetches stops for the route currently selected in the invoice-create form —

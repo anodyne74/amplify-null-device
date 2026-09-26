@@ -19,7 +19,6 @@
  * planStopSettlement is pure, runStopSettlement writes it.
  */
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { updateRoute, updateStopExecution } from '@/lib/queries';
 import { getSignRunPhase, type SignRunPhaseInfo } from '@/lib/signRunPhase';
 import { sumBilledMinutes } from '@/lib/signRunBilling';
 import {
@@ -32,6 +31,7 @@ import {
   type ExecutionPhase,
 } from '@/lib/stopExecutionMarkers';
 import type { Route, RouteExecutionPhase, Stop } from '@/amplify/types';
+import { updateRoute, updateStopExecution } from '@/lib/routes';
 
 export type SignRunTransition =
   | { type: 'startLoad'; at: string }

@@ -3,7 +3,7 @@ import type { Route } from '@/amplify/types';
 import { useRoutesList } from '@/lib/useRoutesList';
 import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { deleteRoute } from '@/lib/queries';
+import { deleteRoute } from '@/lib/routes';
 
 jest.mock('@/lib/useLiveRoutes', () => ({
   useLiveAllRoutes: jest.fn(),
@@ -13,7 +13,7 @@ jest.mock('@/lib/queries/ListAllCustomers', () => ({
   listAllCustomers: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
   deleteRoute: jest.fn(),
 }));
 

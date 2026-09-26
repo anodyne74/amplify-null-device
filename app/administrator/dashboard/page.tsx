@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
-import { listAllStops } from '@/lib/queries/ListAllStops';
 import { listInvoices, listCustomerUsers } from '@/lib/queries';
 import type { Route } from '@/amplify/types';
 import OperatorRoute from '@/app/components/OperatorRoute';
@@ -29,6 +27,7 @@ import {
   type OverviewCustomerUser,
 } from '@/lib/adminDashboardOverview';
 import styles from './page.module.css';
+import { listAllRoutes, listAllStops } from '@/lib/routes';
 
 type Invoice = {
   id: string;

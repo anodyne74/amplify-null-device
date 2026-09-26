@@ -9,7 +9,7 @@ import { listCustomerClosureBlocks } from '@/lib/queries/ListCustomerClosureBloc
 import { createCustomerClosureBlock } from '@/lib/queries/CreateCustomerClosureBlock';
 import { deleteCustomerClosureBlock } from '@/lib/queries/DeleteCustomerClosureBlock';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
+import { listMyRoutes } from '@/lib/routes';
 
 jest.mock('@/lib/queries/ListOperatorAvailabilityBlocks', () => ({
   listOperatorAvailabilityBlocks: jest.fn(),
@@ -32,7 +32,7 @@ jest.mock('@/lib/queries/DeleteCustomerClosureBlock', () => ({
 jest.mock('@/lib/queries/ListAllCustomers', () => ({
   listAllCustomers: jest.fn(),
 }));
-jest.mock('@/lib/queries/ListMyRoutes', () => ({
+jest.mock('@/lib/routes', () => ({
   listMyRoutes: jest.fn(),
 }));
 

@@ -18,13 +18,12 @@ import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { listOperators } from '@/lib/queries/ListOperators';
 import { updateOperator } from '@/lib/queries/UpdateOperator';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
-import { listAllStops } from '@/lib/queries/ListAllStops';
 import { getDateGroup } from '@/lib/aggregateRouteData';
 import { formatDurationCompact } from '@/lib/dashboardAnalytics';
 import { summarizeRoutesStopsThisMonth, summarizeAverageRouteDuration } from '@/lib/adminDashboardOverview';
 import type { BillingCycle, Operator, OperatorStatus, Route } from '@/amplify/types';
 import styles from './page.module.css';
+import { listAllRoutes, listAllStops } from '@/lib/routes';
 
 type CognitoOperator = {
   id?: string;

@@ -25,13 +25,13 @@ import {
   createCustomer,
   listAllCustomerUsers,
   listCustomerInvoices,
-  listCustomerRoutes,
   listCustomerUsers,
   listCustomers,
   updateCustomer,
 } from '@/lib/queries';
 import { buildOnboardingChecklist, type ChecklistItem } from '@/lib/customerOnboardingChecklist';
 import styles from './page.module.css';
+import { listCustomerRoutes } from '@/lib/routes';
 
 const usdFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',

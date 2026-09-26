@@ -6,9 +6,10 @@ import OperatorPlacementPage from '../placement/page';
 import OperatorPickupPage from '../pickup/page';
 import OperatorUnloadPage from '../unload/page';
 import OperatorFinalisePage from '../finalise/page';
-import { getRouteWithStops, getCustomer, updateRoute, updateStopExecution } from '@/lib/queries';
+import { getCustomer } from '@/lib/queries';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import type { Route, Stop } from '@/amplify/types';
+import { getRouteWithStops, updateRoute, updateStopExecution } from '@/lib/routes';
 
 /**
  * Walks a single route through every screen of the Driver Sign Run flow —
@@ -30,11 +31,14 @@ jest.mock('next/navigation', () => ({
   useSearchParams: () => ({ get: (key: string) => (key === 'id' ? 'route-1' : null) }),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
-  getCustomer: jest.fn(),
   updateRoute: jest.fn(),
   updateStopExecution: jest.fn(),
+}));
+
+jest.mock('@/lib/queries', () => ({
+  getCustomer: jest.fn(),
 }));
 
 // lib/signRunTransitions checks the auth session before every route write (#266).

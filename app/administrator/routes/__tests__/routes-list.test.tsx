@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import RoutesPage from '../page';
 import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
 import * as listAllCustomersModule from '@/lib/queries/ListAllCustomers';
-import * as listAllStopsModule from '@/lib/queries/ListAllStops';
+import { listAllStops } from '@/lib/routes';
 import type { Route, Stop } from '@/amplify/types';
 
 jest.mock('next/navigation', () => ({
@@ -40,7 +40,9 @@ jest.mock('@/lib/useLiveRoutes', () => ({
   useLiveAllRoutes: jest.fn(),
 }));
 jest.mock('@/lib/queries/ListAllCustomers');
-jest.mock('@/lib/queries/ListAllStops');
+jest.mock('@/lib/routes', () => ({
+  listAllStops: jest.fn(),
+}));
 
 const mockRoutes: Route[] = [
   {
@@ -97,7 +99,7 @@ describe('Operator Routes List Page', () => {
       ],
       errors: undefined,
     });
-    (listAllStopsModule.listAllStops as jest.Mock).mockResolvedValue({
+    (listAllStops as jest.Mock).mockResolvedValue({
       data: mockStops,
       errors: undefined,
       nextToken: undefined,

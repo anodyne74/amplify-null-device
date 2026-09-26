@@ -50,12 +50,15 @@ jest.mock('@/lib/googleMaps', () => ({
   geocodeAddress: jest.fn(),
 }));
 
+jest.mock('@/lib/routes', () => ({
+  listCustomerRoutes: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
+}));
+
 jest.mock('@/lib/queries', () => ({
   createCustomer: jest.fn(),
   createCustomerUser: jest.fn(),
   listAllCustomerUsers: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
   listCustomerUsers: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
-  listCustomerRoutes: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
   listCustomerInvoices: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
   listCustomers: jest.fn(),
   updateCustomer: jest.fn(),

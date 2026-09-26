@@ -4,8 +4,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import OperatorDashboard from '../page';
 import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
 import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { getRouteWithStops } from '@/lib/queries';
 import type { Route } from '@/amplify/types';
+import { getRouteWithStops } from '@/lib/routes';
 
 jest.mock('@/lib/use-user-groups', () => ({
   useCurrentUserId: () => 'operator-me',
@@ -19,7 +19,7 @@ jest.mock('@/lib/queries/ListAllCustomers', () => ({
   listAllCustomers: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
 }));
 

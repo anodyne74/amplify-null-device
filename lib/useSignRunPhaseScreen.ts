@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { getRouteWithStops } from '@/lib/queries';
 import { getSignRunPhase, type SignRunPhaseInfo } from '@/lib/signRunPhase';
+import { useRouteWithStops } from '@/lib/useRouteWithStops';
 import type { Route, Stop } from '@/amplify/types';
 
 interface UseSignRunPhaseScreenOptions<TExtra> {
@@ -13,16 +13,18 @@ interface UseSignRunPhaseScreenOptions<TExtra> {
    * (it gates on signs at the yard, not on a per-stop route). Defaults true. */
   requireStops?: boolean;
   /** Fetches whatever this screen needs beyond the route/stops themselves
-   * (customer name, yard address, ...), run once the route resolves. */
+   * (customer name, yard address, ...), run once when the route first
+   * resolves. If it fails, `extra` stays null. */
   fetchExtra?: (route: Route) => Promise<TExtra>;
 }
 
 interface UseSignRunPhaseScreenResult<TExtra> {
   routeId: string | null;
   route: Route | null;
-  setRoute: Dispatch<SetStateAction<Route | null>>;
   stops: Stop[];
-  setStops: Dispatch<SetStateAction<Stop[]>>;
+  /** Shows a write's result straight away — see useRouteWithStops. */
+  patchRoute: (patch: Partial<Route>) => void;
+  patchStop: (id: string, patch: Partial<Stop>) => void;
   extra: TExtra | null;
   loading: boolean;
   phaseInfo: SignRunPhaseInfo | null;
@@ -45,47 +47,41 @@ export function useSignRunPhaseScreen<TExtra = undefined>({
   const searchParams = useSearchParams();
   const routeId = searchParams.get('id');
 
-  const [route, setRoute] = useState<Route | null>(null);
-  const [stops, setStops] = useState<Stop[]>([]);
+  const { route, stops, loading: routeLoading, patchRoute, patchStop } = useRouteWithStops(routeId);
   const [extra, setExtra] = useState<TExtra | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [extraFor, setExtraFor] = useState<string | null>(null);
 
+  // Extra data is fetched once per route, when it first resolves — not on
+  // every live update.
+  const resolvedRouteId = route?.id ?? null;
   useEffect(() => {
-    if (!routeId) {
-      setLoading(false);
-      return;
-    }
+    setExtra(null);
+    setExtraFor(null);
+    if (!route || !fetchExtra) return;
     let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-      const { route: rawRoute, stops: fetchedStops } = await getRouteWithStops(routeId as string);
-      if (cancelled) return;
-
-      const fetchedRoute = rawRoute as Route | null;
-      setRoute(fetchedRoute);
-      setStops(fetchedStops as Stop[]);
-
-      if (fetchedRoute && fetchExtra) {
-        const extraResult = await fetchExtra(fetchedRoute);
-        if (!cancelled) setExtra(extraResult);
-      }
-      if (!cancelled) setLoading(false);
-    }
-
-    void load();
+    // A failed extra fetch still ends loading — every screen renders without it.
+    fetchExtra(route)
+      .then((result) => {
+        if (!cancelled) setExtra(result);
+      })
+      .catch((err) => console.error('Failed to load phase screen details:', err))
+      .finally(() => {
+        if (!cancelled) setExtraFor(route.id);
+      });
     return () => {
       cancelled = true;
     };
-    // fetchExtra is passed fresh on every render by callers — deliberately not a
-    // dependency, since routeId is the only thing that should trigger a refetch.
+    // Keyed on the route's id only: live updates to the same route mustn't
+    // refetch, and fetchExtra is passed fresh on every render by callers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeId]);
+  }, [resolvedRouteId]);
+
+  const loading = routeLoading || Boolean(route && fetchExtra && extraFor !== route.id);
 
   const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
   const isOnPhase = Boolean(
     route && phaseInfo && phaseInfo.phaseIdx === phaseIdx && (!requireStops || stops.length > 0)
   );
 
-  return { routeId, route, setRoute, stops, setStops, extra, loading, phaseInfo, isOnPhase };
+  return { routeId, route, stops, patchRoute, patchStop, extra, loading, phaseInfo, isOnPhase };
 }

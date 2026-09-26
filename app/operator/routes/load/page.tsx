@@ -71,7 +71,7 @@ export default function OperatorLoadPage() {
   const {
     routeId,
     route,
-    setRoute,
+    patchRoute,
     stops,
     loading,
     phaseInfo,
@@ -109,7 +109,7 @@ export default function OperatorLoadPage() {
       return;
     }
 
-    setRoute(result.route);
+    patchRoute(result.route);
     closeDialog();
   };
 

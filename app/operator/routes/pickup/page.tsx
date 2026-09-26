@@ -68,9 +68,9 @@ export default function OperatorPickupPage() {
   const {
     routeId,
     route,
-    setRoute,
+    patchRoute,
     stops,
-    setStops,
+    patchStop,
     extra: customerName,
     loading,
     phaseInfo,
@@ -98,7 +98,7 @@ export default function OperatorPickupPage() {
       return;
     }
 
-    setRoute(result.route);
+    patchRoute(result.route);
     closeDialog();
   };
 
@@ -122,12 +122,12 @@ export default function OperatorPickupPage() {
       if ('error' in result) {
         setError(result.error);
       } else {
-        setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, ...result.patch } : s)));
+        patchStop(stopId, result.patch);
       }
       setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
       return !('error' in result);
     },
-    [stops, setStops]
+    [stops, patchStop]
   );
 
   const handleStopCompleted = useCallback((stopId: string) => settleStop(stopId, 'complete'), [settleStop]);
@@ -157,7 +157,7 @@ export default function OperatorPickupPage() {
       try {
         const { errors } = await updateStopExecution(stopId, nextFields);
         if (!errors || errors.length === 0) {
-          setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, ...nextFields } : s)));
+          patchStop(stopId, nextFields);
         } else {
           setError('Could not log that missing sign. Try again.');
         }
@@ -166,7 +166,7 @@ export default function OperatorPickupPage() {
       }
       setMissingLogging((prev) => ({ ...prev, [stopId]: false }));
     },
-    [stops, setStops]
+    [stops, patchStop]
   );
 
   // Undo does not re-stamp time/location — it only walks the count back down,
@@ -187,19 +187,12 @@ export default function OperatorPickupPage() {
       try {
         const { errors } = await updateStopExecution(stopId, nextFields);
         if (!errors || errors.length === 0) {
-          setStops((prev) =>
-            prev.map((s) =>
-              s.id === stopId
-                ? {
-                    ...s,
-                    missingSignsCount: nextCount,
-                    missingSignsLastLoggedAt: nextFields.missingSignsLastLoggedAt ?? null,
-                    missingSignsLastLatitude: nextFields.missingSignsLastLatitude ?? null,
-                    missingSignsLastLongitude: nextFields.missingSignsLastLongitude ?? null,
-                  }
-                : s
-            )
-          );
+          patchStop(stopId, {
+            missingSignsCount: nextCount,
+            missingSignsLastLoggedAt: nextFields.missingSignsLastLoggedAt ?? null,
+            missingSignsLastLatitude: nextFields.missingSignsLastLatitude ?? null,
+            missingSignsLastLongitude: nextFields.missingSignsLastLongitude ?? null,
+          });
         } else {
           setError('Could not update that missing sign. Try again.');
         }
@@ -208,7 +201,7 @@ export default function OperatorPickupPage() {
       }
       setMissingLogging((prev) => ({ ...prev, [stopId]: false }));
     },
-    [stops, setStops]
+    [stops, patchStop]
   );
 
   // Settling the last stop doesn't close the phase on its own — the design leaves the

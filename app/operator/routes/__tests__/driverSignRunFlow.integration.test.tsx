@@ -38,6 +38,12 @@ jest.mock('@/lib/queries', () => ({
 }));
 
 // lib/signRunTransitions checks the auth session before every route write (#266).
+// The live feed is inert here: each screen reads the store through its fetch
+// and shows its own writes through patches.
+jest.mock('@/lib/routeWithStopsFeed', () => ({
+  subscribeRouteWithStops: () => () => {},
+}));
+
 jest.mock('aws-amplify/auth', () => ({
   fetchAuthSession: jest.fn().mockResolvedValue({}),
 }));

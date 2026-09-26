@@ -209,6 +209,26 @@ describe('Customer Routes List Page', () => {
     expect(screen.getByText('2h 30m')).toBeInTheDocument();
   });
 
+  it("shows each route's Date -- its scheduled or run date, not the import date (#314)", async () => {
+    (useLiveRoutes as jest.Mock).mockReturnValue({
+      routes: [
+        { id: 'scheduled', customerId: 'test-customer-1', routeCode: 'W10-26-001', status: 'planned', scheduledDate: '2026-03-02', createdAt: '2026-09-18T04:00:00Z' },
+        { id: 'imported', customerId: 'test-customer-1', routeCode: 'W02-24-001', status: 'completed', actualStartTime: '2024-01-15T00:00:00Z', createdAt: '2026-09-18T04:00:00Z' },
+      ] as Route[],
+      loading: false,
+      error: null,
+    });
+
+    render(<RoutesPage />);
+
+    await screen.findAllByRole('link');
+    expect(screen.getByRole('columnheader', { name: 'Date' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Created' })).not.toBeInTheDocument();
+    expect(screen.getByText('Mar 2, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Jan 15, 2024')).toBeInTheDocument();
+    expect(screen.queryByText('Sep 18, 2026')).not.toBeInTheDocument();
+  });
+
   it('handles empty route list gracefully', async () => {
     (useLiveRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: null });
 

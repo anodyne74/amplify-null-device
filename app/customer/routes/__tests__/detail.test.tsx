@@ -149,6 +149,23 @@ describe('Customer route detail tracker', () => {
     expect(screen.getByText('Placed (1/3)')).toBeInTheDocument();
   });
 
+  it("shows the route's Date, the same value as the Routes list, instead of its created time (#314)", async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: { ...route, actualStartTime: '2024-01-15T00:00:00Z', createdAt: '2026-09-18T04:00:00Z' },
+      stops,
+      errors: [],
+    });
+
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+    expect(screen.getByText('Date')).toBeInTheDocument();
+    expect(screen.queryByText('Created')).not.toBeInTheDocument();
+    // Once in the Date stat and once on the timeline's Planned step.
+    expect(screen.getAllByText('Jan 15, 2024')).toHaveLength(2);
+    expect(screen.queryByText(/Sep 18/)).not.toBeInTheDocument();
+  });
+
   it('lets a customer add a special instruction for the route, attributed to a picked agent', async () => {
     render(<RouteDetailContent params={{ id: 'route-1' }} />);
 

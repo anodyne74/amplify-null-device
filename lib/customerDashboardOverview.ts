@@ -7,6 +7,7 @@
  */
 import { getDateGroup } from './aggregateRouteData';
 import { getDeltaPercent } from './dashboardAnalytics';
+import { getRouteDate } from './routeDetailHelpers';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS, type RoutePhaseInput, type RoutePhaseKey } from './signRunPhase';
 import { signsPlaced } from './signRunTotals';
 
@@ -162,7 +163,7 @@ export function summarizeCurrentRoute(routes: OverviewRoute[]): OverviewRoute | 
   return [...routes].sort((a, b) => {
     const delta = priority(a) - priority(b);
     if (delta !== 0) return delta;
-    return String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? ''));
+    return String(getRouteDate(b) ?? '').localeCompare(String(getRouteDate(a) ?? ''));
   })[0];
 }
 

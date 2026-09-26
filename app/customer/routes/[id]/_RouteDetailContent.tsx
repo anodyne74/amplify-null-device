@@ -18,6 +18,7 @@ import { Select } from '@/app/components/ui/forms/Select';
 import { ProgressBar } from '@/app/components/ui/data/ProgressBar';
 import type { Customer } from '@/amplify/types';
 import { formatDurationHoursMinutes } from '@/lib/format';
+import { formatRouteDate, getRouteDate } from '@/lib/routeDetailHelpers';
 import { getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
 import { appendRouteInstruction, parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
@@ -298,9 +299,9 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
           </div>
 
           <div className="nd-stat">
-            <span className="nd-stat__label">Created</span>
+            <span className="nd-stat__label">Date</span>
             <span className="nd-stat__value" style={{ fontSize: 15 }}>
-              {formatDate(route.createdAt)}
+              {formatRouteDate(getRouteDate(route))}
             </span>
           </div>
         </div>

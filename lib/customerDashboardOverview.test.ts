@@ -75,6 +75,15 @@ describe('customerDashboardOverview', () => {
       expect(result?.id).toBe('r2');
     });
 
+    it('breaks a tie by route date, not by when the route was imported (#314)', () => {
+      const routes = [
+        { id: 'earlier', status: 'planned', scheduledDate: '2026-03-02', createdAt: '2026-09-18T04:00:02Z' },
+        { id: 'later', status: 'planned', scheduledDate: '2026-03-09', createdAt: '2026-09-18T04:00:01Z' },
+      ];
+
+      expect(summarizeCurrentRoute(routes)?.id).toBe('later');
+    });
+
     it('returns null when there are no routes', () => {
       expect(summarizeCurrentRoute([])).toBeNull();
     });

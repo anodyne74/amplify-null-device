@@ -15,7 +15,7 @@ import { Input } from '@/app/components/ui/forms/Input';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import type { Route } from '@/amplify/types';
 import { compareRouteIdDesc, formatEstimatedDurationMinutes, getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
-import { formatRouteDate } from '@/lib/routeDetailHelpers';
+import { formatRouteDate, getRouteDate } from '@/lib/routeDetailHelpers';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
 import { getPageSlice } from '@/lib/pagination';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS, type RoutePhaseKey } from '@/lib/signRunPhase';
@@ -99,7 +99,7 @@ export default function CustomerRoutesPage() {
       ),
     },
     { key: 'status', header: 'Status', render: (route) => <RouteStatusPill route={route} /> },
-    { key: 'created', header: 'Created', render: (route) => formatRouteDate(route.createdAt) },
+    { key: 'date', header: 'Date', render: (route) => formatRouteDate(getRouteDate(route)) },
     {
       key: 'duration',
       header: 'Duration',

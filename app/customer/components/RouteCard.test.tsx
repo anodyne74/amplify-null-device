@@ -14,6 +14,18 @@ describe('RouteCard', () => {
     expect(link).toHaveAttribute('href', '/customer/routes/route-1');
   });
 
+  it("shows the route's Date rather than its created date (#314)", () => {
+    render(
+      <RouteCard
+        route={{ id: 'route-1', status: 'completed', actualStartTime: '2024-01-15T00:00:00Z', createdAt: '2026-09-18T04:00:00Z' } as Route}
+      />
+    );
+
+    expect(screen.getByText('Date:')).toBeInTheDocument();
+    expect(screen.getByText('Jan 15, 2024')).toBeInTheDocument();
+    expect(screen.queryByText(/Created/)).not.toBeInTheDocument();
+  });
+
   it('shows the route code when set', () => {
     render(<RouteCard route={{ id: 'route-1', routeCode: 'RT-2044', status: 'planned' } as Route} />);
     expect(screen.getByText('RT-2044')).toBeInTheDocument();

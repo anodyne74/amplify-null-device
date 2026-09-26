@@ -1,12 +1,38 @@
 import type { Route, Stop } from '@/amplify/types';
 
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Formats a timestamp, or a date-only value such as a route date. A date-only
+ * value is a calendar day, so it's shown in UTC -- in the viewer's timezone
+ * '2024-01-15' (midnight UTC) would show as Jan 14 anywhere west of UTC.
+ */
 export function formatRouteDate(dateString?: string | null) {
   if (!dateString) return '—';
   return new Date(dateString).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    ...(DATE_ONLY.test(dateString) ? { timeZone: 'UTC' } : {}),
   });
+}
+
+/**
+ * The route's date as customers know it (YYYY-MM-DD): its scheduledDate, else
+ * the UTC day it started, else the UTC day it was created. Routes imported in
+ * bulk have no scheduledDate and a createdAt of the import, so their run date
+ * only survives in actualStartTime (#314).
+ */
+export function getRouteDate(route: {
+  scheduledDate?: string | null;
+  actualStartTime?: string | null;
+  createdAt?: string | null;
+}): string | null {
+  if (route.scheduledDate) return route.scheduledDate;
+  const timestamp = route.actualStartTime || route.createdAt;
+  if (!timestamp) return null;
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
 }
 
 export function formatRouteDateTime(dateString?: string | null) {

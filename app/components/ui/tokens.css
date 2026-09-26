@@ -272,6 +272,17 @@
 
   --sidebar-w: 248px;
   --topbar-h: 64px;
+
+  /* Height of the *visible* viewport. On mobile, 100vh is the viewport with
+     the browser toolbar hidden, so a 100vh box runs under the URL bar or
+     navigation bar; 100dvh follows the toolbar (#311). */
+  --viewport-h: 100vh;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --viewport-h: 100dvh;
+  }
 }
 
 /* Radius */

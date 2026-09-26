@@ -88,7 +88,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     const [noDriversResult, closedResult, routesResult] = await Promise.all([
       listOperatorAvailabilityBlocks(customerId),
       listCustomerClosureBlocks(customerId),
-      listMyRoutes({ customerId, limit: 500 }),
+      listMyRoutes({ customerId }),
     ]);
 
     if ((noDriversResult.errors && noDriversResult.errors.length > 0) || (closedResult.errors && closedResult.errors.length > 0)) {
@@ -212,7 +212,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     }
 
     if (applyToAllCustomers) {
-      const customersResult = await listAllCustomers({ limit: 200 });
+      const customersResult = await listAllCustomers();
       if (customersResult.errors && customersResult.errors.length > 0) {
         setActionError('Could not load customers to apply the block to.');
         setActionPending(false);

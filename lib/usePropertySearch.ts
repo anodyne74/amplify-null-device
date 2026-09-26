@@ -24,17 +24,8 @@ export function usePropertySearch(routes: Route[], customersById: Record<string,
   useEffect(() => {
     async function fetchAllStops() {
       setStopsLoading(true);
-      const allStops: Stop[] = [];
-      let nextToken: string | undefined;
-
-      do {
-        const pageResult = await listAllStops({ limit: 500, nextToken });
-        if (pageResult.errors && pageResult.errors.length > 0) break;
-        allStops.push(...((pageResult.data as Stop[]) || []));
-        nextToken = pageResult.nextToken ?? undefined;
-      } while (nextToken);
-
-      setStops(allStops);
+      const result = await listAllStops();
+      setStops(result.data as Stop[]);
       setStopsLoading(false);
     }
 

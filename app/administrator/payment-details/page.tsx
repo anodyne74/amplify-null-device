@@ -119,7 +119,7 @@ function PaymentDetailsContent() {
   useEffect(() => {
     let cancelled = false;
 
-    void listAllCustomers({ limit: 200 }).then((result) => {
+    void listAllCustomers().then((result) => {
       if (cancelled) return;
       const list = ((result.data as { id: string; name: string }[]) || []);
       setCustomers(list);
@@ -225,11 +225,17 @@ function PaymentDetailsContent() {
       paySplitOnCompletedStopsOnly: customer.paySplitOnCompletedStopsOnly ?? false,
       periodStartDate: start,
       periodEndDate: end,
-    }).then((result) => {
-      if (cancelled) return;
-      setSplitPreview(result);
-      setLoadingSplitPreview(false);
-    });
+    })
+      .then((result) => {
+        if (cancelled) return;
+        setSplitPreview(result);
+        setLoadingSplitPreview(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSplitPreview(null);
+        setLoadingSplitPreview(false);
+      });
 
     return () => {
       cancelled = true;

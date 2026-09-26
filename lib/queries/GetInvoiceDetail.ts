@@ -4,6 +4,7 @@
  */
 import { getCustomerPortalContext } from '@/lib/queries';
 import { getDataClient } from '@/lib/data-client';
+import { listAll } from '@/lib/listAll';
 
 export interface GetInvoiceDetailParams {
   invoiceId: string;
@@ -64,7 +65,7 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
     });
 
     // Fetch line items for this invoice
-    const { data: lineItems, errors: lineItemsErrors } = await getDataClient().models.LineItem.list({
+    const { data: lineItems, errors: lineItemsErrors } = await listAll(getDataClient(), 'LineItem', {
       filter: {
         invoiceId: {
           eq: params.invoiceId,
@@ -75,7 +76,7 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
       },
     });
 
-    if (lineItemsErrors) {
+    if (lineItemsErrors.length > 0) {
       console.error('Errors fetching line items:', lineItemsErrors);
       return { data: null, errors: lineItemsErrors };
     }

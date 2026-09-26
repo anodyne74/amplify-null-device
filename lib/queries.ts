@@ -6,6 +6,7 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { normalizeCustomerDefaults } from '@/lib/customerDefaults';
 import { getDataClient } from '@/lib/data-client';
+import { listAll } from '@/lib/listAll';
 import type { RouteStatus } from '@/amplify/types';
 
 function getClient() {
@@ -78,18 +79,17 @@ export async function getUserSettings(userSub: string) {
       return { data: null, errors: [modelError] };
     }
 
-    const { data, errors } = await model.list({
+    const { data, errors } = await listAll(getClient(), 'UserSettings', {
       filter: { userSub: { eq: userSub } },
-      limit: 1,
     });
 
-    if (errors) {
+    if (errors.length > 0) {
       console.error('Errors getting user settings:', errors);
       return { data: null, errors };
     }
 
-    const row = ((data as UserSettingsRecord[] | undefined) || [])[0] || null;
-    return { data: row, errors };
+    const row = (data as UserSettingsRecord[])[0] || null;
+    return { data: row, errors: undefined };
   } catch (error) {
     console.error('Error getting user settings:', error);
     return { data: null, errors: [error] };
@@ -156,20 +156,17 @@ export async function upsertUserSettings(
  * Fetch all customers
  * Used by operators to view all customers in the system
  */
-export async function listCustomers(options?: { limit?: number; nextToken?: string }) {
+export async function listCustomers() {
   try {
-    const { data, errors, nextToken } = await getClient().models.Customer.list({
-      limit: options?.limit || 20,
-      nextToken: options?.nextToken,
-    });
-    if (errors) {
+    const { data, errors } = await listAll(getClient(), 'Customer');
+    if (errors.length > 0) {
       console.error('Errors fetching customers:', errors);
-      return { data: [], errors, nextToken: undefined };
+      return { data: [], errors };
     }
-    return { data: data || [], errors, nextToken: nextToken ?? undefined };
+    return { data, errors: undefined };
   } catch (error) {
     console.error('Error listing customers:', error);
-    return { data: [], errors: [error], nextToken: undefined };
+    return { data: [], errors: [error] };
   }
 }
 
@@ -304,32 +301,26 @@ export async function deleteCustomer(customerId: string) {
  */
 export async function listCustomerRoutes(
   customerId: string,
-  options?: { limit?: number; nextToken?: string; status?: string }
+  options?: { status?: string }
 ) {
   try {
-    let routes = [];
-    let nextToken: string | undefined = options?.nextToken;
-
-    // Fetch routes with pagination
-    const { data, errors } = await getClient().models.Route.list({
+    const { data, errors } = await listAll(getClient(), 'Route', {
       filter: { customerId: { eq: customerId } },
-      limit: options?.limit || 20,
-      nextToken,
     });
 
-    if (errors) {
+    if (errors.length > 0) {
       console.error('Errors fetching routes:', errors);
       return { data: [], errors };
     }
 
-    routes = data || [];
+    let routes = data;
 
     // Apply status filter if provided (client-side filtering as Amplify doesn't support complex filters)
     if (options?.status) {
       routes = routes.filter((route) => route.status === options.status);
     }
 
-    return { data: routes, errors };
+    return { data: routes, errors: undefined };
   } catch (error) {
     console.error('Error listing customer routes:', error);
     return { data: [], errors: [error] };
@@ -337,41 +328,24 @@ export async function listCustomerRoutes(
 }
 
 /**
- * Fetch a specific route with all its stops
- */
-/**
- * Fetches every Stop for a route, paginating through Stop.list until
- * nextToken is exhausted. A single unpaginated call is not enough — `limit`
- * caps items *scanned* before the routeId filter is applied, not items
- * *matched*, so a route's stops can span multiple pages even when there are
- * far fewer than `limit` of them.
+ * Fetches every Stop for a route (see lib/listAll.ts for why one page isn't
+ * enough).
  */
 export async function listAllStopsForRoute(routeId: string) {
-  const allStops: any[] = [];
-  const allStopErrors: unknown[] = [];
-  let nextToken: string | undefined;
+  const { data: stops, errors } = await listAll(getClient(), 'Stop', {
+    filter: { routeId: { eq: routeId } },
+  });
 
-  do {
-    const { data: stopsPage, errors: stopsErrors, nextToken: pageNextToken } = await getClient().models.Stop.list({
-      filter: { routeId: { eq: routeId } },
-      nextToken,
-      limit: 200,
-    });
+  if (errors.length > 0) {
+    console.error('Errors fetching stops:', errors);
+  }
 
-    if (stopsErrors && stopsErrors.length > 0) {
-      console.error('Errors fetching stops:', stopsErrors);
-      allStopErrors.push(...stopsErrors);
-    }
-
-    if (stopsPage && stopsPage.length > 0) {
-      allStops.push(...stopsPage);
-    }
-
-    nextToken = pageNextToken ?? undefined;
-  } while (nextToken);
-
-  return { stops: allStops, errors: allStopErrors };
+  return { stops, errors };
 }
+
+/**
+ * Fetch a specific route with all its stops
+ */
 
 export async function getRouteWithStops(routeId: string) {
   try {
@@ -402,19 +376,18 @@ export async function getRouteWithStops(routeId: string) {
 /**
  * Fetch invoices for a single customer (admin customers panel — onboarding checklist).
  */
-export async function listCustomerInvoices(customerId: string, options?: { limit?: number }) {
+export async function listCustomerInvoices(customerId: string) {
   try {
-    const { data, errors } = await getClient().models.Invoice.list({
+    const { data, errors } = await listAll(getClient(), 'Invoice', {
       filter: { customerId: { eq: customerId } },
-      limit: options?.limit || 20,
     });
 
-    if (errors) {
+    if (errors.length > 0) {
       console.error('Errors fetching customer invoices:', errors);
       return { data: [], errors };
     }
 
-    return { data: data || [], errors };
+    return { data, errors: undefined };
   } catch (error) {
     console.error('Error listing customer invoices:', error);
     return { data: [], errors: [error] };
@@ -424,30 +397,21 @@ export async function listCustomerInvoices(customerId: string, options?: { limit
 /**
  * Fetch all invoices for administrators/operators.
  */
-export async function listInvoices(options?: {
-  limit?: number;
-  nextToken?: string;
-  status?: 'draft' | 'sent' | 'paid';
-}) {
+export async function listInvoices(options?: { status?: 'draft' | 'sent' | 'paid' }) {
   try {
-    const { data, errors, nextToken } = await getClient().models.Invoice.list({
-      limit: options?.limit || 20,
-      nextToken: options?.nextToken,
-    });
+    const { data, errors } = await listAll(getClient(), 'Invoice');
 
-    if (errors) {
+    if (errors.length > 0) {
       console.error('Errors fetching invoices:', errors);
-      return { data: [], errors, nextToken: undefined };
+      return { data: [], errors };
     }
 
-    const filtered = options?.status
-      ? (data || []).filter((invoice) => invoice.status === options.status)
-      : (data || []);
+    const filtered = options?.status ? data.filter((invoice) => invoice.status === options.status) : data;
 
-    return { data: filtered, errors, nextToken: nextToken ?? undefined };
+    return { data: filtered, errors: undefined };
   } catch (error) {
     console.error('Error listing invoices:', error);
-    return { data: [], errors: [error], nextToken: undefined };
+    return { data: [], errors: [error] };
   }
 }
 
@@ -470,15 +434,15 @@ export async function getInvoiceWithLineItems(invoiceId: string) {
     }
 
     // Fetch line items for this invoice
-    const { data: lineItems, errors: lineItemsErrors } = await getClient().models.LineItem.list({
+    const { data: lineItems, errors: lineItemsErrors } = await listAll(getClient(), 'LineItem', {
       filter: { invoiceId: { eq: invoiceId } },
     });
 
-    if (lineItemsErrors) {
+    if (lineItemsErrors.length > 0) {
       console.error('Errors fetching line items:', lineItemsErrors);
     }
 
-    return { invoice, lineItems: lineItems || [], errors: lineItemsErrors || [] };
+    return { invoice, lineItems, errors: lineItemsErrors };
   } catch (error) {
     console.error('Error getting invoice with line items:', error);
     return { invoice: null, lineItems: [], errors: [error] };
@@ -868,7 +832,7 @@ export async function updateInvoice(
 export async function deleteInvoice(invoiceId: string) {
   try {
     const client = getClient();
-    const { data: lineItems, errors: lineItemListErrors } = await client.models.LineItem.list({
+    const { data: lineItems, errors: lineItemListErrors } = await listAll(client, 'LineItem', {
       filter: { invoiceId: { eq: invoiceId } },
     });
 
@@ -949,13 +913,14 @@ export async function listCustomerUsers(customerId: string) {
       return { data: [], errors: [modelError] };
     }
 
-    const { data, errors } = await model.list({
+    const { data, errors } = await listAll(getClient(), 'CustomerUser', {
       filter: { customerId: { eq: customerId } },
     });
-    if (errors) {
+    if (errors.length > 0) {
       console.error('Errors listing customer users:', errors);
+      return { data, errors };
     }
-    return { data: data || [], errors };
+    return { data, errors: undefined };
   } catch (error) {
     console.error('Error listing customer users:', error);
     return { data: [], errors: [error] };
@@ -974,22 +939,12 @@ export async function listAllCustomerUsers() {
       return { data: [], errors: [modelError] };
     }
 
-    const allData: unknown[] = [];
-    let nextToken: string | undefined;
-    let lastErrors: unknown[] | undefined;
-
-    do {
-      const { data, errors, nextToken: token } = await model.list({ limit: 200, nextToken });
-      if (errors) {
-        console.error('Errors listing all customer users:', errors);
-        lastErrors = errors;
-        break;
-      }
-      allData.push(...(data || []));
-      nextToken = token ?? undefined;
-    } while (nextToken);
-
-    return { data: allData, errors: lastErrors };
+    const { data, errors } = await listAll(getClient(), 'CustomerUser');
+    if (errors.length > 0) {
+      console.error('Errors listing all customer users:', errors);
+      return { data, errors };
+    }
+    return { data, errors: undefined };
   } catch (error) {
     console.error('Error listing all customer users:', error);
     return { data: [], errors: [error] };
@@ -1015,15 +970,10 @@ export async function getCustomerPortalContext(userSub: string): Promise<{
       };
     }
 
-    const { data, errors } = await model.list({
+    const { data: rows, errors: listErrors } = await listAll(getClient(), 'CustomerUser', {
       filter: { userSub: { eq: userSub } },
-      limit: 100,
     });
-
-    const rows = (data as Array<{
-      role?: 'account_owner' | 'read_only' | null;
-      customerId?: string | null;
-    }> | undefined) || [];
+    const errors = listErrors.length > 0 ? listErrors : undefined;
 
     const ownerRow = rows.find((row) => row.role === 'account_owner' && row.customerId);
     if (ownerRow?.customerId) {
@@ -1159,13 +1109,12 @@ export async function syncViewerSubsForCustomer(
 
   try {
     // Fetch all routes for this customer
-    const { data: routes, errors: routeErrors } = await getClient().models.Route.list({
+    const { data: routes, errors: routeErrors } = await listAll(getClient(), 'Route', {
       filter: { customerId: { eq: customerId } },
-      limit: 1000,
     });
-    if (routeErrors) allErrors.push(...routeErrors);
+    allErrors.push(...routeErrors);
 
-    for (const route of routes || []) {
+    for (const route of routes) {
       // Update route viewerSubs
       const { errors: routeUpdateErrors } = await getClient().models.Route.update({
         id: route.id,
@@ -1175,13 +1124,12 @@ export async function syncViewerSubsForCustomer(
       else updatedRoutes++;
 
       // Fetch and update all stops for this route
-      const { data: stops, errors: stopListErrors } = await getClient().models.Stop.list({
+      const { data: stops, errors: stopListErrors } = await listAll(getClient(), 'Stop', {
         filter: { routeId: { eq: route.id } },
-        limit: 1000,
       });
-      if (stopListErrors) allErrors.push(...stopListErrors);
+      allErrors.push(...stopListErrors);
 
-      for (const stop of stops || []) {
+      for (const stop of stops) {
         const { errors: stopUpdateErrors } = await getClient().models.Stop.update({
           id: stop.id,
           viewerSubs,
@@ -1193,13 +1141,12 @@ export async function syncViewerSubsForCustomer(
 
     // CustomerUser itself also carries viewerSubs, so every customer user
     // (not just the account owner) can read the whole team directory.
-    const { data: customerUsers, errors: customerUserListErrors } = await getClient().models.CustomerUser.list({
+    const { data: customerUsers, errors: customerUserListErrors } = await listAll(getClient(), 'CustomerUser', {
       filter: { customerId: { eq: customerId } },
-      limit: 1000,
     });
-    if (customerUserListErrors) allErrors.push(...customerUserListErrors);
+    allErrors.push(...customerUserListErrors);
 
-    for (const customerUser of customerUsers || []) {
+    for (const customerUser of customerUsers) {
       const { errors: customerUserUpdateErrors } = await getClient().models.CustomerUser.update({
         id: customerUser.id,
         viewerSubs,
@@ -1214,7 +1161,7 @@ export async function syncViewerSubsForCustomer(
     // auth rule. This is normally set by the customer-access-activation Lambda
     // at signup time, but admin-driven onboarding (this code path) never
     // touched the Customer record itself, so it stays null indefinitely.
-    const accountOwnerSub = (customerUsers || []).find(
+    const accountOwnerSub = customerUsers.find(
       (row) => row.role === 'account_owner' && row.userSub && !row.userSub.startsWith('pending:')
     )?.userSub;
 

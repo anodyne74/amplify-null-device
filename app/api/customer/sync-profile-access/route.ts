@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
 import type { IamDataClient } from '@/lib/server/iamDataClient';
+import { listAll } from '@/lib/listAll';
 
 const PENDING_SUB_PREFIX = 'pending:';
 
 async function syncViewerSubsForCustomer(client: IamDataClient, customerId: string, viewerSubs: string[]) {
-  const { data: routes } = await client.models.Route.list({
+  const { data: routes } = await listAll(client, 'Route', {
     filter: { customerId: { eq: customerId } },
-    limit: 1000,
   });
   for (const route of routes || []) {
     if (!route?.id) continue;
     await client.models.Route.update({ id: route.id, viewerSubs });
 
-    const { data: stops } = await client.models.Stop.list({
+    const { data: stops } = await listAll(client, 'Stop', {
       filter: { routeId: { eq: route.id } },
-      limit: 1000,
     });
     for (const stop of stops || []) {
       if (!stop?.id) continue;
@@ -23,27 +22,24 @@ async function syncViewerSubsForCustomer(client: IamDataClient, customerId: stri
     }
   }
 
-  const { data: invoices } = await client.models.Invoice.list({
+  const { data: invoices } = await listAll(client, 'Invoice', {
     filter: { customerId: { eq: customerId } },
-    limit: 1000,
   });
   for (const invoice of invoices || []) {
     if (!invoice?.id) continue;
     await client.models.Invoice.update({ id: invoice.id, viewerSubs });
   }
 
-  const { data: lineItems } = await client.models.LineItem.list({
+  const { data: lineItems } = await listAll(client, 'LineItem', {
     filter: { customerId: { eq: customerId } },
-    limit: 1000,
   });
   for (const lineItem of lineItems || []) {
     if (!lineItem?.id) continue;
     await client.models.LineItem.update({ id: lineItem.id, viewerSubs });
   }
 
-  const { data: paymentRecords } = await client.models.PaymentRecord.list({
+  const { data: paymentRecords } = await listAll(client, 'PaymentRecord', {
     filter: { customerId: { eq: customerId } },
-    limit: 1000,
   });
   for (const paymentRecord of paymentRecords || []) {
     if (!paymentRecord?.id) continue;
@@ -70,9 +66,8 @@ export async function POST(request: NextRequest) {
     }
     const { claims, client } = auth;
 
-    const { data: ownRows } = await client.models.CustomerUser.list({
+    const { data: ownRows } = await listAll(client, 'CustomerUser', {
       filter: { userSub: { eq: claims.sub } },
-      limit: 100,
     });
 
     const customerId = (ownRows || []).find((row) => row?.customerId)?.customerId;
@@ -80,9 +75,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No customer mapping found for this user' }, { status: 404 });
     }
 
-    const { data: allRows } = await client.models.CustomerUser.list({
+    const { data: allRows } = await listAll(client, 'CustomerUser', {
       filter: { customerId: { eq: customerId } },
-      limit: 1000,
     });
 
     const viewerSubs = [

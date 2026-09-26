@@ -3,28 +3,21 @@
  * Operator model comment: Driver and Operator are the same record).
  */
 import { getDataClient } from '@/lib/data-client';
+import { listAll } from '@/lib/listAll';
 
-export interface ListOperatorsParams {
-  limit?: number;
-  nextToken?: string;
-}
-
-export async function listOperators(params?: ListOperatorsParams) {
+export async function listOperators() {
   try {
-    const { data, errors, nextToken } = await getDataClient().models.Operator.list({
-      limit: params?.limit || 200,
-      nextToken: params?.nextToken,
-    });
+    const { data, errors } = await listAll(getDataClient(), 'Operator');
 
-    if (errors) {
+    if (errors.length > 0) {
       console.error('Errors fetching operators:', errors);
-      return { data: [], errors, nextToken: undefined };
+      return { data: [], errors };
     }
 
-    const sorted = [...(data || [])].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    return { data: sorted, errors: undefined, nextToken };
+    const sorted = [...data].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return { data: sorted, errors: undefined };
   } catch (error) {
     console.error('Error listing operators:', error);
-    return { data: [], errors: [error as Error], nextToken: undefined };
+    return { data: [], errors: [error as Error] };
   }
 }

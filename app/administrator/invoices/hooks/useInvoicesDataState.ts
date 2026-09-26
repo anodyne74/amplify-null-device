@@ -57,85 +57,10 @@ export function useInvoicesDataState({
     setLoading(true);
     setError(null);
 
-    const loadAllCustomers = async () => {
-      const allCustomers: Array<{
-        id: string;
-        name: string;
-        email?: string;
-        addressLine1?: string;
-        billingRatePerHour?: number;
-        gstExclusive?: boolean | null;
-        viewerSubs?: string[] | null;
-        driverSplitPercent?: number | null;
-        groupLineItemsByAgent?: boolean | null;
-        paymentTermsDays?: number | null;
-      }> = [];
-      let nextToken: string | undefined;
-
-      do {
-        const result = await listCustomers({ limit: 100, nextToken });
-        if (result.errors && result.errors.length > 0) {
-          return { data: [], errors: result.errors, nextToken: undefined as string | undefined };
-        }
-
-        allCustomers.push(
-          ...((result.data as Array<{
-            id: string;
-            name: string;
-            email?: string;
-            addressLine1?: string;
-            billingRatePerHour?: number;
-            gstExclusive?: boolean | null;
-            viewerSubs?: string[] | null;
-            driverSplitPercent?: number | null;
-            groupLineItemsByAgent?: boolean | null;
-            paymentTermsDays?: number | null;
-          }>) || [])
-        );
-        nextToken = result.nextToken ?? undefined;
-      } while (nextToken);
-
-      return { data: allCustomers, errors: undefined, nextToken: undefined as string | undefined };
-    };
-
-    const loadAllInvoices = async () => {
-      const allInvoices: Invoice[] = [];
-      let nextToken: string | undefined;
-
-      do {
-        const result = await listInvoices({ limit: 100, nextToken });
-        if (result.errors && result.errors.length > 0) {
-          return { data: [] as Invoice[], errors: result.errors };
-        }
-
-        allInvoices.push(...((result.data as Invoice[]) || []));
-        nextToken = result.nextToken ?? undefined;
-      } while (nextToken);
-
-      return { data: allInvoices, errors: undefined };
-    };
-
-    const loadAllRoutes = async () => {
-      const allRoutes: Route[] = [];
-      let nextToken: string | undefined;
-
-      do {
-        const result = await listAllRoutes({ limit: 200, nextToken });
-        if (result.errors && result.errors.length > 0) {
-          return { data: [] as Route[], errors: result.errors };
-        }
-
-        allRoutes.push(...((result.data as Route[]) || []));
-        nextToken = result.nextToken ?? undefined;
-      } while (nextToken);
-
-      return { data: allRoutes, errors: undefined };
-    };
-
     const [customersResult, invoicesResult, routesResult] = await Promise.all([
-      loadAllCustomers(),
-      loadAllInvoices(),
-      loadAllRoutes(),
+      listCustomers(),
+      listInvoices(),
+      listAllRoutes(),
     ]);
 
     if (customersResult.errors && customersResult.errors.length > 0) {

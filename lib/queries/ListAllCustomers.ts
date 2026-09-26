@@ -2,27 +2,21 @@
  * List all customers (for operator customer dropdown)
  */
 import { getDataClient } from '@/lib/data-client';
+import { listAll } from '@/lib/listAll';
 
-export interface ListAllCustomersParams {
-  limit?: number;
-  nextToken?: string;
-}
-
-export async function listAllCustomers(params?: ListAllCustomersParams) {
+/** Every Customer, paginated through to the end -- see lib/listAll.ts. */
+export async function listAllCustomers() {
   try {
-    const { data, errors, nextToken } = await getDataClient().models.Customer.list({
-      limit: params?.limit || 100,
-      nextToken: params?.nextToken,
-    });
+    const { data, errors } = await listAll(getDataClient(), 'Customer');
 
-    if (errors) {
+    if (errors.length > 0) {
       console.error('Errors fetching customers:', errors);
-      return { data: [], errors, nextToken: undefined };
+      return { data: [], errors };
     }
 
-    return { data: data || [], errors: undefined, nextToken };
+    return { data, errors: undefined };
   } catch (error) {
     console.error('Error listing all customers:', error);
-    return { data: [], errors: [error as Error], nextToken: undefined };
+    return { data: [], errors: [error as Error] };
   }
 }

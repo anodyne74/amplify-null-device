@@ -135,7 +135,7 @@ describe('queries', () => {
       const result = await listCustomers();
 
       expect(mockCustomerList).toHaveBeenCalledWith({
-        limit: 20,
+        limit: 1000,
         nextToken: undefined,
       });
       expect(result.data).toHaveLength(1);
@@ -239,7 +239,8 @@ describe('queries', () => {
 
       expect(mockUserSettingsList).toHaveBeenCalledWith({
         filter: { userSub: { eq: 'user-1' } },
-        limit: 1,
+        limit: 1000,
+        nextToken: undefined,
       });
       expect(result.data).toEqual({ id: 'settings-1', userSub: 'user-1', defaultTheme: 'dark' });
     });
@@ -300,7 +301,7 @@ describe('queries', () => {
 
       expect(mockRouteList).toHaveBeenCalledWith({
         filter: { customerId: { eq: 'c1' } },
-        limit: 20,
+        limit: 1000,
         nextToken: undefined,
       });
       expect(result.data).toHaveLength(2);
@@ -335,7 +336,8 @@ describe('queries', () => {
 
       expect(mockInvoiceList).toHaveBeenCalledWith({
         filter: { customerId: { eq: 'c1' } },
-        limit: 20,
+        limit: 1000,
+        nextToken: undefined,
       });
       expect(result.data).toHaveLength(1);
     });
@@ -467,12 +469,12 @@ describe('queries', () => {
       expect(mockStopList).toHaveBeenNthCalledWith(1, {
         filter: { routeId: { eq: 'r1' } },
         nextToken: undefined,
-        limit: 200,
+        limit: 1000,
       });
       expect(mockStopList).toHaveBeenNthCalledWith(2, {
         filter: { routeId: { eq: 'r1' } },
         nextToken: 'next-page',
-        limit: 200,
+        limit: 1000,
       });
       expect(result.stops.map((stop: { id: string }) => stop.id)).toEqual(['s1', 's2']);
       expect(result.errors).toEqual([]);
@@ -947,6 +949,8 @@ describe('queries', () => {
 
       expect(mockCustomerUserList).toHaveBeenCalledWith({
         filter: { customerId: { eq: 'c1' } },
+        limit: 1000,
+        nextToken: undefined,
       });
       expect(result.data).toHaveLength(1);
     });
@@ -967,8 +971,8 @@ describe('queries', () => {
       const result = await listAllCustomerUsers();
 
       expect(mockCustomerUserList).toHaveBeenCalledTimes(2);
-      expect(mockCustomerUserList).toHaveBeenNthCalledWith(1, { limit: 200, nextToken: undefined });
-      expect(mockCustomerUserList).toHaveBeenNthCalledWith(2, { limit: 200, nextToken: 'token-2' });
+      expect(mockCustomerUserList).toHaveBeenNthCalledWith(1, { limit: 1000, nextToken: undefined });
+      expect(mockCustomerUserList).toHaveBeenNthCalledWith(2, { limit: 1000, nextToken: 'token-2' });
       expect(result.data).toEqual([
         { id: 'cu1', customerId: 'c1', role: 'account_owner' },
         { id: 'cu2', customerId: 'c2', role: 'read_only' },

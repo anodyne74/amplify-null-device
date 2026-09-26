@@ -181,4 +181,59 @@ describe('computeDriverSplit', () => {
     expect(result.totalDriverShare).toBe(9);
     expect(result.retained).toBe(81);
   });
+
+  it('reads routes and stops from every list page, not just the first', async () => {
+    // `limit` caps items scanned before the customerId filter, so matches can
+    // sit on later pages behind an empty first page.
+    mockRouteList
+      .mockResolvedValueOnce({ data: [], nextToken: 'routes-2' })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'route-1',
+            customerId: 'cust-1',
+            status: 'completed',
+            assignedOperatorSub: 'op-1',
+            actualEndTime: '2026-08-10T12:00:00Z',
+            actualDurationMinutes: 60,
+          },
+        ],
+        nextToken: null,
+      });
+    mockStopList
+      .mockResolvedValueOnce({
+        data: [{ id: 'stop-1', routeId: 'route-1', actualDepartureTime: '2026-08-10T10:00:00Z' }],
+        nextToken: 'stops-2',
+      })
+      .mockResolvedValueOnce({ data: [{ id: 'stop-2', routeId: 'route-1', actualDepartureTime: null }], nextToken: null });
+
+    const result = await computeDriverSplit({
+      customerId: 'cust-1',
+      billingRatePerHour: 30,
+      driverSplitPercent: 50,
+      paySplitOnCompletedStopsOnly: true,
+      periodStartDate: '2026-08-01',
+      periodEndDate: '2026-08-31',
+    });
+
+    // route-1 is found on page 2, and its incomplete stop (also on page 2)
+    // still excludes it from the split.
+    expect(mockRouteList).toHaveBeenCalledTimes(2);
+    expect(mockStopList).toHaveBeenCalledTimes(2);
+    expect(result.byOperator).toEqual([]);
+  });
+
+  it('throws rather than under-paying when a list returns errors', async () => {
+    mockRouteList.mockResolvedValue({ data: [], errors: [{ message: 'Unauthorized' }] });
+
+    await expect(
+      computeDriverSplit({
+        customerId: 'cust-1',
+        billingRatePerHour: 30,
+        driverSplitPercent: 50,
+        periodStartDate: '2026-08-01',
+        periodEndDate: '2026-08-31',
+      })
+    ).rejects.toThrow(/could not load every route/i);
+  });
 });

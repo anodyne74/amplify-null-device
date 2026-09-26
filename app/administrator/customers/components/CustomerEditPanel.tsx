@@ -7,6 +7,7 @@ import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/c
 import AgentOptionsEditor from '@/app/administrator/customers/components/AgentOptionsEditor';
 import type { Customer, CustomerStatus } from '@/app/administrator/customers/types';
 import type { ChecklistItem } from '@/lib/customerOnboardingChecklist';
+import { FEATURE_FLAGS, type FeatureFlagName } from '@/lib/featureFlags';
 import styles from '../page.module.css';
 
 function emailDomain(email: string) {
@@ -31,6 +32,8 @@ interface CustomerEditPanelProps {
   editSuccess: string | null;
   checklist?: ChecklistItem[];
   checklistLoading?: boolean;
+  /** The Feature Flags on for this Customer; null when they couldn't be read. Loads alongside the checklist. */
+  onFeatureFlags?: FeatureFlagName[] | null;
   onEditNameChange: (value: string) => void;
   onEditCompanyNameChange: (value: string) => void;
   onEditEmailChange: (value: string) => void;
@@ -69,6 +72,7 @@ export default function CustomerEditPanel({
   editSuccess,
   checklist,
   checklistLoading,
+  onFeatureFlags,
   onEditNameChange,
   onEditCompanyNameChange,
   onEditEmailChange,
@@ -254,6 +258,27 @@ export default function CustomerEditPanel({
                   </span>
                   <span className={styles.checklistLabel}>{item.label}</span>
                   {item.when && <span className={styles.checklistWhen}>{item.when}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <hr className={styles.detailDivider} />
+
+          <h4 className={styles.subPanelHeading}>Feature flags on</h4>
+          {checklistLoading ? (
+            <p className={styles.mutedText}>Loading...</p>
+          ) : onFeatureFlags === null ? (
+            <p className={styles.mutedText}>Could not load feature flags.</p>
+          ) : !onFeatureFlags?.length ? (
+            <p className={styles.mutedText}>None — this Customer sees no flagged features.</p>
+          ) : (
+            <ul className={styles.checklist} aria-label="Feature flags on">
+              {onFeatureFlags.map((name) => (
+                <li key={name} className={styles.checklistRow}>
+                  <span className={styles.checklistLabel}>
+                    {(FEATURE_FLAGS[name] as { label: string } | undefined)?.label ?? name}
+                  </span>
                 </li>
               ))}
             </ul>

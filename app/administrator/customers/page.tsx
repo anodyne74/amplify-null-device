@@ -26,6 +26,8 @@ import styles from './page.module.css';
 import { listCustomerRoutes } from '@/lib/routes';
 import { createCustomer, listAllCustomerUsers, listCustomerUsers, listAllCustomers, updateCustomer } from '@/lib/customers';
 import { listCustomerInvoices } from '@/lib/invoices';
+import { listFeatureFlagSettings } from '@/lib/queries/FeatureFlagSettings';
+import { resolveOnFlags, type FeatureFlagName } from '@/lib/featureFlags';
 
 const usdFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -81,6 +83,8 @@ export default function CustomersAdminPage() {
   const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>([]);
   const [checklists, setChecklists] = useState<Record<string, ChecklistItem[]>>({});
   const [checklistLoading, setChecklistLoading] = useState<Record<string, boolean>>({});
+  // null: the flag settings couldn't be read, so the panel says so rather than showing none on.
+  const [onFeatureFlags, setOnFeatureFlags] = useState<Record<string, FeatureFlagName[] | null>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -204,10 +208,11 @@ export default function CustomersAdminPage() {
   const fetchOnboardingChecklist = useCallback(async (customer: Customer) => {
     setChecklistLoading((prev) => ({ ...prev, [customer.id]: true }));
 
-    const [usersResult, routesResult, invoicesResult] = await Promise.all([
+    const [usersResult, routesResult, invoicesResult, flagSettingsResult] = await Promise.all([
       listCustomerUsers(customer.id),
       listCustomerRoutes(customer.id),
       listCustomerInvoices(customer.id),
+      listFeatureFlagSettings(),
     ]);
 
     const users = (usersResult.errors && usersResult.errors.length > 0 ? [] : usersResult.data) as CustomerUser[];
@@ -215,6 +220,10 @@ export default function CustomersAdminPage() {
     setChecklists((prev) => ({
       ...prev,
       [customer.id]: buildOnboardingChecklist(customer, users, routesResult.data ?? [], invoicesResult.data ?? []),
+    }));
+    setOnFeatureFlags((prev) => ({
+      ...prev,
+      [customer.id]: flagSettingsResult.errors ? null : resolveOnFlags(flagSettingsResult.data, customer.id),
     }));
     setChecklistLoading((prev) => ({ ...prev, [customer.id]: false }));
   }, []);
@@ -532,6 +541,7 @@ export default function CustomersAdminPage() {
             editSuccess={editSuccess}
             checklist={checklists[selectedCustomer.id]}
             checklistLoading={checklistLoading[selectedCustomer.id]}
+            onFeatureFlags={onFeatureFlags[selectedCustomer.id]}
             onEditNameChange={setEditName}
             onEditCompanyNameChange={setEditCompanyName}
             onEditEmailChange={setEditEmail}

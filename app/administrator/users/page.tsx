@@ -21,7 +21,6 @@ import {
   updateCustomerUser,
   listAllCustomerUsers,
   listCustomers,
-  syncViewerSubsForCustomer,
 } from '@/lib/queries';
 import CustomerUserTableRow, {
   type CustomerUserRowData,
@@ -55,21 +54,6 @@ type CustomerUser = {
   email?: string | null;
   role?: 'account_owner' | 'read_only' | null;
 };
-
-// Older CustomerUser records may still carry this placeholder prefix from
-// before user creation was synchronous (see handleAddCustomerUser) -- kept
-// only so toViewerSubs continues to filter any such legacy rows out.
-const PENDING_SUB_PREFIX = 'pending:';
-
-function toViewerSubs(users: Array<{ userSub?: string | null }>) {
-  return [
-    ...new Set(
-      users
-        .map((user) => (user.userSub || '').trim())
-        .filter((userSub): userSub is string => Boolean(userSub) && !userSub.startsWith(PENDING_SUB_PREFIX))
-    ),
-  ];
-}
 
 type CustomerUserSortKey = 'name' | 'customer' | 'role' | 'status';
 
@@ -128,14 +112,14 @@ export default function UsersAdminPage() {
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState<'account_owner' | 'read_only'>('read_only');
 
-  const callAdminApi = useCallback(async (body: Record<string, unknown>) => {
+  const callAdminApi = useCallback(async (body: Record<string, unknown>, path = '/api/admin/users') => {
     const session = await fetchAuthSession();
     const idToken = session.tokens?.idToken?.toString();
     if (!idToken) {
       throw new Error('No session token found. Please sign in again.');
     }
 
-    const response = await fetch('/api/admin/users', {
+    const response = await fetch(path, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -150,6 +134,21 @@ export default function UsersAdminPage() {
     }
     return payload;
   }, []);
+
+  // Re-stamps the customer's records server-side (lib/customerAccess.ts) and
+  // returns an error message rather than throwing -- the membership change
+  // itself has already been saved by the time this runs.
+  const syncCustomerAccess = useCallback(
+    async (customerId: string, change: { added?: string; removed?: string }) => {
+      try {
+        await callAdminApi({ customerId, ...change }, '/api/admin/sync-customer-access');
+        return null;
+      } catch (e) {
+        return e instanceof Error ? e.message : 'Access sync failed.';
+      }
+    },
+    [callAdminApi]
+  );
 
   const resolveUserByEmail = useCallback(async (email: string): Promise<CognitoUser> => {
     const payload = await callAdminApi({ action: 'getUserByEmail', email });
@@ -418,16 +417,19 @@ export default function UsersAdminPage() {
           email: normalizedEmail,
         });
       }
-      const viewerSubs = toViewerSubs(updated);
-      await syncViewerSubsForCustomer(selectedCustomerId, viewerSubs);
+      const syncError = await syncCustomerAccess(selectedCustomerId, { added: assignedUserSub });
 
-      setAccessSuccess(
-        invited
-          ? emailSent
-            ? 'Account created — we emailed them a branded invitation with a temporary password. Access is synced.'
-            : 'Account created, but the invitation email could not be sent. Ask the user to use "Forgot password" to get access.'
-          : 'User assigned to customer and access synced to all routes and stops.'
-      );
+      if (syncError) {
+        setAccessError(`User added, but syncing their access failed (${syncError}). Retry by re-adding them.`);
+      } else {
+        setAccessSuccess(
+          invited
+            ? emailSent
+              ? 'Account created — we emailed them a branded invitation with a temporary password. Access is synced.'
+              : 'Account created, but the invitation email could not be sent. Ask the user to use "Forgot password" to get access.'
+            : 'User assigned to customer and access synced to all routes and stops.'
+        );
+      }
       setNewUserEmail('');
       setNewUserRole('read_only');
       setNewUserName('');
@@ -448,12 +450,12 @@ export default function UsersAdminPage() {
     if (result.errors && result.errors.length > 0) {
       setAccessError('Failed to remove user.');
     } else {
-      const remainingForCustomer = allCustomerUsers.filter(
-        (u) => u.customerId === target.customerId && u.id !== target.id
-      );
-      await syncViewerSubsForCustomer(target.customerId, toViewerSubs(remainingForCustomer));
-
-      setAccessSuccess('User removed and access revoked from all routes and stops.');
+      const syncError = await syncCustomerAccess(target.customerId, { removed: target.userSub });
+      if (syncError) {
+        setAccessError(`User removed, but revoking their access failed (${syncError}). They may still see this customer's records.`);
+      } else {
+        setAccessSuccess("User removed and access revoked from all of this customer's records.");
+      }
       setAllCustomerUsers((prev) => prev.filter((u) => u.id !== target.id));
     }
     setAccessPending(false);

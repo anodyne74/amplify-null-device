@@ -1,60 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
-import type { IamDataClient } from '@/lib/server/iamDataClient';
 import { listAll } from '@/lib/listAll';
-
-const PENDING_SUB_PREFIX = 'pending:';
-
-async function syncViewerSubsForCustomer(client: IamDataClient, customerId: string, viewerSubs: string[]) {
-  const { data: routes } = await listAll(client, 'Route', {
-    filter: { customerId: { eq: customerId } },
-  });
-  for (const route of routes || []) {
-    if (!route?.id) continue;
-    await client.models.Route.update({ id: route.id, viewerSubs });
-
-    const { data: stops } = await listAll(client, 'Stop', {
-      filter: { routeId: { eq: route.id } },
-    });
-    for (const stop of stops || []) {
-      if (!stop?.id) continue;
-      await client.models.Stop.update({ id: stop.id, viewerSubs });
-    }
-  }
-
-  const { data: invoices } = await listAll(client, 'Invoice', {
-    filter: { customerId: { eq: customerId } },
-  });
-  for (const invoice of invoices || []) {
-    if (!invoice?.id) continue;
-    await client.models.Invoice.update({ id: invoice.id, viewerSubs });
-  }
-
-  const { data: lineItems } = await listAll(client, 'LineItem', {
-    filter: { customerId: { eq: customerId } },
-  });
-  for (const lineItem of lineItems || []) {
-    if (!lineItem?.id) continue;
-    await client.models.LineItem.update({ id: lineItem.id, viewerSubs });
-  }
-
-  const { data: paymentRecords } = await listAll(client, 'PaymentRecord', {
-    filter: { customerId: { eq: customerId } },
-  });
-  for (const paymentRecord of paymentRecords || []) {
-    if (!paymentRecord?.id) continue;
-    await client.models.PaymentRecord.update({ id: paymentRecord.id, viewerSubs });
-  }
-}
+import { syncCustomerAccess } from '@/lib/customerAccess';
 
 /**
- * Backfills viewerSubs/accountOwnerSub across Customer, Route, Stop, Invoice, LineItem
- * and PaymentRecord for the calling customer's account.
+ * Backfills viewerSubs/accountOwnerSub on every record of the calling customer's
+ * account (see lib/customerAccess.ts).
  *
  * These fields are normally synced by the customer-access-activation Lambda at signup
  * time, but that trigger only fires on new sign-ups — accounts that were already active
  * before the fields existed never get them set. This route lets any already-active
- * customer self-heal on next portal visit: it runs with the SSR compute role's elevated
+ * customer self-heal on next portal visit. It also repairs any sync that failed
+ * partway through after an invite or activation. It runs with the SSR compute role's elevated
  * data access (same pattern as the admin API routes), so it can read/write these records
  * before viewerSubs/accountOwnerSub are populated, which the caller's own session cannot.
  */
@@ -75,29 +32,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No customer mapping found for this user' }, { status: 404 });
     }
 
-    const { data: allRows } = await listAll(client, 'CustomerUser', {
-      filter: { customerId: { eq: customerId } },
-    });
-
-    const viewerSubs = [
-      ...new Set(
-        (allRows || [])
-          .map((row) => row.userSub?.trim())
-          .filter((value): value is string => Boolean(value) && !value.startsWith(PENDING_SUB_PREFIX))
-      ),
-    ];
-
-    const accountOwnerRow = (allRows || []).find(
-      (row) => row.role === 'account_owner' && row.userSub && !row.userSub.startsWith(PENDING_SUB_PREFIX)
-    );
-
-    await client.models.Customer.update({
-      id: customerId,
-      viewerSubs,
-      accountOwnerSub: accountOwnerRow?.userSub || undefined,
-    });
-
-    await syncViewerSubsForCustomer(client, customerId, viewerSubs);
+    const { errors } = await syncCustomerAccess(client, customerId);
+    if (errors.length > 0) {
+      // Non-200 so the portal retries the repair on its next visit.
+      return NextResponse.json({ error: `Access sync finished with ${errors.length} error(s).` }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true, customerId });
   } catch (err) {

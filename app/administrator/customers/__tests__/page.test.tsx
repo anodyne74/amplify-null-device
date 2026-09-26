@@ -58,7 +58,6 @@ jest.mock('@/lib/queries', () => ({
   listCustomerRoutes: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
   listCustomerInvoices: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
   listCustomers: jest.fn(),
-  syncViewerSubsForCustomer: jest.fn(),
   updateCustomer: jest.fn(),
 }));
 

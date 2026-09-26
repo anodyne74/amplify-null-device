@@ -153,8 +153,7 @@ function RouteDetailContent() {
     canManagePlanning,
     availableAgentsForStops,
     defaultAgentForStops,
-    refetchStops,
-    refetchRoute,
+    refetch,
     addStop: addStopCapability,
     editStop: editStopCapability,
     deleteStop: deleteStopCapability,
@@ -205,7 +204,7 @@ function RouteDetailContent() {
     save: saveBillingOverrides,
   } = useRouteOverride<BillingOverrideValues>({
     route,
-    refetchRoute,
+    refetchRoute: refetch,
     computeDefaults: () => billingDefaults,
     buildPayload: (values) => ({
       overrideSigns: values.signs,
@@ -227,10 +226,10 @@ function RouteDetailContent() {
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
     const result = await runStopSettlement(stop, { phase, action: 'complete' });
     if (!('error' in result)) {
-      void refetchStops();
+      void refetch();
     }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [refetchStops, route, stops]);
+  }, [refetch, route, stops]);
 
   const handleSkipStop = useCallback(async (stopId: string) => {
     const phase = route?.status === 'in_progress' ? stopPhaseOf(route) : null;
@@ -240,10 +239,10 @@ function RouteDetailContent() {
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
     const result = await runStopSettlement(stop, { phase, action: 'skip' });
     if (!('error' in result)) {
-      void refetchStops();
+      void refetch();
     }
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [refetchStops, route, stops]);
+  }, [refetch, route, stops]);
 
   useEffect(() => {
     if (!user?.userId) return;

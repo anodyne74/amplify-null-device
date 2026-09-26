@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { useLiveRoutes, useLiveRoute, useLiveAllRoutes, useLiveOperatorRoutes } from '@/lib/useLiveRoutes';
+import { useLiveRoutes, useLiveAllRoutes, useLiveOperatorRoutes } from '@/lib/useLiveRoutes';
 
 const mockObserveQuery = jest.fn();
 
@@ -134,41 +134,6 @@ describe('useLiveRoutes', () => {
     unmount();
 
     expect(feed.unsubscribe).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('useLiveRoute', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('subscribes with an id filter and returns the single matching route', () => {
-    const feed = makeObservable();
-    mockObserveQuery.mockReturnValue(feed.observable);
-
-    const { result } = renderHook(() => useLiveRoute('route-1'));
-
-    expect(mockObserveQuery).toHaveBeenCalledWith({ filter: { id: { eq: 'route-1' } } });
-
-    act(() => {
-      feed.emit({ items: [{ id: 'route-1', status: 'planned' }], isSynced: true });
-    });
-
-    expect(result.current.route).toEqual({ id: 'route-1', status: 'planned' });
-  });
-
-  it('resolves to null rather than staying loading forever when no route matches', () => {
-    const feed = makeObservable();
-    mockObserveQuery.mockReturnValue(feed.observable);
-
-    const { result } = renderHook(() => useLiveRoute('route-unauthorized'));
-
-    act(() => {
-      feed.emit({ items: [], isSynced: true });
-    });
-
-    expect(result.current.route).toBeNull();
-    expect(result.current.loading).toBe(false);
   });
 });
 

@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getCustomer, getRouteWithStops, listCustomerUsers, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
+import { getCustomer, listCustomerUsers, updateRoute, updateRouteCustomerInstructions } from '@/lib/queries';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
-import { useLiveRoute } from '@/lib/useLiveRoutes';
+import { useRouteWithStops } from '@/lib/useRouteWithStops';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
@@ -17,7 +17,7 @@ import { Avatar } from '@/app/components/ui/core/Avatar';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { ProgressBar } from '@/app/components/ui/data/ProgressBar';
-import type { Customer, Route, Stop } from '@/amplify/types';
+import type { Customer } from '@/amplify/types';
 import { formatDurationHoursMinutes } from '@/lib/format';
 import { getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
 import { appendRouteInstruction, parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
@@ -42,32 +42,12 @@ interface RouteDetailContentProps {
   };
 }
 
-interface RouteDetailData {
-  route: Route;
-  stops: Stop[];
+interface CustomerData {
   customer: Customer | null;
   customerUsers: CustomerUserSummary[];
 }
 
-async function fetchRouteDetailData(context: CustomerPortalContext, routeId: string): Promise<RouteDetailData> {
-  const result = await getRouteWithStops(routeId);
-
-  if (result.errors && result.errors.length > 0) {
-    throw new Error('Failed to load route details');
-  }
-  if (!result.route) {
-    throw new Error('Route not found');
-  }
-
-  const fetchedRoute = result.route as unknown as Route;
-  if (fetchedRoute.customerId !== context.customerId) {
-    throw new Error('You do not have permission to view this route');
-  }
-
-  const stops = [...((result.stops as unknown as Stop[]) ?? [])].sort(
-    (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
-  );
-
+async function fetchCustomerData(context: CustomerPortalContext): Promise<CustomerData> {
   // Best-effort: resolves authorSub -> name for the instructions feed below.
   // CustomerUser is only readable by its own owner (self) or the account
   // owner (all rows) — a read_only viewer gets back just their own record,
@@ -78,8 +58,6 @@ async function fetchRouteDetailData(context: CustomerPortalContext, routeId: str
   ]);
 
   return {
-    route: { ...fetchedRoute, stops } as Route,
-    stops,
     customer: (fetchedCustomer as unknown as Customer) || null,
     customerUsers: (fetchedCustomerUsers as unknown as CustomerUserSummary[]) || [],
   };
@@ -92,21 +70,27 @@ async function fetchRouteDetailData(context: CustomerPortalContext, routeId: str
 export default function RouteDetailContent({ params }: RouteDetailContentProps) {
   const {
     userId,
+    customerId,
     data,
-    setData,
-    loading,
-    error,
-  } = useCustomerPortalContext({
-    fetchData: (context) => fetchRouteDetailData(context, params.id),
-    fetchDataDeps: [params.id],
-  });
-  // Route fields (status, instructions, feedback, ...) are kept live over
-  // this subscription; stops/customer/customerUsers above stay a one-shot
-  // fetch per the issue's scope. Falls back to the one-shot route while the
-  // subscription is still syncing, so there's no flash of "not found".
-  const { route: liveRoute } = useLiveRoute(data ? params.id : null);
-  const route = liveRoute ?? data?.route ?? null;
-  const stops = data?.stops ?? [];
+    loading: contextLoading,
+    error: contextError,
+  } = useCustomerPortalContext({ fetchData: fetchCustomerData });
+  const {
+    route: liveRoute,
+    stops,
+    loading: routeLoading,
+    error: routeError,
+    patchRoute,
+  } = useRouteWithStops(params.id);
+  // AppSync authorization already keeps other customers' routes out of
+  // reach; this is a second line of defence in the UI.
+  const forbidden = Boolean(liveRoute && customerId && liveRoute.customerId !== customerId);
+  const route = forbidden ? null : liveRoute;
+  const loading = contextLoading || routeLoading;
+  const error =
+    contextError ||
+    (routeError ? 'Failed to load route details' : null) ||
+    (forbidden ? 'You do not have permission to view this route' : null);
   const customer = data?.customer ?? null;
   const customerUsers = data?.customerUsers ?? [];
 
@@ -124,7 +108,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const isNarrow = useIsNarrowViewport(NARROW_BREAKPOINT_PX);
 
   // Keyed on route.id (stable across the optimistic updates handleAddInstruction/
-  // handleSendFeedback make via setData) so those updates don't clobber
+  // handleSendFeedback make via patchRoute) so those updates don't clobber
   // in-progress edits to instructionsAgent/feedbackTone/feedbackNote.
   useEffect(() => {
     if (!route) return;
@@ -159,9 +143,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
       return;
     }
 
-    setData((prev) =>
-      prev ? { ...prev, route: { ...prev.route, customerInstructions: nextValue, updatedAt: new Date().toISOString() } } : prev
-    );
+    patchRoute({ customerInstructions: nextValue });
     setInstructionsDraft('');
     setInstructionsSuccess('Instruction added.');
     setSavingInstructions(false);
@@ -184,9 +166,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
       return;
     }
 
-    setData((prev) =>
-      prev ? { ...prev, route: { ...prev.route, customerFeedbackTone: feedbackTone, customerFeedbackNote: feedbackNote } } : prev
-    );
+    patchRoute({ customerFeedbackTone: feedbackTone, customerFeedbackNote: feedbackNote });
     setFeedbackSuccess('Feedback sent — thank you.');
     setSavingFeedback(false);
   };

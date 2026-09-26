@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
-import type { Route, Stop } from '@/amplify/types';
+import type { Stop } from '@/amplify/types';
 import { isAdmin } from '@/lib/amplify-config';
 import { geocodeAddress } from '@/lib/googleMaps';
-import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import { createStop, deleteRoute as deleteRouteQuery, getCustomer, listAllStopsForRoute } from '@/lib/queries';
+import { createStop, deleteRoute as deleteRouteQuery, getCustomer } from '@/lib/queries';
 import { deleteStop as deleteStopQuery } from '@/lib/queries/DeleteStop';
 import { updateStop as updateStopQuery } from '@/lib/queries/UpdateStop';
+import { useRouteWithStops } from '@/lib/useRouteWithStops';
 
 export interface CustomerDefaults {
   standingInstructions?: string | null;
@@ -80,15 +80,22 @@ export interface DeleteRouteCapability {
  * Shared fetch/reorder/CRUD engine behind the Operator and Administrator Route
  * Detail pages. Deliberately excludes anything that diverges between the two
  * portals (invoice/distance overrides, legacy in-page stop execution, map
- * theme) — those stay page-local and reach back in only via refetchRoute()/
- * refetchStops(), never through a setter.
+ * theme) — those stay page-local and reach back in only via refetch(),
+ * never through a setter. The Route and its Stops are live, via
+ * useRouteWithStops.
  */
 export function useRouteDetailData(id: string, user: unknown) {
   const canManagePlanning = isAdmin(user);
 
-  const [route, setRoute] = useState<Route | null>(null);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    route,
+    stops,
+    loading: routeLoading,
+    error: routeError,
+    patchStop,
+    refetch,
+  } = useRouteWithStops(id || null);
+  const [customerLoading, setCustomerLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [customerName, setCustomerName] = useState('');
@@ -113,23 +120,6 @@ export function useRouteDetailData(id: string, user: unknown) {
   const [deletingRoute, setDeletingRoute] = useState(false);
   const [routePendingDelete, setRoutePendingDelete] = useState(false);
 
-  const refetchStops = useCallback(async () => {
-    const { stops: data, errors } = await listAllStopsForRoute(id);
-    if (!errors || errors.length === 0) {
-      const sorted = [...((data as unknown as Stop[]) || [])].sort(
-        (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
-      );
-      setStops(sorted);
-    }
-  }, [id]);
-
-  const refetchRoute = useCallback(async () => {
-    const result = await getRouteDetail(id);
-    if (!result.errors && result.data) {
-      setRoute(result.data as unknown as Route);
-    }
-  }, [id]);
-
   const persistStopOrder = useCallback(
     async (orderedStops: Stop[]) => {
       const client = generateClient<Schema>();
@@ -137,9 +127,9 @@ export function useRouteDetailData(id: string, user: unknown) {
         client.models.Stop.update({ id: stop.id, sequence: index + 1 })
       );
       await Promise.all(updates);
-      await refetchStops();
+      await refetch();
     },
-    [refetchStops]
+    [refetch]
   );
 
   const reorderStopsInternal = useCallback(
@@ -149,7 +139,7 @@ export function useRouteDetailData(id: string, user: unknown) {
         sequence: index + 1,
       }));
 
-      setStops(resequenced);
+      resequenced.forEach((stop) => patchStop(stop.id, { sequence: stop.sequence }));
       setReordering(true);
       setReorderError(null);
 
@@ -157,29 +147,25 @@ export function useRouteDetailData(id: string, user: unknown) {
         await persistStopOrder(resequenced);
       } catch {
         setReorderError('Failed to save stop order. Restoring latest server order...');
-        await refetchStops();
+        await refetch();
       } finally {
         setReordering(false);
       }
     },
-    [persistStopOrder, refetchStops]
+    [patchStop, persistStopOrder, refetch]
   );
 
+  const customerId = route?.customerId ?? null;
+
   useEffect(() => {
-    async function fetchAll() {
-      setLoading(true);
-      setError(null);
+    if (!customerId) return;
+    let cancelled = false;
 
+    async function fetchCustomer(customerId: string) {
+      setCustomerLoading(true);
       try {
-        const routeResult = await getRouteDetail(id);
-        if (routeResult.errors || !routeResult.data) {
-          setError('Failed to load route.');
-          return;
-        }
-        const loadedRoute = routeResult.data as unknown as Route;
-        setRoute(loadedRoute);
-
-        const customerResult = await getCustomer(loadedRoute.customerId);
+        const customerResult = await getCustomer(customerId);
+        if (cancelled) return;
         if (!customerResult.errors || customerResult.errors.length === 0) {
           const customer = customerResult.data as {
             name?: string;
@@ -202,31 +188,34 @@ export function useRouteDetailData(id: string, user: unknown) {
           if (customer?.addressLine1) {
             try {
               const resolved = await geocodeAddress(customer.addressLine1);
-              setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
+              if (!cancelled) setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
             } catch {
-              setCustomerAddressOrigin(null);
+              if (!cancelled) setCustomerAddressOrigin(null);
             }
           } else {
             setCustomerAddressOrigin(null);
           }
         }
-
-        await refetchStops();
       } catch (err) {
         console.error('Error loading route detail:', err);
-        setError('Failed to load route.');
+        if (!cancelled) setError('Failed to load route.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setCustomerLoading(false);
       }
     }
 
-    if (id) {
-      fetchAll();
-    } else {
-      setError('No route was specified.');
-      setLoading(false);
-    }
-  }, [id, refetchStops]);
+    fetchCustomer(customerId);
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId]);
+
+  const loading = routeLoading || (Boolean(route) && customerLoading);
+  const loadError = !id
+    ? 'No route was specified.'
+    : !routeLoading && (routeError || !route)
+      ? 'Failed to load route.'
+      : null;
 
   const openAddStop = useCallback(() => setShowAddStop(true), []);
   const closeAddStop = useCallback(() => {
@@ -274,14 +263,14 @@ export function useRouteDetailData(id: string, user: unknown) {
           setAddStopError('Failed to add stop.');
         } else {
           setShowAddStop(false);
-          await refetchStops();
+          await refetch();
         }
       } catch {
         setAddStopError('Failed to add stop.');
       }
       setAddingStop(false);
     },
-    [canManagePlanning, refetchStops, route, stops.length]
+    [canManagePlanning, refetch, route, stops.length]
   );
 
   const startEditingStop = useCallback((stopId: string) => setEditingStopId(stopId), []);
@@ -345,14 +334,14 @@ export function useRouteDetailData(id: string, user: unknown) {
           setEditStopError(firstError?.message ?? 'Failed to update stop.');
         } else {
           setEditingStopId(null);
-          await refetchStops();
+          await refetch();
         }
       } catch (err) {
         setEditStopError(err instanceof Error ? err.message : 'Failed to update stop.');
       }
       setEditingStop(false);
     },
-    [canManagePlanning, editingStopId, refetchStops, stops]
+    [canManagePlanning, editingStopId, refetch, stops]
   );
 
   const confirmDeleteStop = useCallback((stopId: string) => setPendingDeleteStopId(stopId), []);
@@ -413,12 +402,12 @@ export function useRouteDetailData(id: string, user: unknown) {
         await reorderStopsInternal(reordered);
       } catch {
         setReorderError('Failed to save stop order. Restoring latest server order...');
-        await refetchStops();
+        await refetch();
       } finally {
         setDraggingStopId(null);
       }
     },
-    [canManagePlanning, draggingStopId, reordering, reorderStopsInternal, refetchStops, stops]
+    [canManagePlanning, draggingStopId, reordering, reorderStopsInternal, refetch, stops]
   );
 
   const moveStop = useCallback(
@@ -526,7 +515,7 @@ export function useRouteDetailData(id: string, user: unknown) {
     route,
     stops,
     loading,
-    error,
+    error: error ?? loadError,
     customerName,
     customerRatePerHour,
     customerAddressOrigin,
@@ -535,8 +524,7 @@ export function useRouteDetailData(id: string, user: unknown) {
     availableAgentsForStops,
     defaultAgentForStops,
 
-    refetchStops,
-    refetchRoute,
+    refetch,
 
     addStop: addStopCapability,
     editStop: editStopCapability,

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
-import type { IamDataClient } from '@/lib/server/iamDataClient';
 import outputs from '@/amplify_outputs.json';
 import { createOrGetCognitoUser } from '@/app/api/admin/users/route';
 import { sendInvitationEmail } from '@/lib/emails/invitationEmail';
 import { listAll } from '@/lib/listAll';
+import { syncCustomerAccess } from '@/lib/customerAccess';
 
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
 
@@ -12,54 +12,6 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function emailDomain(email: string): string {
   return email.trim().toLowerCase().split('@')[1] || '';
-}
-
-/** Same Route/Stop/Invoice/LineItem/PaymentRecord viewerSubs sync loop already
- * duplicated in sync-profile-access/route.ts and the customer-access-activation
- * Lambda -- each runs in a different execution context (SSR API route vs.
- * Cognito trigger vs. browser-session client in lib/queries.ts, which only
- * covers Route/Stop), so this is kept as its own copy rather than a shared
- * import across those boundaries. Worth consolidating in a future cleanup PR. */
-async function syncViewerSubsForCustomer(client: IamDataClient, customerId: string, viewerSubs: string[]) {
-  const { data: routes } = await listAll(client, 'Route', {
-    filter: { customerId: { eq: customerId } },
-  });
-  for (const route of routes || []) {
-    if (!route?.id) continue;
-    await client.models.Route.update({ id: route.id, viewerSubs });
-
-    const { data: stops } = await listAll(client, 'Stop', {
-      filter: { routeId: { eq: route.id } },
-    });
-    for (const stop of stops || []) {
-      if (!stop?.id) continue;
-      await client.models.Stop.update({ id: stop.id, viewerSubs });
-    }
-  }
-
-  const { data: invoices } = await listAll(client, 'Invoice', {
-    filter: { customerId: { eq: customerId } },
-  });
-  for (const invoice of invoices || []) {
-    if (!invoice?.id) continue;
-    await client.models.Invoice.update({ id: invoice.id, viewerSubs });
-  }
-
-  const { data: lineItems } = await listAll(client, 'LineItem', {
-    filter: { customerId: { eq: customerId } },
-  });
-  for (const lineItem of lineItems || []) {
-    if (!lineItem?.id) continue;
-    await client.models.LineItem.update({ id: lineItem.id, viewerSubs });
-  }
-
-  const { data: paymentRecords } = await listAll(client, 'PaymentRecord', {
-    filter: { customerId: { eq: customerId } },
-  });
-  for (const paymentRecord of paymentRecords || []) {
-    if (!paymentRecord?.id) continue;
-    await client.models.PaymentRecord.update({ id: paymentRecord.id, viewerSubs });
-  }
 }
 
 /**
@@ -151,15 +103,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to add teammate to your account.' }, { status: 500 });
     }
 
-    const viewerSubs = [
-      ...new Set(
-        [...(existingRows || []).map((row) => row.userSub?.trim()), sub].filter(
-          (value): value is string => Boolean(value)
-        )
-      ),
-    ];
-    await client.models.Customer.update({ id: customerId, viewerSubs });
-    await syncViewerSubsForCustomer(client, customerId, viewerSubs);
+    // Errors are logged by the sync; the invite itself has succeeded, and the
+    // teammate's next portal visit re-runs the sync (sync-profile-access).
+    await syncCustomerAccess(client, customerId, { added: sub });
 
     let emailSent = false;
     if (cognitoUserCreated && temporaryPassword) {

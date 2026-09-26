@@ -9,17 +9,8 @@ jest.mock('next/server', () => ({
 
 const verifyMock = jest.fn();
 const customerUserListMock = jest.fn();
-const customerUpdateMock = jest.fn();
-const routeListMock = jest.fn();
-const routeUpdateMock = jest.fn();
-const stopListMock = jest.fn();
-const stopUpdateMock = jest.fn();
-const invoiceListMock = jest.fn();
-const invoiceUpdateMock = jest.fn();
-const lineItemListMock = jest.fn();
-const lineItemUpdateMock = jest.fn();
-const paymentRecordListMock = jest.fn();
-const paymentRecordUpdateMock = jest.fn();
+const syncCustomerAccessMock = jest.fn();
+const iamClient = { models: { CustomerUser: { list: customerUserListMock } } };
 
 jest.mock('aws-jwt-verify', () => ({
   CognitoJwtVerifier: {
@@ -32,17 +23,11 @@ jest.mock('aws-jwt-verify', () => ({
 // its @aws-sdk/credential-provider-node dependency (which pulls in an
 // ESM-only build jest's CJS transform can't load).
 jest.mock('@/lib/server/iamDataClient', () => ({
-  getIamDataClient: () => ({
-    models: {
-      CustomerUser: { list: customerUserListMock },
-      Customer: { update: customerUpdateMock },
-      Route: { list: routeListMock, update: routeUpdateMock },
-      Stop: { list: stopListMock, update: stopUpdateMock },
-      Invoice: { list: invoiceListMock, update: invoiceUpdateMock },
-      LineItem: { list: lineItemListMock, update: lineItemUpdateMock },
-      PaymentRecord: { list: paymentRecordListMock, update: paymentRecordUpdateMock },
-    },
-  }),
+  getIamDataClient: () => iamClient,
+}));
+
+jest.mock('@/lib/customerAccess', () => ({
+  syncCustomerAccess: (...args: unknown[]) => syncCustomerAccessMock(...args),
 }));
 
 import { POST } from '@/app/api/customer/sync-profile-access/route';
@@ -52,29 +37,10 @@ describe('customer sync-profile-access API', () => {
     jest.clearAllMocks();
     verifyMock.mockResolvedValue({ sub: 'sub-owner-1', 'cognito:groups': ['customer'] });
 
-    customerUserListMock.mockImplementation(({ filter }: { filter: { userSub?: { eq: string }; customerId?: { eq: string } } }) => {
-      if (filter.userSub) {
-        return Promise.resolve({ data: [{ customerId: 'cust-1', role: 'account_owner', userSub: 'sub-owner-1' }] });
-      }
-      return Promise.resolve({
-        data: [
-          { customerId: 'cust-1', role: 'account_owner', userSub: 'sub-owner-1' },
-          { customerId: 'cust-1', role: 'read_only', userSub: 'sub-readonly-1' },
-        ],
-      });
+    customerUserListMock.mockResolvedValue({
+      data: [{ customerId: 'cust-1', role: 'account_owner', userSub: 'sub-owner-1' }],
     });
-
-    customerUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
-    routeListMock.mockResolvedValue({ data: [] });
-    routeUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
-    stopListMock.mockResolvedValue({ data: [] });
-    stopUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
-    invoiceListMock.mockResolvedValue({ data: [] });
-    invoiceUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
-    lineItemListMock.mockResolvedValue({ data: [] });
-    lineItemUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
-    paymentRecordListMock.mockResolvedValue({ data: [] });
-    paymentRecordUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
+    syncCustomerAccessMock.mockResolvedValue({ updated: {}, errors: [] });
   });
 
   it('returns 401 when token is missing', async () => {
@@ -93,7 +59,7 @@ describe('customer sync-profile-access API', () => {
     expect(response.status).toBe(403);
   });
 
-  it('syncs viewerSubs and accountOwnerSub for the caller customer', async () => {
+  it("syncs access for the caller's own customer", async () => {
     const request = {
       headers: new Headers({ authorization: 'Bearer token-value' }),
       json: async () => ({}),
@@ -101,36 +67,22 @@ describe('customer sync-profile-access API', () => {
 
     const response = await POST(request);
     expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(body).toEqual({ success: true, customerId: 'cust-1' });
-
-    expect(customerUpdateMock).toHaveBeenCalledWith({
-      id: 'cust-1',
-      viewerSubs: ['sub-owner-1', 'sub-readonly-1'],
-      accountOwnerSub: 'sub-owner-1',
-    });
+    expect(await response.json()).toEqual({ success: true, customerId: 'cust-1' });
+    expect(customerUserListMock).toHaveBeenCalledWith(
+      expect.objectContaining({ filter: { userSub: { eq: 'sub-owner-1' } } })
+    );
+    expect(syncCustomerAccessMock).toHaveBeenCalledWith(iamClient, 'cust-1');
   });
 
-  it('backfills viewerSubs onto Route, Stop, Invoice, LineItem and PaymentRecord', async () => {
-    routeListMock.mockResolvedValue({ data: [{ id: 'route-1' }] });
-    stopListMock.mockResolvedValue({ data: [{ id: 'stop-1' }] });
-    invoiceListMock.mockResolvedValue({ data: [{ id: 'inv-1' }] });
-    lineItemListMock.mockResolvedValue({ data: [{ id: 'li-1' }] });
-    paymentRecordListMock.mockResolvedValue({ data: [{ id: 'pay-1' }] });
-
+  it('returns 500 when the sync reports errors, so the portal retries next visit', async () => {
+    syncCustomerAccessMock.mockResolvedValue({ updated: {}, errors: [{ message: 'boom' }] });
     const request = {
       headers: new Headers({ authorization: 'Bearer token-value' }),
       json: async () => ({}),
     } as any;
 
-    await POST(request);
-
-    const expectedViewerSubs = ['sub-owner-1', 'sub-readonly-1'];
-    expect(routeUpdateMock).toHaveBeenCalledWith({ id: 'route-1', viewerSubs: expectedViewerSubs });
-    expect(stopUpdateMock).toHaveBeenCalledWith({ id: 'stop-1', viewerSubs: expectedViewerSubs });
-    expect(invoiceUpdateMock).toHaveBeenCalledWith({ id: 'inv-1', viewerSubs: expectedViewerSubs });
-    expect(lineItemUpdateMock).toHaveBeenCalledWith({ id: 'li-1', viewerSubs: expectedViewerSubs });
-    expect(paymentRecordUpdateMock).toHaveBeenCalledWith({ id: 'pay-1', viewerSubs: expectedViewerSubs });
+    const response = await POST(request);
+    expect(response.status).toBe(500);
   });
 
   it('returns 404 when no customer mapping exists', async () => {
@@ -142,6 +94,6 @@ describe('customer sync-profile-access API', () => {
 
     const response = await POST(request);
     expect(response.status).toBe(404);
-    expect(customerUpdateMock).not.toHaveBeenCalled();
+    expect(syncCustomerAccessMock).not.toHaveBeenCalled();
   });
 });

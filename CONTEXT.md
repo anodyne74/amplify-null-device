@@ -6,11 +6,31 @@ Role-based delivery management system for sign-run operations: signs are placed 
 
 **Route**:
 A single trip assigned to an operator, made up of Stops, progressing through the Sign Run phases in order.
-_Avoid_: Job, trip
+_Avoid_: Job, trip. "Visit" means one Route at one Property, not the Route itself.
 
 **Stop**:
-One property visit on a Route, where signs are placed and later picked up.
-_Avoid_: Property, location, visit
+One visit to a Property on a Route, where signs are placed and later picked up.
+_Avoid_: Property (when you mean the single visit), location, visit
+
+**Property**:
+The real-world address a Stop visits; many Stops, across many Routes and Customers, can share one Property. Identified by its geocoded place, with its street, suburb and postcode recorded, so two Stops are the same Property when they resolve to the same place. A Stop that couldn't be geocoded is an unverified address and is matched on its entered text.
+_Avoid_: Location, site, address (when you mean the place rather than the text)
+
+**Property History**:
+The record of every Route that has visited a Property, grouped by Property and explorable by suburb, street or exact address.
+_Avoid_: Property search, address lookup
+
+**Visit**:
+One Route's Stop at a Property, as one row of Property History. Only visits on Routes that have happened (signs placed or later) count toward a Property's total. Skipped Stops are listed but not counted, and upcoming Routes appear separately as scheduled.
+_Avoid_: Job, service (as a noun)
+
+**Property History Report**:
+A frozen PDF snapshot of a filtered Property History view, generated for one Customer's scope (or across all Customers by an administrator), recording who generated it, when, and with which search and filters. It belongs to the Customer, not the person who generated it.
+_Avoid_: Export, audit PDF, property report
+
+**Retention**:
+A Property History Report's lifecycle: active for 30 days, then soft-deleted (hidden from the Customer, restorable by an administrator for a fresh 30 days), then hard-deleted at 60 days (PDF destroyed, record kept as a stub). A manual delete by an Account Owner is an early soft delete.
+_Avoid_: Expiry, archive (Route already uses "archived")
 
 **Sign Run**:
 The phase flow a Route moves through: Load (signs collected from the customer, onto the van) → Placement (signs deployed) → Pickup (signs retrieved) → Unload (signs returned to the customer) → Finalise. A Route's current phase is derived from which phase-completion timestamps are set, not from a separately stored "current phase" pointer.
@@ -31,3 +51,11 @@ _Avoid_: Lost signs, sign loss (except when specifically discussing the attritio
 **Reconciliation**:
 The Unload/Finalise-time accounting of a Route's signs — how many were loaded onto the van, returned, still on-site, or missing, plus how many Stops were completed vs. skipped. Distinct from Signs Placed/Collected, which are simpler standalone counts usable anywhere in a Route's lifecycle.
 _Avoid_: Summary, totals
+
+**Account Owner**:
+A Customer user who can see the Customer's invoices and manage its users and Property History reports. The other Customer user role, read-only, sees Routes and Stops only.
+_Avoid_: Customer Admin, customer administrator
+
+**Customer Access Sync**:
+Rewriting who may read a Customer's records after its users change — every record the Customer owns carries the list of its users (and, on the Customer itself, the Account Owner), and all of them are restamped together whenever a user is added, removed or activated. Derived from the Customer's current users, never supplied by the caller; a sync that can't read the full user list changes nothing.
+_Avoid_: viewerSubs sync, backfill, profile access sync

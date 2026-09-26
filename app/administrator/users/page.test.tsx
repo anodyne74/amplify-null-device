@@ -7,7 +7,6 @@ import {
   updateCustomerUser,
   listAllCustomerUsers,
   listCustomers,
-  syncViewerSubsForCustomer,
 } from '@/lib/queries';
 
 jest.mock('aws-amplify/auth', () => ({
@@ -31,7 +30,6 @@ jest.mock('@/lib/queries', () => ({
   updateCustomerUser: jest.fn(),
   listAllCustomerUsers: jest.fn(),
   listCustomers: jest.fn(),
-  syncViewerSubsForCustomer: jest.fn(),
 }));
 
 const mockListCustomers = listCustomers as jest.MockedFunction<typeof listCustomers>;
@@ -39,7 +37,6 @@ const mockListAllCustomerUsers = listAllCustomerUsers as jest.MockedFunction<typ
 const mockCreateCustomerUser = createCustomerUser as jest.MockedFunction<typeof createCustomerUser>;
 const mockUpdateCustomerUser = updateCustomerUser as jest.MockedFunction<typeof updateCustomerUser>;
 const mockDeleteCustomerUser = deleteCustomerUser as jest.MockedFunction<typeof deleteCustomerUser>;
-const mockSyncViewerSubsForCustomer = syncViewerSubsForCustomer as jest.MockedFunction<typeof syncViewerSubsForCustomer>;
 
 describe('UsersAdminPage customer access actions', () => {
   beforeEach(() => {
@@ -67,7 +64,6 @@ describe('UsersAdminPage customer access actions', () => {
     mockCreateCustomerUser.mockResolvedValue({ data: { id: 'new-cu' }, errors: [] } as any);
     mockUpdateCustomerUser.mockResolvedValue({ data: {}, errors: [] } as any);
     mockDeleteCustomerUser.mockResolvedValue({ data: {}, errors: [] } as any);
-    mockSyncViewerSubsForCustomer.mockResolvedValue({ data: {}, errors: [] } as any);
 
     global.fetch = jest.fn(async () => ({
       ok: true,
@@ -129,7 +125,28 @@ describe('UsersAdminPage customer access actions', () => {
     await waitFor(() => {
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     });
-    expect(mockSyncViewerSubsForCustomer).toHaveBeenCalledWith('cust-1', []);
+    // Access is revoked server-side, with the removed sub as a hint so an
+    // eventually-consistent read can't leave it behind.
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/admin/sync-customer-access',
+      expect.objectContaining({ body: JSON.stringify({ customerId: 'cust-1', removed: 'sub-1' }) })
+    );
+  });
+
+  it('tells the admin when the user was removed but revoking their access failed', async () => {
+    global.fetch = jest.fn(async (url) =>
+      url === '/api/admin/sync-customer-access'
+        ? { ok: false, json: async () => ({ error: 'Access sync finished with 2 error(s).' }) }
+        : { ok: true, json: async () => ({ users: [] }) }
+    ) as jest.Mock;
+
+    render(<UsersAdminPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Revoke access for Read User' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke Access' }));
+
+    expect(await screen.findByText(/revoking their access failed \(Access sync finished with 2 error\(s\)\.\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/access revoked from all/i)).not.toBeInTheDocument();
   });
 
   it('edits display name and role from the edit dialog', async () => {
@@ -201,7 +218,11 @@ describe('UsersAdminPage customer access actions', () => {
       );
     });
 
-    expect(screen.getByText(/branded invitation/i)).toBeInTheDocument();
+    expect(await screen.findByText(/branded invitation/i)).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/admin/sync-customer-access',
+      expect.objectContaining({ body: JSON.stringify({ customerId: 'cust-1', added: 'brand-new-sub' }) })
+    );
 
     const calls = (global.fetch as jest.Mock).mock.calls;
     const createUserCall = calls.find(([, init]) => JSON.parse(init.body).action === 'createUser');

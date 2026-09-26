@@ -10,6 +10,7 @@ import {
 import { SendTemplatedEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import type { Schema } from '../../data/resource';
 import { listAll } from '../../../lib/listAll';
+import { syncCustomerAccess } from '../../../lib/customerAccess';
 
 const PENDING_SUB_PREFIX = 'pending:';
 const cognitoClient = new CognitoIdentityProviderClient({});
@@ -104,61 +105,6 @@ async function ensureCustomerGroup(userPoolId: string, username: string) {
   }
 }
 
-async function syncViewerSubsForCustomer(customerId: string, viewerSubs: string[]) {
-  const client = await getDataClient();
-  const { data: routes } = await listAll(client, 'Route', {
-    filter: { customerId: { eq: customerId } },
-  });
-
-  for (const route of routes || []) {
-    if (!route?.id) continue;
-    await client.models.Route.update({ id: route.id, viewerSubs });
-
-    const { data: stops } = await listAll(client, 'Stop', {
-      filter: { routeId: { eq: route.id } },
-    });
-
-    for (const stop of stops || []) {
-      if (!stop?.id) continue;
-      await client.models.Stop.update({ id: stop.id, viewerSubs });
-    }
-  }
-
-  const { data: invoices } = await listAll(client, 'Invoice', {
-    filter: { customerId: { eq: customerId } },
-  });
-  for (const invoice of invoices || []) {
-    if (!invoice?.id) continue;
-    await client.models.Invoice.update({ id: invoice.id, viewerSubs });
-  }
-
-  const { data: lineItems } = await listAll(client, 'LineItem', {
-    filter: { customerId: { eq: customerId } },
-  });
-  for (const lineItem of lineItems || []) {
-    if (!lineItem?.id) continue;
-    await client.models.LineItem.update({ id: lineItem.id, viewerSubs });
-  }
-
-  const { data: paymentRecords } = await listAll(client, 'PaymentRecord', {
-    filter: { customerId: { eq: customerId } },
-  });
-  for (const paymentRecord of paymentRecords || []) {
-    if (!paymentRecord?.id) continue;
-    await client.models.PaymentRecord.update({ id: paymentRecord.id, viewerSubs });
-  }
-
-  // CustomerUser itself also carries viewerSubs, so every customer user
-  // (not just the account owner) can read the whole team directory.
-  const { data: customerUsers } = await listAll(client, 'CustomerUser', {
-    filter: { customerId: { eq: customerId } },
-  });
-  for (const customerUser of customerUsers || []) {
-    if (!customerUser?.id) continue;
-    await client.models.CustomerUser.update({ id: customerUser.id, viewerSubs });
-  }
-}
-
 export const handler: PostConfirmationTriggerHandler = async (event) => {
   const userSub = event.request.userAttributes?.sub?.trim();
   const email = event.request.userAttributes?.email?.trim().toLowerCase();
@@ -234,29 +180,11 @@ export const handler: PostConfirmationTriggerHandler = async (event) => {
     await sendWelcomeEmail(email, customer?.companyName || customer?.name || 'there');
   }
 
+  // The re-keyed rows were written moments ago and `list` is eventually
+  // consistent, so pass the new sub as a hint. Errors are logged by the sync;
+  // activation still succeeds and sync-profile-access repairs on first visit.
   for (const customerId of affectedCustomerIds) {
-    const { data: rows } = await listAll(client, 'CustomerUser', {
-      filter: { customerId: { eq: customerId } },
-    });
-
-    const viewerSubs = [
-      ...new Set(
-        (rows || [])
-          .map((row) => row.userSub?.trim())
-          .filter((value): value is string => Boolean(value) && !value.startsWith(PENDING_SUB_PREFIX))
-      ),
-    ];
-
-    const accountOwnerRow = (rows || []).find(
-      (row) => row.role === 'account_owner' && !isPendingSub(row.userSub)
-    );
-
-    await syncViewerSubsForCustomer(customerId, viewerSubs);
-    await client.models.Customer.update({
-      id: customerId,
-      viewerSubs,
-      accountOwnerSub: accountOwnerRow?.userSub || undefined,
-    });
+    await syncCustomerAccess(client, customerId, { added: userSub });
   }
 
   return event;

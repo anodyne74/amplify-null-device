@@ -11,19 +11,9 @@ const verifyMock = jest.fn();
 const customerUserListMock = jest.fn();
 const customerUserCreateMock = jest.fn();
 const customerGetMock = jest.fn();
-const customerUpdateMock = jest.fn();
-const routeListMock = jest.fn();
-const routeUpdateMock = jest.fn();
-const stopListMock = jest.fn();
-const stopUpdateMock = jest.fn();
-const invoiceListMock = jest.fn();
-const invoiceUpdateMock = jest.fn();
-const lineItemListMock = jest.fn();
-const lineItemUpdateMock = jest.fn();
-const paymentRecordListMock = jest.fn();
-const paymentRecordUpdateMock = jest.fn();
 const createOrGetCognitoUserMock = jest.fn();
 const sendInvitationEmailMock = jest.fn();
+const syncCustomerAccessMock = jest.fn();
 
 jest.mock('aws-jwt-verify', () => ({
   CognitoJwtVerifier: {
@@ -39,12 +29,7 @@ jest.mock('@/lib/server/iamDataClient', () => ({
   getIamDataClient: () => ({
     models: {
       CustomerUser: { list: customerUserListMock, create: customerUserCreateMock },
-      Customer: { get: customerGetMock, update: customerUpdateMock },
-      Route: { list: routeListMock, update: routeUpdateMock },
-      Stop: { list: stopListMock, update: stopUpdateMock },
-      Invoice: { list: invoiceListMock, update: invoiceUpdateMock },
-      LineItem: { list: lineItemListMock, update: lineItemUpdateMock },
-      PaymentRecord: { list: paymentRecordListMock, update: paymentRecordUpdateMock },
+      Customer: { get: customerGetMock },
     },
   }),
 }));
@@ -55,6 +40,10 @@ jest.mock('@/app/api/admin/users/route', () => ({
 
 jest.mock('@/lib/emails/invitationEmail', () => ({
   sendInvitationEmail: (...args: unknown[]) => sendInvitationEmailMock(...args),
+}));
+
+jest.mock('@/lib/customerAccess', () => ({
+  syncCustomerAccess: (...args: unknown[]) => syncCustomerAccessMock(...args),
 }));
 
 import { POST } from '@/app/api/customer/invite-user/route';
@@ -94,17 +83,6 @@ describe('customer invite-user API', () => {
       data: { id: 'cust-1', email: 'owner@rangeproperty.com.au', restrictInvitesToOwnDomain: false },
     });
     customerUserCreateMock.mockResolvedValue({ data: { id: 'cu-new' }, errors: undefined });
-    customerUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
-    routeListMock.mockResolvedValue({ data: [] });
-    routeUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
-    stopListMock.mockResolvedValue({ data: [] });
-    stopUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
-    invoiceListMock.mockResolvedValue({ data: [] });
-    invoiceUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
-    lineItemListMock.mockResolvedValue({ data: [] });
-    lineItemUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
-    paymentRecordListMock.mockResolvedValue({ data: [] });
-    paymentRecordUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
 
     createOrGetCognitoUserMock.mockResolvedValue({
       sub: 'sub-new-teammate',
@@ -113,6 +91,7 @@ describe('customer invite-user API', () => {
       temporaryPassword: 'Temp-Pass-9xKq',
     });
     sendInvitationEmailMock.mockResolvedValue(undefined);
+    syncCustomerAccessMock.mockResolvedValue({ updated: {}, errors: [] });
   });
 
   it('returns 401 when token is missing', async () => {
@@ -211,6 +190,8 @@ describe('customer invite-user API', () => {
       name: 'Jamie Teammate',
       email: 'teammate@rangeproperty.com.au',
     });
+    // The new row may not be listable yet, so its sub is passed as a hint.
+    expect(syncCustomerAccessMock).toHaveBeenCalledWith(expect.anything(), 'cust-1', { added: 'sub-new-teammate' });
   });
 
   it('sends the branded invitation email with the issued temporary password', async () => {

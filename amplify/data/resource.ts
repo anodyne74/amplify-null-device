@@ -469,8 +469,8 @@ const schema = a.schema({
    * all CustomerUser records for their customer via ownerDefinedIn('accountOwnerSub').
    * viewerSubs — same convention as Customer/Route/Stop/etc. — grants every
    * customer user (owner + read_only) read access to the whole team directory,
-   * synced by customer-access-activation's handler and lib/queries.ts's
-   * syncViewerSubsForCustomer whenever CustomerUser membership changes.
+   * synced by lib/customerAccess.ts's syncCustomerAccess whenever CustomerUser
+   * membership changes.
    * Only administrators may create, update, or delete CustomerUser records.
    */
   CustomerUser: a

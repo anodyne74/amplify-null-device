@@ -15,8 +15,14 @@
  *
  * Error policy: if the CustomerUser read has any errors, nothing is written —
  * stamping a partial viewer list would silently revoke real users. Otherwise
- * each record update is independent; failures are collected and the sync
- * carries on.
+ * each record update is independent; failures are logged (model and id) as
+ * they happen, collected, and the sync carries on.
+ *
+ * The SSR route that runs this is cut off after ~28s, and a large customer has
+ * thousands of records, so a sync can't count on finishing in one request.
+ * Records that already carry the current viewers are skipped, so each run only
+ * writes what's still stale and an interrupted sync resumes where it stopped
+ * on the next portal visit (#309).
  *
  * Needs a data client that can update every model below, including
  * CustomerClosureBlock (customer-written only), so in practice an IAM client:
@@ -59,6 +65,12 @@ function isRealSub(sub: string | null | undefined): sub is string {
   return Boolean(sub) && !sub!.startsWith(PENDING_SUB_PREFIX);
 }
 
+function hasViewers(current: readonly (string | null)[] | null | undefined, viewerSubs: string[]) {
+  if (!current || current.length !== viewerSubs.length) return false;
+  const currentSet = new Set(current);
+  return viewerSubs.every((sub) => currentSet.has(sub));
+}
+
 export async function syncCustomerAccess(
   client: { models: object },
   customerId: string,
@@ -72,12 +84,27 @@ export async function syncCustomerAccess(
     try {
       const result = await models[model].update(input);
       if (result.errors && result.errors.length > 0) {
+        console.error(`syncCustomerAccess(${customerId}): ${model} ${input.id} update failed:`, result.errors);
         errors.push(...result.errors);
         return;
       }
       updated[model] = (updated[model] ?? 0) + 1;
     } catch (error) {
+      console.error(`syncCustomerAccess(${customerId}): ${model} ${input.id} update failed:`, error);
       errors.push(error);
+    }
+  };
+
+  const collectListErrors = (model: AccessModel, listErrors: unknown[]) => {
+    if (listErrors.length === 0) return;
+    console.error(`syncCustomerAccess(${customerId}): listing ${model} failed:`, listErrors);
+    errors.push(...listErrors);
+  };
+
+  const stamp = async (model: AccessModel, rows: Array<{ id: string; viewerSubs?: (string | null)[] | null }>) => {
+    for (const row of rows) {
+      if (hasViewers(row.viewerSubs, viewerSubs)) continue;
+      await update(model, { id: row.id, viewerSubs });
     }
   };
 
@@ -104,24 +131,22 @@ export async function syncCustomerAccess(
       model === 'CustomerUser'
         ? members
         : await listAll(client, model, { filter: { customerId: { eq: customerId } } }).then((result) => {
-            errors.push(...result.errors);
+            collectListErrors(model, result.errors);
             return result.data;
           });
 
-    for (const row of rows) {
-      await update(model, { id: row.id, viewerSubs });
+    await stamp(model, rows);
 
-      // Stop.customerId is optional on older records, so stops are found
-      // through their route rather than by customerId.
-      if (model === 'Route') {
-        const { data: stops, errors: stopListErrors } = await listAll(client, 'Stop', {
-          filter: { routeId: { eq: row.id } },
-        });
-        errors.push(...stopListErrors);
-        for (const stop of stops) {
-          await update('Stop', { id: stop.id, viewerSubs });
-        }
-      }
+    // Stop.customerId is optional on older records, so stops are found
+    // through their route. One walk of the Stop table, matched to this
+    // customer's routes, rather than a filtered table scan per route.
+    if (model === 'Route') {
+      const routeIds = new Set(rows.map((row) => row.id));
+      const { data: stops, errors: stopListErrors } = await listAll(client, 'Stop', {
+        selectionSet: ['id', 'routeId', 'viewerSubs'],
+      });
+      collectListErrors('Stop', stopListErrors);
+      await stamp('Stop', stops.filter((stop) => routeIds.has(stop.routeId)));
     }
   }
 

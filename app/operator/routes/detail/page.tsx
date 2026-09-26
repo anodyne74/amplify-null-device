@@ -27,7 +27,7 @@ import {
 import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
 import { isStopCompletedForPhase } from '@/lib/stopExecutionMarkers';
 import { getStopStatusLabel } from '@/lib/stopStatusLabel';
-import { getUserSettings } from '@/lib/queries';
+import { getUserSettings } from '@/lib/userSettings';
 import type { MapTheme } from '@/lib/mapThemes';
 import { MAP_THEMES } from '@/lib/mapThemes';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';

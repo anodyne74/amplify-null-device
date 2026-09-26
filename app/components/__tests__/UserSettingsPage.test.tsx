@@ -27,7 +27,7 @@ jest.mock('@/lib/customers', () => ({
   getCustomerPortalContext: (...args: unknown[]) => getCustomerPortalContextMock(...args),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/userSettings', () => ({
   getUserSettings: (...args: unknown[]) => getUserSettingsMock(...args),
   upsertUserSettings: (...args: unknown[]) => upsertUserSettingsMock(...args),
 }));

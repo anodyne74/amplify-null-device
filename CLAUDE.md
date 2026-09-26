@@ -76,7 +76,7 @@ Use the `useUserGroups()` hook (`lib/use-user-groups.ts`) to fetch and cache gro
 
 - `amplify/backend.ts` — root backend: SES invoice template, inbound email forwarder Lambda
 - `amplify/data/resource.ts` — all 9 DynamoDB models and their AppSync authorization rules
-- `lib/queries.ts` + `lib/queries/` — AppSync GraphQL queries (modular)
+- `lib/routes.ts`, `lib/customers.ts`, `lib/invoices.ts`, `lib/userSettings.ts` — browser data access, one module per aggregate; `lib/queries/` — remaining single-function modules (rate lines, operator payouts and availability, organization settings)
 - `lib/amplify-config.ts` — Amplify initialization, auth helpers
 - `app/auth/session.ts` + `sessionManager.ts` — session management
 - `app/components/PortalLayout.*` — shared sidebar + navigation layout used by all portals

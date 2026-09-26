@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useCurrentUserId } from '@/lib/use-user-groups';
 import type { Customer } from '@/amplify/types';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
-import { getUserSettings } from '@/lib/queries';
+import { getUserSettings } from '@/lib/userSettings';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { useLiveRoutes } from '@/lib/useLiveRoutes';
 import { unwrapOrThrow } from '@/lib/graphqlResult';

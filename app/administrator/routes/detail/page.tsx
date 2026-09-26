@@ -24,7 +24,7 @@ import {
   formatRouteDate,
   formatRouteDateTime,
 } from '@/lib/routeDetailHelpers';
-import { getUserSettings } from '@/lib/queries';
+import { getUserSettings } from '@/lib/userSettings';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
 import { runStopSettlement, stopPhaseOf } from '@/lib/signRunTransitions';

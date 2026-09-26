@@ -3,7 +3,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RouteEditPage from '../edit/page';
 import * as customersModule from '@/lib/customers';
-import * as queriesModule from '@/lib/queries';
+import * as userSettingsModule from '@/lib/userSettings';
 import * as routesModule from '@/lib/routes';
 import { callApi } from '@/lib/apiClient';
 import type { Route, Stop } from '@/amplify/types';
@@ -60,7 +60,7 @@ jest.mock('@/app/operator/components/RouteStopsMap', () => ({
 }));
 
 jest.mock('@/lib/customers');
-jest.mock('@/lib/queries');
+jest.mock('@/lib/userSettings');
 jest.mock('@/lib/routes');
 
 const mockRoute: Route = {
@@ -113,7 +113,7 @@ describe('Administrator Route Edit Page', () => {
       errors: undefined,
     });
 
-    (queriesModule.getUserSettings as jest.Mock).mockResolvedValue({
+    (userSettingsModule.getUserSettings as jest.Mock).mockResolvedValue({
       data: { mapTheme: 'light' },
       errors: undefined,
     });

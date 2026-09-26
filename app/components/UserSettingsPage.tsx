@@ -9,7 +9,7 @@ import {
   upsertUserSettings,
   type MapThemeSetting,
   type ThemeModeSetting,
-} from '@/lib/queries';
+} from '@/lib/userSettings';
 import { MAP_THEMES } from '@/lib/mapThemes';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';

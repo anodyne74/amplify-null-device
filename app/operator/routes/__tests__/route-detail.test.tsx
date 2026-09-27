@@ -261,12 +261,12 @@ describe('Operator Route Detail Page', () => {
         expect.objectContaining({
           id: 'stop-1',
           address: '100 First St',
-          latitude: -37.8136,
-          longitude: 144.9631,
           notes: 'Leave signs at the side gate',
         })
       );
     });
+    // The stored pin (and its Location Precision) is left alone, not re-sent (#283).
+    expect((updateStop as jest.Mock).mock.calls[0][0]).not.toHaveProperty('latitude');
 
     // A live re-validation of an unchanged address is what made this fail on a flaky
     // Maps API call in the first place (same bug class as #58).

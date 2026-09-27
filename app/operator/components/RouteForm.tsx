@@ -5,6 +5,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/app/components/ToastProvider';
 import { StopForm } from '@/app/operator/components/StopForm';
 import { geocodeAddress } from '@/lib/googleMaps';
+import type { StopLocationFields } from '@/lib/locationPrecision';
+import { locateNewStop } from '@/lib/stopLocation';
+import type { StopFormValues } from '@/lib/use-route-detail-data';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
@@ -22,16 +25,14 @@ const RouteStopsMap = dynamic(
   }
 );
 
-export interface RouteDraftStop {
+/** A stop drafted before the Route exists; carries its geocoded location fields (lib/locationPrecision.ts). */
+export interface RouteDraftStop extends Partial<StopLocationFields> {
   address: string;
   serviceType: 'delivery' | 'pickup' | 'inspection';
   numberOfSigns?: number;
   agent?: string;
   isAuction?: boolean;
   notes?: string;
-  latitude?: number;
-  longitude?: number;
-  formattedAddress?: string;
 }
 
 interface RouteFormCustomer {
@@ -183,6 +184,7 @@ export function RouteForm({
     formattedAddress: stop.formattedAddress,
     latitude: stop.latitude,
     longitude: stop.longitude,
+    locationPrecision: stop.locationPrecision,
     serviceType: stop.serviceType,
     numberOfSigns: stop.numberOfSigns,
     agent: stop.agent,
@@ -190,47 +192,19 @@ export function RouteForm({
     notes: stop.notes,
   }));
 
-  const handleAddStop = async (values: {
-    address: string;
-    serviceType: 'delivery' | 'pickup' | 'inspection';
-    numberOfSigns?: number;
-    agent?: string;
-    isAuction?: boolean;
-    notes?: string;
-    latitude?: number;
-    longitude?: number;
-    formattedAddress?: string;
-  }) => {
+  const handleAddStop = async ({ resolvedLocation, ...values }: StopFormValues) => {
     setAddingStop(true);
     setStopError(null);
 
     try {
-      let geocoded: { latitude: number; longitude: number; formattedAddress: string } | undefined;
-
-      if (values.latitude !== undefined && values.longitude !== undefined) {
-        // Coordinates already resolved by the autocomplete input — no extra API call needed.
-        geocoded = {
-          latitude: values.latitude,
-          longitude: values.longitude,
-          formattedAddress: values.formattedAddress ?? values.address,
-        };
-      } else {
-        try {
-          geocoded = await geocodeAddress(values.address);
-        } catch {
-          setStopError('Stop added without coordinates. Map preview may be incomplete until address geocoding succeeds.');
-        }
+      let location: StopLocationFields | undefined;
+      try {
+        location = await locateNewStop({ address: values.address, resolvedLocation });
+      } catch {
+        setStopError('Stop added without coordinates. Map preview may be incomplete until address geocoding succeeds.');
       }
 
-      setStops((prev) => [
-        ...prev,
-        {
-          ...values,
-          latitude: geocoded?.latitude,
-          longitude: geocoded?.longitude,
-          formattedAddress: geocoded?.formattedAddress,
-        },
-      ]);
+      setStops((prev) => [...prev, { ...values, ...location }]);
       setShowAddStop(false);
     } finally {
       setAddingStop(false);

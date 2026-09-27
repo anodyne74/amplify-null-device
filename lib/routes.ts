@@ -8,6 +8,7 @@
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
 import type { RouteStatus } from '@/amplify/types';
+import { pickStopLocationFields, type StopLocationFields } from '@/lib/locationPrecision';
 
 /**
  * Fetch all routes for a specific customer
@@ -315,7 +316,7 @@ async function getCustomerViewerSubs(customerId: string): Promise<string[] | und
  * so a Stop is stamped with the customer's current viewers -- looked up here
  * unless the caller passes them.
  */
-export async function createStop(input: {
+export async function createStop(input: Partial<StopLocationFields> & {
   routeId: string;
   customerId: string;
   viewerSubs?: string[];
@@ -346,7 +347,7 @@ export async function createStop(input: {
   }
 }
 
-export interface CreateStopsForRouteInput {
+export interface CreateStopsForRouteInput extends Partial<StopLocationFields> {
   address: string;
   serviceType: 'delivery' | 'pickup' | 'inspection';
   numberOfSigns?: number;
@@ -390,10 +391,8 @@ export async function createStopsForRoute(
         numberOfSigns: stop.numberOfSigns,
         agent: stop.agent,
         isAuction: stop.isAuction,
-        latitude: stop.latitude,
-        longitude: stop.longitude,
-        formattedAddress: stop.formattedAddress,
         notes: stop.notes,
+        ...pickStopLocationFields(stop),
       });
 
       if (stopResult.errors && stopResult.errors.length > 0) {
@@ -477,7 +476,7 @@ export async function listAllStops() {
 /**
  * Update a stop by ID
  */
-export interface UpdateStopInput {
+export interface UpdateStopInput extends Partial<StopLocationFields> {
   id: string;
   sequence?: number;
   address?: string;

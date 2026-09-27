@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Stop } from '@/amplify/types';
 import { isAdmin } from '@/lib/amplify-config';
 import { geocodeAddress } from '@/lib/googleMaps';
+import type { GeocodedLocation } from '@/lib/locationPrecision';
+import { locateEditedStop, locateNewStop } from '@/lib/stopLocation';
 import { useRouteWithStops } from '@/lib/useRouteWithStops';
 import {
   createStop,
@@ -28,9 +30,7 @@ export interface StopFormValues {
   agent?: string;
   isAuction?: boolean;
   notes?: string;
-  latitude?: number;
-  longitude?: number;
-  formattedAddress?: string;
+  resolvedLocation?: GeocodedLocation;
 }
 
 export interface AddStopCapability {
@@ -233,25 +233,14 @@ export function useRouteDetailData(id: string, user: unknown) {
       setAddingStop(true);
       setAddStopError(null);
       try {
-        let lat = values.latitude;
-        let lng = values.longitude;
-        let formatted = values.formattedAddress ?? values.address;
-
-        if (lat === undefined || lng === undefined) {
-          const geocoded = await geocodeAddress(values.address);
-          lat = geocoded.latitude;
-          lng = geocoded.longitude;
-          formatted = geocoded.formattedAddress;
-        }
+        const location = await locateNewStop(values);
 
         const result = await createStop({
           routeId: route.id,
           customerId: route.customerId,
           sequence: stops.length + 1,
           address: values.address,
-          formattedAddress: formatted,
-          latitude: lat,
-          longitude: lng,
+          ...location,
           serviceType: values.serviceType,
           numberOfSigns: values.numberOfSigns,
           agent: values.agent,
@@ -289,39 +278,15 @@ export function useRouteDetailData(id: string, user: unknown) {
       setEditingStop(true);
       setEditStopError(null);
       try {
-        let lat = values.latitude;
-        let lng = values.longitude;
-        let formatted = values.formattedAddress ?? values.address;
-
-        if (lat === undefined || lng === undefined) {
-          // The address field wasn't (re)resolved via autocomplete on this save — the
-          // common case when only another field changed. Reuse the stop's existing
-          // coordinates instead of re-geocoding, so an unchanged address can't fail
-          // the whole save on a flaky Maps API call (mirrors the fix for #58).
-          const originalStop = stops.find((s) => s.id === editingStopId);
-          const addressUnchanged = originalStop?.address?.trim() === values.address.trim();
-          if (
-            addressUnchanged &&
-            typeof originalStop?.latitude === 'number' &&
-            typeof originalStop?.longitude === 'number'
-          ) {
-            lat = originalStop.latitude;
-            lng = originalStop.longitude;
-            formatted = originalStop.formattedAddress ?? formatted;
-          } else {
-            const geocoded = await geocodeAddress(values.address);
-            lat = geocoded.latitude;
-            lng = geocoded.longitude;
-            formatted = geocoded.formattedAddress;
-          }
-        }
+        const location = await locateEditedStop(
+          stops.find((s) => s.id === editingStopId),
+          values
+        );
 
         const result = await updateStopQuery({
           id: editingStopId,
           address: values.address,
-          formattedAddress: formatted,
-          latitude: lat,
-          longitude: lng,
+          ...location,
           serviceType: values.serviceType,
           numberOfSigns: values.numberOfSigns,
           agent: values.agent,

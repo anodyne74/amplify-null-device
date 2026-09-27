@@ -268,6 +268,17 @@ const schema = a.schema({
       latitude: a.float(),
       longitude: a.float(),
       formattedAddress: a.string(),
+      // Location Precision (CONTEXT.md, lib/locationPrecision.ts) — classified from the
+      // geocode signals below; 'confirmed' is set by hand and never overwritten by a geocode.
+      // The address components identify the Property (ADR 0004), never the coordinates.
+      locationPrecision: a.enum(['precise', 'interpolated', 'approximate', 'confirmed']),
+      geocodeLocationType: a.string(),
+      geocodeResultTypes: a.string().array(),
+      geocodePartialMatch: a.boolean(),
+      addressStreetNumber: a.string(),
+      addressStreet: a.string(),
+      addressSuburb: a.string(),
+      addressPostcode: a.string(),
       notes: a.string(),
       // Sign-run flow (drivingModeEnabled routes only) — one tap logs one missing sign
       // during the pickup phase; missing signs never count as collected. The last-logged

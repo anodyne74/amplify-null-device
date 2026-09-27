@@ -12,6 +12,7 @@
  */
 
 import type { Schema } from '../data/resource';
+import type { LocationPrecision } from '../../lib/locationPrecision';
 
 /**
  * Export the full schema for use with generateClient<Schema>()
@@ -172,6 +173,14 @@ export interface Stop {
   latitude?: number | null;
   longitude?: number | null;
   formattedAddress?: string;
+  locationPrecision?: LocationPrecision | null;
+  geocodeLocationType?: string | null;
+  geocodeResultTypes?: string[] | null;
+  geocodePartialMatch?: boolean | null;
+  addressStreetNumber?: string | null;
+  addressStreet?: string | null;
+  addressSuburb?: string | null;
+  addressPostcode?: string | null;
   notes?: string;
   missingSignsCount?: number | null;
   missingSignsLastLoggedAt?: string | null;

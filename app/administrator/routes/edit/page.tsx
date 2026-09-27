@@ -16,6 +16,8 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { geocodeAddress } from '@/lib/googleMaps';
+import { locateEditedStop, locateNewStop } from '@/lib/stopLocation';
+import type { StopFormValues } from '@/lib/use-route-detail-data';
 import { getUserSettings } from '@/lib/userSettings';
 import type { Route, Stop } from '@/amplify/types';
 import type { MapTheme } from '@/lib/mapThemes';
@@ -300,41 +302,20 @@ function RouteEditContent() {
     setNotifying(false);
   };
 
-  const handleAddStop = async (values: {
-    address: string;
-    serviceType: 'delivery' | 'pickup' | 'inspection';
-    numberOfSigns?: number;
-    agent?: string;
-    isAuction?: boolean;
-    notes?: string;
-    latitude?: number;
-    longitude?: number;
-    formattedAddress?: string;
-  }) => {
+  const handleAddStop = async (values: StopFormValues) => {
     if (!routeId || !customerId) return;
 
     setStopSaving(true);
     setStopError(null);
     try {
-      let lat = values.latitude;
-      let lng = values.longitude;
-      let formatted = values.formattedAddress ?? values.address;
-
-      if (lat === undefined || lng === undefined) {
-        const geocoded = await geocodeAddress(values.address);
-        lat = geocoded.latitude;
-        lng = geocoded.longitude;
-        formatted = geocoded.formattedAddress;
-      }
+      const location = await locateNewStop(values);
 
       const result = await createStop({
         routeId,
         customerId,
         sequence: stops.length + 1,
         address: values.address,
-        formattedAddress: formatted,
-        latitude: lat,
-        longitude: lng,
+        ...location,
         serviceType: values.serviceType,
         numberOfSigns: values.numberOfSigns,
         agent: values.agent,
@@ -354,55 +335,21 @@ function RouteEditContent() {
     setStopSaving(false);
   };
 
-  const handleEditStop = async (values: {
-    address: string;
-    serviceType: 'delivery' | 'pickup' | 'inspection';
-    numberOfSigns?: number;
-    agent?: string;
-    isAuction?: boolean;
-    notes?: string;
-    latitude?: number;
-    longitude?: number;
-    formattedAddress?: string;
-  }) => {
+  const handleEditStop = async (values: StopFormValues) => {
     if (!editingStopId) return;
 
     setStopSaving(true);
     setStopError(null);
     try {
-      let lat = values.latitude;
-      let lng = values.longitude;
-      let formatted = values.formattedAddress ?? values.address;
-
-      if (lat === undefined || lng === undefined) {
-        // The address field wasn't (re)resolved via autocomplete on this save — the
-        // common case when only another field changed. Reuse the stop's existing
-        // coordinates instead of re-geocoding, so an unchanged address can't fail
-        // the whole save on a flaky Maps API call (mirrors the fix for #58).
-        const originalStop = stops.find((s) => s.id === editingStopId);
-        const addressUnchanged = originalStop?.address?.trim() === values.address.trim();
-        if (
-          addressUnchanged &&
-          typeof originalStop?.latitude === 'number' &&
-          typeof originalStop?.longitude === 'number'
-        ) {
-          lat = originalStop.latitude;
-          lng = originalStop.longitude;
-          formatted = originalStop.formattedAddress ?? formatted;
-        } else {
-          const geocoded = await geocodeAddress(values.address);
-          lat = geocoded.latitude;
-          lng = geocoded.longitude;
-          formatted = geocoded.formattedAddress;
-        }
-      }
+      const location = await locateEditedStop(
+        stops.find((s) => s.id === editingStopId),
+        values
+      );
 
       const result = await updateStop({
         id: editingStopId,
         address: values.address,
-        formattedAddress: formatted,
-        latitude: lat,
-        longitude: lng,
+        ...location,
         serviceType: values.serviceType,
         numberOfSigns: values.numberOfSigns,
         agent: values.agent,

@@ -1,6 +1,7 @@
 import {
   assessStop,
   classifyLocationPrecision,
+  geocodeAddress,
   parseAddressComponents,
   parseArgs,
   propertyKey,
@@ -80,6 +81,26 @@ describe('toGeocodedLocation', () => {
       partialMatch: false,
       addressComponents: { streetNumber: '12', street: 'Smith Street', suburb: 'Fitzroy', postcode: '3065' },
     });
+  });
+});
+
+describe('geocodeAddress', () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('only matches Australian addresses, as lib/googleMaps.ts does', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'OK', results: [RESULT] }),
+    }) as unknown as typeof fetch;
+
+    await geocodeAddress(' 58 Brush Road ', 'test-key');
+
+    const url = new URL((global.fetch as jest.Mock).mock.calls[0][0]);
+    expect(url.searchParams.get('address')).toBe('58 Brush Road');
+    expect(url.searchParams.get('components')).toBe('country:AU');
   });
 });
 

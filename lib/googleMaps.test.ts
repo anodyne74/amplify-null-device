@@ -110,7 +110,10 @@ describe('geocode precision signals (#283)', () => {
       partialMatch: false,
       addressComponents: { streetNumber: '12', street: 'Smith Street', suburb: 'Fitzroy', postcode: '3065' },
     });
-    expect(geocode).toHaveBeenCalledWith({ address: '12 Smith St Fitzroy' }, expect.any(Function));
+    expect(geocode).toHaveBeenCalledWith(
+      { address: '12 Smith St Fitzroy', componentRestrictions: { country: 'AU' } },
+      expect.any(Function)
+    );
   });
 
   it('classifies a partial match as Approximate', async () => {

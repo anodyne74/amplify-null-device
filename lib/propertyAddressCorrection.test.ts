@@ -30,6 +30,15 @@ describe('correctPropertyAddress', () => {
     }
   });
 
+  it('uses an autocomplete pick as it is, without geocoding again', async () => {
+    const picked = { ...GEOCODED, formattedAddress: '14 Cliff Rd, Epping NSW 2121, Australia' };
+
+    await expect(correctPropertyAddress(STOPS, picked.formattedAddress, picked)).resolves.toEqual({ ok: true });
+
+    expect(geocodeAddress).not.toHaveBeenCalled();
+    expect(saveStop).toHaveBeenCalledWith({ original: STOPS[0] }, { address: picked.formattedAddress, resolvedLocation: picked });
+  });
+
   it('reports an address the geocoder cannot find, changing nothing', async () => {
     (geocodeAddress as jest.Mock).mockRejectedValue(new Error('Address could not be validated.'));
 

@@ -78,15 +78,15 @@ describe('customerDefaults', () => {
   it('uses fixed tones for BO, DM, and KP initials', () => {
     expect(getAgentBadgeTone('BO')).toEqual({
       backgroundColor: 'var(--nd-status-planned)',
-      color: 'var(--nd-text-inverse)',
+      color: 'var(--nd-color-text-on-warning)',
     });
     expect(getAgentBadgeTone('DM')).toEqual({
       backgroundColor: 'var(--nd-status-active)',
-      color: 'var(--nd-text-inverse)',
+      color: 'var(--nd-color-text-on-accent)',
     });
     expect(getAgentBadgeTone('KP')).toEqual({
       backgroundColor: 'var(--nd-operator-accent)',
-      color: 'var(--nd-text-inverse)',
+      color: 'var(--nd-color-text-on-accent)',
     });
   });
 
@@ -97,15 +97,24 @@ describe('customerDefaults', () => {
     });
   });
 
-  it('uses white text on the customer-accent tone', () => {
-    // Find a name that hashes to the customer-accent tone rather than hard-coding the hash.
-    const onAccent = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6']
-      .map((name) => getAgentBadgeTone(name))
-      .find((tone) => tone.backgroundColor === 'var(--nd-customer-accent)');
-    expect(onAccent).toEqual({
-      backgroundColor: 'var(--nd-customer-accent)',
-      color: 'var(--nd-color-text-on-accent)',
-    });
+  it('gives every tone a theme-invariant text colour chosen for its background (#331)', () => {
+    // The backgrounds don't change with the theme, so neither may the text; --nd-text-inverse flips.
+    const expectedText: Record<string, string> = {
+      'var(--nd-status-active)': 'var(--nd-color-text-on-accent)',
+      'var(--nd-operator-accent)': 'var(--nd-color-text-on-accent)',
+      'var(--nd-customer-accent)': 'var(--nd-color-text-on-accent)',
+      'var(--nd-status-planned)': 'var(--nd-color-text-on-warning)',
+      'var(--nd-status-completed)': 'var(--nd-color-text-on-accent)',
+      'var(--nd-status-danger)': 'var(--nd-color-text-on-danger)',
+    };
+    const names = ['', 'BO', 'DM', 'KP', ...Array.from({ length: 36 }, (_, i) => `Agent ${String.fromCharCode(65 + (i % 26))}${i}`)];
+    const tones = names.map((name) => getAgentBadgeTone(name));
+
+    // Every palette background is reached, so the whole palette is pinned.
+    expect([...new Set(tones.map((tone) => tone.backgroundColor))].sort()).toEqual(Object.keys(expectedText).sort());
+    for (const tone of tones) {
+      expect(tone.color).toBe(expectedText[tone.backgroundColor]);
+    }
   });
 
   it('only returns tokens defined in the global stylesheets (#320)', () => {

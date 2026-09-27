@@ -40,9 +40,9 @@ export function getAgentBadgeTone(agentName?: string): AgentBadgeTone {
       ? compact
       : generateAgentInitials(agentName) ?? compact.slice(0, 2)) || 'AG';
   const fixedTones: Record<string, AgentBadgeTone> = {
-    BO: { backgroundColor: 'var(--nd-status-planned)', color: 'var(--nd-text-inverse)' },
-    DM: { backgroundColor: 'var(--nd-status-active)', color: 'var(--nd-text-inverse)' },
-    KP: { backgroundColor: 'var(--nd-operator-accent)', color: 'var(--nd-text-inverse)' },
+    BO: { backgroundColor: 'var(--nd-status-planned)', color: 'var(--nd-color-text-on-warning)' },
+    DM: { backgroundColor: 'var(--nd-status-active)', color: 'var(--nd-color-text-on-accent)' },
+    KP: { backgroundColor: 'var(--nd-operator-accent)', color: 'var(--nd-color-text-on-accent)' },
   };
 
   const fixedTone = fixedTones[initials];
@@ -51,12 +51,12 @@ export function getAgentBadgeTone(agentName?: string): AgentBadgeTone {
   }
 
   const tones: AgentBadgeTone[] = [
-    { backgroundColor: 'var(--nd-status-active)', color: 'var(--nd-text-inverse)' },
-    { backgroundColor: 'var(--nd-operator-accent)', color: 'var(--nd-text-inverse)' },
+    { backgroundColor: 'var(--nd-status-active)', color: 'var(--nd-color-text-on-accent)' },
+    { backgroundColor: 'var(--nd-operator-accent)', color: 'var(--nd-color-text-on-accent)' },
     { backgroundColor: 'var(--nd-customer-accent)', color: 'var(--nd-color-text-on-accent)' },
-    { backgroundColor: 'var(--nd-status-planned)', color: 'var(--nd-text-inverse)' },
+    { backgroundColor: 'var(--nd-status-planned)', color: 'var(--nd-color-text-on-warning)' },
     { backgroundColor: 'var(--nd-status-completed)', color: 'var(--nd-color-text-on-accent)' },
-    { backgroundColor: 'var(--nd-status-danger)', color: 'var(--nd-text-inverse)' },
+    { backgroundColor: 'var(--nd-status-danger)', color: 'var(--nd-color-text-on-danger)' },
   ];
 
   const hash = initials

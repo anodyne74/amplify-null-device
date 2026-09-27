@@ -94,6 +94,8 @@
   --nd-color-accent-customer: var(--nd-customer-accent);
   --nd-color-text-on-accent: #ffffff;
   --nd-color-text-on-danger: #ffffff;
+  /* Navy on the amber warning/planned tone (5.25:1); theme-invariant like the two above (#331). */
+  --nd-color-text-on-warning: #141b38;
 
   /* Component-level semantic tokens */
   --nd-interactive-primary-bg: var(--nd-logo-primary);

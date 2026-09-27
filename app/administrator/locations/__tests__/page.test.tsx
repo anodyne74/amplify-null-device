@@ -3,7 +3,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AdministratorLocationReviewPage from '../page';
 import { confirmPropertyLocation, dismissSuburbMismatch, listLocationReviewQueue } from '@/lib/propertyLocations';
-import { correctPropertyAddress } from '@/lib/propertyAddressCorrection';
+import { correctPropertyAddress, locateUnpinnedStops } from '@/lib/propertyAddressCorrection';
 import type { PropertyReview } from '@/lib/locationReview';
 
 jest.mock('@/lib/propertyLocations', () => ({
@@ -14,6 +14,7 @@ jest.mock('@/lib/propertyLocations', () => ({
 
 jest.mock('@/lib/propertyAddressCorrection', () => ({
   correctPropertyAddress: jest.fn(),
+  locateUnpinnedStops: jest.fn(),
 }));
 
 // Leaflet needs a real DOM layout; stand in with a button that "drags" the pin.
@@ -38,15 +39,27 @@ const CLIFF_ROAD: PropertyReview = {
     { id: 's2', address: '14 Cliff Road, Epping NSW 2121', locationPrecision: 'precise' },
   ],
   approximate: true,
+  noPin: false,
   suburbMismatch: null,
   currentPin: { latitude: -33.7, longitude: 151.0 },
   suggestedPin: { latitude: -33.8, longitude: 151.1, accuracyMeters: 9, recordedAt: '2026-09-20T00:00:00Z' },
+};
+
+const BEECROFT_ROAD: PropertyReview = {
+  propertyKey: 'beecroft||beecroft road|2',
+  stops: [{ id: 's4', address: '2 Beecroft Rd, Beecroft' }],
+  approximate: false,
+  noPin: true,
+  suburbMismatch: null,
+  currentPin: null,
+  suggestedPin: null,
 };
 
 const PENNANT_STREET: PropertyReview = {
   propertyKey: 'epping|2121|pennant street|3',
   stops: [{ id: 's3', address: '3 Pennant St, Epping', locationPrecision: 'precise' }],
   approximate: false,
+  noPin: false,
   suburbMismatch: { geocodedSuburb: 'Carlingford' },
   currentPin: { latitude: -33.9, longitude: 151.2 },
   suggestedPin: null,
@@ -59,6 +72,7 @@ describe('Administrator Location review page', () => {
     (confirmPropertyLocation as jest.Mock).mockResolvedValue({ ok: true });
     (dismissSuburbMismatch as jest.Mock).mockResolvedValue({ ok: true });
     (correctPropertyAddress as jest.Mock).mockResolvedValue({ ok: true });
+    (locateUnpinnedStops as jest.Mock).mockResolvedValue({ ok: true });
   });
 
   it('lists each Property with why it needs review', async () => {
@@ -123,6 +137,62 @@ describe('Administrator Location review page', () => {
 
     await waitFor(() => expect(correctPropertyAddress).toHaveBeenCalledWith(PENNANT_STREET.stops, '3 Pennant St, Carlingford'));
     await waitFor(() => expect(listLocationReviewQueue).toHaveBeenCalledTimes(2));
+  });
+
+  describe('a Property with a Stop that has no pin (#344)', () => {
+    beforeEach(() => {
+      (listLocationReviewQueue as jest.Mock).mockResolvedValue({ data: [BEECROFT_ROAD] });
+    });
+
+    it('is listed as having no pin, with nothing to confirm yet', async () => {
+      render(<AdministratorLocationReviewPage />);
+
+      expect(await screen.findByRole('button', { name: /2 Beecroft Rd.*No pin.*1 Stop/ })).toBeInTheDocument();
+      expect(screen.getByText(/1 of 1 Stop here has no map pin/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Confirm pin' })).not.toBeInTheDocument();
+    });
+
+    it('finds its Stops on the map, then reloads the queue', async () => {
+      render(<AdministratorLocationReviewPage />);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Find on map' }));
+
+      await waitFor(() => expect(locateUnpinnedStops).toHaveBeenCalledWith(BEECROFT_ROAD.stops));
+      await waitFor(() => expect(listLocationReviewQueue).toHaveBeenCalledTimes(2));
+    });
+
+    it("says so when they still can't be found", async () => {
+      (locateUnpinnedStops as jest.Mock).mockResolvedValue({ ok: false, error: "1 of 1 Stops still couldn't be found on the map." });
+      render(<AdministratorLocationReviewPage />);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Find on map' }));
+
+      expect(await screen.findByText("1 of 1 Stops still couldn't be found on the map.")).toBeInTheDocument();
+    });
+
+    it('can have its address corrected', async () => {
+      render(<AdministratorLocationReviewPage />);
+
+      fireEvent.change(await screen.findByLabelText('Corrected address'), { target: { value: '2 Beecroft Rd, Beecroft NSW 2119' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Correct address' }));
+
+      await waitFor(() =>
+        expect(correctPropertyAddress).toHaveBeenCalledWith(BEECROFT_ROAD.stops, '2 Beecroft Rd, Beecroft NSW 2119')
+      );
+    });
+
+    it('stays in the queue when a suburb mismatch at it is dismissed', async () => {
+      (listLocationReviewQueue as jest.Mock).mockResolvedValue({
+        data: [{ ...BEECROFT_ROAD, suburbMismatch: { geocodedSuburb: 'Pennant Hills' } }],
+      });
+      render(<AdministratorLocationReviewPage />);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Dismiss flag' }));
+
+      await waitFor(() => expect(dismissSuburbMismatch).toHaveBeenCalled());
+      expect(await screen.findByText('1 Property to review')).toBeInTheDocument();
+      expect(screen.queryByText('Pennant Hills')).not.toBeInTheDocument();
+    });
   });
 
   it('says so when nothing needs review', async () => {

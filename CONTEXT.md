@@ -17,7 +17,7 @@ The real-world address a Stop visits; many Stops, across many Routes and Custome
 _Avoid_: Location, site, address (when you mean the place rather than the text)
 
 **Location Precision**:
-How well a Property's pin matches the real address: Precise (rooftop), Interpolated (estimated along the street, usually within a few houses), Approximate (e.g. the middle of the street, possibly far from the house), or Confirmed (set by hand, so it outranks the others and is never overwritten). Only Approximate needs fixing. Precision affects maps, never Property identity or Property History. A Stop can also have no pin yet (its geocode failed, or it was imported from a schedule); it still belongs to its Property, it just isn't on the map.
+How well a Property's pin matches the real address: Precise (rooftop), Interpolated (estimated along the street, usually within a few houses), Approximate (e.g. the middle of the street, possibly far from the house), or Confirmed (set by hand, so it outranks the others and is never overwritten). Only Approximate needs fixing, along with a Stop that has no pin yet (see below); the Location review queue lists both. Precision affects maps, never Property identity or Property History. A Stop can also have no pin yet (its geocode failed, or it was imported from a schedule); it still belongs to its Property, it just isn't on the map.
 _Avoid_: Accuracy, geocode quality, verified/unverified
 
 **Property History**:

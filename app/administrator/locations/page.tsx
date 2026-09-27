@@ -11,7 +11,7 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import type { Pin, PropertyReview } from '@/lib/locationReview';
 import { confirmPropertyLocation, dismissSuburbMismatch, listLocationReviewQueue } from '@/lib/propertyLocations';
-import { correctPropertyAddress } from '@/lib/propertyAddressCorrection';
+import { correctPropertyAddress, locateUnpinnedStops } from '@/lib/propertyAddressCorrection';
 import styles from './page.module.css';
 
 const PropertyPinMap = dynamic(() => import('./PropertyPinMap').then((mod) => mod.PropertyPinMap), { ssr: false });
@@ -21,8 +21,8 @@ function propertyAddress(review: PropertyReview): string {
 }
 
 /**
- * Location review (#286): Properties with an Approximate pin or a suburb
- * mismatch. Confirming a pin moves every Stop at the Property there and takes
+ * Location review (#286): Properties with an Approximate pin, a Stop with no
+ * pin (#344) or a suburb mismatch. Confirming a pin moves every Stop at the Property there and takes
  * it out of the queue; new Stops at the address use it instead of geocoding.
  */
 export default function AdministratorLocationReviewPage() {
@@ -65,7 +65,7 @@ export default function AdministratorLocationReviewPage() {
           <p className="nd-badge nd-badge--danger">{loadError}</p>
         ) : queue.length === 0 ? (
           <Card>
-            <p className={styles.emptyState}>No Properties need review. Approximate pins and suburb mismatches appear here.</p>
+            <p className={styles.emptyState}>No Properties need review. Approximate pins, Stops with no pin and suburb mismatches appear here.</p>
           </Card>
         ) : (
           <div className={styles.layout}>
@@ -81,6 +81,7 @@ export default function AdministratorLocationReviewPage() {
                     >
                       <span className={styles.queueAddress}>{propertyAddress(review)}</span>
                       <span className={styles.badges}>
+                        {review.noPin && <Badge tone="danger" size="sm">No pin</Badge>}
                         {review.approximate && <Badge tone="warning" size="sm">Approximate</Badge>}
                         {review.suburbMismatch && <Badge tone="info" size="sm">Suburb mismatch</Badge>}
                         <span className={styles.note}>
@@ -99,7 +100,10 @@ export default function AdministratorLocationReviewPage() {
                 review={selected}
                 onConfirmed={() => resolve(selected.propertyKey, null)}
                 onDismissed={() =>
-                  resolve(selected.propertyKey, selected.approximate ? { ...selected, suburbMismatch: null } : null)
+                  resolve(
+                    selected.propertyKey,
+                    selected.approximate || selected.noPin ? { ...selected, suburbMismatch: null } : null
+                  )
                 }
                 onAddressCorrected={() => void load()}
               />
@@ -138,6 +142,9 @@ function PropertyReviewCard({
     else setError(result.error);
   }
 
+  const unpinnedCount = review.stops.filter(
+    (stop) => typeof stop.latitude !== 'number' || typeof stop.longitude !== 'number'
+  ).length;
   const addresses = [...new Set(review.stops.map((stop) => stop.address).filter((address): address is string => !!address))];
 
   return (
@@ -149,10 +156,8 @@ function PropertyReviewCard({
           <p className={styles.note}>Entered as: {addresses.join(' · ')}</p>
         )}
 
-        {pin ? (
+        {pin && (
           <PropertyPinMap pin={pin} currentPin={review.currentPin} suggestedPin={review.suggestedPin} onPinChange={setPin} />
-        ) : (
-          <p className={styles.note}>No Stop here has a pin yet, so there is nothing to confirm. Correct the address instead.</p>
         )}
 
         {suggested && (
@@ -187,22 +192,46 @@ function PropertyReviewCard({
           )}
         </div>
 
-        {review.suburbMismatch && (
-          <div className={styles.mismatch}>
-            <p className={styles.note}>
-              The geocoder put this address in <strong>{review.suburbMismatch.geocodedSuburb}</strong>. The entered
-              address&apos;s suburb is kept; dismiss the flag if it&apos;s right, or correct the address on every Stop here.
-            </p>
-            <div className={styles.actions}>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={saving}
-                onClick={() => void run(() => dismissSuburbMismatch(review.propertyKey), onDismissed)}
-              >
-                Dismiss flag
-              </Button>
-            </div>
+        {(review.noPin || review.suburbMismatch) && (
+          <div className={styles.fixes}>
+            {review.noPin && (
+              <>
+                <p className={styles.note}>
+                  {unpinnedCount} of {review.stops.length} Stop{review.stops.length === 1 ? '' : 's'} here{' '}
+                  {unpinnedCount === 1 ? 'has' : 'have'} no map pin
+                  {pin ? '' : ', so there is no pin to confirm yet'}. Try finding the entered address on the map again, or
+                  correct it.
+                </p>
+                <div className={styles.actions}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={saving}
+                    onClick={() => void run(() => locateUnpinnedStops(review.stops), onAddressCorrected)}
+                  >
+                    Find on map
+                  </Button>
+                </div>
+              </>
+            )}
+            {review.suburbMismatch && (
+              <>
+                <p className={styles.note}>
+                  The geocoder put this address in <strong>{review.suburbMismatch.geocodedSuburb}</strong>. The entered
+                  address&apos;s suburb is kept; dismiss the flag if it&apos;s right, or correct the address on every Stop here.
+                </p>
+                <div className={styles.actions}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={saving}
+                    onClick={() => void run(() => dismissSuburbMismatch(review.propertyKey), onDismissed)}
+                  >
+                    Dismiss flag
+                  </Button>
+                </div>
+              </>
+            )}
             <form
               className={styles.correction}
               onSubmit={(event) => {

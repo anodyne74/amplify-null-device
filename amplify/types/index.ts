@@ -186,6 +186,10 @@ export interface Stop {
   missingSignsLastLoggedAt?: string | null;
   missingSignsLastLatitude?: number | null;
   missingSignsLastLongitude?: number | null;
+  placedLatitude?: number | null;
+  placedLongitude?: number | null;
+  placedAccuracyMeters?: number | null;
+  placedPositionAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
   route?: Route;

@@ -11,6 +11,7 @@ import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDi
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
+import { recordPlacementPosition } from '@/lib/placementPosition';
 import { runSignRunTransition, runStopSettlement } from '@/lib/signRunTransitions';
 import { formatClockTime } from '@/lib/signRunBilling';
 import { getAgentBadgeInitials } from '@/lib/customerDefaults';
@@ -122,6 +123,12 @@ export default function OperatorPlacementPage() {
         setError(result.error);
       } else {
         patchStop(stopId, result.patch);
+        if (action === 'complete') {
+          // Best-effort and after the fact: placement never waits on, or fails for, GPS (#285).
+          void recordPlacementPosition(stopId).then((position) => {
+            if (position) patchStop(stopId, position);
+          });
+        }
       }
       setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
       return !('error' in result);

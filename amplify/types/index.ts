@@ -181,6 +181,7 @@ export interface Stop {
   addressStreet?: string | null;
   addressSuburb?: string | null;
   addressPostcode?: string | null;
+  propertyKey?: string | null;
   notes?: string;
   missingSignsCount?: number | null;
   missingSignsLastLoggedAt?: string | null;

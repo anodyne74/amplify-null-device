@@ -101,9 +101,10 @@ function usage() {
 
   --assess (Location Precision, #284) re-geocodes every Stop -- all of them in the
   target environment unless --customer-id narrows it -- and writes ONLY its
-  precision level, geocode signals and address components. It never changes
-  address, formattedAddress, latitude or longitude (earlier backfills hand-corrected
-  those), and never touches a Confirmed Stop. Prints counts per precision level,
+  precision level, geocode signals, address components and Property key (#287).
+  It never changes address, formattedAddress, latitude or longitude (earlier
+  backfills hand-corrected those), and a Confirmed Stop gets only its address
+  components and Property key. Prints counts per precision level,
   the Approximate Stops, and suburb mismatches (entered addresses that don't
   mention the geocoder's suburb). Run it once per branch environment via
   --outputs-path.
@@ -218,9 +219,78 @@ function toGeocodedLocation(result) {
   };
 }
 
-/** Assess mode's candidates: every Stop with an address, except Confirmed ones. */
+// Mirrors propertyKey in lib/propertyKey.ts (see the note above
+// classifyLocationPrecision); the test runs both against the same cases.
+const STREET_TYPES = {
+  av: 'avenue',
+  ave: 'avenue',
+  bvd: 'boulevard',
+  blvd: 'boulevard',
+  cct: 'circuit',
+  cl: 'close',
+  cr: 'crescent',
+  cres: 'crescent',
+  ct: 'court',
+  dr: 'drive',
+  esp: 'esplanade',
+  gr: 'grove',
+  gve: 'grove',
+  hwy: 'highway',
+  ln: 'lane',
+  pde: 'parade',
+  pkwy: 'parkway',
+  pl: 'place',
+  rd: 'road',
+  sq: 'square',
+  st: 'street',
+  tce: 'terrace',
+};
+
+const STATES = /\b(nsw|vic|qld|sa|wa|tas|nt|act)\b/g;
+
+const STREET_NUMBER_AND_STREET =
+  /^\s*(?:(?:unit|u|apt|apartment|shop|suite)\s*\d+[a-z]?\s*[,/]?\s*|\d+[a-z]?\s*\/\s*)?(\d+[a-z]?(?:-\d+[a-z]?)?)\s+([^,]+)/i;
+
+function normalise(text) {
+  return text
+    .toLowerCase()
+    .replace(/[.'’]/g, '')
+    .replace(/[^a-z0-9-]+/g, ' ')
+    .trim();
+}
+
+function normaliseStreet(street) {
+  const words = normalise(street).split(' ');
+  const last = words.length - 1;
+  words[last] = STREET_TYPES[words[last]] ?? words[last];
+  return words.join(' ');
+}
+
+function enteredSuburb(address) {
+  const segments = address.split(',').slice(1);
+  for (let i = segments.length - 1; i >= 0; i -= 1) {
+    const suburb = normalise(segments[i]).replace(STATES, '').replace(/\b\d{4}\b/g, '').replace('australia', '').trim();
+    if (suburb && !/^\d/.test(suburb)) return suburb.replace(/\s+/g, ' ');
+  }
+  return undefined;
+}
+
+function propertyKey(address, components) {
+  const entered = address.match(STREET_NUMBER_AND_STREET);
+  const streetNumber = components.streetNumber?.toLowerCase() ?? entered?.[1].toLowerCase();
+  const street = components.street ?? entered?.[2];
+  const geocodedSuburb = components.suburb ? normalise(components.suburb) : undefined;
+  const suburb = enteredSuburb(address) ?? geocodedSuburb;
+  if (!streetNumber || !street || !suburb) return undefined;
+
+  const enteredPostcode = address.match(/\b(\d{4})\s*(?:,?\s*australia)?\s*$/i)?.[1];
+  const postcode = enteredPostcode ?? (geocodedSuburb === suburb ? components.postcode : undefined) ?? '';
+  return [suburb, postcode, normaliseStreet(street), streetNumber].join('|');
+}
+
+/** Assess mode's candidates: every Stop with an address (Confirmed ones still need a Property key). */
 function selectAssessCandidates(stops) {
-  return stops.filter((stop) => stop.locationPrecision !== 'confirmed' && stop.address?.trim());
+  return stops.filter((stop) => stop.address?.trim());
 }
 
 function escapeRegExp(text) {
@@ -228,24 +298,31 @@ function escapeRegExp(text) {
 }
 
 /**
- * The assess-mode update for one Stop -- precision, geocode signals and address
- * components only, never the address or coordinates -- and whether the entered
+ * The assess-mode update for one Stop -- precision, geocode signals, address
+ * components and Property key only, never the address or coordinates; a
+ * Confirmed Stop keeps its precision too (as stopLocationUpdate in
+ * lib/locationPrecision.ts) -- and whether the entered
  * address fails to mention the geocoder's suburb (the entered address wins,
  * CONTEXT.md "Property", so a mismatch is a Stop worth a human look).
  */
 function assessStop(stop, geocoded) {
   const components = geocoded.addressComponents;
-  const update = {
-    id: stop.id,
-    locationPrecision: geocoded.locationPrecision,
-    geocodeLocationType: geocoded.locationType,
-    geocodeResultTypes: geocoded.resultTypes,
-    geocodePartialMatch: geocoded.partialMatch,
-  };
+  const update =
+    stop.locationPrecision === 'confirmed'
+      ? { id: stop.id }
+      : {
+          id: stop.id,
+          locationPrecision: geocoded.locationPrecision,
+          geocodeLocationType: geocoded.locationType,
+          geocodeResultTypes: geocoded.resultTypes,
+          geocodePartialMatch: geocoded.partialMatch,
+        };
   if (components.streetNumber) update.addressStreetNumber = components.streetNumber;
   if (components.street) update.addressStreet = components.street;
   if (components.suburb) update.addressSuburb = components.suburb;
   if (components.postcode) update.addressPostcode = components.postcode;
+  const key = propertyKey(stop.address, components);
+  if (key) update.propertyKey = key;
 
   const suburbMismatch = Boolean(
     components.suburb && !new RegExp(`\\b${escapeRegExp(components.suburb)}\\b`, 'i').test(stop.address ?? '')
@@ -254,8 +331,8 @@ function assessStop(stop, geocoded) {
 }
 
 function summarizeAssessment(assessments) {
-  const counts = { precise: 0, interpolated: 0, approximate: 0 };
-  for (const { update } of assessments) counts[update.locationPrecision] += 1;
+  const counts = { precise: 0, interpolated: 0, approximate: 0, confirmed: 0 };
+  for (const { update } of assessments) counts[update.locationPrecision ?? 'confirmed'] += 1;
   return {
     counts,
     approximate: assessments.filter(({ update }) => update.locationPrecision === 'approximate').map(({ stop }) => stop),
@@ -282,7 +359,7 @@ async function geocodeAddress(address, apiKey) {
 
 function printAssessment({ counts, approximate, suburbMismatches }) {
   console.log(
-    `Location Precision: ${counts.precise} precise, ${counts.interpolated} interpolated, ${counts.approximate} approximate.`
+    `Location Precision: ${counts.precise} precise, ${counts.interpolated} interpolated, ${counts.approximate} approximate, ${counts.confirmed} confirmed (unchanged).`
   );
   console.log(`Approximate Stops (${approximate.length}):`);
   for (const stop of approximate) console.log(`  - ${stop.id}: ${stop.address}`);
@@ -425,6 +502,7 @@ export {
   geocodeAddress,
   parseAddressComponents,
   parseArgs,
+  propertyKey,
   selectAssessCandidates,
   summarizeAssessment,
   toGeocodedLocation,

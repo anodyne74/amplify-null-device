@@ -91,6 +91,8 @@ export interface StopLocationFields {
   addressStreet?: string;
   addressSuburb?: string;
   addressPostcode?: string;
+  /** lib/propertyKey.ts -- from the entered address plus the components above. */
+  propertyKey?: string;
 }
 
 const STOP_LOCATION_FIELD_NAMES = [
@@ -105,6 +107,7 @@ const STOP_LOCATION_FIELD_NAMES = [
   'addressStreet',
   'addressSuburb',
   'addressPostcode',
+  'propertyKey',
 ] as const satisfies readonly (keyof StopLocationFields)[];
 
 /** Just the Stop location fields of `source` that are set (not null/undefined), e.g. to copy a Stop's pin and precision onto a new Stop. */

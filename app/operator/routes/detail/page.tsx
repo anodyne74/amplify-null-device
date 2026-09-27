@@ -78,6 +78,7 @@ function RouteDetailContent() {
     deleteStop: deleteStopCapability,
     reorder,
     deleteRoute: deleteRouteCapability,
+    stopNotice,
   } = useRouteDetailData(id, user);
 
   const { kilometersTravelled } = computeRouteSummaryStats(route, stops);
@@ -413,6 +414,7 @@ function RouteDetailContent() {
             )}
             {reorder.reordering && <div className={styles.reorderStatus}>Saving updated stop order...</div>}
             {reorder.error && <div className={styles.errorBanner}>{reorder.error}</div>}
+            {stopNotice && <div className={styles.noticeBanner} role="status">{stopNotice}</div>}
 
             {/* Add Stop Form */}
             {addStopCapability.visible && !planningLocked && (

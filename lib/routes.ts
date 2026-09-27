@@ -8,8 +8,9 @@
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
 import type { RouteStatus } from '@/amplify/types';
-import { pickStopLocationFields, type StopLocationFields } from '@/lib/locationPrecision';
-import { propertyKey } from '@/lib/propertyKey';
+import { pickStopLocationFields, type StopLocationWrite } from '@/lib/locationPrecision';
+import { stopPropertyKey, type StopAddressComponents } from '@/lib/propertyKey';
+import { locateEditedStop, locateNewStop, type LocatedStop, type StopAddressInput } from '@/lib/stopLocation';
 
 /**
  * Fetch all routes for a specific customer
@@ -320,18 +321,15 @@ async function getCustomerViewerSubs(customerId: string): Promise<string[] | und
  * The Stop location fields a caller may write. The Property key isn't one of
  * them: every Stop write builds it here (stopPropertyKey).
  */
-type StopLocationInput = Partial<Omit<StopLocationFields, 'propertyKey'>>;
+type StopLocationInput = StopLocationWrite;
 
-type StopAddressComponents = Partial<
-  Record<'addressStreetNumber' | 'addressStreet' | 'addressSuburb' | 'addressPostcode', string | null>
->;
-
-function hasAddressComponents(fields: StopAddressComponents): boolean {
+/** Whether a write sets any address component -- to a value, or null to clear it. */
+function writesAddressComponents(fields: StopAddressComponents): boolean {
   return (
-    fields.addressStreetNumber != null ||
-    fields.addressStreet != null ||
-    fields.addressSuburb != null ||
-    fields.addressPostcode != null
+    fields.addressStreetNumber !== undefined ||
+    fields.addressStreet !== undefined ||
+    fields.addressSuburb !== undefined ||
+    fields.addressPostcode !== undefined
   );
 }
 
@@ -340,21 +338,6 @@ function withoutPropertyKey<T extends object>(input: T): T {
   const fields = { ...input } as T & { propertyKey?: unknown };
   delete fields.propertyKey;
   return fields;
-}
-
-/**
- * The Property key for a Stop at `address` (CONTEXT.md "Property", ADR 0004),
- * from whatever geocoded address components go with it -- or the entered
- * address alone, so a Stop whose geocode failed, or that was imported without
- * one, still joins Property History.
- */
-function stopPropertyKey(address: string, fields: StopAddressComponents): string | undefined {
-  return propertyKey(address, {
-    streetNumber: fields.addressStreetNumber ?? undefined,
-    street: fields.addressStreet ?? undefined,
-    suburb: fields.addressSuburb ?? undefined,
-    postcode: fields.addressPostcode ?? undefined,
-  });
 }
 
 /**
@@ -537,22 +520,20 @@ export interface UpdateStopInput extends StopLocationInput {
   numberOfSigns?: number;
   agent?: string;
   isAuction?: boolean;
-  latitude?: number;
-  longitude?: number;
-  formattedAddress?: string;
   notes?: string;
 }
 
 /**
  * The update with the Stop's Property key rebuilt, when the update writes an
- * address. Without new address components, the stored ones still describe the
- * address if it hasn't changed; a changed address is keyed from its text. A
+ * address. When the update doesn't write address components, the stored ones
+ * still describe the address if it hasn't changed; a changed address is keyed
+ * from its text. A
  * key that can't be built is left as stored -- propertyKey is an index key, so
  * it isn't cleared.
  */
 async function withStopPropertyKey(fields: Omit<UpdateStopInput, 'address'> & { address: string }) {
   let components: StopAddressComponents = fields;
-  if (!hasAddressComponents(fields)) {
+  if (!writesAddressComponents(fields)) {
     const { data: stored, errors } = await getDataClient().models.Stop.get(
       { id: fields.id },
       { selectionSet: ['address', 'addressStreetNumber', 'addressStreet', 'addressSuburb', 'addressPostcode'] }
@@ -586,6 +567,72 @@ export async function updateStop(input: UpdateStopInput) {
     console.error('Error updating stop:', error);
     return { data: null, errors: [error as Error] };
   }
+}
+
+/** What the Stop form submits besides the address. */
+export interface StopDetails {
+  serviceType: 'delivery' | 'pickup' | 'inspection';
+  numberOfSigns?: number;
+  agent?: string;
+  isAuction?: boolean;
+  notes?: string;
+}
+
+/** Where a new Stop goes on its Route. */
+export interface NewStopTarget {
+  routeId: string;
+  customerId: string;
+  sequence: number;
+}
+
+/** The Stop an edit changes, as last read. */
+export interface EditedStopTarget {
+  original: LocatedStop & { id: string };
+}
+
+/**
+ * Add a Stop to a Route, or save an edit to one, from what the Stop form
+ * submitted. The Stop is located (lib/stopLocation.ts: the autocomplete pick,
+ * else a geocode, and a Property's Confirmed pin over either) and written. A
+ * Stop whose address can't be geocoded is still saved, without a map pin
+ * (`pinned: false`); an edit that moves a Stop to such an address clears the
+ * old address's pin. A failed Confirmed-pin lookup fails the save.
+ */
+export async function saveStop(target: NewStopTarget, values: StopAddressInput & StopDetails): Promise<SaveStopResult>;
+export async function saveStop(
+  target: EditedStopTarget,
+  values: StopAddressInput & Partial<StopDetails>
+): Promise<SaveStopResult>;
+export async function saveStop(
+  target: NewStopTarget | EditedStopTarget,
+  { resolvedLocation, ...values }: StopAddressInput & Partial<StopDetails>
+): Promise<SaveStopResult> {
+  const addressInput = { address: values.address, resolvedLocation };
+  try {
+    if ('original' in target) {
+      const location = await locateEditedStop(target.original, addressInput);
+      const result = await updateStop({ id: target.original.id, ...values, ...location.fields });
+      return { errors: result.errors, pinned: location.pinned };
+    }
+
+    const location = await locateNewStop(addressInput);
+    const result = await createStop({ ...target, ...(values as StopAddressInput & StopDetails), ...location.fields });
+    return { errors: result.errors ?? undefined, pinned: location.pinned };
+  } catch (error) {
+    console.error('Error saving stop:', error);
+    return { errors: [error as Error], pinned: false };
+  }
+}
+
+/** What to tell someone whose Stop saved without a pin (SaveStopResult.pinned). */
+export const UNPINNED_STOP_NOTICE =
+  "Stop saved without a map pin: its address couldn't be found on the map. It still appears in Property History.";
+
+export interface SaveStopResult {
+  /** Set when nothing was saved. */
+  errors?: unknown[];
+  /** Whether the saved Stop has a map pin; false when its address couldn't be geocoded. */
+  pinned: boolean;
 }
 
 /**

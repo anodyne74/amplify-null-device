@@ -13,6 +13,15 @@
   border: var(--border-hairline) solid var(--status-danger-fg);
 }
 
+.noticeBanner {
+  padding: var(--space-4);
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  border: var(--border-hairline) solid var(--status-warning-fg);
+}
+
 .successText {
   padding: var(--space-3) var(--space-4);
   background: var(--status-success-bg);

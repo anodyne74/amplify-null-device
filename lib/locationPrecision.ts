@@ -110,6 +110,14 @@ const STOP_LOCATION_FIELD_NAMES = [
   'propertyKey',
 ] as const satisfies readonly (keyof StopLocationFields)[];
 
+/**
+ * Stop location fields as a Stop write sets them: any may be left out, and null
+ * clears one. Never the Property key -- lib/routes.ts builds that on every write.
+ */
+export type StopLocationWrite = {
+  [K in Exclude<keyof StopLocationFields, 'propertyKey'>]?: StopLocationFields[K] | null;
+};
+
 /** Just the Stop location fields of `source` that are set (not null/undefined), e.g. to copy a Stop's pin and precision onto a new Stop. */
 export function pickStopLocationFields(
   source: Partial<Record<keyof StopLocationFields, unknown>>

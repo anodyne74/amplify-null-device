@@ -35,6 +35,17 @@ jest.mock('aws-amplify/data', () => ({
   }),
 }));
 
+const mockGeocodeAddress = jest.fn();
+const mockGetConfirmedPin = jest.fn();
+
+jest.mock('./googleMaps', () => ({
+  geocodeAddress: (...args: unknown[]) => mockGeocodeAddress(...args),
+}));
+
+jest.mock('./propertyLocations', () => ({
+  getConfirmedPin: (...args: unknown[]) => mockGetConfirmedPin(...args),
+}));
+
 import {
   listCustomerRoutes,
   getRouteWithStops,
@@ -47,6 +58,7 @@ import {
   createStopsForRoute,
   listCustomerStops,
   resequenceStops,
+  saveStop,
   updateStop,
 } from './routes';
 
@@ -534,6 +546,151 @@ describe('routes', () => {
       expect(result.data).toBeNull();
       expect(result.errors).toHaveLength(1);
       consoleError.mockRestore();
+    });
+  });
+
+  describe('saveStop', () => {
+    const ADDRESS = '14 Cliff Rd, Epping NSW 2121';
+    const KEY = 'epping|2121|cliff road|14';
+    const GEOCODED = {
+      formattedAddress: '14 Cliff Rd, Epping NSW 2121, Australia',
+      latitude: -33.77,
+      longitude: 151.08,
+      locationPrecision: 'precise' as const,
+      addressComponents: { streetNumber: '14', street: 'Cliff Road', suburb: 'Epping', postcode: '2121' },
+    };
+    const NEW = { routeId: 'r1', customerId: 'c1', sequence: 3 };
+    const ORIGINAL = {
+      id: 's1',
+      address: '2 Beecroft Rd, Beecroft',
+      latitude: -33.75,
+      longitude: 151.06,
+      locationPrecision: 'precise',
+    };
+    let consoleWarn: jest.SpyInstance;
+    let consoleError: jest.SpyInstance;
+
+    beforeEach(() => {
+      mockGeocodeAddress.mockResolvedValue(GEOCODED);
+      mockGetConfirmedPin.mockResolvedValue(null);
+      mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+      mockStopUpdate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+      consoleWarn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleWarn.mockRestore();
+      consoleError.mockRestore();
+    });
+
+    it('adds a geocoded, keyed Stop to the Route', async () => {
+      const result = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery', numberOfSigns: 2 });
+
+      expect(result).toEqual({ errors: undefined, pinned: true });
+      expect(mockStopCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ...NEW,
+          address: ADDRESS,
+          numberOfSigns: 2,
+          latitude: -33.77,
+          longitude: 151.08,
+          locationPrecision: 'precise',
+          propertyKey: KEY,
+        })
+      );
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.not.objectContaining({ resolvedLocation: expect.anything() }));
+    });
+
+    it("adds a Stop whose address can't be geocoded without a pin, still keyed to its Property", async () => {
+      mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
+
+      const result = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' });
+
+      expect(result).toEqual({ errors: undefined, pinned: false });
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.not.objectContaining({ latitude: expect.anything() }));
+    });
+
+    it("pins a Stop at its Property's Confirmed pin", async () => {
+      mockGetConfirmedPin.mockResolvedValue({ latitude: -33.9, longitude: 151.2 });
+
+      const result = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' });
+
+      expect(mockGetConfirmedPin).toHaveBeenCalledWith(KEY);
+      expect(result.pinned).toBe(true);
+      expect(mockStopCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ latitude: -33.9, longitude: 151.2, locationPrecision: 'confirmed', propertyKey: KEY })
+      );
+    });
+
+    it("saves nothing when the Confirmed pin can't be looked up", async () => {
+      mockGetConfirmedPin.mockRejectedValue(new Error('offline'));
+
+      const result = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' });
+
+      expect(mockStopCreate).not.toHaveBeenCalled();
+      expect(result).toEqual({ errors: [expect.any(Error)], pinned: false });
+    });
+
+    it('reports a failed write', async () => {
+      mockStopCreate.mockResolvedValue({ data: null, errors: [{ message: 'Unauthorized' }] });
+
+      const result = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' });
+
+      expect(result.errors).toHaveLength(1);
+    });
+
+    it("edits a Stop without re-geocoding an address that hasn't changed (#58)", async () => {
+      mockStopGet.mockResolvedValue({ data: { address: ORIGINAL.address }, errors: undefined });
+
+      const result = await saveStop({ original: ORIGINAL }, { address: ORIGINAL.address, notes: 'Side gate' });
+
+      expect(result).toEqual({ errors: undefined, pinned: true });
+      expect(mockGeocodeAddress).not.toHaveBeenCalled();
+      expect(mockStopUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 's1', address: ORIGINAL.address, notes: 'Side gate' })
+      );
+      expect(mockStopUpdate).toHaveBeenCalledWith(expect.not.objectContaining({ latitude: expect.anything() }));
+    });
+
+    it('moves an edited Stop to its new address, re-keyed', async () => {
+      const result = await saveStop({ original: ORIGINAL }, { address: ADDRESS });
+
+      expect(result.pinned).toBe(true);
+      expect(mockStopUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 's1', latitude: -33.77, longitude: 151.08, propertyKey: KEY })
+      );
+    });
+
+    it("clears the old pin when the new address can't be geocoded, keying the Stop by its new address", async () => {
+      mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
+
+      const result = await saveStop({ original: ORIGINAL }, { address: ADDRESS });
+
+      expect(result).toEqual({ errors: undefined, pinned: false });
+      expect(mockStopGet).not.toHaveBeenCalled();
+      expect(mockStopUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 's1',
+          latitude: null,
+          longitude: null,
+          locationPrecision: null,
+          addressSuburb: null,
+          propertyKey: KEY,
+        })
+      );
+    });
+
+    it("keeps a Confirmed Stop's pin when its new address can't be geocoded", async () => {
+      mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
+      mockStopGet.mockResolvedValue({ data: { address: ORIGINAL.address }, errors: undefined });
+
+      const result = await saveStop({ original: { ...ORIGINAL, locationPrecision: 'confirmed' } }, { address: ADDRESS });
+
+      expect(result.pinned).toBe(true);
+      expect(mockStopUpdate).toHaveBeenCalledWith(expect.not.objectContaining({ latitude: expect.anything() }));
+      expect(mockStopUpdate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
     });
   });
 

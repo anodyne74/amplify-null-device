@@ -5,7 +5,7 @@ import RouteDetailPage from '../detail/page';
 import type { RouteWithStopsFeedHandlers } from '@/lib/routeWithStopsFeed';
 import { geocodeAddress } from '@/lib/googleMaps';
 import type { Route, Stop } from '@/amplify/types';
-import { deleteStop, updateStop } from '@/lib/routes';
+import { deleteStop, saveStop } from '@/lib/routes';
 
 jest.mock('@/lib/googleMaps', () => ({
   geocodeAddress: jest.fn(),
@@ -65,7 +65,8 @@ jest.mock('@/lib/routes', () => ({
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched, errors: [] })),
-  updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+  saveStop: jest.fn().mockResolvedValue({ errors: undefined, pinned: true }),
+  UNPINNED_STOP_NOTICE: 'Stop saved without a map pin.',
 }));
 
 jest.mock('@/lib/customers', () => ({
@@ -110,7 +111,7 @@ describe('Operator Route Detail Page', () => {
       errors: undefined,
     });
 
-    (updateStop as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
+    (saveStop as jest.Mock).mockResolvedValue({ errors: undefined, pinned: true });
     (geocodeAddress as jest.Mock).mockResolvedValue({
       latitude: 0,
       longitude: 0,
@@ -230,7 +231,7 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByRole('button', { name: /add stop/i })).toBeInTheDocument();
   });
 
-  it('reuses a stop\'s existing coordinates instead of re-geocoding when the address is unchanged (#149)', async () => {
+  it('saves an edited stop from the stop as loaded, so an unchanged address keeps its pin (#149)', async () => {
     const stopsWithCoords: Stop[] = [
       {
         ...mockStops[0],
@@ -256,21 +257,28 @@ describe('Operator Route Detail Page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
+    // saveStop compares against the loaded Stop's address and pin (lib/stopLocation.test.ts).
     await waitFor(() => {
-      expect(updateStop).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'stop-1',
-          address: '100 First St',
-          notes: 'Leave signs at the side gate',
-        })
+      expect(saveStop).toHaveBeenCalledWith(
+        { original: expect.objectContaining({ id: 'stop-1', latitude: -37.8136, longitude: 144.9631 }) },
+        expect.objectContaining({ address: '100 First St', notes: 'Leave signs at the side gate' })
       );
     });
-    // The stored pin (and its Location Precision) is left alone, not re-sent (#283).
-    expect((updateStop as jest.Mock).mock.calls[0][0]).not.toHaveProperty('latitude');
+  });
 
-    // A live re-validation of an unchanged address is what made this fail on a flaky
-    // Maps API call in the first place (same bug class as #58).
-    expect(geocodeAddress).not.toHaveBeenCalled();
+  it('says so when a saved stop has no map pin', async () => {
+    (saveStop as jest.Mock).mockResolvedValueOnce({ errors: undefined, pinned: false });
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /^edit$/i }).length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^edit$/i })[0]);
+    fireEvent.click(await screen.findByRole('button', { name: /save changes/i }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Stop saved without a map pin.');
   });
 
   it('calls deleteStop when inline delete is confirmed', async () => {

@@ -62,20 +62,21 @@ backend.data.resources.graphqlApi.grantQuery(ssrComputeRole);
 // Property History Reports (#291, ADR 0003) are written and handed out only by
 // the /api/property-history/reports routes, so the SSR role is the one
 // principal with access to reports/ -- amplify/storage/resource.ts grants no
-// signed-in user anything there. Imported again in the storage stack so the
-// policy lives beside the bucket rather than tying the data stack to it. The
-// import needs its own construct ID: CDK names an imported role's inline
-// policy after that ID, so reusing 'AmplifyHostingSSRComputeRole' gave both
-// stacks a policy of the same name on the same role, and CloudFormation
-// refused the second ("already managed by another stack").
-backend.storage.resources.bucket.grantReadWrite(
-	Role.fromRoleName(
-		Stack.of(backend.storage.resources.bucket),
-		'AmplifyHostingSSRComputeRoleReports',
-		'AmplifyHostingSSRCompute',
-	),
-	'reports/*',
+// signed-in user anything there. Customers' invoice PDFs are likewise handed
+// out by /api/invoices/pdf (#356), so the SSR role also reads invoices/.
+// Imported again in the storage stack so the policy lives beside the bucket
+// rather than tying the data stack to it. The import needs its own construct
+// ID: CDK names an imported role's inline policy after that ID, so reusing
+// 'AmplifyHostingSSRComputeRole' gave both stacks a policy of the same name on
+// the same role, and CloudFormation refused the second ("already managed by
+// another stack").
+const ssrComputeRoleForStorage = Role.fromRoleName(
+	Stack.of(backend.storage.resources.bucket),
+	'AmplifyHostingSSRComputeRoleReports',
+	'AmplifyHostingSSRCompute',
 );
+backend.storage.resources.bucket.grantReadWrite(ssrComputeRoleForStorage, 'reports/*');
+backend.storage.resources.bucket.grantRead(ssrComputeRoleForStorage, 'invoices/*');
 
 // The daily report-purge job (#292) destroys PDFs past their purgeAfter date;
 // it needs delete on reports/ and nothing else in the bucket.

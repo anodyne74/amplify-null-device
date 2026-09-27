@@ -31,8 +31,9 @@ describe('storage access rules', () => {
     }
   });
 
-  it('still cover invoices and schedules', () => {
-    expect(rulesCovering('invoices/INV-0001.pdf')).not.toEqual([]);
-    expect(rulesCovering('schedules/2026-09.pdf')).not.toEqual([]);
+  it('give only administrators and operators invoices and schedules -- customers open invoice PDFs through the invoice PDF API (#356)', () => {
+    for (const key of ['invoices/inv-1.pdf', 'schedules/c1/1758931200000-march.pdf']) {
+      expect(rulesCovering(key)).toEqual([{ who: 'groups:administrator,operator', actions: ['read', 'write', 'delete'] }]);
+    }
   });
 });

@@ -8,6 +8,18 @@ Role-based delivery management system for sign-run operations: signs are placed 
 A single trip assigned to an operator, made up of Stops, progressing through the Sign Run phases in order.
 _Avoid_: Job, trip. "Visit" means one Route at one Property, not the Route itself.
 
+**Route Request**:
+A Customer's email asking for one Route to be created and scheduled, usually with its Schedule attached. Each Route has at most one, and every Route Request is for exactly one Route. It is kept as received, with who sent it and when, as part of the Route's audit trail. Requests that don't arrive by email (e.g. by phone) are recorded by hand, and are marked as such.
+_Avoid_: Booking, order, job request
+
+**Schedule**:
+A file a Customer sends listing the Properties for a Route, usually a spreadsheet saved as PDF. It is kept exactly as received and never edited; the Route's Stops are what gets changed.
+_Avoid_: Property list, run sheet, job sheet
+
+**Route Amendment**:
+A later email from a Customer adding or removing Properties on a Route that has already been requested, sometimes with a revised Schedule, sometimes only a sentence in the email. A Route can have any number, kept in the order they were sent.
+_Avoid_: Change request, follow-up, variation
+
 **Stop**:
 One visit to a Property on a Route, where signs are placed and later picked up.
 _Avoid_: Property (when you mean the single visit), location, visit

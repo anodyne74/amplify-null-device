@@ -18,7 +18,7 @@ export type AuthorizeIamRequestResult =
  */
 export async function authorizeIamRequest(
   request: Request,
-  requiredGroup: RequiredGroup
+  requiredGroup: RequiredGroup | readonly RequiredGroup[]
 ): Promise<AuthorizeIamRequestResult> {
   const result = await verifyIamCaller(request, requiredGroup);
   if (!result.ok) {

@@ -24,6 +24,11 @@ export const FEATURE_FLAGS = {
     description:
       "Account Owners can invite teammates from their portal's Team page. Staff can always add Customer users from the admin portal.",
   },
+  'property-history': {
+    label: 'Property History',
+    description:
+      "Customer users can search their Customer's past Visits by suburb, street or address. Staff can always search Property History.",
+  },
 } satisfies Record<string, FeatureFlagDefinition>;
 
 export type FeatureFlagName = keyof typeof FEATURE_FLAGS;

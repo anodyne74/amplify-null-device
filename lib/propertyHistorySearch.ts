@@ -67,3 +67,13 @@ export async function listPropertyHistoryReports(): Promise<PropertyHistoryRepor
 export async function openPropertyHistoryReport(reportId: string): Promise<string> {
   return (await callApi<{ url: string }>('/api/property-history/reports/open', { reportId })).url;
 }
+
+/** An Account Owner's delete: the report leaves every customer's list, but administrators can restore it. */
+export async function deletePropertyHistoryReport(reportId: string): Promise<PropertyHistoryReportSummary> {
+  return (await callApi<{ report: PropertyHistoryReportSummary }>('/api/property-history/reports/delete', { reportId })).report;
+}
+
+/** An administrator restores a deleted report for a fresh 30 days. */
+export async function restorePropertyHistoryReport(reportId: string): Promise<PropertyHistoryReportSummary> {
+  return (await callApi<{ report: PropertyHistoryReportSummary }>('/api/property-history/reports/restore', { reportId })).report;
+}

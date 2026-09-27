@@ -27,11 +27,11 @@ let nextId = 0;
 
 function matches(row: Row, filter?: Row): boolean {
   if (!filter) return true;
-  return Object.entries(filter).every(([field, condition]) =>
-    field === 'or'
-      ? (condition as Row[]).some((term) => matches(row, term))
-      : row[field] === (condition as { eq: unknown }).eq
-  );
+  return Object.entries(filter).every(([field, condition]) => {
+    if (field === 'or') return (condition as Row[]).some((term) => matches(row, term));
+    const { eq, le } = condition as { eq?: unknown; le?: string };
+    return le !== undefined ? String(row[field]) <= le : row[field] === eq;
+  });
 }
 
 function model(name: string) {
@@ -43,6 +43,12 @@ function model(name: string) {
       if (failCreate === name) return { data: null, errors: [{ message: 'boom' }] };
       const row = { id: `${name}-${++nextId}`, ...input };
       rows().push(row);
+      return { data: row };
+    },
+    update: async ({ id, ...changes }: Row) => {
+      const row = rows().find((candidate) => candidate.id === id);
+      if (!row) return { data: null, errors: [{ message: 'not found' }] };
+      Object.assign(row, changes);
       return { data: row };
     },
     delete: async ({ id }: { id: string }) => {
@@ -101,6 +107,9 @@ jest.mock('@/lib/server/reportStorage', () => ({
 import { POST as generate } from '@/app/api/property-history/reports/route';
 import { POST as list } from '@/app/api/property-history/reports/list/route';
 import { POST as open } from '@/app/api/property-history/reports/open/route';
+import { POST as remove } from '@/app/api/property-history/reports/delete/route';
+import { POST as restore } from '@/app/api/property-history/reports/restore/route';
+import { purgeExpiredReports } from '@/lib/reportRetention';
 
 const CLIFF_14 = 'epping|2121|cliff road|14';
 const SUBURB = { search: { level: 'suburb', suburb: 'epping', postcode: '2121' } };
@@ -288,6 +297,119 @@ describe('Property History Report API', () => {
 
     it('requires a report id to open', async () => {
       expect((await call(open, OWNER, {})).status).toBe(400);
+    });
+  });
+
+  describe('retention', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const START = new Date('2026-09-27T00:00:00.000Z');
+    const days = (count: number) => new Date(START.getTime() + count * DAY);
+    const ids = (body: { reports: { id: string }[] }) => body.reports.map((report) => report.id);
+    const purge = (at: Date) =>
+      purgeExpiredReports(iamClient as never, async (key) => void objects.delete(key), at);
+
+    beforeEach(() => {
+      // Only the clock is faked; the routes read it through new Date().
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval', 'queueMicrotask'] });
+      jest.setSystemTime(START);
+    });
+
+    afterEach(() => jest.useRealTimers());
+
+    async function generateDeleted() {
+      const report = (await call(generate, OWNER, SUBURB)).body.report;
+      jest.setSystemTime(days(5));
+      expect((await call(remove, OWNER, { reportId: report.id })).status).toBe(200);
+      return report;
+    }
+
+    it("lets an Account Owner delete their report, hiding it from customers but not administrators, and logs it", async () => {
+      const report = await generateDeleted();
+
+      expect(ids((await call(list, OWNER)).body)).toEqual([]);
+      expect((await call(open, OWNER, { reportId: report.id })).status).toBe(404);
+      const adminView = (await call(list, ADMIN)).body.reports;
+      expect(adminView).toEqual([expect.objectContaining({ id: report.id, state: 'deleted', activeUntil: days(5).toISOString() })]);
+      expect((await call(open, ADMIN, { reportId: report.id })).status).toBe(200);
+      expect(tables.AuditLog).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ eventType: 'data_deletion', action: 'property_history_report.delete', resourceId: report.id, operatorId: 'sub-owner' }),
+        ])
+      );
+    });
+
+    it("won't let anyone else delete a report", async () => {
+      const report = (await call(generate, OWNER, SUBURB)).body.report;
+
+      expect((await call(remove, OTHER_OWNER, { reportId: report.id })).status).toBe(404);
+      expect((await call(remove, READ_ONLY, { reportId: report.id })).status).toBe(403);
+      expect((await call(remove, ADMIN, { reportId: report.id })).status).toBe(404);
+      expect((await call(list, OWNER)).body.reports).toHaveLength(1);
+    });
+
+    it('drops a report from customers on its own once activeUntil passes', async () => {
+      await call(generate, OWNER, SUBURB);
+      jest.setSystemTime(days(30));
+
+      expect(ids((await call(list, OWNER)).body)).toEqual([]);
+      expect((await call(list, ADMIN)).body.reports).toEqual([expect.objectContaining({ state: 'deleted' })]);
+    });
+
+    it('restores a deleted report for a fresh 30 days, moving both dates forward, and logs it', async () => {
+      const report = await generateDeleted();
+      const before = tables.PropertyHistoryReport[0];
+      const purgeAfterBefore = before.purgeAfter as string;
+      jest.setSystemTime(days(20));
+
+      const { status, body } = await call(restore, ADMIN, { reportId: report.id });
+
+      expect(status).toBe(200);
+      expect(body.report).toEqual(
+        expect.objectContaining({ state: 'active', activeUntil: days(50).toISOString(), purgeAfter: days(80).toISOString() })
+      );
+      expect(body.report.purgeAfter > purgeAfterBefore).toBe(true);
+      expect(ids((await call(list, OWNER)).body)).toEqual([report.id]);
+      expect(tables.AuditLog).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ eventType: 'data_modification', action: 'property_history_report.restore', resourceId: report.id, operatorId: 'sub-admin' }),
+        ])
+      );
+
+      // Past the original purgeAfter, the purge job leaves the restored report alone.
+      expect(await purge(days(61))).toEqual({ purged: [], failed: [] });
+      expect(objects.size).toBe(1);
+    });
+
+    it("won't restore an active report, or for a customer", async () => {
+      const report = (await call(generate, OWNER, SUBURB)).body.report;
+
+      expect((await call(restore, ADMIN, { reportId: report.id })).status).toBe(404);
+      expect((await call(restore, OWNER, { reportId: report.id })).status).toBe(403);
+    });
+
+    it('purges the PDF but keeps the record as a stub, with its log history, which cannot be restored', async () => {
+      const report = await generateDeleted();
+
+      expect(await purge(days(60))).toEqual({ purged: [report.referenceNumber], failed: [] });
+
+      expect(objects.size).toBe(0);
+      expect((await call(list, ADMIN)).body.reports).toEqual([expect.objectContaining({ id: report.id, state: 'purged' })]);
+      expect((await call(open, ADMIN, { reportId: report.id })).status).toBe(404);
+      expect((await call(restore, ADMIN, { reportId: report.id })).status).toBe(404);
+      expect(tables.AuditLog.map((entry) => entry.action)).toEqual([
+        'property_history_report.generate',
+        'property_history_report.delete',
+        'property_history_report.purge',
+      ]);
+    });
+
+    it("doesn't change a report whose delete can't be logged", async () => {
+      const report = (await call(generate, OWNER, SUBURB)).body.report;
+      const activeUntil = tables.PropertyHistoryReport[0].activeUntil;
+      failCreate = 'AuditLog';
+
+      expect((await call(remove, OWNER, { reportId: report.id })).status).toBe(500);
+      expect(tables.PropertyHistoryReport[0].activeUntil).toBe(activeUntil);
     });
   });
 });

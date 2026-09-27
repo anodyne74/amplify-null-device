@@ -1,11 +1,13 @@
 import {
+  canDeleteReport,
+  canOpenReport,
+  canRestoreReport,
   canSeeReport,
   countPropertyHistory,
   describeFilters,
   describeSearch,
   newReportReference,
   reportObjectKey,
-  reportRetention,
 } from './propertyHistoryReport';
 import type { PropertyGroup, PropertyHistoryResult } from './propertyHistory';
 
@@ -34,15 +36,6 @@ describe('reportObjectKey', () => {
 
   it('files an all-customers report under reports/all-customers/', () => {
     expect(reportObjectKey(null, 'PHR-20260927-ABC123')).toBe('reports/all-customers/PHR-20260927-ABC123.pdf');
-  });
-});
-
-describe('reportRetention', () => {
-  it('is active for 30 days and purged after 60', () => {
-    expect(reportRetention(new Date('2026-09-27T03:04:05.000Z'))).toEqual({
-      activeUntil: '2026-10-27T03:04:05.000Z',
-      purgeAfter: '2026-11-26T03:04:05.000Z',
-    });
   });
 });
 
@@ -93,19 +86,46 @@ describe('describeFilters', () => {
   });
 });
 
-describe('canSeeReport', () => {
-  const customerReport = { audience: 'customer' as const, customerId: 'c1' };
-  const adminReport = { audience: 'administrator' as const, customerId: 'c1' };
+describe('report access', () => {
+  const NOW = new Date('2026-09-27T03:04:05.000Z');
+  const ACTIVE = { activeUntil: '2026-10-01T00:00:00.000Z', purgeAfter: '2026-11-01T00:00:00.000Z' };
+  const DELETED = { activeUntil: '2026-09-01T00:00:00.000Z', purgeAfter: '2026-10-01T00:00:00.000Z' };
+  const PURGED = { ...DELETED, purgedAt: '2026-09-02T00:00:00.000Z' };
+  const owner = { audience: 'customer' as const, customerId: 'c1' };
+  const admin = { audience: 'administrator' as const };
+  const customerReport = (dates: object) => ({ audience: 'customer' as const, customerId: 'c1', ...dates });
 
-  it("shows an Account Owner their own Customer's customer reports only", () => {
-    const owner = { audience: 'customer' as const, customerId: 'c1' };
-    expect(canSeeReport(customerReport, owner)).toBe(true);
-    expect(canSeeReport(adminReport, owner)).toBe(false);
-    expect(canSeeReport(customerReport, { audience: 'customer', customerId: 'c2' })).toBe(false);
+  it("shows an Account Owner their own Customer's active customer reports only", () => {
+    expect(canSeeReport(customerReport(ACTIVE), owner, NOW)).toBe(true);
+    expect(canSeeReport({ ...customerReport(ACTIVE), audience: 'administrator' }, owner, NOW)).toBe(false);
+    expect(canSeeReport(customerReport(ACTIVE), { audience: 'customer', customerId: 'c2' }, NOW)).toBe(false);
+    expect(canSeeReport(customerReport(DELETED), owner, NOW)).toBe(false);
+    expect(canSeeReport(customerReport(PURGED), owner, NOW)).toBe(false);
   });
 
-  it('shows an administrator every report', () => {
-    expect(canSeeReport(customerReport, { audience: 'administrator' })).toBe(true);
-    expect(canSeeReport({ audience: 'administrator', customerId: null }, { audience: 'administrator' })).toBe(true);
+  it('shows an administrator every report, deleted and purged too', () => {
+    for (const dates of [ACTIVE, DELETED, PURGED]) {
+      expect(canSeeReport(customerReport(dates), admin, NOW)).toBe(true);
+    }
+    expect(canSeeReport({ audience: 'administrator', customerId: null, ...ACTIVE }, admin, NOW)).toBe(true);
+  });
+
+  it("opens anything visible that hasn't been purged", () => {
+    expect(canOpenReport(customerReport(DELETED), admin, NOW)).toBe(true);
+    expect(canOpenReport(customerReport(PURGED), admin, NOW)).toBe(false);
+    expect(canOpenReport(customerReport(ACTIVE), owner, NOW)).toBe(true);
+  });
+
+  it('lets an Account Owner delete an active report of theirs', () => {
+    expect(canDeleteReport(customerReport(ACTIVE), owner, NOW)).toBe(true);
+    expect(canDeleteReport(customerReport(DELETED), owner, NOW)).toBe(false);
+    expect(canDeleteReport(customerReport(ACTIVE), { audience: 'customer', customerId: 'c2' }, NOW)).toBe(false);
+  });
+
+  it('lets an administrator restore a deleted report, but not a purged or active one', () => {
+    expect(canRestoreReport(customerReport(DELETED), admin, NOW)).toBe(true);
+    expect(canRestoreReport(customerReport(PURGED), admin, NOW)).toBe(false);
+    expect(canRestoreReport(customerReport(ACTIVE), admin, NOW)).toBe(false);
+    expect(canRestoreReport(customerReport(DELETED), owner, NOW)).toBe(false);
   });
 });

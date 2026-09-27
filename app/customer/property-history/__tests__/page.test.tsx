@@ -3,7 +3,12 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import CustomerPropertyHistoryPage from '../page';
 import { getCustomerPortalContext } from '@/lib/customers';
-import { listPropertyHistoryReports, listTypeaheadOptions, searchPropertyHistory } from '@/lib/propertyHistorySearch';
+import {
+  deletePropertyHistoryReport,
+  listPropertyHistoryReports,
+  listTypeaheadOptions,
+  searchPropertyHistory,
+} from '@/lib/propertyHistorySearch';
 import { buildTypeaheadOptions } from '@/lib/propertyHistoryTypeahead';
 import { FeatureFlagsProvider } from '@/lib/useFeatureFlags';
 
@@ -29,6 +34,7 @@ jest.mock('@/lib/propertyHistorySearch', () => ({
   generatePropertyHistoryReport: jest.fn(),
   listPropertyHistoryReports: jest.fn(),
   openPropertyHistoryReport: jest.fn(),
+  deletePropertyHistoryReport: jest.fn(),
 }));
 
 let mockOnFlags: string[] = [];
@@ -77,6 +83,23 @@ async function searchCliffRoad() {
   return screen.findByRole('group', { name: /14 Cliff Rd, Epping/ });
 }
 
+const REPORT = {
+  id: 'rep1',
+  referenceNumber: 'PHR-20260927-ABC123',
+  audience: 'customer' as const,
+  customerId: 'cust-1',
+  customerName: 'Harcourts Epping',
+  generatedByName: 'Olivia Owner',
+  generatedAt: '2026-09-27T03:04:05.000Z',
+  searchLabel: 'Suburb: Epping 2121',
+  filterLabels: ['No filters'],
+  propertyCount: 2,
+  visitCount: 3,
+  state: 'active' as const,
+  activeUntil: '2026-10-27T03:04:05.000Z',
+  purgeAfter: '2026-11-26T03:04:05.000Z',
+};
+
 describe('Customer Property History page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -122,6 +145,36 @@ describe('Customer Property History page', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Reports' }));
     expect(await screen.findByText(/No reports yet/)).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Customer' })).not.toBeInTheDocument();
+  });
+
+  it('lets an Account Owner delete a report after confirming, with no State column or Restore', async () => {
+    (listPropertyHistoryReports as jest.Mock).mockResolvedValue([REPORT]);
+    (deletePropertyHistoryReport as jest.Mock).mockResolvedValue({ ...REPORT, state: 'deleted' });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'Reports' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete PHR-20260927-ABC123' }));
+    expect(screen.getByText('Delete PHR-20260927-ABC123?')).toBeInTheDocument();
+    expect(deletePropertyHistoryReport).not.toHaveBeenCalled();
+    expect(screen.queryByRole('columnheader', { name: 'State' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Restore/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByText(/No reports yet/)).toBeInTheDocument();
+    expect(deletePropertyHistoryReport).toHaveBeenCalledWith('rep1');
+  });
+
+  it('keeps a report when the delete is cancelled', async () => {
+    (listPropertyHistoryReports as jest.Mock).mockResolvedValue([REPORT]);
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'Reports' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete PHR-20260927-ABC123' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.getByRole('button', { name: 'Open PHR-20260927-ABC123' })).toBeInTheDocument();
+    expect(deletePropertyHistoryReport).not.toHaveBeenCalled();
   });
 
   it('gives a read-only user neither Export nor reports', async () => {

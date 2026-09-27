@@ -22,11 +22,13 @@ import {
 import { resultProperties, type PropertyHistoryReportSummary } from '@/lib/propertyHistoryReport';
 import { matchTypeaheadOptions, titleCase, type TypeaheadOption } from '@/lib/propertyHistoryTypeahead';
 import {
+  deletePropertyHistoryReport,
   generatePropertyHistoryReport,
   listPropertyHistoryReports,
   listRouteProperties,
   listTypeaheadOptions,
   openPropertyHistoryReport,
+  restorePropertyHistoryReport,
   searchPropertyHistory,
   type RouteProperty,
 } from '@/lib/propertyHistorySearch';
@@ -608,10 +610,22 @@ const GENERATED_AT = new Intl.DateTimeFormat('en-AU', {
   minute: '2-digit',
 });
 
-/** The Reports tab (#291): the reports the signed-in user may see, newest first. */
+const REPORT_STATES: Record<PropertyHistoryReportSummary['state'], { label: string; tone: BadgeProps['tone'] }> = {
+  active: { label: 'Active', tone: 'success' },
+  deleted: { label: 'Deleted', tone: 'warning' },
+  purged: { label: 'Purged', tone: 'neutral' },
+};
+
+/**
+ * The Reports tab (#291): the reports the signed-in user may see, newest
+ * first. Under retention (#292) Account Owners can delete one; administrators
+ * also see deleted and purged reports, and can restore a deleted one.
+ */
 function PropertyHistoryReports({ staff }: { staff: boolean }) {
   const [reports, setReports] = useState<PropertyHistoryReportSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -636,6 +650,81 @@ function PropertyHistoryReports({ staff }: { staff: boolean }) {
     }
   }
 
+  async function change(report: PropertyHistoryReportSummary, action: 'delete' | 'restore') {
+    setError(null);
+    setBusy(report.id);
+    try {
+      if (action === 'delete') {
+        await deletePropertyHistoryReport(report.id);
+        setReports((current) => current?.filter((candidate) => candidate.id !== report.id) ?? null);
+      } else {
+        const restored = await restorePropertyHistoryReport(report.id);
+        setReports((current) => current?.map((candidate) => (candidate.id === report.id ? restored : candidate)) ?? null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Could not ${action} the report.`);
+    } finally {
+      setBusy(null);
+      setConfirmingDelete(null);
+    }
+  }
+
+  function actions(report: PropertyHistoryReportSummary) {
+    if (confirmingDelete === report.id) {
+      return (
+        <div className={styles.reportActions}>
+          <span className={styles.note}>Delete {report.referenceNumber}?</span>
+          <button
+            type="button"
+            className="nd-btn nd-btn--danger nd-btn--sm"
+            disabled={busy === report.id}
+            onClick={() => void change(report, 'delete')}
+          >
+            Delete
+          </button>
+          <button type="button" className="nd-btn nd-btn--ghost nd-btn--sm" onClick={() => setConfirmingDelete(null)}>
+            Cancel
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div className={styles.reportActions}>
+        {report.state !== 'purged' && (
+          <button
+            type="button"
+            className="nd-btn nd-btn--ghost nd-btn--sm"
+            aria-label={`Open ${report.referenceNumber}`}
+            onClick={() => void open(report)}
+          >
+            Open
+          </button>
+        )}
+        {!staff && (
+          <button
+            type="button"
+            className="nd-btn nd-btn--ghost nd-btn--sm"
+            aria-label={`Delete ${report.referenceNumber}`}
+            onClick={() => setConfirmingDelete(report.id)}
+          >
+            Delete
+          </button>
+        )}
+        {staff && report.state === 'deleted' && (
+          <button
+            type="button"
+            className="nd-btn nd-btn--secondary nd-btn--sm"
+            aria-label={`Restore ${report.referenceNumber}`}
+            disabled={busy === report.id}
+            onClick={() => void change(report, 'restore')}
+          >
+            Restore
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <Card title="Reports">
       {error && (
@@ -655,6 +744,7 @@ function PropertyHistoryReports({ staff }: { staff: boolean }) {
                 <th scope="col">By</th>
                 {staff && <th scope="col">Customer</th>}
                 {staff && <th scope="col">Shared with</th>}
+                {staff && <th scope="col">State</th>}
                 <th scope="col">Search</th>
                 <th scope="col">Filters</th>
                 <th scope="col">Properties</th>
@@ -670,20 +760,18 @@ function PropertyHistoryReports({ staff }: { staff: boolean }) {
                   <td>{report.generatedByName || '—'}</td>
                   {staff && <td>{report.customerName ?? 'All customers'}</td>}
                   {staff && <td>{report.audience === 'customer' ? 'Account Owners' : 'Administrators'}</td>}
+                  {staff && (
+                    <td>
+                      <Badge tone={REPORT_STATES[report.state].tone} size="sm">
+                        {REPORT_STATES[report.state].label}
+                      </Badge>
+                    </td>
+                  )}
                   <td>{report.searchLabel}</td>
                   <td>{report.filterLabels.join(' · ')}</td>
                   <td>{report.propertyCount}</td>
                   <td>{report.visitCount}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="nd-btn nd-btn--ghost nd-btn--sm"
-                      aria-label={`Open ${report.referenceNumber}`}
-                      onClick={() => void open(report)}
-                    >
-                      Open
-                    </button>
-                  </td>
+                  <td>{actions(report)}</td>
                 </tr>
               ))}
             </tbody>

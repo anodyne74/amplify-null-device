@@ -6,10 +6,10 @@
  */
 import type { PropertyGroup, PropertyHistoryAudience, PropertyHistoryFilters, PropertyHistoryResult, PropertyHistorySearch } from '@/lib/propertyHistory';
 import { suburbLabel, titleCase } from '@/lib/propertyHistoryTypeahead';
+import { reportState, type ReportDates, type ReportState } from '@/lib/reportRetention';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const ACTIVE_DAYS = 30;
-const PURGE_DAYS = 60;
+export { reportRetention } from '@/lib/reportRetention';
+
 const REFERENCE_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 /** A report as the Reports tab lists it. */
@@ -26,7 +26,10 @@ export interface PropertyHistoryReportSummary {
   filterLabels: string[];
   propertyCount: number;
   visitCount: number;
+  /** Customers only ever see active reports (lib/reportRetention.ts). */
+  state: ReportState;
   activeUntil: string;
+  purgeAfter: string;
 }
 
 /** Whose reports a caller may list and open. */
@@ -42,14 +45,6 @@ export function newReportReference(now: Date, random: () => number = Math.random
 /** Where the PDF lives: under its Customer, or all-customers for a report across them. */
 export function reportObjectKey(customerId: string | null, referenceNumber: string): string {
   return `reports/${customerId ?? 'all-customers'}/${referenceNumber}.pdf`;
-}
-
-/** Retention (CONTEXT.md): active for 30 days, destroyed after 60. */
-export function reportRetention(generatedAt: Date): { activeUntil: string; purgeAfter: string } {
-  return {
-    activeUntil: new Date(generatedAt.getTime() + ACTIVE_DAYS * DAY_MS).toISOString(),
-    purgeAfter: new Date(generatedAt.getTime() + PURGE_DAYS * DAY_MS).toISOString(),
-  };
 }
 
 /** Every Property in a result, in the order it's shown. */
@@ -97,12 +92,30 @@ export function describeFilters(filters: PropertyHistoryFilters, customerName: s
   return labels.length > 0 ? labels : ['No filters'];
 }
 
+/** What the report rules need to know about a report. */
+export type ReportAccessFacts = { audience: PropertyHistoryAudience; customerId?: string | null } & ReportDates;
+
 /**
- * Account Owners share their Customer's customer reports; reports an
+ * Account Owners share their Customer's active customer reports; reports an
  * administrator generated are for administrators only, whichever Customer
- * they cover.
+ * they cover. Administrators also see deleted and purged reports (#292).
  */
-export function canSeeReport(report: { audience: PropertyHistoryAudience; customerId?: string | null }, viewer: ReportViewer): boolean {
+export function canSeeReport(report: ReportAccessFacts, viewer: ReportViewer, now: Date): boolean {
   if (viewer.audience === 'administrator') return true;
-  return report.audience === 'customer' && report.customerId === viewer.customerId;
+  return report.audience === 'customer' && report.customerId === viewer.customerId && reportState(report, now) === 'active';
+}
+
+/** A purged report is a stub: its PDF is gone. */
+export function canOpenReport(report: ReportAccessFacts, viewer: ReportViewer, now: Date): boolean {
+  return canSeeReport(report, viewer, now) && reportState(report, now) !== 'purged';
+}
+
+/** An Account Owner's manual delete: an early soft delete of an active report they can see. */
+export function canDeleteReport(report: ReportAccessFacts, viewer: ReportViewer, now: Date): boolean {
+  return viewer.audience === 'customer' && canSeeReport(report, viewer, now);
+}
+
+/** Only administrators restore, and only a soft-deleted report -- a purged one is gone for good. */
+export function canRestoreReport(report: ReportAccessFacts, viewer: ReportViewer, now: Date): boolean {
+  return viewer.audience === 'administrator' && reportState(report, now) === 'deleted';
 }

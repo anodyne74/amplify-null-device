@@ -1,6 +1,7 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 import { customerAccessActivation } from '../functions/customer-access-activation/resource';
 import { operatorStatusActivation } from '../functions/operator-status-activation/resource';
+import { reportPurge } from '../functions/report-purge/resource';
 
 /**
  * Delivery Management System Data Model
@@ -699,6 +700,9 @@ const schema = a.schema({
    * 'administrator' ones are for administrators only (lib/propertyHistoryReport.ts
    * canSeeReport). Written and read only by the /api/property-history/reports
    * routes on the IAM client, which enforce that; customers get no direct access.
+   * Retention (#292, lib/reportRetention.ts): active until activeUntil,
+   * soft-deleted until purgeAfter; the daily report-purge function then
+   * destroys the PDF and stamps purgedAt, leaving the record as a stub.
    */
   PropertyHistoryReport: a
     .model({
@@ -718,6 +722,7 @@ const schema = a.schema({
       s3Key: a.string().required(),
       activeUntil: a.datetime(),
       purgeAfter: a.datetime(),
+      purgedAt: a.datetime(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })
@@ -728,6 +733,7 @@ const schema = a.schema({
 }).authorization((allow) => [
   allow.resource(customerAccessActivation).to(['query', 'mutate']),
   allow.resource(operatorStatusActivation).to(['query', 'mutate']),
+  allow.resource(reportPurge).to(['query', 'mutate']),
 ]);
 
 export type Schema = ClientSchema<typeof schema>;

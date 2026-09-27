@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizePropertyHistoryRequest } from '@/lib/server/authorizePropertyHistoryRequest';
-import { generatePropertyHistoryReport } from '@/lib/server/propertyHistoryReports';
+import { generatePropertyHistoryReport, reportActor } from '@/lib/server/propertyHistoryReports';
 import { getReportStore } from '@/lib/server/reportStorage';
 import { parsePropertyHistoryRequest } from '@/lib/propertyHistory';
 
@@ -24,9 +24,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid search' }, { status: 400 });
     }
 
-    const author = { sub: claims.sub, name: claims.name || claims.email || claims['cognito:username'] || claims.sub };
     return NextResponse.json(
-      await generatePropertyHistoryReport(client, getReportStore(), caller, author, parsed.search, parsed.filters)
+      await generatePropertyHistoryReport(client, getReportStore(), caller, reportActor(claims), parsed.search, parsed.filters)
     );
   } catch (err) {
     console.error('Generating a Property History Report failed:', err);

@@ -8,6 +8,7 @@ import {
   listRouteProperties,
   listTypeaheadOptions,
   openPropertyHistoryReport,
+  restorePropertyHistoryReport,
   searchPropertyHistory,
 } from '@/lib/propertyHistorySearch';
 import { listAllCustomers } from '@/lib/customers';
@@ -21,6 +22,7 @@ jest.mock('@/lib/propertyHistorySearch', () => ({
   generatePropertyHistoryReport: jest.fn(),
   listPropertyHistoryReports: jest.fn(),
   openPropertyHistoryReport: jest.fn(),
+  restorePropertyHistoryReport: jest.fn(),
 }));
 
 jest.mock('@/lib/customers', () => ({
@@ -215,7 +217,9 @@ describe('Administrator Property History page', () => {
       filterLabels: ['No filters'],
       propertyCount: 2,
       visitCount: 3,
+      state: 'active' as const,
       activeUntil: '2026-10-27T03:04:05.000Z',
+      purgeAfter: '2026-11-26T03:04:05.000Z',
     };
     let tab: { location: { href: string }; opener: unknown; close: jest.Mock };
 
@@ -270,6 +274,30 @@ describe('Administrator Property History page', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Open PHR-20260927-ABC123' }));
       await waitFor(() => expect(tab.location.href).toBe('https://signed.example/rep1.pdf'));
       expect(openPropertyHistoryReport).toHaveBeenCalledWith('rep1');
+    });
+
+    it('shows each report\'s state, restores a deleted one, and offers no Open for a purged one', async () => {
+      const deleted = { ...REPORT, id: 'rep2', referenceNumber: 'PHR-20260920-DEL222', state: 'deleted' as const };
+      const purged = { ...REPORT, id: 'rep3', referenceNumber: 'PHR-20260801-PUR333', state: 'purged' as const };
+      (listPropertyHistoryReports as jest.Mock).mockResolvedValue([REPORT, deleted, purged]);
+      (restorePropertyHistoryReport as jest.Mock).mockResolvedValue({ ...deleted, state: 'active' });
+      render(<AdministratorPropertyHistoryPage />);
+
+      fireEvent.click(screen.getByRole('tab', { name: 'Reports' }));
+      const rows = within(await screen.findByRole('table')).getAllByRole('row');
+
+      expect(rows[1]).toHaveTextContent('Active');
+      expect(rows[2]).toHaveTextContent('Deleted');
+      expect(rows[3]).toHaveTextContent('Purged');
+      expect(screen.queryByRole('button', { name: 'Open PHR-20260801-PUR333' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Delete/ })).not.toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: /^Restore/ })).toHaveLength(1);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Restore PHR-20260920-DEL222' }));
+
+      await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')[2]).toHaveTextContent('Active'));
+      expect(restorePropertyHistoryReport).toHaveBeenCalledWith('rep2');
+      expect(screen.queryByRole('button', { name: /^Restore/ })).not.toBeInTheDocument();
     });
 
     it('keeps the search when switching back from Reports', async () => {

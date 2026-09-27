@@ -1,5 +1,8 @@
 import type { PropertyHistoryFilters, PropertyHistorySearch } from '@/lib/propertyHistory';
 import {
+  canDeleteReport,
+  canOpenReport,
+  canRestoreReport,
   canSeeReport,
   countPropertyHistory,
   describeFilters,
@@ -11,8 +14,10 @@ import {
   type ReportViewer,
 } from '@/lib/propertyHistoryReport';
 import { listAllPages } from '@/lib/listAll';
+import { reportState } from '@/lib/reportRetention';
 import type { PropertyHistoryCaller } from '@/lib/server/authorizePropertyHistoryRequest';
 import type { IamDataClient } from '@/lib/server/iamDataClient';
+import type { VerifiedClaims } from '@/lib/server/verifyIamCaller';
 import { searchPropertyHistory } from '@/lib/server/propertyHistory';
 import { renderPropertyHistoryReportPdf } from '@/lib/server/propertyHistoryReportPdf';
 import type { ReportStore } from '@/lib/server/reportStorage';
@@ -20,7 +25,7 @@ import type { ReportStore } from '@/lib/server/reportStorage';
 /**
  * Property History Reports (#291) as the reports API runs them: generate a
  * frozen snapshot (ADR 0002) on the server (ADR 0003), list the ones a caller
- * may see, and open one. Pass the IAM client and caller from
+ * may see, open one, and -- under retention (#292) -- delete or restore one. Pass the IAM client and caller from
  * authorizePropertyHistoryRequest -- nothing here trusts the request for scope.
  */
 
@@ -28,6 +33,13 @@ import type { ReportStore } from '@/lib/server/reportStorage';
 const ORGANIZATION_SETTINGS_ID = 'organization';
 
 export class ReportError extends Error {}
+
+/** Who generated, deleted or restored a report, as recorded and logged. */
+export type ReportActor = { sub: string; name: string };
+
+export function reportActor(claims: VerifiedClaims & { sub: string }): ReportActor {
+  return { sub: claims.sub, name: claims.name || claims.email || claims['cognito:username'] || claims.sub };
+}
 
 type ReportRecord = {
   id: string;
@@ -43,9 +55,13 @@ type ReportRecord = {
   visitCount?: number | null;
   s3Key: string;
   activeUntil?: string | null;
+  purgeAfter?: string | null;
+  purgedAt?: string | null;
 };
 
-function toSummary(record: ReportRecord): PropertyHistoryReportSummary {
+const accessFacts = (record: ReportRecord) => ({ ...record, audience: record.audience ?? 'administrator' });
+
+function toSummary(record: ReportRecord, now: Date): PropertyHistoryReportSummary {
   return {
     id: record.id,
     referenceNumber: record.referenceNumber,
@@ -58,7 +74,9 @@ function toSummary(record: ReportRecord): PropertyHistoryReportSummary {
     filterLabels: (record.filterLabels ?? []).filter((label): label is string => !!label),
     propertyCount: record.propertyCount ?? 0,
     visitCount: record.visitCount ?? 0,
+    state: reportState(record, now),
     activeUntil: record.activeUntil ?? '',
+    purgeAfter: record.purgeAfter ?? '',
   };
 }
 
@@ -90,7 +108,7 @@ export async function generatePropertyHistoryReport(
   client: IamDataClient,
   store: ReportStore,
   caller: PropertyHistoryCaller,
-  author: { sub: string; name: string },
+  author: ReportActor,
   search: PropertyHistorySearch,
   filters: PropertyHistoryFilters,
   now: Date = new Date()
@@ -170,11 +188,15 @@ export async function generatePropertyHistoryReport(
     return undo('Could not log the report, so it was not kept', record.id);
   }
 
-  return { report: toSummary(record as ReportRecord), url: await store.signedUrl(s3Key) };
+  return { report: toSummary(record as ReportRecord, now), url: await store.signedUrl(s3Key) };
 }
 
 /** The reports the caller may see, newest first. */
-export async function listPropertyHistoryReports(client: IamDataClient, caller: PropertyHistoryCaller): Promise<PropertyHistoryReportSummary[]> {
+export async function listPropertyHistoryReports(
+  client: IamDataClient,
+  caller: PropertyHistoryCaller,
+  now: Date = new Date()
+): Promise<PropertyHistoryReportSummary[]> {
   const viewer: ReportViewer = caller;
   const { data, errors } =
     viewer.audience === 'customer'
@@ -184,21 +206,109 @@ export async function listPropertyHistoryReports(client: IamDataClient, caller: 
       : await listAllPages<ReportRecord>((page) => client.models.PropertyHistoryReport.list(page));
   if (errors.length > 0) throw new ReportError(`Could not read reports: ${messages(errors)}`);
   return data
-    .filter((record) => canSeeReport({ audience: record.audience ?? 'administrator', customerId: record.customerId }, viewer))
-    .map(toSummary)
+    .filter((record) => canSeeReport(accessFacts(record), viewer, now))
+    .map((record) => toSummary(record, now))
     .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
 }
 
-/** A short-lived link to the report's PDF, or null if there's no such report the caller may see. */
+async function getReport(client: IamDataClient, reportId: string): Promise<ReportRecord | null> {
+  const { data, errors } = await client.models.PropertyHistoryReport.get({ id: reportId });
+  if (errors?.length) throw new ReportError(`Could not read the report: ${messages(errors)}`);
+  return data as ReportRecord | null;
+}
+
+/**
+ * A short-lived link to the report's PDF, or null if there's no such report
+ * the caller may open -- a purged report has no PDF left.
+ */
 export async function openPropertyHistoryReport(
   client: IamDataClient,
   store: ReportStore,
   caller: PropertyHistoryCaller,
-  reportId: string
+  reportId: string,
+  now: Date = new Date()
 ): Promise<string | null> {
-  const { data, errors } = await client.models.PropertyHistoryReport.get({ id: reportId });
-  if (errors?.length) throw new ReportError(`Could not read the report: ${messages(errors)}`);
-  const record = data as ReportRecord | null;
-  if (!record || !canSeeReport({ audience: record.audience ?? 'administrator', customerId: record.customerId }, caller)) return null;
+  const record = await getReport(client, reportId);
+  if (!record || !canOpenReport(accessFacts(record), caller, now)) return null;
   return store.signedUrl(record.s3Key);
+}
+
+/**
+ * Applies a retention change to one report and logs it, or returns null if
+ * the report doesn't exist or the rule says the caller can't make it.
+ */
+async function changeRetention(
+  client: IamDataClient,
+  caller: PropertyHistoryCaller,
+  actor: ReportActor,
+  reportId: string,
+  now: Date,
+  change: {
+    allowed: typeof canDeleteReport;
+    dates: Pick<ReportRecord, 'activeUntil' | 'purgeAfter'>;
+    eventType: 'data_deletion' | 'data_modification';
+    action: string;
+  }
+): Promise<PropertyHistoryReportSummary | null> {
+  const record = await getReport(client, reportId);
+  if (!record || !change.allowed(accessFacts(record), caller, now)) return null;
+
+  const original = { activeUntil: record.activeUntil, purgeAfter: record.purgeAfter };
+  const { data: updated, errors } = await client.models.PropertyHistoryReport.update({ id: record.id, ...change.dates });
+  if (errors?.length || !updated) throw new ReportError(`Could not update the report: ${messages(errors ?? [])}`);
+
+  const { errors: auditErrors } = await client.models.AuditLog.create({
+    customerId: record.customerId,
+    operatorId: actor.sub,
+    eventType: change.eventType,
+    resourceType: 'report',
+    resourceId: record.id,
+    action: change.action,
+    status: 'success',
+    timestamp: now.toISOString(),
+    details: JSON.stringify({ referenceNumber: record.referenceNumber, by: actor.name, ...change.dates }),
+  });
+  if (auditErrors?.length) {
+    // Put the dates back so nothing changes without a log entry.
+    const { errors: revertErrors } = await client.models.PropertyHistoryReport.update({ id: record.id, ...original });
+    if (revertErrors?.length) console.error('Reverting the report dates failed:', revertErrors);
+    throw new ReportError(`Could not log the change, so it was not made: ${messages(auditErrors)}`);
+  }
+  return toSummary(updated as ReportRecord, now);
+}
+
+/**
+ * An Account Owner's manual delete: an early soft delete, so activeUntil
+ * becomes now and the report drops out of every customer's list. purgeAfter
+ * is untouched, leaving administrators the rest of the window to restore it.
+ */
+export function deletePropertyHistoryReport(
+  client: IamDataClient,
+  caller: PropertyHistoryCaller,
+  actor: ReportActor,
+  reportId: string,
+  now: Date = new Date()
+): Promise<PropertyHistoryReportSummary | null> {
+  return changeRetention(client, caller, actor, reportId, now, {
+    allowed: canDeleteReport,
+    dates: { activeUntil: now.toISOString() },
+    eventType: 'data_deletion',
+    action: 'property_history_report.delete',
+  });
+}
+
+/** An administrator restores a soft-deleted report for a fresh 30 days, which also keeps it from the purge job. */
+export function restorePropertyHistoryReport(
+  client: IamDataClient,
+  caller: PropertyHistoryCaller,
+  actor: ReportActor,
+  reportId: string,
+  now: Date = new Date()
+): Promise<PropertyHistoryReportSummary | null> {
+  return changeRetention(client, caller, actor, reportId, now, {
+    allowed: canRestoreReport,
+    dates: reportRetention(now),
+    eventType: 'data_modification',
+    action: 'property_history_report.restore',
+  });
 }

@@ -1,12 +1,14 @@
 /**
- * Property History as the browser uses it (#289): the typeahead's options,
- * the search itself (always through /api/property-history/search, so screens
- * and reports agree), and the other Properties on a Route.
+ * Property History as the browser uses it (#289, #291): the typeahead's
+ * options, the search itself (always through /api/property-history/search, so
+ * screens and reports agree), the other Properties on a Route, and reports --
+ * which the server generates from just the search and filters (ADR 0003).
  */
 import { callApi } from '@/lib/apiClient';
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
 import type { PropertyHistoryFilters, PropertyHistoryResult, PropertyHistorySearch } from '@/lib/propertyHistory';
+import type { PropertyHistoryReportSummary } from '@/lib/propertyHistoryReport';
 import { buildTypeaheadOptions, type TypeaheadOption } from '@/lib/propertyHistoryTypeahead';
 
 export interface RouteProperty {
@@ -47,4 +49,21 @@ export async function listRouteProperties(routeId: string): Promise<RoutePropert
     }
   }
   return [...properties.values()];
+}
+
+/** Generates a report of the search; resolves to it and a short-lived link to its PDF. */
+export function generatePropertyHistoryReport(
+  search: PropertyHistorySearch,
+  filters: PropertyHistoryFilters
+): Promise<{ report: PropertyHistoryReportSummary; url: string }> {
+  return callApi('/api/property-history/reports', { search, filters });
+}
+
+export async function listPropertyHistoryReports(): Promise<PropertyHistoryReportSummary[]> {
+  return (await callApi<{ reports: PropertyHistoryReportSummary[] }>('/api/property-history/reports/list', {})).reports;
+}
+
+/** A short-lived link to a report's PDF. */
+export async function openPropertyHistoryReport(reportId: string): Promise<string> {
+  return (await callApi<{ url: string }>('/api/property-history/reports/open', { reportId })).url;
 }

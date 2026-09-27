@@ -20,6 +20,7 @@ import { operatorStatusActivation } from '../functions/operator-status-activatio
  * - OrganizationSettings: Null Device's own invoice remittance details (single row)
  * - FeatureFlagSetting: stored state of each Feature Flag (administrator-only)
  * - PropertyLocation: an administrator's review decisions for one Property (Confirmed pin, dismissed suburb flag)
+ * - PropertyHistoryReport: a frozen Property History PDF's record (read through the reports API)
  * - OperatorAvailabilityBlock: Days Null Device has no drivers available for a customer
  * - CustomerClosureBlock: Days a customer's agency is closed
  * - RateLine: Named, priced lines on a customer's rate card
@@ -473,7 +474,7 @@ const schema = a.schema({
       customerId: a.id(), // Optional: associated customer
       operatorId: a.id(), // Optional: user who performed action
       eventType: a.enum(['login', 'logout', 'access_denied', 'data_access', 'data_modification', 'data_deletion']),
-      resourceType: a.enum(['customer', 'route', 'invoice', 'payment', 'operator', 'feature_flag', 'property']),
+      resourceType: a.enum(['customer', 'route', 'invoice', 'payment', 'operator', 'feature_flag', 'property', 'report']),
       resourceId: a.id(),
       action: a.string().required(),
       status: a.enum(['success', 'failure']),
@@ -688,6 +689,42 @@ const schema = a.schema({
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read']),
     ]),
+
+  /**
+   * PropertyHistoryReport - the record of one Property History Report (#291;
+   * ADRs 0002, 0003): a frozen PDF, stored at s3Key under the locked-down
+   * reports/ path, with what it covers and who generated it. customerId is
+   * empty for a report across all Customers. audience says whose field set it
+   * holds: 'customer' reports are shared by that Customer's Account Owners,
+   * 'administrator' ones are for administrators only (lib/propertyHistoryReport.ts
+   * canSeeReport). Written and read only by the /api/property-history/reports
+   * routes on the IAM client, which enforce that; customers get no direct access.
+   */
+  PropertyHistoryReport: a
+    .model({
+      referenceNumber: a.string().required(),
+      audience: a.enum(['customer', 'administrator']),
+      customerId: a.id(),
+      customerName: a.string(), // As at generation; empty for all Customers
+      generatedBySub: a.string().required(),
+      generatedByName: a.string(),
+      generatedAt: a.datetime().required(),
+      search: a.json().required(),
+      filters: a.json(),
+      searchLabel: a.string(),
+      filterLabels: a.string().array(),
+      propertyCount: a.integer(),
+      visitCount: a.integer(),
+      s3Key: a.string().required(),
+      activeUntil: a.datetime(),
+      purgeAfter: a.datetime(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .secondaryIndexes((index) => [
+      index('customerId').sortKeys(['generatedAt']).queryField('listPropertyHistoryReportsByCustomer'),
+    ])
+    .authorization((allow) => [allow.groups(['administrator']).to(['read'])]),
 }).authorization((allow) => [
   allow.resource(customerAccessActivation).to(['query', 'mutate']),
   allow.resource(operatorStatusActivation).to(['query', 'mutate']),

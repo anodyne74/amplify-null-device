@@ -41,6 +41,7 @@ import {
   Send,
   Flag,
   History,
+  Download,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -89,6 +90,7 @@ const ICONS: Record<string, LucideIcon> = {
   send: Send,
   flag: Flag,
   history: History,
+  download: Download,
 };
 
 export interface IconProps extends Omit<React.SVGProps<SVGSVGElement>, 'name'> {

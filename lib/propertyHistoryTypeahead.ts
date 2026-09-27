@@ -24,7 +24,7 @@ export function titleCase(text: string): string {
   return text.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
 }
 
-function suburbLabel(suburb: string, postcode: string): string {
+export function suburbLabel(suburb: string, postcode: string): string {
   return [titleCase(suburb), postcode].filter(Boolean).join(' ');
 }
 

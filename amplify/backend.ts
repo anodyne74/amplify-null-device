@@ -58,6 +58,16 @@ const ssrComputeRole = Role.fromRoleName(
 backend.data.resources.graphqlApi.grantMutation(ssrComputeRole);
 backend.data.resources.graphqlApi.grantQuery(ssrComputeRole);
 
+// Property History Reports (#291, ADR 0003) are written and handed out only by
+// the /api/property-history/reports routes, so the SSR role is the one
+// principal with access to reports/ -- amplify/storage/resource.ts grants no
+// signed-in user anything there. Imported again in the storage stack so the
+// policy lives beside the bucket rather than tying the data stack to it.
+backend.storage.resources.bucket.grantReadWrite(
+	Role.fromRoleName(Stack.of(backend.storage.resources.bucket), 'AmplifyHostingSSRComputeRole', 'AmplifyHostingSSRCompute'),
+	'reports/*',
+);
+
 function withMaxLength(value: string, max: number) {
 	return value.length <= max ? value : value.slice(0, max);
 }

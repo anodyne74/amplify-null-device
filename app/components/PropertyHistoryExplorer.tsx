@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Card } from '@/app/components/ui/core/Card';
+import { Button } from '@/app/components/ui/core/Button';
+import { Tabs } from '@/app/components/ui/navigation/Tabs';
 import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
@@ -9,25 +11,37 @@ import { Select } from '@/app/components/ui/forms/Select';
 import { formatRouteDate } from '@/lib/routeListHelpers';
 import {
   invoiceLabel,
+  STAFF_VISIT_COLUMNS,
+  VISIT_COLUMNS,
+  VISIT_STATUS_LABELS,
   type PropertyGroup,
   type PropertyHistoryFilters,
   type PropertyHistoryResult,
   type VisitRow,
 } from '@/lib/propertyHistory';
+import { resultProperties, type PropertyHistoryReportSummary } from '@/lib/propertyHistoryReport';
 import { matchTypeaheadOptions, titleCase, type TypeaheadOption } from '@/lib/propertyHistoryTypeahead';
-import { listRouteProperties, listTypeaheadOptions, searchPropertyHistory, type RouteProperty } from '@/lib/propertyHistorySearch';
+import {
+  generatePropertyHistoryReport,
+  listPropertyHistoryReports,
+  listRouteProperties,
+  listTypeaheadOptions,
+  openPropertyHistoryReport,
+  searchPropertyHistory,
+  type RouteProperty,
+} from '@/lib/propertyHistorySearch';
 import styles from './PropertyHistoryExplorer.module.css';
 
 const AGENT_DEBOUNCE_MS = 400;
 
-const STATUS_PRESENTATION: Record<VisitRow['status'], { label: string; tone: BadgeProps['tone'] }> = {
-  planned: { label: 'Planned', tone: 'warning' },
-  in_progress: { label: 'In progress', tone: 'info' },
-  signs_placed: { label: 'Signs placed', tone: 'info' },
-  signs_picked_up: { label: 'Signs picked up', tone: 'info' },
-  completed: { label: 'Completed', tone: 'success' },
-  archived: { label: 'Archived', tone: 'neutral' },
-  skipped: { label: 'Skipped', tone: 'danger' },
+const STATUS_TONES: Record<VisitRow['status'], BadgeProps['tone']> = {
+  planned: 'warning',
+  in_progress: 'info',
+  signs_placed: 'info',
+  signs_picked_up: 'info',
+  completed: 'success',
+  archived: 'neutral',
+  skipped: 'danger',
 };
 
 const AUCTION_OPTIONS = [
@@ -53,17 +67,6 @@ function toFilters(inputs: FilterInputs, agent: string): PropertyHistoryFilters 
   };
 }
 
-function isEmpty(result: PropertyHistoryResult): boolean {
-  switch (result.level) {
-    case 'suburb':
-      return result.streets.length === 0;
-    case 'street':
-      return result.properties.length === 0;
-    case 'address':
-      return !result.property;
-  }
-}
-
 export interface PropertyHistoryExplorerProps {
   /** Adds the Customer filter and the Customer, Operator, Missing Signs and Location columns. */
   staff: boolean;
@@ -72,19 +75,72 @@ export interface PropertyHistoryExplorerProps {
   routeHref: (routeId: string) => string;
   /** Omit to show invoice numbers without links. */
   invoiceHref?: (invoiceId: string) => string;
+  /** Adds Export and the Reports tab -- for administrators and Account Owners only. */
+  reports?: boolean;
 }
 
 type ExplorerLinks = Pick<PropertyHistoryExplorerProps, 'staff' | 'routeHref' | 'invoiceHref'>;
 
 const ExplorerLinksContext = createContext<ExplorerLinks>({ staff: false, routeHref: () => '#' });
 
+const TABS = [
+  { id: 'search', label: 'Search' },
+  { id: 'reports', label: 'Reports' },
+];
+
+/**
+ * Opens a PDF in a new tab once its link arrives. The tab is opened straight
+ * away, while the click still counts as the user's, so it isn't blocked as a
+ * popup.
+ */
+async function openInNewTab(getUrl: () => Promise<string>) {
+  const tab = window.open('', '_blank');
+  try {
+    const url = await getUrl();
+    if (tab) {
+      tab.opener = null;
+      tab.location.href = url;
+    } else {
+      window.open(url, '_blank', 'noopener');
+    }
+  } catch (error) {
+    tab?.close();
+    throw error;
+  }
+}
+
 /**
  * Property History's search and results (#289, #290), shared by the admin
- * and customer screens. Every search goes through the one search API (#288),
- * which also enforces who sees what; `staff` only decides what's shown.
- * Searches run only from a typeahead suggestion, so each is an exact match.
+ * and customer screens, with Export and the Reports tab where `reports` is
+ * set (#291). Every search and report goes through the Property History API,
+ * which also enforces who sees what; `staff` and `reports` only decide what's
+ * shown. Searches run only from a typeahead suggestion, so each is an exact
+ * match.
  */
-export default function PropertyHistoryExplorer({ staff, customers = [], routeHref, invoiceHref }: PropertyHistoryExplorerProps) {
+export default function PropertyHistoryExplorer({ staff, customers = [], routeHref, invoiceHref, reports = false }: PropertyHistoryExplorerProps) {
+  const [tab, setTab] = useState('search');
+  const showing = reports ? tab : 'search';
+  // The search panel keeps its place whether or not `reports` is set (it can
+  // arrive after the page loads), so the search isn't lost when it does.
+  return (
+    <>
+      {reports && <Tabs items={TABS} value={tab} onChange={setTab} aria-label="Property History" />}
+      {/* Hidden rather than unmounted, so the search is still there on the way back. */}
+      <div hidden={showing !== 'search'} className={styles.searchPanel}>
+        <PropertyHistorySearchPanel staff={staff} customers={customers} routeHref={routeHref} invoiceHref={invoiceHref} canExport={reports} />
+      </div>
+      {showing === 'reports' && <PropertyHistoryReports staff={staff} />}
+    </>
+  );
+}
+
+function PropertyHistorySearchPanel({
+  staff,
+  customers = [],
+  routeHref,
+  invoiceHref,
+  canExport = false,
+}: Omit<PropertyHistoryExplorerProps, 'reports'> & { canExport?: boolean }) {
   const [options, setOptions] = useState<TypeaheadOption[]>([]);
   const [optionsError, setOptionsError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -95,6 +151,8 @@ export default function PropertyHistoryExplorer({ staff, customers = [], routeHr
   const [result, setResult] = useState<PropertyHistoryResult | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const latestSearch = useRef(0);
 
   useEffect(() => {
@@ -144,6 +202,19 @@ export default function PropertyHistoryExplorer({ staff, customers = [], routeHr
     choose({ key: `address:${property.propertyKey}`, label: property.address, search: { level: 'address', propertyKey: property.propertyKey } });
   }
 
+  async function exportReport() {
+    if (!selected) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      await openInNewTab(async () => (await generatePropertyHistoryReport(selected.search, filters)).url);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Could not generate the report.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function setInput(field: keyof FilterInputs, value: string) {
     setInputs((current) => ({ ...current, [field]: value }));
   }
@@ -189,15 +260,26 @@ export default function PropertyHistoryExplorer({ staff, customers = [], routeHr
         </div>
       </Card>
 
-      {searchError && (
+      {(searchError || exportError) && (
         <p className="nd-badge nd-badge--danger" role="alert">
-          {searchError}
+          {searchError ?? exportError}
         </p>
       )}
       {!selected && <p className={styles.note}>Pick a suburb, street or address from the suggestions to see its history.</p>}
       {selected && searching && !result && <p className={styles.note}>Searching…</p>}
       {selected && result && (
-        <PropertyHistoryResults title={selected.label} result={result} onChooseProperty={chooseProperty} />
+        <PropertyHistoryResults
+          title={selected.label}
+          result={result}
+          onChooseProperty={chooseProperty}
+          action={
+            canExport && (
+              <Button variant="secondary" size="sm" iconLeft="download" loading={exporting} disabled={exporting || searching} onClick={() => void exportReport()}>
+                Export PDF
+              </Button>
+            )
+          }
+        />
       )}
     </ExplorerLinksContext.Provider>
   );
@@ -286,14 +368,16 @@ function PropertyHistoryResults({
   title,
   result,
   onChooseProperty,
+  action,
 }: {
   title: string;
   result: PropertyHistoryResult;
   onChooseProperty: (property: RouteProperty) => void;
+  action?: React.ReactNode;
 }) {
-  if (isEmpty(result)) {
+  if (resultProperties(result).length === 0) {
     return (
-      <Card>
+      <Card title={action ? title : undefined} action={action}>
         <p className={styles.emptyState}>No Visits match {title} with these filters.</p>
       </Card>
     );
@@ -303,7 +387,7 @@ function PropertyHistoryResults({
     list.map((property) => <PropertySection key={property.propertyKey} property={property} onChooseProperty={onChooseProperty} />);
 
   return (
-    <Card title={title}>
+    <Card title={title} action={action}>
       <div className={styles.groups}>
         {result.level === 'suburb' &&
           result.streets.map((street) => (
@@ -344,12 +428,9 @@ function PropertySection({ property, onChooseProperty }: { property: PropertyGro
   );
 }
 
-const COLUMNS = ['Date', 'Route', 'Agent', 'Auction', 'Signs Placed', 'Invoice(s)', 'Status'];
-const STAFF_COLUMNS = ['Customer', 'Operator', 'Missing Signs', 'Location'];
-
 function useColumns(): string[] {
   const { staff } = useContext(ExplorerLinksContext);
-  return [...COLUMNS, ...(staff ? STAFF_COLUMNS : []), ''];
+  return [...VISIT_COLUMNS, ...(staff ? STAFF_VISIT_COLUMNS : []), ''];
 }
 
 function VisitTable({
@@ -408,7 +489,6 @@ function VisitTableRow({
 }) {
   const { staff, routeHref, invoiceHref } = useContext(ExplorerLinksContext);
   const columns = useColumns();
-  const status = STATUS_PRESENTATION[row.status];
   const routeLabel = row.routeCode ?? 'this Route';
   return (
     <>
@@ -433,8 +513,8 @@ function VisitTableRow({
           )}
         </td>
         <td>
-          <Badge tone={status.tone} size="sm">
-            {status.label}
+          <Badge tone={STATUS_TONES[row.status]} size="sm">
+            {VISIT_STATUS_LABELS[row.status]}
           </Badge>
         </td>
         {staff && (
@@ -516,5 +596,100 @@ function RouteProperties({
         </button>
       ))}
     </div>
+  );
+}
+
+const GENERATED_AT = new Intl.DateTimeFormat('en-AU', {
+  timeZone: 'Australia/Sydney',
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+/** The Reports tab (#291): the reports the signed-in user may see, newest first. */
+function PropertyHistoryReports({ staff }: { staff: boolean }) {
+  const [reports, setReports] = useState<PropertyHistoryReportSummary[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    listPropertyHistoryReports()
+      .then((found) => {
+        if (!cancelled) setReports(found);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load reports.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function open(report: PropertyHistoryReportSummary) {
+    setError(null);
+    try {
+      await openInNewTab(() => openPropertyHistoryReport(report.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not open the report.');
+    }
+  }
+
+  return (
+    <Card title="Reports">
+      {error && (
+        <p className="nd-badge nd-badge--danger" role="alert">
+          {error}
+        </p>
+      )}
+      {!reports && !error && <p className={styles.note}>Loading reports…</p>}
+      {reports && reports.length === 0 && <p className={styles.emptyState}>No reports yet. Export a search to create one.</p>}
+      {reports && reports.length > 0 && (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th scope="col">Reference</th>
+                <th scope="col">Generated</th>
+                <th scope="col">By</th>
+                {staff && <th scope="col">Customer</th>}
+                {staff && <th scope="col">Shared with</th>}
+                <th scope="col">Search</th>
+                <th scope="col">Filters</th>
+                <th scope="col">Properties</th>
+                <th scope="col">Visits</th>
+                <th scope="col" />
+              </tr>
+            </thead>
+            <tbody>
+              {reports.map((report) => (
+                <tr key={report.id}>
+                  <td>{report.referenceNumber}</td>
+                  <td>{GENERATED_AT.format(new Date(report.generatedAt))}</td>
+                  <td>{report.generatedByName || '—'}</td>
+                  {staff && <td>{report.customerName ?? 'All customers'}</td>}
+                  {staff && <td>{report.audience === 'customer' ? 'Account Owners' : 'Administrators'}</td>}
+                  <td>{report.searchLabel}</td>
+                  <td>{report.filterLabels.join(' · ')}</td>
+                  <td>{report.propertyCount}</td>
+                  <td>{report.visitCount}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="nd-btn nd-btn--ghost nd-btn--sm"
+                      aria-label={`Open ${report.referenceNumber}`}
+                      onClick={() => void open(report)}
+                    >
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   );
 }

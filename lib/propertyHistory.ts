@@ -213,6 +213,20 @@ export function resolveRouteInvoices(
   );
 }
 
+/** A Visit table's columns, as screens and reports show them; staff also get STAFF_VISIT_COLUMNS. */
+export const VISIT_COLUMNS = ['Date', 'Route', 'Agent', 'Auction', 'Signs Placed', 'Invoice(s)', 'Status'] as const;
+export const STAFF_VISIT_COLUMNS = ['Customer', 'Operator', 'Missing Signs', 'Location'] as const;
+
+export const VISIT_STATUS_LABELS: Record<VisitRow['status'], string> = {
+  planned: 'Planned',
+  in_progress: 'In progress',
+  signs_placed: 'Signs placed',
+  signs_picked_up: 'Signs picked up',
+  completed: 'Completed',
+  archived: 'Archived',
+  skipped: 'Skipped',
+};
+
 /** A row's Invoice(s) as screens and reports show them. */
 export function invoiceLabel(invoices: readonly InvoiceLink[]): string {
   return invoices.length > 0 ? invoices.map((invoice) => invoice.invoiceNumber).join(', ') : 'Not yet invoiced';

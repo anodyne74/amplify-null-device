@@ -2,7 +2,14 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import AdministratorPropertyHistoryPage from '../page';
-import { listRouteProperties, listTypeaheadOptions, searchPropertyHistory } from '@/lib/propertyHistorySearch';
+import {
+  generatePropertyHistoryReport,
+  listPropertyHistoryReports,
+  listRouteProperties,
+  listTypeaheadOptions,
+  openPropertyHistoryReport,
+  searchPropertyHistory,
+} from '@/lib/propertyHistorySearch';
 import { listAllCustomers } from '@/lib/customers';
 import { buildTypeaheadOptions } from '@/lib/propertyHistoryTypeahead';
 import type { PropertyGroup, VisitRow } from '@/lib/propertyHistory';
@@ -11,6 +18,9 @@ jest.mock('@/lib/propertyHistorySearch', () => ({
   listTypeaheadOptions: jest.fn(),
   searchPropertyHistory: jest.fn(),
   listRouteProperties: jest.fn(),
+  generatePropertyHistoryReport: jest.fn(),
+  listPropertyHistoryReports: jest.fn(),
+  openPropertyHistoryReport: jest.fn(),
 }));
 
 jest.mock('@/lib/customers', () => ({
@@ -190,5 +200,90 @@ describe('Administrator Property History page', () => {
     await pick('14 cliff', /14 Cliff Rd/);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Property History search failed');
+  });
+
+  describe('reports', () => {
+    const REPORT = {
+      id: 'rep1',
+      referenceNumber: 'PHR-20260927-ABC123',
+      audience: 'customer' as const,
+      customerId: 'c1',
+      customerName: 'Harcourts Epping',
+      generatedByName: 'Olivia Owner',
+      generatedAt: '2026-09-27T03:04:05.000Z',
+      searchLabel: 'Suburb: Epping 2121',
+      filterLabels: ['No filters'],
+      propertyCount: 2,
+      visitCount: 3,
+      activeUntil: '2026-10-27T03:04:05.000Z',
+    };
+    let tab: { location: { href: string }; opener: unknown; close: jest.Mock };
+
+    beforeEach(() => {
+      tab = { location: { href: '' }, opener: window, close: jest.fn() };
+      jest.spyOn(window, 'open').mockReturnValue(tab as unknown as Window);
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('exports the search as shown and opens the PDF in a new tab', async () => {
+      (generatePropertyHistoryReport as jest.Mock).mockResolvedValue({ report: REPORT, url: 'https://signed.example/report.pdf' });
+      render(<AdministratorPropertyHistoryPage />);
+      await pick('epping', /^Epping 2121/);
+      await screen.findByRole('group', { name: 'Cliff Road' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Export PDF' }));
+
+      await waitFor(() => expect(tab.location.href).toBe('https://signed.example/report.pdf'));
+      expect(generatePropertyHistoryReport).toHaveBeenCalledWith({ level: 'suburb', suburb: 'epping', postcode: '2121' }, {});
+      expect(tab.opener).toBeNull();
+    });
+
+    it("closes the tab and says so when the report can't be generated", async () => {
+      (generatePropertyHistoryReport as jest.Mock).mockRejectedValue(new Error('Could not generate the report'));
+      render(<AdministratorPropertyHistoryPage />);
+      await pick('epping', /^Epping 2121/);
+      await screen.findByRole('group', { name: 'Cliff Road' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Export PDF' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Could not generate the report');
+      expect(tab.close).toHaveBeenCalled();
+    });
+
+    it('lists every report with its Customer and who it is shared with, and opens one', async () => {
+      (listPropertyHistoryReports as jest.Mock).mockResolvedValue([REPORT, { ...REPORT, id: 'rep2', referenceNumber: 'PHR-20260926-XYZ789', audience: 'administrator', customerId: null, customerName: null }]);
+      (openPropertyHistoryReport as jest.Mock).mockResolvedValue('https://signed.example/rep1.pdf');
+      render(<AdministratorPropertyHistoryPage />);
+
+      fireEvent.click(screen.getByRole('tab', { name: 'Reports' }));
+      const rows = within(await screen.findByRole('table')).getAllByRole('row');
+
+      expect(rows[1]).toHaveTextContent('PHR-20260927-ABC123');
+      expect(rows[1]).toHaveTextContent('Harcourts Epping');
+      expect(rows[1]).toHaveTextContent('Account Owners');
+      expect(rows[2]).toHaveTextContent('All customers');
+      expect(rows[2]).toHaveTextContent('Administrators');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open PHR-20260927-ABC123' }));
+      await waitFor(() => expect(tab.location.href).toBe('https://signed.example/rep1.pdf'));
+      expect(openPropertyHistoryReport).toHaveBeenCalledWith('rep1');
+    });
+
+    it('keeps the search when switching back from Reports', async () => {
+      (listPropertyHistoryReports as jest.Mock).mockResolvedValue([]);
+      render(<AdministratorPropertyHistoryPage />);
+      await pick('epping', /^Epping 2121/);
+      await screen.findByRole('group', { name: 'Cliff Road' });
+
+      fireEvent.click(screen.getByRole('tab', { name: 'Reports' }));
+      expect(await screen.findByText(/No reports yet/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('tab', { name: 'Search' }));
+
+      expect(screen.getByRole('group', { name: 'Cliff Road' })).toBeVisible();
+      expect(searchPropertyHistory).toHaveBeenCalledTimes(1);
+    });
   });
 });

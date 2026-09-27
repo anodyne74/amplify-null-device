@@ -6,6 +6,7 @@ import {
   type StopLocationFields,
 } from './locationPrecision';
 import { propertyKey } from './propertyKey';
+import { getConfirmedPin } from './propertyLocations';
 
 /** The address part of a submitted StopForm: the typed address and, if picked from autocomplete, its geocode. */
 export interface StopAddressInput {
@@ -20,20 +21,29 @@ export interface LocatedStop {
   locationPrecision?: string | null;
 }
 
-/** The fields plus the Property key for the entered address, when there's enough to build one (#287). */
-function withPropertyKey<T extends Partial<StopLocationFields>>(
+/**
+ * The fields plus the Property key for the entered address, when there's enough
+ * to build one (#287) -- and, when an administrator has Confirmed that
+ * Property's pin (#286), that pin in place of the geocode.
+ */
+async function withProperty<T extends Partial<StopLocationFields>>(
   fields: T,
   address: string,
   geocoded: GeocodedLocation
-): T {
+): Promise<T> {
   const key = propertyKey(address, geocoded.addressComponents ?? {});
-  return key ? { ...fields, propertyKey: key } : fields;
+  if (!key) return fields;
+
+  const confirmedPin = await getConfirmedPin(key);
+  return confirmedPin
+    ? { ...fields, propertyKey: key, ...confirmedPin, locationPrecision: 'confirmed' }
+    : { ...fields, propertyKey: key };
 }
 
 /** Location fields for a new Stop: the autocomplete pick, else a geocode of the typed address. */
 export async function locateNewStop(values: StopAddressInput): Promise<StopLocationFields> {
   const geocoded = values.resolvedLocation ?? (await geocodeAddress(values.address));
-  return withPropertyKey(stopLocationFields(geocoded), values.address, geocoded);
+  return withProperty(stopLocationFields(geocoded), values.address, geocoded);
 }
 
 /**
@@ -47,7 +57,7 @@ export async function locateEditedStop(
   values: StopAddressInput
 ): Promise<Partial<StopLocationFields>> {
   if (values.resolvedLocation) {
-    return withPropertyKey(stopLocationUpdate(original, values.resolvedLocation), values.address, values.resolvedLocation);
+    return withProperty(stopLocationUpdate(original, values.resolvedLocation), values.address, values.resolvedLocation);
   }
 
   const addressUnchanged = original?.address?.trim() === values.address.trim();
@@ -55,5 +65,5 @@ export async function locateEditedStop(
     return {};
   }
   const geocoded = await geocodeAddress(values.address);
-  return withPropertyKey(stopLocationUpdate(original, geocoded), values.address, geocoded);
+  return withProperty(stopLocationUpdate(original, geocoded), values.address, geocoded);
 }

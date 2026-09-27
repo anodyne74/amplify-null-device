@@ -19,6 +19,7 @@ import { operatorStatusActivation } from '../functions/operator-status-activatio
  * - UserSettings: Per-user UI preferences
  * - OrganizationSettings: Null Device's own invoice remittance details (single row)
  * - FeatureFlagSetting: stored state of each Feature Flag (administrator-only)
+ * - PropertyLocation: an administrator's review decisions for one Property (Confirmed pin, dismissed suburb flag)
  * - OperatorAvailabilityBlock: Days Null Device has no drivers available for a customer
  * - CustomerClosureBlock: Days a customer's agency is closed
  * - RateLine: Named, priced lines on a customer's rate card
@@ -307,6 +308,8 @@ const schema = a.schema({
     })
     .secondaryIndexes((index) => [
       index('customerId').sortKeys(['propertyKey']).queryField('listStopsByCustomerAndPropertyKey'),
+      // A Property spans Customers, so confirming its location (#286) reaches every Stop through this one.
+      index('propertyKey').queryField('listStopsByPropertyKey'),
     ])
     .authorization((allow) => [
       allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
@@ -470,7 +473,7 @@ const schema = a.schema({
       customerId: a.id(), // Optional: associated customer
       operatorId: a.id(), // Optional: user who performed action
       eventType: a.enum(['login', 'logout', 'access_denied', 'data_access', 'data_modification', 'data_deletion']),
-      resourceType: a.enum(['customer', 'route', 'invoice', 'payment', 'operator', 'feature_flag']),
+      resourceType: a.enum(['customer', 'route', 'invoice', 'payment', 'operator', 'feature_flag', 'property']),
       resourceId: a.id(),
       action: a.string().required(),
       status: a.enum(['success', 'failure']),
@@ -658,6 +661,32 @@ const schema = a.schema({
     })
     .authorization((allow) => [
       allow.groups(['administrator']).to(['read']),
+    ]),
+
+  /**
+   * PropertyLocation - an administrator's decisions from the Location review queue
+   * (#286) for one Property, keyed by its Property key (lib/propertyKey.ts). A
+   * Confirmed pin is copied onto every Stop at the Property and used for new ones
+   * instead of the geocode; a dismissed suburb mismatch stays dismissed however
+   * often the address is re-geocoded. Operators read it because their Stop edits
+   * pick up a Confirmed pin too.
+   */
+  PropertyLocation: a
+    .model({
+      propertyKey: a.string().required(),
+      latitude: a.float(),
+      longitude: a.float(),
+      confirmedAt: a.datetime(),
+      confirmedBy: a.string(), // Cognito sub of the administrator who confirmed the pin
+      suburbMismatchDismissedAt: a.datetime(),
+      suburbMismatchDismissedBy: a.string(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .identifier(['propertyKey'])
+    .authorization((allow) => [
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+      allow.groups(['operator']).to(['read']),
     ]),
 }).authorization((allow) => [
   allow.resource(customerAccessActivation).to(['query', 'mutate']),

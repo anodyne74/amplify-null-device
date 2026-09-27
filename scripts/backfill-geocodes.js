@@ -97,7 +97,8 @@ function usage() {
   using the Google Geocoding REST API (server-side, no browser). Requires
   GOOGLE_MAPS_API_KEY or NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in the environment.
 
-  --force re-geocodes stops that already have coordinates too.
+  --force re-geocodes stops that already have coordinates too -- except Confirmed
+  ones, which are never moved.
 
   --assess (Location Precision, #284) re-geocodes every Stop -- all of them in the
   target environment unless --customer-id narrows it -- and writes ONLY its
@@ -288,6 +289,15 @@ function propertyKey(address, components) {
   return [suburb, postcode, normaliseStreet(street), streetNumber].join('|');
 }
 
+/** The plain geocode's candidates: Stops missing coordinates, or with --force all but Confirmed ones (never moved). */
+function selectGeocodeCandidates(stops, force) {
+  return stops.filter((stop) =>
+    force
+      ? stop.locationPrecision !== 'confirmed'
+      : typeof stop.latitude !== 'number' || typeof stop.longitude !== 'number'
+  );
+}
+
 /** Assess mode's candidates: every Stop with an address (Confirmed ones still need a Property key). */
 function selectAssessCandidates(stops) {
   return stops.filter((stop) => stop.address?.trim());
@@ -412,11 +422,8 @@ async function main() {
       nextToken = page.nextToken;
     } while (nextToken);
 
-    const candidates = (args.assess
-      ? selectAssessCandidates(allStops)
-      : args.force
-        ? allStops
-        : allStops.filter((stop) => typeof stop.latitude !== 'number' || typeof stop.longitude !== 'number')
+    const candidates = (
+      args.assess ? selectAssessCandidates(allStops) : selectGeocodeCandidates(allStops, args.force)
     ).slice(0, args.limit);
 
     console.log(`Found ${allStops.length} stop(s) total, ${candidates.length} to ${args.assess ? 'assess' : 'geocode'}.`);
@@ -504,6 +511,7 @@ export {
   parseArgs,
   propertyKey,
   selectAssessCandidates,
+  selectGeocodeCandidates,
   summarizeAssessment,
   toGeocodedLocation,
 };

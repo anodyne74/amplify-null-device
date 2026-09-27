@@ -63,12 +63,44 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 
 let _mapsScriptPromise: Promise<void> | null = null;
 
+/** The global the Maps script calls once its libraries are ready -- its own onload fires before then. */
+const MAPS_READY_CALLBACK = '__nullDeviceMapsReady';
+
+/**
+ * Shown when Google rejects the Maps key for this page's address (a site not in
+ * the key's website restrictions, e.g. a new custom domain). Google never
+ * answers the geocoder then, so without this it looks like a timeout.
+ */
+export const MAPS_SITE_NOT_ALLOWED =
+  "Google Maps isn't enabled for this site's address. Add it to the Maps API key's website restrictions.";
+
+let _mapsAuthFailed = false;
+const _authFailureWaiters = new Set<(error: Error) => void>();
+
+/** Google calls window.gm_authFailure when it rejects the key. */
+function listenForMapsAuthFailure() {
+  (window as any).gm_authFailure = () => {
+    _mapsAuthFailed = true;
+    _authFailureWaiters.forEach((reject) => reject(new Error(MAPS_SITE_NOT_ALLOWED)));
+    _authFailureWaiters.clear();
+  };
+}
+
+function rejectOnMapsAuthFailure<T>(promise: Promise<T>): Promise<T> {
+  if (_mapsAuthFailed) return Promise.reject(new Error(MAPS_SITE_NOT_ALLOWED));
+  return new Promise((resolve, reject) => {
+    _authFailureWaiters.add(reject);
+    promise.then(resolve, reject).finally(() => _authFailureWaiters.delete(reject));
+  });
+}
+
 /**
  * Lazily loads the Google Maps JavaScript API (with Places library) once.
  * Safe to call multiple times — returns the same promise after first call.
  */
 export function loadGoogleMapsScript(): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
+  listenForMapsAuthFailure();
   // Already loaded
   if ((window as any).google?.maps?.places) return Promise.resolve();
   if (_mapsScriptPromise) return _mapsScriptPromise;
@@ -79,11 +111,11 @@ export function loadGoogleMapsScript(): Promise<void> {
       reject(new Error('Google Maps API key is missing. Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY.'));
       return;
     }
+    (window as any)[MAPS_READY_CALLBACK] = () => resolve();
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async&v=weekly`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async&v=weekly&callback=${MAPS_READY_CALLBACK}`;
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
     script.onerror = () => reject(new Error('Failed to load Google Maps script.'));
     document.head.appendChild(script);
   });
@@ -161,29 +193,31 @@ async function geocodeInBrowser(request: GeocodeRequest): Promise<GeocodeResult[
     throw new Error('Google Maps geocoder is unavailable.');
   }
 
-  return withTimeout(
-    new Promise<GeocodeResult[]>((resolve, reject) => {
-      geocoder.geocode(request, (results: any[], status: string) => {
-        if (status === mapsApi.GeocoderStatus.OK && results) {
-          // The JS API returns lat/lng as functions; normalise to the REST shape.
-          resolve(
-            results.map((item: any) => ({
-              ...item,
-              geometry: {
-                location: {
-                  lat: item.geometry?.location?.lat(),
-                  lng: item.geometry?.location?.lng(),
-                },
-                location_type: item.geometry?.location_type,
+  const geocoded = new Promise<GeocodeResult[]>((resolve, reject) => {
+    geocoder.geocode(request, (results: any[], status: string) => {
+      if (status === mapsApi.GeocoderStatus.OK && results) {
+        // The JS API returns lat/lng as functions; normalise to the REST shape.
+        resolve(
+          results.map((item: any) => ({
+            ...item,
+            geometry: {
+              location: {
+                lat: item.geometry?.location?.lat(),
+                lng: item.geometry?.location?.lng(),
               },
-            }))
-          );
-          return;
-        }
+              location_type: item.geometry?.location_type,
+            },
+          }))
+        );
+        return;
+      }
 
-        reject(new Error(`Address could not be validated.${status ? ` ${status}` : ''}`.trim()));
-      });
-    }),
+      reject(new Error(`Address could not be validated.${status ? ` ${status}` : ''}`.trim()));
+    });
+  });
+
+  return withTimeout(
+    rejectOnMapsAuthFailure(geocoded),
     GEOCODE_TIMEOUT_MS,
     'Address validation timed out. Please try again.'
   );

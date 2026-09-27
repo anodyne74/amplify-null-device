@@ -31,6 +31,8 @@ interface InvoiceListTableProps {
    * success. When provided, a selection column and bulk action bar render.
    */
   onBulkMarkPaidInvoice?: (invoiceId: string) => Promise<boolean>;
+  /** An invoice linked to directly: the table opens on its page, scrolled to and marking its row. */
+  focusInvoiceId?: string | null;
 }
 
 const DEFAULT_PAYMENT_TERMS_DAYS = 14;
@@ -123,6 +125,7 @@ export default function InvoiceListTable({
   onDeleteInvoice,
   onEmailInvoiceToPrimary,
   onBulkMarkPaidInvoice,
+  focusInvoiceId,
 }: InvoiceListTableProps) {
   const { showToast } = useToast();
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
@@ -136,6 +139,18 @@ export default function InvoiceListTable({
   useEffect(() => {
     setPage(1);
   }, [invoices.length]);
+
+  // A link to one invoice (e.g. from Property History) opens on its page, once.
+  const [focusedOnce, setFocusedOnce] = useState(false);
+  const focusIndex = focusInvoiceId ? invoices.findIndex((invoice) => invoice.id === focusInvoiceId) : -1;
+  useEffect(() => {
+    if (focusedOnce || focusIndex < 0) return;
+    setFocusedOnce(true);
+    setPage(Math.floor(focusIndex / ADMIN_PAGE_SIZE) + 1);
+  }, [focusedOnce, focusIndex]);
+  useEffect(() => {
+    if (focusedOnce && focusInvoiceId) document.getElementById(`invoice-${focusInvoiceId}`)?.scrollIntoView({ block: 'center' });
+  }, [focusedOnce, focusInvoiceId]);
 
   const { currentPage, totalPages, pageRows: pageInvoices } = getPageSlice(invoices, page, ADMIN_PAGE_SIZE);
 
@@ -317,7 +332,12 @@ export default function InvoiceListTable({
               </thead>
               <tbody>
                 {pageInvoices.map((invoice) => (
-                  <tr key={invoice.id}>
+                  <tr
+                    key={invoice.id}
+                    id={`invoice-${invoice.id}`}
+                    aria-current={invoice.id === focusInvoiceId ? 'true' : undefined}
+                    className={invoice.id === focusInvoiceId ? styles.focusedRow : undefined}
+                  >
                     {bulkSelectionEnabled && (
                       <td>
                         <input

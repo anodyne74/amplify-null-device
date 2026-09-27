@@ -330,6 +330,12 @@ describe('Operator Routes List Page', () => {
       });
     }
 
+    it('links to the full Property History', async () => {
+      await renderWithRoutes();
+
+      expect(screen.getByRole('link', { name: /view full history/i })).toHaveAttribute('href', '/administrator/property-history');
+    });
+
     it('shows the idle prompt before two characters are typed', async () => {
       await renderWithRoutes();
 

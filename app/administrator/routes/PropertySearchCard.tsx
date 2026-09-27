@@ -26,6 +26,11 @@ export function PropertySearchCard({ search }: PropertySearchCardProps) {
     <Card
       title="Find a property"
       subtitle="Search a full address, a street or a suburb to see every route it sits on"
+      action={
+        <a href="/administrator/property-history" className="nd-btn nd-btn--ghost nd-btn--sm">
+          View full history →
+        </a>
+      }
     >
       <div className={styles.propertySearchBody}>
         <div className={styles.propertySearchRow}>

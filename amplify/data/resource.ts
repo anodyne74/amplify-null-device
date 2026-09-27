@@ -279,6 +279,10 @@ const schema = a.schema({
       addressStreet: a.string(),
       addressSuburb: a.string(),
       addressPostcode: a.string(),
+      // Property key (lib/propertyKey.ts, ADR 0004) — suburb|postcode|street|number, so every
+      // Stop at one address shares it. Indexed per Customer below: a beginsWith query on it
+      // answers suburb, street and exact-address searches for Property History.
+      propertyKey: a.string(),
       notes: a.string(),
       // Sign-run flow (drivingModeEnabled routes only) — one tap logs one missing sign
       // during the pickup phase; missing signs never count as collected. The last-logged
@@ -301,6 +305,9 @@ const schema = a.schema({
       route: a.belongsTo('Route', 'routeId'),
       customer: a.belongsTo('Customer', 'customerId'),
     })
+    .secondaryIndexes((index) => [
+      index('customerId').sortKeys(['propertyKey']).queryField('listStopsByCustomerAndPropertyKey'),
+    ])
     .authorization((allow) => [
       allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),

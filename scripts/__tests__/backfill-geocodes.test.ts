@@ -3,11 +3,13 @@ import {
   classifyLocationPrecision,
   parseAddressComponents,
   parseArgs,
+  propertyKey,
   selectAssessCandidates,
   summarizeAssessment,
   toGeocodedLocation,
 } from '../backfill-geocodes.js';
 import * as app from '../../lib/locationPrecision';
+import * as appPropertyKey from '../../lib/propertyKey';
 
 const COMPONENTS = [
   { long_name: '12', short_name: '12', types: ['street_number'] },
@@ -44,6 +46,27 @@ describe('mirrors lib/locationPrecision.ts', () => {
   });
 });
 
+describe('mirrors lib/propertyKey.ts', () => {
+  const CLIFF_ROAD = { streetNumber: '14', street: 'Cliff Road', suburb: 'Epping', postcode: '2121' };
+
+  it.each([
+    ['14 Cliff Rd, Epping', CLIFF_ROAD],
+    ['14 Cliff Road, Epping NSW 2121', CLIFF_ROAD],
+    ['96 Cliff Rd, Epping', { street: 'Cliff Road', suburb: 'Epping', postcode: '2121' }],
+    ['14 Cliff Rd, Epping NSW 2121', { ...CLIFF_ROAD, suburb: 'North Epping' }],
+    ['14 Cliff Rd, Epping', { ...CLIFF_ROAD, suburb: 'Carlingford', postcode: '2118' }],
+    ['14 Cliff Rd', CLIFF_ROAD],
+    ["3 St Kilda Rd, MELBOURNE VIC 3004", { streetNumber: '3', street: 'St. Kilda  Rd', suburb: 'Melbourne', postcode: '3004' }],
+    ['14 Cliff Rd, Epping', { suburb: 'Epping', postcode: '2121' }],
+    ['2/14A Cliff Rd, Epping, Australia', {}],
+    ['Unit 2, 14-16 Cliff Pde, Epping NSW 2121', {}],
+    ['Cliff Rd, Epping', { street: 'Cliff Road', suburb: 'Epping' }],
+    ['14', {}],
+  ])('keys %s the same as the app', (address, components) => {
+    expect(propertyKey(address, components)).toBe(appPropertyKey.propertyKey(address, components));
+  });
+});
+
 describe('toGeocodedLocation', () => {
   it('carries the precision signals from a REST result', () => {
     expect(toGeocodedLocation(RESULT)).toEqual({
@@ -68,7 +91,7 @@ describe('assessStop', () => {
     longitude: 144.1,
   };
 
-  it('writes only the precision level, geocode signals and address components', () => {
+  it('writes only the precision level, geocode signals, address components and Property key', () => {
     expect(assessStop(stop, toGeocodedLocation(RESULT)).update).toEqual({
       id: 's1',
       locationPrecision: 'precise',
@@ -79,7 +102,24 @@ describe('assessStop', () => {
       addressStreet: 'Smith Street',
       addressSuburb: 'Fitzroy',
       addressPostcode: '3065',
+      propertyKey: 'fitzroy|3065|smith street|12',
     });
+  });
+
+  it('gives a Confirmed Stop its address components and Property key, never a new precision (#287)', () => {
+    expect(assessStop({ ...stop, locationPrecision: 'confirmed' }, toGeocodedLocation(RESULT)).update).toEqual({
+      id: 's1',
+      addressStreetNumber: '12',
+      addressStreet: 'Smith Street',
+      addressSuburb: 'Fitzroy',
+      addressPostcode: '3065',
+      propertyKey: 'fitzroy|3065|smith street|12',
+    });
+  });
+
+  it('writes no Property key when there is not enough address to build one', () => {
+    const geocoded = toGeocodedLocation({ ...RESULT, address_components: [] });
+    expect(assessStop({ ...stop, address: 'Smith St' }, geocoded).update).not.toHaveProperty('propertyKey');
   });
 
   it('never writes the address or coordinates', () => {
@@ -109,7 +149,7 @@ describe('assessStop', () => {
 });
 
 describe('selectAssessCandidates', () => {
-  it('never touches a Confirmed Stop, and includes Stops whatever their coordinates', () => {
+  it('includes every Stop with an address, Confirmed or not, whatever its coordinates', () => {
     const stops = [
       { id: 'a', address: '1 A St', latitude: 1, longitude: 2, locationPrecision: 'approximate' },
       { id: 'b', address: '2 B St', latitude: 1, longitude: 2, locationPrecision: 'confirmed' },
@@ -117,7 +157,7 @@ describe('selectAssessCandidates', () => {
       { id: 'd', address: '  ' },
     ];
 
-    expect(selectAssessCandidates(stops).map((stop: { id: string }) => stop.id)).toEqual(['a', 'c']);
+    expect(selectAssessCandidates(stops).map((stop: { id: string }) => stop.id)).toEqual(['a', 'b', 'c']);
   });
 });
 
@@ -128,10 +168,11 @@ describe('summarizeAssessment', () => {
       { stop: { id: 'b', address: '2 B St' }, update: { locationPrecision: 'approximate' }, suburbMismatch: false },
       { stop: { id: 'c', address: '3 C St' }, update: { locationPrecision: 'interpolated' }, suburbMismatch: true },
       { stop: { id: 'd', address: '4 D St' }, update: { locationPrecision: 'approximate' }, suburbMismatch: true },
+      { stop: { id: 'e', address: '5 E St', locationPrecision: 'confirmed' }, update: {}, suburbMismatch: false },
     ];
 
     expect(summarizeAssessment(assessments)).toEqual({
-      counts: { precise: 1, interpolated: 1, approximate: 2 },
+      counts: { precise: 1, interpolated: 1, approximate: 2, confirmed: 1 },
       approximate: [assessments[1].stop, assessments[3].stop],
       suburbMismatches: [assessments[2].stop, assessments[3].stop],
     });

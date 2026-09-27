@@ -216,3 +216,7 @@
   font-size: var(--text-xs);
   color: var(--status-danger-fg);
 }
+
+.focusedRow td {
+  background: var(--surface-brand-subtle);
+}

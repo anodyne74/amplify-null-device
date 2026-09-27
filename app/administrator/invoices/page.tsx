@@ -42,6 +42,12 @@ export default function InvoicesAdminPage() {
   } = useInvoiceUiState();
 
   const [customerId, setCustomerId] = useState('');
+  // Links to one invoice (e.g. from Property History) arrive as #invoice-<id>.
+  const [focusInvoiceId, setFocusInvoiceId] = useState<string | null>(null);
+  useEffect(() => {
+    const match = window.location.hash.match(/^#invoice-(.+)$/);
+    if (match) setFocusInvoiceId(decodeURIComponent(match[1]));
+  }, []);
 
   const {
     customers,
@@ -193,6 +199,7 @@ export default function InvoicesAdminPage() {
             void handleDeleteInvoice(invoiceId);
           }}
           onBulkMarkPaidInvoice={markInvoicePaid}
+          focusInvoiceId={focusInvoiceId}
           onEmailInvoiceToPrimary={(invoice) => {
             void handleEmailInvoiceToPrimary(invoice);
           }}

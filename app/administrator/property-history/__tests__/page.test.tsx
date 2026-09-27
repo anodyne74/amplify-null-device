@@ -1,0 +1,194 @@
+import '@testing-library/jest-dom';
+import React from 'react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import AdministratorPropertyHistoryPage from '../page';
+import { listRouteProperties, listTypeaheadOptions, searchPropertyHistory } from '@/lib/propertyHistorySearch';
+import { listAllCustomers } from '@/lib/customers';
+import { buildTypeaheadOptions } from '@/lib/propertyHistoryTypeahead';
+import type { PropertyGroup, VisitRow } from '@/lib/propertyHistory';
+
+jest.mock('@/lib/propertyHistorySearch', () => ({
+  listTypeaheadOptions: jest.fn(),
+  searchPropertyHistory: jest.fn(),
+  listRouteProperties: jest.fn(),
+}));
+
+jest.mock('@/lib/customers', () => ({
+  listAllCustomers: jest.fn(),
+}));
+
+jest.mock('@/app/components/OperatorRoute', () => ({
+  __esModule: true,
+  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+const CLIFF_14 = 'epping|2121|cliff road|14';
+const CLIFF_96 = 'epping|2121|cliff road|96';
+
+const OPTIONS = buildTypeaheadOptions([
+  { propertyKey: CLIFF_14, address: '14 Cliff Rd, Epping' },
+  { propertyKey: CLIFF_96, address: '96 Cliff Rd, Epping' },
+]);
+
+function visit(overrides: Partial<VisitRow> = {}): VisitRow {
+  return {
+    stopId: 's1',
+    routeId: 'r1',
+    date: '2026-08-01',
+    routeCode: 'W26-08-101',
+    agent: 'Betty',
+    auction: true,
+    signsPlaced: 3,
+    invoices: [{ id: 'i1', invoiceNumber: 'INV-0001' }],
+    status: 'completed',
+    customerName: 'Harcourts Epping',
+    operatorName: 'Sam',
+    missingSigns: 1,
+    locationPrecision: 'approximate',
+    ...overrides,
+  };
+}
+
+function property(propertyKey: string, address: string, overrides: Partial<PropertyGroup> = {}): PropertyGroup {
+  return { propertyKey, address, visitCount: 1, visits: [visit()], scheduled: [], ...overrides };
+}
+
+const SUBURB_RESULT = {
+  level: 'suburb' as const,
+  streets: [
+    {
+      street: 'cliff road',
+      properties: [
+        property(CLIFF_14, '14 Cliff Rd, Epping', {
+          visitCount: 1,
+          visits: [visit(), visit({ stopId: 's2', routeId: 'r2', routeCode: 'W26-07-202', status: 'skipped', invoices: [] })],
+          scheduled: [visit({ stopId: 's3', routeId: 'r3', routeCode: 'W26-10-303', status: 'planned', invoices: [] })],
+        }),
+        property(CLIFF_96, '96 Cliff Rd, Epping'),
+      ],
+    },
+  ],
+};
+
+async function pick(typed: string, label: RegExp) {
+  fireEvent.change(await screen.findByRole('combobox', { name: 'Suburb, street or address' }), { target: { value: typed } });
+  fireEvent.click(await screen.findByRole('option', { name: label }));
+}
+
+describe('Administrator Property History page', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useRealTimers();
+    (listTypeaheadOptions as jest.Mock).mockResolvedValue({ data: OPTIONS });
+    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [{ id: 'c1', name: 'Harcourts Epping' }] });
+    (searchPropertyHistory as jest.Mock).mockResolvedValue(SUBURB_RESULT);
+    (listRouteProperties as jest.Mock).mockResolvedValue([
+      { propertyKey: CLIFF_14, address: '14 Cliff Rd, Epping' },
+      { propertyKey: 'epping|2121|pennant street|3', address: '3 Pennant St, Epping' },
+    ]);
+  });
+
+  it('searches only once a suggestion is picked, with its exact search', async () => {
+    render(<AdministratorPropertyHistoryPage />);
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Suburb, street or address' }), { target: { value: 'cliff' } });
+
+    expect(screen.getByRole('option', { name: /Cliff Road, Epping 2121/ })).toBeInTheDocument();
+    expect(searchPropertyHistory).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('option', { name: /Cliff Road, Epping 2121/ }));
+
+    await waitFor(() =>
+      expect(searchPropertyHistory).toHaveBeenCalledWith({ level: 'street', suburb: 'epping', postcode: '2121', street: 'cliff road' }, {})
+    );
+  });
+
+  it('shows collapsible Street and Property groups with Visit counts, Skipped and Scheduled rows', async () => {
+    render(<AdministratorPropertyHistoryPage />);
+    await pick('epping', /^Epping 2121/);
+
+    const property14 = await screen.findByRole('group', { name: /14 Cliff Rd, Epping/ });
+    expect(within(property14).getByText('1 Visit')).toBeInTheDocument();
+    expect(within(property14).getByText('Skipped')).toBeInTheDocument();
+    expect(within(property14).getByText('Scheduled')).toBeInTheDocument();
+    expect(within(property14).getByRole('link', { name: 'W26-10-303' })).toHaveAttribute('href', '/administrator/routes/detail?id=r3');
+    expect(screen.getByText('Cliff Road')).toBeInTheDocument();
+  });
+
+  it('shows the admin columns and links each row to its Route and Invoices', async () => {
+    render(<AdministratorPropertyHistoryPage />);
+    await pick('epping', /^Epping 2121/);
+
+    const property14 = await screen.findByRole('group', { name: /14 Cliff Rd, Epping/ });
+    const [, firstRow] = within(property14).getAllByRole('row');
+    expect(within(firstRow).getByRole('link', { name: 'W26-08-101' })).toHaveAttribute('href', '/administrator/routes/detail?id=r1');
+    expect(within(firstRow).getByRole('link', { name: 'INV-0001' })).toHaveAttribute('href', '/administrator/invoices#invoice-i1');
+    for (const text of ['Harcourts Epping', 'Sam', 'Approximate', 'Auction']) {
+      expect(within(firstRow).getByText(text)).toBeInTheDocument();
+    }
+    expect(within(property14).getAllByText('Not yet invoiced').length).toBeGreaterThan(0);
+  });
+
+  it('re-runs the search when a filter changes', async () => {
+    render(<AdministratorPropertyHistoryPage />);
+    await pick('epping', /^Epping 2121/);
+    await screen.findByRole('group', { name: /14 Cliff Rd, Epping/ });
+
+    fireEvent.change(screen.getByLabelText('Customer'), { target: { value: 'c1' } });
+    fireEvent.change(screen.getByLabelText('Auction'), { target: { value: 'yes' } });
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-01-01' } });
+
+    await waitFor(() =>
+      expect(searchPropertyHistory).toHaveBeenLastCalledWith(expect.anything(), {
+        customerId: 'c1',
+        auction: true,
+        dateFrom: '2026-01-01',
+      })
+    );
+  });
+
+  it('applies the Agent filter once typing pauses', async () => {
+    jest.useFakeTimers();
+    render(<AdministratorPropertyHistoryPage />);
+    await act(async () => {
+      await pick('epping', /^Epping 2121/);
+    });
+
+    fireEvent.change(screen.getByLabelText('Agent'), { target: { value: 'Betty' } });
+    await act(async () => {
+      jest.advanceTimersByTime(500);
+    });
+
+    expect(searchPropertyHistory).toHaveBeenLastCalledWith(expect.anything(), { agent: 'Betty' });
+  });
+
+  it("jumps from a row to another Property on the same Route", async () => {
+    render(<AdministratorPropertyHistoryPage />);
+    await pick('epping', /^Epping 2121/);
+    const property14 = await screen.findByRole('group', { name: /14 Cliff Rd, Epping/ });
+
+    fireEvent.click(within(property14).getAllByRole('button', { name: 'Other Properties on W26-08-101' })[0]);
+    fireEvent.click(await screen.findByRole('button', { name: '3 Pennant St, Epping' }));
+
+    expect(listRouteProperties).toHaveBeenCalledWith('r1');
+    await waitFor(() =>
+      expect(searchPropertyHistory).toHaveBeenLastCalledWith({ level: 'address', propertyKey: 'epping|2121|pennant street|3' }, {})
+    );
+    expect(screen.getByRole('combobox', { name: 'Suburb, street or address' })).toHaveValue('3 Pennant St, Epping');
+  });
+
+  it('says so when a search finds no Visits', async () => {
+    (searchPropertyHistory as jest.Mock).mockResolvedValue({ level: 'address', property: null });
+    render(<AdministratorPropertyHistoryPage />);
+    await pick('14 cliff', /14 Cliff Rd/);
+
+    expect(await screen.findByText(/No Visits match/)).toBeInTheDocument();
+  });
+
+  it('shows why a search failed', async () => {
+    (searchPropertyHistory as jest.Mock).mockRejectedValue(new Error('Property History search failed'));
+    render(<AdministratorPropertyHistoryPage />);
+    await pick('14 cliff', /14 Cliff Rd/);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Property History search failed');
+  });
+});

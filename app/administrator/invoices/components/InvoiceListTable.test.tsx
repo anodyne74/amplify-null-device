@@ -165,6 +165,22 @@ describe('InvoiceListTable', () => {
     expect(screen.getByText('Showing 1–25 of 26 invoices')).toBeInTheDocument();
   });
 
+  it('opens on the page holding a linked invoice, and marks its row', () => {
+    const invoices = Array.from({ length: 30 }, (_, i) =>
+      createInvoice({ id: `inv-${i + 1}`, invoiceNumber: `INV-${String(i + 1).padStart(3, '0')}` })
+    );
+    const scrollIntoView = jest.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    renderTable(invoices, { focusInvoiceId: 'inv-28' });
+
+    const row = screen.getByText('INV-028').closest('tr');
+    expect(row).toHaveAttribute('id', 'invoice-inv-28');
+    expect(row).toHaveAttribute('aria-current', 'true');
+    expect(screen.queryByText('INV-001')).not.toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
   it('supports select-all, indeterminate state, and bulk mark-paid through confirmation', async () => {
     const onBulkMarkPaidInvoice = jest.fn().mockResolvedValue(true);
 

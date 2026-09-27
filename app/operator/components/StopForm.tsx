@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getAgentBadgeInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
@@ -63,6 +63,20 @@ export function StopForm({
     initialValues?.numberOfSigns?.toString() || defaultNumberOfSigns?.toString() || ''
   );
   const [agent, setAgent] = useState(initialValues?.agent || defaultAgentInitials || '');
+  // The Customer's defaults can arrive after the form opens: fill them in
+  // then, unless the field was already set or changed by hand.
+  const signsChosen = useRef(Boolean(initialValues?.numberOfSigns?.toString() || defaultNumberOfSigns?.toString()));
+  const agentChosen = useRef(Boolean(initialValues?.agent || defaultAgentInitials));
+  useEffect(() => {
+    if (signsChosen.current || typeof defaultNumberOfSigns !== 'number') return;
+    signsChosen.current = true;
+    setNumberOfSigns(defaultNumberOfSigns.toString());
+  }, [defaultNumberOfSigns]);
+  useEffect(() => {
+    if (agentChosen.current || !defaultAgentInitials) return;
+    agentChosen.current = true;
+    setAgent(defaultAgentInitials);
+  }, [defaultAgentInitials]);
   const [isAuction, setIsAuction] = useState(Boolean(initialValues?.isAuction));
   const [resolvedAddress, setResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [notes, setNotes] = useState(initialValues?.notes || '');
@@ -192,6 +206,7 @@ export function StopForm({
             min={0}
             value={numberOfSigns}
             onChange={(e) => {
+              signsChosen.current = true;
               setNumberOfSigns(e.target.value);
               setFieldErrors((prev) =>
                 prev.numberOfSigns
@@ -232,7 +247,10 @@ export function StopForm({
                   key={option}
                   type="button"
                   className={`${styles.agentBadge} ${selected ? styles.agentBadgeSelected : ''}`}
-                  onClick={() => setAgent(selected ? '' : option)}
+                  onClick={() => {
+                    agentChosen.current = true;
+                    setAgent(selected ? '' : option);
+                  }}
                   disabled={isSubmitting}
                   aria-pressed={selected}
                   aria-label={option}

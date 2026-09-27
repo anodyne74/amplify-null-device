@@ -60,8 +60,12 @@ _Avoid_: Lost signs, sign loss (except when specifically discussing the attritio
 The Unload/Finalise-time accounting of a Route's signs — how many were loaded onto the van, returned, still on-site, or missing, plus how many Stops were completed vs. skipped. Distinct from Signs Placed/Collected, which are simpler standalone counts usable anywhere in a Route's lifecycle.
 _Avoid_: Summary, totals
 
+**Customer User**:
+A person who signs in to the customer portal on one Customer's behalf, as either an Account Owner or a read-only user. Sees only that Customer's records, and is unaware of other Customers or of how Routes are carried out.
+_Avoid_: Team member, teammate, sub-user, customer admin
+
 **Account Owner**:
-A Customer user who can see the Customer's invoices and manage its users and Property History reports. The other Customer user role, read-only, sees Routes and Stops only.
+A Customer User who can see the Customer's invoices and manage its Customer Users and Property History reports. The other Customer User role, read-only, sees Routes and Stops only.
 _Avoid_: Customer Admin, customer administrator
 
 **Customer Access Sync**:

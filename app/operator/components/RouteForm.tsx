@@ -6,7 +6,8 @@ import { useToast } from '@/app/components/ToastProvider';
 import { StopForm } from '@/app/operator/components/StopForm';
 import { geocodeAddress } from '@/lib/googleMaps';
 import type { StopLocationFields } from '@/lib/locationPrecision';
-import { locateNewStop } from '@/lib/stopLocation';
+import { lacksProperty, locateNewStop } from '@/lib/stopLocation';
+import { STOP_NEEDS_SUBURB } from '@/lib/routes';
 import type { StopFormValues } from '@/lib/use-route-detail-data';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
@@ -198,6 +199,10 @@ export function RouteForm({
 
     try {
       const location = await locateNewStop({ address: values.address, resolvedLocation });
+      if (lacksProperty(values.address, location)) {
+        setStopError(STOP_NEEDS_SUBURB);
+        return;
+      }
       if (!location.pinned) {
         setStopError("Stop added without a map pin: its address couldn't be found on the map.");
       }

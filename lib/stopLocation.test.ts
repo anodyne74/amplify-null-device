@@ -191,20 +191,20 @@ describe('a Confirmed Property (#286)', () => {
 
 describe('locateDraftStops (#343)', () => {
   const drafts = [
-    { address: '12 Smith St', serviceType: 'delivery' as const },
-    { address: 'Nowhere', serviceType: 'delivery' as const },
-    { address: '14 Smith St', serviceType: 'pickup' as const },
+    { address: '12 Smith St, Epping', serviceType: 'delivery' as const },
+    { address: '9 Lost Rd, Eastwood', serviceType: 'delivery' as const },
+    { address: '14 Smith St, Epping', serviceType: 'pickup' as const },
   ];
 
   beforeEach(() => {
     (geocodeAddress as jest.Mock).mockImplementation(async (address: string) => {
-      if (address === 'Nowhere') throw new Error('ZERO_RESULTS');
-      return address === '12 Smith St' ? PICKED : GEOCODED;
+      if (address.includes('Lost') || address === 'Nowhere') throw new Error('ZERO_RESULTS');
+      return address === '12 Smith St, Epping' ? PICKED : GEOCODED;
     });
   });
 
   it('locates each draft in order as a hand-added Stop would be, keeping its details', async () => {
-    const { stops, unpinned } = await locateDraftStops(drafts, undefined, 0);
+    const { stops, unpinned, leftOut } = await locateDraftStops(drafts, undefined, 0);
 
     expect(stops).toEqual([
       { ...drafts[0], ...stopLocationFields(PICKED) },
@@ -212,11 +212,24 @@ describe('locateDraftStops (#343)', () => {
       { ...drafts[2], ...stopLocationFields(GEOCODED) },
     ]);
     expect(unpinned).toBe(1);
+    expect(leftOut).toEqual([]);
     expect((geocodeAddress as jest.Mock).mock.calls.map(([address]) => address)).toEqual([
-      '12 Smith St',
-      'Nowhere',
-      '14 Smith St',
+      '12 Smith St, Epping',
+      '9 Lost Rd, Eastwood',
+      '14 Smith St, Epping',
     ]);
+  });
+
+  it("leaves out a draft with no suburb that couldn't be found on the map, which would have no Property", async () => {
+    const { stops, unpinned, leftOut } = await locateDraftStops(
+      [drafts[0], { address: 'Nowhere', serviceType: 'delivery' as const }],
+      undefined,
+      0
+    );
+
+    expect(stops).toEqual([{ ...drafts[0], ...stopLocationFields(PICKED) }]);
+    expect(unpinned).toBe(0);
+    expect(leftOut).toEqual(['Nowhere']);
   });
 
   it("applies a Property's Confirmed pin", async () => {

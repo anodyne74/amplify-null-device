@@ -352,6 +352,7 @@ export default function NewRoutePage() {
     setImportDraftStops(null);
     setImportDraftSource(null);
     let unpinned = 0;
+    let leftOut: string[] = [];
     if (result.stops.length > 0) {
       setImportError(null);
       setLocatingProgress({ located: 0, total: result.stops.length });
@@ -372,8 +373,14 @@ export default function NewRoutePage() {
       setImportDraftStops(located.stops);
       setImportDraftSource('upload');
       unpinned = located.unpinned;
+      leftOut = located.leftOut;
     }
     const warnings: string[] = [];
+    if (leftOut.length) {
+      warnings.push(
+        `Left out ${leftOut.length} stop(s) with no suburb that couldn't be found on the map: ${leftOut.join(', ')}. Add them to the Route once it's created, with the suburb.`
+      );
+    }
     if (unpinned > 0) {
       warnings.push(
         `${unpinned} stop(s) couldn't be found on the map and will be created without a pin. They still appear in Property History.`

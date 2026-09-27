@@ -5,6 +5,7 @@ import {
   parseArgs,
   propertyKey,
   selectAssessCandidates,
+  selectGeocodeCandidates,
   summarizeAssessment,
   toGeocodedLocation,
 } from '../backfill-geocodes.js';
@@ -158,6 +159,22 @@ describe('selectAssessCandidates', () => {
     ];
 
     expect(selectAssessCandidates(stops).map((stop: { id: string }) => stop.id)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('selectGeocodeCandidates', () => {
+  const stops = [
+    { id: 'a', address: '1 A St', latitude: 1, longitude: 2, locationPrecision: 'approximate' },
+    { id: 'b', address: '2 B St', latitude: 1, longitude: 2, locationPrecision: 'confirmed' },
+    { id: 'c', address: '3 C St' },
+  ];
+
+  it('geocodes only Stops missing coordinates', () => {
+    expect(selectGeocodeCandidates(stops, false).map((stop: { id: string }) => stop.id)).toEqual(['c']);
+  });
+
+  it('re-geocodes located Stops with --force, but never moves a Confirmed one (#286)', () => {
+    expect(selectGeocodeCandidates(stops, true).map((stop: { id: string }) => stop.id)).toEqual(['a', 'c']);
   });
 });
 

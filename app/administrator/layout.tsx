@@ -17,6 +17,7 @@ const ADMIN_NAV = [
   { href: '/administrator/payment-details', label: 'Payment Details', icon: 'receipt' },
   { href: '/administrator/payouts', label: 'Payouts', icon: 'wallet' },
   { href: '/administrator/calendar', label: 'Service Calendar', icon: 'calendar' },
+  { href: '/administrator/locations', label: 'Location Review', icon: 'map-pin' },
   { href: '/administrator/users', label: 'Users', icon: 'user' },
   { href: '/administrator/feature-flags', label: 'Feature Flags', icon: 'flag' },
   { href: '/administrator/settings', label: 'Settings', icon: 'settings' },

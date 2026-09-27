@@ -1,5 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { InvoiceStatusPill, InvoiceActions } from '../InvoiceListItem';
+import { openInvoicePdf } from '@/lib/invoices';
+
+jest.mock('@/lib/invoices', () => ({ openInvoicePdf: jest.fn() }));
 
 describe('InvoiceStatusPill', () => {
   it('displays a paid status', () => {
@@ -31,5 +34,19 @@ describe('InvoiceActions', () => {
 
     expect(screen.getByText(/View PDF/i)).toBeInTheDocument();
     expect(screen.getByText(/Download/i)).toBeInTheDocument();
+  });
+
+  it('opens the PDF through the invoice PDF API, by invoice id', async () => {
+    (openInvoicePdf as jest.Mock).mockResolvedValue('https://signed.example/invoices/invoice-1.pdf');
+    const open = jest.spyOn(window, 'open').mockReturnValue(null);
+    render(<InvoiceActions invoice={{ id: 'invoice-1', invoiceNumber: 'INV-2024-001', pdfS3Key: 'invoices/invoice-1.pdf' }} />);
+
+    fireEvent.click(screen.getByText(/View PDF/i));
+
+    await waitFor(() =>
+      expect(open).toHaveBeenCalledWith('https://signed.example/invoices/invoice-1.pdf', '_blank', 'noopener,noreferrer')
+    );
+    expect(openInvoicePdf).toHaveBeenCalledWith('invoice-1');
+    open.mockRestore();
   });
 });

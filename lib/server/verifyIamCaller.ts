@@ -38,10 +38,11 @@ function getBearerToken(request: Request): string | null {
   return authHeader.slice('Bearer '.length).trim();
 }
 
-export type RequiredGroup = 'customer' | 'administrator';
+export type RequiredGroup = 'customer' | 'operator' | 'administrator';
 
 const GROUP_LABEL: Record<RequiredGroup, string> = {
   customer: 'customer',
+  operator: 'operator',
   administrator: 'admin',
 };
 

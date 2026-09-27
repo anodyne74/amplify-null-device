@@ -4,6 +4,7 @@
  * list/get/create/update/delete functions; the customer portal reads through
  * getInvoiceDetail and listMyInvoices, which also refuse read_only users.
  */
+import { callApi } from '@/lib/apiClient';
 import { getCustomerPortalContext } from '@/lib/customers';
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
@@ -189,6 +190,14 @@ export async function deleteInvoice(invoiceId: string) {
     console.error('Error deleting invoice:', error);
     return { data: null, errors: [error] };
   }
+}
+
+/**
+ * A short-lived link to an invoice's PDF, through /api/invoices/pdf (#356):
+ * customer users have no storage access of their own to invoice PDFs.
+ */
+export async function openInvoicePdf(invoiceId: string): Promise<string> {
+  return (await callApi<{ url: string }>('/api/invoices/pdf', { invoiceId })).url;
 }
 
 /**

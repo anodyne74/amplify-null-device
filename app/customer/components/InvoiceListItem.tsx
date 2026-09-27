@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { getUrl } from 'aws-amplify/storage';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
 import type { Invoice } from '@/amplify/types';
 import { getInvoiceStatusTone } from '@/lib/invoiceStatusHelpers';
 import { buildInvoiceFileName } from '@/lib/invoiceFileName';
+import { openInvoicePdf } from '@/lib/invoices';
 
 function getStatusLabel(status?: string | null) {
   return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
@@ -36,11 +36,7 @@ export function InvoiceActions({
 
     setPdfLoading(true);
     try {
-      const { url } = await getUrl({
-        path: invoice.pdfS3Key,
-        options: { validateObjectExistence: false },
-      });
-      const urlString = url.toString();
+      const urlString = await openInvoicePdf(invoice.id);
 
       if (action === 'view') {
         window.open(urlString, '_blank', 'noopener,noreferrer');

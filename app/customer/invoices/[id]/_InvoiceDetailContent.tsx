@@ -12,7 +12,7 @@ import { InvoiceStatusPill } from '@/app/customer/components/InvoiceListItem';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import styles from './_InvoiceDetailContent.module.css';
-import { getInvoiceDetail, type InvoiceDetail } from '@/lib/invoices';
+import { getInvoiceDetail, openInvoicePdf, type InvoiceDetail } from '@/lib/invoices';
 import { getInvoiceRouteLabel } from '@/lib/customerInvoiceList';
 
 interface InvoiceDetailContentProps {
@@ -66,12 +66,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
     if (!invoice?.pdfS3Key) return;
     setPdfActionLoading(true);
     try {
-      const { getUrl } = await import('aws-amplify/storage');
-      const { url } = await getUrl({
-        path: invoice.pdfS3Key,
-        options: { validateObjectExistence: false },
-      });
-      const urlString = url.toString();
+      const urlString = await openInvoicePdf(invoice.id);
 
       if (action === 'view') {
         window.open(urlString, '_blank', 'noopener,noreferrer');

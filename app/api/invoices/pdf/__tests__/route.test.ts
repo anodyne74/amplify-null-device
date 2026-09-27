@@ -50,6 +50,7 @@ const OTHER_OWNER = { sub: 'sub-other', 'cognito:groups': ['customer'] };
 const NO_ROW = { sub: 'sub-stranger', 'cognito:groups': ['customer'] };
 const NO_GROUP = { sub: 'sub-nogroup' };
 const ADMIN = { sub: 'sub-admin', 'cognito:groups': ['administrator'] };
+const OPERATOR = { sub: 'sub-operator', 'cognito:groups': ['operator'] };
 
 async function call(caller: object | null, body: unknown) {
   verifyMock.mockResolvedValue(caller);
@@ -79,8 +80,10 @@ describe('POST /api/invoices/pdf', () => {
     expect(await call(OWNER, { invoiceId: 'i1' })).toEqual({ status: 200, body: { url: 'https://signed.example/invoices/i1.pdf' } });
   });
 
-  it('gives an administrator a link to any invoice PDF', async () => {
-    expect(await call(ADMIN, { invoiceId: 'i2' })).toEqual({ status: 200, body: { url: 'https://signed.example/invoices/i2.pdf' } });
+  it('gives an administrator or an operator a link to any invoice PDF', async () => {
+    for (const staff of [ADMIN, OPERATOR]) {
+      expect(await call(staff, { invoiceId: 'i2' })).toEqual({ status: 200, body: { url: 'https://signed.example/invoices/i2.pdf' } });
+    }
   });
 
   it("reports another Customer's invoice, a missing invoice and one with no PDF alike, as not found", async () => {

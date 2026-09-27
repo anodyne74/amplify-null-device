@@ -218,6 +218,7 @@ Notes:
 - Apply mode copies `viewerSubs` onto every Route/Stop/Invoice/LineItem it writes, read from the target `Customer` record (never recomputed here — it's kept in sync elsewhere whenever `CustomerUser` membership changes). Without this, imported records are invisible in the customer portal, since those models use `ownersDefinedIn('viewerSubs')` authorization with no `customerId` fallback. If a customer's `viewerSubs` is empty at import time (no `CustomerUser` linked yet), re-run apply after linking a user to backfill it.
 - Apply mode also sets `Invoice.gstAmount` (10% of `totalAmount`) when the customer's `gstExclusive` flag is set.
 - Newly imported stops don't include GPS coordinates — see [Geocode Backfill](#geocode-backfill) below to populate `Stop.latitude`/`longitude` so they render on route maps.
+- Newly imported stops don't get a Property key either (the app builds one on every Stop it writes, but this script writes Stops directly), so they're missing from Property History until you run `npm run backfill:geocodes -- --assess --customer-id "YOUR_CUSTOMER_ID"` (dry run first, then `--mode apply --confirm-apply`).
 
 ## Geocode Backfill
 

@@ -9,10 +9,11 @@ import { data } from './data/resource';
 import { storage } from './storage/resource';
 import { customerAccessActivation } from './functions/customer-access-activation/resource';
 import { operatorStatusActivation } from './functions/operator-status-activation/resource';
+import { reportPurge } from './functions/report-purge/resource';
 import { configureObservability } from './observability/resource';
 import { branchName, emailDomain } from './shared/branch';
 
-const backend = defineBackend({ auth, data, storage, customerAccessActivation, operatorStatusActivation });
+const backend = defineBackend({ auth, data, storage, customerAccessActivation, operatorStatusActivation, reportPurge });
 
 // Advanced security (AUDIT mode) is required for AdminListUserAuthEvents, which
 // powers the admin Users page's "signed in past 7 days" stat. AUDIT only logs and
@@ -67,6 +68,12 @@ backend.storage.resources.bucket.grantReadWrite(
 	Role.fromRoleName(Stack.of(backend.storage.resources.bucket), 'AmplifyHostingSSRComputeRole', 'AmplifyHostingSSRCompute'),
 	'reports/*',
 );
+
+// The daily report-purge job (#292) destroys PDFs past their purgeAfter date;
+// it needs delete on reports/ and nothing else in the bucket.
+const reportPurgeLambda = backend.reportPurge.resources.lambda as LambdaFunction;
+backend.storage.resources.bucket.grantDelete(reportPurgeLambda, 'reports/*');
+reportPurgeLambda.addEnvironment('REPORTS_BUCKET_NAME', backend.storage.resources.bucket.bucketName);
 
 function withMaxLength(value: string, max: number) {
 	return value.length <= max ? value : value.slice(0, max);

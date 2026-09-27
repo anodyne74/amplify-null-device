@@ -193,6 +193,71 @@ describe('Operator Placement page', () => {
     expect(await screen.findByText('PLACEMENT · STOP 2 OF 2')).toBeInTheDocument();
   });
 
+  describe('placement GPS (#285)', () => {
+    const originalGeolocation = navigator.geolocation;
+
+    function setGeolocation(geolocation: Partial<Geolocation> | undefined) {
+      Object.defineProperty(navigator, 'geolocation', { value: geolocation, configurable: true });
+    }
+
+    afterEach(() => setGeolocation(originalGeolocation));
+
+    it('records where the device was when the stop is marked placed, without moving its pin', async () => {
+      setGeolocation({
+        getCurrentPosition: (onSuccess: PositionCallback) =>
+          onSuccess({
+            coords: { latitude: -37.7681, longitude: 144.9982, accuracy: 8 },
+            timestamp: Date.parse('2026-09-27T01:00:00Z'),
+          } as GeolocationPosition),
+      });
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+
+      render(<OperatorPlacementPage />);
+      await screen.findByText('PLACEMENT · STOP 1 OF 2');
+      fireEvent.click(screen.getByRole('button', { name: /signs placed/i }));
+
+      await waitFor(() => {
+        expect(updateStopExecution).toHaveBeenCalledWith('s1', {
+          placedLatitude: -37.7681,
+          placedLongitude: 144.9982,
+          placedAccuracyMeters: 8,
+          placedPositionAt: '2026-09-27T01:00:00.000Z',
+        });
+      });
+      expect(await screen.findByText('PLACEMENT · STOP 2 OF 2')).toBeInTheDocument();
+    });
+
+    it('still places the stop when location is denied', async () => {
+      setGeolocation({
+        getCurrentPosition: (_onSuccess: PositionCallback, onError?: PositionErrorCallback | null) =>
+          onError?.({ code: 1 } as GeolocationPositionError),
+      });
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+
+      render(<OperatorPlacementPage />);
+      await screen.findByText('PLACEMENT · STOP 1 OF 2');
+      fireEvent.click(screen.getByRole('button', { name: /signs placed/i }));
+
+      expect(await screen.findByText('PLACEMENT · STOP 2 OF 2')).toBeInTheDocument();
+      expect(updateStopExecution).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('does not record a position for a skipped stop', async () => {
+      const getCurrentPosition = jest.fn();
+      setGeolocation({ getCurrentPosition });
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+
+      render(<OperatorPlacementPage />);
+      await screen.findByText('PLACEMENT · STOP 1 OF 2');
+      fireEvent.click(screen.getByRole('button', { name: /^skip$/i }));
+      fireEvent.click(await screen.findByRole('button', { name: /gate locked/i }));
+
+      expect(await screen.findByText('PLACEMENT · STOP 2 OF 2')).toBeInTheDocument();
+      expect(getCurrentPosition).not.toHaveBeenCalled();
+    });
+  });
+
   it('skips the current stop via the reason sheet', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
 

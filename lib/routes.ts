@@ -266,6 +266,10 @@ export interface StopExecutionUpdateInput {
   missingSignsLastLoggedAt?: string;
   missingSignsLastLatitude?: number;
   missingSignsLastLongitude?: number;
+  placedLatitude?: number;
+  placedLongitude?: number;
+  placedAccuracyMeters?: number;
+  placedPositionAt?: string;
 }
 
 /**

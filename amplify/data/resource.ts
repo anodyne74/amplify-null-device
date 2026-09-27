@@ -288,6 +288,13 @@ const schema = a.schema({
       missingSignsLastLoggedAt: a.datetime(),
       missingSignsLastLatitude: a.float(),
       missingSignsLastLongitude: a.float(),
+      // Location Precision (#285) — the operator device's GPS fix when the Stop was marked
+      // placed: evidence of where the house really is, offered as the suggested pin in the
+      // admin review queue. Never moves the Stop's own pin (latitude/longitude).
+      placedLatitude: a.float(),
+      placedLongitude: a.float(),
+      placedAccuracyMeters: a.float(),
+      placedPositionAt: a.datetime(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships

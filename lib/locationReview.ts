@@ -1,7 +1,8 @@
 /**
  * The Location review queue (#286): the Properties an administrator should look
- * at -- an Approximate pin (CONTEXT.md "Location Precision"), or a geocoder
- * suburb the entered address doesn't mention (the entered address wins,
+ * at -- an Approximate pin (CONTEXT.md "Location Precision"), a Stop with no pin
+ * at all (#344: its geocode failed, or it was imported), or a geocoder suburb
+ * the entered address doesn't mention (the entered address wins,
  * CONTEXT.md "Property", so a mismatch is worth a human look). A Confirmed
  * Property never appears; a dismissed suburb mismatch stays dismissed.
  */
@@ -46,6 +47,8 @@ export interface PropertyReview {
   propertyKey: string;
   stops: ReviewStop[];
   approximate: boolean;
+  /** Some Stop at the Property has no pin, so it isn't on the map (#344). */
+  noPin: boolean;
   suburbMismatch: { geocodedSuburb: string } | null;
   currentPin: Pin | null;
   /** The latest operator placement GPS fix at the Property (#285), if any. */
@@ -62,8 +65,12 @@ export function hasSuburbMismatch(stop: ReviewStop): boolean {
   return Boolean(suburb && !new RegExp(`\\b${escapeRegExp(suburb)}\\b`, 'i').test(stop.address ?? ''));
 }
 
+function hasPin(stop: ReviewStop): boolean {
+  return typeof stop.latitude === 'number' && typeof stop.longitude === 'number';
+}
+
 function currentPin(stops: ReviewStop[]): Pin | null {
-  const located = stops.find((stop) => typeof stop.latitude === 'number' && typeof stop.longitude === 'number');
+  const located = stops.find(hasPin);
   return located ? { latitude: located.latitude as number, longitude: located.longitude as number } : null;
 }
 
@@ -95,13 +102,15 @@ export function buildLocationReviewQueue(stops: ReviewStop[], decisions: Propert
     if (decision?.confirmedAt) continue;
 
     const approximate = propertyStops.some((stop) => stop.locationPrecision === 'approximate');
+    const noPin = !propertyStops.every(hasPin);
     const mismatched = decision?.suburbMismatchDismissedAt ? undefined : propertyStops.find(hasSuburbMismatch);
-    if (!approximate && !mismatched) continue;
+    if (!approximate && !noPin && !mismatched) continue;
 
     queue.push({
       propertyKey,
       stops: propertyStops,
       approximate,
+      noPin,
       suburbMismatch: mismatched ? { geocodedSuburb: mismatched.addressSuburb as string } : null,
       currentPin: currentPin(propertyStops),
       suggestedPin: suggestedPin(propertyStops),

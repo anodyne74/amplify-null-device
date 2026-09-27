@@ -1,4 +1,4 @@
-import { correctPropertyAddress } from './propertyAddressCorrection';
+import { correctPropertyAddress, locateUnpinnedStops } from './propertyAddressCorrection';
 import { geocodeAddress } from './googleMaps';
 import { saveStop } from './routes';
 
@@ -48,6 +48,49 @@ describe('correctPropertyAddress', () => {
 
   it('refuses a blank address', async () => {
     await expect(correctPropertyAddress(STOPS, '  ')).resolves.toEqual({ ok: false, error: expect.any(String) });
+    expect(geocodeAddress).not.toHaveBeenCalled();
+  });
+});
+
+describe('locateUnpinnedStops (#344)', () => {
+  const PINNED = { id: 's0', address: '14 Cliff Rd, Epping', latitude: -33.77, longitude: 151.08, locationPrecision: 'precise' };
+  const UNPINNED = [
+    { id: 's1', address: '14 Cliff Rd, Epping ' },
+    { id: 's2', address: '14 Cliff Rd, Epping', latitude: null, longitude: null },
+    { id: 's3', address: '14 Cliff Road Epping' },
+  ];
+
+  it('geocodes each entered address once and saves every unpinned Stop with it, leaving pinned Stops alone', async () => {
+    await expect(locateUnpinnedStops([PINNED, ...UNPINNED])).resolves.toEqual({ ok: true });
+
+    expect((geocodeAddress as jest.Mock).mock.calls).toEqual([['14 Cliff Rd, Epping'], ['14 Cliff Road Epping']]);
+    expect(saveStop).toHaveBeenCalledTimes(3);
+    expect(saveStop).toHaveBeenCalledWith({ original: UNPINNED[0] }, { address: '14 Cliff Rd, Epping', resolvedLocation: GEOCODED });
+    expect(saveStop).toHaveBeenCalledWith({ original: UNPINNED[2] }, { address: '14 Cliff Road Epping', resolvedLocation: GEOCODED });
+    expect(saveStop).not.toHaveBeenCalledWith({ original: PINNED }, expect.anything());
+  });
+
+  it("says how many Stops still couldn't be found, saving the ones that were", async () => {
+    (geocodeAddress as jest.Mock).mockImplementation(async (address: string) => {
+      if (address === '14 Cliff Road Epping') throw new Error('ZERO_RESULTS');
+      return GEOCODED;
+    });
+
+    await expect(locateUnpinnedStops(UNPINNED)).resolves.toEqual({
+      ok: false,
+      error: expect.stringContaining("1 of 3 Stops still couldn't be found"),
+    });
+    expect(saveStop).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports Stops that could not be updated', async () => {
+    (saveStop as jest.Mock).mockResolvedValueOnce({ errors: [new Error('nope')], pinned: false });
+
+    await expect(locateUnpinnedStops(UNPINNED)).resolves.toEqual({ ok: false, error: expect.stringContaining('1 of 3') });
+  });
+
+  it('has nothing to do when every Stop is on the map', async () => {
+    await expect(locateUnpinnedStops([PINNED])).resolves.toEqual({ ok: true });
     expect(geocodeAddress).not.toHaveBeenCalled();
   });
 });

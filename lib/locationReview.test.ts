@@ -94,6 +94,21 @@ describe('buildLocationReviewQueue', () => {
     expect(review.currentPin).toBeNull();
   });
 
+  it('lists a Property with a Stop that has no pin, whatever its precision (#344)', () => {
+    const unpinned = stop({ id: 's2', latitude: null, longitude: null, locationPrecision: null, addressSuburb: null });
+
+    expect(buildLocationReviewQueue([unpinned], [])).toEqual([
+      expect.objectContaining({ noPin: true, approximate: false, suburbMismatch: null, currentPin: null }),
+    ]);
+    expect(buildLocationReviewQueue([stop({ locationPrecision: 'precise' }), unpinned], [])).toEqual([
+      expect.objectContaining({ noPin: true, currentPin: { latitude: -33.77, longitude: 151.08 } }),
+    ]);
+  });
+
+  it('flags no pin only when a Stop is missing one', () => {
+    expect(buildLocationReviewQueue([stop()], [])).toEqual([expect.objectContaining({ noPin: false })]);
+  });
+
   it("skips Stops without a Property key -- they can't be confirmed as a Property until the backfill keys them", () => {
     expect(buildLocationReviewQueue([stop({ propertyKey: null })], [])).toEqual([]);
   });

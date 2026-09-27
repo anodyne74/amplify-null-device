@@ -10,7 +10,7 @@ import { listAll } from '@/lib/listAll';
 import type { RouteStatus } from '@/amplify/types';
 import { pickStopLocationFields, type StopLocationWrite } from '@/lib/locationPrecision';
 import { stopPropertyKey, type StopAddressComponents } from '@/lib/propertyKey';
-import { locateEditedStop, locateNewStop, type LocatedStop, type StopAddressInput } from '@/lib/stopLocation';
+import { locateEditedStop, locateNewStop, type LocatedStop, type StopAddressInput, type StopLocation } from '@/lib/stopLocation';
 
 /**
  * Fetch all routes for a specific customer
@@ -596,7 +596,8 @@ export interface EditedStopTarget {
  * else a geocode, and a Property's Confirmed pin over either) and written. A
  * Stop whose address can't be geocoded is still saved, without a map pin
  * (`pinned: false`); an edit that moves a Stop to such an address clears the
- * old address's pin. A failed Confirmed-pin lookup fails the save.
+ * old address's pin. Unless the address names a suburb, though, nothing is
+ * saved (STOP_NEEDS_SUBURB). A failed Confirmed-pin lookup fails the save.
  */
 export async function saveStop(target: NewStopTarget, values: StopAddressInput & StopDetails): Promise<SaveStopResult>;
 export async function saveStop(
@@ -611,17 +612,38 @@ export async function saveStop(
   try {
     if ('original' in target) {
       const location = await locateEditedStop(target.original, addressInput);
+      const addressChanged = target.original.address?.trim() !== values.address.trim();
+      if (addressChanged && hasNoProperty(values.address, location)) return { errors: [new Error(STOP_NEEDS_SUBURB)], pinned: false };
       const result = await updateStop({ id: target.original.id, ...values, ...location.fields });
       return { errors: result.errors, pinned: location.pinned };
     }
 
     const location = await locateNewStop(addressInput);
+    if (hasNoProperty(values.address, location)) return { errors: [new Error(STOP_NEEDS_SUBURB)], pinned: false };
     const result = await createStop({ ...target, ...(values as StopAddressInput & StopDetails), ...location.fields });
     return { errors: result.errors ?? undefined, pinned: location.pinned };
   } catch (error) {
     console.error('Error saving stop:', error);
     return { errors: [error as Error], pinned: false };
   }
+}
+
+/**
+ * A Stop with no pin and an address that names no suburb has no Property key,
+ * so it would be missing from Property History and Location review.
+ */
+function hasNoProperty(address: string, location: StopLocation): boolean {
+  return !location.pinned && !stopPropertyKey(address, location.fields);
+}
+
+/** Why saveStop refused a Stop: no pin, and no suburb to find it by later (hasNoProperty). */
+export const STOP_NEEDS_SUBURB =
+  "This address couldn't be found on the map. Add the suburb so the Stop can be found later.";
+
+/** What to tell someone whose Stop wasn't saved: STOP_NEEDS_SUBURB, else `fallback`. */
+export function saveStopFailure(result: SaveStopResult, fallback: string): string {
+  const [first] = result.errors ?? [];
+  return first instanceof Error && first.message === STOP_NEEDS_SUBURB ? STOP_NEEDS_SUBURB : fallback;
 }
 
 /** What to tell someone whose Stop saved without a pin (SaveStopResult.pinned). */

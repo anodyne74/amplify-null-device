@@ -12,6 +12,7 @@ import {
   resequenceStops,
   saveStop,
   UNPINNED_STOP_NOTICE,
+  saveStopFailure,
 } from '@/lib/routes';
 import { getCustomer } from '@/lib/customers';
 
@@ -235,7 +236,7 @@ export function useRouteDetailData(id: string, user: unknown) {
       setStopNotice(null);
       const result = await saveStop({ routeId: route.id, customerId: route.customerId, sequence: stops.length + 1 }, values);
       if (result.errors && result.errors.length > 0) {
-        setAddStopError('Failed to add stop.');
+        setAddStopError(saveStopFailure(result, 'Failed to add stop.'));
       } else {
         if (!result.pinned) setStopNotice(UNPINNED_STOP_NOTICE);
         setShowAddStop(false);

@@ -58,6 +58,27 @@ describe('verifyIamCaller', () => {
     expect(result).toMatchObject({ ok: false, status: 403 });
   });
 
+  it('accepts a caller in any one of several required groups', async () => {
+    verifyMock.mockResolvedValue({ sub: 'sub-1', 'cognito:groups': ['customer'] });
+
+    const result = await verifyIamCaller(makeRequest('token'), ['customer', 'administrator']);
+    expect(result).toMatchObject({ ok: true, claims: { sub: 'sub-1' } });
+  });
+
+  it('rejects a caller in none of several required groups, naming them all', async () => {
+    verifyMock.mockResolvedValue({ sub: 'sub-1', 'cognito:groups': ['operator'] });
+
+    const result = await verifyIamCaller(makeRequest('token'), ['customer', 'administrator']);
+    expect(result).toMatchObject({ ok: false, status: 403, error: 'Forbidden: customer or admin access required' });
+  });
+
+  it('still requires a sub of a caller who only qualifies as a customer', async () => {
+    verifyMock.mockResolvedValue({ 'cognito:groups': ['customer'] });
+
+    const result = await verifyIamCaller(makeRequest('token'), ['customer', 'administrator']);
+    expect(result).toMatchObject({ ok: false, status: 403 });
+  });
+
   it('resolves with claims and the raw bearer token for a verified caller in the required group', async () => {
     verifyMock.mockResolvedValue({ sub: 'sub-1', email: 'a@example.com', 'cognito:groups': ['administrator'] });
 

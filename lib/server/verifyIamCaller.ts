@@ -40,9 +40,9 @@ function getBearerToken(request: Request): string | null {
 
 export type RequiredGroup = 'customer' | 'administrator';
 
-const FORBIDDEN_MESSAGE: Record<RequiredGroup, string> = {
-  customer: 'Forbidden: customer access required',
-  administrator: 'Forbidden: admin access required',
+const GROUP_LABEL: Record<RequiredGroup, string> = {
+  customer: 'customer',
+  administrator: 'admin',
 };
 
 export type VerifyIamCallerResult =
@@ -55,7 +55,8 @@ export type VerifyIamCallerResult =
   | { ok: false; status: 403; error: string; claims: VerifiedClaims; token: string };
 
 /**
- * Verifies the caller's Cognito ID token and required group membership. The
+ * Verifies the caller's Cognito ID token and membership of the required group
+ * (or of any one of several, for a route both customers and staff call). The
  * sole per-route authorization backstop for IAM-mode SSR routes -- see
  * docs/adr/0001-ssr-iam-access-bypasses-appsync-authorization.md: AppSync
  * grants this Lambda's execution role unconditional access to these models,
@@ -68,7 +69,7 @@ export type VerifyIamCallerResult =
  */
 export async function verifyIamCaller(
   request: Request,
-  requiredGroup: RequiredGroup
+  requiredGroup: RequiredGroup | readonly RequiredGroup[]
 ): Promise<VerifyIamCallerResult> {
   const token = getBearerToken(request);
   const verifier = getVerifier();
@@ -85,9 +86,12 @@ export async function verifyIamCaller(
   }
 
   const userGroups = claims['cognito:groups'] || [];
-  const missingRequiredSub = requiredGroup === 'customer' && !claims.sub;
-  if (!userGroups.includes(requiredGroup) || missingRequiredSub) {
-    return { ok: false, status: 403, error: FORBIDDEN_MESSAGE[requiredGroup], claims, token };
+  const requiredGroups: readonly RequiredGroup[] = typeof requiredGroup === 'string' ? [requiredGroup] : requiredGroup;
+  // A customer is always scoped by their sub, so without one they don't qualify.
+  const qualifies = requiredGroups.some((group) => userGroups.includes(group) && (group !== 'customer' || !!claims.sub));
+  if (!qualifies) {
+    const error = `Forbidden: ${requiredGroups.map((group) => GROUP_LABEL[group]).join(' or ')} access required`;
+    return { ok: false, status: 403, error, claims, token };
   }
 
   return { ok: true, claims: claims as VerifiedClaims & { sub: string }, token };

@@ -45,19 +45,28 @@ export async function listAll<K extends ModelName>(
   options?: ListOptions<K>
 ): Promise<{ data: ListItem<K>[]; errors: unknown[] }> {
   const models = client.models as Record<string, { list: (options: object) => Promise<ListResult> }>;
-  const list = (options: object) => models[model].list(options);
-  const data: ListItem<K>[] = [];
+  return listAllPages<ListItem<K>>((page) => models[model].list({ ...options, ...page }));
+}
+
+/**
+ * listAll's walk for any other paged query -- a secondary index's query field,
+ * say -- which the caller issues with the `limit` and `nextToken` it's given.
+ */
+export async function listAllPages<T>(
+  fetchPage: (page: { limit: number; nextToken: string | undefined }) => Promise<ListResult>
+): Promise<{ data: T[]; errors: unknown[] }> {
+  const data: T[] = [];
   const errors: unknown[] = [];
   let nextToken: string | undefined;
 
   do {
-    const page = await list({ ...options, limit: PAGE_SIZE, nextToken });
+    const page = await fetchPage({ limit: PAGE_SIZE, nextToken });
 
     if (page.errors && page.errors.length > 0) {
       errors.push(...page.errors);
     }
     if (page.data) {
-      data.push(...(page.data.filter((item) => item != null) as ListItem<K>[]));
+      data.push(...(page.data.filter((item) => item != null) as T[]));
     }
 
     nextToken = page.nextToken ?? undefined;

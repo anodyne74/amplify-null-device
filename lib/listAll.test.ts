@@ -1,4 +1,4 @@
-import { listAll } from './listAll';
+import { listAll, listAllPages } from './listAll';
 
 function clientWithStopPages(pages: Array<{ data: unknown[]; errors?: unknown[]; nextToken?: string | null }>) {
   const list = jest.fn();
@@ -49,5 +49,20 @@ describe('listAll', () => {
     const list = jest.fn().mockRejectedValue(new Error('network down'));
 
     await expect(listAll({ models: { Stop: { list } } }, 'Stop')).rejects.toThrow('network down');
+  });
+});
+
+describe('listAllPages', () => {
+  it('walks any paged query (e.g. a secondary index) the same way, passing the page size and token', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce({ data: [{ id: 's1' }, null], errors: [{ message: 'field auth' }], nextToken: 't1' })
+      .mockResolvedValueOnce({ data: [{ id: 's2' }] });
+
+    const result = await listAllPages<{ id: string }>((page) => query({ customerId: 'c1' }, page));
+
+    expect(result).toEqual({ data: [{ id: 's1' }, { id: 's2' }], errors: [{ message: 'field auth' }] });
+    expect(query).toHaveBeenNthCalledWith(1, { customerId: 'c1' }, { limit: 1000, nextToken: undefined });
+    expect(query).toHaveBeenNthCalledWith(2, { customerId: 'c1' }, { limit: 1000, nextToken: 't1' });
   });
 });

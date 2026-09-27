@@ -59,6 +59,22 @@ const ssrComputeRole = Role.fromRoleName(
 backend.data.resources.graphqlApi.grantMutation(ssrComputeRole);
 backend.data.resources.graphqlApi.grantQuery(ssrComputeRole);
 
+// /api/admin/send-invoice-email sends a raw MIME message (the invoice PDF is
+// an attachment), which the role's hand-made SESSendTemplatedEmails policy
+// doesn't cover -- it allows SendTemplatedEmail only. Scoped to this branch's
+// sending domain and the configuration set SES applies to it by default (SES
+// checks both).
+const ssrSesArn = (resource: string) =>
+	`arn:aws:ses:${Stack.of(backend.data.resources.graphqlApi).region}:${Stack.of(backend.data.resources.graphqlApi).account}:${resource}`;
+ssrComputeRole.addToPrincipalPolicy(
+	new PolicyStatement({
+		sid: 'AllowSesSendRawEmailFromBranchDomain',
+		effect: Effect.ALLOW,
+		actions: ['ses:SendRawEmail'],
+		resources: [ssrSesArn(`identity/${emailDomain}`), ssrSesArn('configuration-set/my-first-configuration-set')],
+	}),
+);
+
 // Property History Reports (#291, ADR 0003) are written and handed out only by
 // the /api/property-history/reports routes, so the SSR role is the one
 // principal with access to reports/ -- amplify/storage/resource.ts grants no

@@ -9,6 +9,7 @@ import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
 import type { RouteStatus } from '@/amplify/types';
 import { pickStopLocationFields, type StopLocationFields } from '@/lib/locationPrecision';
+import { propertyKey } from '@/lib/propertyKey';
 
 /**
  * Fetch all routes for a specific customer
@@ -316,11 +317,53 @@ async function getCustomerViewerSubs(customerId: string): Promise<string[] | und
 }
 
 /**
+ * The Stop location fields a caller may write. The Property key isn't one of
+ * them: every Stop write builds it here (stopPropertyKey).
+ */
+type StopLocationInput = Partial<Omit<StopLocationFields, 'propertyKey'>>;
+
+type StopAddressComponents = Partial<
+  Record<'addressStreetNumber' | 'addressStreet' | 'addressSuburb' | 'addressPostcode', string | null>
+>;
+
+function hasAddressComponents(fields: StopAddressComponents): boolean {
+  return (
+    fields.addressStreetNumber != null ||
+    fields.addressStreet != null ||
+    fields.addressSuburb != null ||
+    fields.addressPostcode != null
+  );
+}
+
+/** The input minus any Property key a caller passed despite the types. */
+function withoutPropertyKey<T extends object>(input: T): T {
+  const fields = { ...input } as T & { propertyKey?: unknown };
+  delete fields.propertyKey;
+  return fields;
+}
+
+/**
+ * The Property key for a Stop at `address` (CONTEXT.md "Property", ADR 0004),
+ * from whatever geocoded address components go with it -- or the entered
+ * address alone, so a Stop whose geocode failed, or that was imported without
+ * one, still joins Property History.
+ */
+function stopPropertyKey(address: string, fields: StopAddressComponents): string | undefined {
+  return propertyKey(address, {
+    streetNumber: fields.addressStreetNumber ?? undefined,
+    street: fields.addressStreet ?? undefined,
+    suburb: fields.addressSuburb ?? undefined,
+    postcode: fields.addressPostcode ?? undefined,
+  });
+}
+
+/**
  * Create a stop within a route. Customers read Stops only through viewerSubs,
  * so a Stop is stamped with the customer's current viewers -- looked up here
- * unless the caller passes them.
+ * unless the caller passes them. Its Property key is built from the address
+ * (stopPropertyKey); one passed in is ignored.
  */
-export async function createStop(input: Partial<StopLocationFields> & {
+export async function createStop(input: StopLocationInput & {
   routeId: string;
   customerId: string;
   viewerSubs?: string[];
@@ -337,8 +380,11 @@ export async function createStop(input: Partial<StopLocationFields> & {
   notes?: string;
 }) {
   try {
+    const fields = withoutPropertyKey(input);
+    const key = stopPropertyKey(fields.address, fields);
+    const stop = key ? { ...fields, propertyKey: key } : fields;
     const viewerSubs = input.viewerSubs ?? (await getCustomerViewerSubs(input.customerId));
-    const { data, errors } = await getDataClient().models.Stop.create(viewerSubs ? { ...input, viewerSubs } : input);
+    const { data, errors } = await getDataClient().models.Stop.create(viewerSubs ? { ...stop, viewerSubs } : stop);
 
     if (errors) {
       console.error('Errors creating stop:', errors);
@@ -351,7 +397,7 @@ export async function createStop(input: Partial<StopLocationFields> & {
   }
 }
 
-export interface CreateStopsForRouteInput extends Partial<StopLocationFields> {
+export interface CreateStopsForRouteInput extends StopLocationInput {
   address: string;
   serviceType: 'delivery' | 'pickup' | 'inspection';
   numberOfSigns?: number;
@@ -480,7 +526,7 @@ export async function listAllStops() {
 /**
  * Update a stop by ID
  */
-export interface UpdateStopInput extends Partial<StopLocationFields> {
+export interface UpdateStopInput extends StopLocationInput {
   id: string;
   sequence?: number;
   address?: string;
@@ -497,9 +543,38 @@ export interface UpdateStopInput extends Partial<StopLocationFields> {
   notes?: string;
 }
 
+/**
+ * The update with the Stop's Property key rebuilt, when the update writes an
+ * address. Without new address components, the stored ones still describe the
+ * address if it hasn't changed; a changed address is keyed from its text. A
+ * key that can't be built is left as stored -- propertyKey is an index key, so
+ * it isn't cleared.
+ */
+async function withStopPropertyKey(fields: Omit<UpdateStopInput, 'address'> & { address: string }) {
+  let components: StopAddressComponents = fields;
+  if (!hasAddressComponents(fields)) {
+    const { data: stored, errors } = await getDataClient().models.Stop.get(
+      { id: fields.id },
+      { selectionSet: ['address', 'addressStreetNumber', 'addressStreet', 'addressSuburb', 'addressPostcode'] }
+    );
+    if (errors?.length) throw new Error(errors[0].message);
+    components = stored?.address?.trim() === fields.address.trim() ? stored : {};
+  }
+
+  const key = stopPropertyKey(fields.address, components);
+  return key ? { ...fields, propertyKey: key } : fields;
+}
+
+/**
+ * Update a Stop. One that writes an address has its Property key rebuilt
+ * (withStopPropertyKey); a key passed in is ignored.
+ */
 export async function updateStop(input: UpdateStopInput) {
   try {
-    const { data, errors } = await getDataClient().models.Stop.update(input as any);
+    const fields = withoutPropertyKey(input);
+    const { address } = fields;
+    const update = address === undefined ? fields : await withStopPropertyKey({ ...fields, address });
+    const { data, errors } = await getDataClient().models.Stop.update(update as any);
 
     if (errors) {
       console.error('Errors updating stop:', errors);

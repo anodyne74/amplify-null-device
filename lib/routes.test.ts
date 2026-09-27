@@ -8,6 +8,7 @@ const mockStopList = jest.fn();
 const mockStopCreate = jest.fn();
 const mockStopDelete = jest.fn();
 const mockStopUpdate = jest.fn();
+const mockStopGet = jest.fn();
 const mockCustomerGet = jest.fn();
 
 jest.mock('aws-amplify/data', () => ({
@@ -22,6 +23,7 @@ jest.mock('aws-amplify/data', () => ({
       },
       Stop: {
         list: mockStopList,
+        get: mockStopGet,
         create: mockStopCreate,
         delete: mockStopDelete,
         update: mockStopUpdate,
@@ -45,6 +47,7 @@ import {
   createStopsForRoute,
   listCustomerStops,
   resequenceStops,
+  updateStop,
 } from './routes';
 
 describe('routes', () => {
@@ -431,6 +434,105 @@ describe('routes', () => {
       expect(results).toEqual([{ index: 0, address: 'a1', success: true }]);
       expect(mockStopCreate).toHaveBeenCalledWith(expect.not.objectContaining({ viewerSubs: expect.anything() }));
       expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+  });
+
+  describe('the Property key on a Stop write', () => {
+    const ADDRESS = '14 Cliff Rd, Epping NSW 2121';
+    const KEY = 'epping|2121|cliff road|14';
+
+    beforeEach(() => {
+      mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+      mockStopUpdate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+    });
+
+    it('keys a new Stop from its entered address alone when it has no geocode', async () => {
+      await createStopsForRoute('r1', 'c1', [{ address: ADDRESS, serviceType: 'delivery' }]);
+
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+    });
+
+    it("keys a new Stop from its geocoded components, where the entered address doesn't say", async () => {
+      await createStop({
+        routeId: 'r1',
+        customerId: 'c1',
+        sequence: 1,
+        address: '14 Cliff Rd, Epping',
+        serviceType: 'delivery',
+        addressStreetNumber: '14',
+        addressStreet: 'Cliff Road',
+        addressSuburb: 'Epping',
+        addressPostcode: '2121',
+      });
+
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+    });
+
+    it('ignores a Property key the caller passes', async () => {
+      await createStop({
+        routeId: 'r1',
+        customerId: 'c1',
+        sequence: 1,
+        address: ADDRESS,
+        serviceType: 'delivery',
+        propertyKey: 'somewhere|else|1',
+      } as Parameters<typeof createStop>[0]);
+
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+    });
+
+    it('writes no key when the address has no street number, street and suburb', async () => {
+      await createStop({ routeId: 'r1', customerId: 'c1', sequence: 1, address: 'Cliff Rd', serviceType: 'delivery' });
+
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.not.objectContaining({ propertyKey: expect.anything() }));
+    });
+
+    it("leaves the key alone on an update that doesn't write an address", async () => {
+      await updateStop({ id: 's1', numberOfSigns: 3 });
+
+      expect(mockStopGet).not.toHaveBeenCalled();
+      expect(mockStopUpdate).toHaveBeenCalledWith({ id: 's1', numberOfSigns: 3 });
+    });
+
+    it('re-keys from the geocoded components an update writes', async () => {
+      await updateStop({ id: 's1', address: '14 Cliff Rd, Epping', addressSuburb: 'Epping', addressPostcode: '2121' });
+
+      expect(mockStopGet).not.toHaveBeenCalled();
+      expect(mockStopUpdate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+    });
+
+    it("keys an unchanged address from the Stop's stored components", async () => {
+      mockStopGet.mockResolvedValue({
+        data: { address: '14 Cliff Rd, Epping ', addressSuburb: 'Epping', addressPostcode: '2121' },
+        errors: undefined,
+      });
+
+      await updateStop({ id: 's1', address: '14 Cliff Rd, Epping', numberOfSigns: 3 });
+
+      expect(mockStopUpdate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY, numberOfSigns: 3 }));
+    });
+
+    it("keys a changed address from its text, not the old address's components", async () => {
+      mockStopGet.mockResolvedValue({
+        data: { address: '2 Beecroft Rd, Beecroft', addressSuburb: 'Beecroft', addressPostcode: '2119' },
+        errors: undefined,
+      });
+
+      await updateStop({ id: 's1', address: ADDRESS });
+
+      expect(mockStopUpdate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+    });
+
+    it("doesn't write when the stored Stop can't be read", async () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockStopGet.mockResolvedValue({ data: null, errors: [{ message: 'Unauthorized' }] });
+
+      const result = await updateStop({ id: 's1', address: ADDRESS });
+
+      expect(mockStopUpdate).not.toHaveBeenCalled();
+      expect(result.data).toBeNull();
+      expect(result.errors).toHaveLength(1);
       consoleError.mockRestore();
     });
   });

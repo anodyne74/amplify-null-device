@@ -19,6 +19,7 @@ const CUSTOMER_NAV: (CustomerNavItem & { featureFlag?: FeatureFlagName })[] = [
   { href: '/customer/routes', label: 'Routes', icon: 'route' },
   { href: '/customer/invoices', label: 'Invoices', icon: 'file-text' },
   { href: '/customer/calendar', label: 'Calendar', icon: 'calendar' },
+  { href: '/customer/property-history', label: 'Property History', icon: 'history', featureFlag: 'property-history' },
   { href: '/customer/orders', label: 'Standing Orders', icon: 'clipboard-list' },
   { href: '/customer/billing-details', label: 'Billing Details', icon: 'receipt' },
   { href: '/customer/users', label: 'Team', icon: 'user-plus' },

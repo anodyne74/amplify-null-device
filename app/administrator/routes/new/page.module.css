@@ -63,6 +63,18 @@
   font-size: var(--text-sm);
 }
 
+.noPinBadge {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--status-neutral-bg);
+  color: var(--status-neutral-fg);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .auctionBadge {
   display: inline-block;
   padding: 2px var(--space-2);

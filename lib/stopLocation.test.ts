@@ -1,4 +1,4 @@
-import { locateEditedStop, locateNewStop } from './stopLocation';
+import { locateDraftStops, locateEditedStop, locateNewStop } from './stopLocation';
 import { geocodeAddress } from './googleMaps';
 import { stopLocationFields, type GeocodedLocation } from './locationPrecision';
 import { getConfirmedPin } from './propertyLocations';
@@ -186,5 +186,81 @@ describe('a Confirmed Property (#286)', () => {
     (getConfirmedPin as jest.Mock).mockRejectedValue(new Error('offline'));
 
     await expect(locateNewStop({ address: '14 Smith St, Fitzroy' })).rejects.toThrow('offline');
+  });
+});
+
+describe('locateDraftStops (#343)', () => {
+  const drafts = [
+    { address: '12 Smith St', serviceType: 'delivery' as const },
+    { address: 'Nowhere', serviceType: 'delivery' as const },
+    { address: '14 Smith St', serviceType: 'pickup' as const },
+  ];
+
+  beforeEach(() => {
+    (geocodeAddress as jest.Mock).mockImplementation(async (address: string) => {
+      if (address === 'Nowhere') throw new Error('ZERO_RESULTS');
+      return address === '12 Smith St' ? PICKED : GEOCODED;
+    });
+  });
+
+  it('locates each draft in order as a hand-added Stop would be, keeping its details', async () => {
+    const { stops, unpinned } = await locateDraftStops(drafts, undefined, 0);
+
+    expect(stops).toEqual([
+      { ...drafts[0], ...stopLocationFields(PICKED) },
+      drafts[1],
+      { ...drafts[2], ...stopLocationFields(GEOCODED) },
+    ]);
+    expect(unpinned).toBe(1);
+    expect((geocodeAddress as jest.Mock).mock.calls.map(([address]) => address)).toEqual([
+      '12 Smith St',
+      'Nowhere',
+      '14 Smith St',
+    ]);
+  });
+
+  it("applies a Property's Confirmed pin", async () => {
+    (getConfirmedPin as jest.Mock).mockResolvedValue({ latitude: -37.9, longitude: 145.0 });
+
+    const { stops } = await locateDraftStops([drafts[2]], undefined, 0);
+
+    expect(stops[0]).toMatchObject({ latitude: -37.9, longitude: 145.0, locationPrecision: 'confirmed' });
+  });
+
+  it("leaves a draft without a pin when its Confirmed-pin lookup fails, and carries on", async () => {
+    (getConfirmedPin as jest.Mock).mockRejectedValueOnce(new Error('offline'));
+
+    const { stops, unpinned } = await locateDraftStops([drafts[0], drafts[2]], undefined, 0);
+
+    expect(stops[0]).toEqual(drafts[0]);
+    expect(stops[1]).toMatchObject({ latitude: GEOCODED.latitude });
+    expect(unpinned).toBe(1);
+  });
+
+  it('reports progress after each draft', async () => {
+    const onProgress = jest.fn();
+
+    await locateDraftStops(drafts, onProgress, 0);
+
+    expect(onProgress.mock.calls).toEqual([
+      [1, 3],
+      [2, 3],
+      [3, 3],
+    ]);
+  });
+
+  it('spaces out geocodes to stay under the Maps rate limit', async () => {
+    jest.useFakeTimers();
+    try {
+      const done = locateDraftStops([drafts[0], drafts[2]], undefined, 200);
+      await jest.advanceTimersByTimeAsync(0);
+      expect(geocodeAddress).toHaveBeenCalledTimes(1);
+
+      await jest.advanceTimersByTimeAsync(200);
+      await done;
+      expect(geocodeAddress).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

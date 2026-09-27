@@ -15,7 +15,13 @@ export interface GeocodedAddress extends GeocodedLocation {
   addressComponents: AddressComponents;
 }
 
-type GeocodeRequest = { address: string } | { placeId: string };
+type GeocodeRequest = { address: string; componentRestrictions: { country: string } } | { placeId: string };
+
+/**
+ * Every Property is in Australia, so a typed address is only matched there:
+ * unrestricted, Google resolves "58 Brush Road" to Brush Hill Rd, Connecticut.
+ */
+const COUNTRY = 'AU';
 
 interface GeocodeResult {
   formatted_address?: string;
@@ -89,7 +95,7 @@ export async function geocodeAddress(address: string): Promise<GeocodedAddress> 
   if (!trimmedAddress) {
     throw new Error('Address is required.');
   }
-  return geocode({ address: trimmedAddress });
+  return geocode({ address: trimmedAddress, componentRestrictions: { country: COUNTRY } });
 }
 
 /** Geocodes an autocomplete pick by its place ID, so it gets the same precision signals as a typed address. */
@@ -108,7 +114,9 @@ async function geocode(request: GeocodeRequest): Promise<GeocodedAddress> {
   }
 
   const params = new URLSearchParams({
-    ...('placeId' in request ? { place_id: request.placeId } : { address: request.address }),
+    ...('placeId' in request
+      ? { place_id: request.placeId }
+      : { address: request.address, components: `country:${request.componentRestrictions.country}` }),
     key: apiKey,
   });
 

@@ -93,7 +93,8 @@ export function AddressAutocompleteInput({
     const controller = new AbortController();
     requestAbortRef.current = controller;
 
-    const requestBody: Record<string, unknown> = { input: input.trim() };
+    // Australian addresses only, like lib/googleMaps.ts's geocodeAddress.
+    const requestBody: Record<string, unknown> = { input: input.trim(), includedRegionCodes: ['au'] };
     if (searchOrigin) {
       requestBody.locationBias = {
         circle: {

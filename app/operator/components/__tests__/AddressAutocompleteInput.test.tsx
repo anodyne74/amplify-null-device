@@ -56,6 +56,16 @@ describe('AddressAutocompleteInput', () => {
     expect(geocodePlaceId).toHaveBeenCalledWith('place-123');
   });
 
+  it('only suggests Australian addresses', async () => {
+    render(<Harness onResolved={jest.fn()} />);
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '58 Brush Road' } });
+    await screen.findByRole('option', { name: '12 Smith St, Fitzroy VIC' });
+
+    const [, init] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(JSON.parse(init.body)).toMatchObject({ input: '58 Brush Road', includedRegionCodes: ['au'] });
+  });
+
   it('resolves nothing and shows the error when the place cannot be geocoded', async () => {
     (geocodePlaceId as jest.Mock).mockRejectedValue(new Error('Address could not be validated. ZERO_RESULTS'));
     const onResolved = jest.fn();

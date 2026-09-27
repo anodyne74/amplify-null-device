@@ -350,9 +350,9 @@ function summarizeAssessment(assessments) {
   };
 }
 
-// Mirrors the non-browser code path in lib/googleMaps.ts's geocodeAddress().
+// Mirrors the non-browser code path in lib/googleMaps.ts's geocodeAddress(), Australia only.
 async function geocodeAddress(address, apiKey) {
-  const params = new URLSearchParams({ address: address.trim(), key: apiKey });
+  const params = new URLSearchParams({ address: address.trim(), components: 'country:AU', key: apiKey });
   const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params.toString()}`);
   if (!response.ok) {
     throw new Error('Failed to validate address with Google Geocoding API.');

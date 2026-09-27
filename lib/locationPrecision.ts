@@ -4,8 +4,9 @@
  * geocode signals whenever a Stop is geocoded; Confirmed is only ever set by
  * hand and no automatic geocode overwrites it.
  *
- * scripts/ (the geocode backfill's assess mode, #284) mirrors
- * classifyLocationPrecision and parseAddressComponents -- keep them in step.
+ * scripts/backfill-geocodes.js (its --assess mode, #284) mirrors
+ * classifyLocationPrecision and parseAddressComponents -- keep them in step;
+ * scripts/__tests__/backfill-geocodes.test.ts checks both agree.
  */
 
 export type LocationPrecision = 'precise' | 'interpolated' | 'approximate' | 'confirmed';

@@ -8,7 +8,7 @@ import { Card } from '@/app/components/ui/core/Card';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
-import { Input } from '@/app/components/ui/forms/Input';
+import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import type { Pin, PropertyReview } from '@/lib/locationReview';
 import { confirmPropertyLocation, dismissSuburbMismatch, listLocationReviewQueue } from '@/lib/propertyLocations';
 import { correctPropertyAddress, locateUnpinnedStops } from '@/lib/propertyAddressCorrection';
@@ -130,6 +130,7 @@ function PropertyReviewCard({
   const startPin = suggested ?? review.currentPin;
   const [pin, setPin] = useState<Pin | null>(startPin ? { latitude: startPin.latitude, longitude: startPin.longitude } : null);
   const [correctedAddress, setCorrectedAddress] = useState('');
+  const [pickedAddress, setPickedAddress] = useState<ResolvedAddress | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -236,16 +237,22 @@ function PropertyReviewCard({
               className={styles.correction}
               onSubmit={(event) => {
                 event.preventDefault();
-                void run(() => correctPropertyAddress(review.stops, correctedAddress), onAddressCorrected);
+                void run(() => correctPropertyAddress(review.stops, correctedAddress, pickedAddress), onAddressCorrected);
               }}
             >
               <Field label="Corrected address" htmlFor={`correct-${review.propertyKey}`}>
-                <Input
+                <AddressAutocompleteInput
                   id={`correct-${review.propertyKey}`}
                   value={correctedAddress}
                   placeholder={addresses[0]}
                   disabled={saving}
-                  onChange={(event) => setCorrectedAddress(event.target.value)}
+                  onChange={setCorrectedAddress}
+                  onResolved={(resolved) => {
+                    setPickedAddress(resolved);
+                    if (resolved) setCorrectedAddress(resolved.formattedAddress);
+                  }}
+                  searchOrigin={review.currentPin}
+                  className="nd-input"
                 />
               </Field>
               <Button size="sm" variant="secondary" type="submit" disabled={saving || !correctedAddress.trim()}>

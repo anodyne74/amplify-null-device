@@ -1,23 +1,26 @@
 import { geocodeAddress } from './googleMaps';
+import type { GeocodedLocation } from './locationPrecision';
 import { saveStop } from './routes';
 import type { LocatedStop } from './stopLocation';
 
 /**
  * Corrects the entered address of every Stop at a Property -- the Location
  * review queue's answer to a suburb mismatch the entered address got wrong
- * (#286). The address is geocoded once, and each Stop saved as any address
- * edit would be (saveStop: a new Property key; a Confirmed Stop keeps its pin).
+ * (#286). The address is geocoded once -- or taken from the autocomplete pick
+ * it came from -- and each Stop saved as any address edit would be (saveStop:
+ * a new Property key; a Confirmed Stop keeps its pin).
  */
 export async function correctPropertyAddress(
   stops: (LocatedStop & { id: string })[],
-  address: string
+  address: string,
+  picked?: GeocodedLocation | null
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const trimmed = address.trim();
   if (!trimmed) return { ok: false, error: 'Enter the corrected address.' };
 
   let geocoded;
   try {
-    geocoded = await geocodeAddress(trimmed);
+    geocoded = picked ?? (await geocodeAddress(trimmed));
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Could not locate the corrected address.' };
   }

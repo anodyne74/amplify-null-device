@@ -27,6 +27,36 @@ jest.mock('next/dynamic', () => () => {
   return MockPropertyPinMap;
 });
 
+// Stand in for Places autocomplete: a plain input, plus a button that picks a suggestion.
+const PICKED = { formattedAddress: '3 Pennant St, Carlingford NSW 2118, Australia', latitude: -33.78, longitude: 151.05 };
+jest.mock('@/app/operator/components/AddressAutocompleteInput', () => ({
+  AddressAutocompleteInput: ({
+    id,
+    value,
+    onChange,
+    onResolved,
+  }: {
+    id: string;
+    value: string;
+    onChange: (value: string) => void;
+    onResolved: (resolved: object | null) => void;
+  }) => (
+    <>
+      <input
+        id={id}
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+          onResolved(null);
+        }}
+      />
+      <button type="button" onClick={() => onResolved(PICKED)}>
+        Pick suggestion
+      </button>
+    </>
+  ),
+}));
+
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -135,8 +165,21 @@ describe('Administrator Location review page', () => {
     fireEvent.change(screen.getByLabelText('Corrected address'), { target: { value: '3 Pennant St, Carlingford' } });
     fireEvent.click(screen.getByRole('button', { name: 'Correct address' }));
 
-    await waitFor(() => expect(correctPropertyAddress).toHaveBeenCalledWith(PENNANT_STREET.stops, '3 Pennant St, Carlingford'));
+    await waitFor(() => expect(correctPropertyAddress).toHaveBeenCalledWith(PENNANT_STREET.stops, '3 Pennant St, Carlingford', null));
     await waitFor(() => expect(listLocationReviewQueue).toHaveBeenCalledTimes(2));
+  });
+
+  it('corrects to an address picked from the suggestions, as picked', async () => {
+    render(<AdministratorLocationReviewPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /3 Pennant St/ }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pick suggestion' }));
+    expect(screen.getByLabelText('Corrected address')).toHaveValue(PICKED.formattedAddress);
+    fireEvent.click(screen.getByRole('button', { name: 'Correct address' }));
+
+    await waitFor(() =>
+      expect(correctPropertyAddress).toHaveBeenCalledWith(PENNANT_STREET.stops, PICKED.formattedAddress, PICKED)
+    );
   });
 
   describe('a Property with a Stop that has no pin (#344)', () => {
@@ -177,7 +220,7 @@ describe('Administrator Location review page', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Correct address' }));
 
       await waitFor(() =>
-        expect(correctPropertyAddress).toHaveBeenCalledWith(BEECROFT_ROAD.stops, '2 Beecroft Rd, Beecroft NSW 2119')
+        expect(correctPropertyAddress).toHaveBeenCalledWith(BEECROFT_ROAD.stops, '2 Beecroft Rd, Beecroft NSW 2119', null)
       );
     });
 

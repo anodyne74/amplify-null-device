@@ -16,13 +16,12 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { geocodeAddress } from '@/lib/googleMaps';
-import { locateEditedStop, locateNewStop } from '@/lib/stopLocation';
 import type { StopFormValues } from '@/lib/use-route-detail-data';
 import { getUserSettings } from '@/lib/userSettings';
 import type { Route, Stop } from '@/amplify/types';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
-import { createStop, getRouteWithStops, updateRoute, deleteStop, updateStop, resequenceStops } from '@/lib/routes';
+import { getRouteWithStops, updateRoute, deleteStop, saveStop, resequenceStops, UNPINNED_STOP_NOTICE } from '@/lib/routes';
 import { listAllCustomers } from '@/lib/customers';
 
 type CustomerOption = {
@@ -69,6 +68,7 @@ function RouteEditContent() {
   const [dragOverStopId, setDragOverStopId] = useState<string | null>(null);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [stopError, setStopError] = useState<string | null>(null);
+  const [stopNotice, setStopNotice] = useState<string | null>(null);
   const [stopPendingDelete, setStopPendingDelete] = useState<Stop | null>(null);
 
   const [routeCode, setRouteCode] = useState('');
@@ -307,30 +307,14 @@ function RouteEditContent() {
 
     setStopSaving(true);
     setStopError(null);
-    try {
-      const location = await locateNewStop(values);
-
-      const result = await createStop({
-        routeId,
-        customerId,
-        sequence: stops.length + 1,
-        address: values.address,
-        ...location,
-        serviceType: values.serviceType,
-        numberOfSigns: values.numberOfSigns,
-        agent: values.agent,
-        isAuction: values.isAuction,
-        notes: values.notes,
-      });
-
-      if (result.errors && result.errors.length > 0) {
-        setStopError('Failed to add stop.');
-      } else {
-        setShowAddStop(false);
-        await fetchStops();
-      }
-    } catch {
+    setStopNotice(null);
+    const result = await saveStop({ routeId, customerId, sequence: stops.length + 1 }, values);
+    if (result.errors && result.errors.length > 0) {
       setStopError('Failed to add stop.');
+    } else {
+      if (!result.pinned) setStopNotice(UNPINNED_STOP_NOTICE);
+      setShowAddStop(false);
+      await fetchStops();
     }
     setStopSaving(false);
   };
@@ -340,32 +324,16 @@ function RouteEditContent() {
 
     setStopSaving(true);
     setStopError(null);
-    try {
-      const location = await locateEditedStop(
-        stops.find((s) => s.id === editingStopId),
-        values
-      );
-
-      const result = await updateStop({
-        id: editingStopId,
-        address: values.address,
-        ...location,
-        serviceType: values.serviceType,
-        numberOfSigns: values.numberOfSigns,
-        agent: values.agent,
-        isAuction: values.isAuction,
-        notes: values.notes,
-      });
-
-      if (result.errors && result.errors.length > 0) {
-        const firstError = result.errors[0] as { message?: string } | undefined;
-        setStopError(firstError?.message ?? 'Failed to update stop.');
-      } else {
-        setEditingStopId(null);
-        await fetchStops();
-      }
-    } catch (error) {
-      setStopError(error instanceof Error ? error.message : 'Failed to update stop.');
+    setStopNotice(null);
+    const original = stops.find((s) => s.id === editingStopId) ?? { id: editingStopId };
+    const result = await saveStop({ original }, values);
+    if (result.errors && result.errors.length > 0) {
+      const firstError = result.errors[0] as { message?: string } | undefined;
+      setStopError(firstError?.message ?? 'Failed to update stop.');
+    } else {
+      if (!result.pinned) setStopNotice(UNPINNED_STOP_NOTICE);
+      setEditingStopId(null);
+      await fetchStops();
     }
     setStopSaving(false);
   };
@@ -544,6 +512,7 @@ function RouteEditContent() {
         </div>
 
         {stopError && <div className={styles.errorBanner}>{stopError}</div>}
+        {stopNotice && <div className={styles.noticeBanner} role="status">{stopNotice}</div>}
         {reordering && <p className={styles.reorderingText}>Saving stop order...</p>}
         {!reordering && stops.length > 1 && (
           <p className={styles.dragHint}>Drag cards to reorder stops</p>

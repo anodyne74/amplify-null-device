@@ -39,6 +39,16 @@
   margin-bottom: var(--space-5);
 }
 
+.noticeBanner {
+  padding: var(--space-4);
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  border: var(--border-hairline) solid var(--status-warning-fg);
+  margin-bottom: var(--space-5);
+}
+
 .fieldsGrid {
   display: flex;
   flex-direction: column;

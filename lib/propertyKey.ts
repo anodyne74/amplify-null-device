@@ -12,7 +12,7 @@
  * scripts/backfill-geocodes.js mirrors propertyKey -- keep them in step;
  * scripts/__tests__/backfill-geocodes.test.ts checks both agree.
  */
-import type { AddressComponents } from './locationPrecision';
+import type { AddressComponents, StopLocationFields } from './locationPrecision';
 
 const STREET_TYPES: Record<string, string> = {
   av: 'avenue',
@@ -99,6 +99,25 @@ export function propertyKey(address: string, components: AddressComponents): str
 
   const postcode = enteredPostcode(address) ?? (geocodedSuburb === suburb ? components.postcode : undefined) ?? '';
   return [suburb, postcode, normaliseStreet(street), streetNumber].join('|');
+}
+
+/** A Stop's geocoded address components, as stored on the Stop. */
+export type StopAddressComponents = {
+  [K in 'addressStreetNumber' | 'addressStreet' | 'addressSuburb' | 'addressPostcode']?: StopLocationFields[K] | null;
+};
+
+/**
+ * The Property key for a Stop at `address`, from the geocoded address
+ * components stored with it -- or the entered address alone, so a Stop whose
+ * geocode failed, or that was imported without one, still has a Property.
+ */
+export function stopPropertyKey(address: string, fields: StopAddressComponents): string | undefined {
+  return propertyKey(address, {
+    streetNumber: fields.addressStreetNumber ?? undefined,
+    street: fields.addressStreet ?? undefined,
+    suburb: fields.addressSuburb ?? undefined,
+    postcode: fields.addressPostcode ?? undefined,
+  });
 }
 
 /** A propertyKey prefix for a suburb or street search -- delimited, so it matches that suburb or street exactly. */

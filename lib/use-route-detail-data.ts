@@ -5,14 +5,13 @@ import type { Stop } from '@/amplify/types';
 import { isAdmin } from '@/lib/amplify-config';
 import { geocodeAddress } from '@/lib/googleMaps';
 import type { GeocodedLocation } from '@/lib/locationPrecision';
-import { locateEditedStop, locateNewStop } from '@/lib/stopLocation';
 import { useRouteWithStops } from '@/lib/useRouteWithStops';
 import {
-  createStop,
   deleteRoute as deleteRouteQuery,
   deleteStop as deleteStopQuery,
   resequenceStops,
-  updateStop as updateStopQuery,
+  saveStop,
+  UNPINNED_STOP_NOTICE,
 } from '@/lib/routes';
 import { getCustomer } from '@/lib/customers';
 
@@ -113,6 +112,7 @@ export function useRouteDetailData(id: string, user: unknown) {
   const [editingStopId, setEditingStopId] = useState<string | null>(null);
   const [editingStop, setEditingStop] = useState(false);
   const [editStopError, setEditStopError] = useState<string | null>(null);
+  const [stopNotice, setStopNotice] = useState<string | null>(null);
 
   const [draggingStopId, setDraggingStopId] = useState<string | null>(null);
   const [deletingStopId, setDeletingStopId] = useState<string | null>(null);
@@ -232,29 +232,14 @@ export function useRouteDetailData(id: string, user: unknown) {
 
       setAddingStop(true);
       setAddStopError(null);
-      try {
-        const location = await locateNewStop(values);
-
-        const result = await createStop({
-          routeId: route.id,
-          customerId: route.customerId,
-          sequence: stops.length + 1,
-          address: values.address,
-          ...location,
-          serviceType: values.serviceType,
-          numberOfSigns: values.numberOfSigns,
-          agent: values.agent,
-          isAuction: values.isAuction,
-          notes: values.notes,
-        });
-        if (result.errors && result.errors.length > 0) {
-          setAddStopError('Failed to add stop.');
-        } else {
-          setShowAddStop(false);
-          await refetch();
-        }
-      } catch {
+      setStopNotice(null);
+      const result = await saveStop({ routeId: route.id, customerId: route.customerId, sequence: stops.length + 1 }, values);
+      if (result.errors && result.errors.length > 0) {
         setAddStopError('Failed to add stop.');
+      } else {
+        if (!result.pinned) setStopNotice(UNPINNED_STOP_NOTICE);
+        setShowAddStop(false);
+        await refetch();
       }
       setAddingStop(false);
     },
@@ -277,31 +262,16 @@ export function useRouteDetailData(id: string, user: unknown) {
 
       setEditingStop(true);
       setEditStopError(null);
-      try {
-        const location = await locateEditedStop(
-          stops.find((s) => s.id === editingStopId),
-          values
-        );
-
-        const result = await updateStopQuery({
-          id: editingStopId,
-          address: values.address,
-          ...location,
-          serviceType: values.serviceType,
-          numberOfSigns: values.numberOfSigns,
-          agent: values.agent,
-          isAuction: values.isAuction,
-          notes: values.notes,
-        });
-        if (result.errors && result.errors.length > 0) {
-          const firstError = result.errors[0] as { message?: string } | undefined;
-          setEditStopError(firstError?.message ?? 'Failed to update stop.');
-        } else {
-          setEditingStopId(null);
-          await refetch();
-        }
-      } catch (err) {
-        setEditStopError(err instanceof Error ? err.message : 'Failed to update stop.');
+      setStopNotice(null);
+      const original = stops.find((s) => s.id === editingStopId) ?? { id: editingStopId };
+      const result = await saveStop({ original }, values);
+      if (result.errors && result.errors.length > 0) {
+        const firstError = result.errors[0] as { message?: string } | undefined;
+        setEditStopError(firstError?.message ?? 'Failed to update stop.');
+      } else {
+        if (!result.pinned) setStopNotice(UNPINNED_STOP_NOTICE);
+        setEditingStopId(null);
+        await refetch();
       }
       setEditingStop(false);
     },
@@ -490,6 +460,8 @@ export function useRouteDetailData(id: string, user: unknown) {
 
     refetch,
 
+    /** Set after a Stop saves without a map pin (lib/routes.ts saveStop). */
+    stopNotice,
     addStop: addStopCapability,
     editStop: editStopCapability,
     deleteStop: deleteStopCapability,

@@ -1,7 +1,6 @@
 import { locateEditedStop, locateNewStop } from './stopLocation';
 import { geocodeAddress } from './googleMaps';
 import { stopLocationFields, type GeocodedLocation } from './locationPrecision';
-import { propertyKey } from './propertyKey';
 import { getConfirmedPin } from './propertyLocations';
 
 jest.mock('./googleMaps', () => ({
@@ -32,52 +31,36 @@ const GEOCODED: GeocodedLocation = {
   addressComponents: { streetNumber: '14', street: 'Smith Street', suburb: 'Fitzroy', postcode: '3065' },
 };
 
-/** What a Stop at this address, located by this geocode, should get. */
-function locatedAt(address: string, geocoded: GeocodedLocation) {
-  return { ...stopLocationFields(geocoded), propertyKey: propertyKey(address, geocoded.addressComponents ?? {}) };
+/** What a Stop located by this geocode should get. */
+function locatedBy(geocoded: GeocodedLocation) {
+  return { fields: stopLocationFields(geocoded), pinned: true };
 }
+
+let consoleWarn: jest.SpyInstance;
 
 beforeEach(() => {
   (geocodeAddress as jest.Mock).mockReset().mockResolvedValue(GEOCODED);
   (getConfirmedPin as jest.Mock).mockReset().mockResolvedValue(null);
+  consoleWarn = jest.spyOn(console, 'warn').mockImplementation(() => {});
 });
+
+afterEach(() => consoleWarn.mockRestore());
 
 describe('locateNewStop', () => {
   it('uses the autocomplete pick without geocoding again', async () => {
-    await expect(locateNewStop({ address: '12 Smith St', resolvedLocation: PICKED })).resolves.toEqual(
-      locatedAt('12 Smith St', PICKED)
-    );
+    await expect(locateNewStop({ address: '12 Smith St', resolvedLocation: PICKED })).resolves.toEqual(locatedBy(PICKED));
     expect(geocodeAddress).not.toHaveBeenCalled();
   });
 
   it('geocodes a typed address, recording its precision and address components', async () => {
-    await expect(locateNewStop({ address: '14 Smith St' })).resolves.toEqual(locatedAt('14 Smith St', GEOCODED));
+    await expect(locateNewStop({ address: '14 Smith St' })).resolves.toEqual(locatedBy(GEOCODED));
     expect(geocodeAddress).toHaveBeenCalledWith('14 Smith St');
   });
-});
 
-describe('Property key (#287)', () => {
-  it('keys a new Stop by its entered address and geocoded components', async () => {
-    await expect(locateNewStop({ address: '14 Smith St, Fitzroy VIC 3065' })).resolves.toMatchObject({
-      propertyKey: 'fitzroy|3065|smith street|14',
-    });
-  });
+  it("locates a Stop whose address can't be geocoded as having no pin", async () => {
+    (geocodeAddress as jest.Mock).mockRejectedValue(new Error('ZERO_RESULTS'));
 
-  it('re-keys an edited Stop whose address changed, even a Confirmed one', async () => {
-    const confirmed = { address: '12 Smith St', latitude: -37.8, longitude: 144.98, locationPrecision: 'confirmed' };
-
-    await expect(locateEditedStop(confirmed, { address: '14 Smith St, Fitzroy' })).resolves.toMatchObject({
-      propertyKey: 'fitzroy|3065|smith street|14',
-    });
-  });
-
-  it('keys by the entered address alone when the geocode carries no address components', async () => {
-    (geocodeAddress as jest.Mock).mockResolvedValue({ formattedAddress: 'x', latitude: 1, longitude: 2 });
-
-    await expect(locateNewStop({ address: '14 Smith St, Fitzroy' })).resolves.toMatchObject({
-      propertyKey: 'fitzroy||smith street|14',
-    });
-    await expect(locateNewStop({ address: '14 Smith St' })).resolves.not.toHaveProperty('propertyKey');
+    await expect(locateNewStop({ address: '14 Smith St' })).resolves.toEqual({ fields: {}, pinned: false });
   });
 });
 
@@ -85,23 +68,23 @@ describe('locateEditedStop', () => {
   const located = { address: '12 Smith St', latitude: -37.8, longitude: 144.98, locationPrecision: 'precise' };
 
   it('changes nothing about the location when the address is unchanged (#58)', async () => {
-    await expect(locateEditedStop(located, { address: ' 12 Smith St ' })).resolves.toEqual({});
+    await expect(locateEditedStop(located, { address: ' 12 Smith St ' })).resolves.toEqual({ fields: {}, pinned: true });
     expect(geocodeAddress).not.toHaveBeenCalled();
   });
 
   it('re-geocodes a changed address', async () => {
-    await expect(locateEditedStop(located, { address: '14 Smith St' })).resolves.toEqual(locatedAt('14 Smith St', GEOCODED));
+    await expect(locateEditedStop(located, { address: '14 Smith St' })).resolves.toEqual(locatedBy(GEOCODED));
   });
 
   it('geocodes an unchanged address that never had coordinates', async () => {
     await expect(locateEditedStop({ address: '14 Smith St' }, { address: '14 Smith St' })).resolves.toEqual(
-      locatedAt('14 Smith St', GEOCODED)
+      locatedBy(GEOCODED)
     );
   });
 
   it('applies a new autocomplete pick', async () => {
     await expect(locateEditedStop(located, { address: '12 Smith St', resolvedLocation: PICKED })).resolves.toEqual(
-      locatedAt('12 Smith St', PICKED)
+      locatedBy(PICKED)
     );
   });
 
@@ -109,11 +92,46 @@ describe('locateEditedStop', () => {
     const confirmed = { ...located, locationPrecision: 'confirmed' };
 
     for (const values of [{ address: '14 Smith St' }, { address: '12 Smith St', resolvedLocation: PICKED }]) {
-      const update = await locateEditedStop(confirmed, values);
-      expect(update).not.toHaveProperty('latitude');
-      expect(update).not.toHaveProperty('longitude');
-      expect(update).not.toHaveProperty('locationPrecision');
+      const { fields, pinned } = await locateEditedStop(confirmed, values);
+      expect(fields).not.toHaveProperty('latitude');
+      expect(fields).not.toHaveProperty('longitude');
+      expect(fields).not.toHaveProperty('locationPrecision');
+      expect(pinned).toBe(true);
     }
+  });
+
+  describe("when the new address can't be geocoded", () => {
+    beforeEach(() => {
+      (geocodeAddress as jest.Mock).mockRejectedValue(new Error('ZERO_RESULTS'));
+    });
+
+    it("clears the old address's pin, precision and address components", async () => {
+      const { fields, pinned } = await locateEditedStop(located, { address: '14 Smith St' });
+
+      expect(pinned).toBe(false);
+      expect(fields).toMatchObject({
+        latitude: null,
+        longitude: null,
+        formattedAddress: null,
+        locationPrecision: null,
+        addressStreetNumber: null,
+        addressSuburb: null,
+      });
+    });
+
+    it('leaves a Confirmed Stop where it is', async () => {
+      await expect(locateEditedStop({ ...located, locationPrecision: 'confirmed' }, { address: '14 Smith St' })).resolves.toEqual({
+        fields: {},
+        pinned: true,
+      });
+    });
+
+    it('changes nothing for an unchanged address that never had coordinates', async () => {
+      await expect(locateEditedStop({ address: '14 Smith St' }, { address: '14 Smith St' })).resolves.toEqual({
+        fields: {},
+        pinned: false,
+      });
+    });
   });
 });
 
@@ -125,29 +143,46 @@ describe('a Confirmed Property (#286)', () => {
   });
 
   it("gives a new Stop at the address the Property's Confirmed pin, not the geocode", async () => {
-    const located = await locateNewStop({ address: '14 Smith St, Fitzroy VIC 3065' });
+    const { fields, pinned } = await locateNewStop({ address: '14 Smith St, Fitzroy VIC 3065' });
 
     expect(getConfirmedPin).toHaveBeenCalledWith('fitzroy|3065|smith street|14');
-    expect(located).toMatchObject({ ...CONFIRMED_PIN, locationPrecision: 'confirmed', propertyKey: 'fitzroy|3065|smith street|14' });
+    expect(fields).toMatchObject({ ...CONFIRMED_PIN, locationPrecision: 'confirmed' });
+    expect(pinned).toBe(true);
+  });
+
+  it('looks the Property up by its geocoded components, as the write keys it', async () => {
+    await locateNewStop({ address: '14 Smith St, Fitzroy' });
+
+    expect(getConfirmedPin).toHaveBeenCalledWith('fitzroy|3065|smith street|14');
   });
 
   it('gives an edited Stop moved to the address the Confirmed pin too', async () => {
     const located = { address: '12 Smith St', latitude: -37.8, longitude: 144.98, locationPrecision: 'precise' };
 
     await expect(locateEditedStop(located, { address: '14 Smith St, Fitzroy' })).resolves.toMatchObject({
-      ...CONFIRMED_PIN,
-      locationPrecision: 'confirmed',
+      fields: { ...CONFIRMED_PIN, locationPrecision: 'confirmed' },
+      pinned: true,
     });
+  });
+
+  it("pins a Stop whose address can't be geocoded, by its entered address", async () => {
+    (geocodeAddress as jest.Mock).mockRejectedValue(new Error('ZERO_RESULTS'));
+
+    await expect(locateNewStop({ address: '14 Smith St, Fitzroy VIC 3065' })).resolves.toEqual({
+      fields: { ...CONFIRMED_PIN, locationPrecision: 'confirmed' },
+      pinned: true,
+    });
+    expect(getConfirmedPin).toHaveBeenCalledWith('fitzroy|3065|smith street|14');
   });
 
   it("doesn't look up a Stop with no Property key", async () => {
     (geocodeAddress as jest.Mock).mockResolvedValue({ formattedAddress: 'x', latitude: 1, longitude: 2 });
 
-    await expect(locateNewStop({ address: 'Smith St' })).resolves.toMatchObject({ latitude: 1, longitude: 2 });
+    await expect(locateNewStop({ address: 'Smith St' })).resolves.toMatchObject({ fields: { latitude: 1, longitude: 2 } });
     expect(getConfirmedPin).not.toHaveBeenCalled();
   });
 
-  it('fails the write when the lookup fails, as a failed geocode does', async () => {
+  it('fails the write when the lookup fails', async () => {
     (getConfirmedPin as jest.Mock).mockRejectedValue(new Error('offline'));
 
     await expect(locateNewStop({ address: '14 Smith St, Fitzroy' })).rejects.toThrow('offline');

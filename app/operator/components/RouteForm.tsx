@@ -197,15 +197,15 @@ export function RouteForm({
     setStopError(null);
 
     try {
-      let location: StopLocationFields | undefined;
-      try {
-        location = await locateNewStop({ address: values.address, resolvedLocation });
-      } catch {
-        setStopError('Stop added without coordinates. Map preview may be incomplete until address geocoding succeeds.');
+      const location = await locateNewStop({ address: values.address, resolvedLocation });
+      if (!location.pinned) {
+        setStopError("Stop added without a map pin: its address couldn't be found on the map.");
       }
 
-      setStops((prev) => [...prev, { ...values, ...location }]);
+      setStops((prev) => [...prev, { ...values, ...location.fields }]);
       setShowAddStop(false);
+    } catch {
+      setStopError('Failed to add stop.');
     } finally {
       setAddingStop(false);
     }

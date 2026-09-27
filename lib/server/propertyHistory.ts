@@ -18,7 +18,7 @@ import {
  * propertyKey indexes, then their Routes and Invoices, and hand the lot to
  * lib/propertyHistory.ts. Pass the IAM client from authorizeIamRequest.
  *
- * A customer's search is scoped to `ownCustomerId` -- the Customer resolved
+ * A customer's search is scoped to their `customerId` -- the Customer resolved
  * from their own CustomerUser row, never the request -- whatever the filters
  * say, and every Stop is checked against it again after the query.
  *
@@ -26,7 +26,8 @@ import {
  * Visits rather than look broken.
  */
 
-type Scope = { audience: 'customer'; ownCustomerId: string } | { audience: 'administrator' };
+// The caller from authorizePropertyHistoryRequest fits this as it is.
+type Scope = { audience: 'customer'; customerId: string } | { audience: 'administrator' };
 
 const STOP_FIELDS = [
   'id',
@@ -157,11 +158,11 @@ export async function searchPropertyHistory(
   requestedFilters: PropertyHistoryFilters
 ): Promise<PropertyHistoryResult> {
   const filters: PropertyHistoryFilters =
-    scope.audience === 'customer' ? { ...requestedFilters, customerId: scope.ownCustomerId } : requestedFilters;
+    scope.audience === 'customer' ? { ...requestedFilters, customerId: scope.customerId } : requestedFilters;
   const customerScope = filters.customerId ? [filters.customerId] : 'all';
 
   const found = await findStops(client, search, customerScope);
-  const stops = scope.audience === 'customer' ? found.filter((stop) => stop.customerId === scope.ownCustomerId) : found;
+  const stops = scope.audience === 'customer' ? found.filter((stop) => stop.customerId === scope.customerId) : found;
 
   const routesById = await getRoutes(client, [...new Set(stops.map((stop) => stop.routeId))]);
   const routes = Object.values(routesById);

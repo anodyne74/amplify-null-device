@@ -1,5 +1,8 @@
 import { defineStorage } from '@aws-amplify/backend';
 
+// No rule covers reports/: Property History Reports are read only through the
+// reports API, which checks the caller's Customer (#291; amplify/backend.ts
+// grants the SSR role alone access there).
 export const storage = defineStorage({
   name: 'invoiceStorage',
   access: (allow) => ({

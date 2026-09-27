@@ -1,6 +1,6 @@
 # Property History reports are frozen snapshots, not saved queries
 
-Status: proposed
+Status: accepted
 
 A Property History report answers an agent's question ("which of these properties did you service, and when?"), so it has to show what we told them on the day we told them. Each report is stored as a generated PDF plus a record of who generated it, when, for which Customer and which search. Reopening it never runs the search again. The alternative was to save only the search and regenerate on open. That's cheaper to store and always current, but it was rejected because later edits to Routes, Stops or Invoices would silently change a document that has already gone to an agent.
 

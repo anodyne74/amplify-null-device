@@ -3,7 +3,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import CustomerPropertyHistoryPage from '../page';
 import { getCustomerPortalContext } from '@/lib/customers';
-import { listTypeaheadOptions, searchPropertyHistory } from '@/lib/propertyHistorySearch';
+import { listPropertyHistoryReports, listTypeaheadOptions, searchPropertyHistory } from '@/lib/propertyHistorySearch';
 import { buildTypeaheadOptions } from '@/lib/propertyHistoryTypeahead';
 import { FeatureFlagsProvider } from '@/lib/useFeatureFlags';
 
@@ -26,6 +26,9 @@ jest.mock('@/lib/propertyHistorySearch', () => ({
   listTypeaheadOptions: jest.fn(),
   searchPropertyHistory: jest.fn(),
   listRouteProperties: jest.fn(),
+  generatePropertyHistoryReport: jest.fn(),
+  listPropertyHistoryReports: jest.fn(),
+  openPropertyHistoryReport: jest.fn(),
 }));
 
 let mockOnFlags: string[] = [];
@@ -108,6 +111,27 @@ describe('Customer Property History page', () => {
 
     expect(within(property).getByText('INV-0001')).toBeInTheDocument();
     expect(within(property).queryByRole('link', { name: 'INV-0001' })).not.toBeInTheDocument();
+  });
+
+  it('gives an Account Owner Export and the Reports tab', async () => {
+    (listPropertyHistoryReports as jest.Mock).mockResolvedValue([]);
+    renderPage();
+    await searchCliffRoad();
+
+    expect(screen.getByRole('button', { name: 'Export PDF' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Reports' }));
+    expect(await screen.findByText(/No reports yet/)).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Customer' })).not.toBeInTheDocument();
+  });
+
+  it('gives a read-only user neither Export nor reports', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'read_only', customerId: 'cust-1' });
+    renderPage();
+    await searchCliffRoad();
+
+    expect(screen.queryByRole('button', { name: 'Export PDF' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Reports' })).not.toBeInTheDocument();
+    expect(listPropertyHistoryReports).not.toHaveBeenCalled();
   });
 
   it('shows nothing and sends the user to the dashboard while the flag is off', async () => {

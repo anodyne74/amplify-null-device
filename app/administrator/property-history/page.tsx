@@ -10,7 +10,7 @@ import styles from './page.module.css';
 const routeHref = (routeId: string) => `/administrator/routes/detail?id=${routeId}`;
 const invoiceHref = (invoiceId: string) => `/administrator/invoices#invoice-${invoiceId}`;
 
-/** Property History (#289): every Visit to a suburb, street or address, across all Customers. */
+/** Property History (#289): every Visit to a suburb, street or address, across all Customers, and its reports (#291). */
 export default function AdministratorPropertyHistoryPage() {
   const [customers, setCustomers] = useState<{ value: string; label: string }[]>([]);
 
@@ -33,7 +33,7 @@ export default function AdministratorPropertyHistoryPage() {
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
         <PageHeader title="Property History" subtitle="Every Visit to a suburb, street or address, across all Customers" />
-        <PropertyHistoryExplorer staff customers={customers} routeHref={routeHref} invoiceHref={invoiceHref} />
+        <PropertyHistoryExplorer staff reports customers={customers} routeHref={routeHref} invoiceHref={invoiceHref} />
       </div>
     </OperatorRoute>
   );

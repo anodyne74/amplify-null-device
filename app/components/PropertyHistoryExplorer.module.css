@@ -9,6 +9,16 @@
   color: var(--text-muted);
 }
 
+.searchPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.searchPanel[hidden] {
+  display: none;
+}
+
 .searchBody {
   display: flex;
   flex-direction: column;

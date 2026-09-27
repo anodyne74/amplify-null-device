@@ -2,12 +2,18 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { RouteForm } from '../RouteForm';
+import { STOP_NEEDS_SUBURB } from '@/lib/routes';
 
 // Mock toast hook (provider lives in the root layout, not in this tree)
 jest.mock('@/app/components/ToastProvider', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useToast: () => ({ showToast: jest.fn() }),
+}));
+
+// A Stop with a Property key looks up its Confirmed pin; there is none here
+jest.mock('@/lib/propertyLocations', () => ({
+  getConfirmedPin: jest.fn().mockResolvedValue(null),
 }));
 
 const mockCustomers = [
@@ -71,11 +77,11 @@ describe('RouteForm', () => {
 
     // Add one stop via mocked StopForm
     fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
-    fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: '123 Main St' } });
+    fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: '123 Main St, Epping' } });
     fireEvent.click(screen.getByRole('button', { name: /add stop to route/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('123 Main St')).toBeInTheDocument();
+      expect(screen.getByText('123 Main St, Epping')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: /create route/i }));
@@ -280,10 +286,10 @@ describe('RouteForm', () => {
     await waitFor(() => expect(onCheckDateBlock).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
-    fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: '123 Main St' } });
+    fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: '123 Main St, Epping' } });
     fireEvent.click(screen.getByRole('button', { name: /add stop to route/i }));
     await waitFor(() => {
-      expect(screen.getByText('123 Main St')).toBeInTheDocument();
+      expect(screen.getByText('123 Main St, Epping')).toBeInTheDocument();
     });
 
     expect(screen.getByRole('button', { name: /create route/i })).not.toBeDisabled();
@@ -292,5 +298,16 @@ describe('RouteForm', () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalled();
     });
+  });
+
+  it("refuses a Stop with no suburb that couldn't be found on the map", async () => {
+    render(<RouteForm customers={mockCustomers} onSubmit={noop} onCancel={noop} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
+    fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: '123 Main St' } });
+    fireEvent.click(screen.getByRole('button', { name: /add stop to route/i }));
+
+    expect(await screen.findByText(STOP_NEEDS_SUBURB)).toBeInTheDocument();
+    expect(screen.getByText('No stops added yet.')).toBeInTheDocument();
   });
 });

@@ -10,7 +10,7 @@ import { listAll } from '@/lib/listAll';
 import type { RouteStatus } from '@/amplify/types';
 import { pickStopLocationFields, type StopLocationWrite } from '@/lib/locationPrecision';
 import { stopPropertyKey, type StopAddressComponents } from '@/lib/propertyKey';
-import { locateEditedStop, locateNewStop, type LocatedStop, type StopAddressInput, type StopLocation } from '@/lib/stopLocation';
+import { lacksProperty, locateEditedStop, locateNewStop, type LocatedStop, type StopAddressInput } from '@/lib/stopLocation';
 
 /**
  * Fetch all routes for a specific customer
@@ -403,7 +403,9 @@ export interface CreateStopsForRouteResult {
  * Create every stop for a newly-created route concurrently, rather than one round
  * trip at a time — for routes with 15-28 stops a serial loop measurably delayed
  * route creation. Returns a per-stop success/failure result (in input order) so
- * callers can report which specific stops failed and why.
+ * callers can report which specific stops failed and why. A stop with no pin
+ * and no suburb isn't created (STOP_NEEDS_SUBURB), e.g. one copied from an
+ * older Route.
  */
 export async function createStopsForRoute(
   routeId: string,
@@ -414,6 +416,11 @@ export async function createStopsForRoute(
 
   return Promise.all(
     stops.map(async (stop, index) => {
+      const location = { fields: pickStopLocationFields(stop), pinned: typeof stop.latitude === 'number' };
+      if (lacksProperty(stop.address, location)) {
+        return { index, address: stop.address, success: false, errorMessage: STOP_NEEDS_SUBURB };
+      }
+
       const stopResult = await createStop({
         routeId,
         customerId,
@@ -613,13 +620,13 @@ export async function saveStop(
     if ('original' in target) {
       const location = await locateEditedStop(target.original, addressInput);
       const addressChanged = target.original.address?.trim() !== values.address.trim();
-      if (addressChanged && hasNoProperty(values.address, location)) return { errors: [new Error(STOP_NEEDS_SUBURB)], pinned: false };
+      if (addressChanged && lacksProperty(values.address, location)) return { errors: [new Error(STOP_NEEDS_SUBURB)], pinned: false };
       const result = await updateStop({ id: target.original.id, ...values, ...location.fields });
       return { errors: result.errors, pinned: location.pinned };
     }
 
     const location = await locateNewStop(addressInput);
-    if (hasNoProperty(values.address, location)) return { errors: [new Error(STOP_NEEDS_SUBURB)], pinned: false };
+    if (lacksProperty(values.address, location)) return { errors: [new Error(STOP_NEEDS_SUBURB)], pinned: false };
     const result = await createStop({ ...target, ...(values as StopAddressInput & StopDetails), ...location.fields });
     return { errors: result.errors ?? undefined, pinned: location.pinned };
   } catch (error) {
@@ -628,15 +635,7 @@ export async function saveStop(
   }
 }
 
-/**
- * A Stop with no pin and an address that names no suburb has no Property key,
- * so it would be missing from Property History and Location review.
- */
-function hasNoProperty(address: string, location: StopLocation): boolean {
-  return !location.pinned && !stopPropertyKey(address, location.fields);
-}
-
-/** Why saveStop refused a Stop: no pin, and no suburb to find it by later (hasNoProperty). */
+/** Why a Stop wasn't saved: no pin, and no suburb to find it by later (lib/stopLocation.ts lacksProperty). */
 export const STOP_NEEDS_SUBURB =
   "This address couldn't be found on the map. Add the suburb so the Stop can be found later.";
 

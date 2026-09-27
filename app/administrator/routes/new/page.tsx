@@ -18,6 +18,7 @@ import { pickStopLocationFields } from '@/lib/locationPrecision';
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseScheduleText } from '@/lib/parseSchedule';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
+import { locateDraftStops } from '@/lib/stopLocation';
 import styles from './page.module.css';
 import { listAllRoutes, createRoute, createStopsForRoute, getRouteWithStops } from '@/lib/routes';
 import { listAllCustomers } from '@/lib/customers';
@@ -133,6 +134,9 @@ export default function NewRoutePage() {
   const [parseWarnings, setParseWarnings] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [locatingProgress, setLocatingProgress] = useState<{ located: number; total: number } | null>(null);
+  // Bumped whenever the drafts change, so a slow locate of an earlier parse is dropped.
+  const locateRunRef = useRef(0);
 
   const importCopySourcesForCustomer = copyStopSources
     .filter((route) => route.customerId === importCustomerId)
@@ -305,6 +309,8 @@ export default function NewRoutePage() {
   };
 
   const handleImportCustomerChange = (customerId: string) => {
+    locateRunRef.current += 1;
+    setLocatingProgress(null);
     setImportCustomerId(customerId);
     setImportCopySourceRouteId('');
     setImportDraftStops(null);
@@ -333,7 +339,7 @@ export default function NewRoutePage() {
     }
   };
 
-  const handleParse = () => {
+  const handleParse = async () => {
     if (importDraftSource === 'copy') {
       setImportError('Stops are currently sourced from a copied route. Clear copied stops first to use uploaded file stops.');
       return;
@@ -342,22 +348,37 @@ export default function NewRoutePage() {
     const text = importText.trim();
     if (!text) { setImportError('Upload a schedule file first.'); return; }
     const result = parseScheduleText(text);
+    const run = ++locateRunRef.current;
+    setImportDraftStops(null);
+    setImportDraftSource(null);
+    let unpinned = 0;
     if (result.stops.length > 0) {
-      setImportDraftStops(
+      setImportError(null);
+      setLocatingProgress({ located: 0, total: result.stops.length });
+      const located = await locateDraftStops<RouteDraftStop>(
         result.stops.map((stop) => ({
           address: stop.address,
           serviceType: 'delivery',
           numberOfSigns: stop.numberOfSigns,
           agent: stop.agent,
           isAuction: stop.isAuction,
-        }))
+        })),
+        (count, total) => {
+          if (locateRunRef.current === run) setLocatingProgress({ located: count, total });
+        }
       );
+      if (locateRunRef.current !== run) return;
+      setLocatingProgress(null);
+      setImportDraftStops(located.stops);
       setImportDraftSource('upload');
-    } else {
-      setImportDraftStops(null);
-      setImportDraftSource(null);
+      unpinned = located.unpinned;
     }
     const warnings: string[] = [];
+    if (unpinned > 0) {
+      warnings.push(
+        `${unpinned} stop(s) couldn't be found on the map and will be created without a pin. They still appear in Property History.`
+      );
+    }
     if (result.duplicatesRemoved.length) {
       warnings.push(`Removed ${result.duplicatesRemoved.length} duplicate address(es): ${result.duplicatesRemoved.join(', ')}`);
     }
@@ -383,6 +404,8 @@ export default function NewRoutePage() {
         return;
       }
 
+      locateRunRef.current += 1;
+      setLocatingProgress(null);
       setImportDraftStops(copiedStops);
       setImportDraftSource('copy');
       setParseWarnings([]);
@@ -478,6 +501,12 @@ export default function NewRoutePage() {
     { key: 'signs', header: 'Signs', render: (stop) => stop.numberOfSigns },
     { key: 'agent', header: 'Agent', render: (stop) => stop.agent },
     { key: 'type', header: 'Type', render: (stop) => stop.serviceType },
+    {
+      key: 'pin',
+      header: 'Map pin',
+      render: (stop) =>
+        typeof stop.latitude === 'number' ? null : <span className={styles.noPinBadge}>No pin</span>,
+    },
     {
       key: 'flags',
       header: 'Flags',
@@ -608,6 +637,8 @@ export default function NewRoutePage() {
                           type="button"
                           variant="ghost"
                           onClick={() => {
+                            locateRunRef.current += 1;
+                            setLocatingProgress(null);
                             setImportFile(null);
                             setImportText('');
                             if (importDraftSource === 'upload') {
@@ -628,11 +659,23 @@ export default function NewRoutePage() {
 
                   <Button
                     type="button"
-                    onClick={handleParse}
-                    disabled={!importText.trim() || isUploading || copyingImportStops || importDraftSource === 'copy'}
+                    onClick={() => void handleParse()}
+                    loading={locatingProgress !== null}
+                    disabled={
+                      !importText.trim() ||
+                      isUploading ||
+                      copyingImportStops ||
+                      locatingProgress !== null ||
+                      importDraftSource === 'copy'
+                    }
                   >
                     Preview Stops
                   </Button>
+                  {locatingProgress && (
+                    <p className={styles.mutedText} role="status">
+                      Finding stops on the map… {locatingProgress.located} of {locatingProgress.total}
+                    </p>
+                  )}
                 </div>
 
                 {parseWarnings.length > 0 && (

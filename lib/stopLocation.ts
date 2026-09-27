@@ -100,3 +100,33 @@ export async function locateEditedStop(original: LocatedStop | undefined, values
   const located = await withConfirmedPin(stopLocationUpdate(original, geocoded), values.address);
   return confirmed && hasPin ? { ...located, pinned: true } : located;
 }
+
+/** Pause between geocodes when locating a batch, to stay under the Maps rate limit. */
+const BATCH_GEOCODE_DELAY_MS = 200;
+
+/**
+ * Locate a batch of draft Stops, such as a parsed schedule file, one at a time
+ * (Maps rate-limits bursts), the same way a hand-added Stop is located. A draft
+ * that can't be located, including when its Confirmed-pin lookup fails, stays
+ * without a pin rather than failing the batch; it is still keyed to its
+ * Property when written. `onProgress` is called after each draft.
+ */
+export async function locateDraftStops<S extends StopAddressInput>(
+  drafts: S[],
+  onProgress?: (located: number, total: number) => void,
+  delayMs = BATCH_GEOCODE_DELAY_MS
+): Promise<{ stops: Array<S & StopLocation['fields']>; unpinned: number }> {
+  const stops: Array<S & StopLocation['fields']> = [];
+  let unpinned = 0;
+  for (const [index, draft] of drafts.entries()) {
+    if (index > 0 && delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    const location = await locateNewStop(draft).catch((error) => {
+      console.warn('Could not locate a draft Stop; it is added without a pin:', error);
+      return { fields: {}, pinned: false };
+    });
+    stops.push({ ...draft, ...location.fields });
+    if (!location.pinned) unpinned += 1;
+    onProgress?.(index + 1, drafts.length);
+  }
+  return { stops, unpinned };
+}

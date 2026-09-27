@@ -21,7 +21,7 @@ import { getUserSettings } from '@/lib/userSettings';
 import type { Route, Stop } from '@/amplify/types';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
-import { getRouteWithStops, updateRoute, deleteStop, saveStop, resequenceStops, UNPINNED_STOP_NOTICE } from '@/lib/routes';
+import { getRouteWithStops, updateRoute, deleteStop, saveStop, resequenceStops, UNPINNED_STOP_NOTICE, saveStopFailure } from '@/lib/routes';
 import { listAllCustomers } from '@/lib/customers';
 
 type CustomerOption = {
@@ -310,7 +310,7 @@ function RouteEditContent() {
     setStopNotice(null);
     const result = await saveStop({ routeId, customerId, sequence: stops.length + 1 }, values);
     if (result.errors && result.errors.length > 0) {
-      setStopError('Failed to add stop.');
+      setStopError(saveStopFailure(result, 'Failed to add stop.'));
     } else {
       if (!result.pinned) setStopNotice(UNPINNED_STOP_NOTICE);
       setShowAddStop(false);

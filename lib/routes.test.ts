@@ -59,6 +59,8 @@ import {
   listCustomerStops,
   resequenceStops,
   saveStop,
+  saveStopFailure,
+  STOP_NEEDS_SUBURB,
   updateStop,
 } from './routes';
 
@@ -612,6 +614,23 @@ describe('routes', () => {
       expect(mockStopCreate).toHaveBeenCalledWith(expect.not.objectContaining({ latitude: expect.anything() }));
     });
 
+    it("refuses a Stop with no pin and no suburb, since it would have no Property", async () => {
+      mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
+
+      const result = await saveStop(NEW, { address: '10 brush road', serviceType: 'delivery' });
+
+      expect(mockStopCreate).not.toHaveBeenCalled();
+      expect(result).toEqual({ errors: [new Error(STOP_NEEDS_SUBURB)], pinned: false });
+      expect(saveStopFailure(result, 'Failed to add stop.')).toBe(STOP_NEEDS_SUBURB);
+    });
+
+    it('adds a Stop with no suburb typed when the geocode finds one', async () => {
+      const result = await saveStop(NEW, { address: '14 Cliff Rd', serviceType: 'delivery' });
+
+      expect(result).toEqual({ errors: undefined, pinned: true });
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+    });
+
     it("pins a Stop at its Property's Confirmed pin", async () => {
       mockGetConfirmedPin.mockResolvedValue({ latitude: -33.9, longitude: 151.2 });
 
@@ -639,6 +658,7 @@ describe('routes', () => {
       const result = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' });
 
       expect(result.errors).toHaveLength(1);
+      expect(saveStopFailure(result, 'Failed to add stop.')).toBe('Failed to add stop.');
     });
 
     it("edits a Stop without re-geocoding an address that hasn't changed (#58)", async () => {
@@ -680,6 +700,25 @@ describe('routes', () => {
           propertyKey: KEY,
         })
       );
+    });
+
+    it("refuses an edit to an address with no suburb that can't be geocoded", async () => {
+      mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
+
+      const result = await saveStop({ original: ORIGINAL }, { address: '10 brush road' });
+
+      expect(mockStopUpdate).not.toHaveBeenCalled();
+      expect(result.errors).toEqual([new Error(STOP_NEEDS_SUBURB)]);
+    });
+
+    it('still saves other edits to a Stop already stored with no suburb and no pin', async () => {
+      mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
+      mockStopGet.mockResolvedValue({ data: { address: '10 brush road' }, errors: undefined });
+
+      const result = await saveStop({ original: { id: 's2', address: '10 brush road' } }, { address: '10 brush road', notes: 'Gate' });
+
+      expect(result).toEqual({ errors: undefined, pinned: false });
+      expect(mockStopUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 's2', notes: 'Gate' }));
     });
 
     it("keeps a Confirmed Stop's pin when its new address can't be geocoded", async () => {

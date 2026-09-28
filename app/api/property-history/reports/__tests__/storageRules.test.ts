@@ -37,7 +37,7 @@ describe('storage access rules', () => {
     }
   });
 
-  it('grant no signed-in user anything under requests/ -- Route Request files are read only through the Route Request file API (#358)', () => {
-    expect(rulesCovering('requests/ses-msg-1/0-schedule.pdf')).toEqual([]);
+  it('let only administrators add files under requests/, never read them -- they are read only through the Route Request file API (#358, #359)', () => {
+    expect(rulesCovering('requests/ses-msg-1/0-schedule.pdf')).toEqual([{ who: 'groups:administrator', actions: ['write'] }]);
   });
 });

@@ -29,7 +29,7 @@ function fakes(existing: object | null = null) {
     putFile: jest.fn().mockResolvedValue(undefined),
     client: {
       models: {
-        RouteRequestEmail: { get: jest.fn().mockResolvedValue({ data: existing, errors: null }), create },
+        RouteRequestRecord: { get: jest.fn().mockResolvedValue({ data: existing, errors: null }), create },
         CustomerUser: {
           list: jest.fn().mockResolvedValue({
             data: [{ customerId: 'c1', email: 'owner@harcourts.com.au' }],
@@ -58,6 +58,7 @@ describe('captureRouteRequest', () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'ses-msg-1',
+        source: 'email',
         status: 'unlinked',
         fromAddress: 'ann.agent@harcourts.com.au',
         rawMessageKey: 'ses-msg-1',

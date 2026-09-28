@@ -65,12 +65,6 @@
   font-weight: 600;
 }
 
-.badges {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
 
 .detail {
   display: flex;
@@ -104,6 +98,18 @@
   gap: var(--space-3);
 }
 
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
 .filter {
   display: inline-flex;
   align-items: center;
@@ -112,30 +118,5 @@
   color: var(--text-body);
 }
 
-.body {
-  margin: 0;
-  padding: var(--space-4);
-  max-height: 420px;
-  overflow-y: auto;
-  border-radius: var(--radius-md);
-  background: var(--surface-sunken);
-  font-family: inherit;
-  font-size: var(--text-sm);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 
-.files {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
 
-.files li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}

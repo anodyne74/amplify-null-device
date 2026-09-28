@@ -35,6 +35,11 @@ jest.mock('aws-amplify/data', () => ({
   }),
 }));
 
+const mockUnlinkRecordsOfDeletedRoute = jest.fn();
+jest.mock('./routeRequestLinks', () => ({
+  unlinkRecordsOfDeletedRoute: (...args: unknown[]) => mockUnlinkRecordsOfDeletedRoute(...args),
+}));
+
 const mockGeocodeAddress = jest.fn();
 const mockGetConfirmedPin = jest.fn();
 
@@ -68,6 +73,7 @@ describe('routes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockCustomerGet.mockResolvedValue({ data: { viewerSubs: ['owner-sub', 'viewer-sub'] }, errors: undefined });
+    mockUnlinkRecordsOfDeletedRoute.mockResolvedValue([]);
   });
 
   describe('listCustomerRoutes', () => {
@@ -304,6 +310,29 @@ describe('routes', () => {
       expect(mockStopDelete).toHaveBeenCalledWith({ id: 's2' });
       expect(mockRouteDelete).toHaveBeenCalledWith({ id: 'r1' });
       expect(result.errors).toBeUndefined();
+    });
+
+    it("returns the route's Route Request records to the inbox, naming the route, before deleting it", async () => {
+      mockStopList.mockResolvedValue({ data: [], errors: undefined });
+      mockRouteGet.mockResolvedValue({ data: { routeCode: 'W40-26-001' }, errors: undefined });
+      mockRouteDelete.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
+
+      await deleteRoute('r1');
+
+      expect(mockUnlinkRecordsOfDeletedRoute).toHaveBeenCalledWith(expect.anything(), 'r1', 'W40-26-001');
+      expect(mockRouteDelete).toHaveBeenCalledWith({ id: 'r1' });
+    });
+
+    it('keeps the route when its Route Request records cannot be returned to the inbox', async () => {
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockStopList.mockResolvedValue({ data: [], errors: undefined });
+      mockRouteGet.mockResolvedValue({ data: { routeCode: 'W40-26-001' }, errors: undefined });
+      mockUnlinkRecordsOfDeletedRoute.mockResolvedValue(['Could not unlink it.']);
+
+      const result = await deleteRoute('r1');
+
+      expect(mockRouteDelete).not.toHaveBeenCalled();
+      expect(result.errors).toEqual(['Could not unlink it.']);
     });
 
     it('should stop when stop list returns errors', async () => {

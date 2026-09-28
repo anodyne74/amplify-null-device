@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "requestId and file (an attachment's position, or 'raw') are required" }, { status: 400 });
     }
 
-    const { data: routeRequest, errors } = await auth.client.models.RouteRequestEmail.get({ id: requestId });
+    const { data: routeRequest, errors } = await auth.client.models.RouteRequestRecord.get({ id: requestId });
     if (errors?.length) {
       console.error('Reading the Route Request failed:', errors);
       return NextResponse.json({ error: 'Could not open the file' }, { status: 500 });
@@ -32,6 +32,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (file === 'raw') {
+      // A record entered by hand has no message.
+      if (!routeRequest.rawMessageKey) {
+        return NextResponse.json({ error: 'No original email' }, { status: 404 });
+      }
       return NextResponse.json({ url: await signedRawMessageUrl(routeRequest.rawMessageKey) });
     }
     const attachment = routeRequest.attachments?.[file];

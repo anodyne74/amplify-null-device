@@ -85,3 +85,18 @@
   font-weight: var(--fw-semibold);
   text-transform: uppercase;
 }
+
+.fromRecord {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.fromRecord summary {
+  cursor: pointer;
+  margin-bottom: var(--space-3);
+}

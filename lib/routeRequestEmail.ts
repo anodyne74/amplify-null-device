@@ -156,8 +156,3 @@ export function suggestCustomer(
   );
   return sameDomain.size === 1 ? [...sameDomain][0] : null;
 }
-
-/** Where one attachment is kept: requests/<record id>/<position>-<filename>, the name made safe for a key. */
-export function requestAttachmentKey(recordId: string, index: number, filename: string): string {
-  return `requests/${recordId}/${index}-${filename.replace(/[/\\?#%*:|"<>\u0000-\u001f]/g, '_')}`;
-}

@@ -6,7 +6,6 @@ import { join } from 'path';
 import {
   htmlToText,
   parseRequestEmail,
-  requestAttachmentKey,
   suggestCustomer,
   type SesReceipt,
 } from './routeRequestEmail';
@@ -137,12 +136,5 @@ describe('suggestCustomer', () => {
 
   it('still suggests by exact address on a public mail service', () => {
     expect(suggestCustomer('carol@gmail.com', users)).toBe('c3');
-  });
-});
-
-describe('requestAttachmentKey', () => {
-  it("keeps files apart by position and makes the name safe for a key", () => {
-    expect(requestAttachmentKey('ses-msg-1', 0, 'Tuesday schedule.pdf')).toBe('requests/ses-msg-1/0-Tuesday schedule.pdf');
-    expect(requestAttachmentKey('ses-msg-1', 2, '../evil/\\name?.pdf')).toBe('requests/ses-msg-1/2-.._evil__name_.pdf');
   });
 });

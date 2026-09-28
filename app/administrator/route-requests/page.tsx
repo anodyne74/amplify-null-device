@@ -3,54 +3,48 @@
 import { useCallback, useEffect, useState } from 'react';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PageHeader from '@/app/administrator/components/PageHeader';
+import {
+  LinkRouteRequestForm,
+  ROLE_LABELS,
+  RouteRequestBadges,
+  RouteRequestView,
+  formatWhen,
+  recordTitle,
+} from '@/app/administrator/components/RouteRequests';
 import { Card } from '@/app/components/ui/core/Card';
-import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
-import { dismissRouteRequest, listRouteRequests, openRouteRequestFile, type RouteRequestRow } from '@/lib/routeRequests';
+import {
+  dismissRouteRequest,
+  listLinkableRoutes,
+  listRouteRequests,
+  requesterLabel,
+  unlinkRouteRequest,
+  type LinkableRoute,
+  type RouteRequestRow,
+} from '@/lib/routeRequests';
 import styles from './page.module.css';
 
-function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' });
-}
-
-function sender(row: RouteRequestRow): string {
-  return row.request.fromName ? `${row.request.fromName} <${row.request.fromAddress}>` : row.request.fromAddress;
-}
-
-function formatSize(bytes: number | null | undefined): string {
-  if (typeof bytes !== 'number') return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-/** Saves a file from a signed link; the link itself tells the browser to download it. */
-function download(url: string) {
-  const link = document.createElement('a');
-  link.href = url;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
 /**
- * The request inbox (#358, ADR 0008): every email sent to requests@, newest
- * first. Unlinked ones are listed by default; dismissed ones -- never deleted
- * -- can be shown too. Linking one to a Route comes in part 2.
+ * The request inbox (#358, #359, ADR 0008): every email sent to requests@,
+ * newest first. Unlinked ones are listed by default, each ready to link to a
+ * Route as its Route Request or an Amendment, to create a Route from, or to
+ * dismiss; linked and dismissed ones -- never deleted -- can be shown too.
  */
 export default function AdministratorRouteRequestsPage() {
   const [rows, setRows] = useState<RouteRequestRow[]>([]);
+  const [routes, setRoutes] = useState<LinkableRoute[]>([]);
+  const [showLinked, setShowLinked] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await listRouteRequests();
-    setRows(data);
-    setLoadError(error ?? null);
+    const [requests, linkable] = await Promise.all([listRouteRequests(), listLinkableRoutes()]);
+    setRows(requests.data);
+    setRoutes(linkable.data);
+    setLoadError(requests.error ?? linkable.error ?? null);
     setLoading(false);
   }, []);
 
@@ -58,7 +52,10 @@ export default function AdministratorRouteRequestsPage() {
     void load();
   }, [load]);
 
-  const visible = rows.filter((row) => row.request.status === 'unlinked' || (showDismissed && row.request.status === 'dismissed'));
+  const visible = rows.filter(
+    ({ request }) =>
+      request.status === 'unlinked' || (showLinked && request.status === 'linked') || (showDismissed && request.status === 'dismissed')
+  );
   const selected = visible.find((row) => row.request.id === selectedId) ?? visible[0] ?? null;
 
   function markDismissed(id: string, reason: string) {
@@ -76,10 +73,16 @@ export default function AdministratorRouteRequestsPage() {
       <div className={styles.page}>
         <PageHeader title="Request inbox" subtitle="Emails sent to requests@, waiting to be linked to a Route" />
 
-        <label className={styles.filter}>
-          <input type="checkbox" checked={showDismissed} onChange={(event) => setShowDismissed(event.target.checked)} />
-          Show dismissed
-        </label>
+        <div className={styles.filters}>
+          <label className={styles.filter}>
+            <input type="checkbox" checked={showLinked} onChange={(event) => setShowLinked(event.target.checked)} />
+            Show linked
+          </label>
+          <label className={styles.filter}>
+            <input type="checkbox" checked={showDismissed} onChange={(event) => setShowDismissed(event.target.checked)} />
+            Show dismissed
+          </label>
+        </div>
 
         {loading ? (
           <p className={styles.note}>Loading the inbox…</p>
@@ -87,11 +90,11 @@ export default function AdministratorRouteRequestsPage() {
           <p className="nd-badge nd-badge--danger">{loadError}</p>
         ) : visible.length === 0 ? (
           <Card>
-            <p className={styles.emptyState}>No emails to review. Emails sent to requests@ appear here.</p>
+            <p className={styles.emptyState}>Nothing to review. Emails sent to requests@ appear here.</p>
           </Card>
         ) : (
           <div className={styles.layout}>
-            <Card title={`${visible.length} ${visible.length === 1 ? 'email' : 'emails'}`}>
+            <Card title={`${visible.length} ${visible.length === 1 ? 'item' : 'items'}`}>
               <ul className={styles.queue}>
                 {visible.map((row) => (
                   <li key={row.request.id}>
@@ -101,9 +104,9 @@ export default function AdministratorRouteRequestsPage() {
                       aria-current={row.request.id === selected?.request.id ? 'true' : undefined}
                       onClick={() => setSelectedId(row.request.id)}
                     >
-                      <span className={styles.queueTitle}>{row.request.subject || '(no subject)'}</span>
+                      <span className={styles.queueTitle}>{recordTitle(row.request)}</span>
                       <span className={styles.note}>
-                        {row.request.fromName || row.request.fromAddress} · {formatWhen(row.request.sentAt)}
+                        {requesterLabel(row.request)} · {formatWhen(row.request.sentAt)}
                       </span>
                       <RowBadges row={row} />
                     </button>
@@ -113,7 +116,18 @@ export default function AdministratorRouteRequestsPage() {
             </Card>
 
             {selected && (
-              <RouteRequestCard key={selected.request.id} row={selected} onDismissed={(reason) => markDismissed(selected.request.id, reason)} />
+              <Card key={selected.request.id} title={recordTitle(selected.request)}>
+                <div className={styles.detail}>
+                  <RowBadges row={selected} />
+                  <RouteRequestView record={selected.request} />
+                  <RecordActions
+                    row={selected}
+                    routes={routes}
+                    onChanged={() => void load()}
+                    onDismissed={(reason) => markDismissed(selected.request.id, reason)}
+                  />
+                </div>
+              </Card>
             )}
           </div>
         )}
@@ -124,30 +138,39 @@ export default function AdministratorRouteRequestsPage() {
 
 function RowBadges({ row }: { row: RouteRequestRow }) {
   return (
-    <span className={styles.badges}>
-      {row.request.status === 'dismissed' && <Badge size="sm">Dismissed</Badge>}
-      {row.senderNotVerified && <Badge tone="danger" size="sm">Sender not verified</Badge>}
-      {row.request.loggedByStaff && <Badge tone="info" size="sm">Logged by staff</Badge>}
-      {row.suggestedCustomerName && <span className={styles.note}>Suggested: {row.suggestedCustomerName}</span>}
-    </span>
+    <RouteRequestBadges
+      record={row.request}
+      extra={
+        <>
+          {row.request.status === 'linked' && row.request.role && (
+            <span className={styles.note}>
+              {ROLE_LABELS[row.request.role]} for {row.routeCode ?? 'a deleted Route'}
+            </span>
+          )}
+          {row.request.status === 'unlinked' && row.suggestedCustomerName && (
+            <span className={styles.note}>Suggested: {row.suggestedCustomerName}</span>
+          )}
+        </>
+      }
+    />
   );
 }
 
-function RouteRequestCard({ row, onDismissed }: { row: RouteRequestRow; onDismissed: (reason: string) => void }) {
+function RecordActions({
+  row,
+  routes,
+  onChanged,
+  onDismissed,
+}: {
+  row: RouteRequestRow;
+  routes: LinkableRoute[];
+  onChanged: () => void;
+  onDismissed: (reason: string) => void;
+}) {
   const { request } = row;
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  async function open(file: number | 'raw') {
-    setError(null);
-    try {
-      download(await openRouteRequestFile(request.id, file));
-    } catch (err) {
-      console.error('Opening the file failed:', err);
-      setError('Could not open the file.');
-    }
-  }
 
   async function dismiss() {
     setBusy(true);
@@ -158,82 +181,78 @@ function RouteRequestCard({ row, onDismissed }: { row: RouteRequestRow; onDismis
     else setError(result.error);
   }
 
-  const attachments = request.attachments ?? [];
+  async function unlink() {
+    setBusy(true);
+    setError(null);
+    const result = await unlinkRouteRequest(request.id);
+    setBusy(false);
+    if (result.ok) onChanged();
+    else setError(result.error);
+  }
 
-  return (
-    <Card title={request.subject || '(no subject)'} subtitle={`From ${sender(row)}`}>
-      <div className={styles.detail}>
-        {error && <p className="nd-badge nd-badge--danger">{error}</p>}
-
-        <RowBadges row={row} />
+  if (request.status === 'dismissed') {
+    return (
+      <div className={styles.section}>
         <p className={styles.note}>
-          Sent {formatWhen(request.sentAt)} · received {formatWhen(request.receivedAt)}
+          Dismissed{request.dismissedAt ? ` ${formatWhen(request.dismissedAt)}` : ''}: {request.dismissedReason}
         </p>
-        {row.senderNotVerified && (
-          <p className={styles.note}>
-            The sender&apos;s mail server failed a check that it may send for this address, so this email may not be from who it says.
-          </p>
-        )}
+      </div>
+    );
+  }
 
-        <pre className={styles.body}>{request.bodyText || '(no text)'}</pre>
-
-        <div className={styles.section}>
-          <p className={styles.note}>
-            {attachments.length === 0 ? 'No attachments.' : `${attachments.length} attachment${attachments.length === 1 ? '' : 's'}`}
-          </p>
-          {attachments.length > 0 && (
-            <ul className={styles.files}>
-              {attachments.map((attachment, index) =>
-                attachment ? (
-                  <li key={attachment.key}>
-                    <Button size="sm" variant="secondary" onClick={() => void open(index)}>
-                      {attachment.filename}
-                    </Button>
-                    <span className={styles.note}>
-                      {formatSize(attachment.size)}
-                      {attachment.inline ? ' · inline' : ''}
-                    </span>
-                  </li>
-                ) : null
-              )}
-            </ul>
-          )}
-          <div className={styles.actions}>
-            <Button size="sm" variant="secondary" onClick={() => void open('raw')}>
-              Download original email
-            </Button>
-          </div>
-        </div>
-
-        <div className={styles.section}>
-          {request.status === 'dismissed' ? (
-            <p className={styles.note}>
-              Dismissed{request.dismissedAt ? ` ${formatWhen(request.dismissedAt)}` : ''}: {request.dismissedReason}
-            </p>
-          ) : (
-            <form
-              className={styles.dismissForm}
-              onSubmit={(event) => {
-                event.preventDefault();
-                void dismiss();
-              }}
-            >
-              <Field label="Reason for dismissing" htmlFor={`dismiss-${request.id}`}>
-                <input
-                  id={`dismiss-${request.id}`}
-                  className="nd-input"
-                  value={reason}
-                  disabled={busy}
-                  onChange={(event) => setReason(event.target.value)}
-                />
-              </Field>
-              <Button size="sm" variant="secondary" type="submit" disabled={busy || !reason.trim()}>
-                Dismiss
-              </Button>
-            </form>
-          )}
+  if (request.status === 'linked') {
+    return (
+      <div className={styles.section}>
+        {error && <p className="nd-badge nd-badge--danger">{error}</p>}
+        <p className={styles.note}>
+          {request.role ? ROLE_LABELS[request.role] : 'Linked'} for{' '}
+          {request.routeId ? <a href={`/administrator/routes/detail?id=${request.routeId}`}>Route {row.routeCode ?? request.routeId.slice(0, 8)}</a> : 'a Route'}
+          {request.linkedAt ? `, linked ${formatWhen(request.linkedAt)}` : ''}.
+        </p>
+        <div className={styles.actions}>
+          <Button size="sm" variant="secondary" disabled={busy} onClick={() => void unlink()}>
+            Unlink
+          </Button>
         </div>
       </div>
-    </Card>
+    );
+  }
+
+  return (
+    <>
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Link to a Route</h3>
+        <LinkRouteRequestForm mode="pick-route" record={request} routes={routes} onLinked={onChanged} />
+        <div className={styles.actions}>
+          <a className="nd-btn nd-btn--secondary nd-btn--sm" href={`/administrator/routes/new?request=${encodeURIComponent(request.id)}`}>
+            Create Route from it
+          </a>
+        </div>
+      </div>
+
+      <div className={styles.section}>
+        {error && <p className="nd-badge nd-badge--danger">{error}</p>}
+        <form
+          className={styles.dismissForm}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void dismiss();
+          }}
+        >
+          <Field label="Reason for dismissing" htmlFor={`dismiss-${request.id}`}>
+            <input
+              id={`dismiss-${request.id}`}
+              className="nd-input"
+              value={reason}
+              disabled={busy}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </Field>
+          <Button size="sm" variant="secondary" type="submit" disabled={busy || !reason.trim()}>
+            Dismiss
+          </Button>
+        </form>
+      </div>
+    </>
   );
 }

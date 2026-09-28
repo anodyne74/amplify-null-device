@@ -10,10 +10,19 @@ import { storage } from './storage/resource';
 import { customerAccessActivation } from './functions/customer-access-activation/resource';
 import { operatorStatusActivation } from './functions/operator-status-activation/resource';
 import { reportPurge } from './functions/report-purge/resource';
+import { routeRequestCapture } from './functions/route-request-capture/resource';
 import { configureObservability } from './observability/resource';
 import { branchName, emailDomain } from './shared/branch';
 
-const backend = defineBackend({ auth, data, storage, customerAccessActivation, operatorStatusActivation, reportPurge });
+const backend = defineBackend({
+	auth,
+	data,
+	storage,
+	customerAccessActivation,
+	operatorStatusActivation,
+	reportPurge,
+	routeRequestCapture,
+});
 
 // Advanced security (AUDIT mode) is required for AdminListUserAuthEvents, which
 // powers the admin Users page's "signed in past 7 days" stat. AUDIT only logs and
@@ -79,7 +88,8 @@ ssrComputeRole.addToPrincipalPolicy(
 // the /api/property-history/reports routes, so the SSR role is the one
 // principal with access to reports/ -- amplify/storage/resource.ts grants no
 // signed-in user anything there. Customers' invoice PDFs are likewise handed
-// out by /api/invoices/pdf (#356), so the SSR role also reads invoices/.
+// out by /api/invoices/pdf (#356), so the SSR role also reads invoices/, and
+// Route Request files by /api/route-requests/file (#358), so it reads requests/.
 // Imported again in the storage stack so the policy lives beside the bucket
 // rather than tying the data stack to it. The import needs its own construct
 // ID: CDK names an imported role's inline policy after that ID, so reusing
@@ -93,6 +103,7 @@ const ssrComputeRoleForStorage = Role.fromRoleName(
 );
 backend.storage.resources.bucket.grantReadWrite(ssrComputeRoleForStorage, 'reports/*');
 backend.storage.resources.bucket.grantRead(ssrComputeRoleForStorage, 'invoices/*');
+backend.storage.resources.bucket.grantRead(ssrComputeRoleForStorage, 'requests/*');
 
 // The daily report-purge job (#292) destroys PDFs past their purgeAfter date;
 // it needs delete on reports/ and nothing else in the bucket.
@@ -792,6 +803,38 @@ forwarderFunction.addPermission('AllowSESInvoke', {
 	sourceAccount: forwarderStack.account,
 });
 
+// ── Route Request capture (#358, ADR 0008) ───────────────────────────────────
+// Mail to requests@ is stored and forwarded like the other addresses; the
+// receipt rule also invokes the capture function, as its own asynchronous
+// action, so a failed capture can't stop the forward or the reverse. The
+// function lives in the data stack and the receipt rule here references it,
+// so its read on the inbound bucket names the bucket literally -- granting
+// through inboundBucket would make the data stack depend on this one too, a
+// cycle.
+const routeRequestCaptureLambda = backend.routeRequestCapture.resources.lambda as LambdaFunction;
+routeRequestCaptureLambda.addToRolePolicy(
+	new PolicyStatement({
+		sid: 'AllowReadInboundMail',
+		effect: Effect.ALLOW,
+		actions: ['s3:GetObject'],
+		resources: [`arn:aws:s3:::${inboundBucketName}/*`],
+	}),
+);
+backend.storage.resources.bucket.grantPut(routeRequestCaptureLambda, 'requests/*');
+routeRequestCaptureLambda.addEnvironment('INBOUND_BUCKET_NAME', inboundBucketName);
+routeRequestCaptureLambda.addEnvironment('APP_BUCKET_NAME', backend.storage.resources.bucket.bucketName);
+routeRequestCaptureLambda.addEnvironment('EMAIL_DOMAIN', emailDomain);
+routeRequestCaptureLambda.addPermission('AllowSESInvoke', {
+	principal: new ServicePrincipal('ses.amazonaws.com'),
+	sourceAccount: forwarderStack.account,
+});
+
+// /api/route-requests/file hands administrators a Route Request's raw message.
+// Its own construct ID, for the reason given at ssrComputeRoleForStorage.
+inboundBucket.grantRead(
+	Role.fromRoleName(forwarderStack, 'AmplifyHostingSSRComputeRoleInboundMail', 'AmplifyHostingSSRCompute'),
+);
+
 // CloudFormation can create a receipt rule set, but SES only ever delivers
 // through whichever ONE rule set is marked "active" for the account/region --
 // and nothing in CDK/CloudFormation sets that. Since rule sets are branch-scoped
@@ -811,11 +854,12 @@ new CfnReceiptRule(forwarderStack, 'SesReceiptRule', {
 		name: inboundRuleName,
 		enabled: true,
 		tlsPolicy: 'Optional',
-		recipients: [`admin@${emailDomain}`, `billing@${emailDomain}`, `support@${emailDomain}`],
+		recipients: [`admin@${emailDomain}`, `billing@${emailDomain}`, `support@${emailDomain}`, `requests@${emailDomain}`],
 		scanEnabled: true,
 		actions: [
 			{ s3Action: { bucketName: inboundBucket.bucketName } },
 			{ lambdaAction: { functionArn: forwarderFunction.functionArn, invocationType: 'Event' } },
+			{ lambdaAction: { functionArn: routeRequestCaptureLambda.functionArn, invocationType: 'Event' } },
 		],
 	},
 });
@@ -836,5 +880,6 @@ backend.addOutput({
 		sesInvitationTemplateName: invitationTemplateName,
 		sesStaffInvitationTemplateName: staffInvitationTemplateName,
 		sesInboundRuleSetName: inboundRuleSetName,
+		sesInboundBucketName: inboundBucketName,
 	},
 });

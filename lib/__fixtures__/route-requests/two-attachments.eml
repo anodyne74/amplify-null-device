@@ -1,0 +1,48 @@
+From: "Ann Agent" <ann.agent@harcourts.com.au>
+To: requests@nulldevice.dev
+Date: Mon, 28 Sep 2026 09:15:00 +1000
+Subject: Route for Tuesday 6 Oct
+Message-ID: <abc123@harcourts.com.au>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="mixed"
+
+--mixed
+Content-Type: multipart/related; boundary="related"
+
+--related
+Content-Type: multipart/alternative; boundary="alt"
+
+--alt
+Content-Type: text/plain; charset=utf-8
+
+Hi team,
+
+Please schedule the attached properties for Tuesday.
+
+Ann
+--alt
+Content-Type: text/html; charset=utf-8
+
+<p>Hi team,</p><p>Please schedule the attached properties for Tuesday.</p><p>Ann<img src="cid:logo@harcourts"></p>
+--alt--
+--related
+Content-Type: image/png
+Content-ID: <logo@harcourts>
+Content-Disposition: inline; filename="logo.png"
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgo=
+--related--
+--mixed
+Content-Type: application/pdf; name="Tuesday schedule.pdf"
+Content-Disposition: attachment; filename="Tuesday schedule.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKJSVFT0YK
+--mixed
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Content-Disposition: attachment; filename="properties.xlsx"
+Content-Transfer-Encoding: base64
+
+UEsDBAo=
+--mixed--

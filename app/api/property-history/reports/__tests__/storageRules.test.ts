@@ -36,4 +36,8 @@ describe('storage access rules', () => {
       expect(rulesCovering(key)).toEqual([{ who: 'groups:administrator,operator', actions: ['read', 'write', 'delete'] }]);
     }
   });
+
+  it('grant no signed-in user anything under requests/ -- Route Request files are read only through the Route Request file API (#358)', () => {
+    expect(rulesCovering('requests/ses-msg-1/0-schedule.pdf')).toEqual([]);
+  });
 });

@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
-import { useCurrentUserId } from '@/lib/use-user-groups';
 import type { Customer } from '@/amplify/types';
-import { fetchUserDisplayName } from '@/lib/amplify-config';
-import { getUserSettings } from '@/lib/userSettings';
+import { usePortalUser } from '@/lib/usePortalUser';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { useLiveRoutes } from '@/lib/useLiveRoutes';
 import { unwrapOrThrow } from '@/lib/graphqlResult';
@@ -91,9 +89,7 @@ async function fetchDashboardData(context: CustomerPortalContext): Promise<Dashb
  * Shows overview of routes, invoices, and statistics
  */
 export default function CustomerDashboard() {
-  const userId = useCurrentUserId();
-  const [fallbackDisplayName, setFallbackDisplayName] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const { displayName } = usePortalUser();
   const {
     role: customerRole,
     error: customerLoadError,
@@ -111,43 +107,6 @@ export default function CustomerDashboard() {
   const statsLoading = dataLoading || routesLoading;
   const stops = useMemo(() => data?.stops ?? [], [data]);
   const invoices = useMemo(() => data?.invoices ?? [], [data]);
-
-  useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-
-    void fetchUserDisplayName().then((name) => {
-      if (!cancelled) setFallbackDisplayName(name || '');
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
-
-  useEffect(() => {
-    setDisplayName(fallbackDisplayName);
-  }, [fallbackDisplayName]);
-
-  useEffect(() => {
-    if (!userId) return;
-    if (typeof getUserSettings !== 'function') return;
-    let cancelled = false;
-
-    void getUserSettings(userId)
-      .then((result) => {
-        if (cancelled) return;
-        const configuredName = result.data?.name?.trim();
-        setDisplayName(configuredName || fallbackDisplayName);
-      })
-      .catch(() => {
-        if (!cancelled) setDisplayName(fallbackDisplayName);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [fallbackDisplayName, userId]);
 
   const isAccountOwner = customerRole === 'account_owner';
 

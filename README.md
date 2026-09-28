@@ -18,7 +18,7 @@ A serverless delivery management platform built with Next.js 15, AWS Amplify Gen
 ## Current Features
 
 - Role-aware login with branded Amplify Authenticator, request-access signup, pending approval, and multi-role portal selection.
-- Administrator, operator, and customer portals each run on their own shell (`AdminShell`, `OperatorShell`, `CustomerShell`) with a shared navy staff-chrome look, collapsible mobile sidebar, and safe-area-aware bottom padding.
+- Administrator, operator, and customer portals share one shell (`PortalShell`) with a collapsible mobile sidebar and safe-area-aware bottom padding: navy staff chrome for administrators and operators, a theme-following sidebar for customers.
 - Administrator portal with dashboard KPIs, customer management, user management, route management, invoice management, and settings.
 - Route management with create/edit/detail flows, customer-aware listings, status filtering, and support for copying stops from a previous route or importing schedule files. Route creation is blocked on any date either the operator (no drivers available) or the customer (agency closed) has marked out on the service calendar.
 - Operator portal with a phone-friendly dashboard for planned and active routes, a legacy route detail flow for stop execution and map-based route review, and a five-phase Driver Sign Run flow (Load → Placement → Pickup → Unload → Finalise) for routes with `drivingModeEnabled`, covering van sign counts, placement/pickup progression with missing-sign tracking, and billing finalisation.

@@ -1,17 +1,8 @@
 import { render, screen } from '@testing-library/react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
 import AdministratorLayout from '@/app/administrator/layout';
 
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: jest.fn(),
-}));
-
-jest.mock('@/lib/amplify-config', () => ({
-  fetchUserDisplayName: jest.fn(() => Promise.resolve('test@example.com')),
-}));
-
-jest.mock('@/app/components/AmplifyThemeProvider', () => ({
-  useThemeMode: () => ({ mode: 'system', resolvedMode: 'dark', setMode: jest.fn() }),
+jest.mock('@/lib/usePortalUser', () => ({
+  usePortalUser: () => ({ userId: 'op-1', displayName: 'Sam Rivera', logout: jest.fn() }),
 }));
 
 jest.mock('@/app/components/OperatorRoute', () => {
@@ -20,8 +11,8 @@ jest.mock('@/app/components/OperatorRoute', () => {
   };
 });
 
-jest.mock('@/app/administrator/components/AdminShell', () => {
-  return function MockAdminShell({
+jest.mock('@/app/components/PortalShell', () => {
+  return function MockPortalShell({
     navItems,
     children,
   }: {
@@ -46,10 +37,6 @@ jest.mock('@/app/administrator/components/AdminShell', () => {
 describe('AdministratorLayout', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (useAuthenticator as jest.Mock).mockReturnValue({
-      signOut: jest.fn(),
-      user: null,
-    });
   });
 
   it('shows administrator navigation only', () => {

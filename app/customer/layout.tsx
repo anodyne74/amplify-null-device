@@ -1,20 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useCurrentUserId } from '@/lib/use-user-groups';
+import { useEffect, useMemo } from 'react';
 import { callApi } from '@/lib/apiClient';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
-import CustomerShell from '@/app/customer/components/CustomerShell';
-import { fetchUserDisplayName } from '@/lib/amplify-config';
-import { getUserSettings } from '@/lib/userSettings';
+import PortalShell, { type PortalNavItem } from '@/app/components/PortalShell';
+import { usePortalUser } from '@/lib/usePortalUser';
 import { CustomerPortalContextProvider, useCustomerPortalContext } from '@/lib/useCustomerPortalContext';
-import { useSessionTimeout, useLogout } from '@/app/auth/sessionManager';
+import { useSessionTimeout } from '@/app/auth/sessionManager';
 import { FeatureFlagsProvider, useFeatureFlags } from '@/lib/useFeatureFlags';
 import type { FeatureFlagName } from '@/lib/featureFlags';
-import type { CustomerNavItem } from '@/app/customer/components/CustomerShell';
 
 // featureFlag: the entry only shows while that Feature Flag is on for the Customer.
-const CUSTOMER_NAV: (CustomerNavItem & { featureFlag?: FeatureFlagName })[] = [
+const CUSTOMER_NAV: (PortalNavItem & { featureFlag?: FeatureFlagName })[] = [
   { href: '/customer/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
   { href: '/customer/routes', label: 'Routes', icon: 'route' },
   { href: '/customer/invoices', label: 'Invoices', icon: 'file-text' },
@@ -51,52 +48,11 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
 // useCustomerPortalContext() call and every page's below it share the one
 // resolved role/customerId instead of each fetching it independently.
 function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
-  const userId = useCurrentUserId();
-  const [fallbackDisplayName, setFallbackDisplayName] = useState('');
-  const [userDisplayName, setUserDisplayName] = useState('');
+  const { userId, displayName, logout } = usePortalUser();
   const { role: customerRole } = useCustomerPortalContext();
   const { isOn } = useFeatureFlags();
-  const { logout } = useLogout();
 
   useSessionTimeout();
-
-  useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-
-    void fetchUserDisplayName().then((name) => {
-      if (!cancelled) setFallbackDisplayName(name || '');
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
-
-  useEffect(() => {
-    setUserDisplayName(fallbackDisplayName);
-  }, [fallbackDisplayName]);
-
-  useEffect(() => {
-    if (!userId) return;
-    if (typeof getUserSettings !== 'function') return;
-    let cancelled = false;
-
-    void getUserSettings(userId)
-      .then((result) => {
-        const configuredName = result.data?.name?.trim();
-        if (!cancelled) {
-          setUserDisplayName(configuredName || fallbackDisplayName);
-        }
-      })
-      .catch(() => {
-        // Non-blocking: keep the fallback display name if settings cannot be loaded.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [fallbackDisplayName, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -118,9 +74,9 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <ProtectedRoute requireCustomer={true}>
-      <CustomerShell navItems={navItems} userEmail={userDisplayName} onLogout={logout}>
+      <PortalShell variant="customer" navItems={navItems} userName={displayName} onLogout={logout}>
         {children}
-      </CustomerShell>
+      </PortalShell>
     </ProtectedRoute>
   );
 }

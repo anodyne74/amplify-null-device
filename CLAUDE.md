@@ -79,7 +79,7 @@ Use the `useUserGroups()` hook (`lib/use-user-groups.ts`) to fetch and cache gro
 - `lib/routes.ts`, `lib/customers.ts`, `lib/invoices.ts`, `lib/userSettings.ts` — browser data access, one module per aggregate; `lib/queries/` — remaining single-function modules (rate lines, operator payouts and availability, organization settings)
 - `lib/amplify-config.ts` — Amplify initialization, auth helpers
 - `app/auth/session.ts` + `sessionManager.ts` — session management
-- `app/components/PortalLayout.*` — shared sidebar + navigation layout used by all portals
+- `app/components/PortalShell.*` — shared sidebar + navigation shell used by all portals (`variant` picks staff or customer chrome); `lib/usePortalUser.ts` — the signed-in user's id, display name and logout
 - `app/api/` — Next.js API routes: `send-invoice-email/`, `users/`
 
 ### Testing

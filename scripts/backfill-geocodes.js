@@ -14,6 +14,7 @@ function parseArgs(argv) {
     password: '',
     force: false,
     assess: false,
+    repairConfirmed: false,
     delayMs: 200,
     limit: Infinity,
   };
@@ -63,6 +64,10 @@ function parseArgs(argv) {
       args.assess = true;
       continue;
     }
+    if (arg === '--repair-confirmed') {
+      args.repairConfirmed = true;
+      continue;
+    }
     if (arg === '--delay-ms' && next) {
       args.delayMs = Number(next);
       i += 1;
@@ -82,7 +87,7 @@ function usage() {
   console.log(`Usage:
   node scripts/backfill-geocodes.js \
     [--customer-id <customer-id>] \
-    [--assess] \
+    [--assess | --repair-confirmed] \
     [--mode dry-run|apply] \
     [--confirm-apply] \
     [--outputs-path amplify_outputs.json] \
@@ -97,18 +102,26 @@ function usage() {
   using the Google Geocoding REST API (server-side, no browser). Requires
   GOOGLE_MAPS_API_KEY or NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in the environment.
 
-  --force re-geocodes stops that already have coordinates too -- except Confirmed
-  ones, which are never moved.
+  --force re-geocodes stops that already have coordinates too -- except Stops at a
+  Confirmed Property (PropertyLocation), which are never moved, and Stops that still
+  say Confirmed (see --repair-confirmed).
 
   --assess (Location Precision, #284) re-geocodes every Stop -- all of them in the
   target environment unless --customer-id narrows it -- and writes ONLY its
   precision level, geocode signals, address components and Property key (#287).
   It never changes address, formattedAddress, latitude or longitude (earlier
-  backfills hand-corrected those), and a Confirmed Stop gets only its address
-  components and Property key. Prints counts per precision level,
-  the Approximate Stops, and suburb mismatches (entered addresses that don't
-  mention the geocoder's suburb). Run it once per branch environment via
+  backfills hand-corrected those), and a Stop at a Confirmed Property -- or one
+  that still says Confirmed -- gets only its address components and Property key.
+  Prints counts per precision level, the Approximate Stops, suburb mismatches
+  (entered addresses that don't mention the geocoder's suburb), and Stops that say
+  Confirmed at a Property that isn't. Run it once per branch environment via
   --outputs-path.
+
+  --repair-confirmed re-locates every Stop that says Confirmed at a Property that
+  isn't Confirmed -- a pin Confirmed for its old address, kept when the address was
+  edited. Each gets the geocode's pin, precision, signals, address components and
+  Property key, or the Property's Confirmed pin if it has one now, as saving the
+  Stop would. The address never changes. All Stops unless --customer-id narrows it.
   --delay-ms throttles requests between stops (default 200ms) to stay under
   Google's per-second quota.
 
@@ -120,7 +133,10 @@ function usage() {
 }
 
 function validateArgs(args) {
-  if (!args.customerId && !args.assess) {
+  if (args.assess && args.repairConfirmed) {
+    throw new Error('Use --assess or --repair-confirmed, not both.');
+  }
+  if (!args.customerId && !args.assess && !args.repairConfirmed) {
     usage();
     throw new Error('Missing required arg: --customer-id');
   }
@@ -289,13 +305,46 @@ function propertyKey(address, components) {
   return [suburb, postcode, normaliseStreet(street), streetNumber].join('|');
 }
 
-/** The plain geocode's candidates: Stops missing coordinates, or with --force all but Confirmed ones (never moved). */
-function selectGeocodeCandidates(stops, force) {
+/**
+ * Confirmed Properties' pins by Property key. PropertyLocation is the only
+ * source of Confirmed (CONTEXT.md "Location Precision"); a Stop's own
+ * locationPrecision is a copy, and wrong once its address was edited.
+ */
+function confirmedPins(propertyLocations) {
+  const pins = new Map();
+  for (const location of propertyLocations) {
+    if (location.confirmedAt && typeof location.latitude === 'number' && typeof location.longitude === 'number') {
+      pins.set(location.propertyKey, { latitude: location.latitude, longitude: location.longitude });
+    }
+  }
+  return pins;
+}
+
+function atConfirmedProperty(stop, pins) {
+  return Boolean(stop.propertyKey && pins.has(stop.propertyKey));
+}
+
+/** A Stop that says Confirmed at a Property that isn't -- --repair-confirmed's candidates. */
+function isStrayConfirmed(stop, pins) {
+  return stop.locationPrecision === 'confirmed' && !atConfirmedProperty(stop, pins);
+}
+
+/**
+ * The plain geocode's candidates: Stops missing coordinates, or with --force all
+ * but Stops at a Confirmed Property (never moved) and Stops that still say
+ * Confirmed (left to --repair-confirmed).
+ */
+function selectGeocodeCandidates(stops, force, pins = new Map()) {
   return stops.filter((stop) =>
     force
-      ? stop.locationPrecision !== 'confirmed'
+      ? !atConfirmedProperty(stop, pins) && stop.locationPrecision !== 'confirmed'
       : typeof stop.latitude !== 'number' || typeof stop.longitude !== 'number'
   );
+}
+
+/** --repair-confirmed's candidates: Stops with an address that say Confirmed at a Property that isn't. */
+function selectRepairCandidates(stops, pins) {
+  return stops.filter((stop) => stop.address?.trim() && isStrayConfirmed(stop, pins));
 }
 
 /** Assess mode's candidates: every Stop with an address (Confirmed ones still need a Property key). */
@@ -307,18 +356,31 @@ function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function addressComponentFields(components) {
+  const fields = {};
+  if (components.streetNumber) fields.addressStreetNumber = components.streetNumber;
+  if (components.street) fields.addressStreet = components.street;
+  if (components.suburb) fields.addressSuburb = components.suburb;
+  if (components.postcode) fields.addressPostcode = components.postcode;
+  return fields;
+}
+
 /**
  * The assess-mode update for one Stop -- precision, geocode signals, address
- * components and Property key only, never the address or coordinates; a
- * Confirmed Stop keeps its precision too (as stopLocationUpdate in
- * lib/locationPrecision.ts) -- and whether the entered
- * address fails to mention the geocoder's suburb (the entered address wins,
- * CONTEXT.md "Property", so a mismatch is a Stop worth a human look).
+ * components and Property key only, never the address or coordinates. A Stop
+ * at a Confirmed Property keeps its precision, and so does one that still says
+ * Confirmed: a geocode's precision would vouch for a pin it didn't place
+ * (--repair-confirmed moves it). Also whether the entered address fails to
+ * mention the geocoder's suburb (the entered address wins, CONTEXT.md
+ * "Property", so a mismatch is a Stop worth a human look), and whether the
+ * Stop says Confirmed at a Property that isn't.
  */
-function assessStop(stop, geocoded) {
+function assessStop(stop, geocoded, pins = new Map()) {
   const components = geocoded.addressComponents;
+  const key = propertyKey(stop.address, components);
+  const confirmedHere = pins.has(key ?? stop.propertyKey);
   const update =
-    stop.locationPrecision === 'confirmed'
+    confirmedHere || stop.locationPrecision === 'confirmed'
       ? { id: stop.id }
       : {
           id: stop.id,
@@ -327,17 +389,41 @@ function assessStop(stop, geocoded) {
           geocodeResultTypes: geocoded.resultTypes,
           geocodePartialMatch: geocoded.partialMatch,
         };
-  if (components.streetNumber) update.addressStreetNumber = components.streetNumber;
-  if (components.street) update.addressStreet = components.street;
-  if (components.suburb) update.addressSuburb = components.suburb;
-  if (components.postcode) update.addressPostcode = components.postcode;
-  const key = propertyKey(stop.address, components);
+  Object.assign(update, addressComponentFields(components));
   if (key) update.propertyKey = key;
 
   const suburbMismatch = Boolean(
     components.suburb && !new RegExp(`\\b${escapeRegExp(components.suburb)}\\b`, 'i').test(stop.address ?? '')
   );
-  return { stop, update, suburbMismatch };
+  const strayConfirmed = stop.locationPrecision === 'confirmed' && !confirmedHere;
+  return { stop, update, suburbMismatch, strayConfirmed };
+}
+
+/**
+ * --repair-confirmed's update for a Stop that says Confirmed at a Property that
+ * isn't: located afresh, as saving it would be (lib/stopLocation.ts
+ * locateEditedStop) -- the Property's Confirmed pin if it has one now, else the
+ * geocode's pin, precision, signals and address components. The address never
+ * changes.
+ */
+function repairStop(stop, geocoded, pins) {
+  const components = geocoded.addressComponents;
+  const key = propertyKey(stop.address, components);
+  const update = {
+    id: stop.id,
+    latitude: geocoded.latitude,
+    longitude: geocoded.longitude,
+    formattedAddress: geocoded.formattedAddress,
+    locationPrecision: geocoded.locationPrecision,
+    geocodeLocationType: geocoded.locationType,
+    geocodeResultTypes: geocoded.resultTypes,
+    geocodePartialMatch: geocoded.partialMatch,
+    ...addressComponentFields(components),
+  };
+  if (key) update.propertyKey = key;
+  const pin = pins.get(key ?? stop.propertyKey);
+  if (pin) Object.assign(update, pin, { locationPrecision: 'confirmed' });
+  return update;
 }
 
 function summarizeAssessment(assessments) {
@@ -347,6 +433,7 @@ function summarizeAssessment(assessments) {
     counts,
     approximate: assessments.filter(({ update }) => update.locationPrecision === 'approximate').map(({ stop }) => stop),
     suburbMismatches: assessments.filter(({ suburbMismatch }) => suburbMismatch).map(({ stop }) => stop),
+    strayConfirmed: assessments.filter(({ strayConfirmed }) => strayConfirmed).map(({ stop }) => stop),
   };
 }
 
@@ -367,7 +454,7 @@ async function geocodeAddress(address, apiKey) {
   return toGeocodedLocation(payload.results[0]);
 }
 
-function printAssessment({ counts, approximate, suburbMismatches }) {
+function printAssessment({ counts, approximate, suburbMismatches, strayConfirmed }) {
   console.log(
     `Location Precision: ${counts.precise} precise, ${counts.interpolated} interpolated, ${counts.approximate} approximate, ${counts.confirmed} confirmed (unchanged).`
   );
@@ -375,6 +462,8 @@ function printAssessment({ counts, approximate, suburbMismatches }) {
   for (const stop of approximate) console.log(`  - ${stop.id}: ${stop.address}`);
   console.log(`Suburb mismatches -- entered address doesn't mention the geocoder's suburb (${suburbMismatches.length}):`);
   for (const stop of suburbMismatches) console.log(`  - ${stop.id}: ${stop.address}`);
+  console.log(`Say Confirmed at a Property that isn't -- run --repair-confirmed (${strayConfirmed.length}):`);
+  for (const stop of strayConfirmed) console.log(`  - ${stop.id}: ${stop.address}`);
 }
 
 async function main() {
@@ -422,11 +511,27 @@ async function main() {
       nextToken = page.nextToken;
     } while (nextToken);
 
+    const propertyLocations = [];
+    nextToken = undefined;
+    do {
+      const page = await client.models.PropertyLocation.list({ limit: 200, nextToken, authMode });
+      if (page.errors?.length) throw new Error(`Could not list PropertyLocation: ${JSON.stringify(page.errors)}`);
+      propertyLocations.push(...(page.data || []));
+      nextToken = page.nextToken;
+    } while (nextToken);
+    const pins = confirmedPins(propertyLocations);
+    console.log(`${pins.size} Confirmed Propert${pins.size === 1 ? 'y' : 'ies'}.`);
+
     const candidates = (
-      args.assess ? selectAssessCandidates(allStops) : selectGeocodeCandidates(allStops, args.force)
+      args.repairConfirmed
+        ? selectRepairCandidates(allStops, pins)
+        : args.assess
+          ? selectAssessCandidates(allStops)
+          : selectGeocodeCandidates(allStops, args.force, pins)
     ).slice(0, args.limit);
 
-    console.log(`Found ${allStops.length} stop(s) total, ${candidates.length} to ${args.assess ? 'assess' : 'geocode'}.`);
+    const verb = args.repairConfirmed ? 'repair' : args.assess ? 'assess' : 'geocode';
+    console.log(`Found ${allStops.length} stop(s) total, ${candidates.length} to ${verb}.`);
     if (candidates.length === 0) {
       return;
     }
@@ -444,8 +549,18 @@ async function main() {
         const geocoded = await geocodeAddress(stop.address, apiKey);
         summary.geocoded += 1;
 
-        if (args.assess) {
-          const assessment = assessStop(stop, geocoded);
+        if (args.repairConfirmed) {
+          const update = repairStop(stop, geocoded, pins);
+          console.log(
+            `  -> ${index + 1}/${candidates.length}: ${stop.address} => ${update.latitude}, ${update.longitude} (${update.locationPrecision})`
+          );
+          if (args.mode === 'apply') {
+            const { errors } = await client.models.Stop.update(update, { authMode });
+            if (errors?.length) throw new Error(JSON.stringify(errors));
+            summary.updated += 1;
+          }
+        } else if (args.assess) {
+          const assessment = assessStop(stop, geocoded, pins);
           assessments.push(assessment);
           console.log(`  -> ${index + 1}/${candidates.length}: ${stop.address} => ${geocoded.locationPrecision}`);
           if (args.mode === 'apply') {
@@ -456,7 +571,7 @@ async function main() {
           console.log(`  -> ${index + 1}/${candidates.length}: ${stop.address} => ${geocoded.latitude}, ${geocoded.longitude}`);
         }
 
-        if (args.mode === 'apply' && !args.assess) {
+        if (args.mode === 'apply' && !args.assess && !args.repairConfirmed) {
           await client.models.Stop.update(
             {
               id: stop.id,
@@ -505,6 +620,9 @@ if (process.argv[1]?.endsWith('backfill-geocodes.js')) {
 
 export {
   assessStop,
+  confirmedPins,
+  repairStop,
+  selectRepairCandidates,
   classifyLocationPrecision,
   geocodeAddress,
   parseAddressComponents,

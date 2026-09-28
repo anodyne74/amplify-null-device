@@ -274,7 +274,8 @@ const schema = a.schema({
       longitude: a.float(),
       formattedAddress: a.string(),
       // Location Precision (CONTEXT.md, lib/locationPrecision.ts) — classified from the
-      // geocode signals below; 'confirmed' is set by hand and never overwritten by a geocode.
+      // geocode signals below; 'confirmed' is copied from the Stop's Property (PropertyLocation),
+      // the only source of Confirmed, and never overwritten by a geocode while that Property is Confirmed.
       // The address components identify the Property (ADR 0004), never the coordinates.
       locationPrecision: a.enum(['precise', 'interpolated', 'approximate', 'confirmed']),
       geocodeLocationType: a.string(),

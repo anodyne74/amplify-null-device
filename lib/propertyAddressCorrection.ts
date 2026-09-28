@@ -8,7 +8,7 @@ import type { LocatedStop } from './stopLocation';
  * review queue's answer to a suburb mismatch the entered address got wrong
  * (#286). The address is geocoded once -- or taken from the autocomplete pick
  * it came from -- and each Stop saved as any address edit would be (saveStop:
- * a new Property key; a Confirmed Stop keeps its pin).
+ * a new Property key, and that Property's Confirmed pin if it has one).
  */
 export async function correctPropertyAddress(
   stops: (LocatedStop & { id: string })[],

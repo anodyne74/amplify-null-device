@@ -49,6 +49,11 @@ export interface PropertyReview {
   approximate: boolean;
   /** Some Stop at the Property has no pin, so it isn't on the map (#344). */
   noPin: boolean;
+  /**
+   * Some Stop here says Confirmed, but this Property isn't: its pin was
+   * Confirmed for another address, before the Stop's address was edited.
+   */
+  confirmedElsewhere: boolean;
   suburbMismatch: { geocodedSuburb: string } | null;
   currentPin: Pin | null;
   /** The latest operator placement GPS fix at the Property (#285), if any. */
@@ -103,14 +108,17 @@ export function buildLocationReviewQueue(stops: ReviewStop[], decisions: Propert
 
     const approximate = propertyStops.some((stop) => stop.locationPrecision === 'approximate');
     const noPin = !propertyStops.every(hasPin);
+    // Past the confirmedAt check above, so a Confirmed Stop here was Confirmed at another Property.
+    const confirmedElsewhere = propertyStops.some((stop) => stop.locationPrecision === 'confirmed');
     const mismatched = decision?.suburbMismatchDismissedAt ? undefined : propertyStops.find(hasSuburbMismatch);
-    if (!approximate && !noPin && !mismatched) continue;
+    if (!approximate && !noPin && !confirmedElsewhere && !mismatched) continue;
 
     queue.push({
       propertyKey,
       stops: propertyStops,
       approximate,
       noPin,
+      confirmedElsewhere,
       suburbMismatch: mismatched ? { geocodedSuburb: mismatched.addressSuburb as string } : null,
       currentPin: currentPin(propertyStops),
       suggestedPin: suggestedPin(propertyStops),

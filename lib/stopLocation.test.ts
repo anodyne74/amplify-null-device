@@ -88,16 +88,13 @@ describe('locateEditedStop', () => {
     );
   });
 
-  it('leaves a Confirmed Stop where it is, whatever the geocode says', async () => {
+  it("doesn't keep a Confirmed Stop's pin once it's saved at a Property that isn't Confirmed", async () => {
     const confirmed = { ...located, locationPrecision: 'confirmed' };
 
-    for (const values of [{ address: '14 Smith St' }, { address: '12 Smith St', resolvedLocation: PICKED }]) {
-      const { fields, pinned } = await locateEditedStop(confirmed, values);
-      expect(fields).not.toHaveProperty('latitude');
-      expect(fields).not.toHaveProperty('longitude');
-      expect(fields).not.toHaveProperty('locationPrecision');
-      expect(pinned).toBe(true);
-    }
+    await expect(locateEditedStop(confirmed, { address: '14 Smith St' })).resolves.toEqual(locatedBy(GEOCODED));
+    await expect(locateEditedStop(confirmed, { address: '12 Smith St', resolvedLocation: PICKED })).resolves.toEqual(
+      locatedBy(PICKED)
+    );
   });
 
   describe("when the new address can't be geocoded", () => {
@@ -119,11 +116,11 @@ describe('locateEditedStop', () => {
       });
     });
 
-    it('leaves a Confirmed Stop where it is', async () => {
-      await expect(locateEditedStop({ ...located, locationPrecision: 'confirmed' }, { address: '14 Smith St' })).resolves.toEqual({
-        fields: {},
-        pinned: true,
-      });
+    it("clears a Confirmed Stop's pin too: it was Confirmed for the old address", async () => {
+      const { fields, pinned } = await locateEditedStop({ ...located, locationPrecision: 'confirmed' }, { address: '14 Smith St' });
+
+      expect(pinned).toBe(false);
+      expect(fields).toMatchObject({ latitude: null, longitude: null, locationPrecision: null });
     });
 
     it('changes nothing for an unchanged address that never had coordinates', async () => {

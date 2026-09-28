@@ -83,6 +83,9 @@ export default function AdministratorLocationReviewPage() {
                       <span className={styles.badges}>
                         {review.noPin && <Badge tone="danger" size="sm">No pin</Badge>}
                         {review.approximate && <Badge tone="warning" size="sm">Approximate</Badge>}
+                        {review.confirmedElsewhere && (
+                          <Badge tone="warning" size="sm">Confirmed pin from another address</Badge>
+                        )}
                         {review.suburbMismatch && <Badge tone="info" size="sm">Suburb mismatch</Badge>}
                         <span className={styles.note}>
                           {review.stops.length} Stop{review.stops.length === 1 ? '' : 's'}
@@ -102,7 +105,9 @@ export default function AdministratorLocationReviewPage() {
                 onDismissed={() =>
                   resolve(
                     selected.propertyKey,
-                    selected.approximate || selected.noPin ? { ...selected, suburbMismatch: null } : null
+                    selected.approximate || selected.noPin || selected.confirmedElsewhere
+                      ? { ...selected, suburbMismatch: null }
+                      : null
                   )
                 }
                 onAddressCorrected={() => void load()}
@@ -159,6 +164,13 @@ function PropertyReviewCard({
 
         {pin && (
           <PropertyPinMap pin={pin} currentPin={review.currentPin} suggestedPin={review.suggestedPin} onPinChange={setPin} />
+        )}
+
+        {review.confirmedElsewhere && (
+          <p className={styles.note}>
+            A Stop here still has the pin that was Confirmed for its old address. Confirm this Property&apos;s pin to move
+            every Stop here to it.
+          </p>
         )}
 
         {suggested && (

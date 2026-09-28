@@ -82,7 +82,7 @@ export interface StopLocationFields {
   latitude: number;
   longitude: number;
   formattedAddress: string;
-  /** Confirmed only when copied from a Stop that was confirmed by hand; a geocode never produces it. */
+  /** Confirmed only when the Stop's Property has a Confirmed pin (PropertyLocation); a geocode never produces it. */
   locationPrecision?: LocationPrecision;
   geocodeLocationType?: string;
   geocodeResultTypes?: string[];
@@ -158,19 +158,6 @@ export function stopLocationFields(geocoded: GeocodedLocation): StopLocationFiel
     geocodePartialMatch: geocoded.partialMatch,
     ...stopAddressFields(geocoded.addressComponents),
   };
-}
-
-/**
- * The fields to write when an existing Stop is re-geocoded. A Confirmed Stop
- * keeps its pin, formatted address and precision; only the address components
- * (which describe the entered address, not the pin) are refreshed.
- */
-export function stopLocationUpdate(
-  existing: { locationPrecision?: string | null } | undefined,
-  geocoded: GeocodedLocation
-): Partial<StopLocationFields> {
-  if (existing?.locationPrecision === 'confirmed') return stopAddressFields(geocoded.addressComponents);
-  return stopLocationFields(geocoded);
 }
 
 export interface LocationPrecisionIndicator {

@@ -1,5 +1,8 @@
 import {
   assessStop,
+  confirmedPins,
+  repairStop,
+  selectRepairCandidates,
   classifyLocationPrecision,
   geocodeAddress,
   parseAddressComponents,
@@ -139,6 +142,21 @@ describe('assessStop', () => {
     });
   });
 
+  it("keeps the precision of a Stop at a Confirmed Property, whatever the Stop says", () => {
+    const pins = new Map([['fitzroy|3065|smith street|12', { latitude: -37.9, longitude: 145.0 }]]);
+    const { update, strayConfirmed } = assessStop(stop, toGeocodedLocation(RESULT), pins);
+
+    expect(update).not.toHaveProperty('locationPrecision');
+    expect(strayConfirmed).toBe(false);
+  });
+
+  it("flags a Stop that says Confirmed at a Property that isn't, without vouching for its pin", () => {
+    const { update, strayConfirmed } = assessStop({ ...stop, locationPrecision: 'confirmed' }, toGeocodedLocation(RESULT));
+
+    expect(update).not.toHaveProperty('locationPrecision');
+    expect(strayConfirmed).toBe(true);
+  });
+
   it('writes no Property key when there is not enough address to build one', () => {
     const geocoded = toGeocodedLocation({ ...RESULT, address_components: [] });
     expect(assessStop({ ...stop, address: 'Smith St' }, geocoded).update).not.toHaveProperty('propertyKey');
@@ -194,8 +212,85 @@ describe('selectGeocodeCandidates', () => {
     expect(selectGeocodeCandidates(stops, false).map((stop: { id: string }) => stop.id)).toEqual(['c']);
   });
 
-  it('re-geocodes located Stops with --force, but never moves a Confirmed one (#286)', () => {
+  it('re-geocodes located Stops with --force, but never one that still says Confirmed (#286)', () => {
     expect(selectGeocodeCandidates(stops, true).map((stop: { id: string }) => stop.id)).toEqual(['a', 'c']);
+  });
+
+  it('never moves a Stop at a Confirmed Property with --force, whatever the Stop says', () => {
+    const pins = new Map([['k', { latitude: 1, longitude: 2 }]]);
+    const atConfirmed = { id: 'd', address: '4 D St', latitude: 1, longitude: 2, locationPrecision: 'precise', propertyKey: 'k' };
+
+    expect(selectGeocodeCandidates([...stops, atConfirmed], true, pins).map((stop: { id: string }) => stop.id)).toEqual([
+      'a',
+      'c',
+    ]);
+  });
+});
+
+describe('confirmedPins', () => {
+  it('maps each Confirmed Property to its pin, skipping unconfirmed and pinless decisions', () => {
+    expect(
+      confirmedPins([
+        { propertyKey: 'a', latitude: 1, longitude: 2, confirmedAt: '2026-09-27T00:00:00Z' },
+        { propertyKey: 'b', suburbMismatchDismissedAt: '2026-09-27T00:00:00Z' },
+        { propertyKey: 'c', confirmedAt: '2026-09-27T00:00:00Z' },
+      ])
+    ).toEqual(new Map([['a', { latitude: 1, longitude: 2 }]]));
+  });
+});
+
+describe('--repair-confirmed', () => {
+  const pins = new Map([['fitzroy|3065|smith street|14', { latitude: -37.9, longitude: 145.0 }]]);
+  const stray = {
+    id: 's1',
+    address: '12 Smith St, Fitzroy VIC 3065',
+    latitude: -37.1,
+    longitude: 144.1,
+    locationPrecision: 'confirmed',
+    propertyKey: 'fitzroy|3065|smith street|12',
+  };
+
+  it("selects only Stops that say Confirmed at a Property that isn't", () => {
+    const stops = [
+      stray,
+      { ...stray, id: 's2', propertyKey: 'fitzroy|3065|smith street|14' },
+      { ...stray, id: 's3', locationPrecision: 'precise' },
+      { ...stray, id: 's4', address: ' ' },
+    ];
+
+    expect(selectRepairCandidates(stops, pins).map((stop: { id: string }) => stop.id)).toEqual(['s1']);
+  });
+
+  it("moves a stray Stop to its geocode, with the geocode's precision, keeping its address", () => {
+    const update = repairStop(stray, toGeocodedLocation(RESULT), pins);
+
+    expect(update).toEqual({
+      id: 's1',
+      latitude: -37.8,
+      longitude: 144.98,
+      formattedAddress: '12 Smith St, Fitzroy VIC 3065, Australia',
+      locationPrecision: 'precise',
+      geocodeLocationType: 'ROOFTOP',
+      geocodeResultTypes: ['street_address'],
+      geocodePartialMatch: false,
+      addressStreetNumber: '12',
+      addressStreet: 'Smith Street',
+      addressSuburb: 'Fitzroy',
+      addressPostcode: '3065',
+      propertyKey: 'fitzroy|3065|smith street|12',
+    });
+  });
+
+  it("gives it the Property's Confirmed pin when its Property has one now", () => {
+    const confirmedSince = new Map([['fitzroy|3065|smith street|12', { latitude: -37.9, longitude: 145.0 }]]);
+    const update = repairStop(stray, toGeocodedLocation(RESULT), confirmedSince);
+
+    expect(update).toMatchObject({
+      latitude: -37.9,
+      longitude: 145.0,
+      locationPrecision: 'confirmed',
+      propertyKey: 'fitzroy|3065|smith street|12',
+    });
   });
 });
 
@@ -213,6 +308,7 @@ describe('summarizeAssessment', () => {
       counts: { precise: 1, interpolated: 1, approximate: 2, confirmed: 1 },
       approximate: [assessments[1].stop, assessments[3].stop],
       suburbMismatches: [assessments[2].stop, assessments[3].stop],
+      strayConfirmed: [],
     });
   });
 });
@@ -225,6 +321,7 @@ describe('parseArgs', () => {
       mode: 'apply',
       confirmApply: true,
     });
-    expect(parseArgs(['node', 'script', '--customer-id', 'c1'])).toMatchObject({ assess: false });
+    expect(parseArgs(['node', 'script', '--customer-id', 'c1'])).toMatchObject({ assess: false, repairConfirmed: false });
+    expect(parseArgs(['node', 'script', '--repair-confirmed'])).toMatchObject({ repairConfirmed: true, mode: 'dry-run' });
   });
 });

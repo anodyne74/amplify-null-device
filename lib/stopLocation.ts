@@ -1,7 +1,6 @@
 import { geocodeAddress } from './googleMaps';
 import {
   stopLocationFields,
-  stopLocationUpdate,
   type GeocodedLocation,
   type StopLocationFields,
   type StopLocationWrite,
@@ -81,24 +80,21 @@ export async function locateNewStop(
 /**
  * Location fields to write for an edited Stop. An unchanged address on a Stop
  * that already has coordinates isn't re-geocoded, so a flaky Maps call can't
- * touch an unrelated edit (#58). A changed address that can't be geocoded
- * loses the old address's pin. A Confirmed Stop is never moved
- * (stopLocationUpdate), though its Property key follows the new address.
+ * touch an unrelated edit (#58). Otherwise the Stop is located as a new one
+ * would be: Confirmed only if the Property it's saved at is (withConfirmedPin),
+ * never because the Stop was Confirmed before -- a pin Confirmed for its old
+ * address belongs to another Property. A changed address that can't be
+ * geocoded loses the old address's pin.
  */
 export async function locateEditedStop(original: LocatedStop | undefined, values: StopAddressInput): Promise<StopLocation> {
   const hasPin = typeof original?.latitude === 'number' && typeof original?.longitude === 'number';
   const addressUnchanged = original?.address?.trim() === values.address.trim();
   if (!values.resolvedLocation && addressUnchanged && hasPin) return { fields: {}, pinned: true };
 
-  const confirmed = original?.locationPrecision === 'confirmed';
   const geocoded = values.resolvedLocation ?? (await tryGeocode(values.address));
-  if (!geocoded) {
-    if (confirmed) return { fields: {}, pinned: hasPin };
-    return withConfirmedPin(addressUnchanged ? {} : NO_PIN, values.address);
-  }
-
-  const located = await withConfirmedPin(stopLocationUpdate(original, geocoded), values.address);
-  return confirmed && hasPin ? { ...located, pinned: true } : located;
+  if (!geocoded) return withConfirmedPin(addressUnchanged ? {} : NO_PIN, values.address);
+  // A geocode always classifies its precision; the null clears an old Confirmed if one ever doesn't.
+  return withConfirmedPin({ locationPrecision: null, ...stopLocationFields(geocoded) }, values.address);
 }
 
 /**

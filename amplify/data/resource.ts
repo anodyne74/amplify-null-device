@@ -2,6 +2,7 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 import { customerAccessActivation } from '../functions/customer-access-activation/resource';
 import { operatorStatusActivation } from '../functions/operator-status-activation/resource';
 import { reportPurge } from '../functions/report-purge/resource';
+import { routeRequestCapture } from '../functions/route-request-capture/resource';
 
 /**
  * Delivery Management System Data Model
@@ -22,6 +23,7 @@ import { reportPurge } from '../functions/report-purge/resource';
  * - FeatureFlagSetting: stored state of each Feature Flag (administrator-only)
  * - PropertyLocation: an administrator's review decisions for one Property (Confirmed pin, dismissed suburb flag)
  * - PropertyHistoryReport: a frozen Property History PDF's record (read through the reports API)
+ * - RouteRequestEmail: an email sent to requests@, captured for the administrator inbox (ADR 0008)
  * - OperatorAvailabilityBlock: Days Null Device has no drivers available for a customer
  * - CustomerClosureBlock: Days a customer's agency is closed
  * - RateLine: Named, priced lines on a customer's rate card
@@ -730,10 +732,52 @@ const schema = a.schema({
       index('customerId').sortKeys(['generatedAt']).queryField('listPropertyHistoryReportsByCustomer'),
     ])
     .authorization((allow) => [allow.groups(['administrator']).to(['read'])]),
+
+  /** One file from a Route Request email, copied to the app bucket's requests/ path. */
+  RouteRequestAttachment: a.customType({
+    key: a.string().required(),
+    filename: a.string().required(),
+    contentType: a.string(),
+    size: a.integer(),
+    inline: a.boolean(), // An inline part (a signature logo, say) rather than an attached file
+  }),
+
+  /**
+   * RouteRequestEmail - an email sent to requests@ (#358, ADR 0008), captured
+   * by the route-request-capture function; the id is SES's message ID, which
+   * is also the raw message's key in the inbound bucket. Unlinked until an
+   * administrator links it to a Route (part 2) or dismisses it with a reason;
+   * never deleted. Administrators only: customers have no access, and its files
+   * are handed out by /api/route-requests/file.
+   */
+  RouteRequestEmail: a
+    .model({
+      fromName: a.string(),
+      fromAddress: a.string().required(),
+      sentAt: a.datetime().required(), // The Date header, else when SES received it
+      receivedAt: a.datetime().required(),
+      subject: a.string(),
+      bodyText: a.string(),
+      spfVerdict: a.string(),
+      dkimVerdict: a.string(),
+      dmarcVerdict: a.string(),
+      rawMessageKey: a.string().required(),
+      attachments: a.ref('RouteRequestAttachment').array(),
+      loggedByStaff: a.boolean(), // Sent from our own domain
+      suggestedCustomerId: a.id(),
+      status: a.enum(['unlinked', 'linked', 'dismissed']),
+      dismissedReason: a.string(),
+      dismissedAt: a.datetime(),
+      dismissedBySub: a.string(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [allow.groups(['administrator']).to(['read', 'update'])]),
 }).authorization((allow) => [
   allow.resource(customerAccessActivation).to(['query', 'mutate']),
   allow.resource(operatorStatusActivation).to(['query', 'mutate']),
   allow.resource(reportPurge).to(['query', 'mutate']),
+  allow.resource(routeRequestCapture).to(['query', 'mutate']),
 ]);
 
 export type Schema = ClientSchema<typeof schema>;

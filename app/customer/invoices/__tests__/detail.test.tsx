@@ -44,7 +44,6 @@ describe('Customer invoice detail', () => {
       customerId: 'cust-1',
     });
     (getInvoiceDetail as jest.Mock).mockResolvedValue({
-      data: {
         id: 'inv-1',
         customerId: 'cust-1',
         invoiceNumber: 'INV-001',
@@ -54,9 +53,7 @@ describe('Customer invoice detail', () => {
         totalAmount: 500,
         status: 'paid',
         lineItems: [],
-      },
-      errors: undefined,
-    });
+      });
     (listCustomerRouteRequests as jest.Mock).mockResolvedValue([]);
   });
 
@@ -100,10 +97,7 @@ describe('Customer invoice detail', () => {
   });
 
   it('links the route by its Route Code', async () => {
-    (getInvoiceDetail as jest.Mock).mockResolvedValue({
-      data: { id: 'inv-1', customerId: 'cust-1', invoiceNumber: 'INV-001', routeId: 'route-uuid-0001', routeCode: 'W03-24-001', lineItems: [] },
-      errors: undefined,
-    });
+    (getInvoiceDetail as jest.Mock).mockResolvedValue({ id: 'inv-1', customerId: 'cust-1', invoiceNumber: 'INV-001', routeId: 'route-uuid-0001', routeCode: 'W03-24-001', lineItems: [] });
 
     renderWithToast(<InvoiceDetailContent params={{ id: 'inv-1' }} />);
 
@@ -113,10 +107,7 @@ describe('Customer invoice detail', () => {
   });
 
   it('falls back to a short route ID when the route has no code', async () => {
-    (getInvoiceDetail as jest.Mock).mockResolvedValue({
-      data: { id: 'inv-1', customerId: 'cust-1', invoiceNumber: 'INV-001', routeId: 'abcdef1234567890', lineItems: [] },
-      errors: undefined,
-    });
+    (getInvoiceDetail as jest.Mock).mockResolvedValue({ id: 'inv-1', customerId: 'cust-1', invoiceNumber: 'INV-001', routeId: 'abcdef1234567890', lineItems: [] });
 
     renderWithToast(<InvoiceDetailContent params={{ id: 'inv-1' }} />);
 
@@ -124,10 +115,7 @@ describe('Customer invoice detail', () => {
   });
 
   it("summarises the Route's Route Request and links to its Requests section (#360)", async () => {
-    (getInvoiceDetail as jest.Mock).mockResolvedValue({
-      data: { id: 'inv-1', customerId: 'cust-1', invoiceNumber: 'INV-001', routeId: 'route-1', routeCode: 'W03-24-001', lineItems: [] },
-      errors: undefined,
-    });
+    (getInvoiceDetail as jest.Mock).mockResolvedValue({ id: 'inv-1', customerId: 'cust-1', invoiceNumber: 'INV-001', routeId: 'route-1', routeCode: 'W03-24-001', lineItems: [] });
     const sent = { requesterName: 'Ann Agent', requesterEmail: 'ann@agency.test', recordedByNullDevice: false, attachments: [] };
     (listCustomerRouteRequests as jest.Mock).mockResolvedValue([
       { ...sent, id: 'req', role: 'request', sentAt: '2026-09-27T12:00:00.000Z' },
@@ -143,10 +131,7 @@ describe('Customer invoice detail', () => {
   });
 
   it('says there is no request on file when the Route has no Route Request', async () => {
-    (getInvoiceDetail as jest.Mock).mockResolvedValue({
-      data: { id: 'inv-1', customerId: 'cust-1', invoiceNumber: 'INV-001', routeId: 'route-1', lineItems: [] },
-      errors: undefined,
-    });
+    (getInvoiceDetail as jest.Mock).mockResolvedValue({ id: 'inv-1', customerId: 'cust-1', invoiceNumber: 'INV-001', routeId: 'route-1', lineItems: [] });
 
     renderWithToast(<InvoiceDetailContent params={{ id: 'inv-1' }} />);
 

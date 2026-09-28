@@ -90,27 +90,17 @@ export default function InvoicesPage() {
       setInvoicesError(null);
 
       try {
-        const result = await listMyInvoices({
+        const rows = await listMyInvoices({
           customerId,
           userSub: userId,
           startDate: startDate || undefined,
           endDate: endDate || undefined,
         });
 
-        if (cancelled) return;
-
-        if (result.errors && result.errors.length > 0) {
-          const message = (result.errors[0] as Error | undefined)?.message;
-          setInvoicesError(message?.includes('reviewer users cannot view invoices') ? 'Access denied' : 'Failed to load invoices');
-          console.error('Error fetching invoices:', result.errors);
-        } else {
-          setInvoices((result.data as InvoiceRow[]) || []);
-        }
+        // The hand-written Invoice type (amplify/types) differs from the schema's; unifying them is later work.
+        if (!cancelled) setInvoices(rows as unknown as InvoiceRow[]);
       } catch (err) {
-        if (!cancelled) {
-          setInvoicesError('Failed to load invoices');
-          console.error('Error fetching invoices:', err);
-        }
+        if (!cancelled) setInvoicesError((err as Error).message);
       } finally {
         if (!cancelled) {
           setInvoicesLoading(false);

@@ -47,14 +47,10 @@ describe('Administrator dashboard overview', () => {
       errors: undefined,
     });
 
-    (listInvoices as jest.Mock).mockResolvedValue({
-      data: [
+    (listInvoices as jest.Mock).mockResolvedValue([
         { id: 'invoice-1', customerId: 'customer-1', totalAmount: 2000, invoiceDate: new Date().toISOString(), status: 'sent' },
         { id: 'invoice-2', customerId: 'customer-2', totalAmount: 500, invoiceDate: new Date().toISOString(), status: 'draft' },
-      ],
-      nextToken: undefined,
-      errors: undefined,
-    });
+      ]);
 
     (listCustomerUsers as jest.Mock).mockResolvedValue({
       data: [{ customerId: 'customer-1', role: 'account_owner' }],
@@ -104,7 +100,7 @@ describe('Administrator dashboard overview', () => {
   it('shows an empty state when there is no recent customer activity', async () => {
     (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], nextToken: undefined, errors: undefined });
     (listAllStops as jest.Mock).mockResolvedValue({ data: [], nextToken: undefined, errors: undefined });
-    (listInvoices as jest.Mock).mockResolvedValue({ data: [], nextToken: undefined, errors: undefined });
+    (listInvoices as jest.Mock).mockResolvedValue([]);
 
     render(<AdminHomePage />);
 

@@ -123,44 +123,44 @@ export function useInvoiceDocumentActions({
         options: { contentType: 'application/pdf' },
       }).result;
 
-      const keyResult = await updateInvoicePdfKey(invoiceId, s3Key);
-      if (keyResult.errors && keyResult.errors.length > 0) {
+      try {
+        await updateInvoicePdfKey(invoiceId, s3Key);
+      } catch {
         setUploadError('Uploaded to S3 but failed to save key on invoice.');
+        return;
+      }
+      // Parse first, then write once: a failed write is a failed upload, never mistaken for a failed parse.
+      const uploadedAt = new Date().toISOString();
+      const updates: Parameters<typeof updateInvoice>[1] = { pdfS3Key: s3Key, importedAt: uploadedAt };
+      let parsed = true;
+      try {
+        const invoiceText = parseInvoiceText(await extractScheduleText(file));
+        const existingInvoice = invoices.find((invoice) => invoice.id === invoiceId);
+
+        const parsedRouteId = invoiceText.routeCode
+          ? routes.find(
+              (route) =>
+                route.routeCode?.toUpperCase() === invoiceText.routeCode &&
+                (!existingInvoice?.customerId || route.customerId === existingInvoice.customerId)
+            )?.id
+          : undefined;
+
+        if (invoiceText.invoiceNumber) updates.invoiceNumber = invoiceText.invoiceNumber;
+        if (invoiceText.invoiceDate) updates.invoiceDate = invoiceText.invoiceDate;
+        if (typeof invoiceText.totalAmount === 'number') updates.totalAmount = invoiceText.totalAmount;
+        if (parsedRouteId) updates.routeId = parsedRouteId;
+      } catch (parseError) {
+        console.warn('PDF uploaded but auto-parse failed:', parseError);
+        parsed = false;
+      }
+
+      await updateInvoice(invoiceId, updates);
+      updateInvoiceInState(invoiceId, updates as Partial<Invoice>);
+      if (parsed) {
+        setSuccessMessage('Invoice PDF uploaded and invoice metadata updated.');
       } else {
-        const uploadedAt = new Date().toISOString();
-        try {
-          const parsedText = await extractScheduleText(file);
-          const parsed = parseInvoiceText(parsedText);
-          const existingInvoice = invoices.find((invoice) => invoice.id === invoiceId);
-
-          const parsedRouteId = parsed.routeCode
-            ? routes.find(
-                (route) =>
-                  route.routeCode?.toUpperCase() === parsed.routeCode &&
-                  (!existingInvoice?.customerId || route.customerId === existingInvoice.customerId)
-              )?.id
-            : undefined;
-
-          const parsedUpdates: Parameters<typeof updateInvoice>[1] = {
-            pdfS3Key: s3Key,
-            importedAt: uploadedAt,
-          };
-
-          if (parsed.invoiceNumber) parsedUpdates.invoiceNumber = parsed.invoiceNumber;
-          if (parsed.invoiceDate) parsedUpdates.invoiceDate = parsed.invoiceDate;
-          if (typeof parsed.totalAmount === 'number') parsedUpdates.totalAmount = parsed.totalAmount;
-          if (parsedRouteId) parsedUpdates.routeId = parsedRouteId;
-
-          await updateInvoice(invoiceId, parsedUpdates);
-          updateInvoiceInState(invoiceId, parsedUpdates as Partial<Invoice>);
-          setSuccessMessage('Invoice PDF uploaded and invoice metadata updated.');
-        } catch (parseError) {
-          console.warn('PDF uploaded but auto-parse failed:', parseError);
-          await updateInvoice(invoiceId, { importedAt: uploadedAt });
-          updateInvoiceInState(invoiceId, { pdfS3Key: s3Key, importedAt: uploadedAt });
-          setUploadError('PDF uploaded, but automatic invoice parsing failed. You can still use the uploaded PDF.');
-          setSuccessMessage('Invoice PDF uploaded successfully.');
-        }
+        setUploadError('PDF uploaded, but automatic invoice parsing failed. You can still use the uploaded PDF.');
+        setSuccessMessage('Invoice PDF uploaded successfully.');
       }
     } catch (err) {
       console.error('Upload error:', err);
@@ -226,7 +226,7 @@ export function useInvoiceDocumentActions({
       const customer = customers.find((entry) => entry.id === invoice.customerId);
       const linkedRoute = routes.find((route) => route.id === invoice.routeId);
       const detail = await getInvoiceWithLineItems(invoice.id);
-      const lineItems = (detail.lineItems as Array<{
+      const lineItems = (detail?.lineItems as Array<{
         description?: string | null;
         quantity?: number | null;
         ratePerUnit?: number | null;
@@ -335,13 +335,14 @@ export function useInvoiceDocumentActions({
         options: { contentType: 'application/pdf' },
       }).result;
 
-      const keyResult = await updateInvoicePdfKey(invoice.id, s3Key);
-      if (keyResult.errors && keyResult.errors.length > 0) {
+      try {
+        await updateInvoicePdfKey(invoice.id, s3Key);
+      } catch {
         setUploadError('Generated PDF uploaded but failed to save key on invoice.');
-      } else {
-        updateInvoiceInState(invoice.id, { pdfS3Key: s3Key, importedAt: null });
-        setSuccessMessage(`Invoice ${invoice.invoiceNumber} PDF generated successfully.`);
+        return;
       }
+      updateInvoiceInState(invoice.id, { pdfS3Key: s3Key, importedAt: null });
+      setSuccessMessage(`Invoice ${invoice.invoiceNumber} PDF generated successfully.`);
     } catch (err) {
       console.error('PDF generation failed:', err);
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -379,12 +380,12 @@ export function useInvoiceDocumentActions({
 
       const sentAt = new Date().toISOString();
       const nextStatus = String(invoice.status ?? '').trim().toLowerCase() === 'paid' ? 'paid' : 'sent';
-      const updateResult = await updateInvoice(invoice.id, {
-        status: nextStatus,
-        emailSentAt: sentAt,
-      });
-
-      if (updateResult.errors && updateResult.errors.length > 0) {
+      try {
+        await updateInvoice(invoice.id, {
+          status: nextStatus,
+          emailSentAt: sentAt,
+        });
+      } catch {
         setError('Invoice email sent, but status timestamp update failed. Refresh to confirm latest state.');
         return;
       }

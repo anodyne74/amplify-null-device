@@ -49,10 +49,23 @@ import {
   listMyInvoices,
   getInvoiceDetail,
 } from './invoices';
+import { DataError } from './graphqlResult';
+
+const mockGetCustomerPortalContext = jest.fn();
+jest.mock('@/lib/customers', () => ({
+  getCustomerPortalContext: (...args: unknown[]) => mockGetCustomerPortalContext(...args),
+}));
 
 describe('invoices', () => {
+  let consoleErrorSpy: jest.SpyInstance;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+  });
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
   });
 
   describe('listCustomerInvoices', () => {
@@ -69,16 +82,16 @@ describe('invoices', () => {
         limit: 1000,
         nextToken: undefined,
       });
-      expect(result.data).toHaveLength(1);
+      expect(result).toHaveLength(1);
     });
 
-    it('should return an empty list on error', async () => {
+    it('throws a DataError when the list fails', async () => {
       mockInvoiceList.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
 
-      const result = await listCustomerInvoices('c1');
-
-      expect(result.data).toEqual([]);
-      expect(result.errors).toBeTruthy();
+      await expect(listCustomerInvoices('c1')).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to load invoices.',
+      });
     });
   });
 
@@ -95,23 +108,21 @@ describe('invoices', () => {
       const all = await listInvoices();
       const sent = await listInvoices({ status: 'sent' as any });
 
-      expect(all.data).toHaveLength(2);
-      expect(sent.data).toHaveLength(1);
-      expect(sent.data[0].id).toBe('i2');
+      expect(all).toHaveLength(2);
+      expect(sent).toHaveLength(1);
+      expect(sent[0].id).toBe('i2');
     });
 
-    it('should return empty data and errors when invoice listing fails', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-      mockInvoiceList.mockResolvedValue({
-        data: [],
-        errors: [{ message: 'boom' }],
-      });
+    it('throws on a partial list, and logs the raw errors once', async () => {
+      const errors = [{ message: 'boom' }];
+      mockInvoiceList.mockResolvedValue({ data: [{ id: 'i1', status: 'draft' }], errors });
 
-      const result = await listInvoices();
+      const failure = await listInvoices().catch((err) => err);
 
-      expect(result.data).toEqual([]);
-      expect(result.errors).toBeDefined();
-      consoleErrorSpy.mockRestore();
+      expect(failure).toBeInstanceOf(DataError);
+      expect(failure.message).toBe('Failed to load invoices.');
+      expect(failure.cause).toEqual(errors);
+      expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -128,11 +139,11 @@ describe('invoices', () => {
 
       const result = await getInvoiceWithLineItems('inv-1');
 
-      expect(result.invoice).toEqual({ id: 'inv-1', status: 'draft' });
-      expect(result.lineItems).toHaveLength(1);
+      expect(result?.invoice).toEqual({ id: 'inv-1', status: 'draft' });
+      expect(result?.lineItems).toHaveLength(1);
     });
 
-    it('should return empty line items when invoice is not found', async () => {
+    it('returns null when the invoice is not found', async () => {
       mockInvoiceGet.mockResolvedValue({
         data: null,
         errors: undefined,
@@ -140,22 +151,20 @@ describe('invoices', () => {
 
       const result = await getInvoiceWithLineItems('missing');
 
-      expect(result.invoice).toBeNull();
-      expect(result.lineItems).toEqual([]);
+      expect(result).toBeNull();
+      expect(mockLineItemList).not.toHaveBeenCalled();
     });
 
-    it('should return invoice errors when invoice fetch errors are present', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+    it('throws a DataError when the invoice read fails', async () => {
       mockInvoiceGet.mockResolvedValue({
         data: null,
         errors: [{ message: 'invoice get failed' }],
       });
 
-      const result = await getInvoiceWithLineItems('inv-1');
-
-      expect(result.invoice).toBeNull();
-      expect(result.errors).toEqual([{ message: 'invoice get failed' }]);
-      consoleErrorSpy.mockRestore();
+      await expect(getInvoiceWithLineItems('inv-1')).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to load invoice.',
+      });
     });
   });
 
@@ -172,7 +181,21 @@ describe('invoices', () => {
       });
 
       expect(mockInvoiceCreate).toHaveBeenCalled();
-      expect(result.data).toEqual({ id: 'inv-1' });
+      expect(result).toEqual({ id: 'inv-1' });
+    });
+
+    it('throws a DataError when the create fails', async () => {
+      mockInvoiceCreate.mockResolvedValue({ data: null, errors: [{ message: 'Not Authorized' }] });
+
+      await expect(
+        createInvoice({
+          customerId: 'c1',
+          invoiceNumber: 'INV-001',
+          invoiceDate: '2024-01-01',
+          totalAmount: 100,
+          status: 'draft',
+        }),
+      ).rejects.toMatchObject({ name: 'DataError', message: 'Failed to create invoice.' });
     });
 
     it('should update invoice', async () => {
@@ -181,7 +204,7 @@ describe('invoices', () => {
       const result = await updateInvoice('inv-1', { status: 'sent' });
 
       expect(mockInvoiceUpdate).toHaveBeenCalledWith({ id: 'inv-1', status: 'sent' });
-      expect(result.data).toEqual({ id: 'inv-1', status: 'sent' });
+      expect(result).toEqual({ id: 'inv-1', status: 'sent' });
     });
 
     it('should delegate PDF key updates to updateInvoice', async () => {
@@ -190,7 +213,7 @@ describe('invoices', () => {
       const result = await updateInvoicePdfKey('inv-1', 'invoices/x.pdf');
 
       expect(mockInvoiceUpdate).toHaveBeenCalledWith({ id: 'inv-1', pdfS3Key: 'invoices/x.pdf' });
-      expect(result.data).toEqual({ id: 'inv-1', pdfS3Key: 'invoices/x.pdf' });
+      expect(result).toEqual({ id: 'inv-1', pdfS3Key: 'invoices/x.pdf' });
     });
 
     it('should delete child line items before deleting the invoice', async () => {
@@ -205,7 +228,7 @@ describe('invoices', () => {
 
       expect(mockLineItemDelete).toHaveBeenCalledTimes(2);
       expect(mockInvoiceDelete).toHaveBeenCalledWith({ id: 'inv-1' });
-      expect(result.errors).toBeUndefined();
+      expect(result).toEqual({ id: 'inv-1' });
     });
 
     it('should stop deleteInvoice when line item list returns errors', async () => {
@@ -214,36 +237,36 @@ describe('invoices', () => {
         errors: [{ message: 'cannot list line items' }],
       });
 
-      const result = await deleteInvoice('inv-1');
-
+      await expect(deleteInvoice('inv-1')).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to delete invoice.',
+      });
       expect(mockInvoiceDelete).not.toHaveBeenCalled();
-      expect(result.data).toBeNull();
-      expect(result.errors).toBeDefined();
     });
 
-    it('should return child line item delete errors without deleting the invoice', async () => {
+    it('throws on a child line item delete error without deleting the invoice', async () => {
       mockLineItemList.mockResolvedValue({
         data: [{ id: 'li-1' }],
         errors: undefined,
       });
       mockLineItemDelete.mockResolvedValue({ data: null, errors: [{ message: 'line item delete failed' }] });
 
-      const result = await deleteInvoice('inv-1');
+      const failure = await deleteInvoice('inv-1').catch((err) => err);
 
       expect(mockInvoiceDelete).not.toHaveBeenCalled();
-      expect(result.data).toBeNull();
-      expect(result.errors).toEqual([{ message: 'line item delete failed' }]);
+      expect(failure).toBeInstanceOf(DataError);
+      expect(failure.cause).toEqual([{ message: 'line item delete failed' }]);
     });
 
-    it('should return wrapped errors when deleteInvoice throws', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-      mockLineItemList.mockRejectedValue(new Error('delete invoice failed'));
+    it('wraps a thrown error in a DataError', async () => {
+      const networkError = new Error('Network error');
+      mockLineItemList.mockRejectedValue(networkError);
 
-      const result = await deleteInvoice('inv-1');
+      const failure = await deleteInvoice('inv-1').catch((err) => err);
 
-      expect(result.data).toBeNull();
-      expect(result.errors).toHaveLength(1);
-      consoleErrorSpy.mockRestore();
+      expect(failure).toBeInstanceOf(DataError);
+      expect(failure.message).toBe('Failed to delete invoice.');
+      expect(failure.cause).toBe(networkError);
     });
 
     it('should create line item', async () => {
@@ -258,7 +281,7 @@ describe('invoices', () => {
       });
 
       expect(mockLineItemCreate).toHaveBeenCalled();
-      expect(result.data).toEqual({ id: 'li-1' });
+      expect(result).toEqual({ id: 'li-1' });
     });
   });
 
@@ -279,10 +302,9 @@ describe('invoices', () => {
         expect.objectContaining({
           filter: { customerId: { eq: 'c1' } },
           selectionSet: ['id', 'routeCode'],
-        })
+        }),
       );
-      expect(result.errors).toBeUndefined();
-      expect(result.data).toEqual([
+      expect(result).toEqual([
         { id: 'i1', customerId: 'c1', routeId: 'r1', routeCode: 'W39-26-001' },
         { id: 'i2', customerId: 'c1', routeId: null, routeCode: null },
       ]);
@@ -303,9 +325,18 @@ describe('invoices', () => {
 
       const result = await listMyInvoices({ customerId: 'c1' });
 
-      expect(result.errors).toBeUndefined();
-      expect(result.data).toEqual([{ id: 'i1', customerId: 'c1', routeId: 'r1', routeCode: null }]);
+      expect(result).toEqual([{ id: 'i1', customerId: 'c1', routeId: 'r1', routeCode: null }]);
       warn.mockRestore();
+    });
+
+    it('refuses a read_only user with an Access denied DataError', async () => {
+      mockGetCustomerPortalContext.mockResolvedValue({ role: 'read_only', customerId: 'c1' });
+
+      await expect(listMyInvoices({ customerId: 'c1', userSub: 'u1' })).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Access denied',
+      });
+      expect(mockInvoiceList).not.toHaveBeenCalled();
     });
   });
 
@@ -322,7 +353,7 @@ describe('invoices', () => {
       const result = await getInvoiceDetail({ invoiceId: 'i1', customerId: 'c1' });
 
       expect(mockRouteGet).toHaveBeenCalledWith({ id: 'r1' }, { selectionSet: ['id', 'routeCode'] });
-      expect(result.data?.routeCode).toBe('W39-26-001');
+      expect(result?.routeCode).toBe('W39-26-001');
     });
 
     it('still loads the invoice when the route cannot be read', async () => {
@@ -331,10 +362,42 @@ describe('invoices', () => {
 
       const result = await getInvoiceDetail({ invoiceId: 'i1', customerId: 'c1' });
 
-      expect(result.errors).toBeUndefined();
-      expect(result.data?.routeId).toBe('r1');
-      expect(result.data?.routeCode).toBeUndefined();
+      expect(result?.routeId).toBe('r1');
+      expect(result?.routeCode).toBeUndefined();
       warn.mockRestore();
+    });
+  });
+
+  describe('getInvoiceDetail not found', () => {
+    it("returns null for another Customer's invoice", async () => {
+      mockInvoiceGet.mockResolvedValue({ data: { id: 'i1', customerId: 'c2' } });
+
+      await expect(getInvoiceDetail({ invoiceId: 'i1', customerId: 'c1' })).resolves.toBeNull();
+      expect(mockLineItemList).not.toHaveBeenCalled();
+    });
+
+    it('returns null for a missing invoice', async () => {
+      mockInvoiceGet.mockResolvedValue({ data: null });
+
+      await expect(getInvoiceDetail({ invoiceId: 'missing', customerId: 'c1' })).resolves.toBeNull();
+    });
+
+    it('returns null for a read_only user without reading the invoice', async () => {
+      mockGetCustomerPortalContext.mockResolvedValue({ role: 'read_only', customerId: 'c1' });
+
+      await expect(getInvoiceDetail({ invoiceId: 'i1', customerId: 'c1', userSub: 'u1' })).resolves.toBeNull();
+      expect(mockInvoiceGet).not.toHaveBeenCalled();
+    });
+
+    it('throws a DataError when the line items cannot be read', async () => {
+      mockInvoiceGet.mockResolvedValue({ data: { id: 'i1', customerId: 'c1' } });
+      mockCustomerGet.mockResolvedValue({ data: { name: 'Acme' } });
+      mockLineItemList.mockResolvedValue({ data: [], errors: [{ message: 'Not Authorized' }] });
+
+      await expect(getInvoiceDetail({ invoiceId: 'i1', customerId: 'c1' })).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to load invoice.',
+      });
     });
   });
 });

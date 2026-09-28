@@ -1,22 +1,9 @@
 import { render, screen } from '@testing-library/react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorLayout from '@/app/operator/layout';
 import { useOperatorRouteNotifications } from '@/lib/useOperatorRouteNotifications';
 
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: jest.fn(),
-}));
-
-jest.mock('@/lib/amplify-config', () => ({
-  fetchUserDisplayName: jest.fn(() => Promise.resolve('test@example.com')),
-}));
-
-jest.mock('@/app/components/AmplifyThemeProvider', () => ({
-  useThemeMode: () => ({ mode: 'system', resolvedMode: 'dark', setMode: jest.fn() }),
-}));
-
-jest.mock('@/lib/use-user-groups', () => ({
-  useCurrentUserId: () => 'op-1',
+jest.mock('@/lib/usePortalUser', () => ({
+  usePortalUser: () => ({ userId: 'op-1', displayName: 'Sam Rivera', logout: jest.fn() }),
 }));
 
 jest.mock('@/lib/useOperatorRouteNotifications', () => ({
@@ -29,19 +16,19 @@ jest.mock('@/app/components/OperatorRoute', () => {
   };
 });
 
-jest.mock('@/app/operator/components/OperatorShell', () => {
-  return function MockOperatorShell({
+jest.mock('@/app/components/PortalShell', () => {
+  return function MockPortalShell({
     navItems,
-    userEmail,
+    userName,
     children,
   }: {
     navItems: Array<{ href: string; label: string; icon: unknown }>;
-    userEmail: string;
+    userName: string;
     children: React.ReactNode;
   }) {
     return (
       <div>
-        <div data-testid="user-email">{userEmail}</div>
+        <div data-testid="user-email">{userName}</div>
         <nav data-testid="nav">
           {navItems.map((item) => (
             <div key={item.href} data-testid={`nav-item-${item.label}`}>
@@ -58,10 +45,6 @@ jest.mock('@/app/operator/components/OperatorShell', () => {
 describe('OperatorLayout', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (useAuthenticator as jest.Mock).mockReturnValue({
-      signOut: jest.fn(),
-      user: null,
-    });
   });
 
   it('shows operator navigation only', () => {
@@ -86,5 +69,15 @@ describe('OperatorLayout', () => {
     );
 
     expect(useOperatorRouteNotifications).toHaveBeenCalledWith('op-1');
+  });
+
+  it('shows the signed-in operator by name', () => {
+    render(
+      <OperatorLayout>
+        <div>Test content</div>
+      </OperatorLayout>
+    );
+
+    expect(screen.getByTestId('user-email')).toHaveTextContent('Sam Rivera');
   });
 });

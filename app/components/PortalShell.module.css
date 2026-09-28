@@ -13,7 +13,7 @@
 }
 
 /* Staff chrome: fixed navy, independent of the visitor's own light/dark
-   preference -- data-theme="dark" is set on the <aside> itself (OperatorShell.tsx)
+   preference -- data-theme="dark" is set on the <aside> itself (PortalShell.tsx)
    so --surface-card / --text- / --border- tokens resolve navy here regardless
    of what <html data-theme> the rest of the page has (see tokens.css's
    [data-theme] scoping note). */
@@ -29,6 +29,11 @@
   position: sticky;
   top: 0;
   height: var(--viewport-h);
+}
+
+/* The customer portal's sidebar follows the visitor's theme instead. */
+.sidebarThemed {
+  border-right: 2px solid var(--indigo-500);
 }
 
 .brand {

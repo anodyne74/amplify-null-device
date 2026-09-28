@@ -1,14 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import AdminShell from '@/app/administrator/components/AdminShell';
-import { fetchUserDisplayName } from '@/lib/amplify-config';
-import { getUserSettings } from '@/lib/userSettings';
-import { useLogout } from '@/app/auth/sessionManager';
+import PortalShell, { type PortalNavItem } from '@/app/components/PortalShell';
+import { usePortalUser } from '@/lib/usePortalUser';
 
-const ADMIN_NAV = [
+const ADMIN_NAV: PortalNavItem[] = [
   { href: '/administrator', label: 'Admin Home', icon: 'layout-dashboard' },
   { href: '/administrator/routes', label: 'Routes', icon: 'route' },
   { href: '/administrator/route-requests', label: 'Request Inbox', icon: 'mail' },
@@ -31,54 +27,13 @@ const ADMIN_NAV = [
  * Responsive design: collapsible sidebar on mobile, fixed on desktop.
  */
 export default function AdministratorLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuthenticator();
-  const { logout } = useLogout();
-  const [fallbackDisplayName, setFallbackDisplayName] = useState('');
-  const [userDisplayName, setUserDisplayName] = useState('');
-
-  useEffect(() => {
-    if (!user?.userId) return;
-    let cancelled = false;
-
-    void fetchUserDisplayName().then((name) => {
-      if (!cancelled) setFallbackDisplayName(name || '');
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.userId]);
-
-  useEffect(() => {
-    setUserDisplayName(fallbackDisplayName);
-  }, [fallbackDisplayName]);
-
-  useEffect(() => {
-    if (!user?.userId) return;
-    if (typeof getUserSettings !== 'function') return;
-    let cancelled = false;
-
-    void getUserSettings(user.userId)
-      .then((result) => {
-        const configuredName = result.data?.name?.trim();
-        if (!cancelled) {
-          setUserDisplayName(configuredName || fallbackDisplayName);
-        }
-      })
-      .catch(() => {
-        // Non-blocking: keep the fallback display name if settings cannot be loaded.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [fallbackDisplayName, user?.userId]);
+  const { displayName, logout } = usePortalUser();
 
   return (
     <OperatorRoute requireAdmin>
-      <AdminShell navItems={ADMIN_NAV} userEmail={userDisplayName} onLogout={logout}>
+      <PortalShell variant="administrator" navItems={ADMIN_NAV} userName={displayName} onLogout={logout}>
         {children}
-      </AdminShell>
+      </PortalShell>
     </OperatorRoute>
   );
 }

@@ -7,23 +7,39 @@ import { Icon } from '@/app/components/ui/core/Icon';
 import { Logo } from '@/app/components/ui/core/Logo';
 import { Button } from '@/app/components/ui/core/Button';
 import { Dialog } from '@/app/components/ui/feedback/Dialog';
-import styles from './AdminShell.module.css';
+import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
+import styles from './PortalShell.module.css';
 
-export interface AdminNavItem {
+export type PortalVariant = 'administrator' | 'operator' | 'customer';
+
+export interface PortalNavItem {
   href: string;
   label: string;
   icon: string;
 }
 
-interface AdminShellProps {
+interface PortalShellProps {
   children: React.ReactNode;
-  navItems: AdminNavItem[];
-  userEmail: string;
+  variant: PortalVariant;
+  navItems: PortalNavItem[];
+  userName: string;
   onLogout: () => void;
 }
 
-export default function AdminShell({ children, navItems, userEmail, onLogout }: AdminShellProps) {
+const PORTAL_TITLES: Record<PortalVariant, string> = {
+  administrator: 'Administrator Portal',
+  operator: 'Operator Portal',
+  customer: 'Customer Portal',
+};
+
+/**
+ * The sidebar and content frame every portal renders in. Staff portals get the
+ * fixed navy chrome; the customer portal's sidebar follows the visitor's theme.
+ */
+export default function PortalShell({ children, variant, navItems, userName, onLogout }: PortalShellProps) {
   const pathname = usePathname();
+  const { resolvedMode } = useThemeMode();
+  const staff = variant !== 'customer';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -62,10 +78,14 @@ export default function AdminShell({ children, navItems, userEmail, onLogout }: 
         />
       )}
 
-      <aside className={styles.sidebar} data-theme="dark" style={sidebarStyle}>
+      <aside
+        className={staff ? styles.sidebar : `${styles.sidebar} ${styles.sidebarThemed}`}
+        data-theme={staff ? 'dark' : undefined}
+        style={sidebarStyle}
+      >
         <div className={styles.brand}>
-          <Logo theme="light" height={32} />
-          <p className={styles.brandSubtitle}>Administrator Portal</p>
+          <Logo theme={staff || resolvedMode === 'dark' ? 'light' : 'dark'} height={32} />
+          <p className={styles.brandSubtitle}>{PORTAL_TITLES[variant]}</p>
         </div>
 
         <nav className={styles.nav}>
@@ -93,9 +113,9 @@ export default function AdminShell({ children, navItems, userEmail, onLogout }: 
 
         <div className={styles.userSection}>
           <p className={styles.userLabel}>Signed in as</p>
-          <p className={styles.userEmail}>{userEmail}</p>
+          <p className={styles.userEmail}>{userName}</p>
 
-          <Button variant="inverse" size="sm" block onClick={() => setShowLogoutConfirm(true)}>
+          <Button variant={staff ? 'inverse' : 'secondary'} size="sm" block onClick={() => setShowLogoutConfirm(true)}>
             Logout
           </Button>
         </div>
@@ -108,7 +128,7 @@ export default function AdminShell({ children, navItems, userEmail, onLogout }: 
       <Dialog
         open={showLogoutConfirm}
         title="Log out?"
-        description="You'll need to sign in again to access the administrator portal."
+        description={`You'll need to sign in again to access the ${variant} portal.`}
         onClose={() => setShowLogoutConfirm(false)}
         footer={
           <>

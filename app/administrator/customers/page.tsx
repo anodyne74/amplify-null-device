@@ -208,10 +208,11 @@ export default function CustomersAdminPage() {
   const fetchOnboardingChecklist = useCallback(async (customer: Customer) => {
     setChecklistLoading((prev) => ({ ...prev, [customer.id]: true }));
 
-    const [usersResult, routesResult, invoicesResult, flagSettingsResult] = await Promise.all([
+    const [usersResult, routesResult, invoices, flagSettingsResult] = await Promise.all([
       listCustomerUsers(customer.id),
       listCustomerRoutes(customer.id),
-      listCustomerInvoices(customer.id),
+      // The checklist is best-effort: unreadable invoices count as none yet.
+      listCustomerInvoices(customer.id).catch(() => []),
       listFeatureFlagSettings(),
     ]);
 
@@ -225,7 +226,7 @@ export default function CustomersAdminPage() {
         customer,
         users,
         routesResult.data ?? [],
-        invoicesResult.data ?? [],
+        invoices,
         onFlags ?? []
       ),
     }));

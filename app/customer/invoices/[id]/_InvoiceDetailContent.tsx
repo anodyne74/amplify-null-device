@@ -30,19 +30,13 @@ async function fetchInvoice(context: CustomerPortalContext, invoiceId: string): 
     return null;
   }
 
-  const result = await getInvoiceDetail({
+  const detail = await getInvoiceDetail({
     invoiceId,
     customerId: context.customerId,
     userSub: context.userId,
   });
-
-  if (result.errors && result.errors.length > 0) {
-    throw new Error('Failed to load invoice');
-  }
-  if (!result.data) {
-    throw new Error('Invoice not found');
-  }
-  return result.data;
+  if (!detail) throw new Error('Invoice not found');
+  return detail;
 }
 
 const formatDate = (dateString?: string | null) => {

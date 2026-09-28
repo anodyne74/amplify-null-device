@@ -65,19 +65,25 @@ describe('customer feature-flags API', () => {
     expect(getOnFlagsMock).toHaveBeenCalledWith(iamClient, 'cust-1');
   });
 
-  it('returns no flags when the caller has no Customer mapping', async () => {
+  it('refuses a caller with no Customer mapping', async () => {
     customerUserListMock.mockResolvedValue({ data: [] });
     const response = await POST(makeRequest());
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ flags: [] });
+    expect(response.status).toBe(403);
     expect(getOnFlagsMock).not.toHaveBeenCalled();
   });
 
-  it('returns no flags when resolving the Customer throws', async () => {
+  it("returns 500 when reading the caller's CustomerUser row fails, so the portal shows no flags", async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    customerUserListMock.mockResolvedValue({ data: [], errors: [{ message: 'throttled' }] });
+    const response = await POST(makeRequest());
+    expect(response.status).toBe(500);
+    expect(getOnFlagsMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 when resolving the Customer throws', async () => {
     jest.spyOn(console, 'error').mockImplementation(() => {});
     customerUserListMock.mockRejectedValue(new Error('network down'));
     const response = await POST(makeRequest());
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ flags: [] });
+    expect(response.status).toBe(500);
   });
 });

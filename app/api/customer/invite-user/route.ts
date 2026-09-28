@@ -5,7 +5,6 @@ import { createOrGetCognitoUser } from '@/app/api/admin/users/route';
 import { sendInvitationEmail } from '@/lib/emails/invitationEmail';
 import { listAll } from '@/lib/listAll';
 import { syncCustomerAccess } from '@/lib/customerAccess';
-import { isFeatureOnForCustomer } from '@/lib/server/featureFlags';
 
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
 
@@ -30,11 +29,12 @@ function emailDomain(email: string): string {
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await authorizeIamRequest(request, 'customer');
+    const auth = await authorizeIamRequest(request, 'customer', { flag: 'account-owner-invite', accountOwnersOnly: true });
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
-    const { claims, client } = auth;
+    const { caller, claims, client } = auth;
+    const { customerId, row: ownRow } = caller;
 
     const body = (await request.json().catch(() => null)) as { email?: string; name?: string } | null;
     const rawEmail = body?.email?.trim();
@@ -43,25 +43,6 @@ export async function POST(request: NextRequest) {
     }
     const normalizedEmail = rawEmail.toLowerCase();
     const name = body?.name?.trim() || undefined;
-
-    // The caller's own CustomerUser row -- never trust a client-supplied customerId,
-    // this is the only source of truth for which customer they belong to, and their
-    // own role must be account_owner to invite anyone.
-    const { data: ownRows } = await listAll(client, 'CustomerUser', {
-      filter: { userSub: { eq: claims.sub } },
-    });
-    const ownRow = (ownRows || []).find((row) => row?.customerId);
-    if (!ownRow?.customerId) {
-      return NextResponse.json({ error: 'No customer mapping found for this user' }, { status: 404 });
-    }
-    if (ownRow.role !== 'account_owner') {
-      return NextResponse.json({ error: 'Forbidden: only the account owner can invite teammates' }, { status: 403 });
-    }
-    const customerId = ownRow.customerId;
-
-    if (!(await isFeatureOnForCustomer(client, customerId, 'account-owner-invite'))) {
-      return NextResponse.json({ error: "Inviting teammates isn't available for your account." }, { status: 403 });
-    }
 
     const { data: customer } = await client.models.Customer.get({ id: customerId });
     if (!customer) {

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
-import { listAll } from '@/lib/listAll';
 import { syncCustomerAccess } from '@/lib/customerAccess';
 
 /**
@@ -21,16 +20,8 @@ export async function POST(request: NextRequest) {
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
-    const { claims, client } = auth;
-
-    const { data: ownRows } = await listAll(client, 'CustomerUser', {
-      filter: { userSub: { eq: claims.sub } },
-    });
-
-    const customerId = (ownRows || []).find((row) => row?.customerId)?.customerId;
-    if (!customerId) {
-      return NextResponse.json({ error: 'No customer mapping found for this user' }, { status: 404 });
-    }
+    const { caller, client } = auth;
+    const { customerId } = caller;
 
     const { errors } = await syncCustomerAccess(client, customerId);
     if (errors.length > 0) {

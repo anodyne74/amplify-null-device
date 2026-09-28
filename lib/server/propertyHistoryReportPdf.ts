@@ -12,7 +12,7 @@ import {
   type VisitRow,
 } from '@/lib/propertyHistory';
 import { resultProperties } from '@/lib/propertyHistoryReport';
-import { titleCase } from '@/lib/propertyHistoryTypeahead';
+import { titleCase } from '@/lib/format';
 
 export interface PropertyHistoryReportPdfInput {
   referenceNumber: string;

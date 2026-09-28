@@ -126,10 +126,12 @@ describe('buildLocationReviewQueue', () => {
         stop({ id: 'b', propertyKey: 'epping|2121|cliff road|96' }),
         stop({ id: 'c', propertyKey: 'carlingford|2118|pennant street|3' }),
         stop({ id: 'a', propertyKey: KEY }),
+        stop({ id: 'd', propertyKey: 'epping|2121|cliff road|2' }),
       ],
       []
     );
 
-    expect(queue.map((review) => review.stops[0].id)).toEqual(['c', 'a', 'b']);
+    // Street numbers numerically: 2 before 14.
+    expect(queue.map((review) => review.stops[0].id)).toEqual(['c', 'd', 'a', 'b']);
   });
 });

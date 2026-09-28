@@ -11,7 +11,7 @@
  * in-progress Routes come back separately as Scheduled.
  */
 import type { RouteStatus } from '@/amplify/types';
-import { propertyKeyPrefix } from '@/lib/propertyKey';
+import { comparePropertyKeys, parsePropertyKey, propertyKeyLabel, propertyKeyPrefix, streetKeyOf } from '@/lib/propertyKey';
 import { isStopSkippedForPhase } from '@/lib/stopExecutionMarkers';
 
 export type PropertyHistorySearch =
@@ -107,7 +107,6 @@ export type PropertyHistoryResult =
 const VISIT_STATUSES: readonly RouteStatus[] = ['signs_placed', 'signs_picked_up', 'completed', 'archived'];
 const CUSTOMER_INVOICE_STATUSES = ['sent', 'paid'];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const PROPERTY_KEY = /^[^|]+\|[^|]*\|[^|]+\|[^|]+$/;
 
 function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
@@ -127,7 +126,7 @@ function parseSearch(raw: unknown): PropertyHistorySearch | null {
     }
     case 'address': {
       const propertyKey = text(search.propertyKey);
-      return propertyKey && PROPERTY_KEY.test(propertyKey) ? { level: 'address', propertyKey } : null;
+      return propertyKey && parsePropertyKey(propertyKey) ? { level: 'address', propertyKey } : null;
     }
     default:
       return null;
@@ -270,8 +269,7 @@ function toRow(
 }
 
 const byDate = (a: VisitRow, b: VisitRow) => (a.date ?? '').localeCompare(b.date ?? '');
-const byKey = (a: { propertyKey: string }, b: { propertyKey: string }) =>
-  a.propertyKey.localeCompare(b.propertyKey, undefined, { numeric: true });
+const byKey = (a: { propertyKey: string }, b: { propertyKey: string }) => comparePropertyKeys(a.propertyKey, b.propertyKey);
 
 interface BuildInput {
   search: PropertyHistorySearch;
@@ -313,7 +311,7 @@ export function buildPropertyHistory(input: BuildInput): PropertyHistoryResult {
   const properties = [...groups.values()]
     .map(({ group, latest }) => ({
       ...group,
-      address: latest.address || group.propertyKey,
+      address: latest.address || propertyKeyLabel(group.propertyKey),
       visits: group.visits.sort((a, b) => byDate(b, a)),
       scheduled: group.scheduled.sort(byDate),
     }))
@@ -329,9 +327,8 @@ export function buildPropertyHistory(input: BuildInput): PropertyHistoryResult {
       // postcode keeps same-named streets in two same-named suburbs apart.
       const streets = new Map<string, StreetGroup>();
       for (const property of properties) {
-        const [, , street] = property.propertyKey.split('|');
-        const streetKey = property.propertyKey.split('|').slice(0, 3).join('|');
-        const group = streets.get(streetKey) ?? { street, properties: [] };
+        const streetKey = streetKeyOf(property.propertyKey);
+        const group = streets.get(streetKey) ?? { street: parsePropertyKey(property.propertyKey)?.street ?? '', properties: [] };
         group.properties.push(property);
         streets.set(streetKey, group);
       }

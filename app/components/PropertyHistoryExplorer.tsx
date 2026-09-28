@@ -20,7 +20,8 @@ import {
   type VisitRow,
 } from '@/lib/propertyHistory';
 import { resultProperties, type PropertyHistoryReportSummary } from '@/lib/propertyHistoryReport';
-import { matchTypeaheadOptions, titleCase, type TypeaheadOption } from '@/lib/propertyHistoryTypeahead';
+import { titleCase } from '@/lib/format';
+import { matchTypeaheadOptions, type TypeaheadOption } from '@/lib/propertyHistoryTypeahead';
 import {
   deletePropertyHistoryReport,
   generatePropertyHistoryReport,

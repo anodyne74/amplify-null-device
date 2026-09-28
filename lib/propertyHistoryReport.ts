@@ -5,7 +5,7 @@
  * lib/server/propertyHistoryReports.ts.
  */
 import type { PropertyGroup, PropertyHistoryAudience, PropertyHistoryFilters, PropertyHistoryResult, PropertyHistorySearch } from '@/lib/propertyHistory';
-import { suburbLabel, titleCase } from '@/lib/propertyHistoryTypeahead';
+import { propertyKeyLabel, streetLabel, suburbLabel } from '@/lib/propertyKey';
 import { reportState, type ReportDates, type ReportState } from '@/lib/reportRetention';
 
 export { reportRetention } from '@/lib/reportRetention';
@@ -70,12 +70,10 @@ export function describeSearch(search: PropertyHistorySearch, result: PropertyHi
     case 'suburb':
       return `Suburb: ${suburbLabel(search.suburb, search.postcode ?? '')}`;
     case 'street':
-      return `Street: ${titleCase(search.street)}, ${suburbLabel(search.suburb, search.postcode)}`;
+      return `Street: ${streetLabel(search)}`;
     case 'address': {
       const found = result.level === 'address' ? result.property?.address : undefined;
-      if (found) return `Address: ${found}`;
-      const [suburb, postcode, street, number] = search.propertyKey.split('|');
-      return `Address: ${number} ${titleCase(street)}, ${suburbLabel(suburb, postcode)}`;
+      return `Address: ${found || propertyKeyLabel(search.propertyKey)}`;
     }
   }
 }

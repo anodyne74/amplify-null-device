@@ -6,6 +6,11 @@
  * "Xh Ym" formats used by the customer invoice/route detail components.
  */
 
+/** Capitalises the first letter of each word ("cliff road" -> "Cliff Road"). */
+export function titleCase(text: string): string {
+  return text.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+}
+
 /**
  * Format an invoice amount as en-US USD currency.
  * Missing values render as "$0.00".

@@ -1,4 +1,14 @@
-import { enteredStreetNumber, propertyKey, propertyKeyPrefix } from './propertyKey';
+import {
+  comparePropertyKeys,
+  enteredStreetNumber,
+  parsePropertyKey,
+  propertyKey,
+  propertyKeyLabel,
+  propertyKeyPrefix,
+  streetKeyOf,
+  streetLabel,
+  suburbLabel,
+} from './propertyKey';
 
 const CLIFF_ROAD = { streetNumber: '14', street: 'Cliff Road', suburb: 'Epping', postcode: '2121' };
 
@@ -71,5 +81,60 @@ describe('propertyKeyPrefix', () => {
   it('never lets a suburb prefix match a longer suburb name', () => {
     expect('north epping|2121|cliff road|14'.startsWith(propertyKeyPrefix({ suburb: 'Epping' }))).toBe(false);
     expect('epping north|2121|cliff road|14'.startsWith(propertyKeyPrefix({ suburb: 'Epping' }))).toBe(false);
+  });
+});
+
+describe('parsePropertyKey', () => {
+  it('reads a key back into the parts it was built from', () => {
+    const key = propertyKey('14A Cliff Rd, Epping NSW 2121', {}) as string;
+    expect(parsePropertyKey(key)).toEqual({ suburb: 'epping', postcode: '2121', street: 'cliff road', number: '14a' });
+  });
+
+  it('allows an empty postcode', () => {
+    expect(parsePropertyKey('epping||cliff road|14')).toEqual({ suburb: 'epping', postcode: '', street: 'cliff road', number: '14' });
+  });
+
+  it('refuses anything that is not a whole key', () => {
+    for (const key of ['', 'epping|2121|cliff road', 'epping|2121|cliff road|14|x', '|2121|cliff road|14', 'epping|2121||14', 'epping|2121|cliff road|']) {
+      expect(parsePropertyKey(key)).toBeNull();
+    }
+  });
+});
+
+describe('streetKeyOf', () => {
+  it('is the same for every Property on a street, and differs between same-named streets in two suburbs', () => {
+    expect(streetKeyOf('epping|2121|cliff road|14')).toBe(streetKeyOf('epping|2121|cliff road|96'));
+    expect(streetKeyOf('epping|2121|cliff road|14')).not.toBe(streetKeyOf('north epping|2121|cliff road|14'));
+  });
+
+  it('matches the street search prefix for the same street', () => {
+    expect(`${streetKeyOf('epping|2121|cliff road|14')}|`).toBe(propertyKeyPrefix({ suburb: 'Epping', postcode: '2121', street: 'Cliff Rd' }));
+  });
+});
+
+describe('comparePropertyKeys', () => {
+  it('orders by suburb, then street, then street number numerically', () => {
+    const keys = ['epping|2121|cliff road|14', 'epping|2121|cliff road|2', 'carlingford|2118|pennant street|3'];
+    expect([...keys].sort(comparePropertyKeys)).toEqual([
+      'carlingford|2118|pennant street|3',
+      'epping|2121|cliff road|2',
+      'epping|2121|cliff road|14',
+    ]);
+  });
+});
+
+describe('labels', () => {
+  it('names a suburb, with its postcode when there is one', () => {
+    expect(suburbLabel('north epping', '2121')).toBe('North Epping 2121');
+    expect(suburbLabel('epping', '')).toBe('Epping');
+  });
+
+  it('names a street in its suburb', () => {
+    expect(streetLabel({ suburb: 'epping', postcode: '2121', street: 'cliff road' })).toBe('Cliff Road, Epping 2121');
+  });
+
+  it('names a Property from its key, or shows a malformed key as is', () => {
+    expect(propertyKeyLabel('epping|2121|cliff road|14')).toBe('14 Cliff Road, Epping 2121');
+    expect(propertyKeyLabel('not a key')).toBe('not a key');
   });
 });

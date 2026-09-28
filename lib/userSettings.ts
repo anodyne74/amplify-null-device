@@ -1,8 +1,12 @@
 /**
  * A user's own UserSettings (display name, theme, map style) as the browser
  * reads and writes it through the signed-in user's data client.
+ *
+ * Both functions return their data or throw a DataError (lib/graphqlResult.ts);
+ * a user with no saved settings is null, not an error.
  */
 import { getDataClient } from '@/lib/data-client';
+import { resultData, withDataError } from '@/lib/graphqlResult';
 import { listAll } from '@/lib/listAll';
 
 export type ThemeModeSetting = 'system' | 'light' | 'dark';
@@ -19,25 +23,15 @@ export interface UserSettingsRecord {
 }
 
 /**
- * Get current user's settings record, if it exists.
+ * Get current user's settings record, or null when they haven't saved any.
  */
 export async function getUserSettings(userSub: string) {
-  try {
-    const { data, errors } = await listAll(getDataClient(), 'UserSettings', {
-      filter: { userSub: { eq: userSub } },
-    });
-
-    if (errors.length > 0) {
-      console.error('Errors getting user settings:', errors);
-      return { data: null, errors };
-    }
-
-    const row = (data as UserSettingsRecord[])[0] || null;
-    return { data: row, errors: undefined };
-  } catch (error) {
-    console.error('Error getting user settings:', error);
-    return { data: null, errors: [error] };
-  }
+  return withDataError('Failed to load settings.', async () => {
+    const rows = resultData(
+      await listAll(getDataClient(), 'UserSettings', { filter: { userSub: { eq: userSub } } })
+    ) as UserSettingsRecord[] | null;
+    return rows?.[0] ?? null;
+  });
 }
 
 /**
@@ -51,42 +45,30 @@ export async function upsertUserSettings(
     mapTheme: MapThemeSetting;
   }>
 ) {
-  try {
-    const current = await getUserSettings(userSub);
-    if (current.errors && current.errors.length > 0) {
-      return { data: null, errors: current.errors };
-    }
+  const current = await getUserSettings(userSub);
 
+  return withDataError('Failed to save settings.', async () => {
     const nowIso = new Date().toISOString();
 
-    if (current.data?.id) {
-      const { data, errors } = await getDataClient().models.UserSettings.update({
-        id: current.data.id,
+    if (current?.id) {
+      return resultData(
+        await getDataClient().models.UserSettings.update({
+          id: current.id,
+          ...updates,
+          updatedAt: nowIso,
+        })
+      );
+    }
+
+    return resultData(
+      await getDataClient().models.UserSettings.create({
+        userSub,
         ...updates,
+        defaultTheme: updates.defaultTheme ?? 'light',
+        mapTheme: updates.mapTheme ?? 'light',
+        createdAt: nowIso,
         updatedAt: nowIso,
-      });
-
-      if (errors) {
-        console.error('Errors updating user settings:', errors);
-      }
-      return { data, errors };
-    }
-
-    const { data, errors } = await getDataClient().models.UserSettings.create({
-      userSub,
-      ...updates,
-      defaultTheme: updates.defaultTheme ?? 'light',
-      mapTheme: updates.mapTheme ?? 'light',
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    });
-
-    if (errors) {
-      console.error('Errors creating user settings:', errors);
-    }
-    return { data, errors };
-  } catch (error) {
-    console.error('Error upserting user settings:', error);
-    return { data: null, errors: [error] };
-  }
+      })
+    );
+  });
 }

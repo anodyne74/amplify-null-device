@@ -36,6 +36,8 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
   const [mapTheme, setMapTheme] = useState<MapThemeSetting>('light');
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Saving over settings we couldn't read would replace them with these defaults.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -55,24 +57,20 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
     let cancelled = false;
 
     setName(fallbackDisplayName);
+    setLoadFailed(false);
 
     void getUserSettings(userId)
-      .then((result) => {
-        if (cancelled) return;
+      .then((settings) => {
+        if (cancelled || !settings) return;
 
-        if (!result.data) {
-          setName(fallbackDisplayName);
-          return;
-        }
-
-        setName(result.data.name?.trim() || fallbackDisplayName);
+        setName(settings.name?.trim() || fallbackDisplayName);
         // Only the form field: AmplifyThemeProvider applies the saved default once
         // per sign-in (#307), so reapplying it here would undo an in-session change.
-        setDefaultTheme((result.data.defaultTheme as ThemeModeSetting | null) || 'light');
-        setMapTheme((result.data.mapTheme as MapThemeSetting | null) || 'light');
+        setDefaultTheme((settings.defaultTheme as ThemeModeSetting | null) || 'light');
+        setMapTheme((settings.mapTheme as MapThemeSetting | null) || 'light');
       })
       .catch(() => {
-        // Non-blocking: defaults are already set in local state.
+        if (!cancelled) setLoadFailed(true);
       });
 
     return () => {
@@ -89,13 +87,13 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
     setPending(true);
     setMessage(null);
 
-    const result = await upsertUserSettings(userId, {
-      name: name.trim() || undefined,
-      defaultTheme,
-      mapTheme,
-    });
-
-    if (result.errors && result.errors.length > 0) {
+    try {
+      await upsertUserSettings(userId, {
+        name: name.trim() || undefined,
+        defaultTheme,
+        mapTheme,
+      });
+    } catch {
       setMessage('Failed to save settings. Please try again.');
       setPending(false);
       return;
@@ -151,9 +149,10 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
         </div>
 
         <div className={styles.actions}>
-          <Button type="button" loading={pending} disabled={pending} onClick={() => void handleSave()}>
+          <Button type="button" loading={pending} disabled={pending || loadFailed} onClick={() => void handleSave()}>
             {pending ? 'Saving...' : 'Save Settings'}
           </Button>
+          {loadFailed && <p className={styles.message}>Couldn&apos;t load your saved settings. Reload to try again.</p>}
           {message && <p className={styles.message}>{message}</p>}
         </div>
 

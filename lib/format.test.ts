@@ -1,4 +1,4 @@
-import { formatInvoiceCurrency, formatDurationHoursMinutes } from '@/lib/format';
+import { formatInvoiceCurrency, formatDurationHoursMinutes, titleCase } from '@/lib/format';
 
 describe('format helpers', () => {
   describe('formatInvoiceCurrency', () => {
@@ -26,5 +26,12 @@ describe('format helpers', () => {
       expect(formatDurationHoursMinutes(null)).toBe('N/A');
       expect(formatDurationHoursMinutes(undefined)).toBe('N/A');
     });
+  });
+});
+
+describe('titleCase', () => {
+  it('capitalises the first letter of each word', () => {
+    expect(titleCase('north epping')).toBe('North Epping');
+    expect(titleCase('approximate')).toBe('Approximate');
   });
 });

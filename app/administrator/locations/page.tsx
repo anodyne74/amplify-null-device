@@ -12,12 +12,13 @@ import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/c
 import type { Pin, PropertyReview } from '@/lib/locationReview';
 import { confirmPropertyLocation, dismissSuburbMismatch, listLocationReviewQueue } from '@/lib/propertyLocations';
 import { correctPropertyAddress, locateUnpinnedStops } from '@/lib/propertyAddressCorrection';
+import { propertyKeyLabel } from '@/lib/propertyKey';
 import styles from './page.module.css';
 
 const PropertyPinMap = dynamic(() => import('./PropertyPinMap').then((mod) => mod.PropertyPinMap), { ssr: false });
 
 function propertyAddress(review: PropertyReview): string {
-  return review.stops.find((stop) => stop.address)?.address ?? review.propertyKey;
+  return review.stops.find((stop) => stop.address)?.address ?? propertyKeyLabel(review.propertyKey);
 }
 
 /**

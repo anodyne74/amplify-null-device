@@ -9,9 +9,13 @@
  * suburb, street and exact-address searches by prefix (propertyKeyPrefix); the
  * delimiter keeps "Epping" from matching "North Epping".
  *
+ * Callers never split a key themselves: parsePropertyKey, streetKeyOf,
+ * comparePropertyKeys and the labels below are the only readers of its layout.
+ *
  * scripts/backfill-geocodes.js mirrors propertyKey -- keep them in step;
  * scripts/__tests__/backfill-geocodes.test.ts checks both agree.
  */
+import { titleCase } from './format';
 import type { AddressComponents, StopLocationFields } from './locationPrecision';
 
 const STREET_TYPES: Record<string, string> = {
@@ -128,4 +132,49 @@ export function propertyKeyPrefix(
   if ('postcode' in search) parts.push(search.postcode);
   if ('postcode' in search && search.street !== undefined) parts.push(normaliseStreet(search.street));
   return `${parts.join('|')}|`;
+}
+
+/** A Property key's parts. `postcode` is empty when neither the address nor the geocode gave one. */
+export interface PropertyKeyParts {
+  suburb: string;
+  postcode: string;
+  street: string;
+  number: string;
+}
+
+const DELIMITER = '|';
+
+/** A Property key's parts, or null if `key` isn't one (e.g. an address search from a request). */
+export function parsePropertyKey(key: string): PropertyKeyParts | null {
+  const parts = key.split(DELIMITER);
+  if (parts.length !== 4) return null;
+  const [suburb, postcode, street, number] = parts;
+  if (!suburb || !street || !number) return null;
+  return { suburb, postcode, street, number };
+}
+
+/** The key's suburb|postcode|street -- Properties on one street share it, and same-named streets in two suburbs don't. */
+export function streetKeyOf(key: string): string {
+  return key.split(DELIMITER).slice(0, 3).join(DELIMITER);
+}
+
+/** Property keys in suburb, street, then street-number order (2 before 14). */
+export function comparePropertyKeys(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true });
+}
+
+/** "Epping 2121", or "Epping" with no postcode. */
+export function suburbLabel(suburb: string, postcode: string): string {
+  return [titleCase(suburb), postcode].filter(Boolean).join(' ');
+}
+
+/** "Cliff Road, Epping 2121". */
+export function streetLabel({ suburb, postcode, street }: Omit<PropertyKeyParts, 'number'>): string {
+  return `${titleCase(street)}, ${suburbLabel(suburb, postcode)}`;
+}
+
+/** "14 Cliff Road, Epping 2121" -- for a Property with no entered address to show. A malformed key is shown as is. */
+export function propertyKeyLabel(key: string): string {
+  const parts = parsePropertyKey(key);
+  return parts ? `${parts.number} ${streetLabel(parts)}` : key;
 }

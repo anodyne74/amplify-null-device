@@ -6,6 +6,7 @@
  * administrator, their own Customer's for a customer user.
  */
 import type { PropertyHistorySearch } from '@/lib/propertyHistory';
+import { parsePropertyKey, propertyKeyLabel, streetLabel, suburbLabel } from '@/lib/propertyKey';
 
 export interface TypeaheadOption {
   key: string;
@@ -20,20 +21,13 @@ interface TypeaheadStop {
 
 const LEVEL_ORDER: Record<PropertyHistorySearch['level'], number> = { suburb: 0, street: 1, address: 2 };
 
-export function titleCase(text: string): string {
-  return text.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
-}
-
-export function suburbLabel(suburb: string, postcode: string): string {
-  return [titleCase(suburb), postcode].filter(Boolean).join(' ');
-}
-
 export function buildTypeaheadOptions(stops: readonly TypeaheadStop[]): TypeaheadOption[] {
   const options = new Map<string, TypeaheadOption>();
 
   for (const stop of stops) {
-    if (!stop.propertyKey) continue;
-    const [suburb, postcode, street] = stop.propertyKey.split('|');
+    const parts = stop.propertyKey ? parsePropertyKey(stop.propertyKey) : null;
+    if (!stop.propertyKey || !parts) continue;
+    const { suburb, postcode, street } = parts;
 
     const suburbKey = `suburb:${suburb}|${postcode}`;
     if (!options.has(suburbKey)) {
@@ -43,7 +37,7 @@ export function buildTypeaheadOptions(stops: readonly TypeaheadStop[]): Typeahea
     if (!options.has(streetKey)) {
       options.set(streetKey, {
         key: streetKey,
-        label: `${titleCase(street)}, ${suburbLabel(suburb, postcode)}`,
+        label: streetLabel(parts),
         search: { level: 'street', suburb, postcode, street },
       });
     }
@@ -51,7 +45,7 @@ export function buildTypeaheadOptions(stops: readonly TypeaheadStop[]): Typeahea
     const addressKey = `address:${stop.propertyKey}`;
     options.set(addressKey, {
       key: addressKey,
-      label: stop.address || options.get(addressKey)?.label || stop.propertyKey,
+      label: stop.address || options.get(addressKey)?.label || propertyKeyLabel(stop.propertyKey),
       search: { level: 'address', propertyKey: stop.propertyKey },
     });
   }

@@ -7,6 +7,8 @@
  * Property never appears; a dismissed suburb mismatch stays dismissed.
  */
 
+import { comparePropertyKeys } from '@/lib/propertyKey';
+
 export interface Pin {
   latitude: number;
   longitude: number;
@@ -124,5 +126,5 @@ export function buildLocationReviewQueue(stops: ReviewStop[], decisions: Propert
       suggestedPin: suggestedPin(propertyStops),
     });
   }
-  return queue.sort((a, b) => a.propertyKey.localeCompare(b.propertyKey));
+  return queue.sort((a, b) => comparePropertyKeys(a.propertyKey, b.propertyKey));
 }

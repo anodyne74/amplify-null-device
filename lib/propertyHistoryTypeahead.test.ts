@@ -23,6 +23,15 @@ describe('buildTypeaheadOptions', () => {
     ]);
   });
 
+  it('labels a Property with no entered address from its key, never the raw key', () => {
+    const [, , property] = buildTypeaheadOptions([{ propertyKey: 'epping|2121|cliff road|14', address: null }]);
+    expect(property.label).toBe('14 Cliff Road, Epping 2121');
+  });
+
+  it('skips a malformed Property key', () => {
+    expect(buildTypeaheadOptions([{ propertyKey: 'epping|2121', address: '14 Cliff Rd' }])).toEqual([]);
+  });
+
   it('labels a suburb with no postcode by name alone', () => {
     expect(buildTypeaheadOptions([{ propertyKey: 'epping||cliff road|14', address: '14 Cliff Rd' }])[0].label).toBe('Epping');
   });

@@ -89,6 +89,12 @@ describe('buildPropertyHistory grouping', () => {
 
     expect(result.level === 'address' && result.property?.address).toBe('14 Cliff Road, Epping');
   });
+
+  it('labels a Property with no entered address from its key, never the raw key', () => {
+    const result = build([stop(CLIFF_14, 'r1', { address: null })], { search: { level: 'address', propertyKey: CLIFF_14 } });
+
+    expect(result.level === 'address' && result.property?.address).toBe('14 Cliff Road, Epping 2121');
+  });
 });
 
 describe('buildPropertyHistory counting', () => {

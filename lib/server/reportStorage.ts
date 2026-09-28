@@ -51,7 +51,7 @@ export function signedInvoicePdfUrl(key: string): Promise<string> {
   return signedUrl(key);
 }
 
-/** A few-minute download link to a Route Request's attachment (#358), for an administrator. */
+/** A few-minute download link to a Route Request's attachment (#358), for a caller already checked against the record (#360). */
 export function signedRouteRequestFileUrl(key: string, filename: string): Promise<string> {
   return signedUrl(key, { ResponseContentDisposition: asDownload(filename) });
 }

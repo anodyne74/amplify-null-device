@@ -105,6 +105,13 @@ describe('buildLocationReviewQueue', () => {
     ]);
   });
 
+  it("lists a Stop that says Confirmed at a Property that isn't: its pin was Confirmed for another address", () => {
+    expect(buildLocationReviewQueue([stop({ locationPrecision: 'confirmed' })], [])).toEqual([
+      expect.objectContaining({ confirmedElsewhere: true, approximate: false, noPin: false }),
+    ]);
+    expect(buildLocationReviewQueue([stop({ locationPrecision: 'precise' })], [])).toEqual([]);
+  });
+
   it('flags no pin only when a Stop is missing one', () => {
     expect(buildLocationReviewQueue([stop()], [])).toEqual([expect.objectContaining({ noPin: false })]);
   });

@@ -737,15 +737,16 @@ describe('routes', () => {
       expect(mockStopUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 's2', notes: 'Gate' }));
     });
 
-    it("keeps a Confirmed Stop's pin when its new address can't be geocoded", async () => {
+    it("clears a Confirmed Stop's pin when its new address can't be geocoded: the pin was Confirmed for the old address", async () => {
       mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
       mockStopGet.mockResolvedValue({ data: { address: ORIGINAL.address }, errors: undefined });
 
       const result = await saveStop({ original: { ...ORIGINAL, locationPrecision: 'confirmed' } }, { address: ADDRESS });
 
-      expect(result.pinned).toBe(true);
-      expect(mockStopUpdate).toHaveBeenCalledWith(expect.not.objectContaining({ latitude: expect.anything() }));
-      expect(mockStopUpdate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+      expect(result.pinned).toBe(false);
+      expect(mockStopUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ latitude: null, longitude: null, locationPrecision: null, propertyKey: KEY })
+      );
     });
   });
 

@@ -70,6 +70,7 @@ const CLIFF_ROAD: PropertyReview = {
   ],
   approximate: true,
   noPin: false,
+  confirmedElsewhere: false,
   suburbMismatch: null,
   currentPin: { latitude: -33.7, longitude: 151.0 },
   suggestedPin: { latitude: -33.8, longitude: 151.1, accuracyMeters: 9, recordedAt: '2026-09-20T00:00:00Z' },
@@ -80,6 +81,7 @@ const BEECROFT_ROAD: PropertyReview = {
   stops: [{ id: 's4', address: '2 Beecroft Rd, Beecroft' }],
   approximate: false,
   noPin: true,
+  confirmedElsewhere: false,
   suburbMismatch: null,
   currentPin: null,
   suggestedPin: null,
@@ -90,6 +92,7 @@ const PENNANT_STREET: PropertyReview = {
   stops: [{ id: 's3', address: '3 Pennant St, Epping', locationPrecision: 'precise' }],
   approximate: false,
   noPin: false,
+  confirmedElsewhere: false,
   suburbMismatch: { geocodedSuburb: 'Carlingford' },
   currentPin: { latitude: -33.9, longitude: 151.2 },
   suggestedPin: null,
@@ -236,6 +239,19 @@ describe('Administrator Location review page', () => {
       expect(await screen.findByText('1 Property to review')).toBeInTheDocument();
       expect(screen.queryByText('Pennant Hills')).not.toBeInTheDocument();
     });
+  });
+
+  it('lists a Property whose Stop kept a pin Confirmed for its old address, and says why', async () => {
+    (listLocationReviewQueue as jest.Mock).mockResolvedValue({
+      data: [{ ...PENNANT_STREET, suburbMismatch: null, confirmedElsewhere: true }],
+    });
+    render(<AdministratorLocationReviewPage />);
+
+    expect(
+      await screen.findByRole('button', { name: /3 Pennant St.*Confirmed pin from another address.*1 Stop/ })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/still has the pin that was Confirmed for its old address/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm pin' })).toBeInTheDocument();
   });
 
   it('says so when nothing needs review', async () => {

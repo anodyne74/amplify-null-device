@@ -4,7 +4,6 @@ import {
   parseAddressComponents,
   pickStopLocationFields,
   stopLocationFields,
-  stopLocationUpdate,
   type GeocodedLocation,
 } from './locationPrecision';
 
@@ -114,24 +113,6 @@ describe('stopLocationFields', () => {
       formattedAddress: 'x',
       latitude: 1,
       longitude: 2,
-    });
-  });
-});
-
-describe('stopLocationUpdate', () => {
-  it('applies a re-geocode to a Stop that is not Confirmed', () => {
-    expect(stopLocationUpdate({ locationPrecision: 'approximate' }, GEOCODED)).toEqual(stopLocationFields(GEOCODED));
-    expect(stopLocationUpdate(undefined, GEOCODED)).toEqual(stopLocationFields(GEOCODED));
-  });
-
-  it('never moves a Confirmed Stop or changes its precision', () => {
-    const update = stopLocationUpdate({ locationPrecision: 'confirmed' }, { ...GEOCODED, locationPrecision: 'approximate' });
-
-    expect(update).toEqual({
-      addressStreetNumber: '12',
-      addressStreet: 'Smith Street',
-      addressSuburb: 'Fitzroy',
-      addressPostcode: '3065',
     });
   });
 });

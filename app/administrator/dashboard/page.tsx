@@ -95,7 +95,7 @@ export default function AdminHomePage() {
       try {
         const [routeResult, invoiceResult, customerResult, stopResult] = await Promise.all([
           listAllRoutes(),
-          listInvoices(),
+          listInvoices().catch(() => null),
           listAllCustomers(),
           listAllStops(),
         ]);
@@ -103,9 +103,7 @@ export default function AdminHomePage() {
         if (!routeResult.errors || routeResult.errors.length === 0) {
           setRoutes((routeResult.data as Route[]) || []);
         }
-        if (!invoiceResult.errors || invoiceResult.errors.length === 0) {
-          setInvoices((invoiceResult.data as Invoice[]) || []);
-        }
+        if (invoiceResult) setInvoices(invoiceResult as Invoice[]);
         if (!stopResult.errors || stopResult.errors.length === 0) {
           setStops((stopResult.data as StopSummary[]) || []);
         }

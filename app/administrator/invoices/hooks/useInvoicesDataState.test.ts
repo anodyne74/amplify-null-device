@@ -1,3 +1,4 @@
+import { DataError } from '@/lib/graphqlResult';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { useInvoicesDataState } from '@/app/administrator/invoices/hooks/useInvoicesDataState';
@@ -40,8 +41,7 @@ describe('useInvoicesDataState', () => {
         data: [],
       });
 
-    (listInvoices as jest.Mock).mockResolvedValue({
-      data: [
+    (listInvoices as jest.Mock).mockResolvedValue([
         {
           id: 'invoice-1',
           invoiceNumber: 'INV-100',
@@ -58,9 +58,7 @@ describe('useInvoicesDataState', () => {
           createdAt: '2026-01-03T10:00:00Z',
           invoiceDate: '2026-01-03',
         },
-      ],
-      errors: undefined,
-    });
+      ]);
 
     (listAllRoutes as jest.Mock).mockResolvedValue({
       data: [{ id: 'route-1', customerId: 'customer-1', routeCode: 'R1', actualDurationMinutes: 120 }],
@@ -109,7 +107,7 @@ describe('useInvoicesDataState', () => {
     });
     (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [] });
     (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
-    (listInvoices as jest.Mock).mockResolvedValue({ data: [], errors: [{ message: 'boom' }] });
+    (listInvoices as jest.Mock).mockRejectedValue(new DataError('Failed to load invoices.'));
 
     const { result } = renderHook(() => {
       const [customerId, setCustomerId] = useState('');
@@ -140,13 +138,10 @@ describe('useInvoicesDataState', () => {
     (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
     (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [] });
     (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
-    (listInvoices as jest.Mock).mockResolvedValue({
-      data: [
+    (listInvoices as jest.Mock).mockResolvedValue([
         { id: 'invoice-1', invoiceNumber: 'INV-100', customerId: 'customer-1', totalAmount: 100 },
         { id: 'invoice-2', invoiceNumber: 'INV-101', customerId: 'customer-1', totalAmount: 200 },
-      ],
-      errors: undefined
-    });
+      ]);
 
     const { result } = renderHook(() => {
       const [customerId, setCustomerId] = useState('');
@@ -180,7 +175,7 @@ describe('useInvoicesDataState', () => {
     });
     (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [] });
     (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
-    (listInvoices as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listInvoices as jest.Mock).mockResolvedValue([]);
 
     const { result } = renderHook(() => {
       const [customerId, setCustomerId] = useState('');

@@ -105,8 +105,11 @@ export default function InvoicesAdminPage() {
 
   // Shared per-invoice mark-paid mutation (single row + bulk action).
   const markInvoicePaid = async (invoiceId: string): Promise<boolean> => {
-    const result = await updateInvoice(invoiceId, { status: 'paid' });
-    if (result.errors && result.errors.length > 0) return false;
+    try {
+      await updateInvoice(invoiceId, { status: 'paid' });
+    } catch {
+      return false;
+    }
     updateInvoiceInState(invoiceId, { status: 'paid' });
     return true;
   };
@@ -117,9 +120,10 @@ export default function InvoicesAdminPage() {
   };
 
   const handleDeleteInvoice = async (invoiceId: string) => {
-    const result = await deleteInvoice(invoiceId);
-    if (result.errors && result.errors.length > 0) {
-      setError('Failed to delete invoice.');
+    try {
+      await deleteInvoice(invoiceId);
+    } catch (err) {
+      setError((err as Error).message);
       return;
     }
     removeInvoiceFromState(invoiceId);

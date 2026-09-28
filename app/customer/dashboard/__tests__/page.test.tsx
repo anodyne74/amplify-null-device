@@ -69,13 +69,10 @@ describe('Customer Dashboard', () => {
       loading: false,
       error: null,
     });
-    (listMyInvoices as jest.Mock).mockResolvedValue({
-      data: [
+    (listMyInvoices as jest.Mock).mockResolvedValue([
         { id: 'inv-1', totalAmount: 1200, status: 'paid', invoiceDate: CURRENT_MONTH_DATE },
         { id: 'inv-2', totalAmount: 800, status: 'sent', invoiceDate: NOW_ISO },
-      ],
-      errors: undefined,
-    });
+      ]);
     mockListCustomerStops.mockResolvedValue({
       data: [
         {

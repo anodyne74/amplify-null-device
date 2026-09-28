@@ -74,11 +74,11 @@ async function fetchDashboardData(context: CustomerPortalContext): Promise<Dashb
 
   let invoices: OverviewInvoice[] = [];
   if (context.role === 'account_owner') {
-    const invoiceResult = await listMyInvoices({
+    // Best-effort, as before: the other tiles still show when invoices can't be read.
+    invoices = (await listMyInvoices({
       customerId: context.customerId,
       userSub: context.userId,
-    });
-    invoices = (invoiceResult.data as OverviewInvoice[]) ?? [];
+    }).catch(() => [])) as OverviewInvoice[];
   }
 
   return { stops, invoices };

@@ -23,7 +23,8 @@ import { routeRequestCapture } from '../functions/route-request-capture/resource
  * - FeatureFlagSetting: stored state of each Feature Flag (administrator-only)
  * - PropertyLocation: an administrator's review decisions for one Property (Confirmed pin, dismissed suburb flag)
  * - PropertyHistoryReport: a frozen Property History PDF's record (read through the reports API)
- * - RouteRequestEmail: an email sent to requests@, captured for the administrator inbox (ADR 0008)
+ * - RouteRequestRecord: a Route Request or Amendment, captured from requests@ or recorded by hand (ADR 0008)
+ * - RouteRequestSlot: held by a Route while it has a Route Request
  * - OperatorAvailabilityBlock: Days Null Device has no drivers available for a customer
  * - CustomerClosureBlock: Days a customer's agency is closed
  * - RateLine: Named, priced lines on a customer's rate card
@@ -744,36 +745,64 @@ const schema = a.schema({
   }),
 
   /**
-   * RouteRequestEmail - an email sent to requests@ (#358, ADR 0008), captured
-   * by the route-request-capture function; the id is SES's message ID, which
-   * is also the raw message's key in the inbound bucket. Unlinked until an
-   * administrator links it to a Route (part 2) or dismisses it with a reason;
-   * never deleted. Administrators only: customers have no access, and its files
-   * are handed out by /api/route-requests/file.
+   * RouteRequestRecord - a Route Request or Route Amendment as received (ADR
+   * 0008): an email sent to requests@ (#358), captured by the
+   * route-request-capture function with SES's message ID as its id and raw
+   * message key, or one an administrator recorded by hand (#359). Unlinked
+   * until an administrator links it to a Route, as its Route Request or as an
+   * Amendment, or dismisses it with a reason; never deleted, and unlinked again
+   * if its Route is deleted. Administrators only: customers have no access, and
+   * its files are handed out by /api/route-requests/file.
    */
-  RouteRequestEmail: a
+  RouteRequestRecord: a
     .model({
+      source: a.enum(['email', 'manual']),
       fromName: a.string(),
-      fromAddress: a.string().required(),
-      sentAt: a.datetime().required(), // The Date header, else when SES received it
-      receivedAt: a.datetime().required(),
+      fromAddress: a.string(), // Email only
+      sentAt: a.datetime().required(), // The Date header, else when SES received it; for a manual one, when it was requested
+      receivedAt: a.datetime().required(), // When SES received it, or when it was recorded by hand
       subject: a.string(),
       bodyText: a.string(),
       spfVerdict: a.string(),
       dkimVerdict: a.string(),
       dmarcVerdict: a.string(),
-      rawMessageKey: a.string().required(),
+      rawMessageKey: a.string(), // Email only
       attachments: a.ref('RouteRequestAttachment').array(),
-      loggedByStaff: a.boolean(), // Sent from our own domain
+      loggedByStaff: a.boolean(), // Sent from our own domain, so the real requester is entered by hand
       suggestedCustomerId: a.id(),
+      // The requester entered by hand, for a manual record or a Logged-by-staff email.
+      // A manual record with no requester was uploaded by an administrator.
+      requesterName: a.string(),
+      requesterEmail: a.string(),
+      note: a.string(),
+      enteredBySub: a.string(), // The administrator who recorded it or entered its requester
       status: a.enum(['unlinked', 'linked', 'dismissed']),
+      routeId: a.id(),
+      role: a.enum(['request', 'amendment']),
+      linkedAt: a.datetime(),
+      linkedBySub: a.string(),
+      unlinkedNote: a.string(), // e.g. why it came back to the inbox
       dismissedReason: a.string(),
       dismissedAt: a.datetime(),
       dismissedBySub: a.string(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })
-    .authorization((allow) => [allow.groups(['administrator']).to(['read', 'update'])]),
+    .secondaryIndexes((index) => [index('routeId').sortKeys(['sentAt']).queryField('listRouteRequestRecordsByRoute')])
+    .authorization((allow) => [allow.groups(['administrator']).to(['read', 'create', 'update'])]),
+
+  /**
+   * RouteRequestSlot - held by a Route while it has a Route Request; the id is
+   * the Route's id. Creating one fails if it already exists, so a Route never
+   * gets a second Route Request, even when two administrators link at once.
+   */
+  RouteRequestSlot: a
+    .model({
+      recordId: a.id().required(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [allow.groups(['administrator']).to(['read', 'create', 'delete'])]),
 }).authorization((allow) => [
   allow.resource(customerAccessActivation).to(['query', 'mutate']),
   allow.resource(operatorStatusActivation).to(['query', 'mutate']),

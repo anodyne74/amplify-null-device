@@ -11,6 +11,7 @@ import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { StopForm } from '@/app/operator/components/StopForm';
 import StopCard from '@/app/administrator/components/StopCard';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
+import { RouteRequestsCard } from '@/app/administrator/components/RouteRequestsCard';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
@@ -538,6 +539,8 @@ function RouteDetailContent() {
             )}
           </Card>
 
+          <RouteRequestsCard routeId={route.id} customerId={route.customerId ?? null} />
+
           {/* Stops Section */}
           <div className={styles.stopsSection}>
             <Card title="Route Map" padded={false}>
@@ -772,7 +775,7 @@ function RouteDetailContent() {
       <ConfirmDialog
         open={deleteRouteCapability.pending}
         title="Delete route?"
-        message={`Delete route ${route?.routeCode || route?.id.slice(0, 8)}? This will also delete all stops on the route.`}
+        message={`Delete route ${route?.routeCode || route?.id.slice(0, 8)}? This will also delete all stops on the route. Its requests go back to the Request inbox.`}
         confirmLabel="Delete"
         tone="danger"
         busy={deleteRouteCapability.deleting}

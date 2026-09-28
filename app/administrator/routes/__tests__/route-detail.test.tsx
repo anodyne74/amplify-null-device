@@ -35,6 +35,10 @@ jest.mock('@/lib/amplify-config', () => ({
 }));
 
 // Mock OperatorRoute to render children
+jest.mock('@/app/administrator/components/RouteRequestsCard', () => ({
+  RouteRequestsCard: () => <div>Requests</div>,
+}));
+
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
   default: (props: { children: React.ReactNode; requireAdmin?: boolean }) => mockOperatorRoute(props),

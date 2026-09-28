@@ -34,7 +34,7 @@ All backend infrastructure is TypeScript in `amplify/` (Amplify Gen 2 / CDK). **
 | Auth | AWS Cognito — email login, 3 groups: `customer`, `operator`, `administrator` |
 | API | AWS AppSync (GraphQL, Amplify Data) |
 | Database | Amazon DynamoDB — 9 models |
-| Storage | Amazon S3 — `/invoices/*`, `/schedules/*` (staff), `/reports/*` and `/requests/*` (API routes only) |
+| Storage | Amazon S3 — `/invoices/*`, `/schedules/*` (staff), `/reports/*` (API routes only), `/requests/*` (administrators write; read through an API route) |
 | Email | AWS SES — templated invoice emails, inbound email forwarding Lambda, Route Request capture Lambda (`requests@`) |
 | Hosting | AWS Amplify + CloudFront |
 

@@ -7,7 +7,8 @@
  * Kept free of `@/` imports: the capture Lambda imports it by relative path.
  */
 import { listAll } from './listAll';
-import { parseRequestEmail, requestAttachmentKey, suggestCustomer, type RequestEmailFields } from './routeRequestEmail';
+import { parseRequestEmail, suggestCustomer, type RequestEmailFields } from './routeRequestEmail';
+import { requestAttachmentKey } from './routeRequestKey';
 
 /** The part of an SES receipt event record the capture reads. */
 export interface SesReceiptRecord {
@@ -29,13 +30,14 @@ type StoredAttachment = { key: string; filename: string; contentType: string; si
 
 type CaptureClient = {
   models: {
-    RouteRequestEmail: {
+    RouteRequestRecord: {
       get: (input: { id: string }) => Promise<ModelResponse>;
       create: (
         input: RequestEmailFields & {
           id: string;
           attachments: StoredAttachment[];
           suggestedCustomerId: string | null;
+          source: 'email';
           status: 'unlinked';
         }
       ) => Promise<ModelResponse>;
@@ -67,7 +69,7 @@ export async function captureRouteRequest(record: SesReceiptRecord, deps: Captur
   if (!receipt.recipients.some((recipient) => recipient.toLowerCase() === requestsAddress)) return 'not-a-request';
 
   const models = deps.client.models;
-  const existing = await models.RouteRequestEmail.get({ id: mail.messageId });
+  const existing = await models.RouteRequestRecord.get({ id: mail.messageId });
   if (existing.data) return 'already-captured';
 
   const raw = await deps.readRawMessage(mail.messageId);
@@ -96,8 +98,9 @@ export async function captureRouteRequest(record: SesReceiptRecord, deps: Captur
     console.error('Could not list Customer Users to suggest a Customer:', customerUsers.errors);
   }
 
-  const { errors } = await models.RouteRequestEmail.create({
+  const { errors } = await models.RouteRequestRecord.create({
     id: mail.messageId,
+    source: 'email',
     ...fields,
     attachments: stored,
     suggestedCustomerId: customerUsers.errors.length > 0 ? null : suggestCustomer(fields.fromAddress, customerUsers.data),

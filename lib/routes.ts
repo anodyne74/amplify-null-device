@@ -7,6 +7,7 @@
 
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
+import { unlinkRecordsOfDeletedRoute, type LinkClient } from '@/lib/routeRequestLinks';
 import type { RouteStatus } from '@/amplify/types';
 import { pickStopLocationFields, type StopLocationWrite } from '@/lib/locationPrecision';
 import { stopPropertyKey, type StopAddressComponents } from '@/lib/propertyKey';
@@ -135,7 +136,6 @@ export async function createRoute(input: {
   executionPhase?: 'load' | 'placement' | 'pickup' | 'unload';
   scheduledDate?: string;
   notes?: string;
-  scheduleS3Key?: string;
 }) {
   try {
     const { data, errors } = await getDataClient().models.Route.create(input);
@@ -191,7 +191,6 @@ export async function updateRoute(
     billedPickupMinutes: number;
     billedUnloadMinutes: number;
     vanCount: number;
-    scheduleS3Key: string;
     assignedOperatorSub: string | null;
     assignedOperatorName: string | null;
     assignedOperatorEmail: string | null;
@@ -245,6 +244,18 @@ export async function deleteRoute(routeId: string) {
     if (childErrors.length > 0) {
       console.error('Errors deleting route stops:', childErrors);
       return { data: null, errors: childErrors };
+    }
+
+    // Its Route Request and Amendments are kept, back in the inbox (ADR 0008).
+    const { data: route } = await client.models.Route.get({ id: routeId }, { selectionSet: ['routeCode'] });
+    const unlinkErrors = await unlinkRecordsOfDeletedRoute(
+      client as unknown as LinkClient,
+      routeId,
+      route?.routeCode || routeId.slice(0, 8)
+    );
+    if (unlinkErrors.length > 0) {
+      console.error("Errors returning the route's requests to the inbox:", unlinkErrors);
+      return { data: null, errors: unlinkErrors };
     }
 
     const { data, errors } = await client.models.Route.delete({ id: routeId });

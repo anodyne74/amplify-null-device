@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
@@ -14,6 +14,7 @@ import { Select } from '@/app/components/ui/forms/Select';
 import { Tabs } from '@/app/components/ui/navigation/Tabs';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { RouteForm, type RouteDraftStop } from '@/app/operator/components/RouteForm';
+import { RequesterFields, RouteRequestView, localNow, recordTitle } from '@/app/administrator/components/RouteRequests';
 import { pickStopLocationFields } from '@/lib/locationPrecision';
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseScheduleText } from '@/lib/parseSchedule';
@@ -22,6 +23,14 @@ import { locateDraftStops } from '@/lib/stopLocation';
 import styles from './page.module.css';
 import { listAllRoutes, createRoute, createStopsForRoute, getRouteWithStops } from '@/lib/routes';
 import { listAllCustomers } from '@/lib/customers';
+import {
+  attachNewRouteRequest,
+  fetchRouteRequestAttachment,
+  getRouteRequest,
+  requesterLabel,
+  scheduleAttachmentIndex,
+  type RouteRequestRecord,
+} from '@/lib/routeRequests';
 
 function todayDateKey() {
   const now = new Date();
@@ -93,7 +102,16 @@ function normalizeOptionalNumber(value: unknown): number | undefined {
 }
 
 export default function NewRoutePage() {
+  return (
+    <Suspense fallback={<LoadingSpinner message="Loading..." />}>
+      <NewRoutePageContent />
+    </Suspense>
+  );
+}
+
+function NewRoutePageContent() {
   const router = useRouter();
+  const fromRecordId = useSearchParams().get('request');
   const [customers, setCustomers] = useState<Array<{
     id: string;
     name: string;
@@ -138,6 +156,17 @@ export default function NewRoutePage() {
   // Bumped whenever the drafts change, so a slow locate of an earlier parse is dropped.
   const locateRunRef = useRef(0);
 
+  // The Route Request (#359): the inbox record this Route is created from, or
+  // one recorded by hand from the uploaded Schedule and an optional requester.
+  const [fromRecord, setFromRecord] = useState<RouteRequestRecord | null>(null);
+  const [fromRecordError, setFromRecordError] = useState<string | null>(null);
+  const [fromAttachment, setFromAttachment] = useState('');
+  const [requesterName, setRequesterName] = useState('');
+  const [requesterEmail, setRequesterEmail] = useState('');
+  const [requestedAt, setRequestedAt] = useState(localNow);
+  const [requestNote, setRequestNote] = useState('');
+  const needsRequester = Boolean(fromRecord?.loggedByStaff);
+
   const importCopySourcesForCustomer = copyStopSources
     .filter((route) => route.customerId === importCustomerId)
     .sort((a, b) => {
@@ -161,6 +190,33 @@ export default function NewRoutePage() {
       cancelled = true;
     };
   }, [routeCodeInitialized]);
+
+  useEffect(() => {
+    if (!fromRecordId) return;
+    let cancelled = false;
+    void getRouteRequest(fromRecordId).then((record) => {
+      if (cancelled) return;
+      if (!record || record.status !== 'unlinked') {
+        setFromRecordError('That email is no longer in the Request inbox, so this Route won\u2019t be linked to it.');
+        return;
+      }
+      setFromRecord(record);
+      const index = scheduleAttachmentIndex(record.attachments);
+      if (index !== null) void loadRecordAttachment(record, index);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // loadRecordAttachment only sets state; it's run once per record.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromRecordId]);
+
+  // The suggested Customer, once both it and the Customers have loaded.
+  useEffect(() => {
+    const suggested = fromRecord?.suggestedCustomerId;
+    if (!suggested || !customers.some((customer) => customer.id === suggested)) return;
+    setImportCustomerId(suggested);
+  }, [fromRecord, customers]);
 
   useEffect(() => {
     async function fetchCustomers() {
@@ -234,6 +290,8 @@ export default function NewRoutePage() {
     notes: string;
     stops: RouteDraftStop[];
   }) => {
+    const requestProblem = routeRequestProblem();
+    if (requestProblem) { setSubmitError(requestProblem); return; }
     setIsSubmitting(true);
     setSubmitError(null);
     try {
@@ -262,6 +320,13 @@ export default function NewRoutePage() {
 
         if (failedStops.length > 0) {
           setSubmitError(`Route was created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}`);
+          setIsSubmitting(false);
+          return;
+        }
+
+        const attached = await attachRouteRequest(result.data.id, values.customerId, null);
+        if (!attached.ok) {
+          setSubmitError(`Route was created, but not linked to its Route Request: ${attached.error} Link it from the Route's Requests.`);
           setIsSubmitting(false);
           return;
         }
@@ -322,7 +387,11 @@ export default function NewRoutePage() {
   // ── Import tab handlers ───────────────────────────────────────────────────
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
+    setFromAttachment('');
+    loadImportFile(e.target.files?.[0] ?? null);
+  };
+
+  const loadImportFile = (file: File | null) => {
     setImportFile(file);
     setImportText('');
     setParseWarnings([]);
@@ -337,6 +406,38 @@ export default function NewRoutePage() {
           setImportError('Could not read the uploaded file. PDFs must contain selectable text.');
         });
     }
+  };
+
+  const loadRecordAttachment = async (record: RouteRequestRecord, index: number) => {
+    const attachment = record.attachments?.[index];
+    if (!attachment) return;
+    setFromAttachment(String(index));
+    try {
+      loadImportFile(await fetchRouteRequestAttachment(record.id, index, attachment.filename, attachment.contentType));
+    } catch (error) {
+      console.error('Failed to load the email attachment:', error);
+      setImportError(`Could not load ${attachment.filename} from the email.`);
+    }
+  };
+
+  const routeRequestProblem = () => {
+    if (needsRequester && !requesterName.trim()) return 'Enter the name of the person who asked for this Route, under Route Request.';
+    if (!fromRecord && !requestedAt) return 'Enter when the Route was requested, under Route Request.';
+    return null;
+  };
+
+  // Links the email, or records the upload, as the new Route's Route Request.
+  const attachRouteRequest = async (routeId: string, customerId: string, file: File | null) => {
+    const name = requesterName.trim();
+    return attachNewRouteRequest({
+      routeId,
+      customerId,
+      fromRecordId: fromRecord?.id ?? null,
+      requester: name ? { name, email: requesterEmail } : null,
+      requestedAt: new Date(requestedAt).toISOString(),
+      note: fromRecord ? null : requestNote,
+      file: fromRecord ? null : file,
+    });
   };
 
   const handleParse = async () => {
@@ -431,6 +532,8 @@ export default function NewRoutePage() {
       setImportError('Copy stops from a previous route or parse an uploaded schedule file first.');
       return;
     }
+    const requestProblem = routeRequestProblem();
+    if (requestProblem) { setImportError(requestProblem); return; }
 
     setIsUploading(true);
     setImportError(null);
@@ -448,27 +551,13 @@ export default function NewRoutePage() {
         return;
       }
 
-      // 1. Upload file to S3 if one was selected
-      let scheduleS3Key: string | undefined;
-      if (importFile) {
-        const { uploadData } = await import('aws-amplify/storage');
-        const tempKey = `schedules/${importCustomerId}/${Date.now()}-${importFile.name}`;
-        await uploadData({
-          path: tempKey,
-          data: importFile,
-          options: { contentType: importFile.type || 'text/plain' },
-        }).result;
-        scheduleS3Key = tempKey;
-      }
-
-      // 2. Create route
+      // 1. Create route
       const routeResult = await createRoute({
         routeCode: importRouteCode.trim(),
         customerId: importCustomerId,
         scheduledDate: importScheduledDate,
         status: 'planned',
         notes: importNotes || undefined,
-        scheduleS3Key,
       });
 
       if (routeResult.errors && routeResult.errors.length > 0) {
@@ -482,7 +571,7 @@ export default function NewRoutePage() {
       const routeId = routeResult.data?.id;
       if (!routeId) { setImportError('Route created but ID not returned.'); setIsUploading(false); return; }
 
-      // 3. Create stops
+      // 2. Create stops
       const stopResults = await createStopsForRoute(routeId, importCustomerId, importDraftStops);
       const failedStops = stopResults
         .filter((stopResult) => !stopResult.success)
@@ -490,6 +579,14 @@ export default function NewRoutePage() {
 
       if (failedStops.length > 0) {
         setImportError(`Route created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}`);
+        setIsUploading(false);
+        return;
+      }
+
+      // 3. Link or record its Route Request, with the uploaded Schedule
+      const attached = await attachRouteRequest(routeId, importCustomerId, importFile);
+      if (!attached.ok) {
+        setImportError(`Route created, but not linked to its Route Request: ${attached.error} Link it from the Route's Requests.`);
         setIsUploading(false);
         return;
       }
@@ -536,6 +633,50 @@ export default function NewRoutePage() {
           <LoadingSpinner message="Loading customers..." />
         ) : (
           <>
+            <Card title="Route Request">
+              {fromRecordError && <div className={styles.warningsBanner}>{fromRecordError}</div>}
+              {fromRecord ? (
+                <details className={styles.fromRecord} open>
+                  <summary>
+                    Creating from <strong>{recordTitle(fromRecord)}</strong> from {requesterLabel(fromRecord)}. It becomes this
+                    Route&rsquo;s Route Request.
+                  </summary>
+                  <RouteRequestView record={fromRecord} />
+                </details>
+              ) : (
+                <p className={styles.importHint}>
+                  Who asked for this Route. An uploaded Schedule is kept with it; with neither, the Route has no Route Request yet.
+                </p>
+              )}
+              {(!fromRecord || needsRequester) && (
+                <div className={styles.fieldsStack}>
+                  <RequesterFields
+                    idPrefix="request"
+                    name={requesterName}
+                    email={requesterEmail}
+                    required={needsRequester}
+                    onName={setRequesterName}
+                    onEmail={setRequesterEmail}
+                  />
+                  {!fromRecord && (
+                    <Field label="Requested at" htmlFor="request-requested-at">
+                      <Input
+                        id="request-requested-at"
+                        type="datetime-local"
+                        value={requestedAt}
+                        onChange={(e) => setRequestedAt(e.target.value)}
+                      />
+                    </Field>
+                  )}
+                  {!fromRecord && (
+                    <Field label="Note (optional)" htmlFor="request-note" hint="e.g. what was asked for on the phone">
+                      <Input id="request-note" value={requestNote} onChange={(e) => setRequestNote(e.target.value)} />
+                    </Field>
+                  )}
+                </div>
+              )}
+            </Card>
+
             <Tabs
               items={[
                 { id: 'import', label: 'Import from Schedule' },
@@ -627,7 +768,30 @@ export default function NewRoutePage() {
                     />
                   </Field>
 
-                  <Field label="Upload Schedule File" hint="PDF, CSV, TXT — stored and linked to route">
+                  {fromRecord && (fromRecord.attachments ?? []).length > 0 && (
+                    <Field label="Schedule from the email" htmlFor="import-from-attachment">
+                      <Select
+                        id="import-from-attachment"
+                        value={fromAttachment}
+                        onChange={(e) => {
+                          if (e.target.value) void loadRecordAttachment(fromRecord, Number(e.target.value));
+                        }}
+                        disabled={isUploading}
+                      >
+                        <option value="">Choose an attachment...</option>
+                        {(fromRecord.attachments ?? []).map((attachment, index) =>
+                          attachment ? (
+                            <option key={attachment.key} value={index}>{attachment.filename}</option>
+                          ) : null
+                        )}
+                      </Select>
+                    </Field>
+                  )}
+
+                  <Field
+                    label="Upload Schedule File"
+                    hint={fromRecord ? 'PDF, CSV, TXT — to parse; the email keeps its own files' : 'PDF, CSV, TXT — kept with the Route Request'}
+                  >
                     <div className={styles.fileRow}>
                       <input
                         ref={fileInputRef}

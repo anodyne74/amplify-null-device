@@ -1,0 +1,91 @@
+.note {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.body {
+  margin: 0;
+  padding: var(--space-4);
+  max-height: 420px;
+  overflow-y: auto;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.files li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--text-sm);
+}
+
+.roles label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.record {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.record summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.record[open] summary {
+  margin-bottom: var(--space-3);
+}

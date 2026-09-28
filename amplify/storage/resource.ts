@@ -4,11 +4,14 @@ import { defineStorage } from '@aws-amplify/backend';
 // Reports are read only through the reports API, which checks the caller's
 // Customer (#291). Customers open invoice PDFs the same way, through the
 // invoice PDF API (#356). amplify/backend.ts grants the SSR role what those
-// routes need.
+// routes need. Administrators may only add files to requests/, for a Route
+// Request recorded by hand (#359); they read them through the Route Request
+// file API like everyone else.
 export const storage = defineStorage({
   name: 'invoiceStorage',
   access: (allow) => ({
     'invoices/*': [allow.groups(['administrator', 'operator']).to(['read', 'write', 'delete'])],
     'schedules/*': [allow.groups(['administrator', 'operator']).to(['read', 'write', 'delete'])],
+    'requests/*': [allow.groups(['administrator']).to(['write'])],
   }),
 });

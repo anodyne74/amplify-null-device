@@ -22,7 +22,7 @@ const requests: Record<string, unknown>[] = [];
 
 const iamClient = {
   models: {
-    RouteRequestEmail: {
+    RouteRequestRecord: {
       get: async ({ id }: { id: string }) => ({ data: requests.find((row) => row.id === id) ?? null }),
     },
   },
@@ -79,6 +79,11 @@ describe('POST /api/route-requests/file', () => {
   it('reports a missing Route Request or attachment as not found', async () => {
     expect((await call(ADMIN, { requestId: 'nope', file: 0 })).status).toBe(404);
     expect((await call(ADMIN, { requestId: 'ses-msg-1', file: 2 })).status).toBe(404);
+  });
+
+  it('has no original email to give for a record entered by hand', async () => {
+    requests.push({ id: 'manual-1', rawMessageKey: null, attachments: [] });
+    expect((await call(ADMIN, { requestId: 'manual-1', file: 'raw' })).status).toBe(404);
   });
 
   it('refuses customers and operators', async () => {

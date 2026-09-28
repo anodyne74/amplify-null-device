@@ -233,10 +233,18 @@ describe('customer invite-user API', () => {
     expect(sendInvitationEmailMock).not.toHaveBeenCalled();
   });
 
-  it('returns 404 when the caller has no customer mapping', async () => {
+  it('returns 403 when the caller has no customer mapping', async () => {
     customerUserListMock.mockResolvedValue({ data: [] });
     const response = await POST(makeRequest({ email: 'teammate@rangeproperty.com.au' }));
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(403);
+    expect(createOrGetCognitoUserMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 500, not 'not found', when reading the caller's CustomerUser row fails", async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    customerUserListMock.mockResolvedValue({ data: [], errors: [{ message: 'throttled' }] });
+    const response = await POST(makeRequest({ email: 'teammate@rangeproperty.com.au' }));
+    expect(response.status).toBe(500);
     expect(createOrGetCognitoUserMock).not.toHaveBeenCalled();
   });
 
@@ -257,7 +265,7 @@ describe('customer invite-user API', () => {
 
       expect(response.status).toBe(403);
       await expect(response.json()).resolves.toEqual({
-        error: "Inviting teammates isn't available for your account.",
+        error: "This isn't available for your account.",
       });
       expectNothingCreatedOrSent();
     });

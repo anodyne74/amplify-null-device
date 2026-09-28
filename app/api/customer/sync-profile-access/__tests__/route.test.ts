@@ -85,7 +85,7 @@ describe('customer sync-profile-access API', () => {
     expect(response.status).toBe(500);
   });
 
-  it('returns 404 when no customer mapping exists', async () => {
+  it('returns 403 when no customer mapping exists', async () => {
     customerUserListMock.mockResolvedValue({ data: [] });
     const request = {
       headers: new Headers({ authorization: 'Bearer token-value' }),
@@ -93,7 +93,20 @@ describe('customer sync-profile-access API', () => {
     } as any;
 
     const response = await POST(request);
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(403);
+    expect(syncCustomerAccessMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 500, not 'not found', when reading the caller's CustomerUser row fails", async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    customerUserListMock.mockResolvedValue({ data: [], errors: [{ message: 'throttled' }] });
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({}),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(500);
     expect(syncCustomerAccessMock).not.toHaveBeenCalled();
   });
 });

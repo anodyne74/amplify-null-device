@@ -5,6 +5,7 @@ import InvoiceDetailContent from '../[id]/_InvoiceDetailContent';
 import ToastProvider from '@/app/components/ToastProvider';
 import { getCustomerPortalContext } from '@/lib/customers';
 import { getInvoiceDetail } from '@/lib/invoices';
+import { listCustomerRouteRequests } from '@/lib/customerRouteRequests';
 
 const renderWithToast = (ui: React.ReactElement) => render(<ToastProvider>{ui}</ToastProvider>);
 
@@ -25,6 +26,10 @@ jest.mock('@/lib/use-user-groups', () => ({
 
 jest.mock('@/lib/invoices', () => ({
   getInvoiceDetail: jest.fn(),
+}));
+
+jest.mock('@/lib/customerRouteRequests', () => ({
+  listCustomerRouteRequests: jest.fn(),
 }));
 
 jest.mock('@/lib/customers', () => ({
@@ -49,6 +54,7 @@ describe('Customer invoice detail', () => {
         status: 'paid',
         lineItems: [],
       });
+    (listCustomerRouteRequests as jest.Mock).mockResolvedValue([]);
   });
 
   it('loads invoice detail with the portal context customer ID', async () => {
@@ -106,5 +112,29 @@ describe('Customer invoice detail', () => {
     renderWithToast(<InvoiceDetailContent params={{ id: 'inv-1' }} />);
 
     expect(await screen.findByRole('link', { name: /abcdef12/ })).toHaveAttribute('href', '/customer/routes/abcdef1234567890');
+  });
+
+  it("summarises the Route's Route Request and links to its Requests section (#360)", async () => {
+    (getInvoiceDetail as jest.Mock).mockResolvedValue({ id: 'inv-1', customerId: 'cust-1', invoiceNumber: 'INV-001', routeId: 'route-1', routeCode: 'W03-24-001', lineItems: [] });
+    const sent = { requesterName: 'Ann Agent', requesterEmail: 'ann@agency.test', recordedByNullDevice: false, attachments: [] };
+    (listCustomerRouteRequests as jest.Mock).mockResolvedValue([
+      { ...sent, id: 'req', role: 'request', sentAt: '2026-09-27T12:00:00.000Z' },
+      { ...sent, id: 'a1', role: 'amendment', sentAt: '2026-09-28T02:00:00.000Z' },
+      { ...sent, id: 'a2', role: 'amendment', sentAt: '2026-09-29T02:00:00.000Z' },
+    ]);
+
+    renderWithToast(<InvoiceDetailContent params={{ id: 'inv-1' }} />);
+
+    const link = await screen.findByRole('link', { name: /Requested by Ann Agent on September 27, 2026, 2 amendments/ });
+    expect(link).toHaveAttribute('href', '/customer/routes/route-1#requests');
+    expect(listCustomerRouteRequests).toHaveBeenCalledWith('route-1');
+  });
+
+  it('says there is no request on file when the Route has no Route Request', async () => {
+    (getInvoiceDetail as jest.Mock).mockResolvedValue({ id: 'inv-1', customerId: 'cust-1', invoiceNumber: 'INV-001', routeId: 'route-1', lineItems: [] });
+
+    renderWithToast(<InvoiceDetailContent params={{ id: 'inv-1' }} />);
+
+    expect(await screen.findByRole('link', { name: /No request on file/ })).toHaveAttribute('href', '/customer/routes/route-1#requests');
   });
 });

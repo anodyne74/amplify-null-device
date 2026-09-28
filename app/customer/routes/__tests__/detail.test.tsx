@@ -5,6 +5,7 @@ import RouteDetailContent from '../[id]/_RouteDetailContent';
 import type { RouteWithStopsFeedHandlers } from '@/lib/routeWithStopsFeed';
 import { getRouteWithStops, updateRoute, updateRouteCustomerInstructions } from '@/lib/routes';
 import { getCustomer, getCustomerPortalContext, listCustomerUsers } from '@/lib/customers';
+import { listCustomerRouteRequests } from '@/lib/customerRouteRequests';
 
 jest.mock('@/lib/use-user-groups', () => ({
   useCurrentUserId: () => 'viewer-sub-1',
@@ -13,6 +14,11 @@ jest.mock('@/lib/use-user-groups', () => ({
 jest.mock('@/app/components/ProtectedRoute', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+jest.mock('@/lib/customerRouteRequests', () => ({
+  listCustomerRouteRequests: jest.fn(),
+  downloadCustomerRouteRequestFile: jest.fn(),
 }));
 
 jest.mock('@/lib/routes', () => ({
@@ -124,6 +130,33 @@ describe('Customer route detail tracker', () => {
       errors: undefined,
     });
     (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listCustomerRouteRequests as jest.Mock).mockResolvedValue([]);
+  });
+
+  it("shows an Account Owner and a read-only user the Route's requests (#360)", async () => {
+    (listCustomerRouteRequests as jest.Mock).mockResolvedValue([
+      {
+        id: 'req',
+        role: 'request',
+        requesterName: 'Ann Agent',
+        requesterEmail: 'ann@agency.test',
+        recordedByNullDevice: false,
+        sentAt: '2026-09-27T23:15:00.000Z',
+        subject: 'Route for Tuesday',
+        bodyText: 'Please see attached.',
+        attachments: [],
+      },
+    ]);
+
+    for (const role of ['account_owner', 'read_only']) {
+      (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role, customerId: 'cust-1' });
+      const { unmount } = render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+      expect(await screen.findByText('Route for Tuesday')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Requests' }).closest('#requests')).not.toBeNull();
+      unmount();
+    }
+    expect(listCustomerRouteRequests).toHaveBeenCalledWith('route-1');
   });
 
   it('lets a read-only customer user view their route tracker with map and stops', async () => {

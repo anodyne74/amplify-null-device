@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { buildInvoiceFileName } from '@/lib/invoiceFileName';
@@ -14,6 +14,8 @@ import { Button } from '@/app/components/ui/core/Button';
 import styles from './_InvoiceDetailContent.module.css';
 import { getInvoiceDetail, openInvoicePdf, type InvoiceDetail } from '@/lib/invoices';
 import { getInvoiceRouteLabel } from '@/lib/customerInvoiceList';
+import { listCustomerRouteRequests } from '@/lib/customerRouteRequests';
+import { customerRouteRequestSummary } from '@/lib/customerRouteRequestView';
 
 interface InvoiceDetailContentProps {
   params: {
@@ -35,6 +37,43 @@ async function fetchInvoice(context: CustomerPortalContext, invoiceId: string): 
   });
   if (!detail) throw new Error('Invoice not found');
   return detail;
+}
+
+const formatDate = (dateString?: string | null) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+};
+
+/** "Requested by <name> on <date>, N amendments", linking to the Route's Requests section (#360). */
+function RouteRequestSummary({ routeId }: { routeId: string }) {
+  const [summary, setSummary] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    listCustomerRouteRequests(routeId)
+      .then((entries) => {
+        if (!cancelled) setSummary(customerRouteRequestSummary(entries, formatDate) ?? 'No request on file');
+      })
+      .catch((err) => {
+        // The summary is a pointer to the Route, not part of the invoice; leave it out.
+        console.error("Error loading the Route's requests:", err);
+        if (!cancelled) setSummary(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [routeId]);
+
+  if (!summary) return null;
+  return (
+    <div>
+      <p className={styles.infoLabel}>Request</p>
+      <a href={`/customer/routes/${routeId}#requests`} className={styles.routeLink}>
+        {summary} →
+      </a>
+    </div>
+  );
 }
 
 /**
@@ -79,12 +118,6 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
     } finally {
       setPdfActionLoading(false);
     }
-  };
-
-  const formatDate = (dateString?: string | null) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   };
 
   if (loading) {
@@ -175,6 +208,8 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
                   </a>
                 </div>
               )}
+
+              {invoice.routeId && <RouteRequestSummary routeId={invoice.routeId} />}
             </div>
           </div>
 

@@ -8,6 +8,7 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import RouteTimeline from '@/app/customer/components/RouteTimeline';
 import StopListItem from '@/app/customer/components/StopListItem';
+import { RouteRequestsSection } from '@/app/customer/components/RouteRequestsSection';
 import { RouteStopsMap } from '@/app/operator/components/RouteStopsMap';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
@@ -421,6 +422,8 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
             </div>
           )}
         </Card>
+
+        <RouteRequestsSection routeId={route.id} />
 
         {showNextStop && nextStop && (
           <Card title="Next stop">

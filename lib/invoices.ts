@@ -3,10 +3,14 @@
  * and writes it through the signed-in user's data client. Admin screens use the
  * list/get/create/update/delete functions; the customer portal reads through
  * getInvoiceDetail and listMyInvoices, which also refuse read_only users.
+ *
+ * Every function returns its data or throws a DataError whose message can be
+ * shown as it is (lib/graphqlResult.ts); a missing Invoice is null, not an error.
  */
 import { callApi } from '@/lib/apiClient';
 import { getCustomerPortalContext } from '@/lib/customers';
 import { getDataClient } from '@/lib/data-client';
+import { DataError, resultData, withDataError } from '@/lib/graphqlResult';
 import { listAll } from '@/lib/listAll';
 import { getRouteCode, listCustomerRouteCodes } from '@/lib/routes';
 
@@ -14,76 +18,33 @@ import { getRouteCode, listCustomerRouteCodes } from '@/lib/routes';
  * Fetch invoices for a single customer (admin customers panel — onboarding checklist).
  */
 export async function listCustomerInvoices(customerId: string) {
-  try {
-    const { data, errors } = await listAll(getDataClient(), 'Invoice', {
-      filter: { customerId: { eq: customerId } },
-    });
-
-    if (errors.length > 0) {
-      console.error('Errors fetching customer invoices:', errors);
-      return { data: [], errors };
-    }
-
-    return { data, errors: undefined };
-  } catch (error) {
-    console.error('Error listing customer invoices:', error);
-    return { data: [], errors: [error] };
-  }
+  return withDataError('Failed to load invoices.', async () =>
+    resultData(await listAll(getDataClient(), 'Invoice', { filter: { customerId: { eq: customerId } } })) ?? []
+  );
 }
 
 /**
  * Fetch all invoices for administrators/operators.
  */
 export async function listInvoices(options?: { status?: 'draft' | 'sent' | 'paid' }) {
-  try {
-    const { data, errors } = await listAll(getDataClient(), 'Invoice');
-
-    if (errors.length > 0) {
-      console.error('Errors fetching invoices:', errors);
-      return { data: [], errors };
-    }
-
-    const filtered = options?.status ? data.filter((invoice) => invoice.status === options.status) : data;
-
-    return { data: filtered, errors: undefined };
-  } catch (error) {
-    console.error('Error listing invoices:', error);
-    return { data: [], errors: [error] };
-  }
+  return withDataError('Failed to load invoices.', async () => {
+    const invoices = resultData(await listAll(getDataClient(), 'Invoice')) ?? [];
+    return options?.status ? invoices.filter((invoice) => invoice.status === options.status) : invoices;
+  });
 }
 
 /**
- * Fetch a specific invoice with its line items
+ * Fetch a specific invoice with its line items, or null when there's no such invoice.
  */
 export async function getInvoiceWithLineItems(invoiceId: string) {
-  try {
-    const { data: invoice, errors: invoiceErrors } = await getDataClient().models.Invoice.get({
-      id: invoiceId,
-    });
+  return withDataError('Failed to load invoice.', async () => {
+    const invoice = resultData(await getDataClient().models.Invoice.get({ id: invoiceId }));
+    if (!invoice) return null;
 
-    if (invoiceErrors) {
-      console.error('Errors fetching invoice:', invoiceErrors);
-      return { invoice: null, lineItems: [], errors: invoiceErrors };
-    }
-
-    if (!invoice) {
-      return { invoice: null, lineItems: [], errors: [] };
-    }
-
-    // Fetch line items for this invoice
-    const { data: lineItems, errors: lineItemsErrors } = await listAll(getDataClient(), 'LineItem', {
-      filter: { invoiceId: { eq: invoiceId } },
-    });
-
-    if (lineItemsErrors.length > 0) {
-      console.error('Errors fetching line items:', lineItemsErrors);
-    }
-
-    return { invoice, lineItems, errors: lineItemsErrors };
-  } catch (error) {
-    console.error('Error getting invoice with line items:', error);
-    return { invoice: null, lineItems: [], errors: [error] };
-  }
+    const lineItems =
+      resultData(await listAll(getDataClient(), 'LineItem', { filter: { invoiceId: { eq: invoiceId } } })) ?? [];
+    return { invoice, lineItems };
+  });
 }
 
 /**
@@ -102,18 +63,9 @@ export async function createInvoice(input: {
   pdfS3Key?: string;
   importedAt?: string;
 }) {
-  try {
-    const { data, errors } = await getDataClient().models.Invoice.create(input);
-
-    if (errors) {
-      console.error('Errors creating invoice:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error creating invoice:', error);
-    return { data: null, errors: [error] };
-  }
+  return withDataError('Failed to create invoice.', async () =>
+    resultData(await getDataClient().models.Invoice.create(input))
+  );
 }
 
 /**
@@ -135,21 +87,9 @@ export async function updateInvoice(
     importedAt: string | null;
   }>
 ) {
-  try {
-    const { data, errors } = await getDataClient().models.Invoice.update({
-      id: invoiceId,
-      ...updates,
-    });
-
-    if (errors) {
-      console.error('Errors updating invoice:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error updating invoice:', error);
-    return { data: null, errors: [error] };
-  }
+  return withDataError('Failed to update invoice.', async () =>
+    resultData(await getDataClient().models.Invoice.update({ id: invoiceId, ...updates }))
+  );
 }
 
 /**
@@ -158,38 +98,17 @@ export async function updateInvoice(
  * or paid invoice is a record that shouldn't disappear from history.
  */
 export async function deleteInvoice(invoiceId: string) {
-  try {
+  return withDataError('Failed to delete invoice.', async () => {
     const client = getDataClient();
-    const { data: lineItems, errors: lineItemListErrors } = await listAll(client, 'LineItem', {
-      filter: { invoiceId: { eq: invoiceId } },
-    });
-
-    if (lineItemListErrors && lineItemListErrors.length > 0) {
-      console.error('Errors fetching invoice line items for deletion:', lineItemListErrors);
-      return { data: null, errors: lineItemListErrors };
-    }
+    const lineItems = resultData(await listAll(client, 'LineItem', { filter: { invoiceId: { eq: invoiceId } } })) ?? [];
 
     const lineItemDeletes = await Promise.all(
-      ((lineItems as Array<{ id: string }>) || []).map((lineItem) => client.models.LineItem.delete({ id: lineItem.id }))
+      lineItems.map((lineItem) => client.models.LineItem.delete({ id: lineItem.id }))
     );
+    resultData({ errors: lineItemDeletes.flatMap((result) => result.errors ?? []) });
 
-    const childErrors = lineItemDeletes.flatMap((result) => result.errors || []);
-    if (childErrors.length > 0) {
-      console.error('Errors deleting invoice line items:', childErrors);
-      return { data: null, errors: childErrors };
-    }
-
-    const { data, errors } = await client.models.Invoice.delete({ id: invoiceId });
-
-    if (errors) {
-      console.error('Errors deleting invoice:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error deleting invoice:', error);
-    return { data: null, errors: [error] };
-  }
+    return resultData(await client.models.Invoice.delete({ id: invoiceId }));
+  });
 }
 
 /**
@@ -222,18 +141,9 @@ export async function createLineItem(input: {
   amount: number;
   viewerSubs?: string[];
 }) {
-  try {
-    const { data, errors } = await getDataClient().models.LineItem.create(input);
-
-    if (errors) {
-      console.error('Errors creating line item:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error creating line item:', error);
-    return { data: null, errors: [error] };
-  }
+  return withDataError('Failed to create line item.', async () =>
+    resultData(await getDataClient().models.LineItem.create(input))
+  );
 }
 
 export interface GetInvoiceDetailParams {
@@ -267,59 +177,39 @@ export interface InvoiceDetail {
 
 /**
  * Get invoice detail with line items
- * Used to display invoice detail page with itemized charges
+ * Used to display invoice detail page with itemized charges. Null when the
+ * invoice doesn't exist, belongs to another Customer, or the user is
+ * read_only -- the page says "not found" for all three, so it never reveals
+ * that someone else's invoice exists.
  */
-export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
-  try {
+export async function getInvoiceDetail(params: GetInvoiceDetailParams): Promise<InvoiceDetail | null> {
+  return withDataError('Failed to load invoice.', async () => {
     if (params.userSub) {
       const portalContext = await getCustomerPortalContext(params.userSub);
-      if (portalContext.role === 'read_only') {
-        return { data: null, errors: ['Access denied'] };
-      }
+      if (portalContext.role === 'read_only') return null;
     }
 
-    // Fetch the invoice
-    const invoiceResponse = await getDataClient().models.Invoice.get({
-      id: params.invoiceId,
-    });
+    const invoice = resultData(await getDataClient().models.Invoice.get({ id: params.invoiceId }));
+    if (!invoice || invoice.customerId !== params.customerId) return null;
 
-    if (!invoiceResponse || !invoiceResponse.data) {
-      return { data: null, errors: ['Invoice not found'] };
-    }
-
-    const invoice = invoiceResponse.data;
-
-    // Verify customer owns this invoice
-    if (invoice.customerId !== params.customerId) {
-      return { data: null, errors: ['Access denied'] };
-    }
-
-    // Fetch customer name for display and PDF file naming
+    // Customer name for display and PDF file naming; best-effort.
     const { data: customer } = await getDataClient().models.Customer.get({
       id: invoice.customerId,
     });
 
-    // Fetch line items for this invoice
-    const { data: lineItems, errors: lineItemsErrors } = await listAll(getDataClient(), 'LineItem', {
-      filter: {
-        invoiceId: {
-          eq: params.invoiceId,
-        },
-        customerId: {
-          eq: params.customerId,
-        },
-      },
-    });
-
-    if (lineItemsErrors.length > 0) {
-      console.error('Errors fetching line items:', lineItemsErrors);
-      return { data: null, errors: lineItemsErrors };
-    }
+    const lineItems =
+      resultData(
+        await listAll(getDataClient(), 'LineItem', {
+          filter: {
+            invoiceId: { eq: params.invoiceId },
+            customerId: { eq: params.customerId },
+          },
+        })
+      ) ?? [];
 
     const routeCode = invoice.routeId ? await getRouteCode(invoice.routeId) : undefined;
 
-    // Transform to plain JavaScript object
-    const detail: InvoiceDetail = {
+    return {
       id: invoice.id || '',
       customerId: invoice.customerId || '',
       customerName: customer?.name || undefined,
@@ -332,21 +222,16 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams) {
       routeId: invoice.routeId || undefined,
       routeCode,
       pdfS3Key: invoice.pdfS3Key || undefined,
-      lineItems: (lineItems || []).map((item: any) => ({
+      lineItems: lineItems.map((item) => ({
         id: item.id,
         invoiceId: item.invoiceId,
         description: item.description,
-        quantity: item.quantity,
+        quantity: item.quantity ?? undefined,
         ratePerUnit: item.ratePerUnit,
         amount: item.amount,
       })),
     };
-
-    return { data: detail, errors: undefined };
-  } catch (error) {
-    console.error('Error fetching invoice detail:', error);
-    return { data: null, errors: [error as Error] };
-  }
+  });
 }
 
 export interface ListMyInvoicesParams {
@@ -358,18 +243,14 @@ export interface ListMyInvoicesParams {
 
 /**
  * List customer's invoices with optional date filtering
- * Used to display invoice list in customer portal
+ * Used to display invoice list in customer portal. A read_only user gets
+ * DataError('Access denied').
  */
 export async function listMyInvoices(params: ListMyInvoicesParams) {
-  try {
+  return withDataError('Failed to load invoices.', async () => {
     if (params.userSub) {
       const portalContext = await getCustomerPortalContext(params.userSub);
-      if (portalContext.role === 'read_only') {
-        return {
-          data: [],
-          errors: [new Error('Access denied: reviewer users cannot view invoices.')],
-        };
-      }
+      if (portalContext.role === 'read_only') throw new DataError('Access denied');
     }
 
     // Build filter with customerId and optional date range
@@ -390,28 +271,15 @@ export async function listMyInvoices(params: ListMyInvoicesParams) {
       }
     }
 
-    const { data, errors } = await listAll(getDataClient(), 'Invoice', {
-      filter,
-    });
+    const invoices = resultData(await listAll(getDataClient(), 'Invoice', { filter })) ?? [];
 
-    if (errors.length > 0) {
-      console.error('Errors fetching invoices:', errors);
-      return { data: [], errors };
-    }
-
-    const routeCodes = data.some((invoice) => invoice.routeId)
+    const routeCodes = invoices.some((invoice) => invoice.routeId)
       ? await listCustomerRouteCodes(params.customerId)
       : new Map<string, string>();
 
-    return {
-      data: data.map((invoice) => ({
-        ...invoice,
-        routeCode: (invoice.routeId && routeCodes.get(invoice.routeId)) || null,
-      })),
-      errors: undefined,
-    };
-  } catch (error) {
-    console.error('Error listing customer invoices:', error);
-    return { data: [], errors: [error as Error] };
-  }
+    return invoices.map((invoice) => ({
+      ...invoice,
+      routeCode: (invoice.routeId && routeCodes.get(invoice.routeId)) || null,
+    }));
+  });
 }

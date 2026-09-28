@@ -60,7 +60,7 @@ export function useInvoicesDataState({
 
     const [customersResult, invoicesResult, routesResult] = await Promise.all([
       listAllCustomers(),
-      listInvoices(),
+      listInvoices().catch((err: Error) => err),
       listAllRoutes(),
     ]);
 
@@ -111,10 +111,10 @@ export function useInvoicesDataState({
       setRoutes((routesResult.data as Route[]) || []);
     }
 
-    if (invoicesResult.errors && invoicesResult.errors.length > 0) {
-      setError('Failed to load invoices.');
+    if (invoicesResult instanceof Error) {
+      setError(invoicesResult.message);
     } else {
-      setInvoices((invoicesResult.data as Invoice[]) ?? []);
+      setInvoices(invoicesResult as Invoice[]);
     }
 
     setLoading(false);

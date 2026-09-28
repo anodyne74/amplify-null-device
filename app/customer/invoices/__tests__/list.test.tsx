@@ -2,6 +2,7 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import InvoicesPage from '../page';
+import { DataError } from '@/lib/graphqlResult';
 import * as listMyInvoicesModule from '@/lib/invoices';
 import { getCustomerPortalContext, getCustomer } from '@/lib/customers';
 
@@ -71,11 +72,7 @@ describe('Invoice List Page Integration', () => {
       errors: undefined,
     });
 
-    (listMyInvoicesModule.listMyInvoices as jest.Mock).mockResolvedValue({
-      data: mockInvoices,
-      errors: undefined,
-      nextToken: undefined,
-    });
+    (listMyInvoicesModule.listMyInvoices as jest.Mock).mockResolvedValue(mockInvoices);
   });
 
   it('loads and displays invoices on mount', async () => {
@@ -110,10 +107,7 @@ describe('Invoice List Page Integration', () => {
   });
 
   it('shows empty state when no invoices found', async () => {
-    (listMyInvoicesModule.listMyInvoices as jest.Mock).mockResolvedValueOnce({
-      data: [],
-      errors: undefined,
-    });
+    (listMyInvoicesModule.listMyInvoices as jest.Mock).mockResolvedValueOnce([]);
 
     render(<InvoicesPage />);
 
@@ -124,10 +118,7 @@ describe('Invoice List Page Integration', () => {
 
   it('displays error message on fetch failure', async () => {
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-    (listMyInvoicesModule.listMyInvoices as jest.Mock).mockResolvedValueOnce({
-      data: [],
-      errors: [new Error('API Error')],
-    });
+    (listMyInvoicesModule.listMyInvoices as jest.Mock).mockRejectedValueOnce(new DataError('Failed to load invoices.'));
 
     render(<InvoicesPage />);
 
@@ -228,7 +219,7 @@ describe('Invoice List Page Integration', () => {
     });
 
     beforeEach(() => {
-      (listMyInvoicesModule.listMyInvoices as jest.Mock).mockResolvedValue({ data: manyInvoices, errors: undefined });
+      (listMyInvoicesModule.listMyInvoices as jest.Mock).mockResolvedValue(manyInvoices);
     });
 
     it('shows 25 invoices per page with Previous/Next', async () => {

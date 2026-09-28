@@ -107,32 +107,40 @@ function GenerateInvoiceContent() {
     setSaving(true);
     setError(null);
     const today = new Date().toISOString().slice(0, 10);
-    const result = await createInvoice({
-      customerId,
-      routeId: routeId || undefined,
-      invoiceNumber: invoiceNumber.trim(),
-      invoiceDate: today,
-      totalAmount: Number(totalAmount),
-      gstAmount: Number(gstAmount) || undefined,
-      status: 'draft',
-    });
-    if (result.errors && result.errors.length > 0) {
-      setError('Failed to create invoice.');
+    let invoice;
+    try {
+      invoice = await createInvoice({
+        customerId,
+        routeId: routeId || undefined,
+        invoiceNumber: invoiceNumber.trim(),
+        invoiceDate: today,
+        totalAmount: Number(totalAmount),
+        gstAmount: Number(gstAmount) || undefined,
+        status: 'draft',
+      });
+    } catch (err) {
+      setError((err as Error).message);
       setSaving(false);
       return;
     }
 
-    const newInvoiceId = (result.data as { id?: string } | null)?.id;
-    if (newInvoiceId && rateLines.items.length > 0) {
+    if (invoice && rateLines.items.length > 0) {
       const lineItemInputs = buildLineItemInputs({
         rateLines: rateLines.items,
         quantities: rateLines.quantities,
-        invoiceId: newInvoiceId,
+        invoiceId: invoice.id,
         customerId,
         routeId: routeId || undefined,
         viewerSubs: selectedCustomer?.viewerSubs || [],
       });
-      await Promise.all(lineItemInputs.map((input) => createLineItem(input)));
+      try {
+        await Promise.all(lineItemInputs.map((input) => createLineItem(input)));
+      } catch {
+        // The draft exists; say so rather than leave it half-built without a word.
+        setError('The invoice was created, but some of its line items could not be saved. Check it in Invoices.');
+        setSaving(false);
+        return;
+      }
     }
 
     setSaving(false);

@@ -281,6 +281,18 @@ describe('Property History Report API', () => {
       expect(body.reports.map((report: { id: string }) => report.id).sort()).toEqual([own.id, other.id, adminForC1.id].sort());
     });
 
+    it("gives each report the actions its caller may take", async () => {
+      const { own } = await generateAll();
+
+      expect(own.actions).toEqual({ open: true, delete: true, restore: false });
+      expect((await call(list, OWNER)).body.reports[0].actions).toEqual({ open: true, delete: true, restore: false });
+      expect((await call(list, ADMIN)).body.reports.map((report: { actions: unknown }) => report.actions)).toEqual([
+        { open: true, delete: false, restore: false },
+        { open: true, delete: false, restore: false },
+        { open: true, delete: false, restore: false },
+      ]);
+    });
+
     it("won't open another Customer's report, or an administrator's, for a customer", async () => {
       const { other, adminForC1 } = await generateAll();
 
@@ -387,13 +399,26 @@ describe('Property History Report API', () => {
       expect((await call(restore, OWNER, { reportId: report.id })).status).toBe(403);
     });
 
+    it('lets an administrator open and restore a deleted report, and returns it restored with no Restore left', async () => {
+      const report = await generateDeleted();
+
+      expect((await call(list, ADMIN)).body.reports[0].actions).toEqual({ open: true, delete: false, restore: true });
+      expect((await call(restore, ADMIN, { reportId: report.id })).body.report.actions).toEqual({
+        open: true,
+        delete: false,
+        restore: false,
+      });
+    });
+
     it('purges the PDF but keeps the record as a stub, with its log history, which cannot be restored', async () => {
       const report = await generateDeleted();
 
       expect(await purge(days(60))).toEqual({ purged: [report.referenceNumber], failed: [] });
 
       expect(objects.size).toBe(0);
-      expect((await call(list, ADMIN)).body.reports).toEqual([expect.objectContaining({ id: report.id, state: 'purged' })]);
+      expect((await call(list, ADMIN)).body.reports).toEqual([
+        expect.objectContaining({ id: report.id, state: 'purged', actions: { open: false, delete: false, restore: false } }),
+      ]);
       expect((await call(open, ADMIN, { reportId: report.id })).status).toBe(404);
       expect((await call(restore, ADMIN, { reportId: report.id })).status).toBe(404);
       expect(tables.AuditLog.map((entry) => entry.action)).toEqual([

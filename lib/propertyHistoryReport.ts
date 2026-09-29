@@ -30,6 +30,14 @@ export interface PropertyHistoryReportSummary {
   state: ReportState;
   activeUntil: string;
   purgeAfter: string;
+  /** What the caller may do with it, from the rules below; the Reports tab shows only these. */
+  actions: ReportActions;
+}
+
+export interface ReportActions {
+  open: boolean;
+  delete: boolean;
+  restore: boolean;
 }
 
 /** Whose reports a caller may list and open. */
@@ -116,4 +124,13 @@ export function canDeleteReport(report: ReportAccessFacts, viewer: ReportViewer,
 /** Only administrators restore, and only a soft-deleted report -- a purged one is gone for good. */
 export function canRestoreReport(report: ReportAccessFacts, viewer: ReportViewer, now: Date): boolean {
   return viewer.audience === 'administrator' && reportState(report, now) === 'deleted';
+}
+
+/** Every action the rules allow this viewer on this report. */
+export function reportActions(report: ReportAccessFacts, viewer: ReportViewer, now: Date): ReportActions {
+  return {
+    open: canOpenReport(report, viewer, now),
+    delete: canDeleteReport(report, viewer, now),
+    restore: canRestoreReport(report, viewer, now),
+  };
 }

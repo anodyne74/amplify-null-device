@@ -220,6 +220,7 @@ describe('Administrator Property History page', () => {
       state: 'active' as const,
       activeUntil: '2026-10-27T03:04:05.000Z',
       purgeAfter: '2026-11-26T03:04:05.000Z',
+      actions: { open: true, delete: false, restore: false },
     };
     let tab: { location: { href: string }; opener: unknown; close: jest.Mock };
 
@@ -277,10 +278,22 @@ describe('Administrator Property History page', () => {
     });
 
     it('shows each report\'s state, restores a deleted one, and offers no Open for a purged one', async () => {
-      const deleted = { ...REPORT, id: 'rep2', referenceNumber: 'PHR-20260920-DEL222', state: 'deleted' as const };
-      const purged = { ...REPORT, id: 'rep3', referenceNumber: 'PHR-20260801-PUR333', state: 'purged' as const };
+      const deleted = {
+        ...REPORT,
+        id: 'rep2',
+        referenceNumber: 'PHR-20260920-DEL222',
+        state: 'deleted' as const,
+        actions: { open: true, delete: false, restore: true },
+      };
+      const purged = {
+        ...REPORT,
+        id: 'rep3',
+        referenceNumber: 'PHR-20260801-PUR333',
+        state: 'purged' as const,
+        actions: { open: false, delete: false, restore: false },
+      };
       (listPropertyHistoryReports as jest.Mock).mockResolvedValue([REPORT, deleted, purged]);
-      (restorePropertyHistoryReport as jest.Mock).mockResolvedValue({ ...deleted, state: 'active' });
+      (restorePropertyHistoryReport as jest.Mock).mockResolvedValue({ ...deleted, state: 'active', actions: REPORT.actions });
       render(<AdministratorPropertyHistoryPage />);
 
       fireEvent.click(screen.getByRole('tab', { name: 'Reports' }));

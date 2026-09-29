@@ -496,7 +496,7 @@ function VisitTableRow({
   return (
     <>
       <tr>
-        <td>{row.date ? formatRouteDate(row.date) : '—'}</td>
+        <td>{formatRouteDate(row.date)}</td>
         <td>
           <a href={routeHref(row.routeId)}>{row.routeCode ?? row.routeId}</a>
         </td>
@@ -620,7 +620,9 @@ const REPORT_STATES: Record<PropertyHistoryReportSummary['state'], { label: stri
 /**
  * The Reports tab (#291): the reports the signed-in user may see, newest
  * first. Under retention (#292) Account Owners can delete one; administrators
- * also see deleted and purged reports, and can restore a deleted one.
+ * also see deleted and purged reports, and can restore a deleted one. Which
+ * buttons show comes from each report's `actions`, worked out on the server by
+ * the same rules its routes enforce; `staff` only adds columns.
  */
 function PropertyHistoryReports({ staff }: { staff: boolean }) {
   const [reports, setReports] = useState<PropertyHistoryReportSummary[] | null>(null);
@@ -691,7 +693,7 @@ function PropertyHistoryReports({ staff }: { staff: boolean }) {
     }
     return (
       <div className={styles.reportActions}>
-        {report.state !== 'purged' && (
+        {report.actions.open && (
           <button
             type="button"
             className="nd-btn nd-btn--ghost nd-btn--sm"
@@ -701,7 +703,7 @@ function PropertyHistoryReports({ staff }: { staff: boolean }) {
             Open
           </button>
         )}
-        {!staff && (
+        {report.actions.delete && (
           <button
             type="button"
             className="nd-btn nd-btn--ghost nd-btn--sm"
@@ -711,7 +713,7 @@ function PropertyHistoryReports({ staff }: { staff: boolean }) {
             Delete
           </button>
         )}
-        {staff && report.state === 'deleted' && (
+        {report.actions.restore && (
           <button
             type="button"
             className="nd-btn nd-btn--secondary nd-btn--sm"

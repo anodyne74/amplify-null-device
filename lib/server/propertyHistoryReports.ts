@@ -11,6 +11,7 @@ import {
   reportActions,
   reportObjectKey,
   reportRetention,
+  reportSearch,
   type PropertyHistoryReportSummary,
   type ReportViewer,
 } from '@/lib/propertyHistoryReport';
@@ -86,11 +87,12 @@ function messages(errors: readonly unknown[]): string {
   return errors.map((error) => (error as { message?: string })?.message ?? String(error)).join('; ');
 }
 
-async function customerName(client: IamDataClient, customerId: string | null): Promise<string | null> {
+/** The Customer a report covers, as its header shows them; null for an all-customers report. */
+async function reportCustomer(client: IamDataClient, customerId: string | null): Promise<{ name: string; address: string | null } | null> {
   if (!customerId) return null;
-  const { data, errors } = await client.models.Customer.get({ id: customerId }, { selectionSet: ['id', 'name'] });
+  const { data, errors } = await client.models.Customer.get({ id: customerId }, { selectionSet: ['id', 'name', 'addressLine1'] });
   if (errors?.length) throw new ReportError(`Could not read the Customer: ${messages(errors)}`);
-  return data?.name ?? customerId;
+  return { name: data?.name ?? customerId, address: data?.addressLine1?.trim() || null };
 }
 
 async function organisation(client: IamDataClient) {
@@ -119,12 +121,14 @@ export async function generatePropertyHistoryReport(
   const result = await searchPropertyHistory(client, caller, search, reportFilters);
 
   const customerId = caller.audience === 'customer' ? caller.customerId : (filters.customerId ?? null);
-  const [name, org] = await Promise.all([customerName(client, customerId), organisation(client)]);
+  const [customer, org] = await Promise.all([reportCustomer(client, customerId), organisation(client)]);
+  const name = customer?.name ?? null;
   const referenceNumber = newReportReference(now);
   const s3Key = reportObjectKey(customerId, referenceNumber);
   const generatedAt = now.toISOString();
   const counts = countPropertyHistory(result);
   const searchLabel = describeSearch(search, result);
+  const searchParts = reportSearch(search, result);
   // A customer's own Customer is the whole report, so it isn't a filter to them.
   const filterLabels = describeFilters(reportFilters, name);
 
@@ -132,11 +136,11 @@ export async function generatePropertyHistoryReport(
     referenceNumber,
     organisation: org,
     customerLabel: name ?? 'All customers',
+    customerAddress: customer?.address ?? null,
     generatedBy: author.name,
     generatedAt,
-    searchLabel,
+    search: searchParts,
     filterLabels,
-    counts,
     result,
     staff: caller.audience === 'administrator',
   });

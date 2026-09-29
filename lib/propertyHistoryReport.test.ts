@@ -6,11 +6,14 @@ import {
   countPropertyHistory,
   describeFilters,
   describeSearch,
+  reportSearch,
+  reportSummaryLine,
+  reportTotals,
   newReportReference,
   reportActions,
   reportObjectKey,
 } from './propertyHistoryReport';
-import type { PropertyGroup, PropertyHistoryResult } from './propertyHistory';
+import type { PropertyGroup, PropertyHistoryResult, VisitRow } from './propertyHistory';
 
 const CLIFF_14 = 'epping|2121|cliff road|14';
 
@@ -70,6 +73,69 @@ describe('describeSearch', () => {
   it('names an address with no Visits from its Property key', () => {
     expect(describeSearch({ level: 'address', propertyKey: CLIFF_14 }, { level: 'address', property: null })).toBe(
       'Address: 14 Cliff Road, Epping 2121'
+    );
+  });
+});
+
+describe('reportSearch', () => {
+  it('gives the kind of search and what it searched for separately', () => {
+    expect(
+      reportSearch({ level: 'street', suburb: 'epping', postcode: '2121', street: 'cliff road' }, { level: 'street', properties: [] })
+    ).toEqual({ kind: 'Street', text: 'Cliff Road, Epping 2121' });
+    expect(reportSearch({ level: 'suburb', suburb: 'epping', postcode: '2121' }, { level: 'suburb', streets: [] })).toEqual({
+      kind: 'Suburb',
+      text: 'Epping 2121',
+    });
+  });
+});
+
+function row(status: VisitRow['status'], signsPlaced: number, date: string | null = '2026-08-01'): VisitRow {
+  return { stopId: 's', routeId: 'r', date, routeCode: 'W26-08-101', agent: null, auction: false, signsPlaced, invoices: [], status };
+}
+
+describe('reportTotals', () => {
+  it('counts Properties, completed Visits and their signs, and scheduled Visits, leaving out Skipped Stops', () => {
+    const result: PropertyHistoryResult = {
+      level: 'suburb',
+      streets: [
+        {
+          street: 'cliff road',
+          properties: [
+            { ...property('a', '14 Cliff Rd', 2), visits: [row('completed', 3), row('archived', 2)], scheduled: [row('planned', 2)] },
+            { ...property('b', '16 Cliff Rd', 1), visits: [row('signs_placed', 4), row('skipped', 5)], scheduled: [] },
+          ],
+        },
+        {
+          street: 'rowe street',
+          properties: [{ ...property('c', '1 Rowe St', 0), visits: [], scheduled: [row('planned', 1), row('in_progress', 1)] }],
+        },
+      ],
+    };
+
+    expect(reportTotals(result)).toEqual({ properties: 3, completedVisits: 3, signsPlaced: 9, scheduled: 3 });
+  });
+
+  it('is all zeros when nothing matched', () => {
+    expect(reportTotals({ level: 'address', property: null })).toEqual({ properties: 0, completedVisits: 0, signsPlaced: 0, scheduled: 0 });
+  });
+});
+
+describe('reportSummaryLine', () => {
+  it('says since the earliest dated Visit\'s year', () => {
+    const result: PropertyHistoryResult = {
+      level: 'street',
+      properties: [{ ...property('a', '14 Cliff Rd', 2), visits: [row('completed', 1, '2026-08-01'), row('completed', 1, null), row('completed', 1, '2024-03-09')] }],
+    };
+
+    expect(reportSummaryLine('Cliff Road, Epping 2121', result)).toBe('Every sign visit on Cliff Road, Epping 2121 since 2024, newest first.');
+  });
+
+  it('leaves out "since" when no Visit has a date', () => {
+    const result: PropertyHistoryResult = { level: 'street', properties: [{ ...property('a', '14 Cliff Rd', 1), visits: [row('completed', 1, null)] }] };
+
+    expect(reportSummaryLine('Cliff Road, Epping 2121', result)).toBe('Every sign visit on Cliff Road, Epping 2121, newest first.');
+    expect(reportSummaryLine('Cliff Road, Epping 2121', { level: 'street', properties: [] })).toBe(
+      'Every sign visit on Cliff Road, Epping 2121, newest first.'
     );
   });
 });

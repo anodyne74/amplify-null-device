@@ -104,6 +104,18 @@ jest.mock('@/lib/server/reportStorage', () => ({
   }),
 }));
 
+// The PDF is compressed, so check what each report was rendered from instead of reading its bytes.
+const rendered: Array<Record<string, unknown>> = [];
+jest.mock('@/lib/server/propertyHistoryReportPdf', () => {
+  const actual = jest.requireActual('@/lib/server/propertyHistoryReportPdf');
+  return {
+    renderPropertyHistoryReportPdf: (input: Record<string, unknown>) => {
+      rendered.push(input);
+      return actual.renderPropertyHistoryReportPdf(input);
+    },
+  };
+});
+
 import { POST as generate } from '@/app/api/property-history/reports/route';
 import { POST as list } from '@/app/api/property-history/reports/list/route';
 import { POST as open } from '@/app/api/property-history/reports/open/route';
@@ -128,14 +140,20 @@ async function call(route: (request: any) => Promise<any>, caller: object, body:
   return { status: response.status as number, body: await response.json() };
 }
 
-function pdfText(key: string) {
+function pdfBytes(key: string) {
   return Buffer.from(objects.get(key)!).toString('latin1');
+}
+
+/** What the last report generated was rendered from, as text. */
+function renderedText() {
+  return JSON.stringify(rendered[rendered.length - 1]);
 }
 
 describe('Property History Report API', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     objects.clear();
+    rendered.length = 0;
     failCreate = null;
     for (const key of Object.keys(tables)) delete tables[key];
     Object.assign(tables, {
@@ -145,7 +163,7 @@ describe('Property History Report API', () => {
         { id: 'cu3', userSub: 'sub-other', customerId: 'c2', role: 'account_owner' },
       ],
       Customer: [
-        { id: 'c1', name: 'Harcourts Epping' },
+        { id: 'c1', name: 'Harcourts Epping', addressLine1: '88 Rowe Street, Eastwood NSW 2122' },
         { id: 'c2', name: 'Ray White' },
       ],
       Route: [
@@ -195,13 +213,27 @@ describe('Property History Report API', () => {
 
     it("holds a customer's report to their own Customer and the customer-safe fields", async () => {
       const { body } = await call(generate, OWNER, { ...SUBURB, filters: { customerId: 'c2' } });
-      const text = pdfText(`reports/c1/${body.report.referenceNumber}.pdf`);
+      const text = renderedText();
 
       expect(body.report.customerId).toBe('c1');
+      expect(objects.has(`reports/c1/${body.report.referenceNumber}.pdf`)).toBe(true);
+      expect(rendered[0]).toEqual(expect.objectContaining({ staff: false, customerLabel: 'Harcourts Epping' }));
       expect(text).toContain('W26-08-101');
       expect(text).not.toContain('W26-08-202');
-      expect(text).not.toContain('Missing Signs');
+      expect(text).not.toContain('missingSigns');
       expect(text).not.toContain('Sam');
+    });
+
+    it("heads a single Customer's report with their address", async () => {
+      await call(generate, OWNER, SUBURB);
+
+      expect(rendered[0]).toEqual(
+        expect.objectContaining({
+          customerLabel: 'Harcourts Epping',
+          customerAddress: '88 Rowe Street, Eastwood NSW 2122',
+          search: { kind: 'Suburb', text: 'Epping 2121' },
+        })
+      );
     });
 
     it("files an administrator's all-customers report with the staff fields", async () => {
@@ -209,25 +241,26 @@ describe('Property History Report API', () => {
 
       expect(status).toBe(200);
       expect(body.report).toEqual(expect.objectContaining({ audience: 'administrator', customerId: null, customerName: null, visitCount: 2 }));
-      const text = pdfText(`reports/all-customers/${body.report.referenceNumber}.pdf`);
-      expect(text).toContain('All customers');
-      expect(text).toContain('Missing Signs');
+      expect(objects.has(`reports/all-customers/${body.report.referenceNumber}.pdf`)).toBe(true);
+      expect(rendered[0]).toEqual(expect.objectContaining({ staff: true, customerLabel: 'All customers', customerAddress: null }));
+      const text = renderedText();
+      expect(text).toContain('"missingSigns":1');
       expect(text).toContain('INV-0002');
     });
 
     it('never changes once generated, whatever happens to the Routes and Invoices', async () => {
       const { body } = await call(generate, OWNER, SUBURB);
       const key = `reports/c1/${body.report.referenceNumber}.pdf`;
-      const before = pdfText(key);
+      const before = pdfBytes(key);
 
       tables.Route[0].routeCode = 'EDITED-ROUTE';
       tables.Invoice[0].invoiceNumber = 'INV-EDITED';
       const reopened = await call(open, OWNER, { reportId: body.report.id });
 
       expect(reopened.body.url).toBe(`https://signed.example/${key}`);
-      expect(pdfText(key)).toBe(before);
-      expect(before).toContain('W26-08-101');
-      expect(before).not.toContain('EDITED');
+      expect(pdfBytes(key)).toBe(before);
+      expect(rendered).toHaveLength(1);
+      expect(renderedText()).toContain('W26-08-101');
     });
 
     it('refuses a read-only customer user', async () => {

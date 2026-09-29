@@ -72,18 +72,56 @@ export function countPropertyHistory(result: PropertyHistoryResult): { propertyC
   return { propertyCount: properties.length, visitCount: properties.reduce((total, property) => total + property.visitCount, 0) };
 }
 
-/** The search as a report's header names it. */
-export function describeSearch(search: PropertyHistorySearch, result: PropertyHistoryResult): string {
+/** The kind of search a report ran and what it searched for, e.g. Street and "Cliff Road, Epping 2121". */
+export interface ReportSearch {
+  kind: 'Suburb' | 'Street' | 'Address';
+  text: string;
+}
+
+export function reportSearch(search: PropertyHistorySearch, result: PropertyHistoryResult): ReportSearch {
   switch (search.level) {
     case 'suburb':
-      return `Suburb: ${suburbLabel(search.suburb, search.postcode ?? '')}`;
+      return { kind: 'Suburb', text: suburbLabel(search.suburb, search.postcode ?? '') };
     case 'street':
-      return `Street: ${streetLabel(search)}`;
+      return { kind: 'Street', text: streetLabel(search) };
     case 'address': {
       const found = result.level === 'address' ? result.property?.address : undefined;
-      return `Address: ${found || propertyKeyLabel(search.propertyKey)}`;
+      return { kind: 'Address', text: found || propertyKeyLabel(search.propertyKey) };
     }
   }
+}
+
+/** The search as a report's header names it. */
+export function describeSearch(search: PropertyHistorySearch, result: PropertyHistoryResult): string {
+  const { kind, text } = reportSearch(search, result);
+  return `${kind}: ${text}`;
+}
+
+/** The figures in a report's totals band. Skipped Stops aren't Visits, so they count toward none of them. */
+export function reportTotals(result: PropertyHistoryResult): {
+  properties: number;
+  completedVisits: number;
+  signsPlaced: number;
+  scheduled: number;
+} {
+  const properties = resultProperties(result);
+  const visits = properties.flatMap((property) => property.visits).filter((row) => row.status !== 'skipped');
+  return {
+    properties: properties.length,
+    completedVisits: visits.length,
+    signsPlaced: visits.reduce((total, row) => total + row.signsPlaced, 0),
+    scheduled: properties.reduce((total, property) => total + property.scheduled.length, 0),
+  };
+}
+
+/** The line under a report's "Visits by property": since the earliest dated Visit's year, when any has a date. */
+export function reportSummaryLine(searchText: string, result: PropertyHistoryResult): string {
+  const years = resultProperties(result)
+    .flatMap((property) => [...property.visits, ...property.scheduled])
+    .flatMap((row) => (row.date ? [row.date.slice(0, 4)] : []))
+    .sort();
+  const since = years.length > 0 ? ` since ${years[0]}` : '';
+  return `Every sign visit on ${searchText}${since}, newest first.`;
 }
 
 /** The filters as a report's header lists them. */

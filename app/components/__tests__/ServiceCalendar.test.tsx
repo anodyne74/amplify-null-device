@@ -37,11 +37,11 @@ describe('ServiceCalendar', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
-    (listCustomerClosureBlocks as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listCustomerClosureBlocks as jest.Mock).mockResolvedValue([]);
     (createOperatorAvailabilityBlock as jest.Mock).mockResolvedValue({ data: { id: 'block-1' }, errors: undefined });
     (deleteOperatorAvailabilityBlock as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
-    (createCustomerClosureBlock as jest.Mock).mockResolvedValue({ data: { id: 'block-2' }, errors: undefined });
-    (deleteCustomerClosureBlock as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
+    (createCustomerClosureBlock as jest.Mock).mockResolvedValue({ id: 'block-2' });
+    (deleteCustomerClosureBlock as jest.Mock).mockResolvedValue({});
     (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
     (listMyRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
   });

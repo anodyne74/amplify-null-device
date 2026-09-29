@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import UsersAdminPage from '@/app/administrator/users/page';
 import { ApiError, callApi } from '@/lib/apiClient';
 import { createCustomerUser, deleteCustomerUser, updateCustomerUser, listAllCustomerUsers, listAllCustomers } from '@/lib/customers';
+import { DataError } from '@/lib/graphqlResult';
 
 jest.mock('@/lib/apiClient', () => ({
   ...jest.requireActual('@/lib/apiClient'),
@@ -37,24 +38,21 @@ describe('UsersAdminPage customer access actions', () => {
       errors: [],
     } as any);
 
-    mockListAllCustomerUsers.mockResolvedValue({
-      data: [
-        {
-          id: 'cu-1',
-          customerId: 'cust-1',
-          userSub: 'sub-1',
-          accountOwnerSub: 'sub-owner',
-          name: 'Read User',
-          email: 'read@example.com',
-          role: 'read_only',
-        },
-      ],
-      errors: [],
-    } as any);
+    mockListAllCustomerUsers.mockResolvedValue([
+      {
+        id: 'cu-1',
+        customerId: 'cust-1',
+        userSub: 'sub-1',
+        accountOwnerSub: 'sub-owner',
+        name: 'Read User',
+        email: 'read@example.com',
+        role: 'read_only',
+      },
+    ] as any);
 
-    mockCreateCustomerUser.mockResolvedValue({ data: { id: 'new-cu' }, errors: [] } as any);
-    mockUpdateCustomerUser.mockResolvedValue({ data: {}, errors: [] } as any);
-    mockDeleteCustomerUser.mockResolvedValue({ data: {}, errors: [] } as any);
+    mockCreateCustomerUser.mockResolvedValue({ id: 'new-cu' } as any);
+    mockUpdateCustomerUser.mockResolvedValue({} as any);
+    mockDeleteCustomerUser.mockResolvedValue({} as any);
 
     mockCallApi.mockResolvedValue({ users: [] });
   });
@@ -151,6 +149,28 @@ describe('UsersAdminPage customer access actions', () => {
         expect.objectContaining({ id: 'cu-1', name: 'Renamed User', role: 'read_only' })
       );
     });
+  });
+
+  it("tells the admin when a promotion saved but other users weren't moved to the new owner", async () => {
+    mockListAllCustomerUsers.mockResolvedValue([
+      { id: 'cu-1', customerId: 'cust-1', userSub: 'sub-1', accountOwnerSub: 'sub-owner', name: 'Read User', role: 'read_only' },
+      { id: 'cu-2', customerId: 'cust-1', userSub: 'sub-2', accountOwnerSub: 'sub-owner', name: 'Other User', role: 'read_only' },
+    ] as any);
+    mockUpdateCustomerUser.mockImplementation(async (input) => {
+      if (input.id === 'cu-2') throw new DataError('Failed to update customer user.');
+      return {} as any;
+    });
+
+    render(<UsersAdminPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Change role for Read User' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('radio', { name: /Primary contact/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
+
+    expect(await screen.findByText(/weren't moved to the new owner/)).toBeInTheDocument();
+    expect(mockUpdateCustomerUser).toHaveBeenCalledWith({ id: 'cu-2', accountOwnerSub: 'sub-1' });
+    expect(screen.queryByText('User updated.')).not.toBeInTheDocument();
   });
 
   it('shows summary stat tiles computed from the loaded data', async () => {

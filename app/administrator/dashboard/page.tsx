@@ -116,12 +116,10 @@ export default function AdminHomePage() {
 
         // Account-owner presence is only knowable per customer — fan out once customer ids are known.
         if (loadedCustomers.length > 0) {
-          const userResults = await Promise.all(loadedCustomers.map((customer) => listCustomerUsers(customer.id)));
-          const allUsers: OverviewCustomerUser[] = userResults.flatMap((result) =>
-            !result.errors || (result.errors as unknown[]).length === 0
-              ? ((result.data ?? []) as OverviewCustomerUser[])
-              : []
+          const userLists = await Promise.all(
+            loadedCustomers.map((customer) => listCustomerUsers(customer.id).catch(() => []))
           );
+          const allUsers = userLists.flat() as OverviewCustomerUser[];
           setCustomerUsers(allUsers);
         }
       } catch { /* dashboard stats are best-effort */ }

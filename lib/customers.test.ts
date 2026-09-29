@@ -36,6 +36,7 @@ import {
   createCustomerUser,
   deleteCustomerUser,
 } from './customers';
+import { DataError } from './graphqlResult';
 
 describe('customers', () => {
   beforeEach(() => {
@@ -141,7 +142,7 @@ describe('customers', () => {
 
       const result = await getCustomerPortalContext('user-1');
 
-      expect(result).toEqual({ role: 'account_owner', customerId: 'cust-1', errors: undefined });
+      expect(result).toEqual({ role: 'account_owner', customerId: 'cust-1' });
     });
 
     it('should resolve read-only role when no owner mapping exists', async () => {
@@ -152,7 +153,7 @@ describe('customers', () => {
 
       const result = await getCustomerPortalContext('user-2');
 
-      expect(result).toEqual({ role: 'read_only', customerId: 'cust-2', errors: undefined });
+      expect(result).toEqual({ role: 'read_only', customerId: 'cust-2' });
     });
 
     it('should fallback to legacy customer when mapping is absent', async () => {
@@ -161,19 +162,36 @@ describe('customers', () => {
 
       const result = await getCustomerPortalContext('legacy-sub');
 
-      expect(result).toEqual({ role: 'account_owner', customerId: 'legacy-sub', errors: undefined });
+      expect(result).toEqual({ role: 'account_owner', customerId: 'legacy-sub' });
     });
 
-    it('should return empty customer id and errors when no mapping or legacy customer exists', async () => {
+    it('returns null when no mapping or legacy customer exists', async () => {
       mockCustomerUserList.mockResolvedValue({ data: [], errors: undefined });
       mockCustomerGet.mockResolvedValue({ data: null, errors: undefined });
 
-      const result = await getCustomerPortalContext('missing-sub');
+      await expect(getCustomerPortalContext('missing-sub')).resolves.toBeNull();
+    });
 
-      expect(result.role).toBe('account_owner');
-      expect(result.customerId).toBe('');
-      expect(result.errors).toBeDefined();
-      expect(result.errors?.length).toBeGreaterThan(0);
+    it('throws rather than guessing an owner when the CustomerUser read fails', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockCustomerUserList.mockRejectedValue(new Error('network down'));
+
+      await expect(getCustomerPortalContext('user-1')).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to load your account.',
+      });
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('throws on a partial CustomerUser read instead of trusting the rows it got', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockCustomerUserList.mockResolvedValue({
+        data: [{ role: 'read_only', customerId: 'cust-2' }],
+        errors: [{ message: 'Not Authorized' }],
+      });
+
+      await expect(getCustomerPortalContext('user-2')).rejects.toBeInstanceOf(DataError);
+      consoleErrorSpy.mockRestore();
     });
   });
 
@@ -191,7 +209,7 @@ describe('customers', () => {
         limit: 1000,
         nextToken: undefined,
       });
-      expect(result.data).toHaveLength(1);
+      expect(result).toHaveLength(1);
     });
 
     it('should list customer users across every customer, paginating to completion', async () => {
@@ -212,14 +230,13 @@ describe('customers', () => {
       expect(mockCustomerUserList).toHaveBeenCalledTimes(2);
       expect(mockCustomerUserList).toHaveBeenNthCalledWith(1, { limit: 1000, nextToken: undefined });
       expect(mockCustomerUserList).toHaveBeenNthCalledWith(2, { limit: 1000, nextToken: 'token-2' });
-      expect(result.data).toEqual([
+      expect(result).toEqual([
         { id: 'cu1', customerId: 'c1', role: 'account_owner' },
         { id: 'cu2', customerId: 'c2', role: 'read_only' },
       ]);
-      expect(result.errors).toBeUndefined();
     });
 
-    it('should stop and surface errors when listing all customer users fails partway through', async () => {
+    it('throws when listing all customer users fails partway through', async () => {
       mockCustomerUserList.mockResolvedValueOnce({
         data: [{ id: 'cu1', customerId: 'c1', role: 'account_owner' }],
         errors: undefined,
@@ -232,10 +249,10 @@ describe('customers', () => {
       });
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-      const result = await listAllCustomerUsers();
-
-      expect(result.data).toEqual([{ id: 'cu1', customerId: 'c1', role: 'account_owner' }]);
-      expect(result.errors).toHaveLength(1);
+      await expect(listAllCustomerUsers()).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to load customer users.',
+      });
       consoleErrorSpy.mockRestore();
     });
 
@@ -253,7 +270,7 @@ describe('customers', () => {
       });
 
       expect(mockCustomerUserCreate).toHaveBeenCalled();
-      expect(result.data).toEqual({ id: 'cu-new' });
+      expect(result).toEqual({ id: 'cu-new' });
     });
 
     it('should delete a customer user', async () => {
@@ -265,7 +282,18 @@ describe('customers', () => {
       const result = await deleteCustomerUser('cu1');
 
       expect(mockCustomerUserDelete).toHaveBeenCalledWith({ id: 'cu1' });
-      expect(result.data).toEqual({ id: 'cu1' });
+      expect(result).toEqual({ id: 'cu1' });
+    });
+
+    it('throws a DataError when the delete fails', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockCustomerUserDelete.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
+
+      await expect(deleteCustomerUser('cu1')).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to remove customer user.',
+      });
+      consoleErrorSpy.mockRestore();
     });
   });
 });

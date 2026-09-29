@@ -91,10 +91,10 @@ function useResolvePortalContext(skip: boolean, defaultRole: 'account_owner' | '
         if (cancelled) return;
         setState({
           userId,
-          role: context.role,
-          customerId: context.customerId || null,
+          role: context?.role ?? 'read_only',
+          customerId: context?.customerId ?? null,
           loading: false,
-          error: context.customerId ? null : NO_CUSTOMER_ERROR,
+          error: context ? null : NO_CUSTOMER_ERROR,
         });
       } catch (err) {
         if (cancelled) return;

@@ -3,9 +3,14 @@
  * in to its portal) and its CustomerClosureBlocks (dates it's closed) -- as the
  * browser reads and writes it through the signed-in user's data client. The
  * server-side viewerSubs upkeep lives in lib/customerAccess.ts.
+ *
+ * The CustomerUser and CustomerClosureBlock functions return their data or
+ * throw a DataError (lib/graphqlResult.ts); the Customer ones still return
+ * {data, errors} until they move over too.
  */
 import { normalizeCustomerDefaults } from '@/lib/customerDefaults';
 import { getDataClient } from '@/lib/data-client';
+import { resultData, withDataError } from '@/lib/graphqlResult';
 import { listAll } from '@/lib/listAll';
 
 /** Every Customer, paginated through to the end -- see lib/listAll.ts. */
@@ -140,19 +145,9 @@ export async function updateCustomer(
  * read_only user only sees their own row (see amplify/data/resource.ts).
  */
 export async function listCustomerUsers(customerId: string) {
-  try {
-    const { data, errors } = await listAll(getDataClient(), 'CustomerUser', {
-      filter: { customerId: { eq: customerId } },
-    });
-    if (errors.length > 0) {
-      console.error('Errors listing customer users:', errors);
-      return { data, errors };
-    }
-    return { data, errors: undefined };
-  } catch (error) {
-    console.error('Error listing customer users:', error);
-    return { data: [], errors: [error] };
-  }
+  return withDataError('Failed to load customer users.', async () =>
+    resultData(await listAll(getDataClient(), 'CustomerUser', { filter: { customerId: { eq: customerId } } })) ?? []
+  );
 }
 
 /**
@@ -161,64 +156,37 @@ export async function listCustomerUsers(customerId: string) {
  * all-customers access table.
  */
 export async function listAllCustomerUsers() {
-  try {
-    const { data, errors } = await listAll(getDataClient(), 'CustomerUser');
-    if (errors.length > 0) {
-      console.error('Errors listing all customer users:', errors);
-      return { data, errors };
-    }
-    return { data, errors: undefined };
-  } catch (error) {
-    console.error('Error listing all customer users:', error);
-    return { data: [], errors: [error] };
-  }
+  return withDataError('Failed to load customer users.', async () =>
+    resultData(await listAll(getDataClient(), 'CustomerUser')) ?? []
+  );
+}
+
+export interface CustomerPortalContextResult {
+  role: 'account_owner' | 'read_only';
+  customerId: string;
 }
 
 /**
- * Resolve customer portal context for a user sub.
+ * Resolve which Customer a signed-in Customer User belongs to, and their role.
+ * Null when they aren't linked to any Customer. A failed read throws rather
+ * than guessing: a guess could show owner screens to a read_only user.
  * Fallback behavior preserves legacy owner access where customerId === userSub.
  */
-export async function getCustomerPortalContext(userSub: string): Promise<{
-  role: 'account_owner' | 'read_only';
-  customerId: string;
-  errors?: unknown[];
-}> {
-  try {
-    const { data: rows, errors: listErrors } = await listAll(getDataClient(), 'CustomerUser', {
-      filter: { userSub: { eq: userSub } },
-    });
-    const errors = listErrors.length > 0 ? listErrors : undefined;
+export async function getCustomerPortalContext(userSub: string): Promise<CustomerPortalContextResult | null> {
+  return withDataError('Failed to load your account.', async () => {
+    const rows =
+      resultData(await listAll(getDataClient(), 'CustomerUser', { filter: { userSub: { eq: userSub } } })) ?? [];
 
     const ownerRow = rows.find((row) => row.role === 'account_owner' && row.customerId);
-    if (ownerRow?.customerId) {
-      return { role: 'account_owner', customerId: ownerRow.customerId, errors };
-    }
+    if (ownerRow?.customerId) return { role: 'account_owner', customerId: ownerRow.customerId };
 
     const reviewerRow = rows.find((row) => row.role === 'read_only' && row.customerId);
-    if (reviewerRow?.customerId) {
-      return { role: 'read_only', customerId: reviewerRow.customerId, errors };
-    }
+    if (reviewerRow?.customerId) return { role: 'read_only', customerId: reviewerRow.customerId };
 
     // Legacy fallback: older records may still use sub as customerId.
-    const legacyCustomer = await getCustomer(userSub);
-    if (legacyCustomer.data) {
-      return { role: 'account_owner', customerId: userSub, errors };
-    }
-
-    const fallbackError = new Error('No customer mapping found for the current user.');
-    return {
-      role: 'account_owner',
-      customerId: '',
-      errors: [...(errors ?? []), fallbackError],
-    };
-  } catch (error) {
-    console.error('Error resolving customer portal context:', error);
-    return {
-      role: 'account_owner',
-      customerId: userSub,
-      errors: [error],
-    };
-  }
+    const legacyCustomer = resultData(await getDataClient().models.Customer.get({ id: userSub }));
+    return legacyCustomer ? { role: 'account_owner', customerId: userSub } : null;
+  });
 }
 
 /**
@@ -234,16 +202,9 @@ export async function createCustomerUser(input: {
   name?: string;
   email?: string;
 }) {
-  try {
-    const { data, errors } = await getDataClient().models.CustomerUser.create(input);
-    if (errors) {
-      console.error('Errors creating customer user:', errors);
-    }
-    return { data, errors };
-  } catch (error) {
-    console.error('Error creating customer user:', error);
-    return { data: null, errors: [error] };
-  }
+  return withDataError('Failed to create customer user.', async () =>
+    resultData(await getDataClient().models.CustomerUser.create(input))
+  );
 }
 
 /**
@@ -259,16 +220,9 @@ export async function updateCustomerUser(input: {
   // app/administrator/users/page.tsx.
   accountOwnerSub?: string;
 }) {
-  try {
-    const { data, errors } = await getDataClient().models.CustomerUser.update(input);
-    if (errors) {
-      console.error('Errors updating customer user:', errors);
-    }
-    return { data, errors };
-  } catch (error) {
-    console.error('Error updating customer user:', error);
-    return { data: null, errors: [error] };
-  }
+  return withDataError('Failed to update customer user.', async () =>
+    resultData(await getDataClient().models.CustomerUser.update(input))
+  );
 }
 
 /**
@@ -276,37 +230,19 @@ export async function updateCustomerUser(input: {
  * Only accessible by administrators.
  */
 export async function deleteCustomerUser(customerUserId: string) {
-  try {
-    const { data, errors } = await getDataClient().models.CustomerUser.delete({ id: customerUserId });
-    if (errors) {
-      console.error('Errors deleting customer user:', errors);
-    }
-    return { data, errors };
-  } catch (error) {
-    console.error('Error deleting customer user:', error);
-    return { data: null, errors: [error] };
-  }
+  return withDataError('Failed to remove customer user.', async () =>
+    resultData(await getDataClient().models.CustomerUser.delete({ id: customerUserId }))
+  );
 }
 
 /**
  * List agency-closure blocks for a customer
  */
 export async function listCustomerClosureBlocks(customerId: string) {
-  try {
-    const { data, errors } = await listAll(getDataClient(), 'CustomerClosureBlock', {
-      filter: { customerId: { eq: customerId } },
-    });
-
-    if (errors.length > 0) {
-      console.error('Errors fetching customer closure blocks:', errors);
-      return { data: [], errors };
-    }
-
-    return { data: data || [], errors: undefined };
-  } catch (error) {
-    console.error('Error listing customer closure blocks:', error);
-    return { data: [], errors: [error as Error] };
-  }
+  return withDataError('Failed to load closed dates.', async () =>
+    resultData(await listAll(getDataClient(), 'CustomerClosureBlock', { filter: { customerId: { eq: customerId } } })) ??
+    []
+  );
 }
 
 /**
@@ -320,35 +256,16 @@ export async function createCustomerClosureBlock(input: {
   accountOwnerSub?: string;
   viewerSubs?: string[];
 }) {
-  try {
-    const { data, errors } = await getDataClient().models.CustomerClosureBlock.create(input);
-
-    if (errors) {
-      console.error('Errors creating customer closure block:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error creating customer closure block:', error);
-    return { data: null, errors: [error as Error] };
-  }
+  return withDataError('Failed to save closed date.', async () =>
+    resultData(await getDataClient().models.CustomerClosureBlock.create(input))
+  );
 }
 
 /**
  * Delete an agency-closure block by ID
  */
 export async function deleteCustomerClosureBlock(id: string) {
-  try {
-    const { data, errors } = await getDataClient().models.CustomerClosureBlock.delete({ id });
-
-    if (errors) {
-      console.error('Errors deleting customer closure block:', errors);
-      return { data: null, errors };
-    }
-
-    return { data, errors: undefined };
-  } catch (error) {
-    console.error('Error deleting customer closure block:', error);
-    return { data: null, errors: [error as Error] };
-  }
+  return withDataError('Failed to remove closed date.', async () =>
+    resultData(await getDataClient().models.CustomerClosureBlock.delete({ id }))
+  );
 }

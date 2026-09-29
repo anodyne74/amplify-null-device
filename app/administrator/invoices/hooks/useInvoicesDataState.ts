@@ -93,8 +93,8 @@ export function useInvoicesDataState({
 
       const customersWithPrimary = await Promise.all(
         mapped.map(async (customer) => {
-          const usersResult = await listCustomerUsers(customer.id);
-          const customerUsers = (usersResult.data as Array<{ role?: string | null; email?: string | null }> | undefined) || [];
+          // Best-effort: without its Customer Users, the Customer's own email is used.
+          const customerUsers = await listCustomerUsers(customer.id).catch(() => []);
           const owner = customerUsers.find((row) => row.role === 'account_owner' && row.email);
           return {
             ...customer,

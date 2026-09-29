@@ -82,18 +82,18 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     setLoading(true);
     setLoadError(null);
 
-    const [noDriversResult, closedResult, routesResult] = await Promise.all([
+    const [noDriversResult, closedBlocks, routesResult] = await Promise.all([
       listOperatorAvailabilityBlocks(customerId),
-      listCustomerClosureBlocks(customerId),
+      listCustomerClosureBlocks(customerId).catch(() => null),
       listMyRoutes({ customerId }),
     ]);
 
-    if ((noDriversResult.errors && noDriversResult.errors.length > 0) || (closedResult.errors && closedResult.errors.length > 0)) {
+    if ((noDriversResult.errors && noDriversResult.errors.length > 0) || !closedBlocks) {
       setLoadError('Could not load the service calendar.');
     }
 
     setNoDriversBlocks(noDriversResult.data as OperatorAvailabilityBlock[]);
-    setClosedBlocks(closedResult.data as CustomerClosureBlock[]);
+    setClosedBlocks((closedBlocks ?? []) as unknown as CustomerClosureBlock[]);
     setRoutes(routesResult.data || []);
     setLoading(false);
   }, [customerId]);
@@ -267,9 +267,11 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     setActionPending(true);
     setActionError(null);
 
-    const result = selectedClosedBlock
-      ? await deleteCustomerClosureBlock(selectedClosedBlock.id)
-      : await createCustomerClosureBlock({
+    try {
+      if (selectedClosedBlock) {
+        await deleteCustomerClosureBlock(selectedClosedBlock.id);
+      } else {
+        await createCustomerClosureBlock({
           customerId,
           date: selectedKey,
           reason: reasonDraft.trim() || undefined,
@@ -277,8 +279,8 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
           accountOwnerSub: currentUserSub,
           viewerSubs,
         });
-
-    if (result.errors && result.errors.length > 0) {
+      }
+    } catch {
       setActionError('Could not update the calendar.');
       setActionPending(false);
       return;

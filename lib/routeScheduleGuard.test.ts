@@ -13,7 +13,7 @@ describe('checkRouteDateBlocked', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
-    (listCustomerClosureBlocks as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listCustomerClosureBlocks as jest.Mock).mockResolvedValue([]);
   });
 
   it('returns not blocked when neither calendar has a block on the date', async () => {
@@ -32,10 +32,7 @@ describe('checkRouteDateBlocked', () => {
   });
 
   it('returns blocked with type "closed" when the customer agency is closed that day', async () => {
-    (listCustomerClosureBlocks as jest.Mock).mockResolvedValue({
-      data: [{ id: 'b1', customerId: 'cust-1', date: '2026-09-15', reason: 'Christmas shutdown' }],
-      errors: undefined,
-    });
+    (listCustomerClosureBlocks as jest.Mock).mockResolvedValue([{ id: 'b1', customerId: 'cust-1', date: '2026-09-15', reason: 'Christmas shutdown' }]);
 
     const result = await checkRouteDateBlocked('cust-1', '2026-09-15');
     expect(result).toEqual({ blocked: true, type: 'closed', reason: 'Christmas shutdown' });
@@ -46,10 +43,7 @@ describe('checkRouteDateBlocked', () => {
       data: [{ id: 'b1', customerId: 'cust-1', date: '2026-09-15', reason: undefined }],
       errors: undefined,
     });
-    (listCustomerClosureBlocks as jest.Mock).mockResolvedValue({
-      data: [{ id: 'b2', customerId: 'cust-1', date: '2026-09-15', reason: undefined }],
-      errors: undefined,
-    });
+    (listCustomerClosureBlocks as jest.Mock).mockResolvedValue([{ id: 'b2', customerId: 'cust-1', date: '2026-09-15', reason: undefined }]);
 
     const result = await checkRouteDateBlocked('cust-1', '2026-09-15');
     expect(result.blocked).toBe(true);

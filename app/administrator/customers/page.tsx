@@ -192,10 +192,9 @@ export default function CustomersAdminPage() {
   }, []);
 
   const fetchCustomerUsers = useCallback(async () => {
-    const result = await listAllCustomerUsers();
-    if (!result.errors || result.errors.length === 0) {
-      setCustomerUsers(result.data as CustomerUser[]);
-    }
+    // Best-effort: without them the list just shows no Customer Users.
+    const users = await listAllCustomerUsers().catch(() => null);
+    if (users) setCustomerUsers(users as CustomerUser[]);
   }, []);
 
   useEffect(() => {
@@ -208,15 +207,14 @@ export default function CustomersAdminPage() {
   const fetchOnboardingChecklist = useCallback(async (customer: Customer) => {
     setChecklistLoading((prev) => ({ ...prev, [customer.id]: true }));
 
-    const [usersResult, routesResult, invoices, flagSettingsResult] = await Promise.all([
-      listCustomerUsers(customer.id),
+    const [users, routesResult, invoices, flagSettingsResult] = await Promise.all([
+      // The checklist is best-effort: unreadable Customer Users count as none yet.
+      listCustomerUsers(customer.id).catch(() => []) as Promise<CustomerUser[]>,
       listCustomerRoutes(customer.id),
       // The checklist is best-effort: unreadable invoices count as none yet.
       listCustomerInvoices(customer.id).catch(() => []),
       listFeatureFlagSettings(),
     ]);
-
-    const users = (usersResult.errors && usersResult.errors.length > 0 ? [] : usersResult.data) as CustomerUser[];
 
     const onFlags = flagSettingsResult.errors ? null : resolveOnFlags(flagSettingsResult.data, customer.id);
 

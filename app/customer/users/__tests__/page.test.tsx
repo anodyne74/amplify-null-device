@@ -34,12 +34,9 @@ describe('Customer Team page', () => {
       data: { id: 'cust-1', email: 'owner@rangeproperty.com.au', restrictInvitesToOwnDomain: false },
       errors: undefined,
     });
-    (listCustomerUsers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cu-1', name: 'Priya Owner', email: 'owner@rangeproperty.com.au', role: 'account_owner' },
-      ],
-      errors: undefined,
-    });
+    (listCustomerUsers as jest.Mock).mockResolvedValue([
+      { id: 'cu-1', name: 'Priya Owner', email: 'owner@rangeproperty.com.au', role: 'account_owner' },
+    ]);
   });
 
   it('shows the invite form and current team for an account owner', async () => {

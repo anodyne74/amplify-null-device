@@ -129,7 +129,7 @@ describe('Customer route detail tracker', () => {
       data: { id: 'cust-1', agentOptions: ["Betty O'Shea", 'David Mun'] },
       errors: undefined,
     });
-    (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listCustomerRouteRequests as jest.Mock).mockResolvedValue([]);
   });
 
@@ -249,10 +249,7 @@ describe('Customer route detail tracker', () => {
       stops,
       errors: [],
     });
-    (listCustomerUsers as jest.Mock).mockResolvedValue({
-      data: [{ userSub: 'owner-sub-1', name: 'Priya Nair' }],
-      errors: undefined,
-    });
+    (listCustomerUsers as jest.Mock).mockResolvedValue([{ userSub: 'owner-sub-1', name: 'Priya Nair' }]);
 
     render(<RouteDetailContent params={{ id: 'route-1' }} />);
 
@@ -282,10 +279,7 @@ describe('Customer route detail tracker', () => {
       errors: [],
     });
     // A read_only viewer's CustomerUser query only returns their own row.
-    (listCustomerUsers as jest.Mock).mockResolvedValue({
-      data: [{ userSub: 'viewer-sub-1', name: 'The Viewer' }],
-      errors: undefined,
-    });
+    (listCustomerUsers as jest.Mock).mockResolvedValue([{ userSub: 'viewer-sub-1', name: 'The Viewer' }]);
 
     render(<RouteDetailContent params={{ id: 'route-1' }} />);
 

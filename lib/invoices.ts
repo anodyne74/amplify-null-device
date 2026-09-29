@@ -186,7 +186,7 @@ export async function getInvoiceDetail(params: GetInvoiceDetailParams): Promise<
   return withDataError('Failed to load invoice.', async () => {
     if (params.userSub) {
       const portalContext = await getCustomerPortalContext(params.userSub);
-      if (portalContext.role === 'read_only') return null;
+      if (portalContext?.role === 'read_only') return null;
     }
 
     const invoice = resultData(await getDataClient().models.Invoice.get({ id: params.invoiceId }));
@@ -250,7 +250,7 @@ export async function listMyInvoices(params: ListMyInvoicesParams) {
   return withDataError('Failed to load invoices.', async () => {
     if (params.userSub) {
       const portalContext = await getCustomerPortalContext(params.userSub);
-      if (portalContext.role === 'read_only') throw new DataError('Access denied');
+      if (portalContext?.role === 'read_only') throw new DataError('Access denied');
     }
 
     // Build filter with customerId and optional date range

@@ -52,10 +52,7 @@ describe('Administrator dashboard overview', () => {
         { id: 'invoice-2', customerId: 'customer-2', totalAmount: 500, invoiceDate: new Date().toISOString(), status: 'draft' },
       ]);
 
-    (listCustomerUsers as jest.Mock).mockResolvedValue({
-      data: [{ customerId: 'customer-1', role: 'account_owner' }],
-      errors: undefined,
-    });
+    (listCustomerUsers as jest.Mock).mockResolvedValue([{ customerId: 'customer-1', role: 'account_owner' }]);
 
     (listAllCustomers as jest.Mock).mockResolvedValue({
       data: [

@@ -59,7 +59,7 @@ jest.mock('@/lib/customers', () => ({
   createCustomer: jest.fn(),
   createCustomerUser: jest.fn(),
   listAllCustomerUsers: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
-  listCustomerUsers: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
+  listCustomerUsers: jest.fn().mockResolvedValue([]),
   listAllCustomers: jest.fn(),
   updateCustomer: jest.fn(),
 }));
@@ -82,7 +82,7 @@ describe('Operator Customers Page', () => {
     });
     (createCustomer as jest.Mock).mockResolvedValue({ data: { id: 'c-new' }, errors: undefined });
     (updateCustomer as jest.Mock).mockResolvedValue({ data: { id: 'c-1' }, errors: undefined });
-    (listAllCustomerUsers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listFeatureFlagSettings as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
   });
 
@@ -346,14 +346,11 @@ describe('Operator Customers Page', () => {
       ],
       errors: undefined,
     });
-    (listAllCustomerUsers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'u-1', customerId: 'c-1' },
-        { id: 'u-2', customerId: 'c-1' },
-        { id: 'u-3', customerId: 'c-2' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomerUsers as jest.Mock).mockResolvedValue([
+      { id: 'u-1', customerId: 'c-1' },
+      { id: 'u-2', customerId: 'c-1' },
+      { id: 'u-3', customerId: 'c-2' },
+    ]);
 
     render(<CustomersAdminPage />);
 

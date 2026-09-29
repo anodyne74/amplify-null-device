@@ -215,21 +215,13 @@ export default function UsersAdminPage() {
   const loadAllCustomerUsers = useCallback(async () => {
     setCustomerUsersLoading(true);
     setTableLoadError(null);
-    const result = await listAllCustomerUsers();
-    if (!result.errors || result.errors.length === 0) {
-      setAllCustomerUsers(result.data as CustomerUser[]);
-      setCustomerUsersLoading(false);
-      return;
+    try {
+      setAllCustomerUsers((await listAllCustomerUsers()) as CustomerUser[]);
+    } catch (err) {
+      setAllCustomerUsers([]);
+      setTableLoadError((err as Error).message);
     }
-
-    setAllCustomerUsers([]);
     setCustomerUsersLoading(false);
-    const message = (result.errors[0] as Error | undefined)?.message;
-    if (message?.includes('CustomerUser model is not available')) {
-      setTableLoadError('Customer access management is unavailable until backend schema changes are deployed.');
-    } else {
-      setTableLoadError('Failed to load customer users.');
-    }
   }, []);
 
   // Full customer-group roster (paginated to completion server-side) purely
@@ -352,7 +344,9 @@ export default function UsersAdminPage() {
         customerUsersForSelected.find((u) => (u.email || '').toLowerCase() === normalizedEmail);
       let createdCustomerUserId: string | undefined;
       if (!existing) {
-        const result = await createCustomerUser({
+        let created: { id?: string } | null;
+        try {
+          created = await createCustomerUser({
           customerId: selectedCustomerId,
           userSub: assignedUserSub,
           accountOwnerSub:
@@ -362,15 +356,14 @@ export default function UsersAdminPage() {
           role: newUserRole,
           name: newUserName || resolvedUser?.name || resolvedUser?.firstName || undefined,
           email: normalizedEmail,
-        });
-
-        if (result.errors && result.errors.length > 0) {
+          });
+        } catch {
           setAccessError('Failed to add user to customer.');
           setAccessPending(false);
           return;
         }
 
-        createdCustomerUserId = (result.data as { id?: string } | null)?.id;
+        createdCustomerUserId = created?.id;
       }
 
       const updated = [...customerUsersForSelected];
@@ -417,8 +410,11 @@ export default function UsersAdminPage() {
     setAccessError(null);
     setAccessSuccess(null);
 
-    const result = await deleteCustomerUser(target.id);
-    if (result.errors && result.errors.length > 0) {
+    const removed = await deleteCustomerUser(target.id).then(
+      () => true,
+      () => false
+    );
+    if (!removed) {
       setAccessError('Failed to remove user.');
     } else {
       const syncError = await syncCustomerAccess(target.customerId, { removed: target.userSub });
@@ -479,24 +475,28 @@ export default function UsersAdminPage() {
     const promotingToOwner = roleChanged && editRole === 'account_owner';
     const newOwnerSub = editTarget.userSub;
 
-    const result = await updateCustomerUser({
-      id: editTarget.id,
-      name: trimmedName || undefined,
-      role: editRole,
-      ...(promotingToOwner ? { accountOwnerSub: newOwnerSub } : {}),
-    });
-
-    if (result.errors && result.errors.length > 0) {
+    try {
+      await updateCustomerUser({
+        id: editTarget.id,
+        name: trimmedName || undefined,
+        role: editRole,
+        ...(promotingToOwner ? { accountOwnerSub: newOwnerSub } : {}),
+      });
+    } catch {
       setAccessError('Failed to update user.');
       setAccessPending(false);
       return;
     }
 
+    let rekeyFailed = false;
     if (promotingToOwner) {
       const rowsToRekey = customerUsersForSelected.filter(
         (u) => u.id !== editTarget.id && u.accountOwnerSub !== newOwnerSub
       );
-      await Promise.all(rowsToRekey.map((u) => updateCustomerUser({ id: u.id, accountOwnerSub: newOwnerSub })));
+      const rekeys = await Promise.allSettled(
+        rowsToRekey.map((u) => updateCustomerUser({ id: u.id, accountOwnerSub: newOwnerSub }))
+      );
+      rekeyFailed = rekeys.some((rekey) => rekey.status === 'rejected');
     }
 
     setAllCustomerUsers((prev) =>
@@ -511,7 +511,11 @@ export default function UsersAdminPage() {
       })
     );
 
-    setAccessSuccess('User updated.');
+    if (rekeyFailed) {
+      setAccessError("User updated, but some of this customer's other users weren't moved to the new owner. Promote them again to retry.");
+    } else {
+      setAccessSuccess('User updated.');
+    }
     setAccessPending(false);
     setEditTarget(null);
   };

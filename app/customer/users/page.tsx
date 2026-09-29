@@ -31,13 +31,13 @@ interface UsersData {
 
 async function fetchUsersData(context: CustomerPortalContext): Promise<UsersData> {
   try {
-    const [customerResult, teammatesResult] = await Promise.all([
+    const [customerResult, teammates] = await Promise.all([
       getCustomer(context.customerId),
       listCustomerUsers(context.customerId),
     ]);
     return {
       customer: (customerResult.data as unknown as Customer) || null,
-      teammates: (teammatesResult.data as TeammateRow[]) || [],
+      teammates: teammates as TeammateRow[],
     };
   } catch {
     throw new Error('Could not load your team.');
@@ -68,8 +68,10 @@ export default function CustomerTeamPage() {
 
   const loadTeammates = useCallback(
     async (id: string) => {
-      const { data: teammateData } = await listCustomerUsers(id);
-      setData((prev) => (prev ? { ...prev, teammates: (teammateData as TeammateRow[]) || [] } : prev));
+      // Best-effort refresh after an invite: on failure the list stays as it was.
+      const teammateData = await listCustomerUsers(id).catch(() => null);
+      if (!teammateData) return;
+      setData((prev) => (prev ? { ...prev, teammates: teammateData as TeammateRow[] } : prev));
     },
     [setData]
   );

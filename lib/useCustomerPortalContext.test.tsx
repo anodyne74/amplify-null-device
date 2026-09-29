@@ -54,11 +54,8 @@ describe('useCustomerPortalContext', () => {
     expect(getCustomerPortalContext).toHaveBeenCalledWith('user-1');
   });
 
-  it('surfaces an error and stays read_only when no customerId resolves', async () => {
-    (getCustomerPortalContext as jest.Mock).mockResolvedValue({
-      role: 'account_owner',
-      customerId: '',
-    });
+  it('surfaces an error and stays read_only when the user has no Customer', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue(null);
 
     const { result } = renderHook(() => useCustomerPortalContext());
 
@@ -66,7 +63,7 @@ describe('useCustomerPortalContext', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(result.current.role).toBe('account_owner');
+    expect(result.current.role).toBe('read_only');
     expect(result.current.customerId).toBeNull();
     expect(result.current.error).toBe('Could not resolve your customer account.');
   });

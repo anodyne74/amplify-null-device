@@ -34,12 +34,8 @@ describe('useInvoicesDataState', () => {
     });
 
     (listCustomerUsers as jest.Mock)
-      .mockResolvedValueOnce({
-        data: [{ role: 'account_owner', email: 'owner@acme.test' }],
-      })
-      .mockResolvedValueOnce({
-        data: [],
-      });
+      .mockResolvedValueOnce([{ role: 'account_owner', email: 'owner@acme.test' }])
+      .mockResolvedValueOnce([]);
 
     (listInvoices as jest.Mock).mockResolvedValue([
         {
@@ -105,7 +101,7 @@ describe('useInvoicesDataState', () => {
       data: [{ id: 'customer-1', name: 'Acme', email: 'fallback@acme.test' }],
       errors: undefined
     });
-    (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [] });
+    (listCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
     (listInvoices as jest.Mock).mockRejectedValue(new DataError('Failed to load invoices.'));
 
@@ -136,7 +132,7 @@ describe('useInvoicesDataState', () => {
 
   it('removes an invoice from state via removeInvoiceFromState (#63)', async () => {
     (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
-    (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [] });
+    (listCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
     (listInvoices as jest.Mock).mockResolvedValue([
         { id: 'invoice-1', invoiceNumber: 'INV-100', customerId: 'customer-1', totalAmount: 100 },
@@ -173,7 +169,7 @@ describe('useInvoicesDataState', () => {
       ],
       errors: undefined
     });
-    (listCustomerUsers as jest.Mock).mockResolvedValue({ data: [] });
+    (listCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
     (listInvoices as jest.Mock).mockResolvedValue([]);
 

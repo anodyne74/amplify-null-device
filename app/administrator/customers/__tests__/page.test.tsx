@@ -52,7 +52,7 @@ jest.mock('@/lib/googleMaps', () => ({
 }));
 
 jest.mock('@/lib/routes', () => ({
-  listCustomerRoutes: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
+  listCustomerRoutes: jest.fn().mockResolvedValue([]),
 }));
 
 jest.mock('@/lib/customers', () => ({

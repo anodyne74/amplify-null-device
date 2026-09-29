@@ -38,7 +38,7 @@ describe('Operator Dashboard (Today)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'cust-1', name: 'Beltline Group' }]);
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: null, stops: [], errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue(null);
   });
 
   it('shows unassigned routes and routes assigned to the signed-in operator, but excludes routes assigned to other operators', async () => {

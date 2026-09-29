@@ -20,9 +20,9 @@ export function useRouteStopsPreview(routeId: string) {
     let cancelled = false;
     setLoading(true);
 
-    void getRouteWithStops(routeId).then((result) => {
+    void getRouteWithStops(routeId).catch(() => null).then((result) => {
       if (cancelled) return;
-      setStops((result.stops as StopSummary[]) || []);
+      setStops((result?.stops ?? []) as StopSummary[]);
       setLoading(false);
     });
 

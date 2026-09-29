@@ -86,12 +86,15 @@ export default function OperatorDashboard() {
     async function loadStopSummaries() {
       const entries = await Promise.all(
         priorityRoutes.map(async (route) => {
-          const { stops } = await getRouteWithStops(route.id);
+          // Best-effort: a route whose Stops can't be read gets no summary.
+          const routeWithStops = await getRouteWithStops(route.id).catch(() => null);
+          if (!routeWithStops) return null;
+          const { stops } = routeWithStops;
           return [route.id, { stopCount: stops.length, signsTotal: signsPlaced(stops) }] as const;
         })
       );
       if (!cancelled) {
-        setStopSummaryByRouteId(Object.fromEntries(entries));
+        setStopSummaryByRouteId(Object.fromEntries(entries.filter((entry) => entry !== null)));
       }
     }
     void loadStopSummaries();

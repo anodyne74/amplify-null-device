@@ -94,19 +94,15 @@ export default function AdminHomePage() {
       setLoading(true);
       try {
         const [routeResult, invoiceResult, customerResult, stopResult] = await Promise.all([
-          listAllRoutes(),
+          listAllRoutes().catch(() => null),
           listInvoices().catch(() => null),
           listAllCustomers().catch(() => null),
-          listAllStops(),
+          listAllStops().catch(() => null),
         ]);
 
-        if (!routeResult.errors || routeResult.errors.length === 0) {
-          setRoutes((routeResult.data as Route[]) || []);
-        }
+        if (routeResult) setRoutes(routeResult as unknown as Route[]);
         if (invoiceResult) setInvoices(invoiceResult as Invoice[]);
-        if (!stopResult.errors || stopResult.errors.length === 0) {
-          setStops((stopResult.data as StopSummary[]) || []);
-        }
+        if (stopResult) setStops(stopResult as StopSummary[]);
 
         let loadedCustomers: CustomerSummary[] = [];
         if (customerResult) {

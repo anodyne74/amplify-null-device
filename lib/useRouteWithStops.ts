@@ -133,11 +133,15 @@ export function routeWithStopsView(state: RouteWithStopsState): { route: Route |
 }
 
 async function fetchRouteWithStops(routeId: string): Promise<RouteWithStopsAction> {
-  const { route, stops, errors } = await getRouteWithStops(routeId);
-  if (errors && errors.length > 0) {
+  const routeWithStops = await getRouteWithStops(routeId).catch(() => undefined);
+  if (routeWithStops === undefined) {
     return { type: 'fetchFailed', error: LOAD_ERROR };
   }
-  return { type: 'fetched', route: route as unknown as Route | null, stops: stops as unknown as Stop[] };
+  return {
+    type: 'fetched',
+    route: (routeWithStops?.route ?? null) as unknown as Route | null,
+    stops: (routeWithStops?.stops ?? []) as unknown as Stop[],
+  };
 }
 
 /**

@@ -223,7 +223,7 @@ describe('useRouteWithStops', () => {
     stopFeed = makeObservable();
     mockRouteObserveQuery.mockReturnValue(routeFeed.observable);
     mockStopObserveQuery.mockReturnValue(stopFeed.observable);
-    mockGetRouteWithStops.mockResolvedValue({ route: route(), stops: [stop('s1')], errors: [] });
+    mockGetRouteWithStops.mockResolvedValue({ route: route(), stops: [stop('s1')] });
   });
 
   it('paints from the fetch, then follows live Route and Stop changes', async () => {
@@ -268,7 +268,7 @@ describe('useRouteWithStops', () => {
   });
 
   it('reports a failed first fetch', async () => {
-    mockGetRouteWithStops.mockResolvedValue({ route: null, stops: [], errors: [{ message: 'boom' }] });
+    mockGetRouteWithStops.mockRejectedValue(new Error('boom'));
     const { result } = renderHook(() => useRouteWithStops('r1'));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -276,7 +276,7 @@ describe('useRouteWithStops', () => {
   });
 
   it('resolves a missing route to null with no error', async () => {
-    mockGetRouteWithStops.mockResolvedValue({ route: null, stops: [], errors: [] });
+    mockGetRouteWithStops.mockResolvedValue(null);
     const { result } = renderHook(() => useRouteWithStops('r1'));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -299,11 +299,11 @@ describe('useRouteWithStops', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => result.current.patchStop('s1', { notes: 'optimistic' }));
-    mockGetRouteWithStops.mockResolvedValue({ route: route(), stops: [stop('s1', { notes: 'saved', updatedAt: T2 })], errors: [] });
+    mockGetRouteWithStops.mockResolvedValue({ route: route(), stops: [stop('s1', { notes: 'saved', updatedAt: T2 })] });
     await act(() => result.current.refetch());
     expect(result.current.stops[0].notes).toBe('saved');
 
-    mockGetRouteWithStops.mockResolvedValue({ route: null, stops: [], errors: [{ message: 'boom' }] });
+    mockGetRouteWithStops.mockRejectedValue(new Error('boom'));
     await act(() => result.current.refetch());
     expect(result.current.stops[0].notes).toBe('saved');
     expect(result.current.error).toBeNull();

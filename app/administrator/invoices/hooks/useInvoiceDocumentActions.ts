@@ -233,7 +233,7 @@ export function useInvoiceDocumentActions({
         amount?: number | null;
       }>) ?? [];
       const routeStops = invoice.routeId
-        ? ((await getRouteWithStops(invoice.routeId)).stops as StopSummary[]) ?? []
+        ? (((await getRouteWithStops(invoice.routeId))?.stops ?? []) as StopSummary[])
         : [];
       const groupStopsByAgentForCustomer = Boolean(customer?.groupLineItemsByAgent);
       const { jsPDF } = await import('jspdf');

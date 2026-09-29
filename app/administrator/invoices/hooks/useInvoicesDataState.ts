@@ -61,7 +61,7 @@ export function useInvoicesDataState({
     const [customersResult, invoicesResult, routesResult] = await Promise.all([
       listAllCustomers().catch(() => null),
       listInvoices().catch((err: Error) => err),
-      listAllRoutes(),
+      listAllRoutes().catch(() => null),
     ]);
 
     if (!customersResult) {
@@ -107,9 +107,7 @@ export function useInvoicesDataState({
       if (!customerId && customersWithPrimary.length > 0) setCustomerId(customersWithPrimary[0].id);
     }
 
-    if (!routesResult.errors || routesResult.errors.length === 0) {
-      setRoutes((routesResult.data as Route[]) || []);
-    }
+    if (routesResult) setRoutes(routesResult as unknown as Route[]);
 
     if (invoicesResult instanceof Error) {
       setError(invoicesResult.message);

@@ -24,8 +24,9 @@ export function usePropertySearch(routes: Route[], customersById: Record<string,
   useEffect(() => {
     async function fetchAllStops() {
       setStopsLoading(true);
-      const result = await listAllStops();
-      setStops(result.data as Stop[]);
+      // An unreadable Stop list searches as empty, as before.
+      const result = await listAllStops().catch(() => []);
+      setStops(result as Stop[]);
       setStopsLoading(false);
     }
 

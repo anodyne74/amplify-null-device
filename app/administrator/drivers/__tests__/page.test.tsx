@@ -86,8 +86,8 @@ describe('Administrator Drivers page', () => {
     ]);
 
     (updateOperator as jest.Mock).mockResolvedValue({ data: { id: 'sub-1' }, errors: undefined });
-    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: undefined });
-    (listAllStops as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: undefined });
+    (listAllRoutes as jest.Mock).mockResolvedValue([]);
+    (listAllStops as jest.Mock).mockResolvedValue([]);
   });
 
   it('lists drivers merged with their Operator profile fields', async () => {
@@ -103,23 +103,15 @@ describe('Administrator Drivers page', () => {
     const now = new Date();
     const isoThisMonth = new Date(now.getFullYear(), now.getMonth(), 10).toISOString();
 
-    (listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'r1', assignedOperatorSub: 'sub-1', actualEndTime: isoThisMonth, actualDurationMinutes: 240 },
-        { id: 'r2', assignedOperatorSub: 'sub-1', actualEndTime: isoThisMonth, actualDurationMinutes: 300 },
-      ],
-      errors: undefined,
-      nextToken: undefined,
-    });
-    (listAllStops as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 's1', routeId: 'r1' },
-        { id: 's2', routeId: 'r2' },
-        { id: 's3', routeId: 'r2' },
-      ],
-      errors: undefined,
-      nextToken: undefined,
-    });
+    (listAllRoutes as jest.Mock).mockResolvedValue([
+      { id: 'r1', assignedOperatorSub: 'sub-1', actualEndTime: isoThisMonth, actualDurationMinutes: 240 },
+      { id: 'r2', assignedOperatorSub: 'sub-1', actualEndTime: isoThisMonth, actualDurationMinutes: 300 },
+    ]);
+    (listAllStops as jest.Mock).mockResolvedValue([
+      { id: 's1', routeId: 'r1' },
+      { id: 's2', routeId: 'r2' },
+      { id: 's3', routeId: 'r2' },
+    ]);
 
     render(<AdministratorDriversPage />);
 

@@ -3,9 +3,15 @@
  * writes it through the signed-in user's data client. Every data-access
  * operation on Routes and Stops lives here; Sign Run writes go through
  * lib/signRunTransitions.ts, and the live feed through lib/useRouteWithStops.ts.
+ *
+ * The reads return their data or throw a DataError (lib/graphqlResult.ts); a
+ * Route that doesn't exist is null. The Route Code label lookups never throw
+ * (a label must never stop a screen loading), and the writes still return
+ * {data, errors} until they move over too.
  */
 
 import { getDataClient } from '@/lib/data-client';
+import { resultData, withDataError } from '@/lib/graphqlResult';
 import { listAll } from '@/lib/listAll';
 import { unlinkRecordsOfDeletedRoute, type LinkClient } from '@/lib/routeRequestLinks';
 import type { RouteStatus } from '@/amplify/types';
@@ -13,35 +19,11 @@ import { pickStopLocationFields, type StopLocationWrite } from '@/lib/locationPr
 import { stopPropertyKey, type StopAddressComponents } from '@/lib/propertyKey';
 import { lacksProperty, locateEditedStop, locateNewStop, type LocatedStop, type StopAddressInput } from '@/lib/stopLocation';
 
-/**
- * Fetch all routes for a specific customer
- */
-export async function listCustomerRoutes(
-  customerId: string,
-  options?: { status?: string }
-) {
-  try {
-    const { data, errors } = await listAll(getDataClient(), 'Route', {
-      filter: { customerId: { eq: customerId } },
-    });
-
-    if (errors.length > 0) {
-      console.error('Errors fetching routes:', errors);
-      return { data: [], errors };
-    }
-
-    let routes = data;
-
-    // Apply status filter if provided (client-side filtering as Amplify doesn't support complex filters)
-    if (options?.status) {
-      routes = routes.filter((route) => route.status === options.status);
-    }
-
-    return { data: routes, errors: undefined };
-  } catch (error) {
-    console.error('Error listing customer routes:', error);
-    return { data: [], errors: [error] };
-  }
+/** Every Route a Customer owns -- see lib/listAll.ts. */
+export async function listCustomerRoutes(customerId: string) {
+  return withDataError('Failed to load routes.', async () =>
+    resultData(await listAll(getDataClient(), 'Route', { filter: { customerId: { eq: customerId } } })) ?? []
+  );
 }
 
 /**
@@ -84,45 +66,26 @@ export async function getRouteCode(routeId: string): Promise<string | undefined>
  * enough).
  */
 export async function listAllStopsForRoute(routeId: string) {
-  const { data: stops, errors } = await listAll(getDataClient(), 'Stop', {
-    filter: { routeId: { eq: routeId } },
-  });
+  return withDataError('Failed to load stops.', () => readStopsForRoute(routeId));
+}
 
-  if (errors.length > 0) {
-    console.error('Errors fetching stops:', errors);
-  }
-
-  return { stops, errors };
+async function readStopsForRoute(routeId: string) {
+  return resultData(await listAll(getDataClient(), 'Stop', { filter: { routeId: { eq: routeId } } })) ?? [];
 }
 
 /**
- * Fetch a specific route with all its stops
+ * A Route and every one of its Stops, in sequence order; null when the Route
+ * doesn't exist. A partial Stop read throws rather than return a Route with
+ * Stops missing.
  */
-
 export async function getRouteWithStops(routeId: string) {
-  try {
-    const { data: route, errors: routeErrors } = await getDataClient().models.Route.get({ id: routeId });
+  return withDataError('Failed to load route.', async () => {
+    const route = resultData(await getDataClient().models.Route.get({ id: routeId }));
+    if (!route) return null;
 
-    if (routeErrors) {
-      console.error('Errors fetching route:', routeErrors);
-      return { route: null, stops: [], errors: routeErrors };
-    }
-
-    if (!route) {
-      return { route: null, stops: [], errors: [] };
-    }
-
-    const { stops: allStops, errors: allStopErrors } = await listAllStopsForRoute(routeId);
-
-    const sortedStops = [...allStops].sort(
-      (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)
-    );
-
-    return { route, stops: sortedStops, errors: allStopErrors };
-  } catch (error) {
-    console.error('Error getting route with stops:', error);
-    return { route: null, stops: [], errors: [error] };
-  }
+    const stops = await readStopsForRoute(routeId);
+    return { route, stops: [...stops].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)) };
+  });
 }
 
 /**
@@ -229,12 +192,7 @@ export async function deleteRoute(routeId: string) {
     // A single unpaginated Stop.list call only sees the first page — routes
     // with more stops than that would have the rest silently orphaned. Page
     // through every stop first, same as listAllStopsForRoute's other callers.
-    const { stops, errors: stopListErrors } = await listAllStopsForRoute(routeId);
-
-    if (stopListErrors.length > 0) {
-      console.error('Errors fetching route stops for deletion:', stopListErrors);
-      return { data: null, errors: stopListErrors };
-    }
+    const stops = await listAllStopsForRoute(routeId);
 
     const stopDeletes = await Promise.all(
       (stops as Array<{ id: string }>).map((stop) => client.models.Stop.delete({ id: stop.id }))
@@ -461,67 +419,13 @@ export async function createStopsForRoute(
 /** Every Route (operators, no customer filter), paginated through to the
  * end -- see lib/listAll.ts. */
 export async function listAllRoutes() {
-  try {
-    const { data, errors } = await listAll(getDataClient(), 'Route');
-
-    if (errors.length > 0) {
-      console.error('Errors fetching routes:', errors);
-      return { data: [], errors };
-    }
-
-    return { data, errors: undefined };
-  } catch (error) {
-    console.error('Error listing all routes:', error);
-    return { data: [], errors: [error as Error] };
-  }
-}
-
-/**
- * List every route for a customer
- * Used to display route list in customer portal
- */
-export interface ListMyRoutesParams {
-  customerId: string;
-}
-
-export async function listMyRoutes(params: ListMyRoutesParams) {
-  try {
-    const { data, errors } = await listAll(getDataClient(), 'Route', {
-      filter: {
-        customerId: {
-          eq: params.customerId,
-        },
-      },
-    });
-
-    if (errors.length > 0) {
-      console.error('Errors fetching routes:', errors);
-      return { data: [], errors };
-    }
-
-    return { data, errors: undefined };
-  } catch (error) {
-    console.error('Error listing customer routes:', error);
-    return { data: [], errors: [error as Error] };
-  }
+  return withDataError('Failed to load routes.', async () => resultData(await listAll(getDataClient(), 'Route')) ?? []);
 }
 
 /** Every Stop (admin dashboard aggregation — signs in field, stops
  * serviced), paginated through to the end -- see lib/listAll.ts. */
 export async function listAllStops() {
-  try {
-    const { data, errors } = await listAll(getDataClient(), 'Stop');
-
-    if (errors.length > 0) {
-      console.error('Errors fetching stops:', errors);
-      return { data: [], errors };
-    }
-
-    return { data, errors: undefined };
-  } catch (error) {
-    console.error('Error listing all stops:', error);
-    return { data: [], errors: [error as Error] };
-  }
+  return withDataError('Failed to load stops.', async () => resultData(await listAll(getDataClient(), 'Stop')) ?? []);
 }
 
 /**
@@ -688,7 +592,9 @@ export async function deleteStop(stopId: string) {
 
 /** Every Stop a Customer owns, across all its Routes -- see lib/listAll.ts. */
 export async function listCustomerStops(customerId: string) {
-  return listAll(getDataClient(), 'Stop', { filter: { customerId: { eq: customerId } } });
+  return withDataError('Failed to load stops.', async () =>
+    resultData(await listAll(getDataClient(), 'Stop', { filter: { customerId: { eq: customerId } } })) ?? []
+  );
 }
 
 /**

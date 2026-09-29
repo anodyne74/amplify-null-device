@@ -64,7 +64,7 @@ jest.mock('@/lib/routes', () => ({
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-  getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched, errors: [] })),
+  getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched })),
   saveStop: jest.fn().mockResolvedValue({ errors: undefined, pinned: true }),
   UNPINNED_STOP_NOTICE: 'Stop saved without a map pin.',
 }));

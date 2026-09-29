@@ -59,7 +59,7 @@ const mockFetched: { route: unknown; stops: unknown[] } = { route: null, stops: 
 jest.mock('@/lib/routes', () => ({
   deleteStop: jest.fn(),
   resequenceStops: jest.fn().mockResolvedValue(undefined),
-  getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched, errors: [] })),
+  getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched })),
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),

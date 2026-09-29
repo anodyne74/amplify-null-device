@@ -76,7 +76,7 @@ describe('Operator Load page', () => {
   });
 
   it('shows the per-agent breakdown, totals and yard address', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorLoadPage />);
 
@@ -96,7 +96,7 @@ describe('Operator Load page', () => {
       { id: 's2', routeId: 'route-1', sequence: 2, agent: 'Rachel Morrow', numberOfSigns: 3, isAuction: false } as Stop,
       { id: 's3', routeId: 'route-1', sequence: 3, agent: 'Jem Tran', numberOfSigns: 5, isAuction: true } as Stop,
     ];
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops, errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops });
 
     render(<OperatorLoadPage />);
     await screen.findByText('13 signs to load');
@@ -118,7 +118,7 @@ describe('Operator Load page', () => {
   });
 
   it('starts the load through the confirm dialog, then shows the stamp and the confirm step', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorLoadPage />);
     await screen.findByText('45 signs to load');
@@ -141,7 +141,7 @@ describe('Operator Load page', () => {
   });
 
   it('cancelling the start dialog leaves the load unstarted', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorLoadPage />);
     await screen.findByText('45 signs to load');
@@ -157,7 +157,6 @@ describe('Operator Load page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ loadStartedAt: '2026-09-12T07:37:00.000Z' }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorLoadPage />);
@@ -179,7 +178,6 @@ describe('Operator Load page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ status: 'in_progress', executionPhase: 'pickup' }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorLoadPage />);
@@ -189,7 +187,7 @@ describe('Operator Load page', () => {
   });
 
   it('shows a guard message when the route is not found', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: null, stops: [], errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue(null);
 
     render(<OperatorLoadPage />);
 

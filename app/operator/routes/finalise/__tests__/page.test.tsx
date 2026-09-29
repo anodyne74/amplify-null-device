@@ -91,7 +91,7 @@ describe('Operator Finalise page', () => {
   });
 
   it('shows the summary stats, measured defaults, and a warning state when the total is off a 15 min increment', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorFinalisePage />);
 
@@ -127,7 +127,7 @@ describe('Operator Finalise page', () => {
   });
 
   it('rounding up brings the total to a 15 min increment and re-enables completion', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorFinalisePage />);
     await screen.findByText('Finalise route');
@@ -140,7 +140,7 @@ describe('Operator Finalise page', () => {
   });
 
   it('steppers adjust billed minutes, respecting each phase floor', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorFinalisePage />);
     await screen.findByText('Finalise route');
@@ -155,7 +155,7 @@ describe('Operator Finalise page', () => {
   });
 
   it('the distance stepper adjusts in 0.5 km steps with a 0 floor', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorFinalisePage />);
     await screen.findByText('Finalise route');
@@ -169,7 +169,7 @@ describe('Operator Finalise page', () => {
   });
 
   it('completes the route with all billed fields, the override totals, and status completed', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorFinalisePage />);
     await screen.findByText('Finalise route');
@@ -189,7 +189,7 @@ describe('Operator Finalise page', () => {
   });
 
   it('back to today does not write any changes', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorFinalisePage />);
     await screen.findByText('Finalise route');
@@ -204,7 +204,6 @@ describe('Operator Finalise page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ unloadConfirmedAt: undefined, executionPhase: 'pickup' }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorFinalisePage />);
@@ -214,7 +213,7 @@ describe('Operator Finalise page', () => {
   });
 
   it('shows a guard message when the route is not found', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: null, stops: [], errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue(null);
 
     render(<OperatorFinalisePage />);
 

@@ -53,10 +53,7 @@ describe('useInvoicesDataState', () => {
         },
       ]);
 
-    (listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [{ id: 'route-1', customerId: 'customer-1', routeCode: 'R1', actualDurationMinutes: 120 }],
-      errors: undefined
-    });
+    (listAllRoutes as jest.Mock).mockResolvedValue([{ id: 'route-1', customerId: 'customer-1', routeCode: 'R1', actualDurationMinutes: 120 }]);
 
     const { result } = renderHook(() => {
       const [customerId, setCustomerId] = useState('');
@@ -96,7 +93,7 @@ describe('useInvoicesDataState', () => {
   it('sets invoice load error when invoice query returns errors', async () => {
     (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'customer-1', name: 'Acme', email: 'fallback@acme.test' }]);
     (listCustomerUsers as jest.Mock).mockResolvedValue([]);
-    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllRoutes as jest.Mock).mockResolvedValue([]);
     (listInvoices as jest.Mock).mockRejectedValue(new DataError('Failed to load invoices.'));
 
     const { result } = renderHook(() => {
@@ -127,7 +124,7 @@ describe('useInvoicesDataState', () => {
   it('removes an invoice from state via removeInvoiceFromState (#63)', async () => {
     (listAllCustomers as jest.Mock).mockResolvedValue([]);
     (listCustomerUsers as jest.Mock).mockResolvedValue([]);
-    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllRoutes as jest.Mock).mockResolvedValue([]);
     (listInvoices as jest.Mock).mockResolvedValue([
         { id: 'invoice-1', invoiceNumber: 'INV-100', customerId: 'customer-1', totalAmount: 100 },
         { id: 'invoice-2', invoiceNumber: 'INV-101', customerId: 'customer-1', totalAmount: 200 },
@@ -161,7 +158,7 @@ describe('useInvoicesDataState', () => {
       { id: 'customer-2', name: 'Beta', groupLineItemsByAgent: false },
     ]);
     (listCustomerUsers as jest.Mock).mockResolvedValue([]);
-    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllRoutes as jest.Mock).mockResolvedValue([]);
     (listInvoices as jest.Mock).mockResolvedValue([]);
 
     const { result } = renderHook(() => {

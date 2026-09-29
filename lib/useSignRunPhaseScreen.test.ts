@@ -38,7 +38,7 @@ describe('useSignRunPhaseScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockFeed.handlers = null;
-    mockGetRouteWithStops.mockResolvedValue({ route: placementRoute, stops, errors: undefined });
+    mockGetRouteWithStops.mockResolvedValue({ route: placementRoute, stops });
   });
 
   it('stays loading until the extra data resolves, and fetches it once across live updates', async () => {

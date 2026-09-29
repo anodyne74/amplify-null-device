@@ -88,11 +88,8 @@ function RouteEditContent() {
 
   const fetchStops = useCallback(async () => {
     if (!routeId) return;
-    const { stops: allStops, errors } = await getRouteWithStops(routeId);
-
-    if (!errors || errors.length === 0) {
-      setStops(allStops as Stop[]);
-    }
+    const routeWithStops = await getRouteWithStops(routeId).catch(() => null);
+    if (routeWithStops) setStops(routeWithStops.stops as unknown as Stop[]);
   }, [routeId]);
 
   const persistStopOrder = useCallback(async (orderedStops: Stop[]) => {
@@ -127,7 +124,7 @@ function RouteEditContent() {
       setError(null);
 
       const [routeResult, customersResult, operatorsResult] = await Promise.all([
-        getRouteWithStops(routeId),
+        getRouteWithStops(routeId).catch(() => null),
         listAllCustomers().catch(() => null),
         callApi<{ users?: Array<{ sub?: string; name?: string; email?: string }> }>('/api/admin/users', {
           action: 'listUsersInGroup',
@@ -135,7 +132,7 @@ function RouteEditContent() {
         }).catch(() => ({ users: [] })),
       ]);
 
-      if (!routeResult.route) {
+      if (!routeResult) {
         setError('Failed to load route.');
         setLoading(false);
         return;
@@ -171,10 +168,7 @@ function RouteEditContent() {
         );
       }
 
-      // A Stop list error leaves the stops empty rather than failing the page.
-      if (!routeResult.errors || routeResult.errors.length === 0) {
-        setStops(routeResult.stops as unknown as Stop[]);
-      }
+      setStops(routeResult.stops as unknown as Stop[]);
 
       setLoading(false);
     }

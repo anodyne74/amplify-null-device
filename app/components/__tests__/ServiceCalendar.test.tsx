@@ -5,7 +5,7 @@ import { ServiceCalendar } from '../ServiceCalendar';
 import { listOperatorAvailabilityBlocks } from '@/lib/queries/ListOperatorAvailabilityBlocks';
 import { createOperatorAvailabilityBlock } from '@/lib/queries/CreateOperatorAvailabilityBlock';
 import { deleteOperatorAvailabilityBlock } from '@/lib/queries/DeleteOperatorAvailabilityBlock';
-import { listMyRoutes } from '@/lib/routes';
+import { listCustomerRoutes } from '@/lib/routes';
 import { listCustomerClosureBlocks, createCustomerClosureBlock, deleteCustomerClosureBlock, listAllCustomers } from '@/lib/customers';
 
 jest.mock('@/lib/queries/ListOperatorAvailabilityBlocks', () => ({
@@ -25,7 +25,7 @@ jest.mock('@/lib/customers', () => ({
 }));
 
 jest.mock('@/lib/routes', () => ({
-  listMyRoutes: jest.fn(),
+  listCustomerRoutes: jest.fn(),
 }));
 
 function todayKey() {
@@ -43,7 +43,7 @@ describe('ServiceCalendar', () => {
     (createCustomerClosureBlock as jest.Mock).mockResolvedValue({ id: 'block-2' });
     (deleteCustomerClosureBlock as jest.Mock).mockResolvedValue({});
     (listAllCustomers as jest.Mock).mockResolvedValue([]);
-    (listMyRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listCustomerRoutes as jest.Mock).mockResolvedValue([]);
   });
 
   it('renders the month grid with weekday headers', async () => {
@@ -165,14 +165,11 @@ describe('ServiceCalendar', () => {
     // Midday local time, well clear of the UTC day boundary in either direction.
     const middayLocalIso = new Date(year, month - 1, day, 12, 0, 0).toISOString();
 
-    (listMyRoutes as jest.Mock).mockResolvedValue({
-      data: [
-        { actualEndTime: middayLocalIso },
-        { actualStartTime: middayLocalIso },
-        { createdAt: '2020-01-01T00:00:00Z' },
-      ],
-      errors: undefined,
-    });
+    (listCustomerRoutes as jest.Mock).mockResolvedValue([
+      { actualEndTime: middayLocalIso },
+      { actualStartTime: middayLocalIso },
+      { createdAt: '2020-01-01T00:00:00Z' },
+    ]);
 
     render(
       <ServiceCalendar customerId="cust-1" role="customer-readonly" currentUserSub="reviewer-sub" viewerSubs={['reviewer-sub']} />
@@ -186,14 +183,11 @@ describe('ServiceCalendar', () => {
   it('prefers scheduledDate over the timestamp fallback chain when counting deliveries', async () => {
     const today = todayKey();
 
-    (listMyRoutes as jest.Mock).mockResolvedValue({
-      data: [
-        { scheduledDate: today },
-        { scheduledDate: today },
-        { actualEndTime: '2020-01-01T00:00:00Z' }, // no scheduledDate — falls back, lands on a different day
-      ],
-      errors: undefined,
-    });
+    (listCustomerRoutes as jest.Mock).mockResolvedValue([
+      { scheduledDate: today },
+      { scheduledDate: today },
+      { actualEndTime: '2020-01-01T00:00:00Z' }, // no scheduledDate — falls back, lands on a different day
+    ]);
 
     render(
       <ServiceCalendar customerId="cust-1" role="customer-readonly" currentUserSub="reviewer-sub" viewerSubs={['reviewer-sub']} />

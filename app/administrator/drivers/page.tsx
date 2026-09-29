@@ -125,8 +125,8 @@ export default function AdministratorDriversPage() {
 
       setDrivers(merged);
       setCustomers(customersResult as CustomerSummary[]);
-      setRoutes(routesResult.data as Route[]);
-      setStops(stopsResult.data as StopSummary[]);
+      setRoutes(routesResult as unknown as Route[]);
+      setStops(stopsResult as StopSummary[]);
       setSelectedId((current) => (current && merged.some((d) => d.id === current) ? current : merged[0]?.id || ''));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load drivers.');

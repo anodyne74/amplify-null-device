@@ -142,7 +142,7 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
       stops: store.stops,
       errors: [],
     }));
-    (getCustomer as jest.Mock).mockResolvedValue({ data: { name: 'Beltline Group' }, errors: undefined });
+    (getCustomer as jest.Mock).mockResolvedValue({ name: 'Beltline Group' });
     (getOrganizationSettings as jest.Mock).mockResolvedValue({
       data: { address: '22 Dryburgh St, West Melbourne' },
       errors: undefined,

@@ -80,14 +80,14 @@ describe('Operator Customers Page', () => {
       longitude: -97,
       formattedAddress: '100 Main St, Fort Worth, TX',
     });
-    (createCustomer as jest.Mock).mockResolvedValue({ data: { id: 'c-new' }, errors: undefined });
-    (updateCustomer as jest.Mock).mockResolvedValue({ data: { id: 'c-1' }, errors: undefined });
+    (createCustomer as jest.Mock).mockResolvedValue({ id: 'c-new' });
+    (updateCustomer as jest.Mock).mockResolvedValue({ id: 'c-1' });
     (listAllCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listFeatureFlagSettings as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
   });
 
   it('submits create customer with standing instructions and defaults', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllCustomers as jest.Mock).mockResolvedValue([]);
 
     render(<CustomersAdminPage />);
 
@@ -128,24 +128,21 @@ describe('Operator Customers Page', () => {
   });
 
   it('saves edited defaults from the configure panel', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        {
-          id: 'c-1',
-          name: 'Acme Corp',
-          email: 'acme@example.com',
-          billingRatePerHour: 95,
-          status: 'active',
-          addressLine1: '11 Old St',
-          standingInstructions: 'Legacy instructions',
-          defaultNumberOfSigns: 2,
-          defaultAgentName: 'Pat Doe',
-          defaultAgentInitials: 'PD',
-          agentOptions: ['Pat Doe', 'Jamie Lee'],
-        },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      {
+        id: 'c-1',
+        name: 'Acme Corp',
+        email: 'acme@example.com',
+        billingRatePerHour: 95,
+        status: 'active',
+        addressLine1: '11 Old St',
+        standingInstructions: 'Legacy instructions',
+        defaultNumberOfSigns: 2,
+        defaultAgentName: 'Pat Doe',
+        defaultAgentInitials: 'PD',
+        agentOptions: ['Pat Doe', 'Jamie Lee'],
+      },
+    ]);
 
     render(<CustomersAdminPage />);
 
@@ -197,20 +194,17 @@ describe('Operator Customers Page', () => {
   });
 
   it('sets an agent as the default by clicking its tag', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        {
-          id: 'c-1',
-          name: 'Acme Corp',
-          email: 'acme@example.com',
-          billingRatePerHour: 95,
-          status: 'active',
-          addressLine1: '11 Old St',
-          agentOptions: ['Pat Doe', 'Jamie Lee'],
-        },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      {
+        id: 'c-1',
+        name: 'Acme Corp',
+        email: 'acme@example.com',
+        billingRatePerHour: 95,
+        status: 'active',
+        addressLine1: '11 Old St',
+        agentOptions: ['Pat Doe', 'Jamie Lee'],
+      },
+    ]);
 
     render(<CustomersAdminPage />);
 
@@ -233,19 +227,16 @@ describe('Operator Customers Page', () => {
   });
 
   it('suspends and reactivates a customer account from the configure panel', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        {
-          id: 'c-1',
-          name: 'Acme Corp',
-          email: 'acme@example.com',
-          billingRatePerHour: 95,
-          status: 'active',
-          addressLine1: '11 Old St',
-        },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      {
+        id: 'c-1',
+        name: 'Acme Corp',
+        email: 'acme@example.com',
+        billingRatePerHour: 95,
+        status: 'active',
+        addressLine1: '11 Old St',
+      },
+    ]);
 
     render(<CustomersAdminPage />);
 
@@ -267,24 +258,21 @@ describe('Operator Customers Page', () => {
   });
 
   it('does not re-geocode an unchanged address when saving other edits (#58)', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        {
-          id: 'c-1',
-          name: 'Acme Corp',
-          email: 'acme@example.com',
-          billingRatePerHour: 95,
-          status: 'active',
-          addressLine1: '11 Old St',
-          standingInstructions: 'Legacy instructions',
-          defaultNumberOfSigns: 2,
-          defaultAgentName: 'Pat Doe',
-          defaultAgentInitials: 'PD',
-          agentOptions: ['Pat Doe', 'Jamie Lee'],
-        },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      {
+        id: 'c-1',
+        name: 'Acme Corp',
+        email: 'acme@example.com',
+        billingRatePerHour: 95,
+        status: 'active',
+        addressLine1: '11 Old St',
+        standingInstructions: 'Legacy instructions',
+        defaultNumberOfSigns: 2,
+        defaultAgentName: 'Pat Doe',
+        defaultAgentInitials: 'PD',
+        agentOptions: ['Pat Doe', 'Jamie Lee'],
+      },
+    ]);
 
     render(<CustomersAdminPage />);
 
@@ -315,18 +303,15 @@ describe('Operator Customers Page', () => {
   });
 
   it('navigates to payment details for the selected customer', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        {
-          id: 'c-1',
-          name: 'Acme Corp',
-          email: 'acme@example.com',
-          billingRatePerHour: 95,
-          status: 'active',
-        },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      {
+        id: 'c-1',
+        name: 'Acme Corp',
+        email: 'acme@example.com',
+        billingRatePerHour: 95,
+        status: 'active',
+      },
+    ]);
 
     render(<CustomersAdminPage />);
 
@@ -340,12 +325,9 @@ describe('Operator Customers Page', () => {
   });
 
   it('shows a per-customer user count from listAllCustomerUsers', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'c-1', name: 'Acme Corp', email: 'a@example.com', billingRatePerHour: 95, status: 'active' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'c-1', name: 'Acme Corp', email: 'a@example.com', billingRatePerHour: 95, status: 'active' },
+    ]);
     (listAllCustomerUsers as jest.Mock).mockResolvedValue([
       { id: 'u-1', customerId: 'c-1' },
       { id: 'u-2', customerId: 'c-1' },
@@ -361,13 +343,10 @@ describe('Operator Customers Page', () => {
   });
 
   it('sorts the customer list by name', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'c-1', name: 'Zenith Co', email: 'z@example.com', billingRatePerHour: 95, status: 'active' },
-        { id: 'c-2', name: 'Acme Corp', email: 'a@example.com', billingRatePerHour: 95, status: 'inactive' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'c-1', name: 'Zenith Co', email: 'z@example.com', billingRatePerHour: 95, status: 'active' },
+      { id: 'c-2', name: 'Acme Corp', email: 'a@example.com', billingRatePerHour: 95, status: 'inactive' },
+    ]);
 
     render(<CustomersAdminPage />);
 
@@ -396,19 +375,16 @@ describe('Operator Customers Page', () => {
 
   it('offers a retry action when loading customers fails', async () => {
     (listAllCustomers as jest.Mock)
-      .mockResolvedValueOnce({ data: null, errors: [new Error('network')] })
-      .mockResolvedValueOnce({
-        data: [
-          {
-            id: 'c-1',
-            name: 'Acme Corp',
-            email: 'acme@example.com',
-            billingRatePerHour: 95,
-            status: 'active',
-          },
-        ],
-        errors: undefined,
-      });
+      .mockRejectedValueOnce(new Error('customer read failed'))
+      .mockResolvedValueOnce([
+        {
+          id: 'c-1',
+          name: 'Acme Corp',
+          email: 'acme@example.com',
+          billingRatePerHour: 95,
+          status: 'active',
+        },
+      ]);
 
     render(<CustomersAdminPage />);
 
@@ -425,10 +401,7 @@ describe('Operator Customers Page', () => {
   });
   describe('feature flags', () => {
     async function openAcme() {
-      (listAllCustomers as jest.Mock).mockResolvedValue({
-        data: [{ id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', status: 'active', addressLine1: '1 St' }],
-        errors: undefined,
-      });
+      (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', status: 'active', addressLine1: '1 St' }]);
       render(<CustomersAdminPage />);
       fireEvent.click(await screen.findByRole('button', { name: /configure customer acme corp/i }));
       await screen.findByRole('heading', { name: /configure — acme corp/i });

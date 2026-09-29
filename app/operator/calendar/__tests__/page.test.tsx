@@ -26,10 +26,7 @@ jest.mock('@/app/components/ServiceCalendar', () => ({
 describe('Operator Calendar page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [{ id: 'cust-1', name: 'Harcourts Epping', viewerSubs: ['sub-a'] }],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'cust-1', name: 'Harcourts Epping', viewerSubs: ['sub-a'] }]);
   });
 
   it('loads customers and renders the calendar in staff role', async () => {

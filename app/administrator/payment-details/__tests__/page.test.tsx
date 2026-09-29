@@ -48,35 +48,29 @@ jest.mock('@/lib/driverSplit', () => ({
 describe('Administrator Payment Details page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-1', name: 'Harcourts Epping' },
-        { id: 'cust-2', name: 'Ray White Eastwood' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping' },
+      { id: 'cust-2', name: 'Ray White Eastwood' },
+    ]);
     (getCustomer as jest.Mock).mockResolvedValue({
-      data: {
-        id: 'cust-1',
-        billingCycle: 'monthly',
-        paymentTermsDays: 14,
-        gstAbn: '48 221 604 992',
-        gstRegistered: true,
-        gstExclusive: true,
-        groupLineItemsByAgent: false,
-        autoSendInvoiceOnPeriodClose: false,
-        directDebitAccountName: 'Harcourts Epping Pty Ltd',
-        directDebitBsb: '062-217',
-        directDebitAccountNumber: '4192',
-        directDebitAuthorizedAt: '2026-07-04T00:00:00Z',
-        billingRatePerHour: 30,
-        driverSplitPercent: 40,
-        hideDriverSplitFromCustomer: false,
-        paySplitOnCompletedStopsOnly: false,
-      },
-      errors: undefined,
+      id: 'cust-1',
+      billingCycle: 'monthly',
+      paymentTermsDays: 14,
+      gstAbn: '48 221 604 992',
+      gstRegistered: true,
+      gstExclusive: true,
+      groupLineItemsByAgent: false,
+      autoSendInvoiceOnPeriodClose: false,
+      directDebitAccountName: 'Harcourts Epping Pty Ltd',
+      directDebitBsb: '062-217',
+      directDebitAccountNumber: '4192',
+      directDebitAuthorizedAt: '2026-07-04T00:00:00Z',
+      billingRatePerHour: 30,
+      driverSplitPercent: 40,
+      hideDriverSplitFromCustomer: false,
+      paySplitOnCompletedStopsOnly: false,
     });
-    (updateCustomer as jest.Mock).mockResolvedValue({ data: { id: 'cust-1' }, errors: undefined });
+    (updateCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1' });
     (listRateLines as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
     (createRateLine as jest.Mock).mockResolvedValue({ data: { id: 'line-new' }, errors: undefined });
     (deleteRateLine as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
@@ -114,6 +108,16 @@ describe('Administrator Payment Details page', () => {
 
     expect(await screen.findByDisplayValue('48 221 604 992')).toBeInTheDocument();
     expect(screen.getByText(/mandate signed/i)).toBeInTheDocument();
+  });
+
+  it('shows a load error and no save panels when the customer cannot be read', async () => {
+    (getCustomer as jest.Mock).mockRejectedValue(new Error('customer read failed'));
+
+    render(<AdministratorPaymentDetailsPage />);
+
+    expect(await screen.findByText("Couldn't load this customer. Reload to try again.")).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save billing cycle & tax/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save payment details/i })).not.toBeInTheDocument();
   });
 
   it('saves billing cycle & tax settings', async () => {
@@ -164,7 +168,7 @@ describe('Administrator Payment Details page', () => {
   });
 
   it('shows an empty state when there are no customers', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllCustomers as jest.Mock).mockResolvedValue([]);
 
     render(<AdministratorPaymentDetailsPage />);
 
@@ -172,7 +176,7 @@ describe('Administrator Payment Details page', () => {
   });
 
   it('loads and displays the org-wide pay-to details, even with no customers', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllCustomers as jest.Mock).mockResolvedValue([]);
 
     render(<AdministratorPaymentDetailsPage />);
 
@@ -279,13 +283,10 @@ describe('Administrator Payment Details page', () => {
   });
 
   it('copies rate lines from another customer', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-1', name: 'Harcourts Epping' },
-        { id: 'cust-2', name: 'Ray White Eastwood' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping' },
+      { id: 'cust-2', name: 'Ray White Eastwood' },
+    ]);
 
     (listRateLines as jest.Mock).mockImplementation((customerId: string) => {
       if (customerId === 'cust-2') {

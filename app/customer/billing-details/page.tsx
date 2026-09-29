@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import type { Customer } from '@/amplify/types';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
-import { unwrapOrThrow } from '@/lib/graphqlResult';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
@@ -22,8 +21,11 @@ function parseCcEmails(value: string) {
 }
 
 async function fetchBillingDetailsData(context: CustomerPortalContext): Promise<Customer | null> {
-  const result = await getCustomer(context.customerId);
-  return unwrapOrThrow(result, 'Could not load billing details.') as Customer | null;
+  try {
+    return (await getCustomer(context.customerId)) as Customer | null;
+  } catch {
+    throw new Error('Could not load billing details.');
+  }
 }
 
 export default function CustomerBillingDetailsPage() {
@@ -66,15 +68,14 @@ export default function CustomerBillingDetailsPage() {
     setEmailError(null);
     setEmailSuccess(null);
 
-    const result = await updateCustomer(customerId, {
-      email: billingEmail.trim(),
-      billingCcEmails: parseCcEmails(billingCcEmailsText),
-      attachAgentBreakdown,
-    });
-
-    if (result.errors && result.errors.length > 0) {
-      const firstError = result.errors[0] as { message?: string } | undefined;
-      setEmailError(firstError?.message ?? 'Could not save billing email.');
+    try {
+      await updateCustomer(customerId, {
+        email: billingEmail.trim(),
+        billingCcEmails: parseCcEmails(billingCcEmailsText),
+        attachAgentBreakdown,
+      });
+    } catch {
+      setEmailError('Could not save billing email.');
       setSavingEmail(false);
       return;
     }
@@ -89,15 +90,14 @@ export default function CustomerBillingDetailsPage() {
     setAddressError(null);
     setAddressSuccess(null);
 
-    const result = await updateCustomer(customerId, {
-      companyName: companyName.trim(),
-      gstAbn: gstAbn.trim(),
-      addressLine1: addressLine1.trim(),
-    });
-
-    if (result.errors && result.errors.length > 0) {
-      const firstError = result.errors[0] as { message?: string } | undefined;
-      setAddressError(firstError?.message ?? 'Could not save billing address.');
+    try {
+      await updateCustomer(customerId, {
+        companyName: companyName.trim(),
+        gstAbn: gstAbn.trim(),
+        addressLine1: addressLine1.trim(),
+      });
+    } catch {
+      setAddressError('Could not save billing address.');
       setSavingAddress(false);
       return;
     }

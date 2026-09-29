@@ -209,14 +209,14 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     }
 
     if (applyToAllCustomers) {
-      const customersResult = await listAllCustomers();
-      if (customersResult.errors && customersResult.errors.length > 0) {
+      const customers = await listAllCustomers().catch(() => null);
+      if (!customers) {
         setActionError('Could not load customers to apply the block to.');
         setActionPending(false);
         return;
       }
 
-      const activeCustomers = (customersResult.data || []).filter((c) => c.status === 'active');
+      const activeCustomers = customers.filter((c) => c.status === 'active');
       const failures: string[] = [];
 
       for (const activeCustomer of activeCustomers) {

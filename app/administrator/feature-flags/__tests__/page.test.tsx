@@ -40,12 +40,10 @@ describe('Administrator Feature Flags page', () => {
       alpha: { label: 'Alpha feature', description: 'Lets customers do alpha things.' },
       beta: { label: 'Beta feature', description: 'Lets customers do beta things.' },
     };
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'c2', name: 'Ray White Eastwood' },
-        { id: 'c1', name: 'Harcourts Epping' },
-      ],
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'c2', name: 'Ray White Eastwood' },
+      { id: 'c1', name: 'Harcourts Epping' },
+    ]);
     (listFeatureFlagSettings as jest.Mock).mockResolvedValue({
       data: [
         { id: 'alpha', state: 'selected', selectedCustomerIds: ['c1'] },

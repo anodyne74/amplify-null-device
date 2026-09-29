@@ -67,7 +67,7 @@ jest.mock('@/lib/routes', () => ({
 }));
 
 jest.mock('@/lib/customers', () => ({
-  getCustomer: jest.fn().mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined }),
+  getCustomer: jest.fn().mockResolvedValue({ id: 'cust-abcd-5678', name: 'Acme Corp' }),
 }));
 
 const mockRoute: Route = {

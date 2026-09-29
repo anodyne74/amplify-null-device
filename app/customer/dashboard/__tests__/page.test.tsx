@@ -45,15 +45,12 @@ describe('Customer Dashboard', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (getCustomer as jest.Mock).mockResolvedValue({
-      data: {
-        id: 'cust-1',
-        standingInstructions: 'Call before arrival',
-        defaultNumberOfSigns: 3,
-        defaultAgentName: 'Jamie Lee',
-        defaultAgentInitials: 'JL',
-        agentOptions: ['Jamie Lee', 'Pat Doe'],
-      },
-      errors: undefined,
+      id: 'cust-1',
+      standingInstructions: 'Call before arrival',
+      defaultNumberOfSigns: 3,
+      defaultAgentName: 'Jamie Lee',
+      defaultAgentInitials: 'JL',
+      agentOptions: ['Jamie Lee', 'Pat Doe'],
     });
     (useLiveRoutes as jest.Mock).mockReturnValue({
       routes: [

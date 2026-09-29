@@ -25,8 +25,8 @@ import styles from './page.module.css';
 import { getCustomer } from '@/lib/customers';
 
 async function fetchCustomerName(route: Route) {
-  const customerResult = await getCustomer(route.customerId);
-  return (customerResult.data as { name?: string } | null)?.name ?? '';
+  const customer = await getCustomer(route.customerId).catch(() => null);
+  return customer?.name ?? '';
 }
 
 const RouteStopsMap = dynamic(

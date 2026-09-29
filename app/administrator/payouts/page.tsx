@@ -75,10 +75,10 @@ export default function AdministratorPayoutsPage() {
     setLoading(true);
 
     // Best-effort: without names, payouts fall back to operatorLabel()'s short sub.
-    Promise.all([listAllCustomers(), listOperatorPayouts(), fetchDriverNamesBySub().catch(() => new Map<string, string>())]).then(
+    Promise.all([listAllCustomers().catch(() => []), listOperatorPayouts(), fetchDriverNamesBySub().catch(() => new Map<string, string>())]).then(
       ([customerResult, payoutResult, driverNames]) => {
         if (cancelled) return;
-        const customerList = (customerResult.data as { id: string; name: string }[]) || [];
+        const customerList = customerResult as { id: string; name: string }[];
         setCustomers(customerList);
         if (customerList.length > 0) setCreateCustomerId(customerList[0].id);
         setPayouts((payoutResult.data as OperatorPayout[]) || []);
@@ -102,8 +102,7 @@ export default function AdministratorPayoutsPage() {
     setPreviewError(null);
     setPreview(null);
 
-    const customerResult = await getCustomer(createCustomerId);
-    const customer = customerResult.data as Customer | null;
+    const customer = (await getCustomer(createCustomerId).catch(() => null)) as Customer | null;
     if (!customer) {
       setPreviewError('Could not load that customer.');
       setPreviewLoading(false);

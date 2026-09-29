@@ -31,9 +31,9 @@ export function useRoutesList(canDeleteRoutes: boolean) {
     async function fetchCustomers() {
       setCustomersLoading(true);
 
-      const customersResult = await listAllCustomers();
-      if (!customersResult.errors || customersResult.errors.length === 0) {
-        const mapped = (customersResult.data as Array<{ id: string; name: string }>).reduce(
+      const customers = await listAllCustomers().catch(() => null);
+      if (customers) {
+        const mapped = customers.reduce(
           (acc, customer) => {
             acc[customer.id] = customer.name;
             return acc;

@@ -67,10 +67,7 @@ describe('Invoice List Page Integration', () => {
       role: 'account_owner',
       customerId: 'cust-1',
     });
-    (getCustomer as jest.Mock).mockResolvedValue({
-      data: { id: 'cust-1', name: 'Acme Corp' },
-      errors: undefined,
-    });
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', name: 'Acme Corp' });
 
     (listMyInvoicesModule.listMyInvoices as jest.Mock).mockResolvedValue(mockInvoices);
   });

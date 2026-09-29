@@ -108,10 +108,7 @@ describe('Administrator Route Edit Page', () => {
       return {};
     });
 
-    (customersModule.listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [{ id: 'cust-abcd-5678', name: 'Acme Corp', email: 'ops@acme.com', addressLine1: '123 Main St' }],
-      errors: undefined,
-    });
+    (customersModule.listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'cust-abcd-5678', name: 'Acme Corp', email: 'ops@acme.com', addressLine1: '123 Main St' }]);
 
     (userSettingsModule.getUserSettings as jest.Mock).mockResolvedValue({ mapTheme: 'light' });
 

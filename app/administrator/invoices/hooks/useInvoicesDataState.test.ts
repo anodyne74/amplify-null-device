@@ -25,13 +25,10 @@ describe('useInvoicesDataState', () => {
   });
 
   it('loads customers/invoices/routes, enriches primary email, and sorts invoices', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'customer-1', name: 'Acme', email: 'fallback@acme.test', billingRatePerHour: 120 },
-        { id: 'customer-2', name: 'Globex', email: 'ops@globex.test', billingRatePerHour: 95 },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'customer-1', name: 'Acme', email: 'fallback@acme.test', billingRatePerHour: 120 },
+      { id: 'customer-2', name: 'Globex', email: 'ops@globex.test', billingRatePerHour: 95 },
+    ]);
 
     (listCustomerUsers as jest.Mock)
       .mockResolvedValueOnce([{ role: 'account_owner', email: 'owner@acme.test' }])
@@ -97,10 +94,7 @@ describe('useInvoicesDataState', () => {
   });
 
   it('sets invoice load error when invoice query returns errors', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [{ id: 'customer-1', name: 'Acme', email: 'fallback@acme.test' }],
-      errors: undefined
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'customer-1', name: 'Acme', email: 'fallback@acme.test' }]);
     (listCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
     (listInvoices as jest.Mock).mockRejectedValue(new DataError('Failed to load invoices.'));
@@ -131,7 +125,7 @@ describe('useInvoicesDataState', () => {
   });
 
   it('removes an invoice from state via removeInvoiceFromState (#63)', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllCustomers as jest.Mock).mockResolvedValue([]);
     (listCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
     (listInvoices as jest.Mock).mockResolvedValue([
@@ -162,13 +156,10 @@ describe('useInvoicesDataState', () => {
   });
 
   it('patches one customer in state via updateCustomerInState without touching others', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'customer-1', name: 'Acme', groupLineItemsByAgent: false },
-        { id: 'customer-2', name: 'Beta', groupLineItemsByAgent: false },
-      ],
-      errors: undefined
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'customer-1', name: 'Acme', groupLineItemsByAgent: false },
+      { id: 'customer-2', name: 'Beta', groupLineItemsByAgent: false },
+    ]);
     (listCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
     (listInvoices as jest.Mock).mockResolvedValue([]);

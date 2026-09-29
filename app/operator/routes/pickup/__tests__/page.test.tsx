@@ -101,7 +101,7 @@ describe('Operator Pickup page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     searchParamId = 'route-1';
-    (getCustomer as jest.Mock).mockResolvedValue({ data: { name: 'Beltline Group' }, errors: undefined });
+    (getCustomer as jest.Mock).mockResolvedValue({ name: 'Beltline Group' });
     // Real planner, stubbed write: the page gets back the route it would after a successful save.
     (runSignRunTransition as jest.Mock).mockImplementation(async (route, transition) => {
       const plan = planSignRunTransition(route, transition);

@@ -70,13 +70,10 @@ describe('NewRoutePage Route Request', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRequestParam = null;
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'c1', name: 'First Agency', email: 'a@first.test' },
-        { id: 'c2', name: 'Harcourts Epping', email: 'a@epping.test' },
-      ],
-      errors: null,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'c1', name: 'First Agency', email: 'a@first.test' },
+      { id: 'c2', name: 'Harcourts Epping', email: 'a@epping.test' },
+    ]);
     (listAllRoutes as jest.Mock).mockResolvedValue({
       data: [
         { id: 'old-route', customerId: 'c1', routeCode: 'OLD-1' },

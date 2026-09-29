@@ -24,12 +24,12 @@ interface UnloadScreenExtra {
 }
 
 async function fetchUnloadScreenExtra(route: Route): Promise<UnloadScreenExtra> {
-  const [customerResult, orgSettingsResult] = await Promise.all([
-    getCustomer(route.customerId),
+  const [customer, orgSettingsResult] = await Promise.all([
+    getCustomer(route.customerId).catch(() => null),
     getOrganizationSettings(),
   ]);
   return {
-    customerName: (customerResult.data as { name?: string } | null)?.name ?? '',
+    customerName: customer?.name ?? '',
     yardAddress: orgSettingsResult.data?.address ?? null,
   };
 }

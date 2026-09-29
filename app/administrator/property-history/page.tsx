@@ -16,10 +16,10 @@ export default function AdministratorPropertyHistoryPage() {
 
   useEffect(() => {
     let cancelled = false;
-    void listAllCustomers().then((result) => {
+    void listAllCustomers().catch(() => []).then((result) => {
       if (cancelled) return;
       setCustomers(
-        (result.data ?? [])
+        result
           .map((customer) => ({ value: customer.id, label: customer.name || customer.id }))
           .sort((a, b) => a.label.localeCompare(b.label))
       );

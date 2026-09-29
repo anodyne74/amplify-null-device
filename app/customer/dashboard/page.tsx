@@ -6,7 +6,6 @@ import type { Customer } from '@/amplify/types';
 import { usePortalUser } from '@/lib/usePortalUser';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { useLiveRoutes } from '@/lib/useLiveRoutes';
-import { unwrapOrThrow } from '@/lib/graphqlResult';
 import { listCustomerStops } from '@/lib/routes';
 import { formatCurrency } from '@/lib/dashboardAnalytics';
 import { getRouteDate } from '@/lib/routeDetailHelpers';
@@ -64,7 +63,9 @@ interface DashboardData {
 }
 
 async function fetchDashboardData(context: CustomerPortalContext): Promise<DashboardData> {
-  const nextCustomer = unwrapOrThrow(await getCustomer(context.customerId), 'Could not load customer defaults.') as Customer | null;
+  const nextCustomer = (await getCustomer(context.customerId).catch(() => {
+    throw new Error('Could not load customer defaults.');
+  })) as Customer | null;
   if (!nextCustomer) {
     return { stops: [], invoices: [] };
   }

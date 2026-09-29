@@ -39,21 +39,18 @@ describe('Customer Billing Details page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (getCustomer as jest.Mock).mockResolvedValue({
-      data: {
-        id: 'cust-1',
-        email: 'accounts@harcourtsepping.com.au',
-        billingCcEmails: ['prue@harcourtsepping.com.au'],
-        attachAgentBreakdown: true,
-        companyName: 'Harcourts Epping Pty Ltd',
-        gstAbn: '48 221 604 992',
-        addressLine1: 'Suite 3, 52 Beecroft Rd',
-        billingRatePerHour: 65,
-        gstRegistered: true,
-        directDebitAccountName: 'Harcourts Epping Pty Ltd',
-      },
-      errors: undefined,
+      id: 'cust-1',
+      email: 'accounts@harcourtsepping.com.au',
+      billingCcEmails: ['prue@harcourtsepping.com.au'],
+      attachAgentBreakdown: true,
+      companyName: 'Harcourts Epping Pty Ltd',
+      gstAbn: '48 221 604 992',
+      addressLine1: 'Suite 3, 52 Beecroft Rd',
+      billingRatePerHour: 65,
+      gstRegistered: true,
+      directDebitAccountName: 'Harcourts Epping Pty Ltd',
     });
-    (updateCustomer as jest.Mock).mockResolvedValue({ data: { id: 'cust-1' }, errors: undefined });
+    (updateCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1' });
   });
 
   it('allows the account owner to save the billing email', async () => {

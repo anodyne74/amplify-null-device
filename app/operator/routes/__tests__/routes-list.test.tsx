@@ -60,13 +60,10 @@ describe('Operator Routes List Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (amplifyConfigModule.isAdmin as jest.Mock).mockReturnValue(true);
-    (listAllCustomersModule.listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-bbbb-2222', name: 'Acme Corp', email: 'acme@example.com' },
-        { id: 'cust-dddd-4444', name: 'Globex Inc', email: 'globex@example.com' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomersModule.listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-bbbb-2222', name: 'Acme Corp', email: 'acme@example.com' },
+      { id: 'cust-dddd-4444', name: 'Globex Inc', email: 'globex@example.com' },
+    ]);
   });
 
   it('renders loading spinner initially', async () => {

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import type { Customer, StandingPickupDay } from '@/amplify/types';
 import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
-import { unwrapOrThrow } from '@/lib/graphqlResult';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
@@ -32,8 +31,11 @@ function formatUpdatedAt(value?: string | null) {
 }
 
 async function fetchOrdersData(context: CustomerPortalContext): Promise<Customer | null> {
-  const result = await getCustomer(context.customerId);
-  return unwrapOrThrow(result, 'Could not load standing orders.') as Customer | null;
+  try {
+    return (await getCustomer(context.customerId)) as Customer | null;
+  } catch {
+    throw new Error('Could not load standing orders.');
+  }
 }
 
 export default function CustomerStandingOrdersPage() {
@@ -81,22 +83,20 @@ export default function CustomerStandingOrdersPage() {
     setSaveError(null);
     setSaveSuccess(null);
 
-    const result = await updateCustomer(customerId, {
-      standingInstructions,
-      defaultNumberOfSigns: parsedSigns,
-      standingPickupDay,
-      sendMissingSignsReport,
-    });
-
-    if (result.errors && result.errors.length > 0) {
-      const firstError = result.errors[0] as { message?: string } | undefined;
-      setSaveError(firstError?.message ?? 'Could not save standing orders.');
+    try {
+      await updateCustomer(customerId, {
+        standingInstructions,
+        defaultNumberOfSigns: parsedSigns,
+        standingPickupDay,
+        sendMissingSignsReport,
+      });
+    } catch {
+      setSaveError('Could not save standing orders.');
       setSaving(false);
       return;
     }
 
-    const refreshed = await getCustomer(customerId);
-    const nextCustomer = refreshed.data as Customer | null;
+    const nextCustomer = (await getCustomer(customerId).catch(() => null)) as Customer | null;
     if (nextCustomer) setCustomer(nextCustomer);
 
     setSaveSuccess('Preferences saved.');

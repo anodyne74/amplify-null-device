@@ -35,10 +35,10 @@ export default function OperatorDashboard() {
   useEffect(() => {
     async function loadCustomers() {
       setCustomersLoading(true);
-      const customersResult = await listAllCustomers();
+      const customers = await listAllCustomers().catch(() => null);
 
-      if (!customersResult.errors || customersResult.errors.length === 0) {
-        const mapped = (customersResult.data as Array<{ id: string; name: string }>).reduce(
+      if (customers) {
+        const mapped = customers.reduce(
           (acc, customer) => {
             acc[customer.id] = customer.name;
             return acc;

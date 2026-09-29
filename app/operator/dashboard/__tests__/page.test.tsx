@@ -37,7 +37,7 @@ function baseRoute(overrides: Partial<Route>): Route {
 describe('Operator Dashboard (Today)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [{ id: 'cust-1', name: 'Beltline Group' }], errors: undefined });
+    (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'cust-1', name: 'Beltline Group' }]);
     (getRouteWithStops as jest.Mock).mockResolvedValue({ route: null, stops: [], errors: [] });
   });
 

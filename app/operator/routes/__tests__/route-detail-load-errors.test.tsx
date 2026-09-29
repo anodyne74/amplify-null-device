@@ -86,7 +86,7 @@ describe('Operator Route Detail Page — load-failure handling (#57)', () => {
     jest.clearAllMocks();
     searchParamId = 'route-test-id-1234';
     mockFetched.route = mockRoute;
-    (getCustomer as jest.Mock).mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined });
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-abcd-5678', name: 'Acme Corp' });
   });
 
   it('shows an error instead of an infinite spinner when no route id is present', async () => {

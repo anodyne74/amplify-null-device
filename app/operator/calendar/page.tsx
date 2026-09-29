@@ -21,9 +21,9 @@ export default function OperatorCalendarPage() {
   useEffect(() => {
     let cancelled = false;
 
-    void listAllCustomers().then((result) => {
+    void listAllCustomers().catch(() => []).then((result) => {
       if (cancelled) return;
-      const list = (result.data as Customer[]) || [];
+      const list = result as Customer[];
       setCustomers(list);
       if (list.length > 0) setSelectedCustomerId(list[0].id);
       setLoading(false);

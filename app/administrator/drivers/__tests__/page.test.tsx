@@ -80,13 +80,10 @@ describe('Administrator Drivers page', () => {
       errors: undefined,
     });
 
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-1', name: 'Harcourts Epping' },
-        { id: 'cust-2', name: 'Ray White Eastwood' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping' },
+      { id: 'cust-2', name: 'Ray White Eastwood' },
+    ]);
 
     (updateOperator as jest.Mock).mockResolvedValue({ data: { id: 'sub-1' }, errors: undefined });
     (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined, nextToken: undefined });

@@ -200,12 +200,12 @@ export default function UsersAdminPage() {
 
   // ── Customer Access ──────────────────────────────────────────────
   const loadCustomers = useCallback(async () => {
-    const result = await listAllCustomers();
-    if (result.errors && result.errors.length > 0) {
+    const result = await listAllCustomers().catch(() => null);
+    if (!result) {
       return;
     }
 
-    const allCustomers = result.data as CustomerSummary[];
+    const allCustomers = result as CustomerSummary[];
     setCustomers(allCustomers);
     if (allCustomers.length > 0 && !selectedCustomerId) {
       setSelectedCustomerId(allCustomers[0].id);

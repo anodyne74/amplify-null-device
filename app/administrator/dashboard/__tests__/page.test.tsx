@@ -54,13 +54,10 @@ describe('Administrator dashboard overview', () => {
 
     (listCustomerUsers as jest.Mock).mockResolvedValue([{ customerId: 'customer-1', role: 'account_owner' }]);
 
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'customer-1', name: 'Acme Corp' },
-        { id: 'customer-2', name: 'Beta Signs' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'customer-1', name: 'Acme Corp' },
+      { id: 'customer-2', name: 'Beta Signs' },
+    ]);
   });
 
   it('renders overview stat tiles, charts, customer volume, and needs-attention derived from live data', async () => {

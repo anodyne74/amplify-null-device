@@ -4,9 +4,8 @@
  * browser reads and writes it through the signed-in user's data client. The
  * server-side viewerSubs upkeep lives in lib/customerAccess.ts.
  *
- * The CustomerUser and CustomerClosureBlock functions return their data or
- * throw a DataError (lib/graphqlResult.ts); the Customer ones still return
- * {data, errors} until they move over too.
+ * Every function returns its data or throws a DataError (lib/graphqlResult.ts);
+ * a Customer that doesn't exist is null.
  */
 import { normalizeCustomerDefaults } from '@/lib/customerDefaults';
 import { getDataClient } from '@/lib/data-client';
@@ -15,35 +14,18 @@ import { listAll } from '@/lib/listAll';
 
 /** Every Customer, paginated through to the end -- see lib/listAll.ts. */
 export async function listAllCustomers() {
-  try {
-    const { data, errors } = await listAll(getDataClient(), 'Customer');
-
-    if (errors.length > 0) {
-      console.error('Errors fetching customers:', errors);
-      return { data: [], errors };
-    }
-
-    return { data, errors: undefined };
-  } catch (error) {
-    console.error('Error listing all customers:', error);
-    return { data: [], errors: [error as Error] };
-  }
+  return withDataError('Failed to load customers.', async () =>
+    resultData(await listAll(getDataClient(), 'Customer')) ?? []
+  );
 }
 
 /**
  * Fetch a specific customer by ID
  */
 export async function getCustomer(customerId: string) {
-  try {
-    const { data, errors } = await getDataClient().models.Customer.get({ id: customerId });
-    if (errors) {
-      console.error('Errors fetching customer:', errors);
-    }
-    return { data, errors };
-  } catch (error) {
-    console.error('Error getting customer:', error);
-    return { data: null, errors: [error] };
-  }
+  return withDataError('Failed to load customer.', async () =>
+    resultData(await getDataClient().models.Customer.get({ id: customerId }))
+  );
 }
 
 /**
@@ -63,18 +45,9 @@ export async function createCustomer(input: {
   status?: 'active' | 'inactive' | 'suspended';
   billingRatePerHour: number;
 }) {
-  try {
-    const { data, errors } = await getDataClient().models.Customer.create(normalizeCustomerDefaults(input));
-
-    if (errors) {
-      console.error('Errors creating customer:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error creating customer:', error);
-    return { data: null, errors: [error] };
-  }
+  return withDataError('Failed to create customer.', async () =>
+    resultData(await getDataClient().models.Customer.create(normalizeCustomerDefaults(input)))
+  );
 }
 
 /**
@@ -121,21 +94,9 @@ export async function updateCustomer(
     restrictInvitesToOwnDomain: boolean;
   }>
 ) {
-  try {
-    const { data, errors } = await getDataClient().models.Customer.update({
-      id: customerId,
-      ...normalizeCustomerDefaults(updates),
-    });
-
-    if (errors) {
-      console.error('Errors updating customer:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error updating customer:', error);
-    return { data: null, errors: [error] };
-  }
+  return withDataError('Failed to update customer.', async () =>
+    resultData(await getDataClient().models.Customer.update({ id: customerId, ...normalizeCustomerDefaults(updates) }))
+  );
 }
 
 /**

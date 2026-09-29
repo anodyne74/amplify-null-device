@@ -27,10 +27,7 @@ jest.mock('@/app/components/ServiceCalendar', () => ({
 describe('Customer Calendar page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (getCustomer as jest.Mock).mockResolvedValue({
-      data: { id: 'cust-1', viewerSubs: ['owner-sub', 'reviewer-sub'] },
-      errors: undefined,
-    });
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', viewerSubs: ['owner-sub', 'reviewer-sub'] });
   });
 
   it('maps account_owner role to customer-admin', async () => {

@@ -179,15 +179,15 @@ export default function CustomersAdminPage() {
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    const result = await listAllCustomers();
-    if (result.errors && result.errors.length > 0) {
+    const result = await listAllCustomers().catch(() => null);
+    if (!result) {
       setLoadError('Failed to load customers.');
       setCustomers([]);
       setLoading(false);
       return;
     }
 
-    setCustomers(result.data as Customer[]);
+    setCustomers(result as Customer[]);
     setLoading(false);
   }, []);
 
@@ -258,7 +258,7 @@ export default function CustomersAdminPage() {
     try {
       const resolved = createResolvedAddress ?? (await geocodeAddress(addressLine1.trim()));
 
-      const result = await createCustomer({
+      const created = await createCustomer({
         name,
         companyName: companyName.trim() || undefined,
         email,
@@ -268,9 +268,9 @@ export default function CustomersAdminPage() {
         standingInstructions,
         defaultNumberOfSigns: createSigns,
         agentOptions,
-      });
+      }).then(() => true, () => false);
 
-      if (result.errors && result.errors.length > 0) {
+      if (!created) {
         setError('Failed to create customer.');
       } else {
         setName('');
@@ -359,7 +359,7 @@ export default function CustomersAdminPage() {
           }
         : {};
 
-      const result = await updateCustomer(customerId, {
+      const updated = await updateCustomer(customerId, {
         name: editName.trim(),
         companyName: editCompanyName.trim() || undefined,
         email: editEmail.trim(),
@@ -372,9 +372,9 @@ export default function CustomersAdminPage() {
         agentOptions: editAgentOptions,
         restrictInvitesToOwnDomain: editRestrictInvitesToOwnDomain,
         ...standingInstructionsStamp,
-      });
+      }).then(() => true, () => false);
 
-      if (result.errors && result.errors.length > 0) {
+      if (!updated) {
         setEditError('Failed to update customer.');
       } else {
         setCustomers((prev) =>

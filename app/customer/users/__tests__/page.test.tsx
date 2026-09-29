@@ -30,10 +30,7 @@ describe('Customer Team page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockOnFlags = ['account-owner-invite'];
-    (getCustomer as jest.Mock).mockResolvedValue({
-      data: { id: 'cust-1', email: 'owner@rangeproperty.com.au', restrictInvitesToOwnDomain: false },
-      errors: undefined,
-    });
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', email: 'owner@rangeproperty.com.au', restrictInvitesToOwnDomain: false });
     (listCustomerUsers as jest.Mock).mockResolvedValue([
       { id: 'cu-1', name: 'Priya Owner', email: 'owner@rangeproperty.com.au', role: 'account_owner' },
     ]);
@@ -61,10 +58,7 @@ describe('Customer Team page', () => {
 
   it('shows the required domain hint when restriction is on', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
-    (getCustomer as jest.Mock).mockResolvedValue({
-      data: { id: 'cust-1', email: 'owner@rangeproperty.com.au', restrictInvitesToOwnDomain: true },
-      errors: undefined,
-    });
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', email: 'owner@rangeproperty.com.au', restrictInvitesToOwnDomain: true });
 
     render(<CustomerTeamPage />);
 

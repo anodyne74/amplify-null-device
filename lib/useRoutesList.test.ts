@@ -51,13 +51,10 @@ describe('useRoutesList', () => {
       error: null,
     });
 
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'customer-1', name: 'Acme Corp' },
-        { id: 'customer-2', name: 'Globex Inc' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'customer-1', name: 'Acme Corp' },
+      { id: 'customer-2', name: 'Globex Inc' },
+    ]);
 
     (deleteRoute as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
   });

@@ -55,8 +55,8 @@ async function fetchCustomerData(context: CustomerPortalContext): Promise<Custom
   // CustomerUser is only readable by its own owner (self) or the account
   // owner (all rows) — a read_only viewer gets back just their own record,
   // so entries authored by a teammate fall back to the stored agentLabel.
-  const [{ data: fetchedCustomer }, fetchedCustomerUsers] = await Promise.all([
-    getCustomer(context.customerId),
+  const [fetchedCustomer, fetchedCustomerUsers] = await Promise.all([
+    getCustomer(context.customerId).catch(() => null),
     listCustomerUsers(context.customerId).catch(() => []),
   ]);
 

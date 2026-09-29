@@ -96,7 +96,7 @@ export default function AdminHomePage() {
         const [routeResult, invoiceResult, customerResult, stopResult] = await Promise.all([
           listAllRoutes(),
           listInvoices().catch(() => null),
-          listAllCustomers(),
+          listAllCustomers().catch(() => null),
           listAllStops(),
         ]);
 
@@ -109,8 +109,8 @@ export default function AdminHomePage() {
         }
 
         let loadedCustomers: CustomerSummary[] = [];
-        if (!customerResult.errors || customerResult.errors.length === 0) {
-          loadedCustomers = (customerResult.data as CustomerSummary[]) ?? [];
+        if (customerResult) {
+          loadedCustomers = customerResult as CustomerSummary[];
           setCustomers(loadedCustomers);
         }
 

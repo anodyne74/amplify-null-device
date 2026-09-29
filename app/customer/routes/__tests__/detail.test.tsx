@@ -125,10 +125,7 @@ describe('Customer route detail tracker', () => {
     });
     (updateRouteCustomerInstructions as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
     (updateRoute as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
-    (getCustomer as jest.Mock).mockResolvedValue({
-      data: { id: 'cust-1', agentOptions: ["Betty O'Shea", 'David Mun'] },
-      errors: undefined,
-    });
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', agentOptions: ["Betty O'Shea", 'David Mun'] });
     (listCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listCustomerRouteRequests as jest.Mock).mockResolvedValue([]);
   });

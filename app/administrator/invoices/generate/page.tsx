@@ -68,8 +68,8 @@ function GenerateInvoiceContent() {
     if (!customerId) return;
     const previousValue = selectedCustomer?.groupLineItemsByAgent ?? false;
     updateCustomerInState(customerId, { groupLineItemsByAgent: nextValue });
-    const result = await updateCustomer(customerId, { groupLineItemsByAgent: nextValue });
-    if (result.errors && result.errors.length > 0) {
+    const saved = await updateCustomer(customerId, { groupLineItemsByAgent: nextValue }).then(() => true, () => false);
+    if (!saved) {
       updateCustomerInState(customerId, { groupLineItemsByAgent: previousValue });
       setError('Failed to update the on-charging grouping setting.');
     }

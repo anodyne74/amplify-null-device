@@ -19,18 +19,15 @@ describe('Customer Standing Orders page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (getCustomer as jest.Mock).mockResolvedValue({
-      data: {
-        id: 'cust-1',
-        standingInstructions: 'Call before arrival',
-        defaultNumberOfSigns: 3,
-        standingPickupDay: 'saturday',
-        sendMissingSignsReport: true,
-        agentOptions: ['BO', 'Jamie Lee', 'Pat Doe'],
-        updatedAt: '2026-08-12T00:00:00Z',
-      },
-      errors: undefined,
+      id: 'cust-1',
+      standingInstructions: 'Call before arrival',
+      defaultNumberOfSigns: 3,
+      standingPickupDay: 'saturday',
+      sendMissingSignsReport: true,
+      agentOptions: ['BO', 'Jamie Lee', 'Pat Doe'],
+      updatedAt: '2026-08-12T00:00:00Z',
     });
-    (updateCustomer as jest.Mock).mockResolvedValue({ data: { id: 'cust-1' }, errors: undefined });
+    (updateCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1' });
   });
 
   it('allows the account owner to save standing order preferences', async () => {
@@ -128,10 +125,7 @@ describe('Customer Standing Orders page', () => {
 
   it('stars the legacy default agent when the customer has no agent list', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'read_only', customerId: 'cust-1' });
-    (getCustomer as jest.Mock).mockResolvedValue({
-      data: { id: 'cust-1', agentOptions: null, defaultAgentName: 'Kim Park' },
-      errors: undefined,
-    });
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', agentOptions: null, defaultAgentName: 'Kim Park' });
 
     render(<CustomerStandingOrdersPage />);
 
@@ -141,10 +135,7 @@ describe('Customer Standing Orders page', () => {
 
   it('stars the first agent in the list even when a stale defaultAgentName names another', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'read_only', customerId: 'cust-1' });
-    (getCustomer as jest.Mock).mockResolvedValue({
-      data: { id: 'cust-1', agentOptions: ['DM', 'KP'], defaultAgentName: 'KP' },
-      errors: undefined,
-    });
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', agentOptions: ['DM', 'KP'], defaultAgentName: 'KP' });
 
     render(<CustomerStandingOrdersPage />);
 
@@ -157,7 +148,7 @@ describe('Customer Standing Orders page', () => {
 
   it('shows the empty state when no agents are configured', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'read_only', customerId: 'cust-1' });
-    (getCustomer as jest.Mock).mockResolvedValue({ data: { id: 'cust-1', agentOptions: [] }, errors: undefined });
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', agentOptions: [] });
 
     render(<CustomerStandingOrdersPage />);
 

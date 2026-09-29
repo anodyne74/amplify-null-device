@@ -109,7 +109,7 @@ export default function AdministratorDriversPage() {
       const [usersPayload, operatorsResult, customersResult, routesResult, stopsResult] = await Promise.all([
         callApi('/api/admin/users', { action: 'listUsersInGroup', groupName: 'operator' }),
         listOperators(),
-        listAllCustomers(),
+        listAllCustomers().catch(() => []),
         listAllRoutes(),
         listAllStops(),
       ]);
@@ -124,7 +124,7 @@ export default function AdministratorDriversPage() {
         .sort((a, b) => a.name.localeCompare(b.name));
 
       setDrivers(merged);
-      setCustomers((customersResult.data as CustomerSummary[]) || []);
+      setCustomers(customersResult as CustomerSummary[]);
       setRoutes(routesResult.data as Route[]);
       setStops(stopsResult.data as StopSummary[]);
       setSelectedId((current) => (current && merged.some((d) => d.id === current) ? current : merged[0]?.id || ''));

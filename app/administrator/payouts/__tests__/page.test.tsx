@@ -42,13 +42,10 @@ jest.mock('@/lib/driverSplit', () => ({
 describe('Administrator Payouts page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-1', name: 'Harcourts Epping' },
-        { id: 'cust-2', name: 'Ray White Eastwood' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping' },
+      { id: 'cust-2', name: 'Ray White Eastwood' },
+    ]);
     (listOperatorPayouts as jest.Mock).mockResolvedValue({
       data: [
         {
@@ -72,10 +69,7 @@ describe('Administrator Payouts page', () => {
       ],
       errors: undefined,
     });
-    (getCustomer as jest.Mock).mockResolvedValue({
-      data: { id: 'cust-1', billingRatePerHour: 30, driverSplitPercent: 40, paySplitOnCompletedStopsOnly: false },
-      errors: undefined,
-    });
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', billingRatePerHour: 30, driverSplitPercent: 40, paySplitOnCompletedStopsOnly: false });
     (createOperatorPayout as jest.Mock).mockResolvedValue({ data: { id: 'payout-new' }, errors: undefined });
     (updateOperatorPayout as jest.Mock).mockResolvedValue({ data: { id: 'payout-1' }, errors: undefined });
     (computeDriverSplit as jest.Mock).mockResolvedValue({

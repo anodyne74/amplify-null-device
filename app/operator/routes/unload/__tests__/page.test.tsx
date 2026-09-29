@@ -85,7 +85,7 @@ describe('Operator Unload page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     searchParamId = 'route-1';
-    (getCustomer as jest.Mock).mockResolvedValue({ data: { name: 'Beltline Group' }, errors: undefined });
+    (getCustomer as jest.Mock).mockResolvedValue({ name: 'Beltline Group' });
     (getOrganizationSettings as jest.Mock).mockResolvedValue({
       data: { address: '22 Dryburgh St, West Melbourne' },
       errors: undefined,

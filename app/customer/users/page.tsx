@@ -31,12 +31,12 @@ interface UsersData {
 
 async function fetchUsersData(context: CustomerPortalContext): Promise<UsersData> {
   try {
-    const [customerResult, teammates] = await Promise.all([
+    const [customer, teammates] = await Promise.all([
       getCustomer(context.customerId),
       listCustomerUsers(context.customerId),
     ]);
     return {
-      customer: (customerResult.data as unknown as Customer) || null,
+      customer: (customer as unknown as Customer) || null,
       teammates: teammates as TeammateRow[],
     };
   } catch {

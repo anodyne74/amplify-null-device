@@ -128,7 +128,7 @@ function RouteEditContent() {
 
       const [routeResult, customersResult, operatorsResult] = await Promise.all([
         getRouteWithStops(routeId),
-        listAllCustomers(),
+        listAllCustomers().catch(() => null),
         callApi<{ users?: Array<{ sub?: string; name?: string; email?: string }> }>('/api/admin/users', {
           action: 'listUsersInGroup',
           groupName: 'operator',
@@ -156,9 +156,9 @@ function RouteEditContent() {
           .map((u) => ({ sub: u.sub, name: u.name || u.email, email: u.email }))
       );
 
-      if (!customersResult.errors || customersResult.errors.length === 0) {
+      if (customersResult) {
         setCustomers(
-          (customersResult.data as CustomerOption[]).map((c) => ({
+          (customersResult as CustomerOption[]).map((c) => ({
             id: c.id,
             name: c.name,
             email: c.email,

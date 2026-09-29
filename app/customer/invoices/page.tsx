@@ -51,8 +51,8 @@ function downloadInvoicesCsv(invoices: InvoiceRow[]) {
 }
 
 async function fetchCustomerName(context: CustomerPortalContext): Promise<string | undefined> {
-  const { data } = await getCustomer(context.customerId);
-  return data?.name || undefined;
+  const customer = await getCustomer(context.customerId).catch(() => null);
+  return customer?.name || undefined;
 }
 
 /**

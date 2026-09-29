@@ -57,21 +57,20 @@ describe('customers', () => {
         limit: 1000,
         nextToken: undefined,
       });
-      expect(result.data).toHaveLength(1);
-      expect(result.errors).toBeUndefined();
+      expect(result).toEqual(mockCustomers);
     });
 
-    it('should handle errors gracefully', async () => {
+    it('throws a DataError when the read fails', async () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       mockCustomerList.mockResolvedValue({
         data: [],
-        errors: ['Error fetching customers'],
+        errors: [{ message: 'Error fetching customers' }],
       });
 
-      const result = await listAllCustomers();
-
-      expect(result.data).toEqual([]);
-      expect(result.errors).toBeDefined();
+      await expect(listAllCustomers()).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to load customers.',
+      });
       consoleErrorSpy.mockRestore();
     });
   });
@@ -87,17 +86,23 @@ describe('customers', () => {
       const result = await getCustomer('1');
 
       expect(mockCustomerGet).toHaveBeenCalledWith({ id: '1' });
-      expect(result.data).toEqual(mockCustomer);
+      expect(result).toEqual(mockCustomer);
     });
 
-    it('should return wrapped errors when customer get throws', async () => {
+    it('returns null for a Customer that does not exist', async () => {
+      mockCustomerGet.mockResolvedValue({ data: null, errors: undefined });
+
+      await expect(getCustomer('missing')).resolves.toBeNull();
+    });
+
+    it('throws a DataError when customer get throws', async () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       mockCustomerGet.mockRejectedValue(new Error('customer get failed'));
 
-      const result = await getCustomer('1');
-
-      expect(result.data).toBeNull();
-      expect(result.errors).toHaveLength(1);
+      await expect(getCustomer('1')).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to load customer.',
+      });
       consoleErrorSpy.mockRestore();
     });
   });
@@ -116,7 +121,7 @@ describe('customers', () => {
       });
 
       expect(mockCustomerCreate).toHaveBeenCalled();
-      expect(result.data).toEqual({ id: 'c-created' });
+      expect(result).toEqual({ id: 'c-created' });
     });
 
     it('should update customer', async () => {
@@ -128,7 +133,18 @@ describe('customers', () => {
       const result = await updateCustomer('c1', { name: 'Updated' });
 
       expect(mockCustomerUpdate).toHaveBeenCalled();
-      expect(result.data).toEqual({ id: 'c1', name: 'Updated' });
+      expect(result).toEqual({ id: 'c1', name: 'Updated' });
+    });
+
+    it('throws a DataError when the update fails', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockCustomerUpdate.mockResolvedValue({ data: null, errors: [{ message: 'Not Authorized' }] });
+
+      await expect(updateCustomer('c1', { name: 'Updated' })).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to update customer.',
+      });
+      consoleErrorSpy.mockRestore();
     });
 
   });

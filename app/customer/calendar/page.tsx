@@ -9,8 +9,8 @@ import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useC
 import { getCustomer } from '@/lib/customers';
 
 async function fetchViewerSubs(context: CustomerPortalContext): Promise<string[]> {
-  const result = await getCustomer(context.customerId);
-  return (result.data?.viewerSubs as string[] | null) || [];
+  const customer = await getCustomer(context.customerId).catch(() => null);
+  return (customer?.viewerSubs as string[] | null) || [];
 }
 
 export default function CustomerCalendarPage() {

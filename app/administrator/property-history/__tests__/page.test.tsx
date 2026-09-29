@@ -92,7 +92,7 @@ describe('Administrator Property History page', () => {
     jest.clearAllMocks();
     jest.useRealTimers();
     (listTypeaheadOptions as jest.Mock).mockResolvedValue({ data: OPTIONS });
-    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [{ id: 'c1', name: 'Harcourts Epping' }] });
+    (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'c1', name: 'Harcourts Epping' }]);
     (searchPropertyHistory as jest.Mock).mockResolvedValue(SUBURB_RESULT);
     (listRouteProperties as jest.Mock).mockResolvedValue([
       { propertyKey: CLIFF_14, address: '14 Cliff Rd, Epping' },

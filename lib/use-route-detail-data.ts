@@ -164,37 +164,34 @@ export function useRouteDetailData(id: string, user: unknown) {
     async function fetchCustomer(customerId: string) {
       setCustomerLoading(true);
       try {
-        const customerResult = await getCustomer(customerId);
+        const customer = (await getCustomer(customerId)) as {
+          name?: string;
+          addressLine1?: string | null;
+          billingRatePerHour?: number | null;
+          standingInstructions?: string | null;
+          defaultNumberOfSigns?: number | null;
+          defaultAgentInitials?: string | null;
+          agentOptions?: string[] | null;
+        } | null;
         if (cancelled) return;
-        if (!customerResult.errors || customerResult.errors.length === 0) {
-          const customer = customerResult.data as {
-            name?: string;
-            addressLine1?: string | null;
-            billingRatePerHour?: number | null;
-            standingInstructions?: string | null;
-            defaultNumberOfSigns?: number | null;
-            defaultAgentInitials?: string | null;
-            agentOptions?: string[] | null;
-          } | null;
-          setCustomerName(customer?.name || 'Unknown customer');
-          setCustomerRatePerHour(typeof customer?.billingRatePerHour === 'number' ? customer.billingRatePerHour : null);
-          setCustomerDefaults({
-            standingInstructions: customer?.standingInstructions ?? null,
-            defaultNumberOfSigns: customer?.defaultNumberOfSigns ?? null,
-            defaultAgentInitials: customer?.defaultAgentInitials ?? null,
-            agentOptions: customer?.agentOptions ?? null,
-          });
+        setCustomerName(customer?.name || 'Unknown customer');
+        setCustomerRatePerHour(typeof customer?.billingRatePerHour === 'number' ? customer.billingRatePerHour : null);
+        setCustomerDefaults({
+          standingInstructions: customer?.standingInstructions ?? null,
+          defaultNumberOfSigns: customer?.defaultNumberOfSigns ?? null,
+          defaultAgentInitials: customer?.defaultAgentInitials ?? null,
+          agentOptions: customer?.agentOptions ?? null,
+        });
 
-          if (customer?.addressLine1) {
-            try {
-              const resolved = await geocodeAddress(customer.addressLine1);
-              if (!cancelled) setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
-            } catch {
-              if (!cancelled) setCustomerAddressOrigin(null);
-            }
-          } else {
-            setCustomerAddressOrigin(null);
+        if (customer?.addressLine1) {
+          try {
+            const resolved = await geocodeAddress(customer.addressLine1);
+            if (!cancelled) setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
+          } catch {
+            if (!cancelled) setCustomerAddressOrigin(null);
           }
+        } else {
+          setCustomerAddressOrigin(null);
         }
       } catch (err) {
         console.error('Error loading route detail:', err);

@@ -51,14 +51,14 @@ export default function AdministratorFeatureFlagsPage() {
     if (FEATURE_FLAG_NAMES.length === 0) return;
     let cancelled = false;
 
-    void Promise.all([listFeatureFlagSettings(), listAllCustomers()]).then(([settingsResult, customersResult]) => {
+    void Promise.all([listFeatureFlagSettings(), listAllCustomers().catch(() => null)]).then(([settingsResult, customers]) => {
       if (cancelled) return;
-      if (settingsResult.errors || customersResult.errors) {
+      if (settingsResult.errors || !customers) {
         setLoadError('Could not load feature flags. Refresh to try again.');
       } else {
         setSettings(Object.fromEntries(settingsResult.data.map((setting) => [setting.id, setting])));
         setCustomers(
-          customersResult.data
+          customers
             .map((customer) => ({ id: customer.id, name: customer.name || customer.id }))
             .sort((a, b) => a.name.localeCompare(b.name))
         );

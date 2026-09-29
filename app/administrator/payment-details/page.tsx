@@ -62,6 +62,7 @@ function PaymentDetailsContent() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [loadingCustomer, setLoadingCustomer] = useState(false);
+  const [customerLoadError, setCustomerLoadError] = useState<string | null>(null);
 
   const [payToCompanyName, setPayToCompanyName] = useState('');
   const [payToAbn, setPayToAbn] = useState('');
@@ -118,9 +119,9 @@ function PaymentDetailsContent() {
   useEffect(() => {
     let cancelled = false;
 
-    void listAllCustomers().then((result) => {
+    void listAllCustomers().catch(() => []).then((result) => {
       if (cancelled) return;
-      const list = ((result.data as { id: string; name: string }[]) || []);
+      const list = result as { id: string; name: string }[];
       setCustomers(list);
       const requested = requestedCustomerId && list.some((c) => c.id === requestedCustomerId)
         ? requestedCustomerId
@@ -175,8 +176,9 @@ function PaymentDetailsContent() {
 
     void getCustomer(selectedCustomerId).then((result) => {
       if (cancelled) return;
-      const nextCustomer = result.data as Customer | null;
+      const nextCustomer = result as Customer | null;
       setCustomer(nextCustomer);
+      setCustomerLoadError(null);
       setBillingCycle((nextCustomer?.billingCycle as BillingCycle | null) ?? 'monthly');
       setPaymentTermsDays(
         typeof nextCustomer?.paymentTermsDays === 'number' ? String(nextCustomer.paymentTermsDays) : '14'
@@ -200,6 +202,13 @@ function PaymentDetailsContent() {
       setDirectDebitSuccess(null);
       setDriverSplitError(null);
       setDriverSplitSuccess(null);
+      setLoadingCustomer(false);
+    }, () => {
+      if (cancelled) return;
+      // No settings panels: saving them over a Customer we couldn't read would
+      // overwrite its real settings with the form defaults.
+      setCustomer(null);
+      setCustomerLoadError("Couldn't load this customer. Reload to try again.");
       setLoadingCustomer(false);
     });
 
@@ -371,7 +380,7 @@ function PaymentDetailsContent() {
     setTaxSuccess(null);
 
     const parsedTerms = Number(paymentTermsDays);
-    const result = await updateCustomer(selectedCustomerId, {
+    const saved = await updateCustomer(selectedCustomerId, {
       billingCycle,
       paymentTermsDays: Number.isFinite(parsedTerms) ? parsedTerms : undefined,
       gstAbn: gstAbn.trim(),
@@ -379,9 +388,9 @@ function PaymentDetailsContent() {
       gstExclusive,
       groupLineItemsByAgent,
       autoSendInvoiceOnPeriodClose,
-    });
+    }).then(() => true, () => false);
 
-    if (result.errors && result.errors.length > 0) {
+    if (!saved) {
       setTaxError('Could not save billing cycle & tax settings.');
       setSavingTax(false);
       return;
@@ -396,21 +405,20 @@ function PaymentDetailsContent() {
     setDirectDebitError(null);
     setDirectDebitSuccess(null);
 
-    const result = await updateCustomer(selectedCustomerId, {
+    const saved = await updateCustomer(selectedCustomerId, {
       directDebitAccountName: directDebitAccountName.trim(),
       directDebitBsb: directDebitBsb.trim(),
       directDebitAccountNumber: directDebitAccountNumber.trim(),
       directDebitAuthorizedAt: new Date().toISOString(),
-    });
+    }).then(() => true, () => false);
 
-    if (result.errors && result.errors.length > 0) {
+    if (!saved) {
       setDirectDebitError('Could not save direct debit details.');
       setSavingDirectDebit(false);
       return;
     }
 
-    const refreshed = await getCustomer(selectedCustomerId);
-    const nextCustomer = refreshed.data as Customer | null;
+    const nextCustomer = (await getCustomer(selectedCustomerId).catch(() => null)) as Customer | null;
     if (nextCustomer) setCustomer(nextCustomer);
 
     setDirectDebitSuccess('Direct debit details saved.');
@@ -423,21 +431,20 @@ function PaymentDetailsContent() {
     setDriverSplitSuccess(null);
 
     const parsedPercent = Number(driverSplitPercent);
-    const result = await updateCustomer(selectedCustomerId, {
+    const saved = await updateCustomer(selectedCustomerId, {
       driverSplitPercent: Number.isFinite(parsedPercent) ? parsedPercent : 0,
       driverSplitBasis: 'percentage_of_line_rate',
       hideDriverSplitFromCustomer,
       paySplitOnCompletedStopsOnly,
-    });
+    }).then(() => true, () => false);
 
-    if (result.errors && result.errors.length > 0) {
+    if (!saved) {
       setDriverSplitError('Could not save driver split settings.');
       setSavingDriverSplit(false);
       return;
     }
 
-    const refreshed = await getCustomer(selectedCustomerId);
-    const nextCustomer = refreshed.data as Customer | null;
+    const nextCustomer = (await getCustomer(selectedCustomerId).catch(() => null)) as Customer | null;
     if (nextCustomer) setCustomer(nextCustomer);
 
     setDriverSplitSuccess('Driver split settings saved.');
@@ -570,6 +577,8 @@ function PaymentDetailsContent() {
           <p className={styles.emptyState}>No customers found.</p>
         ) : loadingCustomer ? (
           <LoadingSpinner message="Loading payment details..." />
+        ) : customerLoadError ? (
+          <p className="nd-badge nd-badge--danger">{customerLoadError}</p>
         ) : (
           <div className={styles.layout}>
             <Card title="Rate card" subtitle={`${customer?.name ?? ''} · ex GST`} padded={false}>

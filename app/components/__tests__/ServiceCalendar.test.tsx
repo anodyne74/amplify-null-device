@@ -42,7 +42,7 @@ describe('ServiceCalendar', () => {
     (deleteOperatorAvailabilityBlock as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
     (createCustomerClosureBlock as jest.Mock).mockResolvedValue({ id: 'block-2' });
     (deleteCustomerClosureBlock as jest.Mock).mockResolvedValue({});
-    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllCustomers as jest.Mock).mockResolvedValue([]);
     (listMyRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
   });
 
@@ -205,14 +205,11 @@ describe('ServiceCalendar', () => {
   });
 
   it('lets staff apply a block to every active customer', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-1', name: 'Harcourts Epping', status: 'active', viewerSubs: ['sub-1'] },
-        { id: 'cust-2', name: 'Ray White Eastwood', status: 'active', viewerSubs: ['sub-2'] },
-        { id: 'cust-3', name: 'Retired Agency', status: 'inactive', viewerSubs: ['sub-3'] },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping', status: 'active', viewerSubs: ['sub-1'] },
+      { id: 'cust-2', name: 'Ray White Eastwood', status: 'active', viewerSubs: ['sub-2'] },
+      { id: 'cust-3', name: 'Retired Agency', status: 'inactive', viewerSubs: ['sub-3'] },
+    ]);
 
     render(
       <ServiceCalendar customerId="cust-1" role="staff" currentUserSub="sub-1" viewerSubs={['sub-1']} />
@@ -240,13 +237,10 @@ describe('ServiceCalendar', () => {
   });
 
   it('skips customers that already have a block for that day when applying to everyone', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-1', name: 'Harcourts Epping', status: 'active', viewerSubs: ['sub-1'] },
-        { id: 'cust-2', name: 'Ray White Eastwood', status: 'active', viewerSubs: ['sub-2'] },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping', status: 'active', viewerSubs: ['sub-1'] },
+      { id: 'cust-2', name: 'Ray White Eastwood', status: 'active', viewerSubs: ['sub-2'] },
+    ]);
     (listOperatorAvailabilityBlocks as jest.Mock).mockImplementation((customerId: string) => {
       if (customerId === 'cust-2') {
         return Promise.resolve({

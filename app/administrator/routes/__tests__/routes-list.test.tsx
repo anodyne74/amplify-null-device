@@ -92,13 +92,10 @@ describe('Operator Routes List Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     operatorRouteMock.mockImplementation(({ children }: { children: React.ReactNode }) => <>{children}</>);
-    (listAllCustomersModule.listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-bbbb-2222', name: 'Acme Corp', email: 'acme@example.com' },
-        { id: 'cust-dddd-4444', name: 'Globex Inc', email: 'globex@example.com' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomersModule.listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-bbbb-2222', name: 'Acme Corp', email: 'acme@example.com' },
+      { id: 'cust-dddd-4444', name: 'Globex Inc', email: 'globex@example.com' },
+    ]);
     (listAllStops as jest.Mock).mockResolvedValue({
       data: mockStops,
       errors: undefined,

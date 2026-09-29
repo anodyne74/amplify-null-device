@@ -32,11 +32,7 @@ const mockCallApi = callApi as jest.Mock;
 
 describe('UsersAdminPage customer access actions', () => {
   beforeEach(() => {
-    mockListCustomers.mockResolvedValue({
-      data: [{ id: 'cust-1', name: 'Acme Customer' }],
-      nextToken: null,
-      errors: [],
-    } as any);
+    mockListCustomers.mockResolvedValue([{ id: 'cust-1', name: 'Acme Customer' }] as any);
 
     mockListAllCustomerUsers.mockResolvedValue([
       {

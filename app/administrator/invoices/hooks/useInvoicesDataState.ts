@@ -59,15 +59,15 @@ export function useInvoicesDataState({
     setError(null);
 
     const [customersResult, invoicesResult, routesResult] = await Promise.all([
-      listAllCustomers(),
+      listAllCustomers().catch(() => null),
       listInvoices().catch((err: Error) => err),
       listAllRoutes(),
     ]);
 
-    if (customersResult.errors && customersResult.errors.length > 0) {
+    if (!customersResult) {
       setError('Failed to load customers.');
     } else {
-      const mapped = ((customersResult.data as Array<{
+      const mapped = ((customersResult as Array<{
         id: string;
         name: string;
         email?: string;

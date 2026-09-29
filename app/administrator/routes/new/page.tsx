@@ -221,10 +221,10 @@ function NewRoutePageContent() {
   useEffect(() => {
     async function fetchCustomers() {
       setLoadingCustomers(true);
-      const result = await listAllCustomers();
-      if (!result.errors || result.errors.length === 0) {
+      const result = await listAllCustomers().catch(() => null);
+      if (result) {
         setCustomers(
-          (result.data as any[]).map((c) => ({
+          (result as any[]).map((c) => ({
             id: c.id,
             name: c.name,
             email: c.email,
@@ -236,8 +236,8 @@ function NewRoutePageContent() {
           }))
         );
         // Pre-select first customer for import tab
-        if ((result.data as any[]).length > 0) {
-          setImportCustomerId((result.data as any[])[0].id);
+        if (result.length > 0) {
+          setImportCustomerId(result[0].id);
         }
       }
       setLoadingCustomers(false);

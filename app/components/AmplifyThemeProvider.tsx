@@ -105,12 +105,15 @@ export default function AmplifyThemeProvider({ children }: { children: React.Rea
     if (!userSub || window.sessionStorage.getItem(SAVED_DEFAULT_APPLIED_KEY) === userSub) return;
     let cancelled = false;
 
-    void getUserSettings(userSub).then((result) => {
-      // Non-blocking: keep the browser's last-used mode if settings can't be loaded.
-      if (cancelled || (result.errors && result.errors.length > 0)) return;
-      window.sessionStorage.setItem(SAVED_DEFAULT_APPLIED_KEY, userSub);
-      setMode(result.data?.defaultTheme || DEFAULT_THEME_MODE);
-    });
+    void getUserSettings(userSub)
+      .then((settings) => {
+        if (cancelled) return;
+        window.sessionStorage.setItem(SAVED_DEFAULT_APPLIED_KEY, userSub);
+        setMode(settings?.defaultTheme || DEFAULT_THEME_MODE);
+      })
+      .catch(() => {
+        // Non-blocking: keep the browser's last-used mode if settings can't be loaded.
+      });
 
     return () => {
       cancelled = true;

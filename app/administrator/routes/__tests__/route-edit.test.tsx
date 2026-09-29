@@ -113,10 +113,7 @@ describe('Administrator Route Edit Page', () => {
       errors: undefined,
     });
 
-    (userSettingsModule.getUserSettings as jest.Mock).mockResolvedValue({
-      data: { mapTheme: 'light' },
-      errors: undefined,
-    });
+    (userSettingsModule.getUserSettings as jest.Mock).mockResolvedValue({ mapTheme: 'light' });
 
     (routesModule.getRouteWithStops as jest.Mock).mockResolvedValue({
       route: mockRoute,

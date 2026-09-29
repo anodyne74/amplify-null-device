@@ -138,9 +138,9 @@ function RouteDetailContent() {
     let cancelled = false;
 
     void getUserSettings(user.userId)
-      .then((result) => {
-        if (cancelled || !result.data?.mapTheme) return;
-        setMapTheme(result.data.mapTheme as MapTheme);
+      .then((settings) => {
+        if (cancelled || !settings?.mapTheme) return;
+        setMapTheme(settings.mapTheme as MapTheme);
       })
       .catch(() => {
         // Non-blocking: map defaults to dark for field use.

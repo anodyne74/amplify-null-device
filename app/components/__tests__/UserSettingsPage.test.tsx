@@ -33,24 +33,22 @@ jest.mock('@/lib/userSettings', () => ({
 }));
 
 import UserSettingsPage from '@/app/components/UserSettingsPage';
+import { DataError } from '@/lib/graphqlResult';
 
 describe('UserSettingsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useCurrentUserIdMock.mockReturnValue('user-1');
     fetchUserDisplayNameMock.mockResolvedValue('Fallback Name');
-    getUserSettingsMock.mockResolvedValue({ data: null, errors: undefined });
-    upsertUserSettingsMock.mockResolvedValue({ data: { id: 'settings-1' }, errors: undefined });
+    getUserSettingsMock.mockResolvedValue(null);
+    upsertUserSettingsMock.mockResolvedValue({ id: 'settings-1' });
   });
 
   it('loads and displays persisted settings for administrator', async () => {
     getUserSettingsMock.mockResolvedValue({
-      data: {
         name: 'Saved Name',
         defaultTheme: 'dark',
         mapTheme: 'satellite',
-      },
-      errors: undefined,
     });
 
     render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
@@ -61,10 +59,7 @@ describe('UserSettingsPage', () => {
   });
 
   it("leaves applying the saved default theme to the theme provider, so an in-session change isn't undone (#307)", async () => {
-    getUserSettingsMock.mockResolvedValue({
-      data: { name: 'Saved Name', defaultTheme: 'dark', mapTheme: 'light' },
-      errors: undefined,
-    });
+    getUserSettingsMock.mockResolvedValue({ name: 'Saved Name', defaultTheme: 'dark', mapTheme: 'light' });
 
     render(<UserSettingsPage title="Settings" roleVariant="operator" />);
 
@@ -74,7 +69,7 @@ describe('UserSettingsPage', () => {
   });
 
   it('does not force a theme mode when no settings have been saved yet', async () => {
-    getUserSettingsMock.mockResolvedValue({ data: null, errors: undefined });
+    getUserSettingsMock.mockResolvedValue(null);
 
     render(<UserSettingsPage title="Settings" roleVariant="operator" />);
 
@@ -154,10 +149,19 @@ describe('UserSettingsPage', () => {
     expect(upsertUserSettingsMock).not.toHaveBeenCalled();
   });
 
+  it("won't save over settings it couldn't load", async () => {
+    getUserSettingsMock.mockRejectedValue(new DataError('Failed to load settings.'));
+
+    render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
+
+    expect(await screen.findByText("Couldn't load your saved settings. Reload to try again.")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Settings' })).toBeDisabled();
+  });
+
   it('handles save success and save failure paths', async () => {
     upsertUserSettingsMock
-      .mockResolvedValueOnce({ data: null, errors: [{ message: 'boom' }] })
-      .mockResolvedValueOnce({ data: { id: 'settings-1' }, errors: undefined });
+      .mockRejectedValueOnce(new DataError('Failed to save settings.'))
+      .mockResolvedValueOnce({ id: 'settings-1' });
 
     render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
 

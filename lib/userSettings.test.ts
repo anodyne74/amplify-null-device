@@ -19,10 +19,18 @@ import {
   getUserSettings,
   upsertUserSettings,
 } from './userSettings';
+import { DataError } from './graphqlResult';
 
 describe('userSettings', () => {
+  let consoleErrorSpy: jest.SpyInstance;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+  });
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
   });
 
   describe('getUserSettings', () => {
@@ -42,18 +50,22 @@ describe('userSettings', () => {
         limit: 1000,
         nextToken: undefined,
       });
-      expect(result.data).toEqual({ id: 'settings-1', userSub: 'user-1', defaultTheme: 'dark' });
+      expect(result).toEqual({ id: 'settings-1', userSub: 'user-1', defaultTheme: 'dark' });
     });
 
-    it('should return wrapped error when list throws', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+    it('returns null when the user has no saved settings', async () => {
+      mockUserSettingsList.mockResolvedValue({ data: [], errors: undefined });
+
+      await expect(getUserSettings('user-1')).resolves.toBeNull();
+    });
+
+    it('throws a DataError when the list fails', async () => {
       mockUserSettingsList.mockRejectedValue(new Error('settings failure'));
 
-      const result = await getUserSettings('user-1');
-
-      expect(result.data).toBeNull();
-      expect(result.errors).toBeDefined();
-      consoleErrorSpy.mockRestore();
+      await expect(getUserSettings('user-1')).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to load settings.',
+      });
     });
   });
 
@@ -68,7 +80,7 @@ describe('userSettings', () => {
       const result = await upsertUserSettings('user-1', { defaultTheme: 'dark' });
 
       expect(mockUserSettingsUpdate).toHaveBeenCalled();
-      expect(result.data).toEqual({ id: 'settings-1' });
+      expect(result).toEqual({ id: 'settings-1' });
     });
 
     it('should create settings when no existing row is found', async () => {
@@ -81,7 +93,7 @@ describe('userSettings', () => {
       const result = await upsertUserSettings('user-2', { mapTheme: 'dark' as any });
 
       expect(mockUserSettingsCreate).toHaveBeenCalled();
-      expect(result.data).toEqual({ id: 'settings-new' });
+      expect(result).toEqual({ id: 'settings-new' });
     });
 
     it('stores light when a row is created without an explicit theme (#307)', async () => {
@@ -91,6 +103,24 @@ describe('userSettings', () => {
       await upsertUserSettings('user-2', { name: 'New User' });
 
       expect(mockUserSettingsCreate).toHaveBeenCalledWith(expect.objectContaining({ defaultTheme: 'light' }));
+    });
+
+    it("doesn't write when the current settings can't be read", async () => {
+      mockUserSettingsList.mockResolvedValue({ data: [], errors: [{ message: 'Not Authorized' }] });
+
+      await expect(upsertUserSettings('user-1', { name: 'X' })).rejects.toBeInstanceOf(DataError);
+      expect(mockUserSettingsCreate).not.toHaveBeenCalled();
+      expect(mockUserSettingsUpdate).not.toHaveBeenCalled();
+    });
+
+    it('throws a DataError when the write fails', async () => {
+      mockUserSettingsList.mockResolvedValue({ data: [{ id: 'settings-1', userSub: 'user-1' }], errors: undefined });
+      mockUserSettingsUpdate.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
+
+      await expect(upsertUserSettings('user-1', { name: 'X' })).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to save settings.',
+      });
     });
   });
 

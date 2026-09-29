@@ -34,7 +34,7 @@ export function usePortalUser(): PortalUser {
 
     void Promise.all([
       getUserSettings(userId).then(
-        (result) => result.data?.name?.trim(),
+        (settings) => settings?.name?.trim(),
         () => undefined
       ),
       fetchUserDisplayName(),

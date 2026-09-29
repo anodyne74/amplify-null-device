@@ -14,7 +14,7 @@ describe('usePortalUser', () => {
     jest.clearAllMocks();
     (useCurrentUserId as jest.Mock).mockReturnValue('user-1');
     (fetchUserDisplayName as jest.Mock).mockResolvedValue('Token Name');
-    (getUserSettings as jest.Mock).mockResolvedValue({ data: { name: '  Saved Name ' } });
+    (getUserSettings as jest.Mock).mockResolvedValue({ name: '  Saved Name ' });
   });
 
   it('shows the name saved in Settings over the token name', async () => {
@@ -26,7 +26,7 @@ describe('usePortalUser', () => {
   });
 
   it('falls back to the token name when no name is saved', async () => {
-    (getUserSettings as jest.Mock).mockResolvedValue({ data: { name: ' ' } });
+    (getUserSettings as jest.Mock).mockResolvedValue({ name: ' ' });
     const { result } = renderHook(() => usePortalUser());
 
     await waitFor(() => expect(result.current.displayName).toBe('Token Name'));

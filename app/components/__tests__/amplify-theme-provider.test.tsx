@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AmplifyThemeProvider, { useThemeMode } from '@/app/components/AmplifyThemeProvider';
+import { DataError } from '@/lib/graphqlResult';
 
 jest.mock('@aws-amplify/ui-react', () => ({
   ThemeProvider: ({ children, colorMode }: { children: React.ReactNode; colorMode?: string }) => (
@@ -74,7 +75,7 @@ describe('AmplifyThemeProvider', () => {
     document.documentElement.removeAttribute('data-theme');
     document.documentElement.style.colorScheme = '';
     fetchUserIdMock.mockReset().mockResolvedValue(undefined);
-    getUserSettingsMock.mockReset().mockResolvedValue({ data: null, errors: undefined });
+    getUserSettingsMock.mockReset().mockResolvedValue(null);
 
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
@@ -187,7 +188,7 @@ describe('AmplifyThemeProvider', () => {
   it("applies the user's saved default theme over this browser's last-used mode (#307)", async () => {
     localStorage.setItem('nd-theme-mode:user-a-sub', 'light');
     fetchUserIdMock.mockResolvedValue('user-a-sub');
-    getUserSettingsMock.mockResolvedValue({ data: { defaultTheme: 'dark' }, errors: undefined });
+    getUserSettingsMock.mockResolvedValue({ defaultTheme: 'dark' });
 
     renderProvider();
 
@@ -200,7 +201,7 @@ describe('AmplifyThemeProvider', () => {
   it("keeps the browser's last-used mode when settings can't be loaded", async () => {
     localStorage.setItem('nd-theme-mode:user-a-sub', 'dark');
     fetchUserIdMock.mockResolvedValue('user-a-sub');
-    getUserSettingsMock.mockResolvedValue({ data: null, errors: [new Error('boom')] });
+    getUserSettingsMock.mockRejectedValue(new DataError('Failed to load settings.'));
 
     renderProvider();
 
@@ -218,7 +219,7 @@ describe('AmplifyThemeProvider', () => {
     expect(getUserSettingsMock).not.toHaveBeenCalled();
 
     fetchUserIdMock.mockResolvedValue('user-a-sub');
-    getUserSettingsMock.mockResolvedValue({ data: { defaultTheme: 'dark' }, errors: undefined });
+    getUserSettingsMock.mockResolvedValue({ defaultTheme: 'dark' });
     act(() => emitAuthEvent('signedIn'));
 
     await expectColorMode('dark');
@@ -227,7 +228,7 @@ describe('AmplifyThemeProvider', () => {
 
   it("applies the next user's saved theme after a sign-out and sign-in (#307)", async () => {
     fetchUserIdMock.mockResolvedValue('user-a-sub');
-    getUserSettingsMock.mockResolvedValue({ data: { defaultTheme: 'dark' }, errors: undefined });
+    getUserSettingsMock.mockResolvedValue({ defaultTheme: 'dark' });
     renderProvider();
     await expectColorMode('dark');
 
@@ -235,7 +236,7 @@ describe('AmplifyThemeProvider', () => {
     await expectColorMode('light');
 
     fetchUserIdMock.mockResolvedValue('user-b-sub');
-    getUserSettingsMock.mockResolvedValue({ data: { defaultTheme: 'light' }, errors: undefined });
+    getUserSettingsMock.mockResolvedValue({ defaultTheme: 'light' });
     act(() => emitAuthEvent('signedIn'));
 
     await waitFor(() => {
@@ -246,7 +247,7 @@ describe('AmplifyThemeProvider', () => {
 
   it('keeps an in-session theme change across a full page load (#307)', async () => {
     fetchUserIdMock.mockResolvedValue('user-a-sub');
-    getUserSettingsMock.mockResolvedValue({ data: { defaultTheme: 'dark' }, errors: undefined });
+    getUserSettingsMock.mockResolvedValue({ defaultTheme: 'dark' });
     const { unmount } = renderProvider();
     await expectColorMode('dark');
 

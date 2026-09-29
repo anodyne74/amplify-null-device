@@ -283,6 +283,18 @@ describe('Home Redirect', () => {
       expect(screen.getByTestId('authenticator')).not.toBeVisible();
     });
 
+    it('speaks to customers in the hero and the form subtitle', () => {
+      const { container } = render(<Home />);
+
+      expect(screen.getByText('Every sign, every property, every route, in one place.')).toBeInTheDocument();
+      expect(screen.getByText("Every property you've ever had signed, with its full history")).toBeInTheDocument();
+      expect(screen.getByText('Follow each route live, stop by stop')).toBeInTheDocument();
+      expect(screen.getByText('Invoices that show exactly what was done')).toBeInTheDocument();
+      expect(screen.getByText('Your routes · your properties · your team')).toBeInTheDocument();
+      expect(screen.getByText('Your routes, properties and invoices, wherever you left them.')).toBeInTheDocument();
+      expect(container.textContent).not.toMatch(/operators|staff|\bjobs?\b/i);
+    });
+
     it('calls signIn with the entered email and password', async () => {
       (signIn as jest.Mock).mockResolvedValue({ isSignedIn: true });
 

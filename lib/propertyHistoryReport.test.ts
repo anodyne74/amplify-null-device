@@ -7,6 +7,7 @@ import {
   describeFilters,
   describeSearch,
   newReportReference,
+  reportActions,
   reportObjectKey,
 } from './propertyHistoryReport';
 import type { PropertyGroup, PropertyHistoryResult } from './propertyHistory';
@@ -127,5 +128,12 @@ describe('report access', () => {
     expect(canRestoreReport(customerReport(PURGED), admin, NOW)).toBe(false);
     expect(canRestoreReport(customerReport(ACTIVE), admin, NOW)).toBe(false);
     expect(canRestoreReport(customerReport(DELETED), owner, NOW)).toBe(false);
+  });
+
+  it('gathers the rules into the actions a report summary carries', () => {
+    expect(reportActions(customerReport(ACTIVE), owner, NOW)).toEqual({ open: true, delete: true, restore: false });
+    expect(reportActions(customerReport(ACTIVE), admin, NOW)).toEqual({ open: true, delete: false, restore: false });
+    expect(reportActions(customerReport(DELETED), admin, NOW)).toEqual({ open: true, delete: false, restore: true });
+    expect(reportActions(customerReport(PURGED), admin, NOW)).toEqual({ open: false, delete: false, restore: false });
   });
 });

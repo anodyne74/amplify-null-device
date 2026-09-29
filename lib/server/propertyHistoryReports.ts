@@ -8,6 +8,7 @@ import {
   describeFilters,
   describeSearch,
   newReportReference,
+  reportActions,
   reportObjectKey,
   reportRetention,
   type PropertyHistoryReportSummary,
@@ -61,7 +62,7 @@ type ReportRecord = {
 
 const accessFacts = (record: ReportRecord) => ({ ...record, audience: record.audience ?? 'administrator' });
 
-function toSummary(record: ReportRecord, now: Date): PropertyHistoryReportSummary {
+function toSummary(record: ReportRecord, viewer: ReportViewer, now: Date): PropertyHistoryReportSummary {
   return {
     id: record.id,
     referenceNumber: record.referenceNumber,
@@ -77,6 +78,7 @@ function toSummary(record: ReportRecord, now: Date): PropertyHistoryReportSummar
     state: reportState(record, now),
     activeUntil: record.activeUntil ?? '',
     purgeAfter: record.purgeAfter ?? '',
+    actions: reportActions(accessFacts(record), viewer, now),
   };
 }
 
@@ -188,7 +190,7 @@ export async function generatePropertyHistoryReport(
     return undo('Could not log the report, so it was not kept', record.id);
   }
 
-  return { report: toSummary(record as ReportRecord, now), url: await store.signedUrl(s3Key) };
+  return { report: toSummary(record as ReportRecord, caller, now), url: await store.signedUrl(s3Key) };
 }
 
 /** The reports the caller may see, newest first. */
@@ -207,7 +209,7 @@ export async function listPropertyHistoryReports(
   if (errors.length > 0) throw new ReportError(`Could not read reports: ${messages(errors)}`);
   return data
     .filter((record) => canSeeReport(accessFacts(record), viewer, now))
-    .map((record) => toSummary(record, now))
+    .map((record) => toSummary(record, viewer, now))
     .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
 }
 
@@ -274,7 +276,7 @@ async function changeRetention(
     if (revertErrors?.length) console.error('Reverting the report dates failed:', revertErrors);
     throw new ReportError(`Could not log the change, so it was not made: ${messages(auditErrors)}`);
   }
-  return toSummary(updated as ReportRecord, now);
+  return toSummary(updated as ReportRecord, caller, now);
 }
 
 /**

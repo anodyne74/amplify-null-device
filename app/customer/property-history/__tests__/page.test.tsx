@@ -98,6 +98,7 @@ const REPORT = {
   state: 'active' as const,
   activeUntil: '2026-10-27T03:04:05.000Z',
   purgeAfter: '2026-11-26T03:04:05.000Z',
+  actions: { open: true, delete: true, restore: false },
 };
 
 describe('Customer Property History page', () => {
@@ -149,7 +150,7 @@ describe('Customer Property History page', () => {
 
   it('lets an Account Owner delete a report after confirming, with no State column or Restore', async () => {
     (listPropertyHistoryReports as jest.Mock).mockResolvedValue([REPORT]);
-    (deletePropertyHistoryReport as jest.Mock).mockResolvedValue({ ...REPORT, state: 'deleted' });
+    (deletePropertyHistoryReport as jest.Mock).mockResolvedValue({ ...REPORT, state: 'deleted', actions: { open: false, delete: false, restore: false } });
     renderPage();
 
     fireEvent.click(await screen.findByRole('tab', { name: 'Reports' }));
@@ -163,6 +164,16 @@ describe('Customer Property History page', () => {
 
     expect(await screen.findByText(/No reports yet/)).toBeInTheDocument();
     expect(deletePropertyHistoryReport).toHaveBeenCalledWith('rep1');
+  });
+
+  it('shows only the buttons the report allows', async () => {
+    (listPropertyHistoryReports as jest.Mock).mockResolvedValue([{ ...REPORT, actions: { open: true, delete: false, restore: false } }]);
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'Reports' }));
+
+    expect(await screen.findByRole('button', { name: 'Open PHR-20260927-ABC123' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete PHR-20260927-ABC123' })).not.toBeInTheDocument();
   });
 
   it('keeps a report when the delete is cancelled', async () => {

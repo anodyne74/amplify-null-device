@@ -8,15 +8,17 @@
  *
  * - planSignRunTransition is pure: it refuses a transition the route isn't on
  *   the right phase for, and otherwise returns the exact patch to write.
- * - runSignRunTransition plans, writes, and returns the route as it now
- *   stands, or a user-facing error.
+ * - queueSignRunTransition plans, applies the patch on the operator's device
+ *   and queues its write in the Sign Run outbox (lib/signRunOutbox.ts), or
+ *   returns the refusal. The operator never waits on the save.
  *
  * The phase check runs against the route the caller already holds — there's
  * no refetch, so it guards against a stale screen, not against a concurrent
  * write from another device.
  *
  * Stops are settled done/skipped for Placement/Pickup the same way:
- * planStopSettlement is pure, runStopSettlement writes it.
+ * planStopSettlement is pure, queueStopSettlement queues it for the operator's
+ * Sign Run, and runStopSettlement writes it directly for the administrator.
  */
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { getSignRunPhase, type SignRunPhaseInfo } from '@/lib/signRunPhase';
@@ -31,8 +33,9 @@ import {
   type ExecutionPhase,
 } from '@/lib/stopExecutionMarkers';
 import type { Route, RouteExecutionPhase, Stop } from '@/amplify/types';
-import { updateRoute, updateStopExecution } from '@/lib/routes';
+import { updateStopExecution } from '@/lib/routes';
 import { callApi } from '@/lib/apiClient';
+import { signRunOutbox } from '@/lib/signRunOutbox';
 import type { SignRunTimingKind, SignRunTimingRecord, StopSettlementKind } from '@/lib/signRunTiming';
 
 export type SignRunTransition =
@@ -95,18 +98,6 @@ const TRANSITION_PHASE: Record<SignRunTransitionType, { phaseIdx: SignRunPhaseIn
   startUnload: { phaseIdx: 3, label: 'Unload' },
   confirmUnload: { phaseIdx: 3, label: 'Unload' },
   finalise: { phaseIdx: 4, label: 'Finalise' },
-};
-
-const WRITE_ERROR: Record<SignRunTransitionType, string> = {
-  startLoad: 'Could not start the load. Try again.',
-  confirmLoad: 'Could not confirm the load. Try again.',
-  startPlacement: 'Could not start placement. Try again.',
-  completePlacement: 'Could not close out placement. Try again.',
-  startPickup: 'Could not start pickup. Try again.',
-  completePickup: 'Could not close out pickup. Try again.',
-  startUnload: 'Could not start the unload. Try again.',
-  confirmUnload: 'Could not confirm the unload. Try again.',
-  finalise: 'Could not complete the route. Try again.',
 };
 
 export function planSignRunTransition(
@@ -208,24 +199,27 @@ function reportTiming(record: SignRunTimingRecord) {
   }
 }
 
-export async function runSignRunTransition<R extends SignRunTransitionRoute>(
+/**
+ * Applies a transition on the operator's device straight away and queues its
+ * write in the Sign Run outbox (#355): the returned route is how the
+ * operator's screens now show it, whether or not it has saved yet. A refused
+ * transition queues nothing.
+ */
+export function queueSignRunTransition<R extends SignRunTransitionRoute>(
   route: R,
   transition: SignRunTransition
-): Promise<{ route: R } | { error: string }> {
+): { route: R } | { error: string } {
   const plan = planSignRunTransition(route, transition);
   if ('refused' in plan) {
     return { error: plan.refused };
   }
-
-  try {
-    const { errors } = await timedWrite(transition.type, route.id, () => updateRoute(route.id, plan.patch));
-    if (errors && errors.length > 0) {
-      return { error: WRITE_ERROR[transition.type] };
-    }
-  } catch {
-    return { error: WRITE_ERROR[transition.type] };
-  }
-
+  signRunOutbox.enqueue({
+    routeId: route.id,
+    target: 'Route',
+    recordId: route.id,
+    kind: transition.type,
+    patch: { ...plan.patch },
+  });
   return { route: { ...route, ...plan.patch } };
 }
 
@@ -283,16 +277,39 @@ export function planStopSettlement(
   };
 }
 
+function settlementKind({ phase, action }: StopSettlement): StopSettlementKind {
+  return `${phase}Stop${action === 'complete' ? 'Done' : 'Skipped'}`;
+}
+
 /**
- * Writes a stop settlement and returns the patch for the caller to apply —
- * callers differ in how (splice into local state vs. refetch).
+ * Queues a stop settlement in the Sign Run outbox — the operator's Sign Run
+ * screens, where it shows at once (see queueSignRunTransition).
+ */
+export function queueStopSettlement(
+  stop: Pick<Stop, 'id' | 'routeId' | 'notes' | 'actualArrivalTime'>,
+  settlement: StopSettlement
+): { patch: StopSettlementPatch } {
+  const patch = planStopSettlement(stop, settlement, new Date().toISOString());
+  signRunOutbox.enqueue({
+    routeId: stop.routeId,
+    target: 'Stop',
+    recordId: stop.id,
+    kind: settlementKind(settlement),
+    patch: { ...patch },
+  });
+  return { patch };
+}
+
+/**
+ * Writes a stop settlement straight away and returns the patch for the caller
+ * to apply — the administrator's Route detail, which waits on the save.
  */
 export async function runStopSettlement(
   stop: Pick<Stop, 'id' | 'routeId' | 'notes' | 'actualArrivalTime'>,
   settlement: StopSettlement
 ): Promise<{ patch: StopSettlementPatch } | { error: string }> {
   const patch = planStopSettlement(stop, settlement, new Date().toISOString());
-  const kind: StopSettlementKind = `${settlement.phase}Stop${settlement.action === 'complete' ? 'Done' : 'Skipped'}`;
+  const kind = settlementKind(settlement);
   try {
     const { errors } = await timedWrite(kind, stop.routeId, () => updateStopExecution(stop.id, patch));
     if (errors && errors.length > 0) {

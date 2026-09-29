@@ -41,9 +41,10 @@ jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
 }));
 
-// lib/signRunTransitions checks the auth session before every route write (#266).
-// The live feed is inert here: each screen reads the store through its fetch
-// and shows its own writes through patches.
+// Sign Run writes go through the real outbox (lib/signRunOutbox.ts), which
+// checks the auth session before each one. The live feed is inert here: each
+// screen reads the store through its fetch and shows its own writes from the
+// outbox.
 jest.mock('@/lib/routeWithStopsFeed', () => ({
   subscribeRouteWithStops: () => () => {},
 }));
@@ -51,6 +52,8 @@ jest.mock('@/lib/routeWithStopsFeed', () => ({
 jest.mock('aws-amplify/auth', () => ({
   fetchAuthSession: jest.fn().mockResolvedValue({}),
 }));
+
+jest.mock('@/lib/apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
 
 jest.mock('@/lib/queries/OrganizationSettings', () => ({
   getOrganizationSettings: jest.fn(),
@@ -147,17 +150,21 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
       data: { address: '22 Dryburgh St, West Melbourne' },
       errors: undefined,
     });
+    // Every write bumps updatedAt, as AppSync does, and returns it.
+    let version = 0;
+    const nextVersion = () => `2026-08-31T10:00:00.${String(++version).padStart(3, '0')}Z`;
     (updateRoute as jest.Mock).mockImplementation(async (id: string, updates: Partial<Route>) => {
-      const patched: Record<string, unknown> = { ...updates };
+      const patched: Record<string, unknown> = { ...updates, updatedAt: nextVersion() };
       for (const key of Object.keys(patched)) {
         if (key in FIXED_TIMES) patched[key] = FIXED_TIMES[key];
       }
       store.route = { ...store.route, ...patched } as Route;
-      return { data: { id }, errors: undefined };
+      return { data: { id, updatedAt: store.route.updatedAt }, errors: undefined };
     });
     (updateStopExecution as jest.Mock).mockImplementation(async (stopId: string, updates: Partial<Stop>) => {
-      store.stops = store.stops.map((stop) => (stop.id === stopId ? { ...stop, ...updates } : stop));
-      return { data: { id: stopId }, errors: undefined };
+      const updatedAt = nextVersion();
+      store.stops = store.stops.map((stop) => (stop.id === stopId ? { ...stop, ...updates, updatedAt } : stop));
+      return { data: { id: stopId, updatedAt }, errors: undefined };
     });
   });
 
@@ -174,7 +181,8 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     fireEvent.click(await screen.findByRole('button', { name: /confirm 40 signs loaded/i }));
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
-    expect(store.route.loadedSignsCount).toBe(40);
+    // Navigation doesn't wait on the save: the outbox sends it just after.
+    await waitFor(() => expect(store.route.loadedSignsCount).toBe(40));
     expect(store.route.executionPhase).toBe('placement');
     expect(store.route.loadConfirmedAt).toBe(T0);
     load.unmount();
@@ -203,7 +211,7 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
-    expect(store.route.executionPhase).toBe('pickup');
+    await waitFor(() => expect(store.route.executionPhase).toBe('pickup'));
     expect(store.route.placementStartTime).toBe(T1);
     expect(store.route.placementEndTime).toBe(T2);
     placement.unmount();
@@ -234,9 +242,10 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
-    expect(store.route.executionPhase).toBe('unload');
+    await waitFor(() => expect(store.route.executionPhase).toBe('unload'));
     expect(store.route.pickupStartTime).toBe(T3);
     expect(store.route.pickupEndTime).toBe(T4);
+    await waitFor(() => expect(store.stops.find((s) => s.id === 's3')!.notes).toContain('PICKUP_SKIPPED'));
     const s2 = store.stops.find((s) => s.id === 's2')!;
     expect(s2.missingSignsCount).toBe(1);
     pickup.unmount();
@@ -258,7 +267,7 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     fireEvent.click(await screen.findByRole('button', { name: /confirm 21 signs returned/i }));
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
-    expect(store.route.unloadConfirmedAt).toBe(T5);
+    await waitFor(() => expect(store.route.unloadConfirmedAt).toBe(T5));
     expect(store.route.actualEndTime).toBe(T5);
     unload.unmount();
     push.mockClear();
@@ -292,7 +301,7 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     fireEvent.click(completeButton);
 
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
-    expect(updateRoute).toHaveBeenCalledWith(routeId, {
+    await waitFor(() => expect(updateRoute).toHaveBeenCalledWith(routeId, {
       billedLoadMinutes: 15,
       billedPlacementMinutes: 20,
       billedPickupMinutes: 10,
@@ -300,7 +309,7 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
       overrideDurationMinutes: 75,
       overrideDistanceKm: 0,
       status: 'completed',
-    });
+    }));
     finalise.unmount();
   });
 });

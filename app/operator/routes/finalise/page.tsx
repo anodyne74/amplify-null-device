@@ -7,7 +7,7 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { reconcileSignRun } from '@/lib/signRunReconciliation';
-import { runSignRunTransition } from '@/lib/signRunTransitions';
+import { queueSignRunTransition } from '@/lib/signRunTransitions';
 import {
   MIN_BILLED_MINUTES,
   measuredPhaseMinutes,
@@ -79,13 +79,14 @@ export default function OperatorFinalisePage() {
     bumpBilled('unload', nextQuarterHour - billTotal);
   };
 
-  const handleConfirm = async () => {
+  // Shows at once and saves in the background (lib/signRunOutbox.ts);
+  // confirming only guards a second tap before the dashboard opens.
+  const handleConfirm = () => {
     if (!route || !billedMinutes || !billAligned) return;
     setConfirming(true);
     setError(null);
 
-    const result = await runSignRunTransition(route, { type: 'finalise', billedMinutes, distanceKm: kmAdj });
-
+    const result = queueSignRunTransition(route, { type: 'finalise', billedMinutes, distanceKm: kmAdj });
     if ('error' in result) {
       setError(result.error);
       setConfirming(false);

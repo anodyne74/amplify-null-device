@@ -12,7 +12,7 @@ import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
 import { recordPlacementPosition } from '@/lib/placementPosition';
-import { runSignRunTransition, runStopSettlement } from '@/lib/signRunTransitions';
+import { queueSignRunTransition, queueStopSettlement } from '@/lib/signRunTransitions';
 import { formatClockTime } from '@/lib/signRunBilling';
 import { getAgentBadgeInitials } from '@/lib/customerDefaults';
 import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } from '@/lib/routeDetailHelpers';
@@ -69,7 +69,6 @@ export default function OperatorPlacementPage() {
   const {
     routeId,
     route,
-    patchRoute,
     stops,
     patchStop,
     extra: customerName,
@@ -78,27 +77,23 @@ export default function OperatorPlacementPage() {
     isOnPhase: isPlacementScreen,
   } = useSignRunPhaseScreen({ phaseIdx: 1, fetchExtra: fetchCustomerName });
   const [error, setError] = useState<string | null>(null);
-  const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
   const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
-  const { dialog, openDialog, closeDialog, submitting, setSubmitting } = useTimestampConfirmDialog<
+  const { dialog, openDialog, closeDialog, submitting } = useTimestampConfirmDialog<
     'start' | 'complete'
   >();
 
-  const handleStartPlacement = async (iso: string) => {
+  // Sign Run writes show at once and save in the background (lib/signRunOutbox.ts).
+  const handleStartPlacement = (iso: string) => {
     if (!route) return;
-    setSubmitting(true);
     setError(null);
 
-    const result = await runSignRunTransition(route, { type: 'startPlacement', at: iso });
-
-    setSubmitting(false);
+    const result = queueSignRunTransition(route, { type: 'startPlacement', at: iso });
     if ('error' in result) {
       setError(result.error);
       return;
     }
 
-    patchRoute(result.route);
     closeDialog();
   };
 
@@ -114,24 +109,16 @@ export default function OperatorPlacementPage() {
   const closeStopSheet = () => setActionSheetStopId(null);
 
   const settleStop = useCallback(
-    async (stopId: string, action: 'complete' | 'skip', reason?: string) => {
+    (stopId: string, action: 'complete' | 'skip', reason?: string) => {
       const stop = stops.find((s) => s.id === stopId);
-      if (!stop) return false;
-      setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-      const result = await runStopSettlement(stop, { phase: 'placement', action, reason });
-      if ('error' in result) {
-        setError(result.error);
-      } else {
-        patchStop(stopId, result.patch);
-        if (action === 'complete') {
-          // Best-effort and after the fact: placement never waits on, or fails for, GPS (#285).
-          void recordPlacementPosition(stopId).then((position) => {
-            if (position) patchStop(stopId, position);
-          });
-        }
+      if (!stop) return;
+      queueStopSettlement(stop, { phase: 'placement', action, reason });
+      if (action === 'complete') {
+        // Best-effort and after the fact: placement never waits on, or fails for, GPS (#285).
+        void recordPlacementPosition(stopId).then((position) => {
+          if (position) patchStop(stopId, position);
+        });
       }
-      setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-      return !('error' in result);
     },
     [stops, patchStop]
   );
@@ -147,20 +134,18 @@ export default function OperatorPlacementPage() {
   // primary button below) and only closes placement out, advancing the route to
   // pickup, once they explicitly tap through.
   const handleCompletePhase = useCallback(
-    async (iso: string) => {
+    (iso: string) => {
       if (!route) return;
-      setSubmitting(true);
       setError(null);
-      const result = await runSignRunTransition(route, { type: 'completePlacement', at: iso });
+      const result = queueSignRunTransition(route, { type: 'completePlacement', at: iso });
       if (!('error' in result)) {
         router.push('/operator/dashboard');
         return;
       }
       setError(result.error);
-      setSubmitting(false);
       closeDialog();
     },
-    [route, router, closeDialog, setSubmitting]
+    [route, router, closeDialog]
   );
 
   if (!routeId) {
@@ -226,7 +211,7 @@ export default function OperatorPlacementPage() {
           onCancel={closeDialog}
           onOk={() => {
             if (!dialog) return;
-            void handleStartPlacement(dialog.time);
+            handleStartPlacement(dialog.time);
           }}
         />
       </div>
@@ -341,7 +326,6 @@ export default function OperatorPlacementPage() {
             type="button"
             className={stopCardStyles.skipButton}
             onClick={() => openStopSheet(currentStop.id, 'reason')}
-            disabled={!!stopExecuting[currentStop.id]}
           >
             Skip
           </button>
@@ -351,14 +335,14 @@ export default function OperatorPlacementPage() {
           className={`${shellStyles.primaryButton} ${styles.primaryButton} ${stopCardStyles.primaryAction}`}
           onClick={() => {
             if (currentStop) {
-              void handleStopCompleted(currentStop.id);
+              handleStopCompleted(currentStop.id);
             } else {
               openDialog('complete');
             }
           }}
-          disabled={currentStop ? !!stopExecuting[currentStop.id] : submitting}
+          disabled={!currentStop && submitting}
         >
-          {currentStop ? (stopExecuting[currentStop.id] ? 'Saving…' : 'Signs placed') : 'Complete placement'}
+          {currentStop ? 'Signs placed' : 'Complete placement'}
         </button>
       </div>
 
@@ -371,26 +355,23 @@ export default function OperatorPlacementPage() {
         onCancel={closeDialog}
         onOk={() => {
           if (!dialog) return;
-          void handleCompletePhase(dialog.time);
+          handleCompletePhase(dialog.time);
         }}
       />
 
       <StopCompletionDialog
         stop={actionSheetStop}
         phase="placement"
-        busy={!!actionSheetStop && !!stopExecuting[actionSheetStop.id]}
         initialStep={actionSheetStep}
         onComplete={() => {
           if (!actionSheetStop) return;
-          void handleStopCompleted(actionSheetStop.id).then((ok) => {
-            if (ok) closeStopSheet();
-          });
+          handleStopCompleted(actionSheetStop.id);
+          closeStopSheet();
         }}
         onSkip={(reason) => {
           if (!actionSheetStop) return;
-          void handleSkipStop(actionSheetStop.id, reason).then((ok) => {
-            if (ok) closeStopSheet();
-          });
+          handleSkipStop(actionSheetStop.id, reason);
+          closeStopSheet();
         }}
         onClose={closeStopSheet}
       />

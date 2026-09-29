@@ -19,7 +19,6 @@ describe('StopCompletionDialog', () => {
       <StopCompletionDialog
         stop={null}
         phase="placement"
-        busy={false}
         onComplete={jest.fn()}
         onSkip={jest.fn()}
         onClose={jest.fn()}
@@ -36,7 +35,6 @@ describe('StopCompletionDialog', () => {
       <StopCompletionDialog
         stop={stop}
         phase="placement"
-        busy={false}
         onComplete={onComplete}
         onSkip={jest.fn()}
         onClose={jest.fn()}
@@ -55,7 +53,6 @@ describe('StopCompletionDialog', () => {
       <StopCompletionDialog
         stop={stop}
         phase="pickup"
-        busy={false}
         onComplete={jest.fn()}
         onSkip={jest.fn()}
         onClose={jest.fn()}
@@ -72,7 +69,6 @@ describe('StopCompletionDialog', () => {
       <StopCompletionDialog
         stop={stop}
         phase="placement"
-        busy={false}
         onComplete={jest.fn()}
         onSkip={onSkip}
         onClose={jest.fn()}
@@ -91,7 +87,6 @@ describe('StopCompletionDialog', () => {
       <StopCompletionDialog
         stop={stop}
         phase="placement"
-        busy={false}
         initialStep="reason"
         onComplete={jest.fn()}
         onSkip={jest.fn()}
@@ -108,7 +103,6 @@ describe('StopCompletionDialog', () => {
       <StopCompletionDialog
         stop={stop}
         phase="placement"
-        busy={false}
         initialStep="reason"
         onComplete={jest.fn()}
         onSkip={jest.fn()}
@@ -122,7 +116,6 @@ describe('StopCompletionDialog', () => {
       <StopCompletionDialog
         stop={otherStop}
         phase="placement"
-        busy={false}
         initialStep="action"
         onComplete={jest.fn()}
         onSkip={jest.fn()}

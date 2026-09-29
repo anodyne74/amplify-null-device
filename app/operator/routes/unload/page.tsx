@@ -9,7 +9,7 @@ import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
-import { runSignRunTransition } from '@/lib/signRunTransitions';
+import { queueSignRunTransition } from '@/lib/signRunTransitions';
 import { formatClockTime } from '@/lib/signRunBilling';
 import { reconcileSignRun } from '@/lib/signRunReconciliation';
 import type { Route } from '@/amplify/types';
@@ -39,7 +39,6 @@ export default function OperatorUnloadPage() {
   const {
     routeId,
     route,
-    patchRoute,
     stops,
     loading,
     phaseInfo,
@@ -49,39 +48,33 @@ export default function OperatorUnloadPage() {
   const customerName = extra?.customerName ?? '';
   const yardAddress = extra?.yardAddress ?? null;
   const [error, setError] = useState<string | null>(null);
-  const { dialog, openDialog, closeDialog, submitting, setSubmitting } = useTimestampConfirmDialog<
+  const { dialog, openDialog, closeDialog, submitting } = useTimestampConfirmDialog<
     'start' | 'confirm'
   >();
 
   const reconciliation = useMemo(() => (route ? reconcileSignRun(route, stops) : null), [route, stops]);
 
-  const handleStartUnload = async (iso: string) => {
+  // Transitions show at once and save in the background (lib/signRunOutbox.ts).
+  const handleStartUnload = (iso: string) => {
     if (!route) return;
-    setSubmitting(true);
     setError(null);
 
-    const result = await runSignRunTransition(route, { type: 'startUnload', at: iso });
-
-    setSubmitting(false);
+    const result = queueSignRunTransition(route, { type: 'startUnload', at: iso });
     if ('error' in result) {
       setError(result.error);
       return;
     }
 
-    patchRoute(result.route);
     closeDialog();
   };
 
-  const handleConfirmUnload = async (iso: string) => {
+  const handleConfirmUnload = (iso: string) => {
     if (!route) return;
-    setSubmitting(true);
     setError(null);
 
-    const result = await runSignRunTransition(route, { type: 'confirmUnload', at: iso });
-
+    const result = queueSignRunTransition(route, { type: 'confirmUnload', at: iso });
     if ('error' in result) {
       setError(result.error);
-      setSubmitting(false);
       closeDialog();
       return;
     }

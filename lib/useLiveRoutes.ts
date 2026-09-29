@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getDataClient } from '@/lib/data-client';
 import type { Route } from '@/amplify/types';
+import { overlayRoute, useSignRunOutbox } from '@/lib/signRunOutbox';
 
 interface LiveRoutesState {
   items: Route[];
@@ -85,14 +86,17 @@ export function useLiveRoutes(customerId: string | null): {
 
 /** Live Route list for every route in the system, for the operator dashboard
  * and routes list — operators already have full read access to every Route
- * (see amplify/data/resource.ts), so no per-user filter is needed here. */
+ * (see amplify/data/resource.ts), so no per-user filter is needed here. This
+ * device's unsaved Sign Run writes show over it (lib/signRunOutbox.ts). */
 export function useLiveAllRoutes(): {
   routes: Route[];
   loading: boolean;
   error: string | null;
 } {
   const { items, loading, error } = useObservedRoutes(null, null);
-  return { routes: items, loading, error };
+  const outbox = useSignRunOutbox();
+  const routes = useMemo(() => items.map((route) => overlayRoute(route, outbox)), [items, outbox]);
+  return { routes, loading, error };
 }
 
 /** Live Route list scoped to the routes currently assigned to one operator —

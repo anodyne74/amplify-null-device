@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { subscribeRouteWithStops } from '@/lib/routeWithStopsFeed';
 import type { Route, Stop } from '@/amplify/types';
 import { getRouteWithStops } from '@/lib/routes';
+import { overlayRoute, overlayStops, useSignRunOutbox } from '@/lib/signRunOutbox';
 
 const LOAD_ERROR = 'Failed to load route.';
 
@@ -156,7 +157,9 @@ async function fetchRouteWithStops(routeId: string): Promise<RouteWithStopsActio
  * After a write, a caller can show its result straight away with
  * patchRoute/patchStop: the patch sits over the live data until a newer
  * version of that record arrives (normally the write's own echo), then
- * drops. refetch() forces a resync and settles every patch.
+ * drops. refetch() forces a resync and settles every patch. Sign Run writes
+ * don't use patches: they come from this device's outbox
+ * (lib/signRunOutbox.ts), laid over everything else.
  *
  * `error` is set only when the first fetch fails. A Route that doesn't exist
  * or isn't visible to the caller resolves to route: null with no error.
@@ -208,7 +211,12 @@ export function useRouteWithStops(routeId: string | null) {
     if (action.type === 'fetched') dispatch(action);
   }, [routeId]);
 
-  const { route, stops } = useMemo(() => routeWithStopsView(state), [state]);
+  // This device's unsaved Sign Run writes show over the live data (#355).
+  const outbox = useSignRunOutbox();
+  const { route, stops } = useMemo(() => {
+    const view = routeWithStopsView(state);
+    return { route: view.route && overlayRoute(view.route, outbox), stops: overlayStops(view.stops, outbox) };
+  }, [state, outbox]);
 
   return { route, stops, loading: state.loading, error: state.error, patchRoute, patchStop, refetch };
 }

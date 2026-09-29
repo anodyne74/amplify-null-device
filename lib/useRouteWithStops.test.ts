@@ -7,15 +7,25 @@ import {
   type RouteWithStopsAction,
   type RouteWithStopsState,
 } from '@/lib/useRouteWithStops';
+import { signRunOutbox } from '@/lib/signRunOutbox';
 import type { Route, Stop } from '@/amplify/types';
 
 const mockGetRouteWithStops = jest.fn();
 const mockRouteObserveQuery = jest.fn();
 const mockStopObserveQuery = jest.fn();
 
+// Outbox writes hang: an unsaved write stays unsaved for the whole test.
 jest.mock('@/lib/routes', () => ({
   getRouteWithStops: (...args: unknown[]) => mockGetRouteWithStops(...args),
+  updateRoute: () => new Promise(() => {}),
+  updateStopExecution: () => new Promise(() => {}),
 }));
+
+jest.mock('aws-amplify/auth', () => ({
+  fetchAuthSession: jest.fn().mockResolvedValue({}),
+}));
+
+jest.mock('@/lib/apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
 
 jest.mock('aws-amplify/data', () => ({
   generateClient: () => ({
@@ -281,6 +291,25 @@ describe('useRouteWithStops', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current).toMatchObject({ route: null, stops: [], error: null });
+  });
+
+  it('shows an unsaved Complete Placement as Pickup (#355)', async () => {
+    const { result } = renderHook(() => useRouteWithStops('r1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      signRunOutbox.enqueue({
+        routeId: 'r1',
+        target: 'Route',
+        recordId: 'r1',
+        kind: 'completePlacement',
+        patch: { executionPhase: 'pickup' },
+      });
+    });
+
+    expect(result.current.route?.executionPhase).toBe('pickup');
+    await act(() => signRunOutbox.discardAll());
+    expect(result.current.route?.executionPhase).toBeUndefined();
   });
 
   it('shows a patch until the write echoes back live', async () => {

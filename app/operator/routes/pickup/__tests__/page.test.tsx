@@ -2,7 +2,8 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import OperatorPickupPage from '../page';
-import { planSignRunTransition, runSignRunTransition } from '@/lib/signRunTransitions';
+import { queueSignRunTransition } from '@/lib/signRunTransitions';
+import { signRunOutbox } from '@/lib/signRunOutbox';
 import type { Route, Stop } from '@/amplify/types';
 import { getRouteWithStops, updateStopExecution } from '@/lib/routes';
 import { getCustomer } from '@/lib/customers';
@@ -22,6 +23,7 @@ jest.mock('next/navigation', () => ({
 
 jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
+  updateRoute: jest.fn(() => new Promise(() => {})),
   updateStopExecution: jest.fn(),
 }));
 
@@ -29,10 +31,18 @@ jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
 }));
 
+// Sign Run writes go through the real outbox (#355). Their saves hang, so
+// every test here shows the screen moving on without waiting for one.
 jest.mock('@/lib/signRunTransitions', () => {
   const actual = jest.requireActual('@/lib/signRunTransitions');
-  return { ...actual, runSignRunTransition: jest.fn() };
+  return {
+    ...actual,
+    queueSignRunTransition: jest.fn(actual.queueSignRunTransition),
+    queueStopSettlement: jest.fn(actual.queueStopSettlement),
+  };
 });
+jest.mock('aws-amplify/auth', () => ({ fetchAuthSession: jest.fn().mockResolvedValue({}) }));
+jest.mock('@/lib/apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
 
 jest.mock('@/app/operator/components/RouteStopsMap', () => ({
   RouteStopsMap: ({
@@ -97,17 +107,19 @@ function baseStops(): Stop[] {
   ];
 }
 
+afterEach(async () => {
+  await signRunOutbox.discardAll();
+});
+
 describe('Operator Pickup page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     searchParamId = 'route-1';
     (getCustomer as jest.Mock).mockResolvedValue({ name: 'Beltline Group' });
-    // Real planner, stubbed write: the page gets back the route it would after a successful save.
-    (runSignRunTransition as jest.Mock).mockImplementation(async (route, transition) => {
-      const plan = planSignRunTransition(route, transition);
-      return 'patch' in plan ? { route: { ...route, ...plan.patch } } : { error: plan.refused };
-    });
-    (updateStopExecution as jest.Mock).mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+    // Stop settlements (they carry notes) hang; other stop writes save.
+    (updateStopExecution as jest.Mock).mockImplementation((id: string, fields: object) =>
+      'notes' in fields ? new Promise(() => {}) : Promise.resolve({ data: { id }, errors: undefined })
+    );
   });
 
   it('shows the current stop on the glass card and the remaining stop in the THEN list', async () => {
@@ -134,7 +146,7 @@ describe('Operator Pickup page', () => {
     expect(await screen.findByText('2 stops to pick up')).toBeInTheDocument();
     expect(screen.getByText(/tap start once you're on the road/i)).toBeInTheDocument();
     expect(screen.queryByTestId('pickup-map')).not.toBeInTheDocument();
-    expect(runSignRunTransition).not.toHaveBeenCalled();
+    expect(queueSignRunTransition).not.toHaveBeenCalled();
   });
 
   it('starts pickup through the confirm dialog', async () => {
@@ -151,7 +163,7 @@ describe('Operator Pickup page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
-      expect(runSignRunTransition).toHaveBeenCalledWith(
+      expect(queueSignRunTransition).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'route-1' }),
         expect.objectContaining({ type: 'startPickup' })
       );
@@ -171,7 +183,7 @@ describe('Operator Pickup page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start pickup' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    expect(runSignRunTransition).not.toHaveBeenCalled();
+    expect(queueSignRunTransition).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Start pickup' })).toBeInTheDocument();
   });
 
@@ -251,7 +263,7 @@ describe('Operator Pickup page', () => {
     expect(screen.getByRole('button', { name: /complete pickup/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^skip$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /sign missing/i })).not.toBeInTheDocument();
-    expect(runSignRunTransition).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'completePickup' }));
+    expect(queueSignRunTransition).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'completePickup' }));
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -271,7 +283,7 @@ describe('Operator Pickup page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
-      expect(runSignRunTransition).toHaveBeenCalledWith(
+      expect(queueSignRunTransition).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'route-1' }),
         expect.objectContaining({ type: 'completePickup' })
       );

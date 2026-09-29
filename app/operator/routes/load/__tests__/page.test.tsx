@@ -2,7 +2,8 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import OperatorLoadPage from '../page';
-import { planSignRunTransition, runSignRunTransition } from '@/lib/signRunTransitions';
+import { queueSignRunTransition } from '@/lib/signRunTransitions';
+import { signRunOutbox } from '@/lib/signRunOutbox';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import type { Route, Stop } from '@/amplify/types';
 import { getRouteWithStops } from '@/lib/routes';
@@ -23,16 +24,26 @@ jest.mock('next/navigation', () => ({
 
 jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
+  updateRoute: jest.fn(() => new Promise(() => {})),
+  updateStopExecution: jest.fn(() => new Promise(() => {})),
 }));
 
 jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
 }));
 
+// Sign Run writes go through the real outbox (#355). Their saves hang, so
+// every test here shows the screen moving on without waiting for one.
 jest.mock('@/lib/signRunTransitions', () => {
   const actual = jest.requireActual('@/lib/signRunTransitions');
-  return { ...actual, runSignRunTransition: jest.fn() };
+  return {
+    ...actual,
+    queueSignRunTransition: jest.fn(actual.queueSignRunTransition),
+    queueStopSettlement: jest.fn(actual.queueStopSettlement),
+  };
 });
+jest.mock('aws-amplify/auth', () => ({ fetchAuthSession: jest.fn().mockResolvedValue({}) }));
+jest.mock('@/lib/apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
 
 jest.mock('@/lib/queries/OrganizationSettings', () => ({
   getOrganizationSettings: jest.fn(),
@@ -59,6 +70,10 @@ function baseStops(): Stop[] {
   ];
 }
 
+afterEach(async () => {
+  await signRunOutbox.discardAll();
+});
+
 describe('Operator Load page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -67,11 +82,6 @@ describe('Operator Load page', () => {
     (getOrganizationSettings as jest.Mock).mockResolvedValue({
       data: { address: '22 Dryburgh St, West Melbourne' },
       errors: undefined,
-    });
-    // Real planner, stubbed write: the page gets back the route it would after a successful save.
-    (runSignRunTransition as jest.Mock).mockImplementation(async (route, transition) => {
-      const plan = planSignRunTransition(route, transition);
-      return 'patch' in plan ? { route: { ...route, ...plan.patch } } : { error: plan.refused };
     });
   });
 
@@ -130,7 +140,7 @@ describe('Operator Load page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
-      expect(runSignRunTransition).toHaveBeenCalledWith(
+      expect(queueSignRunTransition).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'route-1' }),
         expect.objectContaining({ type: 'startLoad' })
       );
@@ -149,7 +159,7 @@ describe('Operator Load page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start load' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
-    expect(runSignRunTransition).not.toHaveBeenCalled();
+    expect(queueSignRunTransition).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Start load' })).toBeInTheDocument();
   });
 
@@ -166,7 +176,7 @@ describe('Operator Load page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
-      expect(runSignRunTransition).toHaveBeenCalledWith(
+      expect(queueSignRunTransition).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'route-1' }),
         expect.objectContaining({ type: 'confirmLoad', loadedSignsCount: 45 })
       );
@@ -183,7 +193,7 @@ describe('Operator Load page', () => {
     render(<OperatorLoadPage />);
 
     expect(await screen.findByText(/not currently on the load phase/i)).toBeInTheDocument();
-    expect(runSignRunTransition).not.toHaveBeenCalled();
+    expect(queueSignRunTransition).not.toHaveBeenCalled();
   });
 
   it('shows a guard message when the route is not found', async () => {

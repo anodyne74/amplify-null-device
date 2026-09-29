@@ -43,10 +43,13 @@ export interface SignRunTimingRecord {
   mutationMs: number;
   /** Time from the operator's OK to the save finishing. */
   confirmToSavedMs: number;
-  /** Always 0 until writes go through the outbox (#355). */
+  /** Attempts before the last, for a write sent through the outbox (#355). */
   retries: number;
-  outcome: 'saved' | 'failed';
+  /** 'discarded': an unsaved write the operator dropped, or signed out with (#355). */
+  outcome: 'saved' | 'failed' | 'discarded';
 }
+
+const OUTCOMES: SignRunTimingRecord['outcome'][] = ['saved', 'failed', 'discarded'];
 
 const DURATION_FIELDS = ['authCheckMs', 'mutationMs', 'confirmToSavedMs', 'retries'] as const;
 
@@ -60,7 +63,7 @@ export function parseSignRunTimingRecord(body: unknown): SignRunTimingRecord | n
 
   if (!SIGN_RUN_TIMING_KINDS.includes(candidate.kind as SignRunTimingKind)) return null;
   if (typeof candidate.routeId !== 'string' || !candidate.routeId.trim() || candidate.routeId.length > 128) return null;
-  if (candidate.outcome !== 'saved' && candidate.outcome !== 'failed') return null;
+  if (!OUTCOMES.includes(candidate.outcome as SignRunTimingRecord['outcome'])) return null;
   for (const field of DURATION_FIELDS) {
     const value = candidate[field];
     if (!Number.isInteger(value) || (value as number) < 0 || (value as number) > MAX_DURATION) return null;
@@ -73,6 +76,6 @@ export function parseSignRunTimingRecord(body: unknown): SignRunTimingRecord | n
     mutationMs: candidate.mutationMs as number,
     confirmToSavedMs: candidate.confirmToSavedMs as number,
     retries: candidate.retries as number,
-    outcome: candidate.outcome,
+    outcome: candidate.outcome as SignRunTimingRecord['outcome'],
   };
 }

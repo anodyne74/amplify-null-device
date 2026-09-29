@@ -231,13 +231,13 @@ export function useRouteDetailData(id: string, user: unknown) {
       setAddingStop(true);
       setAddStopError(null);
       setStopNotice(null);
-      const result = await saveStop({ routeId: route.id, customerId: route.customerId, sequence: stops.length + 1 }, values);
-      if (result.errors && result.errors.length > 0) {
-        setAddStopError(saveStopFailure(result, 'Failed to add stop.'));
-      } else {
-        if (!result.pinned) setStopNotice(UNPINNED_STOP_NOTICE);
+      try {
+        const { pinned } = await saveStop({ routeId: route.id, customerId: route.customerId, sequence: stops.length + 1 }, values);
+        if (!pinned) setStopNotice(UNPINNED_STOP_NOTICE);
         setShowAddStop(false);
         await refetch();
+      } catch (error) {
+        setAddStopError(saveStopFailure(error, 'Failed to add stop.'));
       }
       setAddingStop(false);
     },
@@ -262,14 +262,13 @@ export function useRouteDetailData(id: string, user: unknown) {
       setEditStopError(null);
       setStopNotice(null);
       const original = stops.find((s) => s.id === editingStopId) ?? { id: editingStopId };
-      const result = await saveStop({ original }, values);
-      if (result.errors && result.errors.length > 0) {
-        const firstError = result.errors[0] as { message?: string } | undefined;
-        setEditStopError(firstError?.message ?? 'Failed to update stop.');
-      } else {
-        if (!result.pinned) setStopNotice(UNPINNED_STOP_NOTICE);
+      try {
+        const { pinned } = await saveStop({ original }, values);
+        if (!pinned) setStopNotice(UNPINNED_STOP_NOTICE);
         setEditingStopId(null);
         await refetch();
+      } catch (error) {
+        setEditStopError(saveStopFailure(error, 'Failed to update stop.'));
       }
       setEditingStop(false);
     },
@@ -290,12 +289,7 @@ export function useRouteDetailData(id: string, user: unknown) {
       setDeletingStopId(stopId);
       setReorderError(null);
       try {
-        const result = await deleteStopQuery(stopId);
-        if (result.errors && result.errors.length > 0) {
-          setReorderError('Failed to delete stop. Please try again.');
-          return;
-        }
-
+        await deleteStopQuery(stopId);
         const remaining = stops.filter((s) => s.id !== stopId);
         await persistStopOrder(remaining);
       } catch {
@@ -378,8 +372,9 @@ export function useRouteDetailData(id: string, user: unknown) {
     setDeletingRoute(true);
     setError(null);
 
-    const result = await deleteRouteQuery(route.id);
-    if (result.errors && result.errors.length > 0) {
+    try {
+      await deleteRouteQuery(route.id);
+    } catch {
       setError('Failed to delete route.');
       setDeletingRoute(false);
       setRoutePendingDelete(false);

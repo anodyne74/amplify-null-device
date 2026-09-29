@@ -59,13 +59,13 @@ jest.mock('@/lib/routeWithStopsFeed', () => ({
 // What getRouteWithStops resolves to; tests override route/stops per case.
 const mockFetched: { route: unknown; stops: unknown[] } = { route: null, stops: [] };
 jest.mock('@/lib/routes', () => ({
-  deleteStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+  deleteStop: jest.fn().mockResolvedValue(undefined),
   getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched })),
-  createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
-  deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+  createStop: jest.fn().mockResolvedValue({ id: 'new-stop' }),
+  deleteRoute: jest.fn().mockResolvedValue(undefined),
   updateStopExecution: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-  updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+  updateStop: jest.fn().mockResolvedValue({}),
 }));
 
 jest.mock('@/lib/customers', () => ({

@@ -25,10 +25,10 @@ export async function correctPropertyAddress(
     return { ok: false, error: error instanceof Error ? error.message : 'Could not locate the corrected address.' };
   }
 
-  const results = await Promise.all(
+  const results = await Promise.allSettled(
     stops.map((stop) => saveStop({ original: stop }, { address: trimmed, resolvedLocation: geocoded }))
   );
-  const failed = results.filter(({ errors }) => errors && errors.length > 0).length;
+  const failed = results.filter(({ status }) => status === 'rejected').length;
   return failed > 0 ? { ok: false, error: `${failed} of ${stops.length} Stops could not be updated; try again.` } : { ok: true };
 }
 
@@ -63,10 +63,10 @@ export async function locateUnpinnedStops(
       notFound += addressStops.length;
       continue;
     }
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       addressStops.map((stop) => saveStop({ original: stop }, { address, resolvedLocation: geocoded }))
     );
-    failed += results.filter(({ errors }) => errors && errors.length > 0).length;
+    failed += results.filter(({ status }) => status === 'rejected').length;
   }
 
   if (failed > 0) return { ok: false, error: `${failed} of ${unpinned.length} Stops could not be updated; try again.` };

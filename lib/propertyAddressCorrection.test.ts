@@ -14,7 +14,7 @@ const STOPS = [
 beforeEach(() => {
   jest.clearAllMocks();
   (geocodeAddress as jest.Mock).mockResolvedValue(GEOCODED);
-  (saveStop as jest.Mock).mockResolvedValue({ errors: undefined, pinned: true });
+  (saveStop as jest.Mock).mockResolvedValue({ pinned: true });
 });
 
 describe('correctPropertyAddress', () => {
@@ -47,7 +47,7 @@ describe('correctPropertyAddress', () => {
   });
 
   it('reports Stops that could not be updated', async () => {
-    (saveStop as jest.Mock).mockResolvedValueOnce({ errors: [new Error('nope')], pinned: false });
+    (saveStop as jest.Mock).mockRejectedValueOnce(new Error('nope'));
 
     await expect(correctPropertyAddress(STOPS, '14 Cliff Rd, Epping')).resolves.toEqual({
       ok: false,
@@ -93,7 +93,7 @@ describe('locateUnpinnedStops (#344)', () => {
   });
 
   it('reports Stops that could not be updated', async () => {
-    (saveStop as jest.Mock).mockResolvedValueOnce({ errors: [new Error('nope')], pinned: false });
+    (saveStop as jest.Mock).mockRejectedValueOnce(new Error('nope'));
 
     await expect(locateUnpinnedStops(UNPINNED)).resolves.toEqual({ ok: false, error: expect.stringContaining('1 of 3') });
   });

@@ -56,7 +56,7 @@ describe('useRoutesList', () => {
       { id: 'customer-2', name: 'Globex Inc' },
     ]);
 
-    (deleteRoute as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
+    (deleteRoute as jest.Mock).mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -170,10 +170,7 @@ describe('useRoutesList', () => {
   });
 
   it('surfaces delete error when delete call fails', async () => {
-    (deleteRoute as jest.Mock).mockResolvedValue({
-      data: null,
-      errors: [{ message: 'delete failed' }],
-    });
+    (deleteRoute as jest.Mock).mockRejectedValue(new Error('Failed to delete route.'));
 
     const { result } = renderHook(() => useRoutesList(true));
 

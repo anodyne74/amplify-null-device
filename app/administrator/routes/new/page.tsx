@@ -22,6 +22,7 @@ import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
 import { locateDraftStops } from '@/lib/stopLocation';
 import styles from './page.module.css';
 import { listAllRoutes, createRoute, createStopsForRoute, getRouteWithStops } from '@/lib/routes';
+import { DataError } from '@/lib/graphqlResult';
 import { listAllCustomers } from '@/lib/customers';
 import {
   attachNewRouteRequest,
@@ -292,7 +293,7 @@ function NewRoutePageContent() {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      const result = await createRoute({
+      const route = await createRoute({
         routeCode: values.routeCode.trim(),
         customerId: values.customerId,
         scheduledDate: values.scheduledDate,
@@ -300,41 +301,27 @@ function NewRoutePageContent() {
         notes: values.notes || undefined,
       });
 
-      if (result.errors && result.errors.length > 0) {
-        const msg = (result.errors as Array<{ message?: string }>)
-          .map((e) => e.message ?? String(e))
-          .join('; ');
-        setSubmitError(`Failed to create route: ${msg}`);
+      const stopResults = await createStopsForRoute(route.id, values.customerId, values.stops);
+      const failedStops = stopResults
+        .filter((stopResult) => !stopResult.success)
+        .map((stopResult) => `#${stopResult.index + 1} (${stopResult.address || 'Unknown address'}): ${stopResult.errorMessage}`);
+
+      if (failedStops.length > 0) {
+        setSubmitError(`Route was created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}`);
         setIsSubmitting(false);
         return;
       }
 
-      if (result.data?.id) {
-        const stopResults = await createStopsForRoute(result.data.id, values.customerId, values.stops);
-        const failedStops = stopResults
-          .filter((stopResult) => !stopResult.success)
-          .map((stopResult) => `#${stopResult.index + 1} (${stopResult.address || 'Unknown address'}): ${stopResult.errorMessage}`);
-
-        if (failedStops.length > 0) {
-          setSubmitError(`Route was created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}`);
-          setIsSubmitting(false);
-          return;
-        }
-
-        const attached = await attachRouteRequest(result.data.id, values.customerId, null);
-        if (!attached.ok) {
-          setSubmitError(`Route was created, but not linked to its Route Request: ${attached.error} Link it from the Route's Requests.`);
-          setIsSubmitting(false);
-          return;
-        }
-
-        router.push(`/administrator/routes/detail?id=${result.data.id}`);
-      } else {
-        setSubmitError('Route created but ID not returned.');
+      const attached = await attachRouteRequest(route.id, values.customerId, null);
+      if (!attached.ok) {
+        setSubmitError(`Route was created, but not linked to its Route Request: ${attached.error} Link it from the Route's Requests.`);
         setIsSubmitting(false);
+        return;
       }
-    } catch {
-      setSubmitError('An unexpected error occurred.');
+
+      router.push(`/administrator/routes/detail?id=${route.id}`);
+    } catch (err) {
+      setSubmitError(err instanceof DataError ? err.message : 'An unexpected error occurred.');
       setIsSubmitting(false);
     }
   };
@@ -548,24 +535,13 @@ function NewRoutePageContent() {
       }
 
       // 1. Create route
-      const routeResult = await createRoute({
+      const { id: routeId } = await createRoute({
         routeCode: importRouteCode.trim(),
         customerId: importCustomerId,
         scheduledDate: importScheduledDate,
         status: 'planned',
         notes: importNotes || undefined,
       });
-
-      if (routeResult.errors && routeResult.errors.length > 0) {
-        const msg = (routeResult.errors as Array<{ message?: string }>)
-          .map((e) => e.message ?? String(e)).join('; ');
-        setImportError(`Failed to create route: ${msg}`);
-        setIsUploading(false);
-        return;
-      }
-
-      const routeId = routeResult.data?.id;
-      if (!routeId) { setImportError('Route created but ID not returned.'); setIsUploading(false); return; }
 
       // 2. Create stops
       const stopResults = await createStopsForRoute(routeId, importCustomerId, importDraftStops);
@@ -590,7 +566,7 @@ function NewRoutePageContent() {
       router.push(`/administrator/routes/detail?id=${routeId}`);
     } catch (err) {
       console.error('Import error:', err);
-      setImportError('An unexpected error occurred during import.');
+      setImportError(err instanceof DataError ? err.message : 'An unexpected error occurred during import.');
       setIsUploading(false);
     }
   };

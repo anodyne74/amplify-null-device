@@ -135,10 +135,7 @@ describe('Operator Route Detail Page', () => {
 
     mockFetched.stops = mockStops;
 
-    (deleteStop as jest.Mock).mockResolvedValue({
-      data: {},
-      errors: undefined,
-    });
+    (deleteStop as jest.Mock).mockResolvedValue(undefined);
   });
 
   it('renders route information after loading', async () => {

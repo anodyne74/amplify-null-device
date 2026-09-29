@@ -302,13 +302,13 @@ function RouteEditContent() {
     setStopSaving(true);
     setStopError(null);
     setStopNotice(null);
-    const result = await saveStop({ routeId, customerId, sequence: stops.length + 1 }, values);
-    if (result.errors && result.errors.length > 0) {
-      setStopError(saveStopFailure(result, 'Failed to add stop.'));
-    } else {
-      if (!result.pinned) setStopNotice(UNPINNED_STOP_NOTICE);
+    try {
+      const { pinned } = await saveStop({ routeId, customerId, sequence: stops.length + 1 }, values);
+      if (!pinned) setStopNotice(UNPINNED_STOP_NOTICE);
       setShowAddStop(false);
       await fetchStops();
+    } catch (error) {
+      setStopError(saveStopFailure(error, 'Failed to add stop.'));
     }
     setStopSaving(false);
   };
@@ -320,14 +320,13 @@ function RouteEditContent() {
     setStopError(null);
     setStopNotice(null);
     const original = stops.find((s) => s.id === editingStopId) ?? { id: editingStopId };
-    const result = await saveStop({ original }, values);
-    if (result.errors && result.errors.length > 0) {
-      const firstError = result.errors[0] as { message?: string } | undefined;
-      setStopError(firstError?.message ?? 'Failed to update stop.');
-    } else {
-      if (!result.pinned) setStopNotice(UNPINNED_STOP_NOTICE);
+    try {
+      const { pinned } = await saveStop({ original }, values);
+      if (!pinned) setStopNotice(UNPINNED_STOP_NOTICE);
       setEditingStopId(null);
       await fetchStops();
+    } catch (error) {
+      setStopError(saveStopFailure(error, 'Failed to update stop.'));
     }
     setStopSaving(false);
   };
@@ -338,8 +337,9 @@ function RouteEditContent() {
     setStopSaving(true);
     setStopError(null);
 
-    const result = await deleteStop(stopId);
-    if (result.errors && result.errors.length > 0) {
+    try {
+      await deleteStop(stopId);
+    } catch {
       setStopError('Failed to delete stop.');
       setStopSaving(false);
       setStopPendingDelete(null);

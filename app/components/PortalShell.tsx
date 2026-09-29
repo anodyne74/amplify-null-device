@@ -24,6 +24,10 @@ interface PortalShellProps {
   navItems: PortalNavItem[];
   userName: string;
   onLogout: () => void;
+  /** Pinned to the top-right corner of every page, e.g. the operator's save status. */
+  status?: React.ReactNode;
+  /** Replaces the logout confirmation's copy when logging out would lose something. */
+  logoutWarning?: string | null;
 }
 
 const PORTAL_TITLES: Record<PortalVariant, string> = {
@@ -36,7 +40,15 @@ const PORTAL_TITLES: Record<PortalVariant, string> = {
  * The sidebar and content frame every portal renders in. Staff portals get the
  * fixed navy chrome; the customer portal's sidebar follows the visitor's theme.
  */
-export default function PortalShell({ children, variant, navItems, userName, onLogout }: PortalShellProps) {
+export default function PortalShell({
+  children,
+  variant,
+  navItems,
+  userName,
+  onLogout,
+  status,
+  logoutWarning,
+}: PortalShellProps) {
   const pathname = usePathname();
   const { resolvedMode } = useThemeMode();
   const staff = variant !== 'customer';
@@ -122,21 +134,22 @@ export default function PortalShell({ children, variant, navItems, userName, onL
       </aside>
 
       <main className={styles.main}>
+        {status && <div className={styles.status}>{status}</div>}
         <div className={styles.content}>{children}</div>
       </main>
 
       <Dialog
         open={showLogoutConfirm}
         title="Log out?"
-        description={`You'll need to sign in again to access the ${variant} portal.`}
+        description={logoutWarning || `You'll need to sign in again to access the ${variant} portal.`}
         onClose={() => setShowLogoutConfirm(false)}
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowLogoutConfirm(false)}>
-              Cancel
+              {logoutWarning ? 'Stay signed in' : 'Cancel'}
             </Button>
             <Button variant="danger" onClick={onLogout}>
-              Yes, logout
+              {logoutWarning ? 'Log out anyway' : 'Yes, logout'}
             </Button>
           </>
         }

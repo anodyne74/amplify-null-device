@@ -1,5 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useLiveRoutes, useLiveAllRoutes, useLiveOperatorRoutes } from '@/lib/useLiveRoutes';
+import { signRunOutbox } from '@/lib/signRunOutbox';
 
 const mockObserveQuery = jest.fn();
 
@@ -16,6 +17,18 @@ jest.mock('aws-amplify/data', () => ({
 jest.mock('@/lib/amplify-config', () => ({
   configureAmplify: jest.fn(),
 }));
+
+// Outbox writes hang: an unsaved write stays unsaved for the whole test.
+jest.mock('@/lib/routes', () => ({
+  updateRoute: () => new Promise(() => {}),
+  updateStopExecution: () => new Promise(() => {}),
+}));
+
+jest.mock('aws-amplify/auth', () => ({
+  fetchAuthSession: jest.fn().mockResolvedValue({}),
+}));
+
+jest.mock('@/lib/apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
 
 type Subscriber = {
   next: (value: { items: unknown[]; isSynced: boolean }) => void;
@@ -157,6 +170,29 @@ describe('useLiveAllRoutes', () => {
 
     expect(result.current.loading).toBe(false);
     expect(result.current.routes).toEqual([{ id: 'route-1' }, { id: 'route-2' }]);
+  });
+
+  it('shows the dashboard an unsaved Complete Placement as Pickup (#355)', async () => {
+    const feed = makeObservable();
+    mockObserveQuery.mockReturnValue(feed.observable);
+    const { result } = renderHook(() => useLiveAllRoutes());
+    act(() => {
+      feed.emit({ items: [{ id: 'route-1', executionPhase: 'placement', updatedAt: '2026-09-30T09:00:00.000Z' }], isSynced: true });
+    });
+
+    act(() => {
+      signRunOutbox.enqueue({
+        routeId: 'route-1',
+        target: 'Route',
+        recordId: 'route-1',
+        kind: 'completePlacement',
+        patch: { executionPhase: 'pickup' },
+      });
+    });
+
+    expect(result.current.routes[0].executionPhase).toBe('pickup');
+    await act(() => signRunOutbox.discardAll());
+    expect(result.current.routes[0].executionPhase).toBe('placement');
   });
 
   it('reflects a route newly appearing (e.g. a new assignment) pushed over the same subscription', () => {

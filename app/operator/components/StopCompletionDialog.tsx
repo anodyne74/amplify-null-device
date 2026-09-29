@@ -17,7 +17,6 @@ export const SKIP_REASONS = [
 interface StopCompletionDialogProps {
   stop: Stop | null;
   phase: 'placement' | 'pickup';
-  busy: boolean;
   /** Opens straight to the skip-reason step — used by the primary "Skip" button, which
    * already knows the driver wants to skip rather than complete. */
   initialStep?: 'action' | 'reason';
@@ -30,7 +29,6 @@ interface StopCompletionDialogProps {
 export function StopCompletionDialog({
   stop,
   phase,
-  busy,
   initialStep = 'action',
   onComplete,
   onSkip,
@@ -61,7 +59,6 @@ export function StopCompletionDialog({
               type="button"
               className={styles.reasonButton}
               onClick={() => onSkip(reason)}
-              disabled={busy}
             >
               {reason}
             </button>
@@ -79,10 +76,10 @@ export function StopCompletionDialog({
       onClose={onClose}
       footer={
         <>
-          <Button variant="secondary" onClick={() => setStep('reason')} disabled={busy}>
+          <Button variant="secondary" onClick={() => setStep('reason')}>
             Skip
           </Button>
-          <Button onClick={onComplete} loading={busy} disabled={busy}>
+          <Button onClick={onComplete}>
             {primaryLabel}
           </Button>
         </>

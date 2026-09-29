@@ -62,6 +62,30 @@ describe('PortalShell', () => {
     expect(onLogout).toHaveBeenCalled();
   });
 
+  it('shows a status and warns before logging out when given a warning', () => {
+    const onLogout = jest.fn();
+    render(
+      <PortalShell
+        variant="operator"
+        navItems={NAV_ITEMS}
+        userName="Sam Rivera"
+        onLogout={onLogout}
+        status={<span>2 unsaved</span>}
+        logoutWarning="2 actions aren't saved yet. Stay signed in until they are?"
+      >
+        <div>Content</div>
+      </PortalShell>
+    );
+
+    expect(screen.getByText('2 unsaved')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Logout' }));
+    expect(screen.getByText("2 actions aren't saved yet. Stay signed in until they are?")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stay signed in' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Log out anyway' }));
+    expect(onLogout).toHaveBeenCalled();
+  });
+
   it.each(['administrator', 'operator'] as const)('gives the %s portal the navy staff chrome in any theme', (variant) => {
     renderShell(variant);
 

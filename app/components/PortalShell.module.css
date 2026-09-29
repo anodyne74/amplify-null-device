@@ -124,6 +124,13 @@
   min-width: 0;
 }
 
+.status {
+  position: fixed;
+  top: var(--space-5);
+  right: var(--space-5);
+  z-index: 30;
+}
+
 .content {
   padding: var(--space-8) var(--gutter-page) var(--space-11);
   /* Extra breathing room below --space-11 for notched/home-indicator devices

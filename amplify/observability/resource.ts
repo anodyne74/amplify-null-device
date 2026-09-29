@@ -584,9 +584,13 @@ function signRunTimingWidgets(stack: Stack, appId: string, branchName: string): 
     unit: Unit.MILLISECONDS,
   });
 
+  // A discarded write (#355) never reached its token check, so its 0 isn't a timing.
   new MetricFilter(stack, 'SignRunAuthCheckFilter', {
     logGroup: ssrLogGroup,
-    filterPattern: FilterPattern.all(...isThisBranchsTiming),
+    filterPattern: FilterPattern.all(
+      ...isThisBranchsTiming,
+      FilterPattern.stringValue('$.outcome', '!=', 'discarded')
+    ),
     metricNamespace: 'NullDeviceOps',
     metricName: 'SignRunAuthCheckMs',
     metricValue: '$.authCheckMs',

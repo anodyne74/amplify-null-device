@@ -80,6 +80,13 @@ describe('POST /api/sign-run-timing', () => {
     expect(JSON.parse(logSpy.mock.calls[0][0])).toMatchObject({ kind: 'pickupStopSkipped', outcome: 'failed' });
   });
 
+  it('logs a write the operator discarded unsaved (#355)', async () => {
+    const result = await call(OPERATOR, { ...RECORD, retries: 4, outcome: 'discarded' });
+
+    expect(result.status).toBe(200);
+    expect(JSON.parse(logSpy.mock.calls[0][0])).toMatchObject({ retries: 4, outcome: 'discarded' });
+  });
+
   it('refuses a caller who is not signed in', async () => {
     const result = await call(null, RECORD);
 

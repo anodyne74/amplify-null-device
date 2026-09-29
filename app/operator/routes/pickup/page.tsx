@@ -11,7 +11,7 @@ import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDi
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
-import { runSignRunTransition, runStopSettlement } from '@/lib/signRunTransitions';
+import { queueSignRunTransition, queueStopSettlement } from '@/lib/signRunTransitions';
 import { formatClockTime } from '@/lib/signRunBilling';
 import { getAgentBadgeInitials } from '@/lib/customerDefaults';
 import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } from '@/lib/routeDetailHelpers';
@@ -69,7 +69,6 @@ export default function OperatorPickupPage() {
   const {
     routeId,
     route,
-    patchRoute,
     stops,
     patchStop,
     extra: customerName,
@@ -78,28 +77,24 @@ export default function OperatorPickupPage() {
     isOnPhase: isPickupScreen,
   } = useSignRunPhaseScreen({ phaseIdx: 2, fetchExtra: fetchCustomerName });
   const [error, setError] = useState<string | null>(null);
-  const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [missingLogging, setMissingLogging] = useState<Record<string, boolean>>({});
   const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
   const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
-  const { dialog, openDialog, closeDialog, submitting, setSubmitting } = useTimestampConfirmDialog<
+  const { dialog, openDialog, closeDialog, submitting } = useTimestampConfirmDialog<
     'start' | 'complete'
   >();
 
-  const handleStartPickup = async (iso: string) => {
+  // Sign Run writes show at once and save in the background (lib/signRunOutbox.ts).
+  const handleStartPickup = (iso: string) => {
     if (!route) return;
-    setSubmitting(true);
     setError(null);
 
-    const result = await runSignRunTransition(route, { type: 'startPickup', at: iso });
-
-    setSubmitting(false);
+    const result = queueSignRunTransition(route, { type: 'startPickup', at: iso });
     if ('error' in result) {
       setError(result.error);
       return;
     }
 
-    patchRoute(result.route);
     closeDialog();
   };
 
@@ -115,20 +110,12 @@ export default function OperatorPickupPage() {
   const closeStopSheet = () => setActionSheetStopId(null);
 
   const settleStop = useCallback(
-    async (stopId: string, action: 'complete' | 'skip', reason?: string) => {
+    (stopId: string, action: 'complete' | 'skip', reason?: string) => {
       const stop = stops.find((s) => s.id === stopId);
-      if (!stop) return false;
-      setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-      const result = await runStopSettlement(stop, { phase: 'pickup', action, reason });
-      if ('error' in result) {
-        setError(result.error);
-      } else {
-        patchStop(stopId, result.patch);
-      }
-      setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-      return !('error' in result);
+      if (!stop) return;
+      queueStopSettlement(stop, { phase: 'pickup', action, reason });
     },
-    [stops, patchStop]
+    [stops]
   );
 
   const handleStopCompleted = useCallback((stopId: string) => settleStop(stopId, 'complete'), [settleStop]);
@@ -210,20 +197,18 @@ export default function OperatorPickupPage() {
   // primary button below) and only closes pickup out, advancing the route to unload,
   // once they explicitly tap through.
   const handleCompletePhase = useCallback(
-    async (iso: string) => {
+    (iso: string) => {
       if (!route) return;
-      setSubmitting(true);
       setError(null);
-      const result = await runSignRunTransition(route, { type: 'completePickup', at: iso });
+      const result = queueSignRunTransition(route, { type: 'completePickup', at: iso });
       if (!('error' in result)) {
         router.push('/operator/dashboard');
         return;
       }
       setError(result.error);
-      setSubmitting(false);
       closeDialog();
     },
-    [route, router, closeDialog, setSubmitting]
+    [route, router, closeDialog]
   );
 
   if (!routeId) {
@@ -289,7 +274,7 @@ export default function OperatorPickupPage() {
           onCancel={closeDialog}
           onOk={() => {
             if (!dialog) return;
-            void handleStartPickup(dialog.time);
+            handleStartPickup(dialog.time);
           }}
         />
       </div>
@@ -447,7 +432,6 @@ export default function OperatorPickupPage() {
             type="button"
             className={stopCardStyles.skipButton}
             onClick={() => openStopSheet(currentStop.id, 'reason')}
-            disabled={!!stopExecuting[currentStop.id]}
           >
             Skip
           </button>
@@ -457,14 +441,14 @@ export default function OperatorPickupPage() {
           className={`${shellStyles.primaryButton} ${styles.primaryButton} ${stopCardStyles.primaryAction}`}
           onClick={() => {
             if (currentStop) {
-              void handleStopCompleted(currentStop.id);
+              handleStopCompleted(currentStop.id);
             } else {
               openDialog('complete');
             }
           }}
-          disabled={currentStop ? !!stopExecuting[currentStop.id] : submitting}
+          disabled={!currentStop && submitting}
         >
-          {currentStop ? (stopExecuting[currentStop.id] ? 'Saving…' : 'Signs picked up') : 'Complete pickup'}
+          {currentStop ? 'Signs picked up' : 'Complete pickup'}
         </button>
       </div>
 
@@ -477,26 +461,23 @@ export default function OperatorPickupPage() {
         onCancel={closeDialog}
         onOk={() => {
           if (!dialog) return;
-          void handleCompletePhase(dialog.time);
+          handleCompletePhase(dialog.time);
         }}
       />
 
       <StopCompletionDialog
         stop={actionSheetStop}
         phase="pickup"
-        busy={!!actionSheetStop && !!stopExecuting[actionSheetStop.id]}
         initialStep={actionSheetStep}
         onComplete={() => {
           if (!actionSheetStop) return;
-          void handleStopCompleted(actionSheetStop.id).then((ok) => {
-            if (ok) closeStopSheet();
-          });
+          handleStopCompleted(actionSheetStop.id);
+          closeStopSheet();
         }}
         onSkip={(reason) => {
           if (!actionSheetStop) return;
-          void handleSkipStop(actionSheetStop.id, reason).then((ok) => {
-            if (ok) closeStopSheet();
-          });
+          handleSkipStop(actionSheetStop.id, reason);
+          closeStopSheet();
         }}
         onClose={closeStopSheet}
       />

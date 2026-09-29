@@ -2,7 +2,8 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import OperatorFinalisePage from '../page';
-import { planSignRunTransition, runSignRunTransition } from '@/lib/signRunTransitions';
+import { queueSignRunTransition } from '@/lib/signRunTransitions';
+import { signRunOutbox } from '@/lib/signRunOutbox';
 import type { Route, Stop } from '@/amplify/types';
 import { getRouteWithStops } from '@/lib/routes';
 
@@ -21,12 +22,22 @@ jest.mock('next/navigation', () => ({
 
 jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
+  updateRoute: jest.fn(() => new Promise(() => {})),
+  updateStopExecution: jest.fn(() => new Promise(() => {})),
 }));
 
+// Sign Run writes go through the real outbox (#355). Their saves hang, so
+// every test here shows the screen moving on without waiting for one.
 jest.mock('@/lib/signRunTransitions', () => {
   const actual = jest.requireActual('@/lib/signRunTransitions');
-  return { ...actual, runSignRunTransition: jest.fn() };
+  return {
+    ...actual,
+    queueSignRunTransition: jest.fn(actual.queueSignRunTransition),
+    queueStopSettlement: jest.fn(actual.queueStopSettlement),
+  };
 });
+jest.mock('aws-amplify/auth', () => ({ fetchAuthSession: jest.fn().mockResolvedValue({}) }));
+jest.mock('@/lib/apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
 
 function baseRoute(overrides: Partial<Route> = {}): Route {
   return {
@@ -79,15 +90,14 @@ function baseStops(): Stop[] {
   ];
 }
 
+afterEach(async () => {
+  await signRunOutbox.discardAll();
+});
+
 describe('Operator Finalise page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     searchParamId = 'route-1';
-    // Real planner, stubbed write: the page gets back the route it would after a successful save.
-    (runSignRunTransition as jest.Mock).mockImplementation(async (route, transition) => {
-      const plan = planSignRunTransition(route, transition);
-      return 'patch' in plan ? { route: { ...route, ...plan.patch } } : { error: plan.refused };
-    });
   });
 
   it('shows the summary stats, measured defaults, and a warning state when the total is off a 15 min increment', async () => {
@@ -179,7 +189,7 @@ describe('Operator Finalise page', () => {
     fireEvent.click(screen.getByRole('button', { name: /complete route · 1h 15m/i }));
 
     await waitFor(() => {
-      expect(runSignRunTransition).toHaveBeenCalledWith(expect.objectContaining({ id: 'route-1' }), {
+      expect(queueSignRunTransition).toHaveBeenCalledWith(expect.objectContaining({ id: 'route-1' }), {
         type: 'finalise',
         billedMinutes: { load: 15, placement: 20, pickup: 10, unload: 30 },
         distanceKm: 0.5,
@@ -196,7 +206,7 @@ describe('Operator Finalise page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /back to today/i }));
 
-    expect(runSignRunTransition).not.toHaveBeenCalled();
+    expect(queueSignRunTransition).not.toHaveBeenCalled();
     expect(push).toHaveBeenCalledWith('/operator/dashboard');
   });
 
@@ -209,7 +219,7 @@ describe('Operator Finalise page', () => {
     render(<OperatorFinalisePage />);
 
     expect(await screen.findByText(/not ready to finalise yet/i)).toBeInTheDocument();
-    expect(runSignRunTransition).not.toHaveBeenCalled();
+    expect(queueSignRunTransition).not.toHaveBeenCalled();
   });
 
   it('shows a guard message when the route is not found', async () => {

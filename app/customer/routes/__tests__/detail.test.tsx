@@ -121,7 +121,6 @@ describe('Customer route detail tracker', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route,
       stops,
-      errors: [],
     });
     (updateRouteCustomerInstructions as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
     (updateRoute as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
@@ -183,7 +182,6 @@ describe('Customer route detail tracker', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: { ...route, actualStartTime: '2024-01-15T00:00:00Z', createdAt: '2026-09-18T04:00:00Z' },
       stops,
-      errors: [],
     });
 
     render(<RouteDetailContent params={{ id: 'route-1' }} />);
@@ -244,7 +242,6 @@ describe('Customer route detail tracker', () => {
         }),
       },
       stops,
-      errors: [],
     });
     (listCustomerUsers as jest.Mock).mockResolvedValue([{ userSub: 'owner-sub-1', name: 'Priya Nair' }]);
 
@@ -273,7 +270,6 @@ describe('Customer route detail tracker', () => {
         }),
       },
       stops,
-      errors: [],
     });
     // A read_only viewer's CustomerUser query only returns their own row.
     (listCustomerUsers as jest.Mock).mockResolvedValue([{ userSub: 'viewer-sub-1', name: 'The Viewer' }]);
@@ -289,7 +285,6 @@ describe('Customer route detail tracker', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: { ...route, executionPhase: 'placement' },
       stops,
-      errors: [],
     });
 
     render(<RouteDetailContent params={{ id: 'route-1' }} />);
@@ -305,7 +300,6 @@ describe('Customer route detail tracker', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: { ...route, status: 'completed', executionPhase: undefined },
       stops,
-      errors: [],
     });
 
     render(<RouteDetailContent params={{ id: 'route-1' }} />);
@@ -324,7 +318,6 @@ describe('Customer route detail tracker', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: { ...route, executionPhase: 'placement' },
       stops,
-      errors: [],
     });
     const { unmount } = render(<RouteDetailContent params={{ id: 'route-1' }} />);
     await screen.findAllByRole('heading', { name: /route w19-26-001/i });
@@ -379,7 +372,6 @@ describe('Customer route detail tracker', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: { ...route, customerInstructions: 'Old freeform note from before this feature' },
       stops,
-      errors: [],
     });
 
     render(<RouteDetailContent params={{ id: 'route-1' }} />);
@@ -393,7 +385,6 @@ describe('Customer route detail tracker', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: { ...route, status: 'completed' },
       stops,
-      errors: [],
     });
 
     render(<RouteDetailContent params={{ id: 'route-1' }} />);
@@ -437,11 +428,11 @@ describe('Customer route detail tracker', () => {
   });
 
   it.each([
-    [{ route: null, stops: [], errors: [{ message: 'boom' }] }, 'Failed to load route details'],
-    [{ route: null, stops: [], errors: [] }, 'Route not found'],
-    [{ route: { ...route, customerId: 'cust-other' }, stops, errors: [] }, 'You do not have permission to view this route'],
+    [() => Promise.reject(new Error('boom')), 'Failed to load route details'],
+    [() => Promise.resolve(null), 'Route not found'],
+    [() => Promise.resolve({ route: { ...route, customerId: 'cust-other' }, stops }), 'You do not have permission to view this route'],
   ])('shows an error in place of the route: %#', async (fetched, message) => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue(fetched);
+    (getRouteWithStops as jest.Mock).mockImplementation(fetched);
 
     render(<RouteDetailContent params={{ id: 'route-1' }} />);
 
@@ -453,7 +444,6 @@ describe('Customer route detail tracker', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: { ...route, status: 'completed', actualDurationMinutes: 130, overrideDurationMinutes: 150 },
       stops,
-      errors: [],
     });
 
     render(<RouteDetailContent params={{ id: 'route-1' }} />);

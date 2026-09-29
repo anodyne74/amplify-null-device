@@ -96,11 +96,7 @@ describe('Operator Routes List Page', () => {
       { id: 'cust-bbbb-2222', name: 'Acme Corp', email: 'acme@example.com' },
       { id: 'cust-dddd-4444', name: 'Globex Inc', email: 'globex@example.com' },
     ]);
-    (listAllStops as jest.Mock).mockResolvedValue({
-      data: mockStops,
-      errors: undefined,
-      nextToken: undefined,
-    });
+    (listAllStops as jest.Mock).mockResolvedValue(mockStops);
   });
 
   it('renders loading spinner initially', async () => {

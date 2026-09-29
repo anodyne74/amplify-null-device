@@ -98,7 +98,7 @@ describe('Operator Unload page', () => {
   });
 
   it('shows the reconciliation stats and against-the-load summary', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorUnloadPage />);
 
@@ -115,7 +115,7 @@ describe('Operator Unload page', () => {
   });
 
   it('starts the unload through the confirm dialog, then shows the stamp and the confirm step', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorUnloadPage />);
     await screen.findByText('20 signs to return');
@@ -137,7 +137,7 @@ describe('Operator Unload page', () => {
   });
 
   it('cancelling the start dialog leaves the unload unstarted', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorUnloadPage />);
     await screen.findByText('20 signs to return');
@@ -153,7 +153,6 @@ describe('Operator Unload page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ unloadStartedAt: '2026-09-12T07:37:00.000Z' }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorUnloadPage />);
@@ -175,7 +174,6 @@ describe('Operator Unload page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ executionPhase: 'pickup' }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorUnloadPage />);
@@ -185,7 +183,7 @@ describe('Operator Unload page', () => {
   });
 
   it('shows a guard message when the route is not found', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: null, stops: [], errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue(null);
 
     render(<OperatorUnloadPage />);
 

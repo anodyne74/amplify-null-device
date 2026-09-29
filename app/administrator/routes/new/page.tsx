@@ -51,13 +51,13 @@ function getExcelStyleWeekPrefix(date = new Date()) {
 
 async function generateNextRouteCode() {
   const prefix = getExcelStyleWeekPrefix();
-  const result = await listAllRoutes();
-  if (result.errors && result.errors.length > 0) {
+  const routes = await listAllRoutes().catch(() => null);
+  if (!routes) {
     return `${prefix}-001`;
   }
 
   const used = new Set<number>();
-  (result.data as Array<{ routeCode?: string | null }>).forEach((route) => {
+  (routes as Array<{ routeCode?: string | null }>).forEach((route) => {
     const code = route.routeCode;
     if (!code || !code.startsWith(`${prefix}-`)) return;
     const match = code.match(/-(\d{3})$/);
@@ -249,13 +249,10 @@ function NewRoutePageContent() {
     let cancelled = false;
 
     async function fetchRoutesForCopy() {
-      const result = await listAllRoutes();
-      if (cancelled) return;
-      if (result.errors && result.errors.length > 0) {
-        return;
-      }
+      const routes = await listAllRoutes().catch(() => null);
+      if (cancelled || !routes) return;
 
-      const mapped = (result.data as Array<{
+      const mapped = (routes as Array<{
         id: string;
         customerId: string;
         routeCode?: string | null;
@@ -347,10 +344,9 @@ function NewRoutePageContent() {
   };
 
   const handleCopyStopsFromRoute = async (sourceRouteId: string): Promise<RouteDraftStop[]> => {
-    const { stops, errors } = await getRouteWithStops(sourceRouteId);
-    if (errors && errors.length > 0) {
+    const stops = (await getRouteWithStops(sourceRouteId).catch(() => {
       throw new Error('Failed to load source route stops.');
-    }
+    }))?.stops ?? [];
 
     return stops.map((stop) => {
       const rawServiceType = stop.serviceType?.toString().trim().toLowerCase();

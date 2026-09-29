@@ -111,7 +111,7 @@ describe('Operator Pickup page', () => {
   });
 
   it('shows the current stop on the glass card and the remaining stop in the THEN list', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPickupPage />);
 
@@ -127,7 +127,6 @@ describe('Operator Pickup page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ pickupStartTime: null }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorPickupPage />);
@@ -142,7 +141,6 @@ describe('Operator Pickup page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ pickupStartTime: null }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorPickupPage />);
@@ -165,7 +163,6 @@ describe('Operator Pickup page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ pickupStartTime: null }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorPickupPage />);
@@ -179,7 +176,7 @@ describe('Operator Pickup page', () => {
   });
 
   it('completes the current stop with one tap and advances to the next', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPickupPage />);
     await screen.findByText('PICKUP · STOP 1 OF 2');
@@ -196,7 +193,7 @@ describe('Operator Pickup page', () => {
   });
 
   it('skips the current stop via the reason sheet', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPickupPage />);
     await screen.findByText('PICKUP · STOP 1 OF 2');
@@ -218,7 +215,7 @@ describe('Operator Pickup page', () => {
   it('passes already-skipped stops to the map as skippedStopIds', async () => {
     const stops = baseStops();
     stops[0] = { ...stops[0], notes: '[PICKUP_SKIPPED:2026-08-31T09:05:00.000Z|Gate locked]' } as Stop;
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops, errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops });
 
     render(<OperatorPickupPage />);
     await screen.findByText('PICKUP · STOP 2 OF 2');
@@ -227,7 +224,7 @@ describe('Operator Pickup page', () => {
   });
 
   it('opens the out-of-order sheet from the THEN list', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPickupPage />);
     await screen.findByText('14 Second Ave');
@@ -242,7 +239,6 @@ describe('Operator Pickup page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute(),
       stops: [baseStops()[0]],
-      errors: [],
     });
 
     render(<OperatorPickupPage />);
@@ -263,7 +259,6 @@ describe('Operator Pickup page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute(),
       stops: [baseStops()[0]],
-      errors: [],
     });
 
     render(<OperatorPickupPage />);
@@ -288,7 +283,6 @@ describe('Operator Pickup page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ executionPhase: 'placement' }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorPickupPage />);
@@ -297,7 +291,7 @@ describe('Operator Pickup page', () => {
   });
 
   it('shows a guard message when the route is not found', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: null, stops: [], errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue(null);
 
     render(<OperatorPickupPage />);
 
@@ -312,7 +306,7 @@ describe('Operator Pickup page', () => {
 
   describe('missing-signs logging', () => {
     it('logs a missing sign, persisting the count/timestamp/coordinates and showing the count line', async () => {
-      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
       render(<OperatorPickupPage />);
       await screen.findByText('PICKUP · STOP 1 OF 2');
@@ -343,7 +337,7 @@ describe('Operator Pickup page', () => {
         missingSignsLastLatitude: -37.7679,
         missingSignsLastLongitude: 144.9985,
       };
-      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops, errors: [] });
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops });
 
       render(<OperatorPickupPage />);
       expect(await screen.findByText('1 of 9 missing here')).toBeInTheDocument();

@@ -29,23 +29,15 @@ describe('Administrator dashboard overview', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    (listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'route-1', customerId: 'customer-1', status: 'signs_placed', actualEndTime: new Date().toISOString() },
-        { id: 'route-2', customerId: 'customer-2', status: 'completed', actualEndTime: new Date().toISOString() },
-      ],
-      nextToken: undefined,
-      errors: undefined,
-    });
+    (listAllRoutes as jest.Mock).mockResolvedValue([
+      { id: 'route-1', customerId: 'customer-1', status: 'signs_placed', actualEndTime: new Date().toISOString() },
+      { id: 'route-2', customerId: 'customer-2', status: 'completed', actualEndTime: new Date().toISOString() },
+    ]);
 
-    (listAllStops as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'stop-1', routeId: 'route-1', numberOfSigns: 5 },
-        { id: 'stop-2', routeId: 'route-2', numberOfSigns: 2 },
-      ],
-      nextToken: undefined,
-      errors: undefined,
-    });
+    (listAllStops as jest.Mock).mockResolvedValue([
+      { id: 'stop-1', routeId: 'route-1', numberOfSigns: 5 },
+      { id: 'stop-2', routeId: 'route-2', numberOfSigns: 2 },
+    ]);
 
     (listInvoices as jest.Mock).mockResolvedValue([
         { id: 'invoice-1', customerId: 'customer-1', totalAmount: 2000, invoiceDate: new Date().toISOString(), status: 'sent' },
@@ -92,8 +84,8 @@ describe('Administrator dashboard overview', () => {
   });
 
   it('shows an empty state when there is no recent customer activity', async () => {
-    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], nextToken: undefined, errors: undefined });
-    (listAllStops as jest.Mock).mockResolvedValue({ data: [], nextToken: undefined, errors: undefined });
+    (listAllRoutes as jest.Mock).mockResolvedValue([]);
+    (listAllStops as jest.Mock).mockResolvedValue([]);
     (listInvoices as jest.Mock).mockResolvedValue([]);
 
     render(<AdminHomePage />);

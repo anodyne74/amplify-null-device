@@ -70,8 +70,7 @@ async function fetchDashboardData(context: CustomerPortalContext): Promise<Dashb
     return { stops: [], invoices: [] };
   }
 
-  const stopResult = await listCustomerStops(context.customerId);
-  const stops = ((stopResult.data as unknown as OverviewStop[]) ?? []).filter(Boolean);
+  const stops = ((await listCustomerStops(context.customerId)) as unknown as OverviewStop[]).filter(Boolean);
 
   let invoices: OverviewInvoice[] = [];
   if (context.role === 'account_owner') {

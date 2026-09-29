@@ -109,7 +109,7 @@ describe('Operator Placement page', () => {
   });
 
   it('shows the current stop on the glass card and the remaining stop in the THEN list', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPlacementPage />);
 
@@ -125,7 +125,6 @@ describe('Operator Placement page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ placementStartTime: null }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorPlacementPage />);
@@ -140,7 +139,6 @@ describe('Operator Placement page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ placementStartTime: null }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorPlacementPage />);
@@ -163,7 +161,6 @@ describe('Operator Placement page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ placementStartTime: null }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorPlacementPage />);
@@ -177,7 +174,7 @@ describe('Operator Placement page', () => {
   });
 
   it('completes the current stop with one tap and advances to the next', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPlacementPage />);
     await screen.findByText('PLACEMENT · STOP 1 OF 2');
@@ -210,7 +207,7 @@ describe('Operator Placement page', () => {
             timestamp: Date.parse('2026-09-27T01:00:00Z'),
           } as GeolocationPosition),
       });
-      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
       render(<OperatorPlacementPage />);
       await screen.findByText('PLACEMENT · STOP 1 OF 2');
@@ -232,7 +229,7 @@ describe('Operator Placement page', () => {
         getCurrentPosition: (_onSuccess: PositionCallback, onError?: PositionErrorCallback | null) =>
           onError?.({ code: 1 } as GeolocationPositionError),
       });
-      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
       render(<OperatorPlacementPage />);
       await screen.findByText('PLACEMENT · STOP 1 OF 2');
@@ -246,7 +243,7 @@ describe('Operator Placement page', () => {
     it('does not record a position for a skipped stop', async () => {
       const getCurrentPosition = jest.fn();
       setGeolocation({ getCurrentPosition });
-      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
       render(<OperatorPlacementPage />);
       await screen.findByText('PLACEMENT · STOP 1 OF 2');
@@ -259,7 +256,7 @@ describe('Operator Placement page', () => {
   });
 
   it('skips the current stop via the reason sheet', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPlacementPage />);
     await screen.findByText('PLACEMENT · STOP 1 OF 2');
@@ -281,7 +278,7 @@ describe('Operator Placement page', () => {
   it('passes already-skipped stops to the map as skippedStopIds', async () => {
     const stops = baseStops();
     stops[0] = { ...stops[0], notes: '[PLACEMENT_SKIPPED:2026-08-31T09:05:00.000Z|Gate locked]' } as Stop;
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops, errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops });
 
     render(<OperatorPlacementPage />);
     await screen.findByText('PLACEMENT · STOP 2 OF 2');
@@ -290,7 +287,7 @@ describe('Operator Placement page', () => {
   });
 
   it('opens the out-of-order sheet from the THEN list', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPlacementPage />);
     await screen.findByText('14 Second Ave');
@@ -305,7 +302,6 @@ describe('Operator Placement page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute(),
       stops: [baseStops()[0]],
-      errors: [],
     });
 
     render(<OperatorPlacementPage />);
@@ -325,7 +321,6 @@ describe('Operator Placement page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute(),
       stops: [baseStops()[0]],
-      errors: [],
     });
 
     render(<OperatorPlacementPage />);
@@ -350,7 +345,6 @@ describe('Operator Placement page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ executionPhase: 'pickup' }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorPlacementPage />);
@@ -359,7 +353,7 @@ describe('Operator Placement page', () => {
   });
 
   it('shows a guard message when the route is not found', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: null, stops: [], errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue(null);
 
     render(<OperatorPlacementPage />);
 

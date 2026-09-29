@@ -70,35 +70,32 @@ describe('Customer Dashboard', () => {
         { id: 'inv-1', totalAmount: 1200, status: 'paid', invoiceDate: CURRENT_MONTH_DATE },
         { id: 'inv-2', totalAmount: 800, status: 'sent', invoiceDate: NOW_ISO },
       ]);
-    mockListCustomerStops.mockResolvedValue({
-      data: [
-        {
-          id: 'stop-1',
-          routeId: 'route-1',
-          numberOfSigns: 3,
-          agent: 'Jamie Lee',
-          address: '1 Example St',
-          actualArrivalTime: NOW_ISO,
-        },
-        {
-          id: 'stop-2',
-          routeId: 'route-1',
-          numberOfSigns: 2,
-          agent: 'Jamie Lee',
-          address: '2 Example St',
-          actualArrivalTime: NOW_ISO,
-        },
-        {
-          id: 'stop-3',
-          routeId: 'route-2',
-          numberOfSigns: 4,
-          agent: 'Pat Doe',
-          address: '3 Example St',
-          actualArrivalTime: NOW_ISO,
-        },
-      ],
-      errors: undefined,
-    });
+    mockListCustomerStops.mockResolvedValue([
+      {
+        id: 'stop-1',
+        routeId: 'route-1',
+        numberOfSigns: 3,
+        agent: 'Jamie Lee',
+        address: '1 Example St',
+        actualArrivalTime: NOW_ISO,
+      },
+      {
+        id: 'stop-2',
+        routeId: 'route-1',
+        numberOfSigns: 2,
+        agent: 'Jamie Lee',
+        address: '2 Example St',
+        actualArrivalTime: NOW_ISO,
+      },
+      {
+        id: 'stop-3',
+        routeId: 'route-2',
+        numberOfSigns: 4,
+        agent: 'Pat Doe',
+        address: '3 Example St',
+        actualArrivalTime: NOW_ISO,
+      },
+    ]);
   });
 
   it('shows month-to-date financial stats, spend chart, latest invoice, and spend-by-agent table for the account owner', async () => {

@@ -21,7 +21,6 @@ describe('useRouteStopsPreview', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: { id: 'route-1' },
       stops: [{ address: '1 Test St', agent: 'BO', numberOfSigns: 3 }],
-      errors: undefined,
     });
 
     const { result } = renderHook(() => useRouteStopsPreview('route-1'));

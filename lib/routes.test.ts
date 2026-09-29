@@ -95,24 +95,18 @@ describe('routes', () => {
         limit: 1000,
         nextToken: undefined,
       });
-      expect(result.data).toHaveLength(2);
+      expect(result).toEqual(mockRoutes);
     });
 
-    it('should filter routes by status on client side', async () => {
-      const mockRoutes = [
-        { id: 'r1', customerId: 'c1', status: 'planned' },
-        { id: 'r2', customerId: 'c1', status: 'signs_placed' },
-      ];
+    it('throws a DataError when the read fails', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockRouteList.mockResolvedValue({ data: [], errors: [{ message: 'Not Authorized' }] });
 
-      mockRouteList.mockResolvedValue({
-        data: mockRoutes,
-        errors: undefined,
+      await expect(listCustomerRoutes('c1')).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to load routes.',
       });
-
-      const result = await listCustomerRoutes('c1', { status: 'signs_placed' });
-
-      expect(result.data).toHaveLength(1);
-      expect(result.data[0].status).toBe('signs_placed');
+      consoleErrorSpy.mockRestore();
     });
   });
 
@@ -136,8 +130,29 @@ describe('routes', () => {
 
       const result = await getRouteWithStops('r1');
 
-      expect(result.route).toEqual(mockRoute);
-      expect(result.stops).toHaveLength(2);
+      expect(result?.route).toEqual(mockRoute);
+      expect(result?.stops).toHaveLength(2);
+    });
+
+    it("returns null for a Route that doesn't exist", async () => {
+      mockRouteGet.mockResolvedValue({ data: null, errors: undefined });
+
+      await expect(getRouteWithStops('missing')).resolves.toBeNull();
+      expect(mockStopList).not.toHaveBeenCalled();
+    });
+
+    it('throws rather than return a Route with Stops missing', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockRouteGet.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
+      mockStopList
+        .mockResolvedValueOnce({ data: [{ id: 's1', routeId: 'r1', sequence: 1 }], errors: undefined, nextToken: 'next-page' })
+        .mockResolvedValueOnce({ data: undefined, errors: [{ message: 'boom' }], nextToken: undefined });
+
+      await expect(getRouteWithStops('r1')).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to load route.',
+      });
+      consoleErrorSpy.mockRestore();
     });
 
     it('should aggregate paginated stop results and sort by sequence', async () => {
@@ -163,8 +178,7 @@ describe('routes', () => {
       const result = await getRouteWithStops('r1');
 
       expect(mockStopList).toHaveBeenCalledTimes(2);
-      expect(result.stops.map((stop: { id: string }) => stop.id)).toEqual(['s1', 's2']);
-      expect(result.errors).toEqual([]);
+      expect(result?.stops.map((stop: { id: string }) => stop.id)).toEqual(['s1', 's2']);
     });
   });
 
@@ -195,8 +209,7 @@ describe('routes', () => {
         nextToken: 'next-page',
         limit: 1000,
       });
-      expect(result.stops.map((stop: { id: string }) => stop.id)).toEqual(['s1', 's2']);
-      expect(result.errors).toEqual([]);
+      expect(result.map((stop: { id: string }) => stop.id)).toEqual(['s1', 's2']);
     });
   });
 
@@ -336,6 +349,7 @@ describe('routes', () => {
     });
 
     it('should stop when stop list returns errors', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       mockStopList.mockResolvedValue({
         data: [],
         errors: [{ message: 'cannot list stops' }],
@@ -346,6 +360,7 @@ describe('routes', () => {
       expect(mockRouteDelete).not.toHaveBeenCalled();
       expect(result.data).toBeNull();
       expect(result.errors).toBeDefined();
+      consoleErrorSpy.mockRestore();
     });
 
     it('should return child stop delete errors without deleting route', async () => {
@@ -821,7 +836,7 @@ describe('routes', () => {
 
       const result = await listCustomerStops('cust-1');
 
-      expect(result.data.map((stop) => stop.id)).toEqual(['s1', 's2']);
+      expect(result.map((stop) => stop.id)).toEqual(['s1', 's2']);
       expect(mockStopList).toHaveBeenCalledWith(
         expect.objectContaining({ filter: { customerId: { eq: 'cust-1' } } })
       );

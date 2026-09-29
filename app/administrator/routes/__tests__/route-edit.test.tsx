@@ -115,7 +115,6 @@ describe('Administrator Route Edit Page', () => {
     (routesModule.getRouteWithStops as jest.Mock).mockResolvedValue({
       route: mockRoute,
       stops: mockStops,
-      errors: undefined,
     });
 
     (routesModule.createStop as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
@@ -231,7 +230,6 @@ describe('Administrator Route Edit Page', () => {
         assignedOperatorEmail: 'operator-one@example.com',
       },
       stops: mockStops,
-      errors: undefined,
     });
 
     render(<RouteEditPage />);
@@ -264,7 +262,6 @@ describe('Administrator Route Edit Page', () => {
         assignedOperatorEmail: 'operator-one@example.com',
       },
       stops: mockStops,
-      errors: undefined,
     });
 
     render(<RouteEditPage />);
@@ -295,7 +292,6 @@ describe('Administrator Route Edit Page', () => {
         assignedOperatorEmail: 'operator-one@example.com',
       },
       stops: mockStops,
-      errors: undefined,
     });
 
     render(<RouteEditPage />);

@@ -12,7 +12,7 @@ import { listOperatorAvailabilityBlocks } from '@/lib/queries/ListOperatorAvaila
 import { createOperatorAvailabilityBlock } from '@/lib/queries/CreateOperatorAvailabilityBlock';
 import { deleteOperatorAvailabilityBlock } from '@/lib/queries/DeleteOperatorAvailabilityBlock';
 import styles from './ServiceCalendar.module.css';
-import { listMyRoutes } from '@/lib/routes';
+import { listCustomerRoutes } from '@/lib/routes';
 import { listCustomerClosureBlocks, createCustomerClosureBlock, deleteCustomerClosureBlock, listAllCustomers } from '@/lib/customers';
 
 export type ServiceCalendarRole = 'staff' | 'customer-admin' | 'customer-readonly';
@@ -85,16 +85,16 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     const [noDriversResult, closedBlocks, routesResult] = await Promise.all([
       listOperatorAvailabilityBlocks(customerId),
       listCustomerClosureBlocks(customerId).catch(() => null),
-      listMyRoutes({ customerId }),
+      listCustomerRoutes(customerId).catch(() => null),
     ]);
 
-    if ((noDriversResult.errors && noDriversResult.errors.length > 0) || !closedBlocks) {
+    if ((noDriversResult.errors && noDriversResult.errors.length > 0) || !closedBlocks || !routesResult) {
       setLoadError('Could not load the service calendar.');
     }
 
     setNoDriversBlocks(noDriversResult.data as OperatorAvailabilityBlock[]);
     setClosedBlocks((closedBlocks ?? []) as unknown as CustomerClosureBlock[]);
-    setRoutes(routesResult.data || []);
+    setRoutes(routesResult ?? []);
     setLoading(false);
   }, [customerId]);
 

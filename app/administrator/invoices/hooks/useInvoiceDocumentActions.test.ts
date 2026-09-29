@@ -114,7 +114,7 @@ describe('useInvoiceDocumentActions — handleGeneratePdf (#65)', () => {
     jest.clearAllMocks();
     global.fetch = jest.fn().mockResolvedValue({ ok: false });
     (getInvoiceWithLineItems as jest.Mock).mockResolvedValue({ invoice: null, lineItems: [], errors: undefined });
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: null, stops: [], errors: undefined });
+    (getRouteWithStops as jest.Mock).mockResolvedValue(null);
     (uploadData as jest.Mock).mockReturnValue({ result: Promise.resolve({}) });
     (updateInvoicePdfKey as jest.Mock).mockResolvedValue({ data: { id: 'inv-1' }, errors: undefined });
   });
@@ -157,7 +157,6 @@ describe('useInvoiceDocumentActions — stop table agent grouping', () => {
         { address: '1 Test St, Epping NSW 2121', agent: "Betty O'Shea", numberOfSigns: 3 },
         { address: '2 Test St, Epping NSW 2121', agent: 'David Mun', numberOfSigns: 2 },
       ],
-      errors: undefined,
     });
     (uploadData as jest.Mock).mockReturnValue({ result: Promise.resolve({}) });
     (updateInvoicePdfKey as jest.Mock).mockResolvedValue({ data: { id: 'inv-1' }, errors: undefined });

@@ -232,21 +232,16 @@ describe('routes', () => {
         customerId: 'c1',
         status: 'planned',
       });
-      expect(result.data).toEqual(mockRoute);
+      expect(result).toEqual(mockRoute);
     });
 
-    it('should return wrapped errors when route creation throws', async () => {
+    it('throws a DataError when route creation fails', async () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       mockRouteCreate.mockRejectedValue(new Error('route create failed'));
 
-      const result = await createRoute({
-        routeCode: 'W19-26-002',
-        customerId: 'c1',
-        status: 'planned',
-      });
-
-      expect(result.data).toBeNull();
-      expect(result.errors).toHaveLength(1);
+      await expect(
+        createRoute({ routeCode: 'W19-26-002', customerId: 'c1', status: 'planned' })
+      ).rejects.toMatchObject({ name: 'DataError', message: 'Failed to create route.' });
       consoleErrorSpy.mockRestore();
     });
   });
@@ -293,11 +288,10 @@ describe('routes', () => {
       mockStopDelete.mockResolvedValue({ data: {}, errors: undefined });
       mockRouteDelete.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
 
-      const result = await deleteRoute('r1');
+      await deleteRoute('r1');
 
       expect(mockStopDelete).toHaveBeenCalledTimes(2);
       expect(mockRouteDelete).toHaveBeenCalledWith({ id: 'r1' });
-      expect(result.errors).toBeUndefined();
     });
 
     it('should delete stops spanning multiple Stop.list pages, not just the first', async () => {
@@ -315,14 +309,13 @@ describe('routes', () => {
       mockStopDelete.mockResolvedValue({ data: {}, errors: undefined });
       mockRouteDelete.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
 
-      const result = await deleteRoute('r1');
+      await deleteRoute('r1');
 
       expect(mockStopList).toHaveBeenCalledTimes(2);
       expect(mockStopDelete).toHaveBeenCalledTimes(2);
       expect(mockStopDelete).toHaveBeenCalledWith({ id: 's1' });
       expect(mockStopDelete).toHaveBeenCalledWith({ id: 's2' });
       expect(mockRouteDelete).toHaveBeenCalledWith({ id: 'r1' });
-      expect(result.errors).toBeUndefined();
     });
 
     it("returns the route's Route Request records to the inbox, naming the route, before deleting it", async () => {
@@ -342,10 +335,8 @@ describe('routes', () => {
       mockRouteGet.mockResolvedValue({ data: { routeCode: 'W40-26-001' }, errors: undefined });
       mockUnlinkRecordsOfDeletedRoute.mockResolvedValue(['Could not unlink it.']);
 
-      const result = await deleteRoute('r1');
-
+      await expect(deleteRoute('r1')).rejects.toMatchObject({ name: 'DataError', message: 'Failed to delete route.' });
       expect(mockRouteDelete).not.toHaveBeenCalled();
-      expect(result.errors).toEqual(['Could not unlink it.']);
     });
 
     it('should stop when stop list returns errors', async () => {
@@ -355,36 +346,29 @@ describe('routes', () => {
         errors: [{ message: 'cannot list stops' }],
       });
 
-      const result = await deleteRoute('r1');
-
+      await expect(deleteRoute('r1')).rejects.toMatchObject({ name: 'DataError', message: 'Failed to delete route.' });
       expect(mockRouteDelete).not.toHaveBeenCalled();
-      expect(result.data).toBeNull();
-      expect(result.errors).toBeDefined();
       consoleErrorSpy.mockRestore();
     });
 
-    it('should return child stop delete errors without deleting route', async () => {
+    it("keeps the route when one of its Stops can't be deleted", async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       mockStopList.mockResolvedValue({
         data: [{ id: 's1' }],
         errors: undefined,
       });
       mockStopDelete.mockResolvedValue({ data: null, errors: [{ message: 'stop delete failed' }] });
 
-      const result = await deleteRoute('r1');
-
+      await expect(deleteRoute('r1')).rejects.toMatchObject({ name: 'DataError', message: 'Failed to delete route.' });
       expect(mockRouteDelete).not.toHaveBeenCalled();
-      expect(result.data).toBeNull();
-      expect(result.errors).toEqual([{ message: 'stop delete failed' }]);
+      consoleErrorSpy.mockRestore();
     });
 
-    it('should return wrapped errors when delete route throws', async () => {
+    it('throws a DataError when the Stop list throws', async () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       mockStopList.mockRejectedValue(new Error('delete route failed'));
 
-      const result = await deleteRoute('r1');
-
-      expect(result.data).toBeNull();
-      expect(result.errors).toHaveLength(1);
+      await expect(deleteRoute('r1')).rejects.toMatchObject({ name: 'DataError', message: 'Failed to delete route.' });
       consoleErrorSpy.mockRestore();
     });
   });
@@ -418,6 +402,7 @@ describe('routes', () => {
     });
 
     it('reports per-stop success and failure without failing the whole batch', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       mockStopCreate
         .mockResolvedValueOnce({ data: { id: 's1' }, errors: undefined })
         .mockResolvedValueOnce({ data: null, errors: [{ message: 'address invalid' }] })
@@ -433,7 +418,7 @@ describe('routes', () => {
 
       expect(results).toEqual([
         { index: 0, address: '1 High St, Epping', success: true },
-        { index: 1, address: '2 High St, Epping', success: false, errorMessage: 'address invalid' },
+        { index: 1, address: '2 High St, Epping', success: false, errorMessage: 'Failed to create stop.' },
         { index: 2, address: '3 High St, Epping', success: true },
       ]);
       expect(mockStopCreate).toHaveBeenCalledWith(
@@ -442,6 +427,7 @@ describe('routes', () => {
       expect(mockStopCreate).toHaveBeenCalledWith(
         expect.objectContaining({ routeId: 'r1', customerId: 'c1', sequence: 2, address: '2 High St, Epping' })
       );
+      consoleErrorSpy.mockRestore();
     });
     it("refuses a Stop with no pin and no suburb, which would have no Property, and creates the rest", async () => {
       mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
@@ -602,11 +588,11 @@ describe('routes', () => {
       const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
       mockStopGet.mockResolvedValue({ data: null, errors: [{ message: 'Unauthorized' }] });
 
-      const result = await updateStop({ id: 's1', address: ADDRESS });
-
+      await expect(updateStop({ id: 's1', address: ADDRESS })).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to update stop.',
+      });
       expect(mockStopUpdate).not.toHaveBeenCalled();
-      expect(result.data).toBeNull();
-      expect(result.errors).toHaveLength(1);
       consoleError.mockRestore();
     });
   });
@@ -649,7 +635,7 @@ describe('routes', () => {
     it('adds a geocoded, keyed Stop to the Route', async () => {
       const result = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery', numberOfSigns: 2 });
 
-      expect(result).toEqual({ errors: undefined, pinned: true });
+      expect(result).toEqual({ pinned: true });
       expect(mockStopCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           ...NEW,
@@ -669,7 +655,7 @@ describe('routes', () => {
 
       const result = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' });
 
-      expect(result).toEqual({ errors: undefined, pinned: false });
+      expect(result).toEqual({ pinned: false });
       expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
       expect(mockStopCreate).toHaveBeenCalledWith(expect.not.objectContaining({ latitude: expect.anything() }));
     });
@@ -677,17 +663,17 @@ describe('routes', () => {
     it("refuses a Stop with no pin and no suburb, since it would have no Property", async () => {
       mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
 
-      const result = await saveStop(NEW, { address: '10 brush road', serviceType: 'delivery' });
+      const error = await saveStop(NEW, { address: '10 brush road', serviceType: 'delivery' }).catch((e) => e);
 
       expect(mockStopCreate).not.toHaveBeenCalled();
-      expect(result).toEqual({ errors: [new Error(STOP_NEEDS_SUBURB)], pinned: false });
-      expect(saveStopFailure(result, 'Failed to add stop.')).toBe(STOP_NEEDS_SUBURB);
+      expect(error).toMatchObject({ name: 'DataError', message: STOP_NEEDS_SUBURB });
+      expect(saveStopFailure(error, 'Failed to add stop.')).toBe(STOP_NEEDS_SUBURB);
     });
 
     it('adds a Stop with no suburb typed when the geocode finds one', async () => {
       const result = await saveStop(NEW, { address: '14 Cliff Rd', serviceType: 'delivery' });
 
-      expect(result).toEqual({ errors: undefined, pinned: true });
+      expect(result).toEqual({ pinned: true });
       expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
     });
 
@@ -706,19 +692,20 @@ describe('routes', () => {
     it("saves nothing when the Confirmed pin can't be looked up", async () => {
       mockGetConfirmedPin.mockRejectedValue(new Error('offline'));
 
-      const result = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' });
-
+      await expect(saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' })).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to save stop.',
+      });
       expect(mockStopCreate).not.toHaveBeenCalled();
-      expect(result).toEqual({ errors: [expect.any(Error)], pinned: false });
     });
 
     it('reports a failed write', async () => {
       mockStopCreate.mockResolvedValue({ data: null, errors: [{ message: 'Unauthorized' }] });
 
-      const result = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' });
+      const error = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' }).catch((e) => e);
 
-      expect(result.errors).toHaveLength(1);
-      expect(saveStopFailure(result, 'Failed to add stop.')).toBe('Failed to add stop.');
+      expect(error).toMatchObject({ name: 'DataError', message: 'Failed to save stop.' });
+      expect(saveStopFailure(error, 'Failed to add stop.')).toBe('Failed to add stop.');
     });
 
     it("edits a Stop without re-geocoding an address that hasn't changed (#58)", async () => {
@@ -726,7 +713,7 @@ describe('routes', () => {
 
       const result = await saveStop({ original: ORIGINAL }, { address: ORIGINAL.address, notes: 'Side gate' });
 
-      expect(result).toEqual({ errors: undefined, pinned: true });
+      expect(result).toEqual({ pinned: true });
       expect(mockGeocodeAddress).not.toHaveBeenCalled();
       expect(mockStopUpdate).toHaveBeenCalledWith(
         expect.objectContaining({ id: 's1', address: ORIGINAL.address, notes: 'Side gate' })
@@ -748,7 +735,7 @@ describe('routes', () => {
 
       const result = await saveStop({ original: ORIGINAL }, { address: ADDRESS });
 
-      expect(result).toEqual({ errors: undefined, pinned: false });
+      expect(result).toEqual({ pinned: false });
       expect(mockStopGet).not.toHaveBeenCalled();
       expect(mockStopUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -765,10 +752,11 @@ describe('routes', () => {
     it("refuses an edit to an address with no suburb that can't be geocoded", async () => {
       mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
 
-      const result = await saveStop({ original: ORIGINAL }, { address: '10 brush road' });
-
+      await expect(saveStop({ original: ORIGINAL }, { address: '10 brush road' })).rejects.toMatchObject({
+        name: 'DataError',
+        message: STOP_NEEDS_SUBURB,
+      });
       expect(mockStopUpdate).not.toHaveBeenCalled();
-      expect(result.errors).toEqual([new Error(STOP_NEEDS_SUBURB)]);
     });
 
     it('still saves other edits to a Stop already stored with no suburb and no pin', async () => {
@@ -777,7 +765,7 @@ describe('routes', () => {
 
       const result = await saveStop({ original: { id: 's2', address: '10 brush road' } }, { address: '10 brush road', notes: 'Gate' });
 
-      expect(result).toEqual({ errors: undefined, pinned: false });
+      expect(result).toEqual({ pinned: false });
       expect(mockStopUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 's2', notes: 'Gate' }));
     });
 
@@ -856,12 +844,18 @@ describe('routes', () => {
       expect(mockStopUpdate).toHaveBeenCalledWith({ id: 's2', sequence: 3 });
     });
 
-    it('rejects with the first error when any write fails', async () => {
+    it('throws a DataError when any write fails', async () => {
       mockStopUpdate
         .mockResolvedValueOnce({ data: {}, errors: undefined })
         .mockResolvedValueOnce({ data: null, errors: [{ message: 'conditional check failed' }] });
 
-      await expect(resequenceStops(['s1', 's2'])).rejects.toThrow('conditional check failed');
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await expect(resequenceStops(['s1', 's2'])).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to save stop order.',
+      });
+      consoleErrorSpy.mockRestore();
     });
   });
 });

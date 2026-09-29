@@ -79,7 +79,7 @@ describe('NewRoutePage Route Request', () => {
       { id: 'old-route', customerId: 'c2', routeCode: 'OLD-1' },
     ]);
     (getRouteWithStops as jest.Mock).mockResolvedValue({ stops: [{ address: '1 Main St' }] });
-    (createRoute as jest.Mock).mockResolvedValue({ data: { id: 'new-route' }, errors: null });
+    (createRoute as jest.Mock).mockResolvedValue({ id: 'new-route' });
     (createStopsForRoute as jest.Mock).mockResolvedValue([{ success: true, index: 0 }]);
     (attachNewRouteRequest as jest.Mock).mockResolvedValue({ ok: true });
     (extractScheduleText as jest.Mock).mockResolvedValue('1 Main St');

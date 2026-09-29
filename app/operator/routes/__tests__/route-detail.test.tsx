@@ -61,11 +61,11 @@ const mockFetched: { route: unknown; stops: unknown[] } = { route: null, stops: 
 jest.mock('@/lib/routes', () => ({
   deleteStop: jest.fn(),
   resequenceStops: jest.fn().mockResolvedValue(undefined),
-  createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
-  deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+  createStop: jest.fn().mockResolvedValue({ id: 'new-stop' }),
+  deleteRoute: jest.fn().mockResolvedValue(undefined),
   updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched })),
-  saveStop: jest.fn().mockResolvedValue({ errors: undefined, pinned: true }),
+  saveStop: jest.fn().mockResolvedValue({ pinned: true }),
   UNPINNED_STOP_NOTICE: 'Stop saved without a map pin.',
 }));
 
@@ -106,12 +106,9 @@ describe('Operator Route Detail Page', () => {
     mockFetched.route = mockRoute;
     mockFetched.stops = mockStops;
 
-    (deleteStop as jest.Mock).mockResolvedValue({
-      data: {},
-      errors: undefined,
-    });
+    (deleteStop as jest.Mock).mockResolvedValue(undefined);
 
-    (saveStop as jest.Mock).mockResolvedValue({ errors: undefined, pinned: true });
+    (saveStop as jest.Mock).mockResolvedValue({ pinned: true });
     (geocodeAddress as jest.Mock).mockResolvedValue({
       latitude: 0,
       longitude: 0,
@@ -267,7 +264,7 @@ describe('Operator Route Detail Page', () => {
   });
 
   it('says so when a saved stop has no map pin', async () => {
-    (saveStop as jest.Mock).mockResolvedValueOnce({ errors: undefined, pinned: false });
+    (saveStop as jest.Mock).mockResolvedValueOnce({ pinned: false });
 
     render(<RouteDetailPage />);
 

@@ -4,14 +4,16 @@
  * operation on Routes and Stops lives here; Sign Run writes go through
  * lib/signRunTransitions.ts, and the live feed through lib/useRouteWithStops.ts.
  *
- * The reads return their data or throw a DataError (lib/graphqlResult.ts); a
- * Route that doesn't exist is null. The Route Code label lookups never throw
- * (a label must never stop a screen loading), and the writes still return
- * {data, errors} until they move over too.
+ * Reads and writes return their data or throw a DataError
+ * (lib/graphqlResult.ts); a Route that doesn't exist is null. Two exceptions:
+ * the Route Code label lookups never throw (a label must never stop a screen
+ * loading), and the Sign Run writes -- updateRoute, updateRouteCustomerInstructions
+ * and updateStopExecution -- keep the raw AppSync {data, errors}, since the Sign
+ * Run outbox tells a write to retry from one the server refused by its errors.
  */
 
 import { getDataClient } from '@/lib/data-client';
-import { resultData, withDataError } from '@/lib/graphqlResult';
+import { DataError, resultData, withDataError } from '@/lib/graphqlResult';
 import { listAll } from '@/lib/listAll';
 import { unlinkRecordsOfDeletedRoute, type LinkClient } from '@/lib/routeRequestLinks';
 import type { RouteStatus } from '@/amplify/types';
@@ -100,18 +102,11 @@ export async function createRoute(input: {
   scheduledDate?: string;
   notes?: string;
 }) {
-  try {
-    const { data, errors } = await getDataClient().models.Route.create(input);
-
-    if (errors) {
-      console.error('Errors creating route:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error creating route:', error);
-    return { data: null, errors: [error] };
-  }
+  return withDataError('Failed to create route.', async () => {
+    const route = resultData(await getDataClient().models.Route.create(input));
+    if (!route) throw new Error('The created Route was not returned.');
+    return route;
+  });
 }
 
 /**
@@ -186,23 +181,17 @@ export async function updateRouteCustomerInstructions(routeId: string, customerI
   return updateRoute(routeId, { customerInstructions });
 }
 
-export async function deleteRoute(routeId: string) {
-  try {
+/** Deletes a Route and its Stops; nothing is returned. */
+export async function deleteRoute(routeId: string): Promise<void> {
+  return withDataError('Failed to delete route.', async () => {
     const client = getDataClient();
     // A single unpaginated Stop.list call only sees the first page — routes
     // with more stops than that would have the rest silently orphaned. Page
     // through every stop first, same as listAllStopsForRoute's other callers.
-    const stops = await listAllStopsForRoute(routeId);
+    const stops = await readStopsForRoute(routeId);
 
-    const stopDeletes = await Promise.all(
-      (stops as Array<{ id: string }>).map((stop) => client.models.Stop.delete({ id: stop.id }))
-    );
-
-    const childErrors = stopDeletes.flatMap((result) => result.errors || []);
-    if (childErrors.length > 0) {
-      console.error('Errors deleting route stops:', childErrors);
-      return { data: null, errors: childErrors };
-    }
+    const stopDeletes = await Promise.all(stops.map((stop) => client.models.Stop.delete({ id: stop.id })));
+    stopDeletes.forEach(resultData);
 
     // Its Route Request and Amendments are kept, back in the inbox (ADR 0008).
     const { data: route } = await client.models.Route.get({ id: routeId }, { selectionSet: ['routeCode'] });
@@ -211,22 +200,10 @@ export async function deleteRoute(routeId: string) {
       routeId,
       route?.routeCode || routeId.slice(0, 8)
     );
-    if (unlinkErrors.length > 0) {
-      console.error("Errors returning the route's requests to the inbox:", unlinkErrors);
-      return { data: null, errors: unlinkErrors };
-    }
+    if (unlinkErrors.length > 0) resultData({ errors: unlinkErrors });
 
-    const { data, errors } = await client.models.Route.delete({ id: routeId });
-
-    if (errors) {
-      console.error('Errors deleting route:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error deleting route:', error);
-    return { data: null, errors: [error] };
-  }
+    resultData(await client.models.Route.delete({ id: routeId }));
+  });
 }
 
 export interface StopExecutionUpdateInput {
@@ -315,7 +292,11 @@ function withoutPropertyKey<T extends object>(input: T): T {
  * unless the caller passes them. Its Property key is built from the address
  * (stopPropertyKey); one passed in is ignored.
  */
-export async function createStop(input: StopLocationInput & {
+export async function createStop(input: NewStopInput) {
+  return withDataError('Failed to create stop.', () => writeNewStop(input));
+}
+
+type NewStopInput = StopLocationInput & {
   routeId: string;
   customerId: string;
   viewerSubs?: string[];
@@ -330,23 +311,14 @@ export async function createStop(input: StopLocationInput & {
   longitude?: number;
   formattedAddress?: string;
   notes?: string;
-}) {
-  try {
-    const fields = withoutPropertyKey(input);
-    const key = stopPropertyKey(fields.address, fields);
-    const stop = key ? { ...fields, propertyKey: key } : fields;
-    const viewerSubs = input.viewerSubs ?? (await getCustomerViewerSubs(input.customerId));
-    const { data, errors } = await getDataClient().models.Stop.create(viewerSubs ? { ...stop, viewerSubs } : stop);
+};
 
-    if (errors) {
-      console.error('Errors creating stop:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error creating stop:', error);
-    return { data: null, errors: [error] };
-  }
+async function writeNewStop(input: NewStopInput) {
+  const fields = withoutPropertyKey(input);
+  const key = stopPropertyKey(fields.address, fields);
+  const stop = key ? { ...fields, propertyKey: key } : fields;
+  const viewerSubs = input.viewerSubs ?? (await getCustomerViewerSubs(input.customerId));
+  return resultData(await getDataClient().models.Stop.create(viewerSubs ? { ...stop, viewerSubs } : stop));
 }
 
 export interface CreateStopsForRouteInput extends StopLocationInput {
@@ -390,25 +362,22 @@ export async function createStopsForRoute(
         return { index, address: stop.address, success: false, errorMessage: STOP_NEEDS_SUBURB };
       }
 
-      const stopResult = await createStop({
-        routeId,
-        customerId,
-        viewerSubs,
-        sequence: index + 1,
-        address: stop.address,
-        serviceType: stop.serviceType,
-        numberOfSigns: stop.numberOfSigns,
-        agent: stop.agent,
-        isAuction: stop.isAuction,
-        notes: stop.notes,
-        ...pickStopLocationFields(stop),
-      });
-
-      if (stopResult.errors && stopResult.errors.length > 0) {
-        const errorMessage = (stopResult.errors as Array<{ message?: string }>)
-          .map((entry) => entry.message ?? String(entry))
-          .join('; ') || 'Unknown stop creation error';
-        return { index, address: stop.address, success: false, errorMessage };
+      try {
+        await createStop({
+          routeId,
+          customerId,
+          viewerSubs,
+          sequence: index + 1,
+          address: stop.address,
+          serviceType: stop.serviceType,
+          numberOfSigns: stop.numberOfSigns,
+          agent: stop.agent,
+          isAuction: stop.isAuction,
+          notes: stop.notes,
+          ...pickStopLocationFields(stop),
+        });
+      } catch (error) {
+        return { index, address: stop.address, success: false, errorMessage: (error as Error).message };
       }
 
       return { index, address: stop.address, success: true };
@@ -456,11 +425,12 @@ export interface UpdateStopInput extends StopLocationInput {
 async function withStopPropertyKey(fields: Omit<UpdateStopInput, 'address'> & { address: string }) {
   let components: StopAddressComponents = fields;
   if (!writesAddressComponents(fields)) {
-    const { data: stored, errors } = await getDataClient().models.Stop.get(
-      { id: fields.id },
-      { selectionSet: ['address', 'addressStreetNumber', 'addressStreet', 'addressSuburb', 'addressPostcode'] }
+    const stored = resultData(
+      await getDataClient().models.Stop.get(
+        { id: fields.id },
+        { selectionSet: ['address', 'addressStreetNumber', 'addressStreet', 'addressSuburb', 'addressPostcode'] }
+      )
     );
-    if (errors?.length) throw new Error(errors[0].message);
     components = stored?.address?.trim() === fields.address.trim() ? stored : {};
   }
 
@@ -473,22 +443,14 @@ async function withStopPropertyKey(fields: Omit<UpdateStopInput, 'address'> & { 
  * (withStopPropertyKey); a key passed in is ignored.
  */
 export async function updateStop(input: UpdateStopInput) {
-  try {
-    const fields = withoutPropertyKey(input);
-    const { address } = fields;
-    const update = address === undefined ? fields : await withStopPropertyKey({ ...fields, address });
-    const { data, errors } = await getDataClient().models.Stop.update(update as any);
+  return withDataError('Failed to update stop.', () => writeStopUpdate(input));
+}
 
-    if (errors) {
-      console.error('Errors updating stop:', errors);
-      return { data: null, errors };
-    }
-
-    return { data, errors: undefined };
-  } catch (error) {
-    console.error('Error updating stop:', error);
-    return { data: null, errors: [error as Error] };
-  }
+async function writeStopUpdate(input: UpdateStopInput) {
+  const fields = withoutPropertyKey(input);
+  const { address } = fields;
+  const update = address === undefined ? fields : await withStopPropertyKey({ ...fields, address });
+  return resultData(await getDataClient().models.Stop.update(update as any));
 }
 
 /** What the Stop form submits besides the address. */
@@ -520,6 +482,7 @@ export interface EditedStopTarget {
  * (`pinned: false`); an edit that moves a Stop to such an address clears the
  * old address's pin. Unless the address names a suburb, though, nothing is
  * saved (STOP_NEEDS_SUBURB). A failed Confirmed-pin lookup fails the save.
+ * Throws a DataError: STOP_NEEDS_SUBURB, or 'Failed to save stop.'.
  */
 export async function saveStop(target: NewStopTarget, values: StopAddressInput & StopDetails): Promise<SaveStopResult>;
 export async function saveStop(
@@ -531,23 +494,20 @@ export async function saveStop(
   { resolvedLocation, ...values }: StopAddressInput & Partial<StopDetails>
 ): Promise<SaveStopResult> {
   const addressInput = { address: values.address, resolvedLocation };
-  try {
+  return withDataError('Failed to save stop.', async () => {
     if ('original' in target) {
       const location = await locateEditedStop(target.original, addressInput);
       const addressChanged = target.original.address?.trim() !== values.address.trim();
-      if (addressChanged && lacksProperty(values.address, location)) return { errors: [new Error(STOP_NEEDS_SUBURB)], pinned: false };
-      const result = await updateStop({ id: target.original.id, ...values, ...location.fields });
-      return { errors: result.errors, pinned: location.pinned };
+      if (addressChanged && lacksProperty(values.address, location)) throw new DataError(STOP_NEEDS_SUBURB);
+      await writeStopUpdate({ id: target.original.id, ...values, ...location.fields });
+      return { pinned: location.pinned };
     }
 
     const location = await locateNewStop(addressInput);
-    if (lacksProperty(values.address, location)) return { errors: [new Error(STOP_NEEDS_SUBURB)], pinned: false };
-    const result = await createStop({ ...target, ...(values as StopAddressInput & StopDetails), ...location.fields });
-    return { errors: result.errors ?? undefined, pinned: location.pinned };
-  } catch (error) {
-    console.error('Error saving stop:', error);
-    return { errors: [error as Error], pinned: false };
-  }
+    if (lacksProperty(values.address, location)) throw new DataError(STOP_NEEDS_SUBURB);
+    await writeNewStop({ ...target, ...(values as StopAddressInput & StopDetails), ...location.fields });
+    return { pinned: location.pinned };
+  });
 }
 
 /** Why a Stop wasn't saved: no pin, and no suburb to find it by later (lib/stopLocation.ts lacksProperty). */
@@ -555,9 +515,8 @@ export const STOP_NEEDS_SUBURB =
   "This address couldn't be found on the map. Add the suburb so the Stop can be found later.";
 
 /** What to tell someone whose Stop wasn't saved: STOP_NEEDS_SUBURB, else `fallback`. */
-export function saveStopFailure(result: SaveStopResult, fallback: string): string {
-  const [first] = result.errors ?? [];
-  return first instanceof Error && first.message === STOP_NEEDS_SUBURB ? STOP_NEEDS_SUBURB : fallback;
+export function saveStopFailure(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message === STOP_NEEDS_SUBURB ? STOP_NEEDS_SUBURB : fallback;
 }
 
 /** What to tell someone whose Stop saved without a pin (SaveStopResult.pinned). */
@@ -565,8 +524,6 @@ export const UNPINNED_STOP_NOTICE =
   "Stop saved without a map pin: its address couldn't be found on the map. It still appears in Property History.";
 
 export interface SaveStopResult {
-  /** Set when nothing was saved. */
-  errors?: unknown[];
   /** Whether the saved Stop has a map pin; false when its address couldn't be geocoded. */
   pinned: boolean;
 }
@@ -574,20 +531,10 @@ export interface SaveStopResult {
 /**
  * Delete a stop by ID
  */
-export async function deleteStop(stopId: string) {
-  try {
-    const { data, errors } = await getDataClient().models.Stop.delete({ id: stopId });
-
-    if (errors) {
-      console.error('Errors deleting stop:', errors);
-      return { data: null, errors };
-    }
-
-    return { data, errors: undefined };
-  } catch (error) {
-    console.error('Error deleting stop:', error);
-    return { data: null, errors: [error as Error] };
-  }
+export async function deleteStop(stopId: string): Promise<void> {
+  return withDataError('Failed to delete stop.', async () => {
+    resultData(await getDataClient().models.Stop.delete({ id: stopId }));
+  });
 }
 
 /** Every Stop a Customer owns, across all its Routes -- see lib/listAll.ts. */
@@ -602,13 +549,12 @@ export async function listCustomerStops(customerId: string) {
  * writes run concurrently; rejects if any of them fails, leaving the caller
  * to resync.
  */
-export async function resequenceStops(stopIds: string[]) {
-  const client = getDataClient();
-  const results = await Promise.all(
-    stopIds.map((id, index) => client.models.Stop.update({ id, sequence: index + 1 }))
-  );
-  const errors = results.flatMap((result) => result.errors ?? []);
-  if (errors.length > 0) {
-    throw new Error(errors[0]?.message ?? 'Failed to save stop order.');
-  }
+export async function resequenceStops(stopIds: string[]): Promise<void> {
+  return withDataError('Failed to save stop order.', async () => {
+    const client = getDataClient();
+    const results = await Promise.all(
+      stopIds.map((id, index) => client.models.Stop.update({ id, sequence: index + 1 }))
+    );
+    results.forEach(resultData);
+  });
 }

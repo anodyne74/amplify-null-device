@@ -78,8 +78,9 @@ export function useRoutesList(canDeleteRoutes: boolean) {
     setDeletingRouteId(route.id);
     setDeleteError(null);
 
-    const result = await deleteRoute(route.id);
-    if (result.errors && result.errors.length > 0) {
+    try {
+      await deleteRoute(route.id);
+    } catch {
       setDeleteError('Failed to delete route.');
       setDeletingRouteId(null);
       setRoutePendingDelete(null);

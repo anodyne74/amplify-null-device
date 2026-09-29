@@ -29,7 +29,7 @@ describe('useInvoiceDraft', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (listRateLines as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listRateLines as jest.Mock).mockResolvedValue([]);
   });
 
   function renderDraft(customerList: CustomerOption[] = customers) {
@@ -149,13 +149,26 @@ describe('useInvoiceDraft', () => {
     } as RateLine;
 
     function renderWithRateLines(rateLines: RateLine[], customerList = customers) {
-      (listRateLines as jest.Mock).mockResolvedValue({ data: rateLines, errors: undefined });
+      (listRateLines as jest.Mock).mockResolvedValue(rateLines);
       const view = renderDraft(customerList);
       act(() => {
         view.result.current.selectCustomer('customer-1');
       });
       return view;
     }
+
+    it("reports rate lines that can't be read rather than treating them as none", async () => {
+      (listRateLines as jest.Mock).mockRejectedValue(new Error('read failed'));
+      const { result } = renderDraft();
+      act(() => {
+        result.current.selectCustomer('customer-1');
+      });
+
+      await waitFor(() => {
+        expect(result.current.rateLinesError).toBe("Couldn't load this customer's rate lines. Reload to try again.");
+      });
+      expect(result.current.rateLines.items).toEqual([]);
+    });
 
     it('fills the per_hour line quantity with the finalized route hours', async () => {
       const { result } = renderWithRateLines([hoursLine, extraLine]);

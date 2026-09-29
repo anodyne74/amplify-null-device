@@ -146,10 +146,7 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
       errors: [],
     }));
     (getCustomer as jest.Mock).mockResolvedValue({ name: 'Beltline Group' });
-    (getOrganizationSettings as jest.Mock).mockResolvedValue({
-      data: { address: '22 Dryburgh St, West Melbourne' },
-      errors: undefined,
-    });
+    (getOrganizationSettings as jest.Mock).mockResolvedValue({ address: '22 Dryburgh St, West Melbourne' });
     // Every write bumps updatedAt, as AppSync does, and returns it.
     let version = 0;
     const nextVersion = () => `2026-08-31T10:00:00.${String(++version).padStart(3, '0')}Z`;

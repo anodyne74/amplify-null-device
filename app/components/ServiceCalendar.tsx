@@ -82,17 +82,17 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     setLoading(true);
     setLoadError(null);
 
-    const [noDriversResult, closedBlocks, routesResult] = await Promise.all([
-      listOperatorAvailabilityBlocks(customerId),
+    const [noDriversBlocksResult, closedBlocks, routesResult] = await Promise.all([
+      listOperatorAvailabilityBlocks(customerId).catch(() => null),
       listCustomerClosureBlocks(customerId).catch(() => null),
       listCustomerRoutes(customerId).catch(() => null),
     ]);
 
-    if ((noDriversResult.errors && noDriversResult.errors.length > 0) || !closedBlocks || !routesResult) {
+    if (!noDriversBlocksResult || !closedBlocks || !routesResult) {
       setLoadError('Could not load the service calendar.');
     }
 
-    setNoDriversBlocks(noDriversResult.data as OperatorAvailabilityBlock[]);
+    setNoDriversBlocks((noDriversBlocksResult ?? []) as unknown as OperatorAvailabilityBlock[]);
     setClosedBlocks((closedBlocks ?? []) as unknown as CustomerClosureBlock[]);
     setRoutes(routesResult ?? []);
     setLoading(false);
@@ -196,8 +196,8 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     setActionError(null);
 
     if (selectedNoDriversBlock) {
-      const result = await deleteOperatorAvailabilityBlock(selectedNoDriversBlock.id);
-      if (result.errors && result.errors.length > 0) {
+      const deleted = await deleteOperatorAvailabilityBlock(selectedNoDriversBlock.id).then(() => true, () => false);
+      if (!deleted) {
         setActionError('Could not update the calendar.');
         setActionPending(false);
         return;
@@ -220,9 +220,14 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
       const failures: string[] = [];
 
       for (const activeCustomer of activeCustomers) {
-        const existing = await listOperatorAvailabilityBlocks(activeCustomer.id);
-        const alreadyBlocked = (existing.data as OperatorAvailabilityBlock[]).some((block) => block.date === selectedKey);
-        if (alreadyBlocked) continue;
+        // An unreadable calendar is a failure for that customer, not "not blocked yet":
+        // blocking it blind could add a second block for the day.
+        const existing = await listOperatorAvailabilityBlocks(activeCustomer.id).catch(() => null);
+        if (!existing) {
+          failures.push(activeCustomer.name);
+          continue;
+        }
+        if (existing.some((block) => block.date === selectedKey)) continue;
 
         const created = await createOperatorAvailabilityBlock({
           customerId: activeCustomer.id,
@@ -230,8 +235,8 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
           reason: reasonDraft.trim() || undefined,
           createdByOperatorId: currentUserSub,
           viewerSubs: activeCustomer.viewerSubs || [],
-        });
-        if (created.errors && created.errors.length > 0) failures.push(activeCustomer.name);
+        }).then(() => true, () => false);
+        if (!created) failures.push(activeCustomer.name);
       }
 
       if (failures.length > 0) {
@@ -244,15 +249,15 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
       return;
     }
 
-    const result = await createOperatorAvailabilityBlock({
+    const created = await createOperatorAvailabilityBlock({
       customerId,
       date: selectedKey,
       reason: reasonDraft.trim() || undefined,
       createdByOperatorId: currentUserSub,
       viewerSubs,
-    });
+    }).then(() => true, () => false);
 
-    if (result.errors && result.errors.length > 0) {
+    if (!created) {
       setActionError('Could not update the calendar.');
       setActionPending(false);
       return;

@@ -79,10 +79,7 @@ describe('Operator Load page', () => {
     jest.clearAllMocks();
     searchParamId = 'route-1';
     (getCustomer as jest.Mock).mockResolvedValue({ name: 'Beltline Group' });
-    (getOrganizationSettings as jest.Mock).mockResolvedValue({
-      data: { address: '22 Dryburgh St, West Melbourne' },
-      errors: undefined,
-    });
+    (getOrganizationSettings as jest.Mock).mockResolvedValue({ address: '22 Dryburgh St, West Melbourne' });
   });
 
   it('shows the per-agent breakdown, totals and yard address', async () => {

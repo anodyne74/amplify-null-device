@@ -1,20 +1,13 @@
 /**
  * Delete a rate card line by ID
+ *
+ * Returns its data or throws a DataError (lib/graphqlResult.ts).
  */
 import { getDataClient } from '@/lib/data-client';
+import { resultData, withDataError } from '@/lib/graphqlResult';
 
-export async function deleteRateLine(id: string) {
-  try {
-    const { data, errors } = await getDataClient().models.RateLine.delete({ id });
-
-    if (errors) {
-      console.error('Errors deleting rate line:', errors);
-      return { data: null, errors };
-    }
-
-    return { data, errors: undefined };
-  } catch (error) {
-    console.error('Error deleting rate line:', error);
-    return { data: null, errors: [error as Error] };
-  }
+export async function deleteRateLine(id: string): Promise<void> {
+  return withDataError('Failed to remove rate line.', async () => {
+    resultData(await getDataClient().models.RateLine.delete({ id }));
+  });
 }

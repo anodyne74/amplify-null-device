@@ -46,32 +46,29 @@ describe('Administrator Payouts page', () => {
       { id: 'cust-1', name: 'Harcourts Epping' },
       { id: 'cust-2', name: 'Ray White Eastwood' },
     ]);
-    (listOperatorPayouts as jest.Mock).mockResolvedValue({
-      data: [
-        {
-          id: 'payout-1',
-          operatorSub: 'op-1',
-          customerId: 'cust-1',
-          periodStartDate: '2026-08-01',
-          periodEndDate: '2026-08-20',
-          amount: 120,
-          status: 'pending',
-        },
-        {
-          id: 'payout-2',
-          operatorSub: 'op-2',
-          customerId: 'cust-1',
-          periodStartDate: '2026-07-01',
-          periodEndDate: '2026-07-31',
-          amount: 80,
-          status: 'paid',
-        },
-      ],
-      errors: undefined,
-    });
+    (listOperatorPayouts as jest.Mock).mockResolvedValue([
+      {
+        id: 'payout-1',
+        operatorSub: 'op-1',
+        customerId: 'cust-1',
+        periodStartDate: '2026-08-01',
+        periodEndDate: '2026-08-20',
+        amount: 120,
+        status: 'pending',
+      },
+      {
+        id: 'payout-2',
+        operatorSub: 'op-2',
+        customerId: 'cust-1',
+        periodStartDate: '2026-07-01',
+        periodEndDate: '2026-07-31',
+        amount: 80,
+        status: 'paid',
+      },
+    ]);
     (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', billingRatePerHour: 30, driverSplitPercent: 40, paySplitOnCompletedStopsOnly: false });
-    (createOperatorPayout as jest.Mock).mockResolvedValue({ data: { id: 'payout-new' }, errors: undefined });
-    (updateOperatorPayout as jest.Mock).mockResolvedValue({ data: { id: 'payout-1' }, errors: undefined });
+    (createOperatorPayout as jest.Mock).mockResolvedValue({ id: 'payout-new' });
+    (updateOperatorPayout as jest.Mock).mockResolvedValue({ id: 'payout-1' });
     (computeDriverSplit as jest.Mock).mockResolvedValue({
       periodStartDate: '2026-08-01',
       periodEndDate: '2026-08-20',
@@ -163,10 +160,18 @@ describe('Administrator Payouts page', () => {
   });
 
   it('shows an empty state when there are no payouts', async () => {
-    (listOperatorPayouts as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listOperatorPayouts as jest.Mock).mockResolvedValue([]);
 
     render(<AdministratorPayoutsPage />);
 
     expect(await screen.findByText(/no payouts yet/i)).toBeInTheDocument();
+  });
+
+  it('shows an error when payouts cannot be loaded', async () => {
+    (listOperatorPayouts as jest.Mock).mockRejectedValue(new Error('read failed'));
+
+    render(<AdministratorPayoutsPage />);
+
+    expect(await screen.findByText('Could not load payouts.')).toBeInTheDocument();
   });
 });

@@ -63,6 +63,9 @@ export function useInvoiceDraft({
   const [visibleRateLineIds, setVisibleRateLineIds] = useState<ReadonlySet<string>>(new Set());
 
   const [rateLines, setRateLines] = useState<RateLine[]>([]);
+  // Unreadable rate lines aren't "no rate lines": the page refuses to create
+  // an invoice rather than bill it by hours × rate instead.
+  const [rateLinesError, setRateLinesError] = useState<string | null>(null);
   const hasRateLines = rateLines.length > 0;
 
   useEffect(() => {
@@ -73,10 +76,17 @@ export function useInvoiceDraft({
 
     let cancelled = false;
 
-    void listRateLines(customerId).then((result) => {
-      if (cancelled) return;
-      setRateLines((result.data as RateLine[]) || []);
-    });
+    setRateLinesError(null);
+    void listRateLines(customerId).then(
+      (lines) => {
+        if (!cancelled) setRateLines(lines as unknown as RateLine[]);
+      },
+      () => {
+        if (cancelled) return;
+        setRateLines([]);
+        setRateLinesError("Couldn't load this customer's rate lines. Reload to try again.");
+      }
+    );
 
     return () => {
       cancelled = true;
@@ -232,6 +242,7 @@ export function useInvoiceDraft({
     totalAmount,
     gstAmount,
     rateLines: rateLineCapability,
+    rateLinesError,
 
     selectCustomer,
     selectRoute,

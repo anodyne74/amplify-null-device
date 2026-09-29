@@ -39,6 +39,8 @@ const UNIT_OPTIONS: { value: RateLineUnit; label: string }[] = [
   { value: 'per_sign', label: 'per sign' },
 ];
 
+const RATE_LINES_LOAD_ERROR = "Couldn't load rate lines. Reload to try again.";
+
 function formatUnit(unit?: RateLineUnit | null) {
   return UNIT_OPTIONS.find((option) => option.value === unit)?.label ?? 'per hour';
 }
@@ -72,6 +74,8 @@ function PaymentDetailsContent() {
   const [payToBsb, setPayToBsb] = useState('');
   const [payToAccountNumber, setPayToAccountNumber] = useState('');
   const [loadingPayTo, setLoadingPayTo] = useState(true);
+  // A failed load hides the form: saving it would write blanks over the real details.
+  const [payToLoadError, setPayToLoadError] = useState<string | null>(null);
   const [savingPayTo, setSavingPayTo] = useState(false);
   const [payToError, setPayToError] = useState<string | null>(null);
   const [payToSuccess, setPayToSuccess] = useState<string | null>(null);
@@ -98,6 +102,8 @@ function PaymentDetailsContent() {
   const [rateLines, setRateLines] = useState<RateLine[]>([]);
   const [loadingRateLines, setLoadingRateLines] = useState(false);
   const [rateLineError, setRateLineError] = useState<string | null>(null);
+  // Unreadable rate lines aren't "no rate lines": adding or copying is held off until they load.
+  const [rateLinesLoadError, setRateLinesLoadError] = useState<string | null>(null);
   const [newLineLabel, setNewLineLabel] = useState('');
   const [newLineUnit, setNewLineUnit] = useState<RateLineUnit>('per_hour');
   const [newLineRate, setNewLineRate] = useState('');
@@ -151,18 +157,24 @@ function PaymentDetailsContent() {
     // Org-wide, not customer-scoped -- loads once, independent of the customer picker above.
     let cancelled = false;
 
-    void getOrganizationSettings().then((result) => {
-      if (cancelled) return;
-      const settings = result.data;
-      setPayToCompanyName(settings?.companyName ?? '');
-      setPayToAbn(settings?.abn ?? '');
-      setPayToPhone(settings?.phone ?? '');
-      setPayToAddress(settings?.address ?? '');
-      setPayToAccountName(settings?.paymentAccountName ?? '');
-      setPayToBsb(settings?.bsb ?? '');
-      setPayToAccountNumber(settings?.accountNumber ?? '');
-      setLoadingPayTo(false);
-    });
+    void getOrganizationSettings().then(
+      (settings) => {
+        if (cancelled) return;
+        setPayToCompanyName(settings?.companyName ?? '');
+        setPayToAbn(settings?.abn ?? '');
+        setPayToPhone(settings?.phone ?? '');
+        setPayToAddress(settings?.address ?? '');
+        setPayToAccountName(settings?.paymentAccountName ?? '');
+        setPayToBsb(settings?.bsb ?? '');
+        setPayToAccountNumber(settings?.accountNumber ?? '');
+        setLoadingPayTo(false);
+      },
+      () => {
+        if (cancelled) return;
+        setPayToLoadError("Couldn't load the pay-to details. Reload to try again.");
+        setLoadingPayTo(false);
+      }
+    );
 
     return () => {
       cancelled = true;
@@ -251,8 +263,11 @@ function PaymentDetailsContent() {
   }, [customer, selectedCustomerId]);
 
   const refetchRateLines = async () => {
-    const result = await listRateLines(selectedCustomerId);
-    setRateLines((result.data as RateLine[]) || []);
+    try {
+      setRateLines((await listRateLines(selectedCustomerId)) as unknown as RateLine[]);
+    } catch {
+      setRateLinesLoadError(RATE_LINES_LOAD_ERROR);
+    }
   };
 
   useEffect(() => {
@@ -263,12 +278,21 @@ function PaymentDetailsContent() {
     let cancelled = false;
     setLoadingRateLines(true);
     setRateLineError(null);
+    setRateLinesLoadError(null);
 
-    void listRateLines(selectedCustomerId).then((result) => {
-      if (cancelled) return;
-      setRateLines((result.data as RateLine[]) || []);
-      setLoadingRateLines(false);
-    });
+    void listRateLines(selectedCustomerId).then(
+      (lines) => {
+        if (cancelled) return;
+        setRateLines(lines as unknown as RateLine[]);
+        setLoadingRateLines(false);
+      },
+      () => {
+        if (cancelled) return;
+        setRateLines([]);
+        setRateLinesLoadError(RATE_LINES_LOAD_ERROR);
+        setLoadingRateLines(false);
+      }
+    );
 
     return () => {
       cancelled = true;
@@ -280,15 +304,15 @@ function PaymentDetailsContent() {
     setAddingLine(true);
     setRateLineError(null);
 
-    const result = await createRateLine({
+    const added = await createRateLine({
       customerId: selectedCustomerId,
       label: newLineLabel.trim(),
       unit: newLineUnit,
       ratePerUnit: Number(newLineRate),
       sortOrder: rateLines.length,
-    });
+    }).then(() => true, () => false);
 
-    if (result.errors && result.errors.length > 0) {
+    if (!added) {
       setRateLineError('Could not add rate line.');
       setAddingLine(false);
       return;
@@ -304,8 +328,8 @@ function PaymentDetailsContent() {
     setRemovingLineId(id);
     setRateLineError(null);
 
-    const result = await deleteRateLine(id);
-    if (result.errors && result.errors.length > 0) {
+    const removed = await deleteRateLine(id).then(() => true, () => false);
+    if (!removed) {
       setRateLineError('Could not remove rate line.');
       setRemovingLineId(null);
       return;
@@ -320,8 +344,13 @@ function PaymentDetailsContent() {
     setCopyingLines(true);
     setRateLineError(null);
 
-    const source = await listRateLines(copySourceId);
-    const sourceLines = (source.data as RateLine[]) || [];
+    const source = await listRateLines(copySourceId).catch(() => null);
+    if (!source) {
+      setRateLineError("Couldn't load that customer's rate lines.");
+      setCopyingLines(false);
+      return;
+    }
+    const sourceLines = source as unknown as RateLine[];
 
     if (sourceLines.length === 0) {
       setRateLineError('That customer has no rate lines to copy.');
@@ -329,7 +358,7 @@ function PaymentDetailsContent() {
       return;
     }
 
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       sourceLines.map((line, index) =>
         createRateLine({
           customerId: selectedCustomerId,
@@ -341,7 +370,7 @@ function PaymentDetailsContent() {
       )
     );
 
-    if (results.some((result) => result.errors && result.errors.length > 0)) {
+    if (results.some((result) => result.status === 'rejected')) {
       setRateLineError('Some rate lines could not be copied.');
     }
 
@@ -354,7 +383,7 @@ function PaymentDetailsContent() {
     setPayToError(null);
     setPayToSuccess(null);
 
-    const result = await upsertOrganizationSettings({
+    const saved = await upsertOrganizationSettings({
       companyName: payToCompanyName.trim(),
       abn: payToAbn.trim(),
       phone: payToPhone.trim(),
@@ -362,9 +391,9 @@ function PaymentDetailsContent() {
       paymentAccountName: payToAccountName.trim(),
       bsb: payToBsb.trim(),
       accountNumber: payToAccountNumber.trim(),
-    });
+    }).then(() => true, () => false);
 
-    if (result.errors && result.errors.length > 0) {
+    if (!saved) {
       setPayToError('Could not save pay-to details.');
       setSavingPayTo(false);
       return;
@@ -465,6 +494,8 @@ function PaymentDetailsContent() {
 
             {loadingPayTo ? (
               <p className={styles.rateCardEmpty}>Loading pay-to details…</p>
+            ) : payToLoadError ? (
+              <p className="nd-badge nd-badge--danger">{payToLoadError}</p>
             ) : (
               <>
                 <div className={styles.grid}>
@@ -586,6 +617,8 @@ function PaymentDetailsContent() {
 
               {loadingRateLines ? (
                 <p className={styles.rateCardEmpty}>Loading rate lines…</p>
+              ) : rateLinesLoadError ? (
+                <p className={`nd-badge nd-badge--danger ${styles.rateCardBanner}`}>{rateLinesLoadError}</p>
               ) : rateLines.length === 0 ? (
                 <p className={styles.rateCardEmpty}>No rate lines yet — this customer uses the flat billing rate.</p>
               ) : (
@@ -651,7 +684,7 @@ function PaymentDetailsContent() {
                   size="sm"
                   iconLeft="plus"
                   loading={addingLine}
-                  disabled={addingLine || !newLineLabel.trim() || !newLineRate.trim()}
+                  disabled={addingLine || Boolean(rateLinesLoadError) || !newLineLabel.trim() || !newLineRate.trim()}
                   onClick={() => void handleAddRateLine()}
                 >
                   Add rate line
@@ -679,7 +712,7 @@ function PaymentDetailsContent() {
                   variant="ghost"
                   size="sm"
                   loading={copyingLines}
-                  disabled={copyingLines || !copySourceId}
+                  disabled={copyingLines || Boolean(rateLinesLoadError) || !copySourceId}
                   onClick={() => void handleCopyRateLines()}
                 >
                   Copy rate lines

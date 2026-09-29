@@ -83,7 +83,7 @@ describe('Operator Customers Page', () => {
     (createCustomer as jest.Mock).mockResolvedValue({ id: 'c-new' });
     (updateCustomer as jest.Mock).mockResolvedValue({ id: 'c-1' });
     (listAllCustomerUsers as jest.Mock).mockResolvedValue([]);
-    (listFeatureFlagSettings as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listFeatureFlagSettings as jest.Mock).mockResolvedValue([]);
   });
 
   it('submits create customer with standing instructions and defaults', async () => {
@@ -408,13 +408,10 @@ describe('Operator Customers Page', () => {
     }
 
     it('lists the flags on for the Customer and keeps "First teammate invited" in the checklist', async () => {
-      (listFeatureFlagSettings as jest.Mock).mockResolvedValue({
-        data: [
-          { id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['c-1'] },
-          { id: 'retired', state: 'everyone' },
-        ],
-        errors: undefined,
-      });
+      (listFeatureFlagSettings as jest.Mock).mockResolvedValue([
+        { id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['c-1'] },
+        { id: 'retired', state: 'everyone' },
+      ]);
       await openAcme();
 
       const list = await screen.findByRole('list', { name: 'Feature flags on' });
@@ -424,10 +421,7 @@ describe('Operator Customers Page', () => {
     });
 
     it('omits "First teammate invited" and says no flags are on when account-owner-invite is off', async () => {
-      (listFeatureFlagSettings as jest.Mock).mockResolvedValue({
-        data: [{ id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['c-2'] }],
-        errors: undefined,
-      });
+      (listFeatureFlagSettings as jest.Mock).mockResolvedValue([{ id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['c-2'] }]);
       await openAcme();
 
       expect(await screen.findByText(/this Customer sees no flagged features/)).toBeInTheDocument();
@@ -436,7 +430,7 @@ describe('Operator Customers Page', () => {
     });
 
     it('says so, and omits the teammate item, when the flags cannot be read', async () => {
-      (listFeatureFlagSettings as jest.Mock).mockResolvedValue({ data: [], errors: [new Error('boom')] });
+      (listFeatureFlagSettings as jest.Mock).mockRejectedValue(new Error('read failed'));
       await openAcme();
 
       expect(await screen.findByText('Could not load feature flags.')).toBeInTheDocument();

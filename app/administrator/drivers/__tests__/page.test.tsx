@@ -55,37 +55,34 @@ describe('Administrator Drivers page', () => {
 
     mockUsersApi({ createUser: () => ({ user: { sub: 'new-sub' }, created: true, emailSent: true }) });
 
-    (listOperators as jest.Mock).mockResolvedValue({
-      data: [
-        {
-          id: 'sub-1',
-          name: 'Jane Driver',
-          email: 'jane@nulldevice.dev',
-          status: 'active',
-          vehicleAndRego: 'Van 1 · ABC123',
-          homeBase: 'Ryde',
-          driverSplitPercent: 30,
-          payCycle: 'fortnightly',
-          paySplitOnCompletedStopsOnly: true,
-          assignedCustomerIds: ['cust-1'],
-        },
-        {
-          id: 'sub-2',
-          name: 'Amir Driver',
-          email: 'amir@nulldevice.dev',
-          status: 'onboarding',
-          assignedCustomerIds: [],
-        },
-      ],
-      errors: undefined,
-    });
+    (listOperators as jest.Mock).mockResolvedValue([
+      {
+        id: 'sub-1',
+        name: 'Jane Driver',
+        email: 'jane@nulldevice.dev',
+        status: 'active',
+        vehicleAndRego: 'Van 1 · ABC123',
+        homeBase: 'Ryde',
+        driverSplitPercent: 30,
+        payCycle: 'fortnightly',
+        paySplitOnCompletedStopsOnly: true,
+        assignedCustomerIds: ['cust-1'],
+      },
+      {
+        id: 'sub-2',
+        name: 'Amir Driver',
+        email: 'amir@nulldevice.dev',
+        status: 'onboarding',
+        assignedCustomerIds: [],
+      },
+    ]);
 
     (listAllCustomers as jest.Mock).mockResolvedValue([
       { id: 'cust-1', name: 'Harcourts Epping' },
       { id: 'cust-2', name: 'Ray White Eastwood' },
     ]);
 
-    (updateOperator as jest.Mock).mockResolvedValue({ data: { id: 'sub-1' }, errors: undefined });
+    (updateOperator as jest.Mock).mockResolvedValue({ id: 'sub-1' });
     (listAllRoutes as jest.Mock).mockResolvedValue([]);
     (listAllStops as jest.Mock).mockResolvedValue([]);
   });
@@ -213,7 +210,7 @@ describe('Administrator Drivers page', () => {
 
   it('shows an empty state when there are no drivers', async () => {
     (callApi as jest.Mock).mockResolvedValue({ users: [] });
-    (listOperators as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listOperators as jest.Mock).mockResolvedValue([]);
 
     render(<AdministratorDriversPage />);
 

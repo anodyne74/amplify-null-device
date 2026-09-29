@@ -66,8 +66,11 @@ export default function AdministratorPayoutsPage() {
   const [creatingPayouts, setCreatingPayouts] = useState(false);
 
   const fetchPayouts = async () => {
-    const result = await listOperatorPayouts();
-    setPayouts((result.data as OperatorPayout[]) || []);
+    try {
+      setPayouts((await listOperatorPayouts()) as unknown as OperatorPayout[]);
+    } catch {
+      setError('Could not load payouts.');
+    }
   };
 
   useEffect(() => {
@@ -75,13 +78,14 @@ export default function AdministratorPayoutsPage() {
     setLoading(true);
 
     // Best-effort: without names, payouts fall back to operatorLabel()'s short sub.
-    Promise.all([listAllCustomers().catch(() => []), listOperatorPayouts(), fetchDriverNamesBySub().catch(() => new Map<string, string>())]).then(
+    Promise.all([listAllCustomers().catch(() => []), listOperatorPayouts().catch(() => null), fetchDriverNamesBySub().catch(() => new Map<string, string>())]).then(
       ([customerResult, payoutResult, driverNames]) => {
         if (cancelled) return;
         const customerList = customerResult as { id: string; name: string }[];
         setCustomers(customerList);
         if (customerList.length > 0) setCreateCustomerId(customerList[0].id);
-        setPayouts((payoutResult.data as OperatorPayout[]) || []);
+        if (payoutResult) setPayouts(payoutResult as unknown as OperatorPayout[]);
+        else setError('Could not load payouts.');
         setDriverNamesBySub(driverNames);
         setLoading(false);
       }
@@ -141,7 +145,7 @@ export default function AdministratorPayoutsPage() {
     setCreatingPayouts(true);
     setPreviewError(null);
 
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       payableOperators.map((o) =>
         createOperatorPayout({
           operatorSub: o.operatorSub,
@@ -154,7 +158,7 @@ export default function AdministratorPayoutsPage() {
       )
     );
 
-    if (results.some((r) => r.errors && r.errors.length > 0)) {
+    if (results.some((r) => r.status === 'rejected')) {
       setPreviewError('Some payouts could not be created.');
     }
 
@@ -165,12 +169,12 @@ export default function AdministratorPayoutsPage() {
 
   const handleMarkPaid = async (payoutId: string) => {
     setMarkingPaidId(payoutId);
-    const result = await updateOperatorPayout(payoutId, { status: 'paid', paidAt: new Date().toISOString() });
-    if (!result.errors || result.errors.length === 0) {
+    try {
+      await updateOperatorPayout(payoutId, { status: 'paid', paidAt: new Date().toISOString() });
       setPayouts((prev) =>
         prev.map((p) => (p.id === payoutId ? { ...p, status: 'paid', paidAt: new Date().toISOString() } : p))
       );
-    } else {
+    } catch {
       setError('Could not mark payout as paid.');
     }
     setMarkingPaidId(null);

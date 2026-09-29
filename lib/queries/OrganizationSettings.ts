@@ -1,32 +1,13 @@
 /**
  * Null Device's own invoice remittance details -- a single, org-wide settings row
  * (not per-user; see the schema comment on OrganizationSettings in amplify/data/resource.ts).
- * Always read/written by the well-known id 'organization'.
+ * Always read/written by the well-known id 'organization'. Returns its data or
+ * throws a DataError (lib/graphqlResult.ts).
  */
 import { getDataClient } from '@/lib/data-client';
+import { resultData, withDataError } from '@/lib/graphqlResult';
 
 const ORGANIZATION_SETTINGS_ID = 'organization';
-
-function getOrganizationSettingsModel() {
-  const model = (getDataClient().models as unknown as Record<string, unknown>).OrganizationSettings as
-    | {
-        get: (args: { id: string }) => Promise<{ data?: unknown; errors?: unknown[] }>;
-        create: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
-        update: (args: unknown) => Promise<{ data?: unknown; errors?: unknown[] }>;
-      }
-    | undefined;
-
-  if (!model) {
-    return {
-      model: null,
-      error: new Error(
-        'OrganizationSettings model is not available in the current backend schema. Deploy backend changes and refresh amplify outputs.'
-      ),
-    };
-  }
-
-  return { model, error: null };
-}
 
 export interface OrganizationSettingsRecord {
   id: string;
@@ -52,71 +33,32 @@ export type OrganizationSettingsUpdates = Partial<{
 }>;
 
 /**
- * Get the organization's settings row, if it's been created yet.
+ * Get the organization's settings row; null if it hasn't been created yet.
  */
 export async function getOrganizationSettings() {
-  try {
-    const { model, error: modelError } = getOrganizationSettingsModel();
-    if (!model) {
-      return { data: null, errors: [modelError] };
-    }
+  return withDataError('Failed to load pay-to details.', readOrganizationSettings);
+}
 
-    const { data, errors } = await model.get({ id: ORGANIZATION_SETTINGS_ID });
-    if (errors) {
-      console.error('Errors getting organization settings:', errors);
-      return { data: null, errors };
-    }
-
-    return { data: (data as OrganizationSettingsRecord | null) ?? null, errors };
-  } catch (error) {
-    console.error('Error getting organization settings:', error);
-    return { data: null, errors: [error] };
-  }
+async function readOrganizationSettings() {
+  return resultData(
+    await getDataClient().models.OrganizationSettings.get({ id: ORGANIZATION_SETTINGS_ID })
+  ) as OrganizationSettingsRecord | null;
 }
 
 /**
  * Create or update the organization's settings row.
  */
 export async function upsertOrganizationSettings(updates: OrganizationSettingsUpdates) {
-  try {
-    const { model, error: modelError } = getOrganizationSettingsModel();
-    if (!model) {
-      return { data: null, errors: [modelError] };
-    }
-
-    const current = await getOrganizationSettings();
-    if (current.errors && current.errors.length > 0) {
-      return { data: null, errors: current.errors };
-    }
-
+  return withDataError('Failed to save pay-to details.', async () => {
+    const model = getDataClient().models.OrganizationSettings;
+    const current = await readOrganizationSettings();
     const nowIso = new Date().toISOString();
 
-    if (current.data) {
-      const { data, errors } = await model.update({
-        id: ORGANIZATION_SETTINGS_ID,
-        ...updates,
-        updatedAt: nowIso,
-      });
-
-      if (errors) {
-        console.error('Errors updating organization settings:', errors);
-      }
-      return { data, errors };
+    if (current) {
+      return resultData(await model.update({ id: ORGANIZATION_SETTINGS_ID, ...updates, updatedAt: nowIso }));
     }
-
-    const { data, errors } = await model.create({
-      id: ORGANIZATION_SETTINGS_ID,
-      ...updates,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    });
-
-    if (errors) {
-      console.error('Errors creating organization settings:', errors);
-    }
-    return { data, errors };
-  } catch (error) {
-    console.error('Error saving organization settings:', error);
-    return { data: null, errors: [error] };
-  }
+    return resultData(
+      await model.create({ id: ORGANIZATION_SETTINGS_ID, ...updates, createdAt: nowIso, updatedAt: nowIso })
+    );
+  });
 }

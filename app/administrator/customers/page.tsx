@@ -214,10 +214,11 @@ export default function CustomersAdminPage() {
       listCustomerRoutes(customer.id).catch(() => []),
       // The checklist is best-effort: unreadable invoices count as none yet.
       listCustomerInvoices(customer.id).catch(() => []),
-      listFeatureFlagSettings(),
+      // Unreadable flag settings show the flags as unknown (null), not off.
+      listFeatureFlagSettings().catch(() => null),
     ]);
 
-    const onFlags = flagSettingsResult.errors ? null : resolveOnFlags(flagSettingsResult.data, customer.id);
+    const onFlags = flagSettingsResult ? resolveOnFlags(flagSettingsResult, customer.id) : null;
 
     setChecklists((prev) => ({
       ...prev,

@@ -12,7 +12,7 @@ jest.mock('@/lib/customers', () => ({
 describe('checkRouteDateBlocked', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue([]);
     (listCustomerClosureBlocks as jest.Mock).mockResolvedValue([]);
   });
 
@@ -22,10 +22,7 @@ describe('checkRouteDateBlocked', () => {
   });
 
   it('returns blocked with type "no_drivers" when Null Device has no drivers that day', async () => {
-    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue({
-      data: [{ id: 'b1', customerId: 'cust-1', date: '2026-09-15', reason: 'Driver on leave' }],
-      errors: undefined,
-    });
+    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue([{ id: 'b1', customerId: 'cust-1', date: '2026-09-15', reason: 'Driver on leave' }]);
 
     const result = await checkRouteDateBlocked('cust-1', '2026-09-15');
     expect(result).toEqual({ blocked: true, type: 'no_drivers', reason: 'Driver on leave' });
@@ -39,10 +36,7 @@ describe('checkRouteDateBlocked', () => {
   });
 
   it('prefers the no-drivers block when both sides have blocked the same day', async () => {
-    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue({
-      data: [{ id: 'b1', customerId: 'cust-1', date: '2026-09-15', reason: undefined }],
-      errors: undefined,
-    });
+    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue([{ id: 'b1', customerId: 'cust-1', date: '2026-09-15', reason: undefined }]);
     (listCustomerClosureBlocks as jest.Mock).mockResolvedValue([{ id: 'b2', customerId: 'cust-1', date: '2026-09-15', reason: undefined }]);
 
     const result = await checkRouteDateBlocked('cust-1', '2026-09-15');
@@ -51,10 +45,7 @@ describe('checkRouteDateBlocked', () => {
   });
 
   it('ignores blocks on other dates', async () => {
-    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue({
-      data: [{ id: 'b1', customerId: 'cust-1', date: '2026-09-16', reason: 'Public holiday' }],
-      errors: undefined,
-    });
+    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue([{ id: 'b1', customerId: 'cust-1', date: '2026-09-16', reason: 'Public holiday' }]);
 
     const result = await checkRouteDateBlocked('cust-1', '2026-09-15');
     expect(result).toEqual({ blocked: false });

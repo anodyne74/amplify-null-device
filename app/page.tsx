@@ -18,9 +18,9 @@ import { Button } from '@/app/components/ui/core/Button';
 import styles from './page.module.css';
 
 const HERO_FEATURES = [
-  { icon: 'map-pin', label: 'Plan and track routes end to end' },
-  { icon: 'truck', label: 'Coordinate operators in the field, live' },
-  { icon: 'receipt', label: 'Completed routes become invoices' },
+  { icon: 'map-pin', label: "Every property you've ever had signed, with its full history" },
+  { icon: 'truck', label: 'Follow each route live, stop by stop' },
+  { icon: 'receipt', label: 'Invoices that show exactly what was done' },
 ];
 
 function getSignInErrorMessage(error: unknown): string {
@@ -169,7 +169,7 @@ export default function Home() {
               <>
                 <h1 className={styles.welcomeTitle}>Welcome back</h1>
                 <p className={styles.welcomeText}>
-                  Sign in to your portal — routes, jobs and invoices, wherever you left them.
+                  Your routes, properties and invoices, wherever you left them.
                 </p>
 
                 <form className={styles.signInForm} onSubmit={handleSignIn}>
@@ -306,7 +306,7 @@ export default function Home() {
             <span>null device</span>
           </div>
           <div className={styles.heroContent}>
-            <div className={styles.heroHeadline}>Keep every route, sign, and invoice moving.</div>
+            <div className={styles.heroHeadline}>Every sign, every property, every route, in one place.</div>
             <div className={styles.heroList}>
               {HERO_FEATURES.map((feature) => (
                 <div key={feature.label} className={styles.heroListItem}>
@@ -315,7 +315,7 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <div className={styles.heroFooter}>One door · customers · operators · null device staff</div>
+            <div className={styles.heroFooter}>Your routes · your properties · your team</div>
           </div>
         </div>
       </div>

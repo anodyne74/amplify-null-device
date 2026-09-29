@@ -6,22 +6,15 @@
  */
 import { callApi } from '@/lib/apiClient';
 import { getDataClient } from '@/lib/data-client';
+import { resultData, withDataError } from '@/lib/graphqlResult';
 import { listAll } from '@/lib/listAll';
 import type { FeatureFlagChange, FeatureFlagName, FeatureFlagSettingRecord } from '@/lib/featureFlags';
 
-/** Every stored flag setting, including any for flags no longer registered. */
+/** Every stored flag setting, including any for flags no longer registered. Throws a DataError. */
 export async function listFeatureFlagSettings() {
-  try {
-    const { data, errors } = await listAll(getDataClient(), 'FeatureFlagSetting');
-    if (errors.length > 0) {
-      console.error('Errors listing feature flag settings:', errors);
-      return { data: [] as FeatureFlagSettingRecord[], errors };
-    }
-    return { data: data as FeatureFlagSettingRecord[], errors: undefined };
-  } catch (error) {
-    console.error('Error listing feature flag settings:', error);
-    return { data: [] as FeatureFlagSettingRecord[], errors: [error] };
-  }
+  return withDataError('Failed to load feature flags.', async () =>
+    (resultData(await listAll(getDataClient(), 'FeatureFlagSetting')) ?? []) as FeatureFlagSettingRecord[]
+  );
 }
 
 /** Applies one change and resolves to the flag's stored setting afterwards. Throws ApiError on failure. */

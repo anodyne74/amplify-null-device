@@ -26,11 +26,12 @@ interface UnloadScreenExtra {
 async function fetchUnloadScreenExtra(route: Route): Promise<UnloadScreenExtra> {
   const [customer, orgSettingsResult] = await Promise.all([
     getCustomer(route.customerId).catch(() => null),
-    getOrganizationSettings(),
+    // The yard address is best-effort: unreadable settings show none.
+    getOrganizationSettings().catch(() => null),
   ]);
   return {
     customerName: customer?.name ?? '',
-    yardAddress: orgSettingsResult.data?.address ?? null,
+    yardAddress: orgSettingsResult?.address ?? null,
   };
 }
 

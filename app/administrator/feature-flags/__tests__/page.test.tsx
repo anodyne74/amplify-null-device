@@ -44,13 +44,11 @@ describe('Administrator Feature Flags page', () => {
       { id: 'c2', name: 'Ray White Eastwood' },
       { id: 'c1', name: 'Harcourts Epping' },
     ]);
-    (listFeatureFlagSettings as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'alpha', state: 'selected', selectedCustomerIds: ['c1'] },
-        { id: 'beta', state: 'everyone', everyoneSince: '2026-09-01T02:00:00.000Z' },
-        { id: 'retired', state: 'everyone' },
-      ],
-    });
+    (listFeatureFlagSettings as jest.Mock).mockResolvedValue([
+      { id: 'alpha', state: 'selected', selectedCustomerIds: ['c1'] },
+      { id: 'beta', state: 'everyone', everyoneSince: '2026-09-01T02:00:00.000Z' },
+      { id: 'retired', state: 'everyone' },
+    ]);
   });
 
   it('shows an empty state when no flags are registered', () => {
@@ -75,7 +73,7 @@ describe('Administrator Feature Flags page', () => {
   });
 
   it('treats a flag with no stored setting as Off', async () => {
-    (listFeatureFlagSettings as jest.Mock).mockResolvedValue({ data: [] });
+    (listFeatureFlagSettings as jest.Mock).mockResolvedValue([]);
     render(<AdministratorFeatureFlagsPage />);
 
     const states = (await screen.findAllByLabelText('State')) as HTMLSelectElement[];
@@ -132,7 +130,7 @@ describe('Administrator Feature Flags page', () => {
   });
 
   it('shows an error when flags cannot be loaded', async () => {
-    (listFeatureFlagSettings as jest.Mock).mockResolvedValue({ data: [], errors: [new Error('boom')] });
+    (listFeatureFlagSettings as jest.Mock).mockRejectedValue(new Error('read failed'));
     render(<AdministratorFeatureFlagsPage />);
 
     expect(await screen.findByText(/Could not load feature flags/)).toBeInTheDocument();

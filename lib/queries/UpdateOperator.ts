@@ -1,7 +1,10 @@
 /**
  * Update an Operator directory (Driver roster) record.
+ *
+ * Returns its data or throws a DataError (lib/graphqlResult.ts).
  */
 import { getDataClient } from '@/lib/data-client';
+import { resultData, withDataError } from '@/lib/graphqlResult';
 import type { BillingCycle, OperatorStatus } from '@/amplify/types';
 
 export async function updateOperator(
@@ -17,16 +20,7 @@ export async function updateOperator(
     assignedCustomerIds: string[];
   }>
 ) {
-  try {
-    const { data, errors } = await getDataClient().models.Operator.update({ id, ...updates });
-
-    if (errors) {
-      console.error('Errors updating operator:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error updating operator:', error);
-    return { data: null, errors: [error as Error] };
-  }
+  return withDataError('Failed to update driver.', async () =>
+    resultData(await getDataClient().models.Operator.update({ id, ...updates }))
+  );
 }

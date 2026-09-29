@@ -17,13 +17,13 @@ export interface RouteDateBlockResult {
 }
 
 export async function checkRouteDateBlocked(customerId: string, date: string): Promise<RouteDateBlockResult> {
-  const [noDriversResult, closedBlocks] = await Promise.all([
-    listOperatorAvailabilityBlocks(customerId),
-    // Unreadable closed dates count as none, as unreadable no-driver blocks do.
+  // Best-effort: unreadable blocks of either kind count as none.
+  const [noDriversBlocks, closedBlocks] = await Promise.all([
+    listOperatorAvailabilityBlocks(customerId).catch(() => []),
     listCustomerClosureBlocks(customerId).catch(() => []),
   ]);
 
-  const noDriversBlock = (noDriversResult.data || []).find((block) => block.date === date);
+  const noDriversBlock = noDriversBlocks.find((block) => block.date === date);
   if (noDriversBlock) {
     return { blocked: true, type: 'no_drivers', reason: noDriversBlock.reason || undefined };
   }

@@ -115,7 +115,7 @@ export default function AdministratorDriversPage() {
       ]);
 
       const cognitoOperators = (usersPayload.users as CognitoOperator[]) || [];
-      const records = (operatorsResult.data as Operator[]) || [];
+      const records = operatorsResult as Operator[];
       const recordsById = new Map(records.map((r) => [r.id, r]));
 
       const merged = cognitoOperators
@@ -149,11 +149,11 @@ export default function AdministratorDriversPage() {
   const persist = async (id: string, updates: Partial<Driver>, appliedFields: Parameters<typeof updateOperator>[1]) => {
     setSaving(true);
     setSaveError(null);
-    const result = await updateOperator(id, appliedFields);
-    if (result.errors && result.errors.length > 0) {
-      setSaveError('Could not save that change.');
-    } else {
+    try {
+      await updateOperator(id, appliedFields);
       setDrivers((prev) => prev.map((d) => (d.id === id ? { ...d, ...updates } : d)));
+    } catch {
+      setSaveError('Could not save that change.');
     }
     setSaving(false);
   };

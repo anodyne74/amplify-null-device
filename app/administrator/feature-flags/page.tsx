@@ -51,12 +51,12 @@ export default function AdministratorFeatureFlagsPage() {
     if (FEATURE_FLAG_NAMES.length === 0) return;
     let cancelled = false;
 
-    void Promise.all([listFeatureFlagSettings(), listAllCustomers().catch(() => null)]).then(([settingsResult, customers]) => {
+    void Promise.all([listFeatureFlagSettings().catch(() => null), listAllCustomers().catch(() => null)]).then(([settingsResult, customers]) => {
       if (cancelled) return;
-      if (settingsResult.errors || !customers) {
+      if (!settingsResult || !customers) {
         setLoadError('Could not load feature flags. Refresh to try again.');
       } else {
-        setSettings(Object.fromEntries(settingsResult.data.map((setting) => [setting.id, setting])));
+        setSettings(Object.fromEntries(settingsResult.map((setting) => [setting.id, setting])));
         setCustomers(
           customers
             .map((customer) => ({ id: customer.id, name: customer.name || customer.id }))

@@ -55,6 +55,7 @@ function GenerateInvoiceContent() {
     totalAmount,
     gstAmount,
     rateLines,
+    rateLinesError,
     selectCustomer,
     selectRoute,
     overrideTotal,
@@ -103,6 +104,7 @@ function GenerateInvoiceContent() {
     event.preventDefault();
     if (!customerId) { setError('Select a customer first.'); return; }
     if (!routeId) { setError('Select a linked route before creating an invoice.'); return; }
+    if (rateLinesError) { setError(rateLinesError); return; }
     if (!Number(totalAmount)) { setError('Total amount must be greater than zero.'); return; }
     setSaving(true);
     setError(null);
@@ -181,7 +183,9 @@ function GenerateInvoiceContent() {
           onSubmit={handleCreate}
         />
 
-        {error && <div className={styles.errorBanner} role="alert" aria-live="assertive">{error}</div>}
+        {(error ?? rateLinesError) && (
+          <div className={styles.errorBanner} role="alert" aria-live="assertive">{error ?? rateLinesError}</div>
+        )}
 
         {selectedCustomer && (
           <InvoicePreview

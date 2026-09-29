@@ -1,7 +1,10 @@
 /**
  * Create an operator payout record (a pending driver-split payout owed for a period)
+ *
+ * Returns its data or throws a DataError (lib/graphqlResult.ts).
  */
 import { getDataClient } from '@/lib/data-client';
+import { resultData, withDataError } from '@/lib/graphqlResult';
 
 export async function createOperatorPayout(input: {
   operatorSub: string;
@@ -13,19 +16,7 @@ export async function createOperatorPayout(input: {
   status?: 'pending' | 'paid';
   notes?: string;
 }) {
-  try {
-    const { data, errors } = await getDataClient().models.OperatorPayout.create({
-      status: 'pending',
-      ...input,
-    });
-
-    if (errors) {
-      console.error('Errors creating operator payout:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error creating operator payout:', error);
-    return { data: null, errors: [error as Error] };
-  }
+  return withDataError('Failed to create payout.', async () =>
+    resultData(await getDataClient().models.OperatorPayout.create({ status: 'pending', ...input }))
+  );
 }

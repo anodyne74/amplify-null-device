@@ -31,18 +31,15 @@ describe('useInvoiceBillingSettings', () => {
 
   it('loads and trims organization settings, falling back to defaults for blank fields', async () => {
     mockGetOrganizationSettings.mockResolvedValue({
-      data: {
-        id: 'organization',
-        companyName: '  New Co  ',
-        abn: ' ',
-        phone: '  0400 111 222  ',
-        address: '  1 High St  ',
-        paymentAccountName: '  New Co Pty Ltd  ',
-        bsb: '',
-        accountNumber: ' 123456789 ',
-      },
-      errors: [],
-    } as any);
+      id: 'organization',
+      companyName: '  New Co  ',
+      abn: ' ',
+      phone: '  0400 111 222  ',
+      address: '  1 High St  ',
+      paymentAccountName: '  New Co Pty Ltd  ',
+      bsb: '',
+      accountNumber: ' 123456789 ',
+    });
 
     const { result } = renderHook(() => useInvoiceBillingSettings());
 

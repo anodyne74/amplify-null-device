@@ -1,4 +1,4 @@
-import { Duration } from 'aws-cdk-lib';
+import { Duration, type Stack } from 'aws-cdk-lib';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { EmailSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 import {
@@ -12,6 +12,7 @@ import {
   MathExpression,
   Metric,
   TreatMissingData,
+  Unit,
 } from 'aws-cdk-lib/aws-cloudwatch';
 import { SnsAction } from 'aws-cdk-lib/aws-cloudwatch-actions';
 import { FilterPattern, LogGroup, MetricFilter, RetentionDays } from 'aws-cdk-lib/aws-logs';
@@ -456,6 +457,8 @@ export function configureObservability(backend: ObservabilityBackend, branchName
         width: 12,
       }),
     ]);
+
+    dashboardWidgets.push(...signRunTimingWidgets(stack, appId, branchName));
   }
 
   // ── Operational health ────────────────────────────────────────────────
@@ -550,4 +553,100 @@ export function configureObservability(backend: ObservabilityBackend, branchName
     dashboardName: `NullDeviceOps-${branchName}`,
     widgets: dashboardWidgets,
   });
+}
+
+/**
+ * How long operators wait on each Sign Run write (#353, #266), from the one
+ * JSON line app/api/sign-run-timing/route.ts logs per write.
+ *
+ * MetricFilter, not EMF: the SSR compute log group is written by Amplify
+ * Hosting, not by a Lambda in this account, so CloudWatch doesn't extract EMF
+ * from it. Every branch's SSR logs share that one log group, and a filter
+ * can't see the log stream (`<branch>/...`), so each line carries its branch;
+ * the filters match on it and keep it as a dimension so branches never mix.
+ */
+function signRunTimingWidgets(stack: Stack, appId: string, branchName: string): IWidget[][] {
+  const ssrLogGroup = LogGroup.fromLogGroupName(stack, 'SsrComputeLogGroup', `/aws/amplify/${appId}`);
+  const isThisBranchsTiming = [
+    FilterPattern.stringValue('$.event', '=', 'sign-run-timing'),
+    FilterPattern.stringValue('$.branch', '=', branchName),
+  ];
+  const byKind = { branch: '$.branch', kind: '$.kind' };
+
+  // Dimensioned filters can't have a default value, so these only publish on a write.
+  new MetricFilter(stack, 'SignRunConfirmToSavedFilter', {
+    logGroup: ssrLogGroup,
+    filterPattern: FilterPattern.all(...isThisBranchsTiming, FilterPattern.stringValue('$.outcome', '=', 'saved')),
+    metricNamespace: 'NullDeviceOps',
+    metricName: 'SignRunConfirmToSavedMs',
+    metricValue: '$.confirmToSavedMs',
+    dimensions: byKind,
+    unit: Unit.MILLISECONDS,
+  });
+
+  new MetricFilter(stack, 'SignRunAuthCheckFilter', {
+    logGroup: ssrLogGroup,
+    filterPattern: FilterPattern.all(...isThisBranchsTiming),
+    metricNamespace: 'NullDeviceOps',
+    metricName: 'SignRunAuthCheckMs',
+    metricValue: '$.authCheckMs',
+    dimensions: byKind,
+    unit: Unit.MILLISECONDS,
+  });
+
+  const failuresMetric = new MetricFilter(stack, 'SignRunWriteFailuresFilter', {
+    logGroup: ssrLogGroup,
+    filterPattern: FilterPattern.all(...isThisBranchsTiming, FilterPattern.stringValue('$.outcome', '=', 'failed')),
+    metricNamespace: 'NullDeviceOps',
+    metricName: 'SignRunWriteFailures',
+    metricValue: '1',
+    dimensions: { branch: '$.branch' },
+  }).metric({ statistic: 'Sum', period: Duration.minutes(5), dimensionsMap: { branch: branchName } });
+
+  // One line per kind, whichever kinds have been written.
+  const byKindGraph = (metricName: string, statistic: string, title: string) =>
+    new GraphWidget({
+      title,
+      left: [
+        new MathExpression({
+          expression: `SEARCH('{NullDeviceOps,branch,kind} MetricName="${metricName}" branch="${branchName}"', '${statistic}', 300)`,
+          usingMetrics: {},
+          label: '',
+          period: Duration.minutes(5),
+        }),
+      ],
+      leftYAxis: { label: 'ms', showUnits: false },
+      width: 8,
+    });
+
+  return [
+    [
+      byKindGraph('SignRunConfirmToSavedMs', 'p50', 'Sign Run confirm → saved, p50 by kind'),
+      byKindGraph('SignRunConfirmToSavedMs', 'p90', 'Sign Run confirm → saved, p90 by kind'),
+      byKindGraph('SignRunConfirmToSavedMs', 'Maximum', 'Sign Run confirm → saved, max by kind'),
+    ],
+    [
+      byKindGraph('SignRunAuthCheckMs', 'p90', 'Sign Run token check, p90 by kind'),
+      byKindGraph('SignRunAuthCheckMs', 'Maximum', 'Sign Run token check, max by kind'),
+      new GraphWidget({
+        title: 'Sign Run write failures',
+        left: [failuresMetric],
+        width: 8,
+      }),
+    ],
+    [
+      new LogQueryWidget({
+        title: 'Slowest Sign Run writes (last records)',
+        logGroupNames: [ssrLogGroup.logGroupName],
+        view: LogQueryVisualizationType.TABLE,
+        queryLines: [
+          'fields @timestamp, kind, routeId, confirmToSavedMs, authCheckMs, mutationMs, outcome, callerSub',
+          `filter event = "sign-run-timing" and branch = "${branchName}"`,
+          'sort confirmToSavedMs desc',
+          'limit 20',
+        ],
+        width: 24,
+      }),
+    ],
+  ];
 }

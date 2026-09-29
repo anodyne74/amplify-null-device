@@ -22,6 +22,8 @@ export interface AmplifyOutputsCustom {
   sesStaffInvitationTemplateName?: string;
   sesInboundRuleSetName?: string;
   sesInboundBucketName?: string;
+  /** The deployed branch, sanitized as in amplify/shared/branch.ts. */
+  branchName?: string;
 }
 
 export const customOutputs: AmplifyOutputsCustom =

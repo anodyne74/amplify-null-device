@@ -1,6 +1,7 @@
 const mockUpdateRoute = jest.fn();
 const mockUpdateStopExecution = jest.fn();
 const mockFetchAuthSession = jest.fn();
+const mockCallApi = jest.fn();
 
 jest.mock('@/lib/routes', () => ({
   updateRoute: (...args: unknown[]) => mockUpdateRoute(...args),
@@ -11,6 +12,10 @@ jest.mock('aws-amplify/auth', () => ({
   fetchAuthSession: () => mockFetchAuthSession(),
 }));
 
+jest.mock('@/lib/apiClient', () => ({
+  callApi: (...args: unknown[]) => mockCallApi(...args),
+}));
+
 import {
   planSignRunTransition,
   planStopSettlement,
@@ -19,6 +24,7 @@ import {
   stopPhaseOf,
   type SignRunTransition,
   type SignRunTransitionRoute,
+  type StopSettlement,
 } from '@/lib/signRunTransitions';
 import { PICKUP_DONE_MARKER, PLACEMENT_DONE_MARKER, PLACEMENT_SKIPPED_MARKER } from '@/lib/stopExecutionMarkers';
 
@@ -143,6 +149,7 @@ describe('runSignRunTransition', () => {
     jest.clearAllMocks();
     consoleInfoSpy = jest.spyOn(console, 'info').mockImplementation();
     mockFetchAuthSession.mockResolvedValue({});
+    mockCallApi.mockResolvedValue({ ok: true });
     mockUpdateRoute.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
   });
 
@@ -165,6 +172,82 @@ describe('runSignRunTransition', () => {
     expect(consoleInfoSpy).toHaveBeenCalledWith(
       expect.stringMatching(/^\[sign-run-timing\] route=r1 authCheckMs=\d+ mutationMs=\d+ totalMs=\d+$/)
     );
+  });
+
+  it.each(TRANSITIONS)('reports one timing record for $transition.type (#353)', async ({ transition, onPhase }) => {
+    await runSignRunTransition(ROUTES[onPhase], transition);
+
+    expect(mockCallApi).toHaveBeenCalledTimes(1);
+    expect(mockCallApi).toHaveBeenCalledWith('/api/sign-run-timing', {
+      kind: transition.type,
+      routeId: 'r1',
+      authCheckMs: expect.any(Number),
+      mutationMs: expect.any(Number),
+      confirmToSavedMs: expect.any(Number),
+      retries: 0,
+      outcome: 'saved',
+    });
+  });
+
+  it('times the token check and the mutation separately', async () => {
+    const nowSpy = jest.spyOn(performance, 'now');
+    nowSpy.mockReturnValueOnce(1000).mockReturnValueOnce(19000).mockReturnValueOnce(19250);
+
+    await runSignRunTransition(ROUTES.placement, { type: 'startPlacement', at: AT });
+    nowSpy.mockRestore();
+
+    expect(mockCallApi.mock.calls[0][1]).toMatchObject({ authCheckMs: 18000, mutationMs: 250, confirmToSavedMs: 18250 });
+  });
+
+  it('reports a failed outcome for a write error and for a thrown write', async () => {
+    mockUpdateRoute.mockResolvedValueOnce({ data: null, errors: [{ message: 'boom' }] });
+    await runSignRunTransition(ROUTES.placement, { type: 'startPlacement', at: AT });
+    mockUpdateRoute.mockRejectedValueOnce(new Error('network'));
+    await runSignRunTransition(ROUTES.placement, { type: 'startPlacement', at: AT });
+
+    expect(mockCallApi.mock.calls.map(([, record]) => record.outcome)).toEqual(['failed', 'failed']);
+  });
+
+  it('counts a token check that throws as all auth-check time', async () => {
+    mockFetchAuthSession.mockRejectedValueOnce(new Error('network'));
+    const nowSpy = jest.spyOn(performance, 'now');
+    nowSpy.mockReturnValueOnce(1000).mockReturnValueOnce(31000);
+
+    const result = await runSignRunTransition(ROUTES.placement, { type: 'startPlacement', at: AT });
+    nowSpy.mockRestore();
+
+    expect(result).toEqual({ error: 'Could not start placement. Try again.' });
+    expect(mockCallApi.mock.calls[0][1]).toMatchObject({
+      authCheckMs: 30000,
+      mutationMs: 0,
+      confirmToSavedMs: 30000,
+      outcome: 'failed',
+    });
+  });
+
+  it('is not held up or failed by a timing report that hangs or fails', async () => {
+    mockCallApi.mockReturnValueOnce(new Promise(() => undefined));
+    expect(await runSignRunTransition(ROUTES.placement, { type: 'startPlacement', at: AT })).toEqual({
+      route: { ...ROUTES.placement, placementStartTime: AT },
+    });
+
+    mockCallApi.mockRejectedValueOnce(new Error('offline'));
+    expect(await runSignRunTransition(ROUTES.pickup, { type: 'startPickup', at: AT })).toEqual({
+      route: { ...ROUTES.pickup, pickupStartTime: AT },
+    });
+
+    mockCallApi.mockImplementationOnce(() => {
+      throw new Error('sync throw');
+    });
+    expect(await runSignRunTransition(ROUTES.unload, { type: 'startUnload', at: AT })).toEqual({
+      route: { ...ROUTES.unload, unloadStartedAt: AT },
+    });
+  });
+
+  it('reports nothing for a refused transition', async () => {
+    await runSignRunTransition(ROUTES.pickup, { type: 'startPlacement', at: AT });
+
+    expect(mockCallApi).not.toHaveBeenCalled();
   });
 
   it('writes nothing for a refused transition', async () => {
@@ -244,11 +327,57 @@ describe('planStopSettlement', () => {
 });
 
 describe('runStopSettlement', () => {
-  const stop = { id: 's1', notes: null, actualArrivalTime: null };
+  const stop = { id: 's1', routeId: 'r1', notes: null, actualArrivalTime: null };
+  let consoleInfoSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    consoleInfoSpy = jest.spyOn(console, 'info').mockImplementation();
+    mockFetchAuthSession.mockResolvedValue({});
+    mockCallApi.mockResolvedValue({ ok: true });
     mockUpdateStopExecution.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+  });
+
+  afterEach(() => {
+    consoleInfoSpy.mockRestore();
+  });
+
+  it.each<[StopSettlement, string]>([
+    [{ phase: 'placement', action: 'complete' }, 'placementStopDone'],
+    [{ phase: 'placement', action: 'skip' }, 'placementStopSkipped'],
+    [{ phase: 'pickup', action: 'complete' }, 'pickupStopDone'],
+    [{ phase: 'pickup', action: 'skip', reason: 'Gate locked' }, 'pickupStopSkipped'],
+  ])('reports one timing record for %o as %s (#353)', async (settlement, kind) => {
+    await runStopSettlement(stop, settlement);
+
+    expect(mockFetchAuthSession).toHaveBeenCalledTimes(1);
+    expect(mockCallApi).toHaveBeenCalledTimes(1);
+    expect(mockCallApi).toHaveBeenCalledWith('/api/sign-run-timing', {
+      kind,
+      routeId: 'r1',
+      authCheckMs: expect.any(Number),
+      mutationMs: expect.any(Number),
+      confirmToSavedMs: expect.any(Number),
+      retries: 0,
+      outcome: 'saved',
+    });
+  });
+
+  it('reports a failed settlement, and is not failed by a timing report that fails', async () => {
+    mockUpdateStopExecution.mockResolvedValueOnce({ data: null, errors: [{ message: 'boom' }] });
+    mockCallApi.mockRejectedValueOnce(new Error('offline'));
+
+    expect(await runStopSettlement(stop, { phase: 'pickup', action: 'complete' })).toEqual({
+      error: 'Could not save that stop. Try again.',
+    });
+    expect(mockCallApi.mock.calls[0][1]).toMatchObject({ outcome: 'failed' });
+  });
+
+  it('is not held up by a timing report that hangs', async () => {
+    mockCallApi.mockReturnValueOnce(new Promise(() => undefined));
+
+    const result = await runStopSettlement(stop, { phase: 'placement', action: 'complete' });
+    expect('patch' in result).toBe(true);
   });
 
   it('writes the settlement and returns the patch', async () => {

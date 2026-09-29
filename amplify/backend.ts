@@ -881,5 +881,6 @@ backend.addOutput({
 		sesStaffInvitationTemplateName: staffInvitationTemplateName,
 		sesInboundRuleSetName: inboundRuleSetName,
 		sesInboundBucketName: inboundBucketName,
+		branchName,
 	},
 });

@@ -32,6 +32,8 @@ import {
 } from '@/lib/stopExecutionMarkers';
 import type { Route, RouteExecutionPhase, Stop } from '@/amplify/types';
 import { updateRoute, updateStopExecution } from '@/lib/routes';
+import { callApi } from '@/lib/apiClient';
+import type { SignRunTimingKind, SignRunTimingRecord, StopSettlementKind } from '@/lib/signRunTiming';
 
 export type SignRunTransition =
   | { type: 'startLoad'; at: string }
@@ -164,23 +166,46 @@ export function planSignRunTransition(
  * Sign Run phase transitions (Start Placement, Complete Pickup, etc.) have been
  * reported taking 20-30s in the field with no matching AppSync/DynamoDB latency
  * (#266) — the leading theory is a stalled Cognito token refresh happening before
- * the mutation is even sent. Timing the token check separately from the mutation
- * itself is meant to confirm or rule that out from a real occurrence in the field.
+ * the mutation is even sent. Every write times the token check separately from
+ * the mutation and reports both to the ops dashboard (#353), so a real
+ * occurrence in the field can confirm or rule that out.
+ *
+ * The timing report is fire-and-forget: it never delays or fails the write, and
+ * a report that doesn't send is dropped.
  */
-async function writeRoutePatch(routeId: string, patch: SignRunRoutePatch) {
-  const authCheckStart = performance.now();
-  await fetchAuthSession();
-  const authCheckMs = Math.round(performance.now() - authCheckStart);
+async function timedWrite<T extends { errors?: unknown[] | null }>(
+  kind: SignRunTimingKind,
+  routeId: string,
+  write: () => Promise<T>
+): Promise<T> {
+  const confirmedAt = performance.now();
+  // A token check that throws still counts all its time as authCheckMs.
+  let mutationStart: number | undefined;
+  let outcome: SignRunTimingRecord['outcome'] = 'failed';
+  try {
+    await fetchAuthSession();
+    mutationStart = performance.now();
+    const result = await write();
+    if (!result.errors?.length) outcome = 'saved';
+    return result;
+  } finally {
+    const finishedAt = performance.now();
+    const authCheckMs = Math.round((mutationStart ?? finishedAt) - confirmedAt);
+    const mutationMs = mutationStart === undefined ? 0 : Math.round(finishedAt - mutationStart);
+    const confirmToSavedMs = Math.round(finishedAt - confirmedAt);
+    console.info(
+      `[sign-run-timing] route=${routeId} authCheckMs=${authCheckMs} mutationMs=${mutationMs} totalMs=${confirmToSavedMs}`
+    );
+    reportTiming({ kind, routeId, authCheckMs, mutationMs, confirmToSavedMs, retries: 0, outcome });
+  }
+}
 
-  const mutationStart = performance.now();
-  const result = await updateRoute(routeId, patch);
-  const mutationMs = Math.round(performance.now() - mutationStart);
-
-  console.info(
-    `[sign-run-timing] route=${routeId} authCheckMs=${authCheckMs} mutationMs=${mutationMs} totalMs=${authCheckMs + mutationMs}`
-  );
-
-  return result;
+function reportTiming(record: SignRunTimingRecord) {
+  try {
+    callApi('/api/sign-run-timing', record).catch(() => undefined);
+  } catch {
+    // Dropped, like a failed send.
+  }
 }
 
 export async function runSignRunTransition<R extends SignRunTransitionRoute>(
@@ -193,7 +218,7 @@ export async function runSignRunTransition<R extends SignRunTransitionRoute>(
   }
 
   try {
-    const { errors } = await writeRoutePatch(route.id, plan.patch);
+    const { errors } = await timedWrite(transition.type, route.id, () => updateRoute(route.id, plan.patch));
     if (errors && errors.length > 0) {
       return { error: WRITE_ERROR[transition.type] };
     }
@@ -263,12 +288,13 @@ export function planStopSettlement(
  * callers differ in how (splice into local state vs. refetch).
  */
 export async function runStopSettlement(
-  stop: Pick<Stop, 'id' | 'notes' | 'actualArrivalTime'>,
+  stop: Pick<Stop, 'id' | 'routeId' | 'notes' | 'actualArrivalTime'>,
   settlement: StopSettlement
 ): Promise<{ patch: StopSettlementPatch } | { error: string }> {
   const patch = planStopSettlement(stop, settlement, new Date().toISOString());
+  const kind: StopSettlementKind = `${settlement.phase}Stop${settlement.action === 'complete' ? 'Done' : 'Skipped'}`;
   try {
-    const { errors } = await updateStopExecution(stop.id, patch);
+    const { errors } = await timedWrite(kind, stop.routeId, () => updateStopExecution(stop.id, patch));
     if (errors && errors.length > 0) {
       return { error: 'Could not save that stop. Try again.' };
     }

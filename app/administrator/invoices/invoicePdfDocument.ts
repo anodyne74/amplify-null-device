@@ -2,7 +2,7 @@ import type { jsPDF } from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { buildInvoicePdfConfig } from './invoicePdfTheme';
 import { formatStopProperty, groupStopsByAgentAlphabetically, type StopSummary } from './stopFormatting';
-import { HEADER_LOGO_PNG, HEADER_LOGO_SIZE, registerBrandFonts } from '@/lib/pdf/brandFonts';
+import { HEADER_LOGO_PNG, HEADER_LOGO_SCALE, HEADER_LOGO_SIZE, registerBrandFonts } from '@/lib/pdf/brandFonts';
 import { formatAbn } from '@/lib/companyBilling';
 import { signsPlaced } from '@/lib/signRunTotals';
 
@@ -31,7 +31,6 @@ export interface InvoicePdfDocumentData {
 }
 
 const PAGE_BOTTOM = 780;
-const HEADER_LOGO_SCALE = 0.7;
 const FOOTER_LINE_Y = 812;
 const FOOTER_TEXT_Y = 826;
 

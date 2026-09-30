@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf';
 import { autoTable, type CellHookData, type FontStyle, type Styles } from 'jspdf-autotable';
 import { CUSTOMER_PORTAL_INVOICE_PDF_THEME, type PdfRgb } from '@/app/administrator/invoices/invoicePdfTheme';
 import { formatAbn } from '@/lib/companyBilling';
-import { HEADER_LOGO_PNG, HEADER_LOGO_SIZE, PDF_FONT, registerBrandFonts, type PdfFontStyle } from '@/lib/pdf/brandFonts';
+import { HEADER_LOGO_PNG, HEADER_LOGO_SCALE, HEADER_LOGO_SIZE, PDF_FONT, registerBrandFonts, type PdfFontStyle } from '@/lib/pdf/brandFonts';
 import { VISIT_STATUS_LABELS, type PropertyGroup, type PropertyHistoryResult, type VisitRow } from '@/lib/propertyHistory';
 import { reportSummaryLine, reportTotals, resultProperties, type ReportSearch } from '@/lib/propertyHistoryReport';
 import { titleCase } from '@/lib/format';
@@ -33,6 +33,8 @@ const WIDTH = RIGHT - LEFT;
 const TOP = MARGIN;
 const FOOTER_Y = PAGE_HEIGHT - MARGIN + 6;
 const FOOTER_RULE_Y = FOOTER_Y - 14;
+const HEADER_HEIGHT = 92; // Matches the invoice header band.
+const HEADER_INSET = 24;
 const CONTENT_BOTTOM = FOOTER_RULE_Y - 12;
 const LABEL_SPACING = 0.9;
 const STATUS_DOT_RADIUS = 2.6;
@@ -153,15 +155,18 @@ export function renderPropertyHistoryReportPdf(input: PropertyHistoryReportPdfIn
     y = TOP;
   };
 
-  // Header band: the logo on the left, the title and reference on the right.
-  const headerHeight = HEADER_LOGO_SIZE.height + 44;
+  // Header band, as on the invoice: the logo on the left, centred vertically,
+  // and the title and reference on the right, both inset 24pt.
+  const headerHeight = HEADER_HEIGHT;
+  const logoWidth = HEADER_LOGO_SIZE.width * HEADER_LOGO_SCALE;
+  const logoHeight = HEADER_LOGO_SIZE.height * HEADER_LOGO_SCALE;
   doc.setFillColor(...colors.header);
   doc.roundedRect(LEFT, y, WIDTH, headerHeight, layout.headerRadius, layout.headerRadius, 'F');
-  doc.addImage(HEADER_LOGO_PNG, 'PNG', LEFT + 28, y + 22, HEADER_LOGO_SIZE.width, HEADER_LOGO_SIZE.height);
+  doc.addImage(HEADER_LOGO_PNG, 'PNG', LEFT + HEADER_INSET, y + (headerHeight - logoHeight) / 2, logoWidth, logoHeight);
   font(PDF_FONT.display, 'bold', 20, colors.headerText);
-  doc.text('Property history', RIGHT - 28, y + 44, { align: 'right' });
+  doc.text('Property history', RIGHT - HEADER_INSET, y + 44, { align: 'right' });
   font(PDF_FONT.mono, 'normal', 9, colors.headerTextMuted);
-  doc.text(input.referenceNumber, RIGHT - 28, y + 60, { align: 'right' });
+  doc.text(input.referenceNumber, RIGHT - HEADER_INSET, y + 60, { align: 'right' });
   y += headerHeight + 30;
 
   // Details: the Customer, the search, and when, by whom and which reference.

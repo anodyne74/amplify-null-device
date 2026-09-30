@@ -34,3 +34,5 @@ export function registerBrandFonts(doc: jsPDF): void {
  */
 export const HEADER_LOGO_PNG = `data:image/png;base64,${HEADER_LOGO_PNG_BASE64}`;
 export const HEADER_LOGO_SIZE = { width: 171, height: 48 } as const;
+/** Both PDF headers draw the logo at this fraction of HEADER_LOGO_SIZE. */
+export const HEADER_LOGO_SCALE = 0.7;

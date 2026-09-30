@@ -8,6 +8,7 @@ import type { PropertyGroup, VisitRow } from '@/lib/propertyHistory';
 // each page draws instead of reading it back out of the bytes.
 const drawn: Array<{ page: number; text: string }> = [];
 const images: string[] = [];
+const imageBoxes: number[][] = [];
 
 jest.mock('jspdf', () => {
   const actual = jest.requireActual('jspdf');
@@ -23,6 +24,7 @@ jest.mock('jspdf', () => {
       const addImage = this.addImage.bind(this);
       this.addImage = (...imageArgs: unknown[]) => {
         images.push(String(imageArgs[1]));
+        imageBoxes.push(imageArgs.slice(2, 6) as number[]);
         return addImage(...imageArgs);
       };
     }
@@ -69,6 +71,7 @@ const INPUT: PropertyHistoryReportPdfInput = {
 function render(input: PropertyHistoryReportPdfInput) {
   drawn.length = 0;
   images.length = 0;
+  imageBoxes.length = 0;
   const bytes = Buffer.from(renderPropertyHistoryReportPdf(input)).toString('latin1');
   const texts = drawn.map((entry) => entry.text);
   // Wrapped text is drawn a line at a time; `all` joins it back up.
@@ -83,6 +86,16 @@ describe('renderPropertyHistoryReportPdf', () => {
       expect(bytes).toContain(`/BaseFont /${font}`);
     }
     expect(images).toEqual(['PNG']);
+  });
+
+  it('draws the logo as on the invoice: 70% size, inset 24pt and centred in the header', () => {
+    render(INPUT);
+    // Page margin is 0.7in; the header band is 92pt tall and starts at the top margin.
+    const [x, y, width, height] = imageBoxes[0];
+    expect(x).toBeCloseTo(50.4 + 24);
+    expect(width).toBeCloseTo(119.7);
+    expect(height).toBeCloseTo(33.6);
+    expect(y + height / 2).toBeCloseTo(50.4 + 92 / 2);
   });
 
   it('heads the report with the title, reference, Customer and address, search, filters and generator', () => {

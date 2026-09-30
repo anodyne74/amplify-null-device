@@ -83,7 +83,8 @@ export async function purgeExpiredReports(
       const { errors: updateErrors } = await client.models.PropertyHistoryReport.update({ id: report.id, purgedAt: at });
       if (updateErrors?.length) throw new Error(`Could not mark the report purged: ${JSON.stringify(updateErrors)}`);
       const { errors: auditErrors } = await client.models.AuditLog.create({
-        customerId: report.customerId,
+        // An explicit null would break the Customer.auditLogs index key.
+        customerId: report.customerId ?? undefined,
         eventType: 'data_deletion',
         resourceType: 'report',
         resourceId: report.id,

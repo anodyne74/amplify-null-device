@@ -86,6 +86,16 @@ describe('purgeExpiredReports', () => {
     ]);
   });
 
+  it('leaves customerId off the audit entry for an all-customers report', async () => {
+    reports.push({ id: 'all', customerId: null, referenceNumber: 'PHR-5', s3Key: 'reports/all-customers/PHR-5.pdf', activeUntil: at(-31), purgeAfter: at(-1) });
+
+    await purgeExpiredReports(client, deleteObject, NOW);
+
+    const entry = audit.find((row) => row.resourceId === 'all');
+    expect(entry).toBeDefined();
+    expect(entry?.customerId).toBeUndefined();
+  });
+
   it('skips restored reports and ones already purged', async () => {
     await purgeExpiredReports(client, deleteObject, NOW);
 

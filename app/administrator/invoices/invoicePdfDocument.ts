@@ -1,7 +1,8 @@
 import type { jsPDF } from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import { buildInvoicePdfConfig } from './invoicePdfTheme';
-import { formatStopProperty, groupStopsByAgent, type StopSummary } from './stopFormatting';
+import { formatStopProperty, groupStopsByAgentAlphabetically, type StopSummary } from './stopFormatting';
+import { HEADER_LOGO_PNG, HEADER_LOGO_SIZE, registerBrandFonts } from '@/lib/pdf/brandFonts';
 import { signsPlaced } from '@/lib/signRunTotals';
 
 type InvoicePdfConfig = ReturnType<typeof buildInvoicePdfConfig>;
@@ -17,7 +18,6 @@ export interface InvoicePdfDocumentData {
   invoiceNumber: string;
   invoiceDate: string;
   routeCode: string;
-  logoDataUrl: string | null;
   company: { name: string; abn: string; phone: string; address: string; email: string };
   customer: { name: string; address: string };
   lines: InvoicePdfLineRow[];
@@ -29,7 +29,6 @@ export interface InvoicePdfDocumentData {
   groupStopsByAgentForCustomer: boolean;
 }
 
-const PAGE_WIDTH = 595;
 const PAGE_BOTTOM = 780;
 const FOOTER_LINE_Y = 812;
 const FOOTER_TEXT_Y = 826;
@@ -41,6 +40,8 @@ const FOOTER_TEXT_Y = 826;
  * number crunching and file upload stays in useInvoiceDocumentActions.ts.
  */
 export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, data: InvoicePdfDocumentData): void {
+  registerBrandFonts(doc);
+  const { display, body, mono } = config.fonts;
   const contentLeft = config.margins.left;
   const contentRight = config.margins.right;
   const contentWidth = contentRight - contentLeft;
@@ -59,16 +60,23 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
   doc.setFillColor(...config.colors.header);
   doc.roundedRect(contentLeft, headerTop, contentWidth, headerHeight, config.layout.headerRadius, config.layout.headerRadius, 'F');
 
-  if (data.logoDataUrl) {
-    doc.addImage(data.logoDataUrl, 'PNG', contentLeft + 24, headerTop + (headerHeight - 96) / 2, 220, 96);
-  }
+  // The PNG is the logo's artwork cropped from its 219x98 box, so it sits
+  // where that box's artwork did.
+  doc.addImage(
+    HEADER_LOGO_PNG,
+    'PNG',
+    contentLeft + 24 + 26,
+    headerTop + (headerHeight - 98) / 2 + 26,
+    HEADER_LOGO_SIZE.width,
+    HEADER_LOGO_SIZE.height
+  );
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(display, 'bold');
   doc.setFontSize(config.fonts.xlarge);
   doc.setTextColor(...config.colors.headerText);
   doc.text('Invoice', contentRight - 24, headerTop + 38, { align: 'right' });
 
-  doc.setFont('helvetica', 'normal');
+  doc.setFont(mono, 'normal');
   doc.setFontSize(config.fonts.small);
   doc.setTextColor(...config.colors.headerTextMuted);
   doc.text(data.invoiceNumber, contentRight - 24, headerTop + 54, { align: 'right' });
@@ -83,19 +91,19 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
   const col3X = col2X + colWidth + gap;
   const gridTop = y;
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(body, 'bold');
   doc.setFontSize(config.fonts.label);
   doc.setTextColor(...config.colors.labelMuted);
   doc.text('FROM', col1X, gridTop);
   doc.text('BILL TO', col2X, gridTop);
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(body, 'bold');
   doc.setFontSize(config.fonts.default);
   doc.setTextColor(...config.colors.header);
   doc.text(data.company.name, col1X, gridTop + 16);
   doc.text(data.customer.name, col2X, gridTop + 16);
 
-  doc.setFont('helvetica', 'normal');
+  doc.setFont(body, 'normal');
   doc.setTextColor(...config.colors.text);
   const companyLines = doc.splitTextToSize(`${data.company.abn}\n${data.company.phone}\n${data.company.address}`, colWidth);
   doc.text(companyLines, col1X, gridTop + 30);
@@ -109,10 +117,11 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
   ];
   metaRows.forEach(([label, value], index) => {
     const rowY = gridTop + index * 16;
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(body, 'normal');
     doc.setFontSize(config.fonts.default);
     doc.setTextColor(...config.colors.labelMuted);
     doc.text(label, col3X, rowY);
+    doc.setFont(mono, 'normal');
     doc.setTextColor(...config.colors.header);
     doc.text(value, col3X + colWidth, rowY, { align: 'right' });
   });
@@ -126,12 +135,12 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
   doc.setFillColor(...config.colors.accent);
   doc.roundedRect(contentLeft, bandTop, contentWidth, bandHeight, config.layout.totalBandRadius, config.layout.totalBandRadius, 'F');
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(body, 'bold');
   doc.setFontSize(config.fonts.label);
   doc.setTextColor(...config.colors.brandText);
   doc.text('TOTAL AMOUNT DUE', contentLeft + 20, bandTop + 24);
 
-  doc.setFont('helvetica', 'normal');
+  doc.setFont(body, 'normal');
   doc.setFontSize(config.fonts.small);
   doc.setTextColor(...config.colors.bodyMuted);
   const termsLines = doc.splitTextToSize(
@@ -140,7 +149,7 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
   );
   doc.text(termsLines, contentLeft + 20, bandTop + 38);
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(mono, 'bold');
   doc.setFontSize(config.fonts.total);
   doc.setTextColor(...config.colors.header);
   doc.text(`$${data.totalAmount.toFixed(2)}`, contentRight - 20, bandTop + 44, { align: 'right' });
@@ -149,13 +158,13 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
 
   // 4. Invoice lines.
   ensurePageSpace(40);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(display, 'bold');
   doc.setFontSize(config.fonts.large);
   doc.setTextColor(...config.colors.header);
   doc.text('Invoice lines', contentLeft, y);
 
   y += 18;
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(body, 'bold');
   doc.setFontSize(config.fonts.label);
   doc.setTextColor(...config.colors.bodyMuted);
   doc.text('DESCRIPTION', contentLeft, y);
@@ -171,10 +180,11 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
   for (const row of data.lines) {
     ensurePageSpace(24);
     y += 18;
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(body, 'normal');
     doc.setFontSize(config.fonts.default);
     doc.setTextColor(...config.colors.text);
     doc.text(row.description, contentLeft, y, { maxWidth: contentWidth - 260 });
+    doc.setFont(mono, 'normal');
     doc.text(row.quantityHours.toFixed(2), contentRight - 190, y, { align: 'right' });
     doc.text(`$${row.hourlyRate.toFixed(2)}`, contentRight - 100, y, { align: 'right' });
     doc.text(`$${row.total.toFixed(2)}`, contentRight, y, { align: 'right' });
@@ -190,17 +200,20 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
   const totalsX = contentRight - totalsWidth;
 
   y += 20;
-  doc.setFont('helvetica', 'normal');
+  doc.setFont(body, 'normal');
   doc.setFontSize(config.fonts.default);
   doc.setTextColor(...config.colors.bodyMuted);
   doc.text('Subtotal', totalsX, y);
+  doc.setFont(mono, 'normal');
   doc.setTextColor(...config.colors.text);
   doc.text(`$${data.subtotal.toFixed(2)}`, contentRight, y, { align: 'right' });
 
   if (data.gstAmount > 0) {
     y += 16;
+    doc.setFont(body, 'normal');
     doc.setTextColor(...config.colors.bodyMuted);
     doc.text('GST (10%)', totalsX, y);
+    doc.setFont(mono, 'normal');
     doc.setTextColor(...config.colors.text);
     doc.text(`$${data.gstAmount.toFixed(2)}`, contentRight, y, { align: 'right' });
   }
@@ -211,14 +224,15 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
   doc.line(totalsX, y, contentRight, y);
 
   y += 16;
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(body, 'bold');
   doc.setTextColor(...config.colors.header);
   doc.text('Total due', totalsX, y);
+  doc.setFont(mono, 'bold');
   doc.text(`$${data.totalAmount.toFixed(2)}`, contentRight, y, { align: 'right' });
 
   if (data.gstAmount <= 0) {
     y += 16;
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(body, 'normal');
     doc.setFontSize(config.fonts.small);
     doc.setTextColor(...config.colors.labelMuted);
     doc.text('No GST has been charged', contentRight, y, { align: 'right' });
@@ -233,24 +247,24 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
   doc.setLineWidth(1);
   doc.roundedRect(contentLeft, paymentTop, contentWidth, paymentHeight, config.layout.panelRadius, config.layout.panelRadius, 'S');
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(display, 'bold');
   doc.setFontSize(config.fonts.medium);
   doc.setTextColor(...config.colors.header);
   doc.text('Payment details', contentLeft + 20, paymentTop + 22);
 
-  const paymentFields: Array<[string, string]> = [
-    ['NAME', data.payment.accountName],
-    ['BSB', data.payment.bsb],
-    ['ACCOUNT', data.payment.accountNumber],
+  const paymentFields: Array<[string, string, string]> = [
+    ['NAME', data.payment.accountName, body],
+    ['BSB', data.payment.bsb, mono],
+    ['ACCOUNT', data.payment.accountNumber, mono],
   ];
   const paymentColWidth = contentWidth / 3;
-  paymentFields.forEach(([label, value], index) => {
+  paymentFields.forEach(([label, value, valueFont], index) => {
     const fieldX = contentLeft + 20 + index * paymentColWidth;
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(body, 'bold');
     doc.setFontSize(config.fonts.label);
     doc.setTextColor(...config.colors.labelMuted);
     doc.text(label, fieldX, paymentTop + 44);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(valueFont, 'normal');
     doc.setFontSize(config.fonts.default);
     doc.setTextColor(...config.colors.header);
     doc.text(value, fieldX, paymentTop + 60);
@@ -264,17 +278,17 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
   if (data.routeStops.length > 0) {
     const totalSigns = signsPlaced(data.routeStops);
 
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(display, 'bold');
     doc.setFontSize(config.fonts.large);
     doc.setTextColor(...config.colors.header);
     doc.text('Route stop details', contentLeft, y);
 
     y += 16;
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(body, 'normal');
     doc.setFontSize(config.fonts.small);
     doc.setTextColor(...config.colors.labelMuted);
     doc.text(
-      `${data.routeStops.length} stop${data.routeStops.length === 1 ? '' : 's'} · ${totalSigns} signs placed on route ${data.routeCode}.`,
+      `${data.routeStops.length} stop${data.routeStops.length === 1 ? '' : 's'} · ${totalSigns} signs placed and collected on route ${data.routeCode}.`,
       contentLeft,
       y
     );
@@ -284,7 +298,7 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
     // 7. Route stop table — grouped by agent (with per-agent subtotal rows)
     // when the customer's on-charging preference calls for it, flat otherwise.
     const stopTableBody = data.groupStopsByAgentForCustomer
-      ? groupStopsByAgent(data.routeStops).flatMap((group) => [
+      ? groupStopsByAgentAlphabetically(data.routeStops).flatMap((group) => [
           [
             {
               content: group.agent,
@@ -309,6 +323,7 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
             {
               content: String(group.signCount),
               styles: {
+                font: mono,
                 fontStyle: 'bold' as const,
                 textColor: config.colors.header,
                 halign: 'right' as const,
@@ -329,9 +344,9 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
       head: data.groupStopsByAgentForCustomer ? [['Property', 'Signs']] : [['Property', 'Agent', 'Signs']],
       body: stopTableBody,
       theme: 'plain',
-      margin: { left: contentLeft, right: PAGE_WIDTH - contentRight },
+      margin: { left: contentLeft, right: doc.internal.pageSize.getWidth() - contentRight },
       styles: {
-        font: 'helvetica',
+        font: body,
         fontSize: config.fonts.default,
         textColor: config.colors.text,
         lineColor: config.colors.hairline,
@@ -349,9 +364,10 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
         : { 0: { cellWidth: contentWidth - 154 }, 1: { cellWidth: 84 }, 2: { cellWidth: 70, halign: 'right' } },
       didParseCell: (cellData) => {
         const lastColumn = data.groupStopsByAgentForCustomer ? 1 : 2;
-        if (cellData.section === 'head' && cellData.column.index === lastColumn) {
-          cellData.cell.styles.halign = 'right';
-        }
+        if (cellData.column.index !== lastColumn) return;
+        if (cellData.section === 'head') cellData.cell.styles.halign = 'right';
+        // Sign counts are figures; a group heading spans the row from column 0.
+        if (cellData.section === 'body') cellData.cell.styles.font = mono;
       },
     });
   }
@@ -363,7 +379,7 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
     doc.setDrawColor(...config.colors.border);
     doc.setLineWidth(0.75);
     doc.line(contentLeft, FOOTER_LINE_Y, contentRight, FOOTER_LINE_Y);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(body, 'normal');
     doc.setFontSize(config.fonts.small);
     doc.setTextColor(...config.colors.labelMuted);
     doc.text(data.company.name, contentLeft, FOOTER_TEXT_Y);

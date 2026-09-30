@@ -1,3 +1,5 @@
+import { PDF_FONT } from '@/lib/pdf/fontFamilies';
+
 export type PdfRgb = [number, number, number];
 
 export const CUSTOMER_PORTAL_INVOICE_PDF_THEME = {
@@ -17,8 +19,10 @@ export const CUSTOMER_PORTAL_INVOICE_PDF_THEME = {
     amberText: [140, 95, 8] as PdfRgb, // amber-800 #8C5F08 — Planned status label
   },
   fonts: {
-    regular: 'helvetica',
-    bold: 'helvetica',
+    // Families registered by registerBrandFonts (lib/pdf/brandFonts.ts).
+    display: PDF_FONT.display, // Comfortaa Bold — titles and section headings
+    body: PDF_FONT.body, // Manrope Regular/SemiBold/Bold — labels, names, table text
+    mono: PDF_FONT.mono, // JetBrains Mono Regular/Bold — figures and identifiers
     xlarge: 20, // header "Invoice" title
     large: 13, // section headings
     medium: 11, // payment details heading

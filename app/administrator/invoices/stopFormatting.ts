@@ -51,3 +51,15 @@ export function groupStopsByAgent(stops: StopSummary[]): AgentStopGroup[] {
     signCount: signsPlaced(group.stops),
   }));
 }
+
+/**
+ * The invoice PDF's agent groups (#390): alphabetical by agent, ignoring case,
+ * with "Unassigned" last. Each group keeps its Stops in run order. The Load
+ * screen and the on-screen preview keep first-appearance order.
+ */
+export function groupStopsByAgentAlphabetically(stops: StopSummary[]): AgentStopGroup[] {
+  const unassignedLast = (group: AgentStopGroup) => (group.agent === 'Unassigned' ? 1 : 0);
+  return groupStopsByAgent(stops).sort(
+    (a, b) => unassignedLast(a) - unassignedLast(b) || a.agent.localeCompare(b.agent, 'en', { sensitivity: 'base' })
+  );
+}

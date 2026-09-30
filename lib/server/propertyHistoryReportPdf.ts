@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { autoTable, type CellHookData, type FontStyle, type Styles } from 'jspdf-autotable';
 import { CUSTOMER_PORTAL_INVOICE_PDF_THEME, type PdfRgb } from '@/app/administrator/invoices/invoicePdfTheme';
+import { formatAbn } from '@/lib/companyBilling';
 import { HEADER_LOGO_PNG, HEADER_LOGO_SIZE, PDF_FONT, registerBrandFonts, type PdfFontStyle } from '@/lib/pdf/brandFonts';
 import { VISIT_STATUS_LABELS, type PropertyGroup, type PropertyHistoryResult, type VisitRow } from '@/lib/propertyHistory';
 import { reportSummaryLine, reportTotals, resultProperties, type ReportSearch } from '@/lib/propertyHistoryReport';
@@ -66,8 +67,8 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 
 /** "{company} · ABN {abn}"; the settings may already carry the "ABN" prefix. */
 function companyLine(organisation: PropertyHistoryReportPdfInput['organisation']): string {
-  const abn = organisation.abn.replace(/^\s*ABN\s*/i, '').trim();
-  return abn ? `${organisation.companyName} · ABN ${abn}` : organisation.companyName;
+  const abn = formatAbn(organisation.abn);
+  return abn ? `${organisation.companyName} · ${abn}` : organisation.companyName;
 }
 
 type Column = { header: string; width: number; staffWidth: number; mono?: boolean; align?: 'right' };

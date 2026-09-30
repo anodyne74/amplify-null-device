@@ -1,4 +1,4 @@
-import { DEFAULT_COMPANY_BILLING_DETAILS } from './companyBilling';
+import { DEFAULT_COMPANY_BILLING_DETAILS, formatAbn } from './companyBilling';
 
 describe('companyBilling defaults', () => {
   it('provides stable default billing details', () => {
@@ -11,5 +11,15 @@ describe('companyBilling defaults', () => {
       bsb: '000-000',
       accountNumber: '00000000',
     });
+  });
+});
+
+describe('formatAbn', () => {
+  it.each(['12 345 678 901', 'ABN 12 345 678 901', 'abn 12 345 678 901', '  ABN12 345 678 901 '])('prefixes %p with ABN exactly once', (value) => {
+    expect(formatAbn(value)).toBe('ABN 12 345 678 901');
+  });
+
+  it.each(['', '   ', 'ABN', null, undefined])('shows nothing for %p', (value) => {
+    expect(formatAbn(value)).toBe('');
   });
 });

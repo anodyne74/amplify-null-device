@@ -9,6 +9,7 @@ import { buildInvoicePdfConfig } from './invoicePdfTheme';
 // is drawn, and in which font, instead of reading it back out of the bytes.
 const drawn: Array<{ text: string; font: string }> = [];
 const images: string[] = [];
+const imageBoxes: number[][] = [];
 
 jest.mock('jspdf', () => {
   const actual = jest.requireActual('jspdf');
@@ -24,6 +25,7 @@ jest.mock('jspdf', () => {
       const addImage = this.addImage.bind(this);
       this.addImage = (...imageArgs: unknown[]) => {
         images.push(String(imageArgs[0]).slice(0, 22));
+        imageBoxes.push(imageArgs.slice(2, 6) as number[]);
         return addImage(...imageArgs);
       };
     }
@@ -35,7 +37,7 @@ const DATA: InvoicePdfDocumentData = {
   invoiceNumber: 'INV-0042',
   invoiceDate: '2026-09-30',
   routeCode: 'W26-09-404',
-  company: { name: 'Null Device Signs', abn: 'ABN 12 345 678 901', phone: '02 9999 0000', address: '1 Yard St, Epping', email: 'accounts@nulldevice.dev' },
+  company: { name: 'Null Device Signs', abn: '12 345 678 901', phone: '02 9999 0000', address: '1 Yard St, Epping', email: 'accounts@nulldevice.dev' },
   customer: { name: 'Harcourts Epping', address: '88 Rowe Street, Eastwood NSW 2122' },
   lines: [{ description: 'Sign placement', quantityHours: 2, hourlyRate: 60, total: 120 }],
   subtotal: 120,
@@ -55,6 +57,7 @@ const DATA: InvoicePdfDocumentData = {
 function render(data: InvoicePdfDocumentData) {
   drawn.length = 0;
   images.length = 0;
+  imageBoxes.length = 0;
   const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true, putOnlyUsedFonts: true });
   drawInvoicePdfDocument(doc, buildInvoicePdfConfig(), data);
   const bytes = Buffer.from(doc.output('arraybuffer')).toString('latin1');
@@ -70,6 +73,31 @@ describe('drawInvoicePdfDocument', () => {
     expect(drawn.some((entry) => /helvetica/i.test(entry.font))).toBe(false);
     expect(bytes).not.toContain('/BaseFont /Helvetica');
     expect(images).toEqual(['data:image/png;base64,']);
+  });
+
+  it('draws the logo at 70% size, inset 24pt and centred in the header', () => {
+    render(DATA);
+    const config = buildInvoicePdfConfig();
+    const [x, y, width, height] = imageBoxes[0];
+    expect(x).toBe(config.margins.left + 24);
+    expect(width).toBeCloseTo(119.7);
+    expect(height).toBeCloseTo(33.6);
+    expect(y + height / 2).toBeCloseTo(config.margins.top + config.layout.headerHeight / 2);
+  });
+
+  it.each(['12 345 678 901', 'ABN 12 345 678 901', 'abn 12 345 678 901'])(
+    'shows the ABN stored as %p with one prefix in the FROM column and footer',
+    (abn) => {
+      const { texts } = render({ ...DATA, company: { ...DATA.company, abn } });
+      // The FROM column, then the footer on each of the two pages.
+      expect(texts.filter((text) => text === 'ABN 12 345 678 901')).toHaveLength(3);
+      expect(texts.some((text) => /ABN ABN|^12 345/i.test(text))).toBe(false);
+    }
+  );
+
+  it('shows no ABN label when there is no ABN', () => {
+    const { texts } = render({ ...DATA, company: { ...DATA.company, abn: '' } });
+    expect(texts.some((text) => text.includes('ABN'))).toBe(false);
   });
 
   it('sets headings in the display font and figures in the mono font', () => {

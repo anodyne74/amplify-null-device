@@ -289,3 +289,90 @@ describe('invoiceLabel', () => {
     expect(invoiceLabel([])).toBe('Not yet invoiced');
   });
 });
+
+describe('buildPropertyHistory undated Routes (#388)', () => {
+  // Imported Routes have no scheduledDate; their run date is in their start times.
+  const IMPORTED: Record<string, HistoryRoute> = {
+    ...ROUTES,
+    started: { id: 'started', routeCode: 'W24-25-011', actualStartTime: '2025-06-10T00:00:00.000Z', status: 'completed', customerId: 'c1' },
+    placed: { id: 'placed', routeCode: 'W24-25-022', placementStartTime: '2025-06-20T00:00:00.000Z', status: 'completed', customerId: 'c1' },
+    undatedA: { id: 'undatedA', routeCode: 'W12-24-001', status: 'completed', customerId: 'c1' },
+    undatedB: { id: 'undatedB', routeCode: 'W40-24-001', status: 'completed', customerId: 'c1' },
+    undatedPlanned: { id: 'undatedPlanned', routeCode: 'W50-26-001', status: 'planned', customerId: 'c1' },
+    scheduledKept: {
+      id: 'scheduledKept',
+      routeCode: 'W30-25-001',
+      scheduledDate: '2025-07-21',
+      actualStartTime: '2025-07-23T00:00:00.000Z',
+      status: 'completed',
+      customerId: 'c1',
+    },
+  };
+
+  function importedStop(propertyKey: string, routeId: string, overrides: Partial<HistoryStop> = {}): HistoryStop {
+    return { ...stop(propertyKey, 'r1'), routeId, ...overrides };
+  }
+
+  function property(stops: HistoryStop[], filters = {}) {
+    const result = build(stops, { routesById: IMPORTED, filters, search: { level: 'address', propertyKey: CLIFF_14 } });
+    if (result.level !== 'address') throw new Error('expected address');
+    return result.property;
+  }
+
+  const datesByRoute = (stops: HistoryStop[]) =>
+    Object.fromEntries(property(stops)!.visits.map((visit) => [visit.routeId, visit.date]));
+
+  it('dates a Visit by its Route start, else its placement start, else not at all', () => {
+    const undated = { ...IMPORTED.undatedA, createdAt: '2026-09-18T04:00:00.000Z' } as HistoryRoute;
+    const result = build([importedStop(CLIFF_14, 'started'), importedStop(CLIFF_14, 'placed'), importedStop(CLIFF_14, 'undatedA')], {
+      routesById: { ...IMPORTED, undatedA: undated },
+      search: { level: 'address', propertyKey: CLIFF_14 },
+    });
+    if (result.level !== 'address' || !result.property) throw new Error('expected a property');
+
+    expect(Object.fromEntries(result.property.visits.map((visit) => [visit.routeId, visit.date]))).toEqual({
+      started: '2025-06-10',
+      placed: '2025-06-20',
+      undatedA: null,
+    });
+  });
+
+  it("keeps a Route's scheduledDate even when it started on another day", () => {
+    expect(datesByRoute([importedStop(CLIFF_14, 'scheduledKept')])).toEqual({ scheduledKept: '2025-07-21' });
+  });
+
+  it('sorts dated Visits newest first, then undated ones by Route Code, newest first', () => {
+    const p = property([
+      importedStop(CLIFF_14, 'undatedA'),
+      importedStop(CLIFF_14, 'started'),
+      importedStop(CLIFF_14, 'undatedB'),
+      importedStop(CLIFF_14, 'r1'),
+      importedStop(CLIFF_14, 'placed'),
+    ])!;
+
+    expect(p.visits.map((visit) => visit.routeId)).toEqual(['r1', 'placed', 'started', 'undatedB', 'undatedA']);
+  });
+
+  it('sorts dated scheduled Visits soonest first, then undated ones', () => {
+    const p = property([importedStop(CLIFF_14, 'undatedPlanned'), importedStop(CLIFF_14, 'r3'), importedStop(CLIFF_14, 'r4')])!;
+
+    expect(p.scheduled.map((visit) => visit.routeId)).toEqual(['r4', 'r3', 'undatedPlanned']);
+  });
+
+  it('filters an imported Visit by the day its Route started, and leaves out undated ones', () => {
+    const stops = [importedStop(CLIFF_14, 'started'), importedStop(CLIFF_14, 'undatedA'), importedStop(CLIFF_14, 'r1')];
+
+    expect(property(stops, { dateFrom: '2025-06-01', dateTo: '2025-06-30' })!.visits.map((visit) => visit.routeId)).toEqual(['started']);
+    expect(property(stops)!.visits).toHaveLength(3);
+  });
+
+  it("labels the Property with its latest Visit's address by Visit date", () => {
+    const p = property([
+      importedStop(CLIFF_14, 'placed', { address: '14 Cliff Road, Epping' }),
+      importedStop(CLIFF_14, 'started', { address: '14 Cliff Rd (old)' }),
+      importedStop(CLIFF_14, 'undatedA', { address: '14 Cliff (undated)' }),
+    ])!;
+
+    expect(p.address).toBe('14 Cliff Road, Epping');
+  });
+});

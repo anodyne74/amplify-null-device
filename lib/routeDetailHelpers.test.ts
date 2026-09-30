@@ -6,6 +6,7 @@ import {
   formatRouteDate,
   formatRouteDateTime,
   getRouteDate,
+  getRouteRunDate,
   getRouteDurationMinutes,
 } from '@/lib/routeDetailHelpers';
 
@@ -35,6 +36,19 @@ describe('routeDetailHelpers', () => {
       expect(formatRouteDate('2024-01-10T10:00:00Z')).toBe('Jan 10, 2024');
       expect(formatRouteDate(undefined)).toBe('—');
       expect(formatRouteDate(null)).toBe('—');
+    });
+  });
+
+  describe('getRouteRunDate', () => {
+    it('is the scheduledDate, else the UTC day it started, else the UTC day placement started', () => {
+      expect(getRouteRunDate({ scheduledDate: '2026-03-02', actualStartTime: '2026-03-05T00:00:00Z' })).toBe('2026-03-02');
+      expect(getRouteRunDate({ actualStartTime: '2025-06-10T00:00:00.000Z', placementStartTime: '2025-06-11T00:00:00Z' })).toBe('2025-06-10');
+      expect(getRouteRunDate({ placementStartTime: '2025-06-20T23:30:00Z' })).toBe('2025-06-20');
+    });
+
+    it('never falls back to createdAt', () => {
+      expect(getRouteRunDate({ createdAt: '2026-09-18T04:00:00Z' })).toBeNull();
+      expect(getRouteRunDate({ actualStartTime: 'not a date', createdAt: '2026-09-18T04:00:00Z' })).toBeNull();
     });
   });
 

@@ -12,6 +12,7 @@
  */
 import type { RouteStatus } from '@/amplify/types';
 import { comparePropertyKeys, parsePropertyKey, propertyKeyLabel, propertyKeyPrefix, streetKeyOf } from '@/lib/propertyKey';
+import { getRouteRunDate } from '@/lib/routeDetailHelpers';
 import { isStopSkippedForPhase } from '@/lib/stopExecutionMarkers';
 
 export type PropertyHistorySearch =
@@ -20,7 +21,7 @@ export type PropertyHistorySearch =
   | { level: 'address'; propertyKey: string };
 
 export interface PropertyHistoryFilters {
-  /** Inclusive, against the Route's scheduledDate (YYYY-MM-DD). */
+  /** Inclusive, against the Visit date (YYYY-MM-DD, see visitDate); an undated Visit never matches. */
   dateFrom?: string;
   dateTo?: string;
   agent?: string;
@@ -49,6 +50,8 @@ export interface HistoryRoute {
   id: string;
   routeCode?: string | null;
   scheduledDate?: string | null;
+  actualStartTime?: string | null;
+  placementStartTime?: string | null;
   status?: RouteStatus | null;
   customerId?: string | null;
   assignedOperatorName?: string | null;
@@ -231,8 +234,15 @@ export function invoiceLabel(invoices: readonly InvoiceLink[]): string {
   return invoices.length > 0 ? invoices.map((invoice) => invoice.invoiceNumber).join(', ') : 'Not yet invoiced';
 }
 
+/**
+ * A Visit's date is the day its Route ran, which imported Routes only record
+ * in their start times (#388). Every date on Property History -- shown,
+ * sorted, filtered and picking a Property's latest address -- is this one.
+ */
+const visitDate = (route: HistoryRoute) => getRouteRunDate(route);
+
 function matchesFilters(stop: HistoryStop, route: HistoryRoute, filters: PropertyHistoryFilters): boolean {
-  const date = route.scheduledDate ?? '';
+  const date = visitDate(route) ?? '';
   if (filters.dateFrom && date < filters.dateFrom) return false;
   if (filters.dateTo && date > filters.dateTo) return false;
   if (filters.agent && stop.agent?.trim().toLowerCase() !== filters.agent.trim().toLowerCase()) return false;
@@ -250,7 +260,7 @@ function toRow(
   const row: VisitRow = {
     stopId: stop.id,
     routeId: route.id,
-    date: route.scheduledDate ?? null,
+    date: visitDate(route),
     routeCode: route.routeCode ?? null,
     agent: stop.agent ?? null,
     auction: Boolean(stop.isAuction),
@@ -268,7 +278,15 @@ function toRow(
   };
 }
 
-const byDate = (a: VisitRow, b: VisitRow) => (a.date ?? '').localeCompare(b.date ?? '');
+/** Dated rows in date order, then undated ones by Route Code; `newest` reverses both. */
+function visitOrder(newest: boolean) {
+  const direction = newest ? -1 : 1;
+  return (a: VisitRow, b: VisitRow) => {
+    if (!a.date !== !b.date) return a.date ? -1 : 1;
+    const key = (row: VisitRow) => (row.date ? row.date : (row.routeCode ?? ''));
+    return direction * key(a).localeCompare(key(b));
+  };
+}
 const byKey = (a: { propertyKey: string }, b: { propertyKey: string }) => comparePropertyKeys(a.propertyKey, b.propertyKey);
 
 interface BuildInput {
@@ -295,7 +313,7 @@ export function buildPropertyHistory(input: BuildInput): PropertyHistoryResult {
     };
     groups.set(stop.propertyKey, entry);
 
-    const date = route.scheduledDate ?? '';
+    const date = visitDate(route) ?? '';
     if (stop.address && (!entry.latest.address || date >= entry.latest.date)) entry.latest = { date, address: stop.address };
 
     if (!VISIT_STATUSES.includes(route.status as RouteStatus)) {
@@ -312,8 +330,8 @@ export function buildPropertyHistory(input: BuildInput): PropertyHistoryResult {
     .map(({ group, latest }) => ({
       ...group,
       address: latest.address || propertyKeyLabel(group.propertyKey),
-      visits: group.visits.sort((a, b) => byDate(b, a)),
-      scheduled: group.scheduled.sort(byDate),
+      visits: group.visits.sort(visitOrder(true)),
+      scheduled: group.scheduled.sort(visitOrder(false)),
     }))
     .sort(byKey);
 

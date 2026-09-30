@@ -753,6 +753,10 @@ const schema = a.schema({
    * Amendment, or dismisses it with a reason; never deleted, and unlinked again
    * if its Route is deleted. Administrators only: customers have no access, and
    * its files are handed out by /api/route-requests/file.
+   *
+   * Administrators are granted delete only because AppSync refuses an update
+   * that sets a field to null without it ("Unauthorized on [unlinkedNote]",
+   * #401), and linking and unlinking clear fields. Nothing deletes a record.
    */
   RouteRequestRecord: a
     .model({
@@ -789,7 +793,7 @@ const schema = a.schema({
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [index('routeId').sortKeys(['sentAt']).queryField('listRouteRequestRecordsByRoute')])
-    .authorization((allow) => [allow.groups(['administrator']).to(['read', 'create', 'update'])]),
+    .authorization((allow) => [allow.groups(['administrator']).to(['read', 'create', 'update', 'delete'])]),
 
   /**
    * RouteRequestSlot - held by a Route while it has a Route Request; the id is

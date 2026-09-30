@@ -11,9 +11,11 @@ type Row = Record<string, unknown> & { id: string };
 /**
  * An in-memory stand-in for the data client. Like AppSync's create, a create
  * fails when the id already exists, and every call yields first, so two links
- * started together really do interleave.
+ * started together really do interleave. Like AppSync's update, setting a field
+ * to null is refused unless the caller may delete the model -- administrators
+ * may delete RouteRequestRecord for just this reason (#401).
  */
-function fakeClient(records: Row[] = [], slots: Row[] = []) {
+function fakeClient(records: Row[] = [], slots: Row[] = [], { canDeleteRecords = true } = {}) {
   const tables = { RouteRequestRecord: new Map(records.map((row) => [row.id, { ...row }])), RouteRequestSlot: new Map(slots.map((row) => [row.id, { ...row }])) };
   const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
   const failures = { recordUpdate: false, recordCreate: false, slotDelete: false };
@@ -35,6 +37,10 @@ function fakeClient(records: Row[] = [], slots: Row[] = []) {
       update: async (input: Row) => {
         await tick();
         if (failures.recordUpdate) return { data: null, errors: [{ message: 'update failed' }] };
+        const nulled = Object.keys(input).filter((key) => input[key] === null);
+        if (name === 'RouteRequestRecord' && !canDeleteRecords && nulled.length > 0) {
+          return { data: null, errors: [{ errorType: 'Unauthorized', message: `Unauthorized on [${nulled.join(', ')}]` }] };
+        }
         const row = { ...table.get(input.id)!, ...input };
         table.set(input.id, row);
         return { data: row, errors: null };
@@ -171,6 +177,21 @@ describe('linkRouteRequestRecord', () => {
 
     expect(result.ok).toBe(false);
     expect(tables.RouteRequestSlot.size).toBe(0);
+  });
+
+  // Linking and unlinking clear fields, so both need administrators to hold
+  // delete on RouteRequestRecord in amplify/data/resource.ts (#401).
+  it.each(['request', 'amendment'] as const)('can only link as a %s while nulls are allowed', async (role) => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    const refused = fakeClient([email('m1')], [], { canDeleteRecords: false });
+    await expect(linkRouteRequestRecord(refused.client, { recordId: 'm1', routeId: 'r1', role, bySub: 'admin', now: NOW })).resolves.toEqual({
+      ok: false,
+      error: 'Could not link it to the Route.',
+    });
+    expect(refused.tables.RouteRequestSlot.size).toBe(0);
+
+    const allowed = fakeClient([email('m1')]);
+    await expect(linkRouteRequestRecord(allowed.client, { recordId: 'm1', routeId: 'r1', role, bySub: 'admin', now: NOW })).resolves.toEqual({ ok: true });
   });
 });
 

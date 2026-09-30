@@ -1,12 +1,8 @@
 import type { jsPDF } from 'jspdf';
 import { FONT_BASE64, HEADER_LOGO_PNG_BASE64 } from '@/lib/pdf/brandAssets.generated';
+import { PDF_FONT } from '@/lib/pdf/fontFamilies';
 
-/** jsPDF family names for the design system's display, body and mono fonts. */
-export const PDF_FONT = {
-  display: 'Comfortaa',
-  body: 'Manrope',
-  mono: 'JetBrainsMono',
-} as const;
+export { PDF_FONT };
 
 /** Body text also comes in 'semibold'; display is 'bold' only. */
 export type PdfFontStyle = 'normal' | 'semibold' | 'bold';
@@ -32,6 +28,9 @@ export function registerBrandFonts(doc: jsPDF): void {
   }
 }
 
-/** The white header logo as a PNG data URL, 171x48pt at 4x (see scripts/build-pdf-assets.mjs). */
+/**
+ * The white header logo as a PNG data URL, 171x48pt at 4x (see scripts/build-pdf-assets.mjs):
+ * public/logo.svg at 219x98pt, cropped to the artwork from (26, 26).
+ */
 export const HEADER_LOGO_PNG = `data:image/png;base64,${HEADER_LOGO_PNG_BASE64}`;
 export const HEADER_LOGO_SIZE = { width: 171, height: 48 } as const;

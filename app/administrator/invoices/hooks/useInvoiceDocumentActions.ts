@@ -40,38 +40,6 @@ function getInvoicePdfKey(invoice: Invoice) {
   return invoice.pdfS3Key ?? null;
 }
 
-async function fetchLogoDataUrl() {
-  try {
-    const response = await fetch('/logo.svg');
-    if (!response.ok) return null;
-
-    const svgText = await response.text();
-    const svgBase64 = btoa(unescape(encodeURIComponent(svgText)));
-    const svgDataUrl = `data:image/svg+xml;base64,${svgBase64}`;
-
-    return await new Promise<string | null>((resolve) => {
-      const image = new Image();
-      image.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = image.width;
-        canvas.height = image.height;
-        const context = canvas.getContext('2d');
-        if (!context) {
-          resolve(null);
-          return;
-        }
-
-        context.drawImage(image, 0, 0);
-        resolve(canvas.toDataURL('image/png'));
-      };
-      image.onerror = () => resolve(null);
-      image.src = svgDataUrl;
-    });
-  } catch {
-    return null;
-  }
-}
-
 export function useInvoiceDocumentActions({
   customers,
   routes,
@@ -238,7 +206,6 @@ export function useInvoiceDocumentActions({
       const groupStopsByAgentForCustomer = Boolean(customer?.groupLineItemsByAgent);
       const { jsPDF } = await import('jspdf');
       const { drawInvoicePdfDocument } = await import('@/app/administrator/invoices/invoicePdfDocument');
-      const logoDataUrl = await fetchLogoDataUrl();
       const pdfCompanyName = billingCompanyName.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyName;
       const pdfCompanyAbn = billingAbn.trim() || DEFAULT_COMPANY_BILLING_DETAILS.abn;
       const pdfCompanyPhone = billingPhone.trim() || DEFAULT_COMPANY_BILLING_DETAILS.phone;
@@ -295,14 +262,13 @@ export function useInvoiceDocumentActions({
         invoiceRows.reduce((sum, row) => sum + row.total, 0).toFixed(2)
       );
 
-      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true, putOnlyUsedFonts: true });
       const config = buildInvoicePdfConfig();
 
       drawInvoicePdfDocument(doc, config, {
         invoiceNumber: invoice.invoiceNumber || invoice.id,
         invoiceDate: invoice.invoiceDate || new Date().toISOString().slice(0, 10),
         routeCode: linkedRoute?.routeCode || invoice.routeId || '—',
-        logoDataUrl,
         company: {
           name: pdfCompanyName,
           abn: pdfCompanyAbn,

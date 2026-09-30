@@ -42,6 +42,9 @@ jest.mock('@/lib/parseInvoice', () => ({
 }));
 
 const docStub = {
+  internal: { pageSize: { getWidth: () => 595.28 } },
+  addFileToVFS: jest.fn(),
+  addFont: jest.fn(),
   setFillColor: jest.fn(),
   rect: jest.fn(),
   addImage: jest.fn(),
@@ -112,7 +115,6 @@ function renderDocumentActions(
 describe('useInvoiceDocumentActions — handleGeneratePdf (#65)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    global.fetch = jest.fn().mockResolvedValue({ ok: false });
     (getInvoiceWithLineItems as jest.Mock).mockResolvedValue({ invoice: null, lineItems: [], errors: undefined });
     (getRouteWithStops as jest.Mock).mockResolvedValue(null);
     (uploadData as jest.Mock).mockReturnValue({ result: Promise.resolve({}) });
@@ -149,7 +151,6 @@ describe('useInvoiceDocumentActions — handleGeneratePdf (#65)', () => {
 describe('useInvoiceDocumentActions — stop table agent grouping', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    global.fetch = jest.fn().mockResolvedValue({ ok: false });
     (getInvoiceWithLineItems as jest.Mock).mockResolvedValue({ invoice: null, lineItems: [], errors: undefined });
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: null,

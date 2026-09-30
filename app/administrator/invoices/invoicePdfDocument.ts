@@ -3,6 +3,7 @@ import { autoTable } from 'jspdf-autotable';
 import { buildInvoicePdfConfig } from './invoicePdfTheme';
 import { formatStopProperty, groupStopsByAgentAlphabetically, type StopSummary } from './stopFormatting';
 import { HEADER_LOGO_PNG, HEADER_LOGO_SIZE, registerBrandFonts } from '@/lib/pdf/brandFonts';
+import { formatAbn } from '@/lib/companyBilling';
 import { signsPlaced } from '@/lib/signRunTotals';
 
 type InvoicePdfConfig = ReturnType<typeof buildInvoicePdfConfig>;
@@ -30,6 +31,7 @@ export interface InvoicePdfDocumentData {
 }
 
 const PAGE_BOTTOM = 780;
+const HEADER_LOGO_SCALE = 0.7;
 const FOOTER_LINE_Y = 812;
 const FOOTER_TEXT_Y = 826;
 
@@ -42,6 +44,7 @@ const FOOTER_TEXT_Y = 826;
 export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, data: InvoicePdfDocumentData): void {
   registerBrandFonts(doc);
   const { display, body, mono } = config.fonts;
+  const abn = formatAbn(data.company.abn);
   const contentLeft = config.margins.left;
   const contentRight = config.margins.right;
   const contentWidth = contentRight - contentLeft;
@@ -60,16 +63,10 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
   doc.setFillColor(...config.colors.header);
   doc.roundedRect(contentLeft, headerTop, contentWidth, headerHeight, config.layout.headerRadius, config.layout.headerRadius, 'F');
 
-  // The PNG is the logo's artwork cropped from its 219x98 box, so it sits
-  // where that box's artwork did.
-  doc.addImage(
-    HEADER_LOGO_PNG,
-    'PNG',
-    contentLeft + 24 + 26,
-    headerTop + (headerHeight - 98) / 2 + 26,
-    HEADER_LOGO_SIZE.width,
-    HEADER_LOGO_SIZE.height
-  );
+  // Inset like the title on the right, and centred vertically.
+  const logoWidth = HEADER_LOGO_SIZE.width * HEADER_LOGO_SCALE;
+  const logoHeight = HEADER_LOGO_SIZE.height * HEADER_LOGO_SCALE;
+  doc.addImage(HEADER_LOGO_PNG, 'PNG', contentLeft + 24, headerTop + (headerHeight - logoHeight) / 2, logoWidth, logoHeight);
 
   doc.setFont(display, 'bold');
   doc.setFontSize(config.fonts.xlarge);
@@ -105,7 +102,7 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
 
   doc.setFont(body, 'normal');
   doc.setTextColor(...config.colors.text);
-  const companyLines = doc.splitTextToSize(`${data.company.abn}\n${data.company.phone}\n${data.company.address}`, colWidth);
+  const companyLines = doc.splitTextToSize([abn, data.company.phone, data.company.address].filter(Boolean).join('\n'), colWidth);
   doc.text(companyLines, col1X, gridTop + 30);
   const customerLines = doc.splitTextToSize(data.customer.address, colWidth);
   doc.text(customerLines, col2X, gridTop + 30);
@@ -383,7 +380,7 @@ export function drawInvoicePdfDocument(doc: jsPDF, config: InvoicePdfConfig, dat
     doc.setFontSize(config.fonts.small);
     doc.setTextColor(...config.colors.labelMuted);
     doc.text(data.company.name, contentLeft, FOOTER_TEXT_Y);
-    doc.text(data.company.abn, contentLeft + contentWidth * 0.32, FOOTER_TEXT_Y);
+    if (abn) doc.text(abn, contentLeft + contentWidth * 0.32, FOOTER_TEXT_Y);
     doc.text(data.company.phone, contentLeft + contentWidth * 0.6, FOOTER_TEXT_Y);
     doc.text(data.company.email, contentRight, FOOTER_TEXT_Y, { align: 'right' });
   }

@@ -62,6 +62,16 @@ describe('InvoicePreview', () => {
     expect(screen.getByText('28.5% of $240.00 billed')).toBeInTheDocument();
   });
 
+  it.each(['48 221 604 992', 'ABN 48 221 604 992'])('shows the company ABN %p with one ABN prefix', (billingAbn) => {
+    render(<InvoicePreview {...baseProps()} billingAbn={billingAbn} />);
+    expect(screen.getByText(/^ABN 48 221 604 992 · 02 5555 5555/)).toBeInTheDocument();
+  });
+
+  it('leaves the ABN out of the letterhead when there is none', () => {
+    render(<InvoicePreview {...baseProps()} billingAbn="" />);
+    expect(screen.getByText(/^02 5555 5555/)).toBeInTheDocument();
+  });
+
   it('shows duration/distance/driver-split figures from the finalised route', () => {
     render(<InvoicePreview {...baseProps()} />);
 

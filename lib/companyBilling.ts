@@ -17,3 +17,12 @@ export const DEFAULT_COMPANY_BILLING_DETAILS: CompanyBillingDetails = {
   bsb: '000-000',
   accountNumber: '00000000',
 };
+
+/**
+ * The company ABN as shown on documents: "ABN <number>" whether or not the
+ * stored value already starts with "ABN", or '' when there is none.
+ */
+export function formatAbn(value: string | null | undefined): string {
+  const number = (value ?? '').replace(/^\s*ABN\s*/i, '').trim();
+  return number ? `ABN ${number}` : '';
+}

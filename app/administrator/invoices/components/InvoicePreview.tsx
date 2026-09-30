@@ -11,6 +11,7 @@ import { formatStopProperty, groupStopsByAgent, type StopSummary } from '@/app/a
 import { computeDriverSplitPreview } from '@/app/administrator/invoices/driverSplitPreview';
 import { getFinalizedRouteDistanceKm, getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
 import { formatDuration } from '@/lib/signRunBilling';
+import { formatAbn } from '@/lib/companyBilling';
 import { signsPlaced } from '@/lib/signRunTotals';
 import styles from './InvoicePreview.module.css';
 
@@ -134,7 +135,7 @@ export default function InvoicePreview({
         <div>
           <div className={styles.companyName}>{billingCompanyName}</div>
           <div className={styles.companyDetail}>
-            {billingAbn} · {billingPhone}
+            {[formatAbn(billingAbn), billingPhone].filter(Boolean).join(' · ')}
             <br />
             {billingCompanyAddress}
           </div>

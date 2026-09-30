@@ -69,6 +69,15 @@ try {
   process.exit(1);
 }
 
+// Amplify.configure only treats the file as Gen 2 outputs when its version
+// starts with "1"; otherwise auth and data are silently left unconfigured (#397).
+const outputsVersion = isObject(outputs) ? outputs.version : undefined;
+if (typeof outputsVersion !== 'string' || !outputsVersion.startsWith('1')) {
+  console.error('❌ amplify_outputs.json needs a top-level "version" starting with "1", or Amplify.configure ignores it.');
+  console.error('Regenerate it with `npm run generate:config`.');
+  process.exit(1);
+}
+
 const placeholderPaths = collectPlaceholderPaths(outputs);
 const hasPlaceholders = placeholderPaths.length > 0;
 

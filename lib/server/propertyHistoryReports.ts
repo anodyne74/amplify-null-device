@@ -179,7 +179,9 @@ export async function generatePropertyHistoryReport(
   }
 
   const { errors: auditErrors } = await client.models.AuditLog.create({
-    customerId,
+    // customerId keys the Customer.auditLogs index, where DynamoDB rejects an
+    // explicit null; an all-customers report leaves it out.
+    customerId: customerId ?? undefined,
     operatorId: author.sub,
     eventType: 'data_access',
     resourceType: 'report',
@@ -264,7 +266,7 @@ async function changeRetention(
   if (errors?.length || !updated) throw new ReportError(`Could not update the report: ${messages(errors ?? [])}`);
 
   const { errors: auditErrors } = await client.models.AuditLog.create({
-    customerId: record.customerId,
+    customerId: record.customerId ?? undefined,
     operatorId: actor.sub,
     eventType: change.eventType,
     resourceType: 'report',

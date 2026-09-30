@@ -41,6 +41,8 @@ function model(name: string) {
     get: async ({ id }: { id: string }) => ({ data: rows().find((row) => row.id === id) ?? null }),
     create: async (input: Row) => {
       if (failCreate === name) return { data: null, errors: [{ message: 'boom' }] };
+      // Like DynamoDB: an index key may be missing but not null.
+      if (name === 'AuditLog' && input.customerId === null) return { data: null, errors: [{ message: 'Type mismatch for Index Key customerId' }] };
       const row = { id: `${name}-${++nextId}`, ...input };
       rows().push(row);
       return { data: row };

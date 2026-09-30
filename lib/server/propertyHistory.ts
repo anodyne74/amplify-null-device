@@ -42,7 +42,16 @@ const STOP_FIELDS = [
   'missingSignsCount',
   'locationPrecision',
 ] as const;
-const ROUTE_FIELDS = ['id', 'routeCode', 'scheduledDate', 'status', 'customerId', 'assignedOperatorName'] as const;
+const ROUTE_FIELDS = [
+  'id',
+  'routeCode',
+  'scheduledDate',
+  'actualStartTime',
+  'placementStartTime',
+  'status',
+  'customerId',
+  'assignedOperatorName',
+] as const;
 const INVOICE_FIELDS = ['id', 'invoiceNumber', 'routeId', 'status', 'customerId'] as const;
 // DynamoDB caps a filter expression's size; this many routeId terms stays well inside it.
 const ROUTE_IDS_PER_FILTER = 50;

@@ -17,22 +17,39 @@ export function formatRouteDate(dateString?: string | null) {
   });
 }
 
+type RouteDateFields = {
+  scheduledDate?: string | null;
+  actualStartTime?: string | null;
+  placementStartTime?: string | null;
+  createdAt?: string | null;
+};
+
+/** The UTC calendar day (YYYY-MM-DD) of the first usable timestamp, or null. */
+function firstUtcDay(...timestamps: Array<string | null | undefined>): string | null {
+  const timestamp = timestamps.find(Boolean);
+  if (!timestamp) return null;
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
 /**
  * The route's date as customers know it (YYYY-MM-DD): its scheduledDate, else
  * the UTC day it started, else the UTC day it was created. Routes imported in
  * bulk have no scheduledDate and a createdAt of the import, so their run date
  * only survives in actualStartTime (#314).
  */
-export function getRouteDate(route: {
-  scheduledDate?: string | null;
-  actualStartTime?: string | null;
-  createdAt?: string | null;
-}): string | null {
-  if (route.scheduledDate) return route.scheduledDate;
-  const timestamp = route.actualStartTime || route.createdAt;
-  if (!timestamp) return null;
-  const date = new Date(timestamp);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+export function getRouteDate(route: RouteDateFields): string | null {
+  return route.scheduledDate || firstUtcDay(route.actualStartTime, route.createdAt);
+}
+
+/**
+ * The day the route ran (YYYY-MM-DD): its scheduledDate, else the UTC day it
+ * started, else the UTC day placement started, else null. Unlike getRouteDate
+ * it never falls back to createdAt -- for an imported Route that's the import
+ * date, and a wrong date in a Property's history is worse than none (#388).
+ */
+export function getRouteRunDate(route: RouteDateFields): string | null {
+  return route.scheduledDate || firstUtcDay(route.actualStartTime, route.placementStartTime);
 }
 
 export function formatRouteDateTime(dateString?: string | null) {

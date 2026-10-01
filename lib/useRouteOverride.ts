@@ -38,8 +38,8 @@ interface UseRouteOverrideResult<TValues> {
 const DEFAULT_ERROR_MESSAGE = 'Failed to save changes.';
 
 /**
- * Editable-override engine behind the administrator Route Detail "Invoice
- * Values" panel: seed local values from a computed default, track whether the
+ * Editable-override engine behind the administrator Route Detail "Signs and
+ * Stops Invoiced" form: seed local values from a computed default, track whether the
  * caller has started editing, and save via updateRoute()/refetchRoute() with
  * a single error/success path. The caller supplies its own field shape,
  * default computation, and Route-field mapping — this hook knows neither.

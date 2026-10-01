@@ -138,10 +138,6 @@
   margin-bottom: var(--space-4);
 }
 
-.billingMeta {
-  color: var(--text-subtle);
-  font-size: var(--text-xs);
-}
 
 /* Stops section */
 

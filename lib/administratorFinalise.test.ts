@@ -19,7 +19,7 @@ jest.mock('./amplify-config', () => ({
 jest.mock('aws-amplify/auth', () => ({ fetchAuthSession: jest.fn().mockResolvedValue({}) }));
 jest.mock('./apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
 
-import { finaliseRouteAsAdministrator } from './administratorFinalise';
+import { correctBilledTime, finaliseRouteAsAdministrator } from './administratorFinalise';
 import type { SignRunTransitionRoute } from './signRunTransitions';
 
 const BILLED = { load: 15, placement: 20, pickup: 10, unload: 30 };
@@ -113,5 +113,93 @@ describe('finaliseRouteAsAdministrator', () => {
     const result = await finaliseRouteAsAdministrator(readyRoute(), { billedMinutes: BILLED, distanceKm: 1 });
 
     expect(result).toEqual({ ok: false, error: 'The route was finalised, but its audit entry could not be written.', finalised: true });
+  });
+});
+
+describe('correctBilledTime', () => {
+  const completed = {
+    id: 'route-1',
+    customerId: 'cust-1',
+    status: 'completed' as const,
+    billedLoadMinutes: 15,
+    billedPlacementMinutes: 20,
+    billedPickupMinutes: 10,
+    billedUnloadMinutes: 30,
+    overrideDurationMinutes: 75,
+    overrideDistanceKm: 37.5,
+  };
+
+  it('saves the corrected phases and their sum, and audits the Billed Time before and after', async () => {
+    const corrected = { ...BILLED, placement: 35 };
+
+    await expect(correctBilledTime(completed, { billedMinutes: corrected, distanceKm: 40 })).resolves.toEqual({ ok: true });
+
+    expect(mockRouteUpdate).toHaveBeenCalledWith({
+      id: 'route-1',
+      billedLoadMinutes: 15,
+      billedPlacementMinutes: 35,
+      billedPickupMinutes: 10,
+      billedUnloadMinutes: 30,
+      overrideDurationMinutes: 90,
+      overrideDistanceKm: 40,
+    });
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerId: 'cust-1',
+        operatorId: 'admin-sub',
+        resourceId: 'route-1',
+        action: 'route.billedTime.correct',
+        details: JSON.stringify({
+          before: { phases: BILLED, totalMinutes: 75, distanceKm: 37.5 },
+          after: { phases: corrected, totalMinutes: 90, distanceKm: 40 },
+        }),
+      })
+    );
+  });
+
+  it('corrects a total-only Route by its total and leaves its phases alone', async () => {
+    const legacy = { id: 'route-1', customerId: null, status: 'archived' as const, actualDurationMinutes: 165 };
+
+    await expect(correctBilledTime(legacy, { totalMinutes: 180, distanceKm: 12 })).resolves.toEqual({ ok: true });
+
+    expect(mockRouteUpdate).toHaveBeenCalledWith({ id: 'route-1', overrideDurationMinutes: 180, overrideDistanceKm: 12 });
+    expect(mockAuditLogCreate.mock.calls[0][0].details).toBe(
+      JSON.stringify({
+        before: { phases: null, totalMinutes: 165, distanceKm: null },
+        after: { phases: null, totalMinutes: 180, distanceKm: 12 },
+      })
+    );
+  });
+
+  it('refuses a Route that is not completed yet, and writes nothing', async () => {
+    const result = await correctBilledTime({ ...completed, status: 'in_progress' }, { totalMinutes: 90, distanceKm: 1 });
+
+    expect(result).toEqual({ ok: false, error: 'Billed Time can only be corrected once the route is completed.' });
+    expect(mockRouteUpdate).not.toHaveBeenCalled();
+    expect(mockAuditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it.each([0, 95])('refuses a total of %p min', async (totalMinutes) => {
+    const result = await correctBilledTime(completed, { totalMinutes, distanceKm: 1 });
+
+    expect(result).toEqual({ ok: false, error: 'The total charged must land on a 15 min increment.' });
+    expect(mockRouteUpdate).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed save and writes no audit entry', async () => {
+    mockRouteUpdate.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
+
+    const result = await correctBilledTime(completed, { totalMinutes: 90, distanceKm: 1 });
+
+    expect(result).toEqual({ ok: false, error: 'Could not save the Billed Time. Nothing was changed.' });
+    expect(mockAuditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it('says the Billed Time was saved when only the audit entry fails', async () => {
+    mockAuditLogCreate.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
+
+    const result = await correctBilledTime(completed, { totalMinutes: 90, distanceKm: 1 });
+
+    expect(result).toEqual({ ok: false, error: 'The Billed Time was saved, but its audit entry could not be written.', saved: true });
   });
 });

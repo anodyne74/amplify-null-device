@@ -57,6 +57,11 @@ jest.mock('@aws-sdk/client-cognito-identity-provider', () => {
 
 import { UsernameExistsException, UserPoolAddOnNotEnabledException } from '@aws-sdk/client-cognito-identity-provider';
 
+const recordServerAuditMock = jest.fn();
+jest.mock('@/lib/server/recordServerAudit', () => ({
+  recordServerAudit: (...args: unknown[]) => recordServerAuditMock(...args),
+}));
+
 jest.mock('aws-jwt-verify', () => ({
   CognitoJwtVerifier: {
     create: jest.fn(() => ({
@@ -73,6 +78,7 @@ describe('admin users API', () => {
     global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) } as any);
     sendInvitationEmailMock.mockResolvedValue(undefined);
     sendStaffInvitationEmailMock.mockResolvedValue(undefined);
+    recordServerAuditMock.mockResolvedValue({ ok: true });
   });
 
   afterAll(() => {
@@ -103,13 +109,37 @@ describe('admin users API', () => {
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: 'Forbidden: admin access required' });
 
-    const auditCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+    // A refused caller has no AppSync access of their own, so the server writes the entry.
+    expect(recordServerAuditMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: 'sub-op',
+        eventType: 'access_denied',
+        resource: { type: 'operator', id: 'sub-op' },
+        failure: 'Forbidden: admin access required',
+      })
+    );
+    const fetchedAudit = (global.fetch as jest.Mock).mock.calls.some(([, init]) =>
       String(init?.body || '').includes('CreateAuditLog')
     );
-    expect(auditCall).toBeDefined();
-    expect(JSON.parse(auditCall![1].body).variables.input).toEqual(
-      expect.objectContaining({ eventType: 'access_denied', resourceId: 'sub-op', reason: 'Forbidden: admin access required' })
-    );
+    expect(fetchedAudit).toBe(false);
+  });
+
+  it('logs an audit entry that could not be written and still answers', async () => {
+    verifyMock.mockResolvedValue({ sub: 'sub-op', 'cognito:groups': ['operator'] });
+    recordServerAuditMock.mockResolvedValue({ ok: false, errors: [{ message: 'Unauthorized' }] });
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsers' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(403);
+    expect(consoleError).toHaveBeenCalledWith('Writing the admin_user_management_attempt audit entry failed:', [
+      { message: 'Unauthorized' },
+    ]);
+    consoleError.mockRestore();
   });
 
   it('blocks self removal of administrator group', async () => {

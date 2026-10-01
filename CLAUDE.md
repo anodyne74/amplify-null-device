@@ -80,6 +80,7 @@ Use the `useUserGroups()` hook (`lib/use-user-groups.ts`) to fetch and cache gro
 - `lib/amplify-config.ts` — Amplify initialization, auth helpers
 - `lib/billedTime.ts` — Billed Time (see `CONTEXT.md`): how it's seeded, adjusted, stored on a Route and read back; every screen that shows what's charged reads it through `billedTime()`
 - `lib/stopProgress.ts` — Stop Progress (see `CONTEXT.md`): whether a Stop is done or skipped in Placement and Pickup, finished or completed; every screen reads it through `stopProgress()`, never `actualDepartureTime`
+- `lib/auditLog.ts` — `recordAudit()`: every audit log entry is written through it (server routes with no client of their own use `lib/server/recordServerAudit.ts`); what to do when an entry can't be written stays with each caller
 - `app/auth/session.ts` + `sessionManager.ts` — session management
 - `app/components/PortalShell.*` — shared sidebar + navigation shell used by all portals (`variant` picks staff or customer chrome); `lib/usePortalUser.ts` — the signed-in user's id, display name and logout
 - `app/api/` — Next.js API routes: `send-invoice-email/`, `users/`

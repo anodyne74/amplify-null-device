@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { recordAudit } from '@/lib/auditLog';
 import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
 import {
   FEATURE_FLAG_STATES,
@@ -57,19 +58,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Could not save the feature flag' }, { status: 500 });
     }
 
-    const { errors: auditErrors } = await client.models.AuditLog.create({
-      operatorId: claims.sub,
+    const audit = await recordAudit(client, {
+      actor: claims.sub,
       eventType: 'data_modification',
-      resourceType: 'feature_flag',
-      resourceId: name,
+      resource: { type: 'feature_flag', id: name },
       action: `feature_flag.${change.action}`,
-      status: 'success',
-      timestamp: new Date().toISOString(),
-      // a.json() fields travel as a JSON string.
-      details: JSON.stringify({ flag: name, ...plan.details }),
+      details: { flag: name, ...plan.details },
     });
-    if (auditErrors?.length) {
-      console.error('Writing feature flag audit entry failed; undoing the change:', auditErrors);
+    if (!audit.ok) {
+      console.error('Writing feature flag audit entry failed; undoing the change:', audit.errors);
       const { errors: undoErrors } = current
         ? await client.models.FeatureFlagSetting.update({
             id: name,

@@ -8,6 +8,7 @@
  *
  * Kept free of `@/` imports: the purge Lambda imports it by relative path.
  */
+import { recordAudit, type AuditClient } from './auditLog';
 import { listAll } from './listAll';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -39,22 +40,10 @@ export function reportState(report: ReportDates, now: Date): ReportState {
 
 type PurgeCandidate = { id: string; customerId?: string | null; referenceNumber: string; s3Key: string; purgedAt?: string | null };
 
-type PurgeClient = {
+type PurgeClient = AuditClient & {
   models: {
     PropertyHistoryReport: {
       update: (input: { id: string; purgedAt: string }) => Promise<{ errors?: readonly unknown[] | null }>;
-    };
-    AuditLog: {
-      create: (input: {
-        customerId?: string | null;
-        eventType: 'data_deletion';
-        resourceType: 'report';
-        resourceId: string;
-        action: string;
-        status: 'success';
-        timestamp: string;
-        details: string;
-      }) => Promise<{ errors?: readonly unknown[] | null }>;
     };
   };
 };
@@ -82,20 +71,16 @@ export async function purgeExpiredReports(
       await deleteObject(report.s3Key);
       const { errors: updateErrors } = await client.models.PropertyHistoryReport.update({ id: report.id, purgedAt: at });
       if (updateErrors?.length) throw new Error(`Could not mark the report purged: ${JSON.stringify(updateErrors)}`);
-      const { errors: auditErrors } = await client.models.AuditLog.create({
-        // An explicit null would break the Customer.auditLogs index key.
-        customerId: report.customerId ?? undefined,
+      const audit = await recordAudit(client, {
+        customerId: report.customerId,
         eventType: 'data_deletion',
-        resourceType: 'report',
-        resourceId: report.id,
+        resource: { type: 'report', id: report.id },
         action: 'property_history_report.purge',
-        status: 'success',
-        timestamp: at,
-        // a.json() fields travel as a JSON string.
-        details: JSON.stringify({ referenceNumber: report.referenceNumber, s3Key: report.s3Key, by: 'retention job' }),
+        at,
+        details: { referenceNumber: report.referenceNumber, s3Key: report.s3Key, by: 'retention job' },
       });
       // The PDF is already gone, so a missing log entry is reported but not retried.
-      if (auditErrors?.length) console.error(`Logging the purge of ${report.referenceNumber} failed:`, auditErrors);
+      if (!audit.ok) console.error(`Logging the purge of ${report.referenceNumber} failed:`, audit.errors);
       purged.push(report.referenceNumber);
     } catch (error) {
       console.error(`Purging ${report.referenceNumber} failed:`, error);

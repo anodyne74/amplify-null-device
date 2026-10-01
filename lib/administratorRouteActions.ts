@@ -7,6 +7,7 @@
  * same plans.
  */
 import { fetchUserId } from '@/lib/amplify-config';
+import { recordAudit } from '@/lib/auditLog';
 import {
   billedTime,
   billedTimePatch,
@@ -50,22 +51,16 @@ async function saveAudited(
   const { errors } = await write();
   if (errors?.length) return refused(messages.failed);
 
-  const adminSub = await fetchUserId();
-  const { errors: auditErrors } = await getDataClient().models.AuditLog.create({
-    // customerId keys an index, so it's left out rather than sent as null.
-    customerId: change.customerId ?? undefined,
-    operatorId: adminSub,
+  const audit = await recordAudit(getDataClient(), {
+    actor: await fetchUserId(),
+    customerId: change.customerId,
     eventType: 'data_modification',
-    resourceType: change.resourceType,
-    resourceId: change.resourceId,
+    resource: { type: change.resourceType, id: change.resourceId },
     action: change.action,
-    status: 'success',
-    timestamp: new Date().toISOString(),
-    // a.json() fields travel as a JSON string.
-    details: JSON.stringify(change.details),
+    details: change.details,
   });
-  if (auditErrors?.length) {
-    console.error(`Writing the ${change.action} audit entry failed:`, auditErrors);
+  if (!audit.ok) {
+    console.error(`Writing the ${change.action} audit entry failed:`, audit.errors);
     return { ok: false, error: messages.unaudited, saved: true };
   }
   return { ok: true };

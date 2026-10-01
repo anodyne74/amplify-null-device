@@ -31,6 +31,7 @@ import type { MapTheme } from '@/lib/mapThemes';
 import { MAP_THEMES } from '@/lib/mapThemes';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { getSignRunPhase } from '@/lib/signRunPhase';
+import { missingSigns, signsPlaced } from '@/lib/signRunTotals';
 import { parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import styles from './page.module.css';
 
@@ -105,10 +106,6 @@ function RouteDetailContent() {
     successMessage: 'Distance override saved.',
   });
 
-  const [phaseDistanceKm, setPhaseDistanceKm] = useState({
-    signs_placed: 0,
-    signs_picked_up: 0,
-  });
   const [mapTheme, setMapTheme] = useState<MapTheme>('dark');
 
   // Persist theme selection in localStorage for user convenience
@@ -123,14 +120,6 @@ function RouteDetailContent() {
       window.localStorage.setItem('operatorMapTheme', mapTheme);
     }
   }, [mapTheme]);
-
-  useEffect(() => {
-    if (!route) return;
-    setPhaseDistanceKm({
-      signs_placed: route.signsPlacedDistanceKm ?? 0,
-      signs_picked_up: route.signsPickedUpDistanceKm ?? 0,
-    });
-  }, [route]);
 
   useEffect(() => {
     if (!user?.userId) return;
@@ -164,14 +153,16 @@ function RouteDetailContent() {
     return stops;
   })();
   const topVisibleStopId = visibleStops[0]?.id ?? null;
-  const { routeDurationMinutes, totalStops, totalSigns } = computeRouteSummaryStats(route, stops);
+  const { routeDurationMinutes, totalStops } = computeRouteSummaryStats(route, stops);
+  // Every stop counts toward the sign totals, even on a finished route where the
+  // other stats summarise completed stops only.
+  const totalSignsPlaced = signsPlaced(stops);
+  const totalMissingSigns = missingSigns(stops);
   const effectiveKilometersTravelled = route?.overrideDistanceKm ?? kilometersTravelled;
   const completionAmount =
     routeDurationMinutes !== null && customerRatePerHour !== null
       ? Number(((routeDurationMinutes / 60) * customerRatePerHour).toFixed(2))
       : null;
-  const placementDistance = phaseDistanceKm.signs_placed;
-  const pickupDistance = phaseDistanceKm.signs_picked_up;
 
   // Read-only phase overview — advancing a route through its phases is now
   // exclusively done from the Load/Placement/Pickup/Unload/Finalise screens,
@@ -332,14 +323,6 @@ function RouteDetailContent() {
                     <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</span>
                   </div>
                   <div className="nd-stat">
-                    <span className="nd-stat__label">Placement Distance</span>
-                    <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${placementDistance.toFixed(2)} km`}</span>
-                  </div>
-                  <div className="nd-stat">
-                    <span className="nd-stat__label">Pickup Distance</span>
-                    <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${pickupDistance.toFixed(2)} km`}</span>
-                  </div>
-                  <div className="nd-stat">
                     <span className="nd-stat__label">Time Taken</span>
                     <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{formatElapsedMinutes(routeDurationMinutes)}</span>
                   </div>
@@ -348,8 +331,12 @@ function RouteDetailContent() {
                     <span className="nd-stat__value" style={{ fontSize: 16 }}>{totalStops}</span>
                   </div>
                   <div className="nd-stat">
-                    <span className="nd-stat__label">Total Number of Signs</span>
-                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{totalSigns}</span>
+                    <span className="nd-stat__label">Signs Placed</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{totalSignsPlaced}</span>
+                  </div>
+                  <div className="nd-stat">
+                    <span className="nd-stat__label">Missing Signs</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{totalMissingSigns}</span>
                   </div>
                   <div className="nd-stat">
                     <span className="nd-stat__label">Customer Rate</span>

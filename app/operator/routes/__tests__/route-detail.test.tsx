@@ -357,7 +357,7 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByRole('heading', { name: /route phase/i })).toBeInTheDocument();
   });
 
-  it('excludes missing signs from "Total Number of Signs" — a stop returning 10 with 3 missing counts as 7', async () => {
+  it('shows "Signs Placed" as the original sign count with "Missing Signs" beside it — a stop placing 10 with 3 missing', async () => {
     mockFetched.route = { ...mockRoute, status: 'completed' };
     const stopsWithMissingSigns: Stop[] = [
       {
@@ -376,9 +376,13 @@ describe('Operator Route Detail Page', () => {
     render(<RouteDetailPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Total Number of Signs')).toBeInTheDocument();
+      expect(screen.getByText('Signs Placed')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('7')).toBeInTheDocument();
+    expect(screen.getByText('Signs Placed').parentElement).toHaveTextContent('10');
+    expect(screen.getByText('Missing Signs').parentElement).toHaveTextContent('3');
+    expect(screen.queryByText('Total Number of Signs')).not.toBeInTheDocument();
+    expect(screen.queryByText('Placement Distance')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pickup Distance')).not.toBeInTheDocument();
   });
 });

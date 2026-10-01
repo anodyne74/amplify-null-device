@@ -1,7 +1,8 @@
 'use client';
 
 import type { RouteExecutionPhase } from '@/amplify/types';
-import { MIN_BILLED_MINUTES, formatDuration } from '@/lib/signRunBilling';
+import { MIN_BILLED_MINUTES } from '@/lib/billedTime';
+import { formatDuration } from '@/lib/format';
 import type { FinaliseAdjusters as Adjusters } from '@/lib/useFinaliseAdjusters';
 import styles from './FinaliseAdjusters.module.css';
 

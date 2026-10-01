@@ -10,7 +10,7 @@ import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
 import { queueSignRunTransition } from '@/lib/signRunTransitions';
-import { formatClockTime } from '@/lib/signRunBilling';
+import { formatClockTime } from '@/lib/format';
 import { groupByAgent, signsPlaced } from '@/lib/signRunTotals';
 import type { Route, Stop } from '@/amplify/types';
 import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';

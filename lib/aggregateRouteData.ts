@@ -1,4 +1,4 @@
-import { getFinalizedRouteDistanceKm, getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
+import { billedTime } from '@/lib/billedTime';
 
 export type AnalyticsPeriod = 'day' | 'week' | 'month' | 'quarter' | 'year';
 
@@ -74,8 +74,9 @@ export function aggregateRouteData(
           ? route.stops.length
           : 0;
 
-    const durationMinutes = getFinalizedRouteDurationMinutes(route);
-    const distanceKm = getFinalizedRouteDistanceKm(route);
+    const billed = billedTime(route);
+    const durationMinutes = billed.totalMinutes ?? 0;
+    const distanceKm = billed.distanceKm ?? 0;
 
     group.routesCompleted += 1;
     group.totalDurationMinutes += durationMinutes;

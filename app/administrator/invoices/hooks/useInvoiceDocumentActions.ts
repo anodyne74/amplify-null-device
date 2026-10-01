@@ -11,6 +11,7 @@ import { BILLING_EMAIL } from '@/lib/publicAppConfig';
 import { buildInvoiceFileName } from '@/lib/invoiceFileName';
 import type { StopSummary } from '@/app/administrator/invoices/stopFormatting';
 import { getRouteWithStops } from '@/lib/routes';
+import { billedTime } from '@/lib/billedTime';
 import { getInvoiceWithLineItems, updateInvoice, updateInvoicePdfKey } from '@/lib/invoices';
 
 type UseInvoiceDocumentActionsParams = {
@@ -215,7 +216,7 @@ export function useInvoiceDocumentActions({
       const pdfPaymentAccountNumber = billingAccountNumber.trim() || DEFAULT_COMPANY_BILLING_DETAILS.accountNumber;
 
       const routeDurationHours = linkedRoute
-        ? Number((((linkedRoute.overrideDurationMinutes ?? linkedRoute.actualDurationMinutes ?? 0) / 60)).toFixed(2))
+        ? Number(((billedTime(linkedRoute).totalMinutes ?? 0) / 60).toFixed(2))
         : 0;
       const hourlyRate = Number((customer?.billingRatePerHour ?? 0).toFixed(2));
       const gstAmount = Number((invoice.gstAmount ?? 0).toFixed(2));

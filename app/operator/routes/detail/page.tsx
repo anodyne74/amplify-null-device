@@ -13,10 +13,8 @@ import StopCard from '@/app/operator/components/StopCard';
 import { RouteStatusPill } from '@/app/operator/components/RouteStatusPill';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
-import { Field } from '@/app/components/ui/forms/Field';
-import { Input } from '@/app/components/ui/forms/Input';
 import { useRouteDetailData } from '@/lib/use-route-detail-data';
-import { useRouteOverride } from '@/lib/useRouteOverride';
+import { billedTime } from '@/lib/billedTime';
 import {
   formatCurrency,
   formatElapsedMinutes,
@@ -51,10 +49,6 @@ const RouteStopsMap = dynamic(
   }
 );
 
-interface DistanceOverrideValues {
-  distanceKm: string;
-}
-
 function RouteDetailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -73,7 +67,6 @@ function RouteDetailContent() {
     canManagePlanning,
     availableAgentsForStops,
     defaultAgentForStops,
-    refetch,
     addStop: addStopCapability,
     editStop: editStopCapability,
     deleteStop: deleteStopCapability,
@@ -82,29 +75,6 @@ function RouteDetailContent() {
     stopNotice,
   } = useRouteDetailData(id, user);
 
-  const { kilometersTravelled } = computeRouteSummaryStats(route, stops);
-  const {
-    values: distanceOverride,
-    setValues: setDistanceOverride,
-    saving: savingDistanceOverride,
-    error: distanceOverrideError,
-    success: distanceOverrideSuccess,
-    save: saveDistanceOverride,
-  } = useRouteOverride<DistanceOverrideValues>({
-    route,
-    refetchRoute: refetch,
-    computeDefaults: () => ({ distanceKm: (route?.overrideDistanceKm ?? kilometersTravelled).toFixed(2) }),
-    buildPayload: (values) => ({ overrideDistanceKm: Number(Number(values.distanceKm).toFixed(2)) }),
-    validate: (values) => {
-      const parsed = Number(values.distanceKm);
-      if (Number.isNaN(parsed) || parsed < 0) {
-        return 'Distance must be a number greater than or equal to 0.';
-      }
-      return null;
-    },
-    errorMessage: 'Failed to save distance override.',
-    successMessage: 'Distance override saved.',
-  });
 
   const [mapTheme, setMapTheme] = useState<MapTheme>('dark');
 
@@ -153,16 +123,13 @@ function RouteDetailContent() {
     return stops;
   })();
   const topVisibleStopId = visibleStops[0]?.id ?? null;
-  const { routeDurationMinutes, totalStops } = computeRouteSummaryStats(route, stops);
+  const { routeDurationMinutes, kilometersTravelled, totalStops } = computeRouteSummaryStats(route, stops);
+  const billed = billedTime(route ?? {});
   // Every stop counts toward the sign totals, even on a finished route where the
   // other stats summarise completed stops only.
   const totalSignsPlaced = signsPlaced(stops);
   const totalMissingSigns = missingSigns(stops);
-  const effectiveKilometersTravelled = route?.overrideDistanceKm ?? kilometersTravelled;
-  const completionAmount =
-    routeDurationMinutes !== null && customerRatePerHour !== null
-      ? Number(((routeDurationMinutes / 60) * customerRatePerHour).toFixed(2))
-      : null;
+  const effectiveKilometersTravelled = billed.distanceKm ?? kilometersTravelled;
 
   // Read-only phase overview — advancing a route through its phases is now
   // exclusively done from the Load/Placement/Pickup/Unload/Finalise screens,
@@ -319,11 +286,11 @@ function RouteDetailContent() {
                 <h3 className={styles.summaryHeading}>Final Route Summary</h3>
                 <div className={styles.factsGrid}>
                   <div className="nd-stat">
-                    <span className="nd-stat__label">Kilometers Travelled</span>
+                    <span className="nd-stat__label">{billed.distanceKm === null ? 'Kilometers Travelled' : 'Billed Distance'}</span>
                     <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</span>
                   </div>
                   <div className="nd-stat">
-                    <span className="nd-stat__label">Time Taken</span>
+                    <span className="nd-stat__label">{billed.totalMinutes === null ? 'Time Taken' : 'Billed Time'}</span>
                     <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{formatElapsedMinutes(routeDurationMinutes)}</span>
                   </div>
                   <div className="nd-stat">
@@ -344,42 +311,8 @@ function RouteDetailContent() {
                       {customerRatePerHour === null ? '—' : formatCurrency(customerRatePerHour)} / hr
                     </span>
                   </div>
-                  <div className="nd-stat">
-                    <span className="nd-stat__label">Amount</span>
-                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{formatCurrency(completionAmount)}</span>
-                  </div>
                 </div>
 
-                {canManagePlanning && route.status === 'completed' && (
-                  <div className={styles.distanceOverrideSection}>
-                    <Field label="Kilometers Travelled" htmlFor="distanceOverrideKm">
-                      <div className={styles.distanceOverrideRow}>
-                        <Input
-                          id="distanceOverrideKm"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={distanceOverride.distanceKm}
-                          onChange={(event) => setDistanceOverride({ distanceKm: event.target.value })}
-                          disabled={savingDistanceOverride}
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          loading={savingDistanceOverride}
-                          onClick={() => {
-                            void saveDistanceOverride();
-                          }}
-                          disabled={savingDistanceOverride}
-                        >
-                          {savingDistanceOverride ? 'Saving…' : 'Save Distance'}
-                        </Button>
-                      </div>
-                    </Field>
-                    {distanceOverrideError && <div className={styles.errorBanner}>{distanceOverrideError}</div>}
-                    {distanceOverrideSuccess && <div className={styles.successText}>{distanceOverrideSuccess}</div>}
-                  </div>
-                )}
               </div>
             )}
           </Card>

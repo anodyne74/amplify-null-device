@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { RateLine, Route } from '@/amplify/types';
 import type { CustomerOption } from '@/app/administrator/invoices/types';
-import { getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
+import { billedTime } from '@/lib/billedTime';
 import { listRateLines } from '@/lib/queries/ListRateLines';
 
 const GST_RATE = 0.1;
@@ -12,7 +12,8 @@ function applyGst(subtotal: number, gstExclusive: boolean | null | undefined) {
 }
 
 function getRouteDurationHours(route?: Route | null) {
-  return Number((getFinalizedRouteDurationMinutes(route) / 60).toFixed(2));
+  const minutes = route ? billedTime(route).totalMinutes : null;
+  return Number(((minutes ?? 0) / 60).toFixed(2));
 }
 
 export interface RateLineDraftCapability {

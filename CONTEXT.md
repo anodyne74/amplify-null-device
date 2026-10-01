@@ -72,6 +72,10 @@ _Avoid_: Lost signs, sign loss (except when specifically discussing the attritio
 The Unload/Finalise-time accounting of a Route's signs — how many were loaded onto the van, returned, still on-site, or missing, plus how many Stops were completed vs. skipped. Distinct from Signs Placed/Collected, which are simpler standalone counts usable anywhere in a Route's lifecycle.
 _Avoid_: Summary, totals
 
+**Billed Time**:
+What a Customer is charged for a Route: minutes for each Sign Run phase (Load and Unload at least 15, Placement and Pickup at least 5, the total landing on a 15-minute increment), plus the distance travelled. Set at Finalise, by the operator or an administrator, and correctable by an administrator once the Route is completed. Measured phase time and measured distance only seed it. Routes from before the Sign Run have a total only, with no per-phase split.
+_Avoid_: Duration (when you mean what's charged), invoice values, override
+
 **Customer User**:
 A person who signs in to the customer portal on one Customer's behalf, as either an Account Owner or a read-only user. Sees only that Customer's records, and is unaware of other Customers or of how Routes are carried out.
 _Avoid_: Team member, teammate, sub-user, customer admin

@@ -30,6 +30,7 @@ import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
 import { getSignRunPhase } from '@/lib/signRunPhase';
 import { runStopSettlement, stopPhaseOf } from '@/lib/signRunTransitions';
+import { billedTime } from '@/lib/billedTime';
 import {
   getPhaseCompletionTime,
   isStopCompletedForPhase,
@@ -169,6 +170,7 @@ function RouteDetailContent() {
   const [mapTheme, setMapTheme] = useState<MapTheme>('light');
 
   const { routeDurationMinutes, kilometersTravelled, totalStops, totalSigns } = computeRouteSummaryStats(route, stops);
+  const billed = billedTime(route ?? {});
   const billingDefaults = useMemo(() => {
     const durationMinutes = route?.overrideDurationMinutes ?? routeDurationMinutes ?? 0;
     const durationBuckets = deriveDurationBuckets(route, durationMinutes);
@@ -396,12 +398,12 @@ function RouteDetailContent() {
                 <h3 className={styles.summaryHeading}>Route Summary</h3>
                 <div className={styles.factsGrid}>
                   <div className="nd-stat">
-                    <span className="nd-stat__label">Kilometers Travelled</span>
-                    <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${billingDefaults.distanceKm.toFixed(2)} km`}</span>
+                    <span className="nd-stat__label">{billed.distanceKm === null ? 'Kilometers Travelled' : 'Billed Distance'}</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${(billed.distanceKm ?? kilometersTravelled).toFixed(2)} km`}</span>
                   </div>
                   <div className="nd-stat">
-                    <span className="nd-stat__label">Time Taken</span>
-                    <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{formatElapsedMinutes(billingDefaults.durationMinutes)}</span>
+                    <span className="nd-stat__label">{billed.totalMinutes === null ? 'Time Taken' : 'Billed Time'}</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{formatElapsedMinutes(routeDurationMinutes)}</span>
                   </div>
                   <div className="nd-stat">
                     <span className="nd-stat__label">Stops</span>

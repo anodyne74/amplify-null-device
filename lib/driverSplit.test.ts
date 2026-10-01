@@ -21,7 +21,33 @@ describe('computeDriverSplit', () => {
     mockLineItemList.mockResolvedValue({ data: [] });
   });
 
-  it('falls back to actualDurationMinutes x billingRatePerHour when there are no line items', async () => {
+  it('falls back to Billed Time x billingRatePerHour, as invoice creation does', async () => {
+    mockRouteList.mockResolvedValue({
+      data: [
+        {
+          id: 'route-1',
+          customerId: 'cust-1',
+          status: 'completed',
+          assignedOperatorSub: 'op-1',
+          actualEndTime: '2026-08-10T12:00:00Z',
+          actualDurationMinutes: 95,
+          overrideDurationMinutes: 120,
+        },
+      ],
+    });
+
+    const result = await computeDriverSplit({
+      customerId: 'cust-1',
+      billingRatePerHour: 30,
+      driverSplitPercent: 50,
+      periodStartDate: '2026-08-01',
+      periodEndDate: '2026-08-31',
+    });
+
+    expect(result.byOperator[0].billedAmount).toBe(60);
+  });
+
+  it('falls back to the measured duration x billingRatePerHour for a Route from before the Sign Run', async () => {
     mockRouteList.mockResolvedValue({
       data: [
         {

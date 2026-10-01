@@ -78,6 +78,7 @@ Use the `useUserGroups()` hook (`lib/use-user-groups.ts`) to fetch and cache gro
 - `amplify/data/resource.ts` — all 9 DynamoDB models and their AppSync authorization rules
 - `lib/routes.ts`, `lib/customers.ts`, `lib/invoices.ts`, `lib/userSettings.ts` — browser data access, one module per aggregate; `lib/queries/` — remaining single-function modules (rate lines, operator payouts and availability, organization settings)
 - `lib/amplify-config.ts` — Amplify initialization, auth helpers
+- `lib/billedTime.ts` — Billed Time (see `CONTEXT.md`): how it's seeded, adjusted, stored on a Route and read back; every screen that shows what's charged reads it through `billedTime()`
 - `app/auth/session.ts` + `sessionManager.ts` — session management
 - `app/components/PortalShell.*` — shared sidebar + navigation shell used by all portals (`variant` picks staff or customer chrome); `lib/usePortalUser.ts` — the signed-in user's id, display name and logout
 - `app/api/` — Next.js API routes: `send-invoice-email/`, `users/`

@@ -22,7 +22,7 @@
  */
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { getSignRunPhase, type SignRunPhaseInfo } from '@/lib/signRunPhase';
-import { sumBilledMinutes } from '@/lib/signRunBilling';
+import { billedTimePatch } from '@/lib/billedTime';
 import {
   removeMarker,
   upsertMarker,
@@ -141,12 +141,7 @@ export function planSignRunTransition(
     case 'finalise':
       return {
         patch: {
-          billedLoadMinutes: transition.billedMinutes.load,
-          billedPlacementMinutes: transition.billedMinutes.placement,
-          billedPickupMinutes: transition.billedMinutes.pickup,
-          billedUnloadMinutes: transition.billedMinutes.unload,
-          overrideDurationMinutes: sumBilledMinutes(transition.billedMinutes),
-          overrideDistanceKm: transition.distanceKm,
+          ...billedTimePatch(transition.billedMinutes, transition.distanceKm),
           status: 'completed',
         },
       };

@@ -1,6 +1,6 @@
 /**
  * Sign-count facts about a Route's stops — pure and side-effect free, same style as
- * lib/signRunPhase.ts / lib/signRunBilling.ts. The single source of truth for "how
+ * lib/signRunPhase.ts / lib/billedTime.ts. The single source of truth for "how
  * many signs" a Route has, so every portal reports the same number for the same
  * question instead of each screen re-deriving its own variant.
  */

@@ -5,7 +5,7 @@ import type { Route } from '@/amplify/types';
 import { Button } from '@/app/components/ui/core/Button';
 import { FinaliseAdjusters } from '@/app/components/FinaliseAdjusters';
 import { finaliseRouteAsAdministrator } from '@/lib/administratorFinalise';
-import { formatDuration } from '@/lib/signRunBilling';
+import { formatDuration } from '@/lib/format';
 import { useFinaliseAdjusters } from '@/lib/useFinaliseAdjusters';
 import styles from './AdministratorFinalisePanel.module.css';
 

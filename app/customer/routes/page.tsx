@@ -14,7 +14,8 @@ import { Tag } from '@/app/components/ui/core/Tag';
 import { Input } from '@/app/components/ui/forms/Input';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import type { Route } from '@/amplify/types';
-import { compareRouteIdDesc, formatEstimatedDurationMinutes, getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
+import { compareRouteIdDesc, formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
+import { billedTime } from '@/lib/billedTime';
 import { formatRouteDate, getRouteDate } from '@/lib/routeDetailHelpers';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
 import { getPageSlice } from '@/lib/pagination';
@@ -108,7 +109,7 @@ export default function CustomerRoutesPage() {
       // it's calculated from the operator's finalisation, not an estimate.
       render: (route) =>
         getRoutePhaseKey(route) === 'completed'
-          ? formatEstimatedDurationMinutes(getFinalizedRouteDurationMinutes(route))
+          ? formatEstimatedDurationMinutes(billedTime(route).totalMinutes)
           : 'N/A',
     },
     {

@@ -22,14 +22,6 @@
   border: var(--border-hairline) solid var(--status-warning-fg);
 }
 
-.successText {
-  padding: var(--space-3) var(--space-4);
-  background: var(--status-success-bg);
-  color: var(--status-success-fg);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-}
-
 .mutedText {
   color: var(--text-muted);
   font-size: var(--text-sm);
@@ -85,20 +77,6 @@
   font-size: var(--text-lg);
   font-family: var(--font-display);
   color: var(--text-heading);
-}
-
-.distanceOverrideSection {
-  margin-top: var(--space-6);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  max-width: 360px;
-}
-
-.distanceOverrideRow {
-  display: flex;
-  gap: var(--space-3);
-  align-items: center;
 }
 
 /* Stops section */

@@ -1,4 +1,4 @@
-import { formatInvoiceCurrency, formatDurationHoursMinutes, titleCase } from '@/lib/format';
+import { formatDuration, formatInvoiceCurrency, formatDurationHoursMinutes, titleCase } from '@/lib/format';
 
 describe('format helpers', () => {
   describe('formatInvoiceCurrency', () => {
@@ -33,5 +33,17 @@ describe('titleCase', () => {
   it('capitalises the first letter of each word', () => {
     expect(titleCase('north epping')).toBe('North Epping');
     expect(titleCase('approximate')).toBe('Approximate');
+  });
+});
+
+describe('formatDuration', () => {
+  it('formats sub-hour durations as minutes only', () => {
+    expect(formatDuration(45)).toBe('45m');
+    expect(formatDuration(0)).toBe('0m');
+  });
+
+  it('formats hour-plus durations as hours and minutes', () => {
+    expect(formatDuration(60)).toBe('1h 0m');
+    expect(formatDuration(125)).toBe('2h 5m');
   });
 });

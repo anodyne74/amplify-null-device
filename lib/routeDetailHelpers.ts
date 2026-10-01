@@ -1,4 +1,5 @@
 import type { Route, Stop } from '@/amplify/types';
+import { billedTime } from '@/lib/billedTime';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -82,15 +83,20 @@ export function formatCurrency(amount: number | null) {
   }).format(amount);
 }
 
+/**
+ * A Route's duration for display: its Billed Time once there is one (see
+ * lib/billedTime.ts), otherwise the time elapsed so far.
+ */
 export function getRouteDurationMinutes(route: Route) {
-  if (typeof route.overrideDurationMinutes === 'number') {
-    return Math.max(0, route.overrideDurationMinutes);
-  }
+  const { totalMinutes } = billedTime(route);
+  return totalMinutes === null ? getElapsedRouteMinutes(route) : Math.max(0, totalMinutes);
+}
 
-  if (typeof route.actualDurationMinutes === 'number') {
-    return Math.max(0, route.actualDurationMinutes);
-  }
-
+/**
+ * Time elapsed on a Route from its own timestamps, ticking upward while it's
+ * in progress. Never what's charged: that's Billed Time.
+ */
+export function getElapsedRouteMinutes(route: Route) {
   if (route.placementStartTime && route.pickupEndTime) {
     return Math.max(
       0,

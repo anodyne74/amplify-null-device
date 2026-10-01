@@ -12,7 +12,7 @@ import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
 import { queueSignRunTransition, queueStopSettlement } from '@/lib/signRunTransitions';
-import { formatClockTime } from '@/lib/signRunBilling';
+import { formatClockTime } from '@/lib/format';
 import { getAgentBadgeInitials } from '@/lib/customerDefaults';
 import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } from '@/lib/routeDetailHelpers';
 import { getDisplayNotes, isStopCompletedForPhase, isStopSkippedForPhase } from '@/lib/stopExecutionMarkers';

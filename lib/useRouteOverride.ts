@@ -38,12 +38,11 @@ interface UseRouteOverrideResult<TValues> {
 const DEFAULT_ERROR_MESSAGE = 'Failed to save changes.';
 
 /**
- * Shared editable-override engine behind the administrator Route Detail
- * "Invoice Values" panel and the operator Route Detail distance override:
- * seed local values from a computed default, track whether the caller has
- * started editing, and save via updateRoute()/refetchRoute() with a single
- * error/success path. Each adapter supplies its own field shape, default
- * computation, and Route-field mapping — this hook knows neither.
+ * Editable-override engine behind the administrator Route Detail "Invoice
+ * Values" panel: seed local values from a computed default, track whether the
+ * caller has started editing, and save via updateRoute()/refetchRoute() with
+ * a single error/success path. The caller supplies its own field shape,
+ * default computation, and Route-field mapping — this hook knows neither.
  */
 export function useRouteOverride<TValues>({
   route,

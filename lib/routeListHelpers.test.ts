@@ -3,8 +3,6 @@ import {
   compareRouteIdDesc,
   formatEstimatedDurationMinutes,
   formatRouteDuration,
-  getFinalizedRouteDistanceKm,
-  getFinalizedRouteDurationMinutes,
 } from '@/lib/routeListHelpers';
 
 function makeRoute(overrides: Partial<Route>): Route {
@@ -87,52 +85,6 @@ describe('routeListHelpers', () => {
 
     it('formats minute values as hours and minutes', () => {
       expect(formatEstimatedDurationMinutes(130)).toBe('2h 10m');
-    });
-  });
-
-  describe('getFinalizedRouteDurationMinutes', () => {
-    it('returns 0 when there is no route', () => {
-      expect(getFinalizedRouteDurationMinutes(null)).toBe(0);
-      expect(getFinalizedRouteDurationMinutes(undefined)).toBe(0);
-    });
-
-    it('prefers overrideDurationMinutes when set', () => {
-      expect(
-        getFinalizedRouteDurationMinutes(makeRoute({ actualDurationMinutes: 120, overrideDurationMinutes: 150 }))
-      ).toBe(150);
-    });
-
-    it('falls back to actualDurationMinutes when there is no override', () => {
-      expect(getFinalizedRouteDurationMinutes(makeRoute({ actualDurationMinutes: 90 }))).toBe(90);
-    });
-
-    it('returns 0 when neither value is set', () => {
-      expect(getFinalizedRouteDurationMinutes(makeRoute({}))).toBe(0);
-    });
-  });
-
-  describe('getFinalizedRouteDistanceKm', () => {
-    it('returns 0 when there is no route', () => {
-      expect(getFinalizedRouteDistanceKm(null)).toBe(0);
-      expect(getFinalizedRouteDistanceKm(undefined)).toBe(0);
-    });
-
-    it('prefers overrideDistanceKm when set', () => {
-      expect(
-        getFinalizedRouteDistanceKm(
-          makeRoute({ signsPlacedDistanceKm: 12.5, signsPickedUpDistanceKm: 10, overrideDistanceKm: 30 })
-        )
-      ).toBe(30);
-    });
-
-    it('falls back to the sum of placement/pickup distance when there is no override', () => {
-      expect(
-        getFinalizedRouteDistanceKm(makeRoute({ signsPlacedDistanceKm: 12.5, signsPickedUpDistanceKm: 10 }))
-      ).toBe(22.5);
-    });
-
-    it('returns 0 when no distance data is present', () => {
-      expect(getFinalizedRouteDistanceKm(makeRoute({}))).toBe(0);
     });
   });
 

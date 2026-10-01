@@ -10,7 +10,7 @@ import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
 import { queueSignRunTransition } from '@/lib/signRunTransitions';
-import { formatClockTime } from '@/lib/signRunBilling';
+import { formatClockTime } from '@/lib/format';
 import { reconcileSignRun } from '@/lib/signRunReconciliation';
 import type { Route } from '@/amplify/types';
 import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';

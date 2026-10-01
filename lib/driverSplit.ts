@@ -2,12 +2,13 @@
  * Driver split computation — the share of a customer's billed amount owed to the
  * operator(s) assigned on their routes for a given period.
  *
- * Billed amount per route falls back to route.actualDurationMinutes × billingRatePerHour
+ * Billed amount per route falls back to the Route's Billed Time × billingRatePerHour
  * for customers with no RateLine-driven LineItems, mirroring the same backward-compatible
  * flat-rate fallback used by invoice creation.
  */
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
+import { billedTime } from '@/lib/billedTime';
 
 export interface OperatorSplitSummary {
   operatorSub: string;
@@ -100,7 +101,7 @@ export async function computeDriverSplit(params: ComputeDriverSplitParams): Prom
     const operatorSub = route.assignedOperatorSub || 'unassigned';
     const lineItemTotal = lineItemTotalByRoute.get(route.id);
     const billedAmount =
-      lineItemTotal !== undefined ? lineItemTotal : ((route.actualDurationMinutes || 0) / 60) * billingRatePerHour;
+      lineItemTotal !== undefined ? lineItemTotal : ((billedTime(route).totalMinutes ?? 0) / 60) * billingRatePerHour;
     const stopCount = (stopsByRoute.get(route.id) || []).length;
 
     const existing = byOperatorMap.get(operatorSub) || { operatorName: route.assignedOperatorName || undefined, billedAmount: 0, stopCount: 0 };

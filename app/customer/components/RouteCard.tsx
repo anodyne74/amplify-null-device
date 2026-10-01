@@ -3,7 +3,8 @@
 import RouteStatusBadge from '@/app/components/RouteStatusBadge';
 import type { Route } from '@/amplify/types';
 import { formatRouteDate, getRouteDate } from '@/lib/routeDetailHelpers';
-import { formatEstimatedDurationMinutes, getFinalizedRouteDurationMinutes } from '@/lib/routeListHelpers';
+import { formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
+import { billedTime } from '@/lib/billedTime';
 import { getRoutePhaseKey } from '@/lib/signRunPhase';
 import styles from './RouteCard.module.css';
 
@@ -39,7 +40,7 @@ export default function RouteCard({ route }: RouteCardProps) {
               so this stays N/A until then rather than showing an estimate. */}
           <strong>Duration:</strong>{' '}
           {getRoutePhaseKey(route) === 'completed'
-            ? formatEstimatedDurationMinutes(getFinalizedRouteDurationMinutes(route))
+            ? formatEstimatedDurationMinutes(billedTime(route).totalMinutes)
             : 'N/A'}
         </p>
 

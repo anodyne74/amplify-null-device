@@ -53,3 +53,16 @@ export function formatRelativeDay(isoTimestamp?: string | null): string {
   if (dayDiff === 1) return 'Yesterday';
   return new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short' }).format(date);
 }
+
+/** "Xh Ym" above an hour, otherwise "Ym". */
+export function formatDuration(totalMinutes: number): string {
+  return totalMinutes >= 60
+    ? `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`
+    : `${totalMinutes}m`;
+}
+
+/** "HH:MM" in en-AU 24-hour time — the stamp shown on the Sign Run Start/Complete
+ * confirm dialog and the "Load/Unload started" line once a phase has started. */
+export function formatClockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+}

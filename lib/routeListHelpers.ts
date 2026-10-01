@@ -1,4 +1,5 @@
 import type { Route } from '@/amplify/types';
+import { billedTime } from '@/lib/billedTime';
 import { getRouteDurationMinutes } from '@/lib/routeDetailHelpers';
 export { formatRouteDate } from '@/lib/routeDetailHelpers';
 
@@ -7,13 +8,10 @@ export function formatRouteDuration(route: Route) {
   if (minutes === null) return '—';
 
   // getRouteDurationMinutes only falls through to its live elapsed-time
-  // estimate for in-progress routes with no override/actual duration set —
-  // that's the one case worth labelling, so callers know the number is still
-  // moving rather than settled.
-  const isLiveEstimate =
-    route.status === 'in_progress' &&
-    typeof route.overrideDurationMinutes !== 'number' &&
-    typeof route.actualDurationMinutes !== 'number';
+  // estimate for in-progress routes with no Billed Time yet — that's the one
+  // case worth labelling, so callers know the number is still moving rather
+  // than settled.
+  const isLiveEstimate = route.status === 'in_progress' && billedTime(route).totalMinutes === null;
 
   return isLiveEstimate ? `${minutes} min (in progress)` : `${minutes} min`;
 }
@@ -50,29 +48,4 @@ export function formatEstimatedDurationMinutes(minutes?: number | null) {
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
   return `${hours}h ${remainingMinutes}m`;
-}
-
-// Operators can correct the measured duration/distance at finalisation (the
-// same overrideDurationMinutes/overrideDistanceKm fields invoicing reads) —
-// these mirror that fallback so customer-facing and billing totals agree.
-// Deliberately no live in-progress fallback: unlike getRouteDurationMinutes,
-// these are for settled figures (customer views, invoices, analytics), which
-// should hold still rather than tick upward while a route is still running.
-export function getFinalizedRouteDurationMinutes(
-  route?: Pick<Route, 'overrideDurationMinutes' | 'actualDurationMinutes'> | null
-) {
-  if (!route) return 0;
-  if (typeof route.overrideDurationMinutes === 'number') return route.overrideDurationMinutes;
-  return typeof route.actualDurationMinutes === 'number' ? route.actualDurationMinutes : 0;
-}
-
-export function getFinalizedRouteDistanceKm(
-  route?: Pick<Route, 'overrideDistanceKm' | 'signsPlacedDistanceKm' | 'signsPickedUpDistanceKm'> | null
-) {
-  if (!route) return 0;
-  if (typeof route.overrideDistanceKm === 'number') return route.overrideDistanceKm;
-  return (
-    (typeof route.signsPlacedDistanceKm === 'number' ? route.signsPlacedDistanceKm : 0) +
-    (typeof route.signsPickedUpDistanceKm === 'number' ? route.signsPickedUpDistanceKm : 0)
-  );
 }

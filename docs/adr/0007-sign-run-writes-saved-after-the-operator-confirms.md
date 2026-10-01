@@ -21,3 +21,7 @@ Concurrent edits stay last-write-wins, as they were before. There's no version c
 
 - An administrator or Customer can see a Route a few seconds, or hours with no signal, behind what the operator's screen shows. The recorded times are still the operator's confirm times.
 - Anything added to the Sign Run must go through the outbox, or its writes can overtake earlier queued writes on the same Route.
+
+## Administrator actions save straight away
+
+An administrator can settle a Stop and Finalise a Route from the Route's detail page (`lib/administratorRouteActions.ts`). These don't use the outbox. They save straight away, the administrator waits for the save, and each is recorded in the audit log. The outbox exists for a phone in the field. An administrator is at a desk, and the outbox couldn't order their writes against the operator's anyway, because it's per device. An operator's write still queued for the same Route or Stop can therefore land after an administrator's and win. That's the same last-write-wins as any other concurrent edit.

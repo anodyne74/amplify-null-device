@@ -30,7 +30,8 @@ import { getUserSettings } from '@/lib/userSettings';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { computeRouteSummaryStats, getPhaseOverview } from '@/lib/routeDetailSummary';
 import { getSignRunPhase } from '@/lib/signRunPhase';
-import { runStopSettlement, stopPhaseOf } from '@/lib/signRunTransitions';
+import { settleStopAsAdministrator } from '@/lib/administratorRouteActions';
+import { stopPhaseOf } from '@/lib/signRunTransitions';
 import { billedTime } from '@/lib/billedTime';
 import { isStopCompleted, stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
 import { getStopStatusLabel } from '@/lib/stopStatusLabel';
@@ -79,6 +80,7 @@ function RouteDetailContent() {
 
   const [dragOverStopId, setDragOverStopId] = useState<string | null>(null);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
+  const [stopErrors, setStopErrors] = useState<Record<string, string | null>>({});
   const [mapTheme, setMapTheme] = useState<MapTheme>('light');
 
   const { routeDurationMinutes, kilometersTravelled, totalStops, totalSigns } = computeRouteSummaryStats(route, stops);
@@ -106,29 +108,16 @@ function RouteDetailContent() {
     successMessage: 'Invoice counts saved.',
   });
 
-  const handleStopCompleted = useCallback(async (stopId: string) => {
-    const phase = route?.status === 'in_progress' ? stopPhaseOf(route) : null;
+  const settleStop = useCallback(async (stopId: string, action: 'complete' | 'skip') => {
     const stop = stops.find((s) => s.id === stopId);
-    if (!phase || !stop) return;
+    if (!route || !stop) return;
 
     setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-    const result = await runStopSettlement(stop, { phase, action: 'complete' });
-    if (!('error' in result)) {
-      void refetch();
-    }
-    setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [refetch, route, stops]);
-
-  const handleSkipStop = useCallback(async (stopId: string) => {
-    const phase = route?.status === 'in_progress' ? stopPhaseOf(route) : null;
-    const stop = stops.find((s) => s.id === stopId);
-    if (!phase || !stop) return;
-
-    setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-    const result = await runStopSettlement(stop, { phase, action: 'skip' });
-    if (!('error' in result)) {
-      void refetch();
-    }
+    setStopErrors((prev) => ({ ...prev, [stopId]: null }));
+    const result = await settleStopAsAdministrator(route, stop, { action });
+    if (!result.ok) setStopErrors((prev) => ({ ...prev, [stopId]: result.error }));
+    // Refetch once the Stop is saved, even if only its audit entry failed.
+    if (result.ok || result.saved) void refetch();
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
   }, [refetch, route, stops]);
 
@@ -509,27 +498,32 @@ function RouteDetailContent() {
                     );
                   } else if (route?.status === 'in_progress' && isCurrentPhaseStop) {
                     stopActions = !phaseComplete ? (
-                      <div className={styles.execActionRow}>
-                        <Button
-                          size="sm"
-                          onClick={() => { void handleStopCompleted(stop.id); }}
-                          disabled={!!stopExecuting[stop.id]}
-                        >
-                          {stopExecuting[stop.id]
-                            ? 'Saving…'
-                            : route.executionPhase === 'pickup'
-                            ? 'Signs Picked Up'
-                            : 'Signs Placed'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => { void handleSkipStop(stop.id); }}
-                          disabled={!!stopExecuting[stop.id]}
-                        >
-                          Skip Stop
-                        </Button>
-                      </div>
+                      <>
+                        <div className={styles.execActionRow}>
+                          <Button
+                            size="sm"
+                            onClick={() => { void settleStop(stop.id, 'complete'); }}
+                            disabled={!!stopExecuting[stop.id]}
+                          >
+                            {stopExecuting[stop.id]
+                              ? 'Saving…'
+                              : route.executionPhase === 'pickup'
+                              ? 'Signs Picked Up'
+                              : 'Signs Placed'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => { void settleStop(stop.id, 'skip'); }}
+                            disabled={!!stopExecuting[stop.id]}
+                          >
+                            Skip Stop
+                          </Button>
+                        </div>
+                        {stopErrors[stop.id] && (
+                          <div className={styles.errorBanner} role="alert">{stopErrors[stop.id]}</div>
+                        )}
+                      </>
                     ) : (
                       <div className={styles.execDone}>
                         {phaseSkipped ? (

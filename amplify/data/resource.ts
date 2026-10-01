@@ -479,7 +479,7 @@ const schema = a.schema({
       customerId: a.id(), // Optional: associated customer
       operatorId: a.id(), // Optional: user who performed action
       eventType: a.enum(['login', 'logout', 'access_denied', 'data_access', 'data_modification', 'data_deletion']),
-      resourceType: a.enum(['customer', 'route', 'invoice', 'payment', 'operator', 'feature_flag', 'property', 'report']),
+      resourceType: a.enum(['customer', 'route', 'stop', 'invoice', 'payment', 'operator', 'feature_flag', 'property', 'report']),
       resourceId: a.id(),
       action: a.string().required(),
       status: a.enum(['success', 'failure']),

@@ -17,18 +17,16 @@
  * write from another device.
  *
  * Stops are settled done/skipped for Placement/Pickup the same way:
- * planStopSettlement is pure, queueStopSettlement queues it for the operator's
- * Sign Run, and runStopSettlement writes it directly for the administrator.
+ * planStopSettlement is pure, and queueStopSettlement queues it for the
+ * operator's Sign Run. An administrator's settlement and Finalise reuse the
+ * plans but save straight away (lib/administratorRouteActions.ts).
  */
-import { fetchAuthSession } from 'aws-amplify/auth';
 import { getSignRunPhase, type SignRunPhaseInfo } from '@/lib/signRunPhase';
 import { billedTimePatch } from '@/lib/billedTime';
 import { settleStopNotes, type ExecutionPhase } from '@/lib/stopProgress';
 import type { Route, RouteExecutionPhase, Stop } from '@/amplify/types';
-import { updateStopExecution } from '@/lib/routes';
-import { callApi } from '@/lib/apiClient';
 import { signRunOutbox } from '@/lib/signRunOutbox';
-import type { SignRunTimingKind, SignRunTimingRecord, StopSettlementKind } from '@/lib/signRunTiming';
+import type { StopSettlementKind } from '@/lib/signRunTiming';
 
 export type SignRunTransition =
   | { type: 'startLoad'; at: string }
@@ -141,52 +139,6 @@ export function planSignRunTransition(
 }
 
 /**
- * Sign Run phase transitions (Start Placement, Complete Pickup, etc.) have been
- * reported taking 20-30s in the field with no matching AppSync/DynamoDB latency
- * (#266) — the leading theory is a stalled Cognito token refresh happening before
- * the mutation is even sent. Every write times the token check separately from
- * the mutation and reports both to the ops dashboard (#353), so a real
- * occurrence in the field can confirm or rule that out.
- *
- * The timing report is fire-and-forget: it never delays or fails the write, and
- * a report that doesn't send is dropped.
- */
-async function timedWrite<T extends { errors?: unknown[] | null }>(
-  kind: SignRunTimingKind,
-  routeId: string,
-  write: () => Promise<T>
-): Promise<T> {
-  const confirmedAt = performance.now();
-  // A token check that throws still counts all its time as authCheckMs.
-  let mutationStart: number | undefined;
-  let outcome: SignRunTimingRecord['outcome'] = 'failed';
-  try {
-    await fetchAuthSession();
-    mutationStart = performance.now();
-    const result = await write();
-    if (!result.errors?.length) outcome = 'saved';
-    return result;
-  } finally {
-    const finishedAt = performance.now();
-    const authCheckMs = Math.round((mutationStart ?? finishedAt) - confirmedAt);
-    const mutationMs = mutationStart === undefined ? 0 : Math.round(finishedAt - mutationStart);
-    const confirmToSavedMs = Math.round(finishedAt - confirmedAt);
-    console.info(
-      `[sign-run-timing] route=${routeId} authCheckMs=${authCheckMs} mutationMs=${mutationMs} totalMs=${confirmToSavedMs}`
-    );
-    reportTiming({ kind, routeId, authCheckMs, mutationMs, confirmToSavedMs, retries: 0, outcome });
-  }
-}
-
-function reportTiming(record: SignRunTimingRecord) {
-  try {
-    callApi('/api/sign-run-timing', record).catch(() => undefined);
-  } catch {
-    // Dropped, like a failed send.
-  }
-}
-
-/**
  * Applies a transition on the operator's device straight away and queues its
  * write in the Sign Run outbox (#355): the returned route is how the
  * operator's screens now show it, whether or not it has saved yet. A refused
@@ -226,7 +178,7 @@ export function stopPhaseOf(route: Pick<Route, 'status' | 'executionPhase'>): Ex
 export interface StopSettlementPatch {
   actualArrivalTime: string;
   actualDepartureTime: string;
-  notes: Stop['notes'];
+  notes: string;
 }
 
 export interface StopSettlement {
@@ -275,26 +227,5 @@ export function queueStopSettlement(
     kind: settlementKind(settlement),
     patch: { ...patch },
   });
-  return { patch };
-}
-
-/**
- * Writes a stop settlement straight away and returns the patch for the caller
- * to apply — the administrator's Route detail, which waits on the save.
- */
-export async function runStopSettlement(
-  stop: Pick<Stop, 'id' | 'routeId' | 'notes' | 'actualArrivalTime'>,
-  settlement: StopSettlement
-): Promise<{ patch: StopSettlementPatch } | { error: string }> {
-  const patch = planStopSettlement(stop, settlement, new Date().toISOString());
-  const kind = settlementKind(settlement);
-  try {
-    const { errors } = await timedWrite(kind, stop.routeId, () => updateStopExecution(stop.id, patch));
-    if (errors && errors.length > 0) {
-      return { error: 'Could not save that stop. Try again.' };
-    }
-  } catch {
-    return { error: 'Could not save that stop. Try again.' };
-  }
   return { patch };
 }

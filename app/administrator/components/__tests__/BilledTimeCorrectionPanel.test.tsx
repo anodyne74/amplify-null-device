@@ -3,10 +3,10 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Route } from '@/amplify/types';
 import { BilledTimeCorrectionPanel } from '../BilledTimeCorrectionPanel';
-import { correctBilledTime } from '@/lib/administratorFinalise';
+import { correctBilledTime } from '@/lib/administratorRouteActions';
 import { listRouteInvoices } from '@/lib/invoices';
 
-jest.mock('@/lib/administratorFinalise', () => ({ correctBilledTime: jest.fn() }));
+jest.mock('@/lib/administratorRouteActions', () => ({ correctBilledTime: jest.fn() }));
 jest.mock('@/lib/invoices', () => ({ listRouteInvoices: jest.fn() }));
 
 const correct = correctBilledTime as jest.Mock;
@@ -84,7 +84,7 @@ describe('BilledTimeCorrectionPanel', () => {
   });
 
   it('keeps what was entered and shows why when the save fails', async () => {
-    correct.mockResolvedValue({ ok: false, error: 'Could not save the Billed Time. Nothing was changed.' });
+    correct.mockResolvedValue({ ok: false, error: 'Could not save the Billed Time. Nothing was changed.', saved: false });
     const onSaved = jest.fn();
     render(<BilledTimeCorrectionPanel route={LEGACY} onSaved={onSaved} />);
 

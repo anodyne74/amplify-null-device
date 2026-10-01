@@ -16,7 +16,7 @@ import { queueSignRunTransition, queueStopSettlement } from '@/lib/signRunTransi
 import { formatClockTime } from '@/lib/format';
 import { getAgentBadgeInitials } from '@/lib/customerDefaults';
 import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } from '@/lib/routeDetailHelpers';
-import { getDisplayNotes, isStopCompletedForPhase, isStopSkippedForPhase } from '@/lib/stopExecutionMarkers';
+import { displayNotes, stopProgress } from '@/lib/stopProgress';
 import type { Route, Stop } from '@/amplify/types';
 import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
@@ -97,7 +97,7 @@ export default function OperatorPlacementPage() {
     closeDialog();
   };
 
-  const openStops = useMemo(() => stops.filter((stop) => !isStopCompletedForPhase(stop, 'placement')), [stops]);
+  const openStops = useMemo(() => stops.filter((stop) => stopProgress(stop).placement.state === 'pending'), [stops]);
   const currentStop = openStops[0] ?? null;
   const upcomingStops = openStops.slice(1);
   const actionSheetStop = stops.find((stop) => stop.id === actionSheetStopId) ?? null;
@@ -248,7 +248,7 @@ export default function OperatorPlacementPage() {
             stops={stops}
             activeStopId={currentStop?.id}
             upcomingStopIds={upcomingStops.map((stop) => stop.id)}
-            skippedStopIds={stops.filter((stop) => isStopSkippedForPhase(stop, 'placement')).map((stop) => stop.id)}
+            skippedStopIds={stops.filter((stop) => stopProgress(stop).placement.state === 'skipped').map((stop) => stop.id)}
             presentation="field"
           />
           <div className={stopCardStyles.glassCard}>
@@ -273,8 +273,8 @@ export default function OperatorPlacementPage() {
                   <span className={stopCardStyles.chipAgent}>{currentStop.agent?.trim() || 'Unassigned'}</span>
                   {currentStop.isAuction && <span className={stopCardStyles.chipAuction}>Auction</span>}
                 </div>
-                {getDisplayNotes(currentStop.notes) && (
-                  <div className={stopCardStyles.glassNote}>{getDisplayNotes(currentStop.notes)}</div>
+                {displayNotes(currentStop.notes) && (
+                  <div className={stopCardStyles.glassNote}>{displayNotes(currentStop.notes)}</div>
                 )}
               </>
             ) : (

@@ -1,12 +1,12 @@
 import { reconcileSignRun } from './signRunReconciliation';
-import { PICKUP_DONE_MARKER, PICKUP_SKIPPED_MARKER, upsertMarker } from './stopExecutionMarkers';
+import { settleStopNotes } from './stopProgress';
 import type { SignCountStop } from './signRunTotals';
 
 function doneStop(numberOfSigns: number, missingSignsCount = 0): SignCountStop {
   return {
     numberOfSigns,
     missingSignsCount,
-    notes: upsertMarker('', PICKUP_DONE_MARKER, '2026-08-31T10:00:00.000Z'),
+    notes: settleStopNotes('', 'pickup', 'complete', '2026-08-31T10:00:00.000Z'),
   };
 }
 
@@ -14,7 +14,7 @@ function skippedStop(numberOfSigns: number, missingSignsCount = 0): SignCountSto
   return {
     numberOfSigns,
     missingSignsCount,
-    notes: upsertMarker('', PICKUP_SKIPPED_MARKER, '2026-08-31T10:00:00.000Z', 'No access'),
+    notes: settleStopNotes('', 'pickup', 'skip', '2026-08-31T10:00:00.000Z', 'No access'),
   };
 }
 

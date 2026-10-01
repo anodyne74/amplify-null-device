@@ -32,7 +32,7 @@ import {
   type SignRunTransitionRoute,
   type StopSettlement,
 } from '@/lib/signRunTransitions';
-import { PICKUP_DONE_MARKER, PLACEMENT_DONE_MARKER, PLACEMENT_SKIPPED_MARKER } from '@/lib/stopExecutionMarkers';
+import { stopProgress } from '@/lib/stopProgress';
 
 const AT = '2026-09-26T09:00:00.000Z';
 
@@ -229,7 +229,7 @@ describe('planStopSettlement', () => {
 
     expect(patch.actualArrivalTime).toBe(AT);
     expect(patch.actualDepartureTime).toBe(AT);
-    expect(patch.notes).toContain(PLACEMENT_DONE_MARKER);
+    expect(stopProgress(patch).placement.state).toBe('done');
   });
 
   it('keeps an earlier arrival time', () => {
@@ -239,7 +239,7 @@ describe('planStopSettlement', () => {
       AT
     );
     expect(patch.actualArrivalTime).toBe('2026-09-26T08:00:00.000Z');
-    expect(patch.notes).toContain(PICKUP_DONE_MARKER);
+    expect(stopProgress(patch).pickup.state).toBe('done');
   });
 
   it('completing a previously skipped stop clears the skip marker, keeping other notes', () => {
@@ -248,15 +248,15 @@ describe('planStopSettlement', () => {
       { phase: 'placement', action: 'skip', reason: 'Road closed' },
       AT
     );
-    expect(skipped.notes).toContain(PLACEMENT_SKIPPED_MARKER);
+    expect(stopProgress(skipped).placement.state).toBe('skipped');
 
     const completed = planStopSettlement(
       { notes: skipped.notes, actualArrivalTime: skipped.actualArrivalTime },
       { phase: 'placement', action: 'complete' },
       AT
     );
-    expect(completed.notes).toContain(PLACEMENT_DONE_MARKER);
-    expect(completed.notes).not.toContain(PLACEMENT_SKIPPED_MARKER);
+    expect(stopProgress(completed).placement.state).toBe('done');
+    expect(completed.notes).not.toContain('PLACEMENT_SKIPPED');
     expect(completed.notes).toContain('Gate code 1234');
   });
 });
@@ -358,7 +358,7 @@ describe('runStopSettlement', () => {
   it('writes the settlement and returns the patch', async () => {
     const result = await runStopSettlement(stop, { phase: 'pickup', action: 'complete' });
 
-    expect('patch' in result && result.patch.notes).toContain(PICKUP_DONE_MARKER);
+    expect('patch' in result && stopProgress(result.patch).pickup.state).toBe('done');
     expect(mockUpdateStopExecution).toHaveBeenCalledWith('s1', 'patch' in result ? result.patch : undefined);
   });
 

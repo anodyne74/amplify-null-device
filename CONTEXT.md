@@ -56,6 +56,10 @@ _Avoid_: Delivery run, job flow. Also avoid calling the Load phase "signs collec
 One operator action that moves a Route along its Sign Run — start or confirm Load, start or complete Placement, start or complete Pickup, start or confirm Unload, Finalise. Each is only allowed from its own phase; one attempted from any other phase is refused and nothing is written. A transition takes effect for the operator the moment they confirm it, at the time they confirmed; saving it follows, and the operator never waits on the network to carry on. A transition that can't be saved is reported to the operator and undone on their screen. The same holds for settling a Stop done or skipped. Finalise is the one transition an administrator can also make, from the Route's detail page: it's saved straight away rather than after confirming, and it's recorded in the audit log.
 _Avoid_: Status change, phase update
 
+**Stop Progress**:
+How far a Stop has got in each of Placement and Pickup: awaiting, done, or skipped (with a reason), and when. A Stop is finished when its last phase is done or skipped; skipped Stops aren't counted as completed.
+_Avoid_: departed, completed (when you mean finished)
+
 **Signs Placed**:
 The gross count of signs put out on a Route — `sum(Stop.numberOfSigns)`, no exclusions. Answers "how many signs are on this route," independent of what happens afterward.
 _Avoid_: Total signs, sign count

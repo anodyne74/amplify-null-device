@@ -13,7 +13,7 @@
 import type { RouteStatus } from '@/amplify/types';
 import { comparePropertyKeys, parsePropertyKey, propertyKeyLabel, propertyKeyPrefix, streetKeyOf } from '@/lib/propertyKey';
 import { getRouteRunDate } from '@/lib/routeDetailHelpers';
-import { isStopSkippedForPhase } from '@/lib/stopExecutionMarkers';
+import { stopProgress } from '@/lib/stopProgress';
 
 export type PropertyHistorySearch =
   | { level: 'suburb'; suburb: string; postcode?: string }
@@ -318,7 +318,7 @@ export function buildPropertyHistory(input: BuildInput): PropertyHistoryResult {
 
     if (!VISIT_STATUSES.includes(route.status as RouteStatus)) {
       entry.group.scheduled.push(toRow(stop, route, route.status ?? 'planned', input));
-    } else if (isStopSkippedForPhase(stop, 'placement')) {
+    } else if (stopProgress(stop).placement.state === 'skipped') {
       entry.group.visits.push(toRow(stop, route, 'skipped', input));
     } else {
       entry.group.visits.push(toRow(stop, route, route.status as RouteStatus, input));

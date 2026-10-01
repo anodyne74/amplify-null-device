@@ -1,19 +1,19 @@
 import { getStopStatusLabel } from './stopStatusLabel';
-import { upsertMarker, PLACEMENT_DONE_MARKER, PLACEMENT_SKIPPED_MARKER, PICKUP_SKIPPED_MARKER } from './stopExecutionMarkers';
+import { settleStopNotes } from './stopProgress';
 
 describe('getStopStatusLabel — in-progress route, phase-specific branch', () => {
   it('shows a skip reason when one is present', () => {
-    const notes = upsertMarker('', PLACEMENT_SKIPPED_MARKER, '2026-08-31T10:00:00.000Z', 'Gate locked / no access');
+    const notes = settleStopNotes('', 'placement', 'skip', '2026-08-31T10:00:00.000Z', 'Gate locked / no access');
     expect(getStopStatusLabel({ notes }, 'placement', 'in_progress')).toBe('Placement skipped · Gate locked / no access');
   });
 
   it('shows a bare skip label when no reason was recorded', () => {
-    const notes = upsertMarker('', PICKUP_SKIPPED_MARKER, '2026-08-31T10:00:00.000Z');
+    const notes = settleStopNotes('', 'pickup', 'skip', '2026-08-31T10:00:00.000Z');
     expect(getStopStatusLabel({ notes }, 'pickup', 'in_progress')).toBe('Pickup skipped');
   });
 
   it('shows the completed label for the current phase', () => {
-    const notes = upsertMarker('', PLACEMENT_DONE_MARKER, '2026-08-31T10:00:00.000Z');
+    const notes = settleStopNotes('', 'placement', 'complete', '2026-08-31T10:00:00.000Z');
     expect(getStopStatusLabel({ notes }, 'placement', 'in_progress')).toBe('Signs placed');
   });
 

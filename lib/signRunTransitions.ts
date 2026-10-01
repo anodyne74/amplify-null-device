@@ -23,15 +23,7 @@
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { getSignRunPhase, type SignRunPhaseInfo } from '@/lib/signRunPhase';
 import { billedTimePatch } from '@/lib/billedTime';
-import {
-  removeMarker,
-  upsertMarker,
-  PLACEMENT_DONE_MARKER,
-  PLACEMENT_SKIPPED_MARKER,
-  PICKUP_DONE_MARKER,
-  PICKUP_SKIPPED_MARKER,
-  type ExecutionPhase,
-} from '@/lib/stopExecutionMarkers';
+import { settleStopNotes, type ExecutionPhase } from '@/lib/stopProgress';
 import type { Route, RouteExecutionPhase, Stop } from '@/amplify/types';
 import { updateStopExecution } from '@/lib/routes';
 import { callApi } from '@/lib/apiClient';
@@ -244,26 +236,17 @@ export interface StopSettlement {
   reason?: string;
 }
 
-function markersForPhase(phase: ExecutionPhase) {
-  return phase === 'placement'
-    ? { done: PLACEMENT_DONE_MARKER, skipped: PLACEMENT_SKIPPED_MARKER }
-    : { done: PICKUP_DONE_MARKER, skipped: PICKUP_SKIPPED_MARKER };
-}
-
 /**
- * Marks a stop done or skipped for the placement/pickup phase, embedding the
- * marker in Stop.notes (see lib/stopExecutionMarkers.ts) and clearing the
- * opposite one, so a skipped stop can later be completed and vice versa.
+ * Marks a stop done or skipped for the placement/pickup phase (its Stop
+ * Progress, lib/stopProgress.ts), so a skipped stop can later be completed and
+ * vice versa. actualDepartureTime is when it was last settled, a time only.
  */
 export function planStopSettlement(
   stop: Pick<Stop, 'notes' | 'actualArrivalTime'>,
   { phase, action, reason }: StopSettlement,
   at: string
 ): StopSettlementPatch {
-  const { done, skipped } = markersForPhase(phase);
-  const marker = action === 'complete' ? done : skipped;
-  const otherMarker = action === 'complete' ? skipped : done;
-  const notes = removeMarker(upsertMarker(stop.notes, marker, at, reason), otherMarker);
+  const notes = settleStopNotes(stop.notes, phase, action, at, reason);
 
   return {
     actualArrivalTime: stop.actualArrivalTime ?? at,

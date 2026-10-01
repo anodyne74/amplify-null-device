@@ -170,12 +170,45 @@ describe('Operator Finalise page', () => {
     render(<OperatorFinalisePage />);
     await screen.findByText('Finalise route');
 
-    expect(screen.getByText('0.0 km')).toBeInTheDocument();
+    const distance = screen.getByLabelText('Distance (km)');
+    expect(distance).toHaveValue('0.0');
     fireEvent.click(screen.getByRole('button', { name: 'Decrease distance' }));
-    expect(screen.getByText('0.0 km')).toBeInTheDocument();
+    expect(distance).toHaveValue('0.0');
 
     fireEvent.click(screen.getByRole('button', { name: 'Increase distance' }));
-    expect(screen.getByText('0.5 km')).toBeInTheDocument();
+    expect(distance).toHaveValue('0.5');
+  });
+
+  it('completes with a typed distance, rounded to 0.1 km, and steps on from it', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+
+    render(<OperatorFinalisePage />);
+    await screen.findByText('Finalise route');
+
+    const distance = screen.getByLabelText('Distance (km)');
+    fireEvent.change(distance, { target: { value: '37.46' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Increase distance' }));
+    expect(distance).toHaveValue('38.0');
+
+    fireEvent.change(distance, { target: { value: '37.46' } });
+    fireEvent.click(screen.getByRole('button', { name: /round up to 1h 15m/i }));
+    fireEvent.click(screen.getByRole('button', { name: /complete route · 1h 15m/i }));
+
+    expect(queueSignRunTransition).toHaveBeenCalledWith(expect.objectContaining({ id: 'route-1' }), expect.objectContaining({ distanceKm: 37.5 }));
+  });
+
+  it.each(['', 'abc', '-3', '1.2.3'])('blocks completion while the distance is %p', async (typed) => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+
+    render(<OperatorFinalisePage />);
+    await screen.findByText('Finalise route');
+
+    fireEvent.click(screen.getByRole('button', { name: /round up to 1h 15m/i }));
+    fireEvent.change(screen.getByLabelText('Distance (km)'), { target: { value: typed } });
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a distance of 0 km or more.');
+    expect(screen.getByRole('button', { name: /complete route/i })).toBeDisabled();
+    expect(queueSignRunTransition).not.toHaveBeenCalled();
   });
 
   it('completes the route with all billed fields, the override totals, and status completed', async () => {

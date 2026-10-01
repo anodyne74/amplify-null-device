@@ -1,0 +1,117 @@
+const mockRouteUpdate = jest.fn();
+const mockAuditLogCreate = jest.fn();
+
+jest.mock('aws-amplify/data', () => ({
+  generateClient: () => ({
+    models: {
+      Route: { update: mockRouteUpdate },
+      AuditLog: { create: mockAuditLogCreate },
+    },
+  }),
+}));
+
+jest.mock('./amplify-config', () => ({
+  configureAmplify: jest.fn(),
+  fetchUserId: jest.fn().mockResolvedValue('admin-sub'),
+}));
+
+// The outbox isn't used here; keep its localStorage and auth out of the way.
+jest.mock('aws-amplify/auth', () => ({ fetchAuthSession: jest.fn().mockResolvedValue({}) }));
+jest.mock('./apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
+
+import { finaliseRouteAsAdministrator } from './administratorFinalise';
+import type { SignRunTransitionRoute } from './signRunTransitions';
+
+const BILLED = { load: 15, placement: 20, pickup: 10, unload: 30 };
+
+function readyRoute(overrides: Partial<SignRunTransitionRoute & { customerId: string | null }> = {}) {
+  return {
+    id: 'route-1',
+    customerId: 'cust-1',
+    status: 'in_progress',
+    executionPhase: 'unload',
+    unloadConfirmedAt: '2026-08-31T09:10:00.000Z',
+    ...overrides,
+  } as SignRunTransitionRoute & { customerId: string | null };
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+  mockRouteUpdate.mockResolvedValue({ data: { id: 'route-1' }, errors: null });
+  // Like DynamoDB, an explicit null for the customerId index key fails the write.
+  mockAuditLogCreate.mockImplementation(async (input: Record<string, unknown>) =>
+    input.customerId === null ? { data: null, errors: [{ message: 'Type mismatch for Index Key customerId' }] } : { data: input, errors: null }
+  );
+});
+
+describe('finaliseRouteAsAdministrator', () => {
+  it('writes the operator Finalise fields straight away and audits who finalised it', async () => {
+    await expect(finaliseRouteAsAdministrator(readyRoute(), { billedMinutes: BILLED, distanceKm: 37.5 })).resolves.toEqual({ ok: true });
+
+    expect(mockRouteUpdate).toHaveBeenCalledWith({
+      id: 'route-1',
+      billedLoadMinutes: 15,
+      billedPlacementMinutes: 20,
+      billedPickupMinutes: 10,
+      billedUnloadMinutes: 30,
+      overrideDurationMinutes: 75,
+      overrideDistanceKm: 37.5,
+      status: 'completed',
+    });
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerId: 'cust-1',
+        operatorId: 'admin-sub',
+        eventType: 'data_modification',
+        resourceType: 'route',
+        resourceId: 'route-1',
+        action: 'route.finalise',
+        status: 'success',
+        details: JSON.stringify({ billedMinutes: BILLED, distanceKm: 37.5 }),
+      })
+    );
+  });
+
+  it('leaves customerId out of the audit entry when the Route has none', async () => {
+    await expect(finaliseRouteAsAdministrator(readyRoute({ customerId: null }), { billedMinutes: BILLED, distanceKm: 0 })).resolves.toEqual({
+      ok: true,
+    });
+    expect(mockAuditLogCreate.mock.calls[0][0].customerId).toBeUndefined();
+  });
+
+  it('refuses a Route that is not waiting on Finalise, and writes nothing', async () => {
+    const result = await finaliseRouteAsAdministrator(readyRoute({ unloadConfirmedAt: null, executionPhase: 'pickup' }), {
+      billedMinutes: BILLED,
+      distanceKm: 1,
+    });
+
+    expect(result).toEqual({ ok: false, error: 'This route is not currently on the Finalise phase.' });
+    expect(mockRouteUpdate).not.toHaveBeenCalled();
+    expect(mockAuditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses a Route that is already completed', async () => {
+    const result = await finaliseRouteAsAdministrator(readyRoute({ status: 'completed' }), { billedMinutes: BILLED, distanceKm: 1 });
+
+    expect(result).toEqual({ ok: false, error: 'This route is already completed.' });
+    expect(mockRouteUpdate).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed save and writes no audit entry', async () => {
+    mockRouteUpdate.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
+
+    const result = await finaliseRouteAsAdministrator(readyRoute(), { billedMinutes: BILLED, distanceKm: 1 });
+
+    expect(result).toEqual({ ok: false, error: 'Could not finalise the route. Nothing was changed.' });
+    expect(mockAuditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it('says the Route was finalised when only the audit entry fails', async () => {
+    mockAuditLogCreate.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
+
+    const result = await finaliseRouteAsAdministrator(readyRoute(), { billedMinutes: BILLED, distanceKm: 1 });
+
+    expect(result).toEqual({ ok: false, error: 'The route was finalised, but its audit entry could not be written.', finalised: true });
+  });
+});

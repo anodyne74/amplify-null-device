@@ -66,8 +66,13 @@ jest.mock('@/lib/routes', () => ({
   updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));
 
+const mockListRouteInvoices = jest.fn();
+jest.mock('@/lib/invoices', () => ({
+  listRouteInvoices: (...args: unknown[]) => mockListRouteInvoices(...args),
+}));
+
 jest.mock('@/lib/customers', () => ({
-  getCustomer: jest.fn().mockResolvedValue({ id: 'cust-abcd-5678', name: 'Acme Corp' }),
+  getCustomer: jest.fn().mockResolvedValue({ id: 'cust-abcd-5678', name: 'Acme Corp', billingRatePerHour: 30 }),
 }));
 
 const mockRoute: Route = {
@@ -112,7 +117,6 @@ const mockLegacyCompletedRoute: Route = {
   placementEndTime: '2025-04-15T00:00:00.000Z',
   pickupStartTime: '2025-04-15T00:00:00.000Z',
   pickupEndTime: '2025-04-15T00:00:00.000Z',
-  overrideRate: 30,
 };
 
 const mockLegacyCompletedStops: Stop[] = [
@@ -136,6 +140,7 @@ describe('Operator Route Detail Page', () => {
     mockFetched.stops = mockStops;
 
     (deleteStop as jest.Mock).mockResolvedValue(undefined);
+    mockListRouteInvoices.mockResolvedValue([]);
   });
 
   it('renders route information after loading', async () => {
@@ -290,7 +295,7 @@ describe('Operator Route Detail Page', () => {
     // 165 real minutes, not the 15+15=30min floor that identical phase start/end timestamps used to collapse to.
     expect(screen.getAllByText('2h 45m').length).toBeGreaterThan(0);
     expect(screen.queryByText('30 min')).not.toBeInTheDocument();
-    // overrideRate: 30/hr * 165min => $82.50, not the $15 the 30min floor produced.
+    // The Customer's $30/hr * 165min => $82.50, not the $15 the 30min floor produced.
     expect(screen.getByText('$82.50')).toBeInTheDocument();
   });
 
@@ -317,5 +322,30 @@ describe('Operator Route Detail Page', () => {
     });
 
     expect(screen.getByText('7')).toBeInTheDocument();
+  });
+
+  it('lets an administrator correct the Billed Time of a completed Route, warning when it was invoiced', async () => {
+    mockFetched.route = mockLegacyCompletedRoute;
+    mockFetched.stops = mockLegacyCompletedStops;
+    mockListRouteInvoices.mockResolvedValue([{ id: 'inv-1', invoiceNumber: 'ND-INV-128' }]);
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /correct billed time/i })).toBeInTheDocument();
+    });
+    // A Route from before the Sign Run is corrected by its total.
+    expect(screen.getByLabelText('Total charged (minutes)')).toHaveValue('165');
+    expect(await screen.findByText(/Already invoiced on ND-INV-128/)).toBeInTheDocument();
+    expect(mockListRouteInvoices).toHaveBeenCalledWith('route-test-id-1234');
+  });
+
+  it('offers no Billed Time correction before a Route is completed', async () => {
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('100 First St')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('heading', { name: /correct billed time/i })).not.toBeInTheDocument();
   });
 });

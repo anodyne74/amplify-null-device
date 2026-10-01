@@ -102,6 +102,15 @@ export function billedTimePatch(phases: BilledPhaseMinutes, distanceKm: number) 
   };
 }
 
+/** The Route fields that store a total-only Billed Time. Any per-phase fields
+ *  are left as they are; the total wins over them. */
+export function billedTotalPatch(totalMinutes: number, distanceKm: number) {
+  return {
+    overrideDurationMinutes: totalMinutes,
+    overrideDistanceKm: distanceKm,
+  };
+}
+
 // --- Seeding from what was measured ---
 
 /** Raw elapsed minutes between two ISO timestamps. 0 if either is missing. */

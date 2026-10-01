@@ -132,8 +132,6 @@ export async function updateRoute(
     overrideStops: number;
     overrideDistanceKm: number;
     overrideDurationMinutes: number;
-    overrideRate: number;
-    overrideAmount: number;
     notes: string;
     customerInstructions: string;
     customerFeedbackTone: 'good' | 'issue';

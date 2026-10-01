@@ -39,6 +39,7 @@ jest.mock('aws-amplify/data', () => ({
 
 import {
   listCustomerInvoices,
+  listRouteInvoices,
   listInvoices,
   getInvoiceWithLineItems,
   createInvoice,
@@ -66,6 +67,17 @@ describe('invoices', () => {
 
   afterEach(() => {
     consoleErrorSpy.mockRestore();
+  });
+
+  describe('listRouteInvoices', () => {
+    it('fetches the invoices raised for one Route', async () => {
+      mockInvoiceList.mockResolvedValue({ data: [{ id: 'i1', routeId: 'r1', invoiceNumber: 'ND-INV-1' }], errors: undefined });
+
+      const result = await listRouteInvoices('r1');
+
+      expect(mockInvoiceList).toHaveBeenCalledWith({ filter: { routeId: { eq: 'r1' } }, limit: 1000, nextToken: undefined });
+      expect(result).toHaveLength(1);
+    });
   });
 
   describe('listCustomerInvoices', () => {

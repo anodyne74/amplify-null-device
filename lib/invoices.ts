@@ -24,6 +24,15 @@ export async function listCustomerInvoices(customerId: string) {
 }
 
 /**
+ * Fetch the invoices raised for one Route (admin Route detail — already-invoiced warning).
+ */
+export async function listRouteInvoices(routeId: string) {
+  return withDataError('Failed to load invoices.', async () =>
+    resultData(await listAll(getDataClient(), 'Invoice', { filter: { routeId: { eq: routeId } } })) ?? []
+  );
+}
+
+/**
  * Fetch all invoices for administrators/operators.
  */
 export async function listInvoices(options?: { status?: 'draft' | 'sent' | 'paid' }) {

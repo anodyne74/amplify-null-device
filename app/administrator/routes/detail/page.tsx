@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAuthenticator } from '@aws-amplify/ui-react';
@@ -13,6 +13,7 @@ import StopCard from '@/app/administrator/components/StopCard';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
 import { RouteRequestsCard } from '@/app/administrator/components/RouteRequestsCard';
 import { AdministratorFinalisePanel } from '@/app/administrator/components/AdministratorFinalisePanel';
+import { BilledTimeCorrectionPanel } from '@/app/administrator/components/BilledTimeCorrectionPanel';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
@@ -38,7 +39,6 @@ import {
   type ExecutionPhase,
 } from '@/lib/stopExecutionMarkers';
 import { getStopStatusLabel } from '@/lib/stopStatusLabel';
-import type { Route } from '@/amplify/types';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
 
@@ -50,92 +50,9 @@ const RouteStopsMap = dynamic(
   }
 );
 
-const DEFAULT_SIGNS_COLLECTED_MINUTES = 15;
-const DEFAULT_SIGNS_RETURNED_MINUTES = 15;
-
-function phaseMinutes(start?: string | null, end?: string | null) {
-  if (!start || !end) return null;
-  // Legacy-imported routes stamp every phase timestamp with the same single
-  // known date (no granular start/end was recorded), not a genuine 0-minute
-  // phase — treat that as unknown so it doesn't zero out a real duration.
-  if (start === end) return null;
-  return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000));
-}
-
-function deriveDurationBuckets(route: Route | null, durationTotalMinutes: number) {
-  const signsCollectedMinutes = DEFAULT_SIGNS_COLLECTED_MINUTES;
-  const signsReturnedMinutes = DEFAULT_SIGNS_RETURNED_MINUTES;
-  const distributable = Math.max(0, durationTotalMinutes - signsCollectedMinutes - signsReturnedMinutes);
-
-  const signsPlacedFromRoute = phaseMinutes(route?.placementStartTime, route?.placementEndTime);
-  const signsPickedUpFromRoute = phaseMinutes(route?.pickupStartTime, route?.pickupEndTime);
-
-  let signsPlacedMinutes: number;
-  let signsPickedUpMinutes: number;
-
-  if (signsPlacedFromRoute !== null || signsPickedUpFromRoute !== null) {
-    signsPlacedMinutes = signsPlacedFromRoute ?? Math.max(0, distributable - (signsPickedUpFromRoute ?? 0));
-    signsPickedUpMinutes = signsPickedUpFromRoute ?? Math.max(0, distributable - signsPlacedMinutes);
-  } else {
-    signsPlacedMinutes = Math.ceil(distributable / 2);
-    signsPickedUpMinutes = Math.max(0, distributable - signsPlacedMinutes);
-  }
-
-  return {
-    signsCollectedMinutes,
-    signsPlacedMinutes,
-    signsPickedUpMinutes,
-    signsReturnedMinutes,
-  };
-}
-
-function getDurationTotalMinutes(values: {
-  signsCollectedMinutes: number;
-  signsPlacedMinutes: number;
-  signsPickedUpMinutes: number;
-  signsReturnedMinutes: number;
-}) {
-  return (
-    Math.max(0, values.signsCollectedMinutes) +
-    Math.max(0, values.signsPlacedMinutes) +
-    Math.max(0, values.signsPickedUpMinutes) +
-    Math.max(0, values.signsReturnedMinutes)
-  );
-}
-
-interface BillingOverrideValues {
+interface InvoiceCountValues {
   signs: number;
   stops: number;
-  distanceKm: number;
-  signsCollectedMinutes: number;
-  signsPlacedMinutes: number;
-  signsPickedUpMinutes: number;
-  signsReturnedMinutes: number;
-  ratePerHour: number;
-  amount: number;
-}
-
-// Every Invoice Values field routes through here — the duration/rate fields
-// recompute `amount` off the shared formula; signs/stops/distance/amount
-// itself are just recorded as typed, matching the pre-extraction behavior.
-const RECOMPUTE_AMOUNT_FIELDS: ReadonlySet<keyof BillingOverrideValues> = new Set([
-  'signsCollectedMinutes',
-  'signsPlacedMinutes',
-  'signsPickedUpMinutes',
-  'signsReturnedMinutes',
-  'ratePerHour',
-]);
-
-function updateBillingFieldValue(
-  current: BillingOverrideValues,
-  key: keyof BillingOverrideValues,
-  rawValue: string
-): BillingOverrideValues {
-  const next = { ...current, [key]: Number(rawValue) };
-  if (!RECOMPUTE_AMOUNT_FIELDS.has(key)) return next;
-
-  const amount = Number(((getDurationTotalMinutes(next) / 60) * next.ratePerHour).toFixed(2));
-  return { ...next, amount };
 }
 
 function RouteDetailContent() {
@@ -171,56 +88,27 @@ function RouteDetailContent() {
 
   const { routeDurationMinutes, kilometersTravelled, totalStops, totalSigns } = computeRouteSummaryStats(route, stops);
   const billed = billedTime(route ?? {});
-  const billingDefaults = useMemo(() => {
-    const durationMinutes = route?.overrideDurationMinutes ?? routeDurationMinutes ?? 0;
-    const durationBuckets = deriveDurationBuckets(route, durationMinutes);
-    const totalDurationMinutes = getDurationTotalMinutes(durationBuckets);
-    const ratePerHour = route?.overrideRate ?? customerRatePerHour;
-    const amount =
-      route?.overrideAmount ??
-      (ratePerHour !== null
-        ? Number(((totalDurationMinutes / 60) * ratePerHour).toFixed(2))
-        : 0);
-
-    return {
-      signs: route?.overrideSigns ?? totalSigns,
-      stops: route?.overrideStops ?? totalStops,
-      distanceKm: route?.overrideDistanceKm ?? kilometersTravelled,
-      ...durationBuckets,
-      durationMinutes: totalDurationMinutes,
-      ratePerHour: ratePerHour ?? 0,
-      amount,
-    };
-  }, [
-    customerRatePerHour,
-    kilometersTravelled,
-    route,
-    routeDurationMinutes,
-    totalSigns,
-    totalStops,
-  ]);
+  const invoiceCounts: InvoiceCountValues = {
+    signs: route?.overrideSigns ?? totalSigns,
+    stops: route?.overrideStops ?? totalStops,
+  };
+  const amount =
+    billed.totalMinutes !== null && customerRatePerHour !== null ? (billed.totalMinutes / 60) * customerRatePerHour : null;
 
   const {
-    values: billingOverrides,
-    setValues: setBillingOverrides,
-    saving: savingBillingOverrides,
-    error: billingOverrideError,
-    success: billingOverrideSuccess,
-    save: saveBillingOverrides,
-  } = useRouteOverride<BillingOverrideValues>({
+    values: invoiceCountOverrides,
+    setValues: setInvoiceCountOverrides,
+    saving: savingInvoiceCounts,
+    error: invoiceCountError,
+    success: invoiceCountSuccess,
+    save: saveInvoiceCounts,
+  } = useRouteOverride<InvoiceCountValues>({
     route,
     refetchRoute: refetch,
-    computeDefaults: () => billingDefaults,
-    buildPayload: (values) => ({
-      overrideSigns: values.signs,
-      overrideStops: values.stops,
-      overrideDistanceKm: values.distanceKm,
-      overrideDurationMinutes: getDurationTotalMinutes(values),
-      overrideRate: values.ratePerHour,
-      overrideAmount: values.amount,
-    }),
-    errorMessage: 'Failed to save invoice values.',
-    successMessage: 'Invoice values saved.',
+    computeDefaults: () => invoiceCounts,
+    buildPayload: (values) => ({ overrideSigns: values.signs, overrideStops: values.stops }),
+    errorMessage: 'Failed to save the invoice counts.',
+    successMessage: 'Invoice counts saved.',
   });
 
   const handleStopCompleted = useCallback(async (stopId: string) => {
@@ -407,35 +295,42 @@ function RouteDetailContent() {
                   </div>
                   <div className="nd-stat">
                     <span className="nd-stat__label">Stops</span>
-                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{billingDefaults.stops}</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{invoiceCounts.stops}</span>
                   </div>
                   <div className="nd-stat">
                     <span className="nd-stat__label">Total Number of Signs</span>
-                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{billingDefaults.signs}</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{invoiceCounts.signs}</span>
                   </div>
                   <div className="nd-stat">
                     <span className="nd-stat__label">Customer Rate</span>
                     <span className="nd-stat__value" style={{ fontSize: 16 }}>
-                      {billingDefaults.ratePerHour === 0 ? '—' : formatCurrency(billingDefaults.ratePerHour)} / hr
+                      {customerRatePerHour === null ? '—' : formatCurrency(customerRatePerHour)} / hr
                     </span>
                   </div>
                   <div className="nd-stat">
                     <span className="nd-stat__label">Amount</span>
-                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{formatCurrency(billingDefaults.amount)}</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{amount === null ? '—' : formatCurrency(amount)}</span>
                   </div>
                 </div>
 
+                {canManagePlanning && (route.status === 'completed' || route.status === 'archived') && (
+                  <div className={styles.billingSection}>
+                    <h4 className={styles.billingHeading}>Correct Billed Time</h4>
+                    <BilledTimeCorrectionPanel key={route.id} route={route} onSaved={refetch} />
+                  </div>
+                )}
+
                 {canManagePlanning && (
                   <div className={styles.billingSection}>
-                    <h4 className={styles.billingHeading}>Invoice Values</h4>
+                    <h4 className={styles.billingHeading}>Signs and Stops Invoiced</h4>
                     <div className={styles.billingGrid}>
                       <Field label="Signs">
                         <Input
                           type="number"
                           min="0"
-                          value={billingOverrides.signs}
+                          value={invoiceCountOverrides.signs}
                           onChange={(event) =>
-                            setBillingOverrides((current) => updateBillingFieldValue(current, 'signs', event.target.value))
+                            setInvoiceCountOverrides((current) => ({ ...current, signs: Number(event.target.value) }))
                           }
                         />
                       </Field>
@@ -443,90 +338,9 @@ function RouteDetailContent() {
                         <Input
                           type="number"
                           min="0"
-                          value={billingOverrides.stops}
+                          value={invoiceCountOverrides.stops}
                           onChange={(event) =>
-                            setBillingOverrides((current) => updateBillingFieldValue(current, 'stops', event.target.value))
-                          }
-                        />
-                      </Field>
-                      <Field label="Distance (km)">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={billingOverrides.distanceKm}
-                          onChange={(event) =>
-                            setBillingOverrides((current) => updateBillingFieldValue(current, 'distanceKm', event.target.value))
-                          }
-                        />
-                      </Field>
-                      <Field label="Signs Collected (minutes)">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={billingOverrides.signsCollectedMinutes}
-                          onChange={(event) =>
-                            setBillingOverrides((current) => updateBillingFieldValue(current, 'signsCollectedMinutes', event.target.value))
-                          }
-                        />
-                      </Field>
-                      <Field label="Signs Placed (minutes)">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={billingOverrides.signsPlacedMinutes}
-                          onChange={(event) =>
-                            setBillingOverrides((current) => updateBillingFieldValue(current, 'signsPlacedMinutes', event.target.value))
-                          }
-                        />
-                      </Field>
-                      <Field label="Signs Picked Up (minutes)">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={billingOverrides.signsPickedUpMinutes}
-                          onChange={(event) =>
-                            setBillingOverrides((current) => updateBillingFieldValue(current, 'signsPickedUpMinutes', event.target.value))
-                          }
-                        />
-                      </Field>
-                      <Field label="Signs Returned (minutes)">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={billingOverrides.signsReturnedMinutes}
-                          onChange={(event) =>
-                            setBillingOverrides((current) => updateBillingFieldValue(current, 'signsReturnedMinutes', event.target.value))
-                          }
-                        />
-                      </Field>
-                      <Field label="Total Duration (minutes)">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={getDurationTotalMinutes(billingOverrides)}
-                          readOnly
-                        />
-                      </Field>
-                      <Field label="Rate per Hour">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={billingOverrides.ratePerHour}
-                          onChange={(event) =>
-                            setBillingOverrides((current) => updateBillingFieldValue(current, 'ratePerHour', event.target.value))
-                          }
-                        />
-                      </Field>
-                      <Field label="Amount">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={billingOverrides.amount}
-                          onChange={(event) =>
-                            setBillingOverrides((current) => updateBillingFieldValue(current, 'amount', event.target.value))
+                            setInvoiceCountOverrides((current) => ({ ...current, stops: Number(event.target.value) }))
                           }
                         />
                       </Field>
@@ -535,18 +349,15 @@ function RouteDetailContent() {
                     <div className={styles.billingActions}>
                       <Button
                         type="button"
-                        loading={savingBillingOverrides}
-                        disabled={savingBillingOverrides}
-                        onClick={() => { void saveBillingOverrides(); }}
+                        loading={savingInvoiceCounts}
+                        disabled={savingInvoiceCounts}
+                        onClick={() => { void saveInvoiceCounts(); }}
                       >
-                        {savingBillingOverrides ? 'Saving…' : 'Save Invoice Values'}
+                        {savingInvoiceCounts ? 'Saving…' : 'Save Signs and Stops'}
                       </Button>
-                      <div className={styles.billingMeta}>
-                        Default amount from duration and rate: {formatCurrency(billingDefaults.amount)}
-                      </div>
                     </div>
-                    {billingOverrideError && <div className={styles.errorBanner}>{billingOverrideError}</div>}
-                    {billingOverrideSuccess && <div className={styles.successText}>{billingOverrideSuccess}</div>}
+                    {invoiceCountError && <div className={styles.errorBanner}>{invoiceCountError}</div>}
+                    {invoiceCountSuccess && <div className={styles.successText}>{invoiceCountSuccess}</div>}
                   </div>
                 )}
               </div>

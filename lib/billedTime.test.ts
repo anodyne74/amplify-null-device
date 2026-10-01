@@ -3,6 +3,7 @@ import {
   adjustBilledMinutes,
   billedTime,
   billedTimePatch,
+  billedTotalPatch,
   defaultBilledMinutes,
   isBillableTotal,
   measuredPhaseMinutes,
@@ -71,6 +72,14 @@ describe('billedTimePatch', () => {
     const patch = billedTimePatch(PHASES, 37.5);
     expect(patch).toEqual({ ...BILLED, overrideDurationMinutes: 100, overrideDistanceKm: 37.5 });
     expect(billedTime(patch).phases).toEqual(PHASES);
+  });
+});
+
+describe('billedTotalPatch', () => {
+  it('writes the total and the distance, and leaves the phases to read as total-only', () => {
+    const patch = billedTotalPatch(120, 20);
+    expect(patch).toEqual({ overrideDurationMinutes: 120, overrideDistanceKm: 20 });
+    expect(billedTime({ ...BILLED, ...patch })).toEqual({ phases: null, totalMinutes: 120, distanceKm: 20 });
   });
 });
 

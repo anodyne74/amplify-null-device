@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { Route } from '@/amplify/types';
 import { Button } from '@/app/components/ui/core/Button';
 import { FinaliseAdjusters } from '@/app/components/FinaliseAdjusters';
-import { finaliseRouteAsAdministrator } from '@/lib/administratorFinalise';
+import { finaliseRouteAsAdministrator } from '@/lib/administratorRouteActions';
 import { formatDuration } from '@/lib/format';
 import { useFinaliseAdjusters } from '@/lib/useFinaliseAdjusters';
 import styles from './AdministratorFinalisePanel.module.css';
@@ -28,7 +28,7 @@ export function AdministratorFinalisePanel({ route, onFinalised }: { route: Rout
     setSaving(false);
     if (!result.ok) setError(result.error);
     // Refetch once the Route is completed, even if only its audit entry failed.
-    if (result.ok || result.finalised) await onFinalised();
+    if (result.ok || result.saved) await onFinalised();
   };
 
   return (

@@ -1,10 +1,12 @@
 const mockRouteUpdate = jest.fn();
+const mockStopUpdate = jest.fn();
 const mockAuditLogCreate = jest.fn();
 
 jest.mock('aws-amplify/data', () => ({
   generateClient: () => ({
     models: {
       Route: { update: mockRouteUpdate },
+      Stop: { update: mockStopUpdate },
       AuditLog: { create: mockAuditLogCreate },
     },
   }),
@@ -19,7 +21,8 @@ jest.mock('./amplify-config', () => ({
 jest.mock('aws-amplify/auth', () => ({ fetchAuthSession: jest.fn().mockResolvedValue({}) }));
 jest.mock('./apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
 
-import { correctBilledTime, finaliseRouteAsAdministrator } from './administratorFinalise';
+import { correctBilledTime, finaliseRouteAsAdministrator, settleStopAsAdministrator } from './administratorRouteActions';
+import { stopProgress } from './stopProgress';
 import type { SignRunTransitionRoute } from './signRunTransitions';
 
 const BILLED = { load: 15, placement: 20, pickup: 10, unload: 30 };
@@ -39,6 +42,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   jest.spyOn(console, 'error').mockImplementation(() => {});
   mockRouteUpdate.mockResolvedValue({ data: { id: 'route-1' }, errors: null });
+  mockStopUpdate.mockResolvedValue({ data: { id: 'stop-1' }, errors: null });
   // Like DynamoDB, an explicit null for the customerId index key fails the write.
   mockAuditLogCreate.mockImplementation(async (input: Record<string, unknown>) =>
     input.customerId === null ? { data: null, errors: [{ message: 'Type mismatch for Index Key customerId' }] } : { data: input, errors: null }
@@ -86,7 +90,7 @@ describe('finaliseRouteAsAdministrator', () => {
       distanceKm: 1,
     });
 
-    expect(result).toEqual({ ok: false, error: 'This route is not currently on the Finalise phase.' });
+    expect(result).toEqual({ ok: false, error: 'This route is not currently on the Finalise phase.', saved: false });
     expect(mockRouteUpdate).not.toHaveBeenCalled();
     expect(mockAuditLogCreate).not.toHaveBeenCalled();
   });
@@ -94,7 +98,7 @@ describe('finaliseRouteAsAdministrator', () => {
   it('refuses a Route that is already completed', async () => {
     const result = await finaliseRouteAsAdministrator(readyRoute({ status: 'completed' }), { billedMinutes: BILLED, distanceKm: 1 });
 
-    expect(result).toEqual({ ok: false, error: 'This route is already completed.' });
+    expect(result).toEqual({ ok: false, error: 'This route is already completed.', saved: false });
     expect(mockRouteUpdate).not.toHaveBeenCalled();
   });
 
@@ -103,7 +107,7 @@ describe('finaliseRouteAsAdministrator', () => {
 
     const result = await finaliseRouteAsAdministrator(readyRoute(), { billedMinutes: BILLED, distanceKm: 1 });
 
-    expect(result).toEqual({ ok: false, error: 'Could not finalise the route. Nothing was changed.' });
+    expect(result).toEqual({ ok: false, error: 'Could not finalise the route. Nothing was changed.', saved: false });
     expect(mockAuditLogCreate).not.toHaveBeenCalled();
   });
 
@@ -112,7 +116,7 @@ describe('finaliseRouteAsAdministrator', () => {
 
     const result = await finaliseRouteAsAdministrator(readyRoute(), { billedMinutes: BILLED, distanceKm: 1 });
 
-    expect(result).toEqual({ ok: false, error: 'The route was finalised, but its audit entry could not be written.', finalised: true });
+    expect(result).toEqual({ ok: false, error: 'The route was finalised, but its audit entry could not be written.', saved: true });
   });
 });
 
@@ -174,7 +178,7 @@ describe('correctBilledTime', () => {
   it('refuses a Route that is not completed yet, and writes nothing', async () => {
     const result = await correctBilledTime({ ...completed, status: 'in_progress' }, { totalMinutes: 90, distanceKm: 1 });
 
-    expect(result).toEqual({ ok: false, error: 'Billed Time can only be corrected once the route is completed.' });
+    expect(result).toEqual({ ok: false, error: 'Billed Time can only be corrected once the route is completed.', saved: false });
     expect(mockRouteUpdate).not.toHaveBeenCalled();
     expect(mockAuditLogCreate).not.toHaveBeenCalled();
   });
@@ -182,7 +186,7 @@ describe('correctBilledTime', () => {
   it.each([0, 95])('refuses a total of %p min', async (totalMinutes) => {
     const result = await correctBilledTime(completed, { totalMinutes, distanceKm: 1 });
 
-    expect(result).toEqual({ ok: false, error: 'The total charged must land on a 15 min increment.' });
+    expect(result).toEqual({ ok: false, error: 'The total charged must land on a 15 min increment.', saved: false });
     expect(mockRouteUpdate).not.toHaveBeenCalled();
   });
 
@@ -191,7 +195,7 @@ describe('correctBilledTime', () => {
 
     const result = await correctBilledTime(completed, { totalMinutes: 90, distanceKm: 1 });
 
-    expect(result).toEqual({ ok: false, error: 'Could not save the Billed Time. Nothing was changed.' });
+    expect(result).toEqual({ ok: false, error: 'Could not save the Billed Time. Nothing was changed.', saved: false });
     expect(mockAuditLogCreate).not.toHaveBeenCalled();
   });
 
@@ -201,5 +205,72 @@ describe('correctBilledTime', () => {
     const result = await correctBilledTime(completed, { totalMinutes: 90, distanceKm: 1 });
 
     expect(result).toEqual({ ok: false, error: 'The Billed Time was saved, but its audit entry could not be written.', saved: true });
+  });
+});
+
+describe('settleStopAsAdministrator', () => {
+  const pickupRoute = { status: 'in_progress' as const, executionPhase: 'pickup' as const };
+  const stop = {
+    id: 'stop-1',
+    routeId: 'route-1',
+    customerId: 'cust-1',
+    notes: 'Gate code 4821',
+    actualArrivalTime: null,
+    serviceType: 'delivery' as const,
+  };
+
+  it("settles the Stop for the Route's phase straight away, and audits it", async () => {
+    await expect(settleStopAsAdministrator(pickupRoute, stop, { action: 'skip', reason: 'No access' })).resolves.toEqual({ ok: true });
+
+    const written = mockStopUpdate.mock.calls[0][0];
+    expect(written.id).toBe('stop-1');
+    expect(stopProgress(written).pickup).toMatchObject({ state: 'skipped', reason: 'No access' });
+    expect(written.notes).toContain('Gate code 4821');
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerId: 'cust-1',
+        operatorId: 'admin-sub',
+        resourceType: 'stop',
+        resourceId: 'stop-1',
+        action: 'stop.settle',
+        details: JSON.stringify({ routeId: 'route-1', phase: 'pickup', action: 'skip', reason: 'No access' }),
+      })
+    );
+  });
+
+  it('refuses a Route that is not on Placement or Pickup, and writes nothing', async () => {
+    const result = await settleStopAsAdministrator({ status: 'in_progress', executionPhase: 'unload' }, stop, { action: 'complete' });
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Stops can only be settled while the route is on Placement or Pickup.',
+      saved: false,
+    });
+    expect(mockStopUpdate).not.toHaveBeenCalled();
+    expect(mockAuditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Stop that isn't visited in the phase", async () => {
+    const result = await settleStopAsAdministrator(pickupRoute, { ...stop, serviceType: 'inspection' }, { action: 'complete' });
+
+    expect(result).toEqual({ ok: false, error: "This stop isn't visited during Pickup.", saved: false });
+    expect(mockStopUpdate).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed save and writes no audit entry', async () => {
+    mockStopUpdate.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
+
+    const result = await settleStopAsAdministrator(pickupRoute, stop, { action: 'complete' });
+
+    expect(result).toEqual({ ok: false, error: 'Could not save that stop. Nothing was changed.', saved: false });
+    expect(mockAuditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it('says the Stop was saved when only the audit entry fails', async () => {
+    mockAuditLogCreate.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
+
+    const result = await settleStopAsAdministrator(pickupRoute, stop, { action: 'complete' });
+
+    expect(result).toEqual({ ok: false, error: 'The stop was saved, but its audit entry could not be written.', saved: true });
   });
 });

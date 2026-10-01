@@ -3,9 +3,9 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Route } from '@/amplify/types';
 import { AdministratorFinalisePanel } from '../AdministratorFinalisePanel';
-import { finaliseRouteAsAdministrator } from '@/lib/administratorFinalise';
+import { finaliseRouteAsAdministrator } from '@/lib/administratorRouteActions';
 
-jest.mock('@/lib/administratorFinalise', () => ({ finaliseRouteAsAdministrator: jest.fn() }));
+jest.mock('@/lib/administratorRouteActions', () => ({ finaliseRouteAsAdministrator: jest.fn() }));
 
 const finalise = finaliseRouteAsAdministrator as jest.Mock;
 
@@ -48,7 +48,7 @@ describe('AdministratorFinalisePanel', () => {
   });
 
   it('keeps the panel and what was entered when the save fails', async () => {
-    finalise.mockResolvedValue({ ok: false, error: 'Could not finalise the route. Nothing was changed.' });
+    finalise.mockResolvedValue({ ok: false, error: 'Could not finalise the route. Nothing was changed.', saved: false });
     const { onFinalised } = renderPanel();
 
     fireEvent.click(screen.getByRole('button', { name: 'Finalise route · 1h 15m' }));
@@ -59,7 +59,7 @@ describe('AdministratorFinalisePanel', () => {
   });
 
   it('refreshes the Route but shows the error when only the audit entry fails', async () => {
-    finalise.mockResolvedValue({ ok: false, error: 'The route was finalised, but its audit entry could not be written.', finalised: true });
+    finalise.mockResolvedValue({ ok: false, error: 'The route was finalised, but its audit entry could not be written.', saved: true });
     const { onFinalised } = renderPanel();
 
     fireEvent.click(screen.getByRole('button', { name: 'Finalise route · 1h 15m' }));

@@ -32,12 +32,7 @@ import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/l
 import { getSignRunPhase } from '@/lib/signRunPhase';
 import { runStopSettlement, stopPhaseOf } from '@/lib/signRunTransitions';
 import { billedTime } from '@/lib/billedTime';
-import {
-  getPhaseCompletionTime,
-  isStopCompletedForPhase,
-  isStopSkippedForPhase,
-  type ExecutionPhase,
-} from '@/lib/stopExecutionMarkers';
+import { stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
 import { getStopStatusLabel } from '@/lib/stopStatusLabel';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
@@ -163,11 +158,11 @@ function RouteDetailContent() {
   const stopPhase = route ? stopPhaseOf(route) : null;
   const visibleStops = (() => {
     if (stopPhase === 'placement') {
-      return placementPhaseStops.filter((stop) => !isStopCompletedForPhase(stop, 'placement'));
+      return placementPhaseStops.filter((stop) => stopProgress(stop).placement.state === 'pending');
     }
 
     if (stopPhase === 'pickup') {
-      return pickupPhaseStops.filter((stop) => !isStopCompletedForPhase(stop, 'pickup'));
+      return pickupPhaseStops.filter((stop) => stopProgress(stop).pickup.state === 'pending');
     }
 
     return stops;
@@ -461,9 +456,10 @@ function RouteDetailContent() {
                   const isTopVisibleStop = stop.id === topVisibleStopId;
                   const isCurrentPhaseStop = currentPhaseStopIds.has(stop.id);
                   const completedStop = isStopCompleted(stop);
-                  const phaseComplete = isStopCompletedForPhase(stop, currentExecutionPhase);
-                  const phaseSkipped = isStopSkippedForPhase(stop, currentExecutionPhase);
-                  const phaseCompletedAt = getPhaseCompletionTime(stop, currentExecutionPhase) ?? stop.actualDepartureTime;
+                  const phaseProgress = stopProgress(stop)[currentExecutionPhase];
+                  const phaseComplete = phaseProgress.state !== 'pending';
+                  const phaseSkipped = phaseProgress.state === 'skipped';
+                  const phaseCompletedAt = phaseProgress.at ?? stop.actualDepartureTime;
                   const agentName = stop.agent?.trim() || 'Unassigned';
 
                   let stopActions: React.ReactNode = null;

@@ -4,7 +4,7 @@
  * many signs" a Route has, so every portal reports the same number for the same
  * question instead of each screen re-deriving its own variant.
  */
-import { isStopCompletedForPhase, isStopSkippedForPhase } from './stopExecutionMarkers';
+import { stopProgress } from './stopProgress';
 
 export interface SignCountStop {
   notes?: string | null;
@@ -26,7 +26,7 @@ export function signsPlaced(stops: SignCountStop[]): number {
  * comment. A route with stops still in progress reports a partial, growing total. */
 export function signsCollected(stops: SignCountStop[]): number {
   return stops.reduce((sum, stop) => {
-    if (!isStopCompletedForPhase(stop, 'pickup') || isStopSkippedForPhase(stop, 'pickup')) {
+    if (stopProgress(stop).pickup.state !== 'done') {
       return sum;
     }
     return sum + Math.max(0, (stop.numberOfSigns ?? 0) - (stop.missingSignsCount ?? 0));

@@ -1,19 +1,12 @@
 /**
- * Human-readable status text for a Stop, derived from the marker facts in
- * lib/stopExecutionMarkers.ts — same split as lib/routeStatusHelpers.ts
+ * Human-readable status text for a Stop, derived from its Stop Progress in
+ * lib/stopProgress.ts — same split as lib/routeStatusHelpers.ts
  * (display) wrapping lib/signRunPhase.ts (facts). The single source of truth
  * for this copy so a wording fix (e.g. "Load signs" for planned routes, or a
  * skip reason suffix) lands once for every portal instead of being ported by
  * hand from one page's copy to another's.
  */
-import {
-  getMarkerReason,
-  isStopCompletedForPhase,
-  isStopSkippedForPhase,
-  PICKUP_SKIPPED_MARKER,
-  PLACEMENT_SKIPPED_MARKER,
-  type ExecutionPhase,
-} from './stopExecutionMarkers';
+import { stopProgress, type ExecutionPhase } from './stopProgress';
 
 export interface StatusLabelStop {
   notes?: string | null;
@@ -32,13 +25,12 @@ export function getStopStatusLabel(
   // done, same convention as the route-level phase overview; the
   // placement/pickup phase split only applies to routes still in progress.
   if (executionPhase && routeStatus !== 'completed' && routeStatus !== 'archived') {
-    if (isStopSkippedForPhase(stop, executionPhase)) {
-      const marker = executionPhase === 'pickup' ? PICKUP_SKIPPED_MARKER : PLACEMENT_SKIPPED_MARKER;
-      const reason = getMarkerReason(stop.notes, marker);
+    const { state, reason } = stopProgress(stop)[executionPhase];
+    if (state === 'skipped') {
       const base = executionPhase === 'pickup' ? 'Pickup skipped' : 'Placement skipped';
       return reason ? `${base} · ${reason}` : base;
     }
-    if (isStopCompletedForPhase(stop, executionPhase)) {
+    if (state === 'done') {
       return executionPhase === 'pickup' ? 'Signs collected' : 'Signs placed';
     }
     // The route hasn't started yet, so there's nothing to be "awaiting" —
@@ -49,7 +41,6 @@ export function getStopStatusLabel(
     return executionPhase === 'pickup' ? 'Awaiting pickup' : 'Awaiting placement';
   }
 
-  if (stop.notes?.startsWith('[SKIPPED]')) return 'Signs skipped';
   if (stop.actualDepartureTime) {
     return stop.serviceType === 'pickup' ? 'Signs collected' : 'Signs placed';
   }

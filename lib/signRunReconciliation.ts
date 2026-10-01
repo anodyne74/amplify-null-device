@@ -1,11 +1,11 @@
 /**
- * Reconciles what came back against what went out — Pickup's PICKUP_DONE/
- * PICKUP_SKIPPED markers and missingSignsCount (lib/stopExecutionMarkers.ts, set by
+ * Reconciles what came back against what went out — each Stop's Pickup progress
+ * (lib/stopProgress.ts) and missingSignsCount (set by
  * app/operator/routes/pickup/page.tsx) against Load's loadedSignsCount. Shared by
  * Unload and Finalise, which both reconcile the same Route the same way; Finalise
  * only displays a subset of the fields this returns.
  */
-import { isStopCompletedForPhase, isStopSkippedForPhase } from './stopExecutionMarkers';
+import { stopProgress } from './stopProgress';
 import { signsCollected, missingSigns, type SignCountStop } from './signRunTotals';
 
 export interface ReconciliationRoute {
@@ -26,9 +26,10 @@ export function reconcileSignRun(route: ReconciliationRoute, stops: SignCountSto
   let skipCount = 0;
 
   for (const stop of stops) {
-    if (isStopSkippedForPhase(stop, 'pickup')) {
+    const { state } = stopProgress(stop).pickup;
+    if (state === 'skipped') {
       skipCount += 1;
-    } else if (isStopCompletedForPhase(stop, 'pickup')) {
+    } else if (state === 'done') {
       doneCount += 1;
     }
   }

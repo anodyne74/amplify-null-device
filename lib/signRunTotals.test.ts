@@ -1,11 +1,11 @@
 import { signsPlaced, signsCollected, missingSigns, groupByAgent, type SignCountStop } from './signRunTotals';
-import { PICKUP_DONE_MARKER, PICKUP_SKIPPED_MARKER, upsertMarker } from './stopExecutionMarkers';
+import { settleStopNotes } from './stopProgress';
 
 function pickupDoneStop(overrides: Partial<SignCountStop> = {}): SignCountStop {
   return {
     numberOfSigns: 4,
     missingSignsCount: 0,
-    notes: upsertMarker('', PICKUP_DONE_MARKER, '2026-08-31T10:00:00.000Z'),
+    notes: settleStopNotes('', 'pickup', 'complete', '2026-08-31T10:00:00.000Z'),
     ...overrides,
   };
 }
@@ -14,7 +14,7 @@ function pickupSkippedStop(overrides: Partial<SignCountStop> = {}): SignCountSto
   return {
     numberOfSigns: 4,
     missingSignsCount: 0,
-    notes: upsertMarker('', PICKUP_SKIPPED_MARKER, '2026-08-31T10:00:00.000Z', 'No access'),
+    notes: settleStopNotes('', 'pickup', 'skip', '2026-08-31T10:00:00.000Z', 'No access'),
     ...overrides,
   };
 }

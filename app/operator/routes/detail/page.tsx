@@ -22,7 +22,7 @@ import {
   getPrimaryAddressLine,
 } from '@/lib/routeDetailHelpers';
 import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
-import { isStopCompletedForPhase } from '@/lib/stopExecutionMarkers';
+import { stopProgress } from '@/lib/stopProgress';
 import { getStopStatusLabel } from '@/lib/stopStatusLabel';
 import { getUserSettings } from '@/lib/userSettings';
 import type { MapTheme } from '@/lib/mapThemes';
@@ -117,7 +117,7 @@ function RouteDetailContent() {
     if (!route) return stops;
 
     if (route.status === 'signs_placed') {
-      return pickupPhaseStops.filter((stop) => !isStopCompletedForPhase(stop, 'pickup'));
+      return pickupPhaseStops.filter((stop) => stopProgress(stop).pickup.state === 'pending');
     }
 
     return stops;
@@ -412,7 +412,7 @@ function RouteDetailContent() {
                   const completedStop =
                     route?.status === 'completed' || route?.status === 'archived'
                       ? isStopCompleted(stop)
-                      : isStopCompletedForPhase(stop, currentExecutionPhase);
+                      : stopProgress(stop)[currentExecutionPhase].state !== 'pending';
 
                   const stopActions = canManagePlanning && !planningLocked ? (
                     <div className={styles.stopActionsRow}>

@@ -40,7 +40,8 @@ const STAFF_GROUPS: readonly RequiredGroup[] = ['operator', 'administrator'];
  * Verifies the caller's Cognito ID token and required group membership, then
  * hands back the IAM-signed data client -- the only route in to
  * getIamDataClient()'s elevated access, so a new API route literally cannot
- * reach it without this check running first. See
+ * reach it without this check running first (recordServerAudit() also uses
+ * it, but can only append an audit entry). See
  * docs/adr/0001-ssr-iam-access-bypasses-appsync-authorization.md: AppSync
  * grants this Lambda's execution role unconditional access to these models,
  * so this function (not AppSync) is the only authorization backstop.

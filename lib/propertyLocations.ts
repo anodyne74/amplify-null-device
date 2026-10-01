@@ -6,6 +6,7 @@
  */
 
 import { fetchUserId } from '@/lib/amplify-config';
+import { recordAudit } from '@/lib/auditLog';
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
 import { buildLocationReviewQueue, type Pin, type PropertyReview } from '@/lib/locationReview';
@@ -126,22 +127,18 @@ export async function confirmPropertyLocation(
     failure = error instanceof Error ? error.message : String(error);
   }
 
-  const { errors: auditErrors } = await client.models.AuditLog.create({
-    operatorId: adminSub,
+  const audit = await recordAudit(client, {
+    actor: adminSub,
     eventType: 'data_modification',
-    resourceType: 'property',
-    resourceId: propertyKey,
+    resource: { type: 'property', id: propertyKey },
     action: 'property.confirm_location',
-    status: failure ? 'failure' : 'success',
-    ...(failure ? { reason: failure } : {}),
-    timestamp: new Date().toISOString(),
-    // a.json() fields travel as a JSON string.
-    details: JSON.stringify({ propertyKey, ...pin, source, stopIds }),
+    failure,
+    details: { propertyKey, ...pin, source, stopIds },
   });
 
   if (failure) return { ok: false, error: failure };
-  if (auditErrors?.length) {
-    console.error('Writing the location confirmation audit entry failed:', auditErrors);
+  if (!audit.ok) {
+    console.error('Writing the location confirmation audit entry failed:', audit.errors);
     return { ok: false, error: 'The location was confirmed, but its audit entry could not be written.' };
   }
   return { ok: true };

@@ -16,8 +16,10 @@ import {
   UserPoolAddOnNotEnabledException,
 } from '@aws-sdk/client-cognito-identity-provider';
 import outputs from '@/amplify_outputs.json';
+import type { AuditEntry } from '@/lib/auditLog';
 import { sendInvitationEmail } from '@/lib/emails/invitationEmail';
 import { sendStaffInvitationEmail } from '@/lib/emails/staffInvitationEmail';
+import { recordServerAudit } from '@/lib/server/recordServerAudit';
 import { verifyIamCaller, type VerifiedClaims } from '@/lib/server/verifyIamCaller';
 
 const cognitoClient = new CognitoIdentityProviderClient({});
@@ -327,50 +329,24 @@ export async function createOrGetCognitoUser({
   return { sub, username, created, temporaryPassword };
 }
 
-async function writeAuditLog(authToken: string, input: {
-  operatorId?: string;
-  eventType: 'login' | 'logout' | 'access_denied' | 'data_access' | 'data_modification' | 'data_deletion';
-  resourceType: 'customer' | 'route' | 'invoice' | 'payment' | 'operator';
-  resourceId: string;
-  action: string;
-  status: 'success' | 'failure';
-  reason?: string;
-  ipAddress?: string;
-  userAgent?: string;
-}) {
-  if (!graphqlEndpoint) {
-    return;
-  }
-
-  const mutation = `
-    mutation CreateAuditLog($input: CreateAuditLogInput!) {
-      createAuditLog(input: $input) {
-        id
-      }
-    }
-  `;
-
-  try {
-    await fetch(graphqlEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: authToken,
-      },
-      body: JSON.stringify({
-        query: mutation,
-        variables: {
-          input: {
-            ...input,
-            timestamp: new Date().toISOString(),
-          },
-        },
-      }),
-      cache: 'no-store',
-    });
-  } catch {
-    // Intentionally non-blocking.
-  }
+/**
+ * Records a user-management action. User changes are Cognito admin calls that
+ * can't be undone, so a missing entry is logged and the request carries on.
+ */
+async function audit(
+  request: NextRequest,
+  actor: string | undefined,
+  entry: Pick<AuditEntry, 'eventType' | 'action' | 'failure'> & { resourceId: string }
+) {
+  const { resourceId, ...rest } = entry;
+  const result = await recordServerAudit({
+    ...rest,
+    actor,
+    resource: { type: 'operator', id: resourceId },
+    ipAddress: request.headers.get('x-forwarded-for') || undefined,
+    userAgent: request.headers.get('user-agent') || undefined,
+  });
+  if (!result.ok) console.error(`Writing the ${entry.action} audit entry failed:`, result.errors);
 }
 
 async function syncAdministratorRecords(authToken: string, users: ListedUser[]) {
@@ -617,18 +593,11 @@ async function ensureAdmin(request: NextRequest): Promise<{ claims: VerifiedClai
   const auth = await verifyIamCaller(request, 'administrator');
   if (!auth.ok) {
     if (auth.status === 403) {
-      const forwardedFor = request.headers.get('x-forwarded-for') || undefined;
-      const userAgent = request.headers.get('user-agent') || undefined;
-      await writeAuditLog(auth.token, {
-        operatorId: auth.claims.sub,
+      await audit(request, auth.claims.sub, {
         eventType: 'access_denied',
-        resourceType: 'operator',
         resourceId: auth.claims.sub || 'unknown',
         action: 'admin_user_management_attempt',
-        status: 'failure',
-        reason: auth.error,
-        ipAddress: forwardedFor,
-        userAgent,
+        failure: auth.error,
       });
     }
     return { response: NextResponse.json({ error: auth.error }, { status: auth.status }) };
@@ -673,15 +642,10 @@ export async function POST(request: NextRequest) {
         users.filter((user) => user.id && administratorIds.has(user.id))
       );
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_access',
-        resourceType: 'operator',
         resourceId: authResult.claims.sub || 'unknown',
         action: 'list_users',
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ users });
@@ -717,15 +681,10 @@ export async function POST(request: NextRequest) {
         await reconcileOperatorActivation(authResult.token, users);
       }
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_access',
-        resourceType: 'operator',
         resourceId: authResult.claims.sub || 'unknown',
         action: `list_users_in_group:${body.groupName}`,
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ users });
@@ -745,15 +704,10 @@ export async function POST(request: NextRequest) {
 
       const groups = (response.Groups || []).map((group) => group.GroupName).filter(Boolean);
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_access',
-        resourceType: 'operator',
         resourceId: body.username,
         action: 'list_groups_for_user',
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ groups });
@@ -782,15 +736,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_access',
-        resourceType: 'operator',
         resourceId: matched.Username || email,
         action: 'get_user_by_email',
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ user });
@@ -855,15 +804,10 @@ export async function POST(request: NextRequest) {
         console.error('Failed to send branded re-invitation email:', err);
       }
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_modification',
-        resourceType: 'operator',
         resourceId: matched.Username,
         action: `resend_invite:${body.groupName}`,
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ emailSent });
@@ -919,15 +863,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_modification',
-        resourceType: 'operator',
         resourceId: username,
         action: created ? `create_user:${body.groupName}` : `create_user_existing:${body.groupName}`,
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ user: { sub, username }, created, emailSent });
@@ -956,15 +895,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_access',
-        resourceType: 'operator',
         resourceId: authResult.claims.sub || 'unknown',
         action: 'get_user_activity_stats',
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({
@@ -1007,15 +941,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_modification',
-        resourceType: 'operator',
         resourceId: body.username,
         action: `add_user_to_group:${body.groupName}`,
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ success: true });
@@ -1059,15 +988,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_modification',
-        resourceType: 'operator',
         resourceId: body.username,
         action: `remove_user_from_group:${body.groupName}`,
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ success: true });
@@ -1077,16 +1001,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown server error.';
 
-    await writeAuditLog(authResult.token, {
-      operatorId: authResult.claims.sub,
+    await audit(request, authResult.claims.sub, {
       eventType: 'data_modification',
-      resourceType: 'operator',
       resourceId: body.username || authResult.claims.sub || 'unknown',
       action: `failed_admin_user_action:${body.action}`,
-      status: 'failure',
-      reason: message,
-      ipAddress: request.headers.get('x-forwarded-for') || undefined,
-      userAgent: request.headers.get('user-agent') || undefined,
+      failure: message,
     });
 
     return NextResponse.json({ error: message }, { status: 500 });

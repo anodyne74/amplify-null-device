@@ -1,3 +1,4 @@
+import { recordAudit } from '@/lib/auditLog';
 import type { PropertyHistoryFilters, PropertyHistorySearch } from '@/lib/propertyHistory';
 import {
   canDeleteReport,
@@ -178,21 +179,18 @@ export async function generatePropertyHistoryReport(
     return undo('Could not record the report');
   }
 
-  const { errors: auditErrors } = await client.models.AuditLog.create({
-    // customerId keys the Customer.auditLogs index, where DynamoDB rejects an
-    // explicit null; an all-customers report leaves it out.
-    customerId: customerId ?? undefined,
-    operatorId: author.sub,
+  // An all-customers report has no customerId.
+  const audit = await recordAudit(client, {
+    customerId,
+    actor: author.sub,
     eventType: 'data_access',
-    resourceType: 'report',
-    resourceId: record.id,
+    resource: { type: 'report', id: record.id },
     action: 'property_history_report.generate',
-    status: 'success',
-    timestamp: generatedAt,
-    details: JSON.stringify({ referenceNumber, audience: caller.audience, search, filters: reportFilters, ...counts }),
+    at: generatedAt,
+    details: { referenceNumber, audience: caller.audience, search, filters: reportFilters, ...counts },
   });
-  if (auditErrors?.length) {
-    console.error('Logging the report generation failed:', auditErrors);
+  if (!audit.ok) {
+    console.error('Logging the report generation failed:', audit.errors);
     return undo('Could not log the report, so it was not kept', record.id);
   }
 
@@ -265,22 +263,20 @@ async function changeRetention(
   const { data: updated, errors } = await client.models.PropertyHistoryReport.update({ id: record.id, ...change.dates });
   if (errors?.length || !updated) throw new ReportError(`Could not update the report: ${messages(errors ?? [])}`);
 
-  const { errors: auditErrors } = await client.models.AuditLog.create({
-    customerId: record.customerId ?? undefined,
-    operatorId: actor.sub,
+  const audit = await recordAudit(client, {
+    customerId: record.customerId,
+    actor: actor.sub,
     eventType: change.eventType,
-    resourceType: 'report',
-    resourceId: record.id,
+    resource: { type: 'report', id: record.id },
     action: change.action,
-    status: 'success',
-    timestamp: now.toISOString(),
-    details: JSON.stringify({ referenceNumber: record.referenceNumber, by: actor.name, ...change.dates }),
+    at: now,
+    details: { referenceNumber: record.referenceNumber, by: actor.name, ...change.dates },
   });
-  if (auditErrors?.length) {
+  if (!audit.ok) {
     // Put the dates back so nothing changes without a log entry.
     const { errors: revertErrors } = await client.models.PropertyHistoryReport.update({ id: record.id, ...original });
     if (revertErrors?.length) console.error('Reverting the report dates failed:', revertErrors);
-    throw new ReportError(`Could not log the change, so it was not made: ${messages(auditErrors)}`);
+    throw new ReportError(`Could not log the change, so it was not made: ${messages(audit.errors)}`);
   }
   return toSummary(updated as ReportRecord, caller, now);
 }

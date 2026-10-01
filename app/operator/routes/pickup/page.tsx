@@ -312,7 +312,7 @@ export default function OperatorPickupPage() {
             stops={stops}
             activeStopId={currentStop?.id}
             upcomingStopIds={upcomingStops.map((stop) => stop.id)}
-            skippedStopIds={stops.filter((stop) => stopProgress(stop).pickup.state === 'skipped').map((stop) => stop.id)}
+            phase="pickup"
             presentation="field"
           />
           <div className={stopCardStyles.glassCard}>

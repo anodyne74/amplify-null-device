@@ -25,6 +25,7 @@ import { appendRouteInstruction, parseRouteInstructions, sortRouteInstructionsNe
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
 import { signsPlaced } from '@/lib/signRunTotals';
+import { stopProgress, takesPartIn } from '@/lib/stopProgress';
 import styles from './_RouteDetailContent.module.css';
 import { updateRoute, updateRouteCustomerInstructions } from '@/lib/routes';
 import { getCustomer, listCustomerUsers } from '@/lib/customers';
@@ -219,19 +220,17 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const routeLabel = route.routeCode || `${route.id.slice(0, 8)}...`;
   const totalSigns = signsPlaced(stops);
   const deliveryStops = stops.filter((stop) => stop.serviceType === 'delivery');
-  const placedDeliveryStops = deliveryStops.filter((stop) => Boolean(stop.actualDepartureTime));
+  const placedDeliveryStops = deliveryStops.filter((stop) => stopProgress(stop).placement.state === 'done');
   const pickupDueLabel = route.pickupStartTime ? formatDate(route.pickupStartTime) : 'TBC';
-  const nextStop = stops.find((stop) => !stop.actualDepartureTime) ?? stops[0] ?? null;
-  const nextStopIndex = nextStop ? stops.findIndex((stop) => stop.id === nextStop.id) : -1;
+  // Next and upcoming stops are those still awaiting the phase under way;
+  // there's no next stop once every one has been done or skipped.
+  const executionPhase = route.executionPhase === 'pickup' ? 'pickup' : 'placement';
+  const pendingStops = stops.filter(
+    (stop) => takesPartIn(stop, executionPhase) && stopProgress(stop)[executionPhase].state === 'pending'
+  );
+  const nextStop = pendingStops[0] ?? null;
   const showNextStop = Boolean(nextStop) && (currentPhase === 'signs_placed' || currentPhase === 'signs_picked_up');
-  const upcomingStopIds =
-    nextStopIndex >= 0
-      ? stops
-          .slice(nextStopIndex + 1)
-          .filter((stop) => !stop.actualDepartureTime)
-          .slice(0, 2)
-          .map((stop) => stop.id)
-      : [];
+  const upcomingStopIds = pendingStops.slice(1, 3).map((stop) => stop.id);
 
   // On a narrow viewport the map renders before the stop list — a glanceable
   // overview before a potentially long scroll, mirroring the card-list swap
@@ -257,6 +256,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
           stops={stops}
           activeStopId={nextStop?.id ?? null}
           upcomingStopIds={upcomingStopIds}
+          phase={route.status === 'in_progress' ? executionPhase : undefined}
           mapTheme="dark"
           presentation="field"
         />

@@ -1,4 +1,4 @@
-import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from './routeDetailSummary';
+import { computeRouteSummaryStats, getPhaseOverview } from './routeDetailSummary';
 import type { Route, Stop } from '@/amplify/types';
 
 function baseRoute(overrides: Partial<Route> = {}): Route {
@@ -52,16 +52,6 @@ describe('getPhaseOverview', () => {
     const overview = getPhaseOverview(baseRoute({ status: 'planned' }), []);
     expect(overview?.phaseIdx).toBe(0);
     expect(overview?.caption).toBe('Planned · Phase 1 of 6');
-  });
-});
-
-describe('isStopCompleted', () => {
-  it('is true once a stop has an actual departure time', () => {
-    expect(isStopCompleted(baseStop({ actualDepartureTime: '2026-09-01T10:00:00.000Z' }))).toBe(true);
-  });
-
-  it('is false otherwise', () => {
-    expect(isStopCompleted(baseStop({ actualDepartureTime: null }))).toBe(false);
   });
 });
 

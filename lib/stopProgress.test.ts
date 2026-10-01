@@ -1,4 +1,12 @@
-import { displayNotes, settleStopNotes, stopProgress } from './stopProgress';
+import {
+  displayNotes,
+  isStopCompleted,
+  isStopFinished,
+  lastPhase,
+  settleStopNotes,
+  stopProgress,
+  takesPartIn,
+} from './stopProgress';
 
 const AT = '2026-08-31T10:00:00.000Z';
 const LATER = '2026-08-31T11:00:00.000Z';
@@ -39,6 +47,48 @@ describe('stopProgress', () => {
   it('trusts only the markers once any are present, since settling always writes a departure time', () => {
     const notes = settleStopNotes(null, 'placement', 'complete', AT);
     expect(stopProgress({ notes, actualDepartureTime: AT }).pickup.state).toBe('pending');
+  });
+});
+
+describe('phases', () => {
+  it('skips Placement for pickup Stops and Pickup for inspections', () => {
+    expect(takesPartIn({ serviceType: 'pickup' }, 'placement')).toBe(false);
+    expect(takesPartIn({ serviceType: 'inspection' }, 'pickup')).toBe(false);
+    expect(takesPartIn({ serviceType: 'delivery' }, 'placement')).toBe(true);
+    expect(takesPartIn({ serviceType: 'delivery' }, 'pickup')).toBe(true);
+  });
+
+  it('ends inspections at Placement and everything else at Pickup', () => {
+    expect(lastPhase({ serviceType: 'inspection' })).toBe('placement');
+    expect(lastPhase({ serviceType: 'delivery' })).toBe('pickup');
+    expect(lastPhase({ serviceType: 'pickup' })).toBe('pickup');
+    expect(lastPhase({})).toBe('pickup');
+  });
+});
+
+describe('finished and completed', () => {
+  const placed = settleStopNotes(null, 'placement', 'complete', AT);
+
+  it('is neither until the last phase is settled', () => {
+    expect(isStopFinished({ serviceType: 'delivery', notes: placed })).toBe(false);
+    expect(isStopCompleted({ serviceType: 'delivery', notes: placed })).toBe(false);
+  });
+
+  it('is both once the last phase is done', () => {
+    const notes = settleStopNotes(placed, 'pickup', 'complete', LATER);
+    expect(isStopFinished({ serviceType: 'delivery', notes })).toBe(true);
+    expect(isStopCompleted({ serviceType: 'delivery', notes })).toBe(true);
+    expect(isStopCompleted({ serviceType: 'inspection', notes: placed })).toBe(true);
+  });
+
+  it('counts a skip as finished but not completed', () => {
+    const notes = settleStopNotes(placed, 'pickup', 'skip', LATER, 'No access');
+    expect(isStopFinished({ serviceType: 'delivery', notes })).toBe(true);
+    expect(isStopCompleted({ serviceType: 'delivery', notes })).toBe(false);
+  });
+
+  it('reads a legacy Stop as completed', () => {
+    expect(isStopCompleted({ serviceType: 'pickup', actualDepartureTime: AT })).toBe(true);
   });
 });
 

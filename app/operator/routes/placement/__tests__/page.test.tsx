@@ -48,17 +48,17 @@ jest.mock('@/app/operator/components/RouteStopsMap', () => ({
   RouteStopsMap: ({
     stops,
     activeStopId,
-    skippedStopIds,
+    phase,
   }: {
     stops: Stop[];
     activeStopId?: string | null;
-    skippedStopIds?: string[];
+    phase?: string;
   }) => (
     <div
       data-testid="placement-map"
       data-stop-count={stops.length}
       data-active-stop={activeStopId ?? ''}
-      data-skipped-stops={(skippedStopIds ?? []).join(',')}
+      data-phase={phase ?? ''}
     />
   ),
 }));
@@ -287,7 +287,7 @@ describe('Operator Placement page', () => {
     expect(await screen.findByText('PLACEMENT · STOP 2 OF 2')).toBeInTheDocument();
   });
 
-  it('passes already-skipped stops to the map as skippedStopIds', async () => {
+  it('shows placement progress on the map, so already-skipped stops are marked', async () => {
     const stops = baseStops();
     stops[0] = { ...stops[0], notes: '[PLACEMENT_SKIPPED:2026-08-31T09:05:00.000Z|Gate locked]' } as Stop;
     (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops });
@@ -295,7 +295,7 @@ describe('Operator Placement page', () => {
     render(<OperatorPlacementPage />);
     await screen.findByText('PLACEMENT · STOP 2 OF 2');
 
-    expect(screen.getByTestId('placement-map')).toHaveAttribute('data-skipped-stops', 's1');
+    expect(screen.getByTestId('placement-map')).toHaveAttribute('data-phase', 'placement');
   });
 
   it('opens the out-of-order sheet from the THEN list', async () => {

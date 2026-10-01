@@ -5,13 +5,16 @@ import type { Circle as LeafletCircle, CircleMarker as LeafletCircleMarker, Map 
 import type { Stop } from '@/amplify/types';
 import { locationPrecisionIndicator } from '@/lib/locationPrecision';
 import { getMapTheme, type MapTheme } from '@/lib/mapThemes';
+import { lastPhase, stopProgress, takesPartIn, type ExecutionPhase } from '@/lib/stopProgress';
 import styles from './RouteStopsMap.module.css';
 
 interface RouteStopsMapProps {
   stops: Stop[];
   activeStopId?: string | null;
   upcomingStopIds?: string[];
-  skippedStopIds?: string[];
+  /** The phase whose progress the markers show; without one, each Stop shows
+   *  its last phase (as on a finished or not-yet-started Route). */
+  phase?: ExecutionPhase;
   currentPosition?: { latitude: number; longitude: number } | null;
   mapTheme?: MapTheme;
   onStopSelect?: (stopId: string) => void;
@@ -106,11 +109,22 @@ function hasCoordinates(stop: Stop): stop is StopWithCoords {
   return typeof stop.latitude === 'number' && typeof stop.longitude === 'number';
 }
 
+function progressState(stop: Stop, phase?: ExecutionPhase) {
+  return stopProgress(stop)[phase ?? lastPhase(stop)].state;
+}
+
+/** The first Stop still awaiting the phase, or the first Stop when none is. */
+function firstPendingStop(stops: StopWithCoords[], phase?: ExecutionPhase) {
+  return (
+    stops.find((stop) => (!phase || takesPartIn(stop, phase)) && progressState(stop, phase) === 'pending') ?? stops[0]
+  );
+}
+
 export function RouteStopsMap({
   stops,
   activeStopId,
   upcomingStopIds = [],
-  skippedStopIds = [],
+  phase,
   currentPosition,
   mapTheme = 'light',
   onStopSelect,
@@ -139,8 +153,6 @@ export function RouteStopsMap({
   const mappedStops = orderedStops.filter(hasCoordinates);
   const upcomingStopKey = upcomingStopIds.join('|');
   const upcomingStopIdSet = useMemo(() => new Set(upcomingStopIds), [upcomingStopIds]);
-  const skippedStopKey = skippedStopIds.join('|');
-  const skippedStopIdSet = useMemo(() => new Set(skippedStopIds), [skippedStopIds]);
   const selectedMapTheme = getMapTheme(mapTheme);
 
   // Only set up independent geolocation if currentPosition is not provided
@@ -192,7 +204,7 @@ export function RouteStopsMap({
       deviceMarkerRef.current = null;
       lastRenderedPositionRef.current = null;
 
-      const activeStop = mappedStops.find((stop) => stop.id === activeStopId) ?? mappedStops.find((stop) => !stop.actualDepartureTime) ?? mappedStops[0];
+      const activeStop = mappedStops.find((stop) => stop.id === activeStopId) ?? firstPendingStop(mappedStops, phase);
       const upcomingStops = mappedStops.filter((stop) => upcomingStopIdSet.has(stop.id));
       const map = L.map(containerRef.current, { scrollWheelZoom: true });
       mapRef.current = map;
@@ -222,10 +234,9 @@ export function RouteStopsMap({
       }
 
       mappedStops.forEach((stop) => {
-        const isCompleted = Boolean(stop.actualDepartureTime);
+        const state = progressState(stop, phase);
         const isActive = stop.id === activeStop.id;
         const isUpcoming = upcomingStopIdSet.has(stop.id);
-        const isSkipped = skippedStopIdSet.has(stop.id);
 
         const serviceClass =
           stop.serviceType === 'pickup'
@@ -243,7 +254,7 @@ export function RouteStopsMap({
           precisionIndicator?.level === 'clear' ? styles.stopMarkerApproximate : '',
           isActive ? styles.stopMarkerActive : '',
           isUpcoming ? styles.stopMarkerUpcoming : '',
-          isSkipped ? styles.stopMarkerSkipped : isCompleted ? styles.stopMarkerCompleted : '',
+          state === 'skipped' ? styles.stopMarkerSkipped : state === 'done' ? styles.stopMarkerCompleted : '',
         ]
           .filter(Boolean)
           .join(' ');
@@ -327,7 +338,7 @@ export function RouteStopsMap({
       headingRef.current = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStopId, stops, mapTheme, upcomingStopKey, skippedStopKey, presentation]);
+  }, [activeStopId, stops, mapTheme, upcomingStopKey, phase, presentation]);
 
   useEffect(() => {
     if (!mapRef.current || !leafletRef.current) return;
@@ -417,11 +428,11 @@ export function RouteStopsMap({
   useEffect(() => {
     if (!mapRef.current || !leafletRef.current || mappedStops.length === 0) return;
 
-    const activeStop = mappedStops.find((stop) => stop.id === activeStopId) ?? mappedStops.find((stop) => !stop.actualDepartureTime) ?? mappedStops[0];
+    const activeStop = mappedStops.find((stop) => stop.id === activeStopId) ?? firstPendingStop(mappedStops, phase);
     const upcomingStops = mappedStops.filter((stop) => upcomingStopIdSet.has(stop.id));
     updateViewport(mapRef.current, activeStop, upcomingStops, displayPosition, leafletRef.current);
     mapRef.current.invalidateSize({ pan: false });
-  }, [activeStopId, mappedStops, upcomingStopIdSet, displayPosition]);
+  }, [activeStopId, mappedStops, upcomingStopIdSet, displayPosition, phase]);
 
   if (mapLoadFailed) {
     return (

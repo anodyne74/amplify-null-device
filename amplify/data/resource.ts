@@ -267,7 +267,7 @@ const schema = a.schema({
       serviceType: a.enum(['delivery', 'pickup', 'inspection']),
       estimatedArrivalTime: a.datetime(),
       actualArrivalTime: a.datetime(),
-      actualDepartureTime: a.datetime(),
+      actualDepartureTime: a.datetime(), // When the Stop was last settled done or skipped, a time only; whether it was is its Stop Progress (lib/stopProgress.ts)
       numberOfSigns: a.integer(),
       agent: a.string(),
       isAuction: a.boolean(),

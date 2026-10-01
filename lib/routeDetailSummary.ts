@@ -14,6 +14,7 @@ import type { Route, Stop } from '@/amplify/types';
 import { getSignRunPhase, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS, type RoutePhaseInput, type SignRunTrackState } from './signRunPhase';
 import { calculateRouteDistanceKm, getRouteDurationMinutes } from './routeDetailHelpers';
 import { signsCollected } from './signRunTotals';
+import { isStopCompleted } from './stopProgress';
 
 export interface PhaseOverview {
   track: readonly SignRunTrackState[];
@@ -48,11 +49,6 @@ export function getPhaseOverview(route: RoutePhaseInput | null, stops: Stop[]): 
   };
 }
 
-/** A stop is "completed" once it has an actual departure time recorded. */
-export function isStopCompleted(stop: Stop) {
-  return Boolean(stop.actualDepartureTime);
-}
-
 export interface RouteSummaryStats {
   routeDurationMinutes: number | null;
   kilometersTravelled: number;
@@ -62,10 +58,10 @@ export interface RouteSummaryStats {
 
 /**
  * Duration/distance/stop/sign counts for a route's summary strip. Completed
- * and archived routes summarise only their completed stops, falling back to
- * every stop when none are marked complete (e.g. legacy-imported routes that
- * never wrote actualDepartureTime) -- in-progress and planned routes always
- * summarise every stop regardless of completion.
+ * and archived routes summarise only their completed stops (see Stop Progress
+ * in CONTEXT.md, so skipped ones are left out), falling back to every stop
+ * when none are -- in-progress and planned routes always summarise every stop
+ * regardless of progress.
  */
 export function computeRouteSummaryStats(route: Route | null, stops: Stop[]): RouteSummaryStats {
   const completedStops = stops.filter((stop) => isStopCompleted(stop));

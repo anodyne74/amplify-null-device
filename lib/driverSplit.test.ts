@@ -13,6 +13,7 @@ jest.mock('aws-amplify/data', () => ({
 }));
 
 import { computeDriverSplit } from './driverSplit';
+import { settleStopNotes } from './stopProgress';
 
 describe('computeDriverSplit', () => {
   beforeEach(() => {
@@ -165,6 +166,38 @@ describe('computeDriverSplit', () => {
     });
 
     expect(result.byOperator).toEqual([]);
+  });
+
+  it('counts a route once every stop is finished, skipped ones included, but not while one is only placed', async () => {
+    const routeOn = (id: string) => ({
+      id,
+      customerId: 'cust-1',
+      status: 'completed',
+      assignedOperatorSub: 'op-1',
+      actualEndTime: '2026-08-10T12:00:00Z',
+      actualDurationMinutes: 60,
+    });
+    const at = '2026-08-10T10:00:00Z';
+    const placed = settleStopNotes(null, 'placement', 'complete', at);
+    mockRouteList.mockResolvedValue({ data: [routeOn('route-1'), routeOn('route-2')] });
+    mockStopList.mockResolvedValue({
+      data: [
+        { id: 'stop-1', routeId: 'route-1', serviceType: 'delivery', actualDepartureTime: at, notes: settleStopNotes(placed, 'pickup', 'complete', at) },
+        { id: 'stop-2', routeId: 'route-1', serviceType: 'delivery', actualDepartureTime: at, notes: settleStopNotes(placed, 'pickup', 'skip', at, 'No access') },
+        { id: 'stop-3', routeId: 'route-2', serviceType: 'delivery', actualDepartureTime: at, notes: placed },
+      ],
+    });
+
+    const result = await computeDriverSplit({
+      customerId: 'cust-1',
+      billingRatePerHour: 30,
+      driverSplitPercent: 50,
+      paySplitOnCompletedStopsOnly: true,
+      periodStartDate: '2026-08-01',
+      periodEndDate: '2026-08-31',
+    });
+
+    expect(result.byOperator).toEqual([expect.objectContaining({ operatorSub: 'op-1', stopCount: 2 })]);
   });
 
   it('groups totals by assignedOperatorSub across multiple routes', async () => {

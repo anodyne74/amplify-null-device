@@ -6,7 +6,7 @@
  * skip reason suffix) lands once for every portal instead of being ported by
  * hand from one page's copy to another's.
  */
-import { stopProgress, type ExecutionPhase } from './stopProgress';
+import { lastPhase, stopProgress, type ExecutionPhase } from './stopProgress';
 
 export interface StatusLabelStop {
   notes?: string | null;
@@ -20,19 +20,22 @@ export function getStopStatusLabel(
   executionPhase?: ExecutionPhase | null,
   routeStatus?: string | null
 ) {
-  // Completed/archived routes (including legacy imports, which force every
-  // stop's serviceType to 'pickup' — see import-prep.js) always render fully
-  // done, same convention as the route-level phase overview; the
-  // placement/pickup phase split only applies to routes still in progress.
-  if (executionPhase && routeStatus !== 'completed' && routeStatus !== 'archived') {
-    const { state, reason } = stopProgress(stop)[executionPhase];
-    if (state === 'skipped') {
-      const base = executionPhase === 'pickup' ? 'Pickup skipped' : 'Placement skipped';
-      return reason ? `${base} · ${reason}` : base;
-    }
-    if (state === 'done') {
-      return executionPhase === 'pickup' ? 'Signs collected' : 'Signs placed';
-    }
+  // On a completed/archived route (and with no phase given) each stop is
+  // labelled by its last phase, so a stop skipped at pickup still reads as
+  // skipped after the route is done. Legacy imports, which force every stop's
+  // serviceType to 'pickup' (see import-prep.js), read as collected.
+  const routeDone = routeStatus === 'completed' || routeStatus === 'archived';
+  const phase = executionPhase && !routeDone ? executionPhase : lastPhase(stop);
+  const { state, reason } = stopProgress(stop)[phase];
+  if (state === 'skipped') {
+    const base = phase === 'pickup' ? 'Pickup skipped' : 'Placement skipped';
+    return reason ? `${base} · ${reason}` : base;
+  }
+  if (state === 'done') {
+    return phase === 'pickup' ? 'Signs collected' : 'Signs placed';
+  }
+
+  if (executionPhase && !routeDone) {
     // The route hasn't started yet, so there's nothing to be "awaiting" —
     // the operator still needs to load the signs onto the vehicle.
     if (routeStatus === 'planned' && executionPhase === 'placement') {
@@ -41,9 +44,6 @@ export function getStopStatusLabel(
     return executionPhase === 'pickup' ? 'Awaiting pickup' : 'Awaiting placement';
   }
 
-  if (stop.actualDepartureTime) {
-    return stop.serviceType === 'pickup' ? 'Signs collected' : 'Signs placed';
-  }
   if (stop.actualArrivalTime) return 'At stop';
   return 'Signs pending';
 }

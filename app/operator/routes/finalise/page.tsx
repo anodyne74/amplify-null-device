@@ -8,24 +8,12 @@ import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { reconcileSignRun } from '@/lib/signRunReconciliation';
 import { queueSignRunTransition } from '@/lib/signRunTransitions';
-import {
-  MIN_BILLED_MINUTES,
-  measuredPhaseMinutes,
-  defaultBilledMinutes,
-  sumBilledMinutes,
-  formatDuration,
-} from '@/lib/signRunBilling';
-import type { RouteExecutionPhase } from '@/amplify/types';
+import { sumBilledMinutes, formatDuration } from '@/lib/signRunBilling';
+import { useFinaliseAdjusters } from '@/lib/useFinaliseAdjusters';
+import { FinaliseAdjusters } from '@/app/components/FinaliseAdjusters';
 import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
-
-const PHASE_ROWS: Array<{ key: RouteExecutionPhase; label: string }> = [
-  { key: 'load', label: 'Load' },
-  { key: 'placement', label: 'Placement' },
-  { key: 'pickup', label: 'Pickup' },
-  { key: 'unload', label: 'Unload' },
-];
 
 export default function OperatorFinalisePage() {
   const router = useRouter();
@@ -39,54 +27,22 @@ export default function OperatorFinalisePage() {
   } = useSignRunPhaseScreen({ phaseIdx: 4 });
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [billedOverride, setBilledOverride] = useState<Partial<Record<RouteExecutionPhase, number>>>({});
-  const [kmOverride, setKmOverride] = useState<number | null>(null);
+  const adjusters = useFinaliseAdjusters(route);
+  const { measured, billedMinutes, distanceKm, billTotal, canConfirm } = adjusters;
 
   const summary = useMemo(() => (route ? reconcileSignRun(route, stops) : null), [route, stops]);
-  const measured = useMemo(() => (route ? measuredPhaseMinutes(route) : null), [route]);
-
-  const defaults = useMemo(() => {
-    if (!route || !measured) return null;
-    return {
-      load: route.billedLoadMinutes ?? defaultBilledMinutes('load', measured.load),
-      placement: route.billedPlacementMinutes ?? defaultBilledMinutes('placement', measured.placement),
-      pickup: route.billedPickupMinutes ?? defaultBilledMinutes('pickup', measured.pickup),
-      unload: route.billedUnloadMinutes ?? defaultBilledMinutes('unload', measured.unload),
-    };
-  }, [route, measured]);
-
-  const billedMinutes = defaults ? { ...defaults, ...billedOverride } : null;
-  const kmAdj = kmOverride ?? route?.overrideDistanceKm ?? 0;
   // Cumulative duration of the completed phases, not raw wall-clock start-to-end —
   // a phase with no recorded times (e.g. pickup/unload never actioned) contributes 0.
   const duration = measured ? sumBilledMinutes(measured) : 0;
 
-  const bumpBilled = (phase: RouteExecutionPhase, step: number) => {
-    if (!billedMinutes) return;
-    const next = Math.max(MIN_BILLED_MINUTES[phase], Math.min(600, billedMinutes[phase] + step));
-    setBilledOverride((prev) => ({ ...prev, [phase]: next }));
-  };
-
-  const bumpKm = (step: number) => {
-    setKmOverride(Math.max(0, kmAdj + step));
-  };
-
-  const billTotal = billedMinutes ? sumBilledMinutes(billedMinutes) : 0;
-  const billAligned = billTotal % 15 === 0;
-  const nextQuarterHour = Math.ceil(billTotal / 15) * 15;
-
-  const handleRoundUp = () => {
-    bumpBilled('unload', nextQuarterHour - billTotal);
-  };
-
   // Shows at once and saves in the background (lib/signRunOutbox.ts);
   // confirming only guards a second tap before the dashboard opens.
   const handleConfirm = () => {
-    if (!route || !billedMinutes || !billAligned) return;
+    if (!route || !billedMinutes || distanceKm === null || !canConfirm) return;
     setConfirming(true);
     setError(null);
 
-    const result = queueSignRunTransition(route, { type: 'finalise', billedMinutes, distanceKm: kmAdj });
+    const result = queueSignRunTransition(route, { type: 'finalise', billedMinutes, distanceKm });
     if ('error' in result) {
       setError(result.error);
       setConfirming(false);
@@ -128,7 +84,7 @@ export default function OperatorFinalisePage() {
         </div>
         <h2 className={shellStyles.title}>Finalise route</h2>
         <p className={shellStyles.subtitle}>
-          Adjust each phase in 5 min steps and correct the tracked distance in 0.5 km steps. Load and unload are
+          Adjust each phase in 5 min steps, and type the distance or step it by 0.5 km. Load and unload are
           charged at a 15 min minimum, and the total has to land on a 15 min increment.
         </p>
       </div>
@@ -164,95 +120,13 @@ export default function OperatorFinalisePage() {
         </div>
       </div>
 
-      <div className={styles.adjustList}>
-        <div className={styles.adjustRow}>
-          <div>
-            <span className={styles.adjustLabel}>Distance</span>
-            <span className={styles.adjustMeasured}>Not tracked — enter manually</span>
-          </div>
-          <button
-            type="button"
-            className={styles.stepperButtonMinus}
-            onClick={() => bumpKm(-0.5)}
-            aria-label="Decrease distance"
-          >
-            −
-          </button>
-          <span className={styles.adjustValue}>{kmAdj.toFixed(1)} km</span>
-          <button
-            type="button"
-            className={styles.stepperButtonPlus}
-            onClick={() => bumpKm(0.5)}
-            aria-label="Increase distance"
-          >
-            +
-          </button>
-        </div>
-
-        {PHASE_ROWS.map(({ key, label }) => {
-          const measuredForPhase = measured?.[key] ?? 0;
-          const floor = MIN_BILLED_MINUTES[key];
-          const measuredLabel =
-            measuredForPhase > 0
-              ? `Recorded ${formatDuration(measuredForPhase)}${floor > measuredForPhase ? ` · ${floor} min minimum` : ''}`
-              : 'Not recorded';
-          return (
-            <div className={styles.adjustRow} key={key}>
-              <div>
-                <span className={styles.adjustLabel}>{label}</span>
-                <span className={styles.adjustMeasured}>{measuredLabel}</span>
-              </div>
-              <button
-                type="button"
-                className={styles.stepperButtonMinus}
-                onClick={() => bumpBilled(key, -5)}
-                aria-label={`Decrease ${label} minutes`}
-              >
-                −
-              </button>
-              <span className={styles.adjustValue}>{formatDuration(billedMinutes![key])}</span>
-              <button
-                type="button"
-                className={styles.stepperButtonPlus}
-                onClick={() => bumpBilled(key, 5)}
-                aria-label={`Increase ${label} minutes`}
-              >
-                +
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
-      <div
-        className={
-          billAligned ? `${styles.billPanel} ${styles.billPanelValid}` : `${styles.billPanel} ${styles.billPanelWarning}`
-        }
-      >
-        <div className={styles.billTotalRow}>
-          <span>Total charged</span>
-          <span className={styles.billTotalValue}>{formatDuration(billTotal)}</span>
-        </div>
-        <div className={styles.billCueRow}>
-          <span className={styles.billCueDot} />
-          <span className={styles.billCueText}>
-            {billAligned
-              ? 'Lands on a 15 min increment'
-              : `${formatDuration(billTotal)} is not a 15 min increment — the office can't invoice it`}
-          </span>
-        </div>
-        {!billAligned && (
-          <button type="button" className={styles.roundUpButton} onClick={handleRoundUp}>
-            Round up to {formatDuration(nextQuarterHour)}
-          </button>
-        )}
-      </div>
+      <FinaliseAdjusters adjusters={adjusters} />
 
       <button
         type="button"
         className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
         onClick={() => void handleConfirm()}
-        disabled={confirming || !billAligned}
+        disabled={confirming || !canConfirm}
       >
         {confirming ? 'Completing…' : `Complete route · ${formatDuration(billTotal)}`}
       </button>

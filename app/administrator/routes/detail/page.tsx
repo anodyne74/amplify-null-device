@@ -12,6 +12,7 @@ import { StopForm } from '@/app/operator/components/StopForm';
 import StopCard from '@/app/administrator/components/StopCard';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
 import { RouteRequestsCard } from '@/app/administrator/components/RouteRequestsCard';
+import { AdministratorFinalisePanel } from '@/app/administrator/components/AdministratorFinalisePanel';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
@@ -27,6 +28,7 @@ import {
 import { getUserSettings } from '@/lib/userSettings';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
+import { getSignRunPhase } from '@/lib/signRunPhase';
 import { runStopSettlement, stopPhaseOf } from '@/lib/signRunTransitions';
 import {
   getPhaseCompletionTime,
@@ -282,11 +284,13 @@ function RouteDetailContent() {
   })();
   const currentPhaseStopIds = new Set(visibleStops.map((stop) => stop.id));
   const topVisibleStopId = visibleStops[0]?.id ?? null;
-  // Read-only phase overview — phase advancement now happens exclusively on the
-  // operator sign-run screens (Load/Placement/Pickup/Unload/Finalise), so this
-  // page no longer offers transition buttons, just a summary of where the
-  // route sits in the 6-phase flow (see lib/routeDetailSummary.ts).
+  // Phase overview — phase advancement happens on the operator sign-run
+  // screens (Load/Placement/Pickup/Unload/Finalise), so this page only
+  // summarises where the route sits in the 6-phase flow (see
+  // lib/routeDetailSummary.ts). The exception is Finalise, which an
+  // administrator can also do here once Unload is confirmed (#408).
   const phaseOverview = getPhaseOverview(route, stops);
+  const awaitingFinalise = route ? getSignRunPhase(route, stops.length)?.phaseIdx === 4 : false;
 
   const pendingDeleteStop = deleteStopCapability.pendingId
     ? stops.find((s) => s.id === deleteStopCapability.pendingId) ?? null
@@ -370,12 +374,20 @@ function RouteDetailContent() {
               </div>
             )}
 
-            {/* Route phase — read-only. Advancing a route through its phases is an
-                operator action on the Load/Placement/Pickup/Unload/Finalise screens. */}
+            {/* Route phase. Advancing a route through its phases is an operator
+                action on the Load/Placement/Pickup/Unload/Finalise screens, apart
+                from Finalise, which an administrator can also do here (#408). */}
             {phaseOverview && (
               <div className={styles.summaryPanel}>
                 <h3 className={styles.summaryHeading}>Route Phase</h3>
                 <PhaseTrackBar track={[...phaseOverview.track]} caption={phaseOverview.caption} />
+              </div>
+            )}
+
+            {awaitingFinalise && (
+              <div className={styles.summaryPanel}>
+                <h3 className={styles.summaryHeading}>Finalise Route</h3>
+                <AdministratorFinalisePanel key={route.id} route={route} onFinalised={refetch} />
               </div>
             )}
 

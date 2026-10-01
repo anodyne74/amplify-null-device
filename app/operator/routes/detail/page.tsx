@@ -21,8 +21,8 @@ import {
   formatRouteDate,
   getPrimaryAddressLine,
 } from '@/lib/routeDetailHelpers';
-import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
-import { stopProgress } from '@/lib/stopProgress';
+import { computeRouteSummaryStats, getPhaseOverview } from '@/lib/routeDetailSummary';
+import { isStopCompleted, stopProgress } from '@/lib/stopProgress';
 import { getStopStatusLabel } from '@/lib/stopStatusLabel';
 import { getUserSettings } from '@/lib/userSettings';
 import type { MapTheme } from '@/lib/mapThemes';
@@ -112,6 +112,7 @@ function RouteDetailContent() {
 
   const planningLocked = route?.status !== 'planned';
   const currentExecutionPhase = route?.executionPhase === 'pickup' ? 'pickup' : 'placement';
+  const routeDone = route?.status === 'completed' || route?.status === 'archived';
   const pickupPhaseStops = stops.filter((stop) => stop.serviceType !== 'inspection');
   const visibleStops = (() => {
     if (!route) return stops;
@@ -324,6 +325,7 @@ function RouteDetailContent() {
                 <RouteStopsMap
                   stops={stops}
                   activeStopId={topVisibleStopId}
+                  phase={routeDone ? undefined : currentExecutionPhase}
                   mapTheme={mapTheme}
                 />
               </div>
@@ -409,10 +411,9 @@ function RouteDetailContent() {
 
                   const agentName = stop.agent?.trim() || 'Unassigned';
                   const isTopVisibleStop = stop.id === topVisibleStopId;
-                  const completedStop =
-                    route?.status === 'completed' || route?.status === 'archived'
-                      ? isStopCompleted(stop)
-                      : stopProgress(stop)[currentExecutionPhase].state !== 'pending';
+                  const completedStop = routeDone
+                    ? isStopCompleted(stop)
+                    : stopProgress(stop)[currentExecutionPhase].state !== 'pending';
 
                   const stopActions = canManagePlanning && !planningLocked ? (
                     <div className={styles.stopActionsRow}>

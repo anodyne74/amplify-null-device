@@ -28,11 +28,11 @@ import {
 } from '@/lib/routeDetailHelpers';
 import { getUserSettings } from '@/lib/userSettings';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
-import { computeRouteSummaryStats, getPhaseOverview, isStopCompleted } from '@/lib/routeDetailSummary';
+import { computeRouteSummaryStats, getPhaseOverview } from '@/lib/routeDetailSummary';
 import { getSignRunPhase } from '@/lib/signRunPhase';
 import { runStopSettlement, stopPhaseOf } from '@/lib/signRunTransitions';
 import { billedTime } from '@/lib/billedTime';
-import { stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
+import { isStopCompleted, stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
 import { getStopStatusLabel } from '@/lib/stopStatusLabel';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
@@ -153,6 +153,7 @@ function RouteDetailContent() {
 
   const planningLocked = route?.status !== 'planned';
   const currentExecutionPhase: ExecutionPhase = route?.executionPhase === 'pickup' ? 'pickup' : 'placement';
+  const routeDone = route?.status === 'completed' || route?.status === 'archived';
   const placementPhaseStops = stops.filter((stop) => stop.serviceType !== 'pickup');
   const pickupPhaseStops = stops.filter((stop) => stop.serviceType !== 'inspection');
   const stopPhase = route ? stopPhaseOf(route) : null;
@@ -365,7 +366,12 @@ function RouteDetailContent() {
           <div className={styles.stopsSection}>
             <Card title="Route Map" padded={false}>
               <div className={styles.mapShell}>
-                <RouteStopsMap stops={stops} activeStopId={topVisibleStopId} mapTheme={mapTheme} />
+                <RouteStopsMap
+                  stops={stops}
+                  activeStopId={topVisibleStopId}
+                  phase={routeDone ? undefined : currentExecutionPhase}
+                  mapTheme={mapTheme}
+                />
               </div>
             </Card>
 
@@ -455,9 +461,9 @@ function RouteDetailContent() {
 
                   const isTopVisibleStop = stop.id === topVisibleStopId;
                   const isCurrentPhaseStop = currentPhaseStopIds.has(stop.id);
-                  const completedStop = isStopCompleted(stop);
                   const phaseProgress = stopProgress(stop)[currentExecutionPhase];
                   const phaseComplete = phaseProgress.state !== 'pending';
+                  const completedStop = routeDone ? isStopCompleted(stop) : phaseComplete;
                   const phaseSkipped = phaseProgress.state === 'skipped';
                   const phaseCompletedAt = phaseProgress.at ?? stop.actualDepartureTime;
                   const agentName = stop.agent?.trim() || 'Unassigned';

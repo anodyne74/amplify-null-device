@@ -9,6 +9,7 @@
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
 import { billedTime } from '@/lib/billedTime';
+import { isStopFinished } from '@/lib/stopProgress';
 
 export interface OperatorSplitSummary {
   operatorSub: string;
@@ -74,7 +75,7 @@ export async function computeDriverSplit(params: ComputeDriverSplitParams): Prom
   if (paySplitOnCompletedStopsOnly) {
     routes = routes.filter((route) => {
       const routeStops = stopsByRoute.get(route.id) || [];
-      return routeStops.length > 0 && routeStops.every((stop) => !!stop.actualDepartureTime);
+      return routeStops.length > 0 && routeStops.every(isStopFinished);
     });
   }
 

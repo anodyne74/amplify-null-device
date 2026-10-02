@@ -8,13 +8,11 @@ import {
 const outputsPath = process.env.AMPLIFY_OUTPUTS_PATH || 'amplify_outputs.json';
 
 // SES only ever delivers inbound mail through whichever ONE receipt rule set is
-// marked "active" for the account/region -- CloudFormation creates a rule set
-// per branch (amplify/backend.ts) but never designates it active. Without this
-// script, a branch's rules just sit inert: whatever rule set happened to be
-// active last (possibly from a branch that no longer exists, or an empty one)
-// keeps silently swallowing mail with a "550 5.1.1 mailbox unavailable" bounce,
-// regardless of what the current branch's own rules say. See the
-// SesReceiptRuleSet comment in amplify/backend.ts for the full story.
+// marked "active" for the account/region. Every branch adds its rule to one
+// shared rule set, and the deploy itself makes that set active (ADR 0009); this
+// script re-asserts it on every build, so a rule set switched by hand in the
+// console doesn't silently bounce every branch's mail ("550 5.1.1 mailbox
+// unavailable"). See the SesSharedReceiptRuleSet comment in amplify/backend.ts.
 export function loadRuleSetName(path) {
   const raw = readFileSync(path, 'utf8');
   const parsed = JSON.parse(raw);

@@ -3,7 +3,8 @@ import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { Role, ServicePrincipal, ManagedPolicy, PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
 import { Function as LambdaFunction, Runtime, Code } from 'aws-cdk-lib/aws-lambda';
-import { CfnTemplate, CfnReceiptRuleSet, CfnReceiptRule } from 'aws-cdk-lib/aws-ses';
+import { CfnTemplate, CfnReceiptRule } from 'aws-cdk-lib/aws-ses';
+import { AwsCustomResource, AwsCustomResourcePolicy, PhysicalResourceId } from 'aws-cdk-lib/custom-resources';
 import { auth } from './auth/resource';
 import { data } from './data/resource';
 import { storage } from './storage/resource';
@@ -138,7 +139,8 @@ const invitationTemplateName = withMaxLength(`NullDeviceInvitationTemplate-${bra
 const staffInvitationTemplateName = withMaxLength(`NullDeviceStaffInvitationTemplate-${branchName}`, 64);
 const inboundBucketName = withMaxLength(`ses-inbound-nulldevice-${branchName}`, 63);
 const forwarderFunctionName = withMaxLength(`ses-forwarder-nulldevice-${branchName}`, 64);
-const inboundRuleSetName = withMaxLength(`inbound-rule-set-nulldevice-${branchName}`, 64);
+// Not branch-scoped: every branch's rule lives in this one rule set (ADR 0009).
+const inboundRuleSetName = 'inbound-rule-set-nulldevice';
 const inboundRuleName = withMaxLength(`forward-specific-nulldevice-${branchName}`, 64);
 
 const sesStack = backend.createStack('ses-invoice-template');
@@ -835,21 +837,30 @@ inboundBucket.grantRead(
 	Role.fromRoleName(forwarderStack, 'AmplifyHostingSSRComputeRoleInboundMail', 'AmplifyHostingSSRCompute'),
 );
 
-// CloudFormation can create a receipt rule set, but SES only ever delivers
-// through whichever ONE rule set is marked "active" for the account/region --
-// and nothing in CDK/CloudFormation sets that. Since rule sets are branch-scoped
-// (a new one is created per branch, never reused), a fresh branch's rules just
-// sit inert unless something flips SES's active-rule-set pointer to it. That's
-// what scripts/ensure-ses-active-ruleset.js (wired into amplify.yml after this
-// deploy step) does -- mirroring how scripts/ensure-cognito-groups.js handles
-// the equivalent "CDK created it, but something else has to be told about it"
-// gap for Cognito groups.
-const receiptRuleSet = new CfnReceiptRuleSet(forwarderStack, 'SesReceiptRuleSet', {
-	ruleSetName: inboundRuleSetName,
+// SES only ever delivers through whichever ONE receipt rule set is "active"
+// for the account/region, and production and development share the account.
+// So no branch owns a rule set: each adds its own rule, for its own domain's
+// addresses, to one shared set that stays active (ADR 0009). Neither custom
+// resource undoes anything on delete -- another branch's rule may still be in
+// the set -- and the activation runs after this branch's rule exists, so the
+// rule set that used to be active (with the old rule in it) is only removed
+// once the shared one has taken over. scripts/ensure-ses-active-ruleset.js
+// re-asserts the activation on every build in case it was changed by hand.
+const sharedReceiptRuleSet = new AwsCustomResource(forwarderStack, 'SesSharedReceiptRuleSet', {
+	onCreate: {
+		service: 'SES',
+		action: 'CreateReceiptRuleSet',
+		parameters: { RuleSetName: inboundRuleSetName },
+		physicalResourceId: PhysicalResourceId.of(inboundRuleSetName),
+		// Whichever branch deploys first creates it; the rest find it there.
+		ignoreErrorCodesMatching: 'AlreadyExists',
+	},
+	policy: AwsCustomResourcePolicy.fromSdkCalls({ resources: AwsCustomResourcePolicy.ANY_RESOURCE }),
+	installLatestAwsSdk: false,
 });
 
-new CfnReceiptRule(forwarderStack, 'SesReceiptRule', {
-	ruleSetName: receiptRuleSet.ref,
+const receiptRule = new CfnReceiptRule(forwarderStack, 'SesSharedReceiptRule', {
+	ruleSetName: inboundRuleSetName,
 	rule: {
 		name: inboundRuleName,
 		enabled: true,
@@ -863,6 +874,20 @@ new CfnReceiptRule(forwarderStack, 'SesReceiptRule', {
 		],
 	},
 });
+
+receiptRule.node.addDependency(sharedReceiptRuleSet);
+
+const activeReceiptRuleSet = new AwsCustomResource(forwarderStack, 'SesActivateSharedReceiptRuleSet', {
+	onUpdate: {
+		service: 'SES',
+		action: 'SetActiveReceiptRuleSet',
+		parameters: { RuleSetName: inboundRuleSetName },
+		physicalResourceId: PhysicalResourceId.of(`active-${inboundRuleSetName}`),
+	},
+	policy: AwsCustomResourcePolicy.fromSdkCalls({ resources: AwsCustomResourcePolicy.ANY_RESOURCE }),
+	installLatestAwsSdk: false,
+});
+activeReceiptRuleSet.node.addDependency(receiptRule);
 
 // ── Observability: dashboard + alarms ────────────────────────────────────────
 configureObservability(backend, branchName, emailDomain);

@@ -4,6 +4,14 @@ Role-based delivery management system for sign-run operations: signs are placed 
 
 ## Language
 
+**Operator**:
+A person who runs Routes in the field: loads signs, places and picks them up at Stops, and unloads. Each Route is assigned to at most one Operator.
+_Avoid_: Driver, staff (staff means operators and administrators together)
+
+**Notify Operator**:
+An administrator's deliberate action telling a Route's assigned Operator about the Route: an email, plus a text message when the Operator has a mobile number. It is never sent automatically on assignment, only ever reaches the currently assigned Operator, and each one is kept in the Route's audit trail with the channels that went out.
+_Avoid_: Alert, dispatch, job-assigned email
+
 **Route**:
 A single trip assigned to an operator, made up of Stops, progressing through the Sign Run phases in order.
 _Avoid_: Job, trip. "Visit" means one Route at one Property, not the Route itself.

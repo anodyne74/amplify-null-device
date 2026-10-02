@@ -104,7 +104,12 @@ describe('Administrator Route Edit Page', () => {
 
     (callApi as jest.Mock).mockImplementation(async (path: string) => {
       if (path === '/api/admin/users') return { users: mockOperators };
-      if (path === '/api/admin/send-job-assigned-email') return { sentTo: 'operator-one@example.com' };
+      if (path === '/api/admin/send-job-assigned-email') {
+        return {
+          email: { status: 'sent', to: 'operator-one@example.com' },
+          text: { status: 'sent', to: '0412 345 678' },
+        };
+      }
       return {};
     });
 
@@ -220,6 +225,7 @@ describe('Administrator Route Edit Page', () => {
     await waitFor(() => {
       expect(callApi).toHaveBeenCalledWith('/api/admin/send-job-assigned-email', { routeId: 'route-test-id-1234' });
     });
+    expect(await screen.findByText('Notified operator-one@example.com and 0412 345 678.')).toBeInTheDocument();
   });
 
   it('enables Notify Operator for the new operator after reassigning an already-assigned route and saving', async () => {

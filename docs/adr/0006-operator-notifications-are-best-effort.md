@@ -2,7 +2,7 @@
 
 Status: accepted
 
-An operator gets an in-app toast when a Route is assigned to them or a Customer changes its instructions (`lib/useOperatorRouteNotifications.ts`). The hook compares the operator's live Route list with the last copy it saw. It doesn't read a stored record of events. When the subscription connects or resyncs, it takes a fresh copy without toasting, so a change made while the operator was offline never toasts. That's accepted: the operator still sees newly assigned Routes and their instructions on the dashboard and Route detail, which update live. The job-assigned email stays a deliberate, manual Notify Operator action on route edit, separate from the toast.
+An operator gets an in-app toast when a Route is assigned to them or a Customer changes its instructions (`lib/useOperatorRouteNotifications.ts`). The hook compares the operator's live Route list with the last copy it saw. It doesn't read a stored record of events. When the subscription connects or resyncs, it takes a fresh copy without toasting, so a change made while the operator was offline never toasts. That's accepted: the operator still sees newly assigned Routes and their instructions on the dashboard and Route detail, which update live. Notify Operator stays a deliberate, manual action on route edit, separate from the toast: an email, plus a text since #423 (ADR 0010).
 
 A future architecture review may spot the offline gap and suggest storing Route events. Don't do that unless a missed notification has caused a real problem.
 

@@ -23,6 +23,7 @@ import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
 import { getRouteWithStops, updateRoute, deleteStop, saveStop, resequenceStops, UNPINNED_STOP_NOTICE, saveStopFailure } from '@/lib/routes';
 import { listAllCustomers } from '@/lib/customers';
+import { notifyOperatorOutcome, type NotifyOperatorResult } from '@/lib/notifyOperatorOutcome';
 
 type CustomerOption = {
   id: string;
@@ -83,7 +84,7 @@ function RouteEditContent() {
   const [savedAssignedOperatorEmail, setSavedAssignedOperatorEmail] = useState<string | null>(null);
   const [notifying, setNotifying] = useState(false);
   const [notifyError, setNotifyError] = useState<string | null>(null);
-  const [notifySuccess, setNotifySuccess] = useState<string | null>(null);
+  const [notifyOutcome, setNotifyOutcome] = useState<ReturnType<typeof notifyOperatorOutcome> | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
   const fetchStops = useCallback(async () => {
@@ -284,11 +285,11 @@ function RouteEditContent() {
     if (!routeId) return;
     setNotifying(true);
     setNotifyError(null);
-    setNotifySuccess(null);
+    setNotifyOutcome(null);
 
     try {
-      const payload = await callApi<{ sentTo: string }>('/api/admin/send-job-assigned-email', { routeId });
-      setNotifySuccess(`Notified ${payload.sentTo}.`);
+      const payload = await callApi<NotifyOperatorResult>('/api/admin/send-job-assigned-email', { routeId });
+      setNotifyOutcome(notifyOperatorOutcome(payload));
     } catch (err) {
       setNotifyError(err instanceof Error ? err.message : 'Failed to notify operator.');
     }
@@ -485,7 +486,8 @@ function RouteEditContent() {
           </div>
           {saveSuccess && <p className={styles.successText}>{saveSuccess}</p>}
           {notifyError && <div className={styles.errorBanner}>{notifyError}</div>}
-          {notifySuccess && <p className={styles.successText}>{notifySuccess}</p>}
+          {notifyOutcome?.tone === 'success' && <p className={styles.successText}>{notifyOutcome.message}</p>}
+          {notifyOutcome?.tone === 'warning' && <div className={styles.noticeBanner}>{notifyOutcome.message}</div>}
         </form>
       </Card>
 

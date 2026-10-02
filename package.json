@@ -30,6 +30,7 @@
   "dependencies": {
     "@aws-amplify/ui-react": "^6.15.6",
     "@aws-sdk/client-cognito-identity-provider": "^3.1137.0",
+    "@aws-sdk/client-pinpoint-sms-voice-v2": "^3.1145.0",
     "@aws-sdk/client-s3": "^3.1141.0",
     "@aws-sdk/client-ses": "^3.1137.0",
     "@aws-sdk/credential-provider-node": "^3.972.82",

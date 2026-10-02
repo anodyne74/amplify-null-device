@@ -17,6 +17,7 @@ import { StatTile } from '@/app/components/ui/data/StatTile';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { listOperators } from '@/lib/queries/ListOperators';
 import { updateOperator } from '@/lib/queries/UpdateOperator';
+import { mobileForDisplay, mobileToStore } from '@/lib/operatorMobile';
 import { getDateGroup } from '@/lib/aggregateRouteData';
 import { formatDurationCompact } from '@/lib/dashboardAnalytics';
 import { summarizeRoutesStopsThisMonth, summarizeAverageRouteDuration } from '@/lib/adminDashboardOverview';
@@ -62,7 +63,7 @@ function toDriver(cognitoUser: CognitoOperator, record?: Operator): Driver {
     id: cognitoUser.id || record?.id || '',
     name: record?.name || cognitoUser.name || 'Unknown driver',
     email: record?.email || cognitoUser.email || '',
-    phone: record?.phone || '',
+    phone: mobileForDisplay(record?.phone),
     vehicleAndRego: record?.vehicleAndRego || '',
     homeBase: record?.homeBase || '',
     status: record?.status || 'onboarding',
@@ -160,11 +161,16 @@ export default function AdministratorDriversPage() {
 
   const handleSaveDriver = async () => {
     if (!selected) return;
+    const mobile = mobileToStore(selected.phone);
+    if (!mobile.ok) {
+      setSaveError(mobile.error);
+      return;
+    }
     await persist(
       selected.id,
-      {},
+      { phone: mobileForDisplay(mobile.phone) },
       {
-        phone: selected.phone || undefined,
+        phone: mobile.phone,
         vehicleAndRego: selected.vehicleAndRego || undefined,
         homeBase: selected.homeBase || undefined,
         driverSplitPercent: selected.driverSplitPercent === '' ? undefined : Number(selected.driverSplitPercent),

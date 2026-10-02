@@ -10,7 +10,8 @@ import type { BillingCycle, OperatorStatus } from '@/amplify/types';
 export async function updateOperator(
   id: string,
   updates: Partial<{
-    phone: string;
+    /** International form (lib/operatorMobile.ts); null clears it. */
+    phone: string | null;
     vehicleAndRego: string;
     homeBase: string;
     status: OperatorStatus;

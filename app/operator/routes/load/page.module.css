@@ -3,7 +3,13 @@
  * Only Load-specific classes remain here.
  */
 
+/* Stays in view while the timed signs checklist scrolls beneath it; the page-
+ * coloured shadow above covers the gap at the top of the scroll area. */
 .breakdownCard {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 -12px 0 var(--surface-page), var(--shadow-sm);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);

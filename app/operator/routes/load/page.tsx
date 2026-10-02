@@ -11,15 +11,17 @@ import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
 import { queueSignRunTransition } from '@/lib/signRunTransitions';
 import { formatClockTime } from '@/lib/format';
-import { groupByAgent, signsPlaced } from '@/lib/signRunTotals';
+import { groupByAgent, signsPlaced, timedSigns } from '@/lib/signRunTotals';
 import type { Route, Stop } from '@/amplify/types';
 import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
 import { getCustomer } from '@/lib/customers';
+import { TimedSignsChecklist } from './TimedSignsChecklist';
 
 interface LoadScreenExtra {
   customerName: string;
+  customerAgents: Array<string | null>;
   yardAddress: string | null;
 }
 
@@ -31,6 +33,7 @@ async function fetchLoadScreenExtra(route: Route): Promise<LoadScreenExtra> {
   ]);
   return {
     customerName: customer?.name ?? '',
+    customerAgents: customer?.agentOptions ?? [],
     yardAddress: orgSettingsResult?.address ?? null,
   };
 }
@@ -43,25 +46,17 @@ interface AgentBreakdownRow {
 
 /** Distinct stop.agent values, first-appearance (sequence) order — stops.list
  * from getRouteWithStops is already sorted by sequence. No-agent stops are
- * pooled under "Unassigned", shown only if any exist.
- *
- * Every auction property's signs are all timed (they all carry the auction
- * date/time). A non-auction property gets exactly one timed sign -- the main
- * board, which carries the viewing-times rider -- and any remaining signs are
- * blank. */
+ * pooled under "Unassigned", shown only if any exist. Timed vs blank follows
+ * timedSigns(). */
 function buildBreakdown(stops: Stop[]): AgentBreakdownRow[] {
   const stopsWithSigns = stops.filter((stop) => (stop.numberOfSigns ?? 0) > 0);
 
   return groupByAgent(stopsWithSigns).map((group) => {
     const row: AgentBreakdownRow = { name: group.agent, timed: 0, blank: 0 };
     for (const stop of group.stops) {
-      const signs = stop.numberOfSigns ?? 0;
-      if (stop.isAuction) {
-        row.timed += signs;
-      } else {
-        row.timed += 1;
-        row.blank += signs - 1;
-      }
+      const timed = timedSigns(stop);
+      row.timed += timed;
+      row.blank += (stop.numberOfSigns ?? 0) - timed;
     }
     return row;
   });
@@ -80,6 +75,7 @@ export default function OperatorLoadPage() {
   } = useSignRunPhaseScreen({ phaseIdx: 0, requireStops: false, fetchExtra: fetchLoadScreenExtra });
   const customerName = extra?.customerName ?? '';
   const yardAddress = extra?.yardAddress ?? null;
+  const customerAgents = extra?.customerAgents ?? [];
   const [error, setError] = useState<string | null>(null);
   const { dialog, openDialog, closeDialog, submitting } = useTimestampConfirmDialog<
     'start' | 'confirm'
@@ -185,6 +181,8 @@ export default function OperatorLoadPage() {
       {!route.loadStartedAt && (
         <div className={styles.startPanel}>Tap start once you&apos;re at the yard to begin loading.</div>
       )}
+
+      {route.loadStartedAt && <TimedSignsChecklist stops={stops} customerAgents={customerAgents} />}
 
       {route.loadStartedAt && (
         <div className={styles.stampLine}>Load started {formatClockTime(route.loadStartedAt)}</div>

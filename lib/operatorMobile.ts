@@ -1,0 +1,25 @@
+/**
+ * An Operator's mobile number, read the way people write Australian mobiles
+ * (`0412 345 678`, `0412345678`, `+61 412 345 678`, `61412345678`) and held in
+ * one international form (`+61412345678`) for sending texts. Anything that
+ * isn't an Australian mobile -- a landline, a short or long number, another
+ * country's -- isn't one.
+ */
+export type AustralianMobile = { international: string; local: string };
+
+export function australianMobile(raw: string | null | undefined): AustralianMobile | null {
+  if (!raw) return null;
+  const compact = raw.replace(/[\s().-]/g, '');
+  const match = /^(?:\+?61|0)(4\d{8})$/.exec(compact);
+  if (!match) return null;
+  const national = match[1];
+  return {
+    international: `+61${national}`,
+    local: `0${national.slice(0, 3)} ${national.slice(3, 6)} ${national.slice(6)}`,
+  };
+}
+
+/** The number with all but its last three digits hidden, for the audit log. */
+export function maskedMobile(mobile: AustralianMobile): string {
+  return `${mobile.local.slice(0, 4)} *** ${mobile.local.slice(-3)}`;
+}

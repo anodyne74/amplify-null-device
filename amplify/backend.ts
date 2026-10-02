@@ -5,6 +5,8 @@ import { Role, ServicePrincipal, ManagedPolicy, PolicyStatement, Effect } from '
 import { Function as LambdaFunction, Runtime, Code } from 'aws-cdk-lib/aws-lambda';
 import { CfnTemplate, CfnReceiptRule } from 'aws-cdk-lib/aws-ses';
 import { AwsCustomResource, AwsCustomResourcePolicy, PhysicalResourceId } from 'aws-cdk-lib/custom-resources';
+import { CfnConfigurationSet } from 'aws-cdk-lib/aws-smsvoice';
+import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { auth } from './auth/resource';
 import { data } from './data/resource';
 import { storage } from './storage/resource';
@@ -889,6 +891,54 @@ const activeReceiptRuleSet = new AwsCustomResource(forwarderStack, 'SesActivateS
 });
 activeReceiptRuleSet.node.addDependency(receiptRule);
 
+// ── Notify Operator texts (#423, ADR 0010) ──────────────────────────────────
+// /api/admin/send-job-assigned-email texts the Route's Operator through AWS End
+// User Messaging SMS, from the registered sender name below. Each branch gets
+// its own configuration set, so its delivery events land in its own log
+// group. The account's SMS sandbox, sender name and spend limit are shared by
+// every branch; only production texts any Operator (the route itself limits
+// other branches to SMS_TEST_NUMBERS).
+const smsSenderId = 'NullDevice';
+const smsStack = Stack.of(backend.data.resources.graphqlApi);
+const smsConfigurationSetName = withMaxLength(`nulldevice-sms-${branchName}`, 64);
+const smsEventsLogGroup = new LogGroup(smsStack, 'SmsEventsLogGroup', {
+	logGroupName: `/nulldevice/sms-events-${branchName}`,
+	retention: RetentionDays.SIX_MONTHS,
+	removalPolicy: RemovalPolicy.DESTROY,
+});
+const smsEventsRole = new Role(smsStack, 'SmsEventsRole', {
+	assumedBy: new ServicePrincipal('sms-voice.amazonaws.com'),
+});
+smsEventsLogGroup.grantWrite(smsEventsRole);
+const smsConfigurationSet = new CfnConfigurationSet(smsStack, 'SmsConfigurationSet', {
+	configurationSetName: smsConfigurationSetName,
+	defaultSenderId: smsSenderId,
+	eventDestinations: [
+		{
+			eventDestinationName: 'delivery-events',
+			enabled: true,
+			matchingEventTypes: ['ALL'],
+			cloudWatchLogsDestination: {
+				iamRoleArn: smsEventsRole.roleArn,
+				logGroupArn: smsEventsLogGroup.logGroupArn,
+			},
+		},
+	],
+});
+smsConfigurationSet.node.addDependency(smsEventsRole);
+const smsVoiceArn = (resource: string) => `arn:aws:sms-voice:${smsStack.region}:${smsStack.account}:${resource}`;
+ssrComputeRole.addToPrincipalPolicy(
+	new PolicyStatement({
+		sid: 'AllowSmsSendTextFromSenderName',
+		effect: Effect.ALLOW,
+		actions: ['sms-voice:SendTextMessage'],
+		resources: [
+			smsVoiceArn(`sender-id/${smsSenderId}/AU`),
+			smsVoiceArn(`configuration-set/${smsConfigurationSetName}`),
+		],
+	}),
+);
+
 // ── Observability: dashboard + alarms ────────────────────────────────────────
 configureObservability(backend, branchName, emailDomain);
 
@@ -906,6 +956,8 @@ backend.addOutput({
 		sesStaffInvitationTemplateName: staffInvitationTemplateName,
 		sesInboundRuleSetName: inboundRuleSetName,
 		sesInboundBucketName: inboundBucketName,
+		smsConfigurationSetName,
+		smsSenderId,
 		branchName,
 	},
 });

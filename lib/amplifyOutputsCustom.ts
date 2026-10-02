@@ -22,6 +22,10 @@ export interface AmplifyOutputsCustom {
   sesStaffInvitationTemplateName?: string;
   sesInboundRuleSetName?: string;
   sesInboundBucketName?: string;
+  /** The branch's End User Messaging configuration set, for Notify Operator texts. */
+  smsConfigurationSetName?: string;
+  /** The registered sender name Notify Operator texts come from. */
+  smsSenderId?: string;
   /** The deployed branch, sanitized as in amplify/shared/branch.ts. */
   branchName?: string;
 }

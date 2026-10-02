@@ -18,12 +18,12 @@ describe('loadRuleSetName', () => {
     (readFileSync as jest.Mock).mockReturnValue(
       JSON.stringify({
         auth: { aws_region: 'ap-southeast-2' },
-        custom: { sesInboundRuleSetName: 'inbound-rule-set-nulldevice-development' },
+        custom: { sesInboundRuleSetName: 'inbound-rule-set-nulldevice' },
       }),
     );
 
     expect(loadRuleSetName('amplify_outputs.json')).toEqual({
-      ruleSetName: 'inbound-rule-set-nulldevice-development',
+      ruleSetName: 'inbound-rule-set-nulldevice',
       region: 'ap-southeast-2',
     });
   });
@@ -37,10 +37,10 @@ describe('loadRuleSetName', () => {
 
 describe('ensureActive', () => {
   it('does nothing when the target rule set is already active', async () => {
-    const send = jest.fn().mockResolvedValue({ Metadata: { Name: 'inbound-rule-set-nulldevice-development' } });
+    const send = jest.fn().mockResolvedValue({ Metadata: { Name: 'inbound-rule-set-nulldevice' } });
     const client = { send };
 
-    await ensureActive(client, 'inbound-rule-set-nulldevice-development');
+    await ensureActive(client, 'inbound-rule-set-nulldevice');
 
     expect(send).toHaveBeenCalledTimes(1);
   });
@@ -52,17 +52,17 @@ describe('ensureActive', () => {
       .mockResolvedValueOnce({});
     const client = { send };
 
-    await ensureActive(client, 'inbound-rule-set-nulldevice-development');
+    await ensureActive(client, 'inbound-rule-set-nulldevice');
 
     expect(send).toHaveBeenCalledTimes(2);
-    expect(send.mock.calls[1][0]).toEqual({ input: { RuleSetName: 'inbound-rule-set-nulldevice-development' } });
+    expect(send.mock.calls[1][0]).toEqual({ input: { RuleSetName: 'inbound-rule-set-nulldevice' } });
   });
 
   it('activates when no rule set is currently active at all', async () => {
     const send = jest.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({});
     const client = { send };
 
-    await ensureActive(client, 'inbound-rule-set-nulldevice-development');
+    await ensureActive(client, 'inbound-rule-set-nulldevice');
 
     expect(send).toHaveBeenCalledTimes(2);
   });

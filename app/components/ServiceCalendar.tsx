@@ -167,7 +167,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     const items: { key: string; label: string; badge: string }[] = [];
     for (const block of noDriversBlocks) {
       if (block.date && block.date >= todayKey) {
-        items.push({ key: block.date, label: block.reason || 'No drivers available', badge: 'No drivers' });
+        items.push({ key: block.date, label: block.reason || 'Null Device unavailable', badge: 'Unavailable' });
       }
     }
     for (const block of closedBlocks) {
@@ -357,7 +357,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
           <div className={styles.legend}>
             <span className={styles.legendItem}>
               <span className={`${styles.legendSwatch} ${styles.legendSwatchNoDrivers}`} />
-              No drivers — set by Null Device
+              Null Device unavailable — set by Null Device
             </span>
             <span className={styles.legendItem}>
               <span className={`${styles.legendSwatch} ${styles.legendSwatchClosed}`} />
@@ -379,7 +379,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
             ) : (
               <>
                 <div className={styles.statRow}>
-                  <span className={styles.statLabel}>Drivers available</span>
+                  <span className={styles.statLabel}>Null Device</span>
                   <span className={selectedNoDriversBlock ? styles.statBad : styles.statGood}>
                     {selectedNoDriversBlock ? 'Blocked' : 'Available'}
                   </span>
@@ -412,7 +412,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
                             id="cal-no-drivers-reason"
                             value={reasonDraft}
                             onChange={(e) => setReasonDraft(e.target.value)}
-                            placeholder="Driver vacation, public holiday, depot closed"
+                            placeholder="Public holiday, depot closed"
                             disabled={actionPending}
                           />
                         </Field>
@@ -488,7 +488,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
                 >
                   <span className={styles.upcomingDate}>{formatShortDate(item.key)}</span>
                   <span className={styles.upcomingLabel}>{item.label}</span>
-                  <span className={item.badge === 'No drivers' ? styles.badgeNoDrivers : styles.badgeClosed}>{item.badge}</span>
+                  <span className={item.badge === 'Unavailable' ? styles.badgeNoDrivers : styles.badgeClosed}>{item.badge}</span>
                 </button>
               ))}
             </div>

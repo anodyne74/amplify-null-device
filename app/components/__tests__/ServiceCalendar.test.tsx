@@ -151,7 +151,7 @@ describe('ServiceCalendar', () => {
     );
 
     expect(await screen.findByText('Public holiday')).toBeInTheDocument();
-    expect(screen.getByText('No drivers')).toBeInTheDocument();
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
   });
 
   it('shows a deliveries count for the selected day, derived from route timestamps', async () => {

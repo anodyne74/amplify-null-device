@@ -505,7 +505,7 @@ export default function CustomersAdminPage() {
                     <SortableHeader label="Status" sortKey="status" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
                     <th scope="col">Users</th>
                     <th scope="col">Hourly rate</th>
-                    <th scope="col">Driver split</th>
+                    <th scope="col">Operator split</th>
                     <th scope="col">Cycle</th>
                     <th scope="col">Default signs</th>
                     <th scope="col">Actions</th>

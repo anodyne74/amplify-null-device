@@ -468,7 +468,7 @@ function PaymentDetailsContent() {
     }).then(() => true, () => false);
 
     if (!saved) {
-      setDriverSplitError('Could not save driver split settings.');
+      setDriverSplitError('Could not save operator split settings.');
       setSavingDriverSplit(false);
       return;
     }
@@ -476,7 +476,7 @@ function PaymentDetailsContent() {
     const nextCustomer = (await getCustomer(selectedCustomerId).catch(() => null)) as Customer | null;
     if (nextCustomer) setCustomer(nextCustomer);
 
-    setDriverSplitSuccess('Driver split settings saved.');
+    setDriverSplitSuccess('Operator split settings saved.');
     setSavingDriverSplit(false);
   };
 
@@ -840,7 +840,7 @@ function PaymentDetailsContent() {
               </div>
             </Card>
 
-            <Card title="Driver split" subtitle="Share of this period's billed amount paid to the assigned operator">
+            <Card title="Operator split" subtitle="Share of this period's billed amount paid to the assigned operator">
               <div className={styles.form}>
                 {driverSplitError && <p className="nd-badge nd-badge--danger">{driverSplitError}</p>}
                 {driverSplitSuccess && <p className="nd-badge nd-badge--success">{driverSplitSuccess}</p>}
@@ -867,7 +867,7 @@ function PaymentDetailsContent() {
                 <Switch
                   checked={hideDriverSplitFromCustomer}
                   onChange={(e) => setHideDriverSplitFromCustomer(e.target.checked)}
-                  label="Hide driver split from customer-facing documents"
+                  label="Hide operator split from customer-facing documents"
                   disabled={savingDriverSplit}
                 />
 
@@ -878,7 +878,7 @@ function PaymentDetailsContent() {
                     disabled={savingDriverSplit}
                     onClick={() => void handleSaveDriverSplit()}
                   >
-                    {savingDriverSplit ? 'Saving…' : 'Save driver split'}
+                    {savingDriverSplit ? 'Saving…' : 'Save operator split'}
                   </Button>
                 </div>
 
@@ -887,7 +887,7 @@ function PaymentDetailsContent() {
                 ) : splitPreview ? (
                   <div className={styles.splitStats}>
                     <StatTile
-                      label="Driver share (this period)"
+                      label="Operator share (this period)"
                       value={`$${splitPreview.totalDriverShare.toFixed(2)}`}
                       caption={`across ${splitPreview.totalStopCount} stop${splitPreview.totalStopCount === 1 ? '' : 's'}`}
                     />

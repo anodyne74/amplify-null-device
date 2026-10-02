@@ -9,7 +9,7 @@ const ADMIN_NAV: PortalNavItem[] = [
   { href: '/administrator/routes', label: 'Routes', icon: 'route' },
   { href: '/administrator/route-requests', label: 'Request Inbox', icon: 'mail' },
   { href: '/administrator/customers', label: 'Customers', icon: 'building-2' },
-  { href: '/administrator/drivers', label: 'Drivers', icon: 'truck' },
+  { href: '/administrator/drivers', label: 'Operators', icon: 'truck' },
   { href: '/administrator/invoices', label: 'Invoices', icon: 'file-text' },
   { href: '/administrator/payment-details', label: 'Payment Details', icon: 'receipt' },
   { href: '/administrator/payouts', label: 'Payouts', icon: 'wallet' },

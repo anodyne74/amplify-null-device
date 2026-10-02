@@ -60,7 +60,7 @@ export default function UninvoicedRoutesTable({ loading, routes, customerName }:
                   <th scope="col" aria-hidden="true" />
                   <th scope="col">Route</th>
                   <th scope="col">Customer</th>
-                  <th scope="col">Driver</th>
+                  <th scope="col">Operator</th>
                   <th scope="col">Scheduled</th>
                   <th scope="col">Duration</th>
                   <th scope="col">Stops</th>

@@ -154,7 +154,7 @@ describe('Administrator Payouts page', () => {
     render(<AdministratorPayoutsPage />);
 
     expect(await screen.findByText('$120.00')).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Driver' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Operator' })).toBeInTheDocument();
     expect(screen.getByText('Aishling')).toBeInTheDocument();
     expect(screen.getByText('Operator op-2')).toBeInTheDocument();
   });

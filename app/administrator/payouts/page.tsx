@@ -124,7 +124,7 @@ export default function AdministratorPayoutsPage() {
         periodEndDate: periodEnd,
       });
     } catch (error) {
-      setPreviewError(error instanceof Error ? error.message : 'Could not compute the driver split.');
+      setPreviewError(error instanceof Error ? error.message : 'Could not compute the operator split.');
       setPreviewLoading(false);
       return;
     }
@@ -182,7 +182,7 @@ export default function AdministratorPayoutsPage() {
 
   const columns: DataColumn<OperatorPayout>[] = [
     { key: 'customer', header: 'Customer', render: (row) => customerName(row.customerId) },
-    { key: 'operator', header: 'Driver', render: (row) => operatorLabel(row.operatorSub, driverNamesBySub.get(row.operatorSub)) },
+    { key: 'operator', header: 'Operator', render: (row) => operatorLabel(row.operatorSub, driverNamesBySub.get(row.operatorSub)) },
     {
       key: 'period',
       header: 'Period',
@@ -221,7 +221,7 @@ export default function AdministratorPayoutsPage() {
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
-        <PageHeader title="Payouts" subtitle="Driver-split payouts by customer and operator" />
+        <PageHeader title="Payouts" subtitle="Operator-split payouts by customer and operator" />
 
         {error && <div className={styles.errorBanner} role="alert" aria-live="assertive">{error}</div>}
 

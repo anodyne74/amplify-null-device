@@ -223,7 +223,7 @@ export function RouteForm({
   const blockedDateMessage = () => {
     if (blockCheck.status !== 'blocked') return null;
     if (blockCheck.type === 'no_drivers') {
-      return `Null Device has no drivers available on ${scheduledDate}${blockCheck.reason ? ` (${blockCheck.reason})` : ''}. Choose another date, or clear the block on the service calendar.`;
+      return `Null Device has no operators available on ${scheduledDate}${blockCheck.reason ? ` (${blockCheck.reason})` : ''}. Choose another date, or clear the block on the service calendar.`;
     }
     return `${selectedCustomer?.name ?? 'This customer'}'s agency is closed on ${scheduledDate}${blockCheck.reason ? ` (${blockCheck.reason})` : ''}. Choose another date.`;
   };

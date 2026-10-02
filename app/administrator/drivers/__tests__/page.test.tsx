@@ -49,7 +49,7 @@ function mockUsersApi(byAction: Record<string, () => unknown> = {}) {
   );
 }
 
-describe('Administrator Drivers page', () => {
+describe('Administrator Operators page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
@@ -129,7 +129,7 @@ describe('Administrator Drivers page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
 
     fireEvent.change(screen.getByLabelText(/vehicle and rego/i), { target: { value: 'Van 1 · XYZ999' } });
-    fireEvent.click(screen.getByRole('button', { name: /save driver/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save operator/i }));
 
     await waitFor(() => {
       expect(updateOperator).toHaveBeenCalledWith(
@@ -147,7 +147,7 @@ describe('Administrator Drivers page', () => {
       await screen.findByText('Van 1 · ABC123');
       fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
       fireEvent.change(screen.getByLabelText('Mobile'), { target: { value: typed } });
-      fireEvent.click(screen.getByRole('button', { name: /save driver/i }));
+      fireEvent.click(screen.getByRole('button', { name: /save operator/i }));
 
       await waitFor(() => {
         expect(updateOperator).toHaveBeenCalledWith('sub-1', expect.objectContaining({ phone: '+61412345678' }));
@@ -170,7 +170,7 @@ describe('Administrator Drivers page', () => {
     await screen.findByText('Van 1 · ABC123');
     fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
     fireEvent.change(screen.getByLabelText('Mobile'), { target: { value: '' } });
-    fireEvent.click(screen.getByRole('button', { name: /save driver/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save operator/i }));
 
     await waitFor(() => {
       expect(updateOperator).toHaveBeenCalledWith('sub-1', expect.objectContaining({ phone: null }));
@@ -183,7 +183,7 @@ describe('Administrator Drivers page', () => {
     await screen.findByText('Van 1 · ABC123');
     fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
     fireEvent.change(screen.getByLabelText('Mobile'), { target: { value: '02 9876 5432' } });
-    fireEvent.click(screen.getByRole('button', { name: /save driver/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save operator/i }));
 
     expect(await screen.findByText(/Mobile must be an Australian mobile number/)).toBeInTheDocument();
     expect(updateOperator).not.toHaveBeenCalled();
@@ -265,7 +265,7 @@ describe('Administrator Drivers page', () => {
 
     render(<AdministratorDriversPage />);
 
-    expect(await screen.findByText(/no drivers yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no operators yet/i)).toBeInTheDocument();
   });
 
   it('invites a new driver via the operator group', async () => {
@@ -273,10 +273,10 @@ describe('Administrator Drivers page', () => {
 
     await screen.findByText('Van 1 · ABC123');
 
-    fireEvent.change(screen.getByLabelText(/email for new driver/i), {
+    fireEvent.change(screen.getByLabelText(/email for new operator/i), {
       target: { value: 'new-driver@nulldevice.dev' },
     });
-    fireEvent.change(screen.getByLabelText(/optional display name for new driver/i), {
+    fireEvent.change(screen.getByLabelText(/optional display name for new operator/i), {
       target: { value: 'New Driver' },
     });
     fireEvent.click(screen.getByRole('button', { name: /^send invite$/i }));
@@ -291,7 +291,7 @@ describe('Administrator Drivers page', () => {
     });
 
     expect(await screen.findByText(/they’ll get an email with a temporary password/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/email for new driver/i)).toHaveValue('');
+    expect(screen.getByLabelText(/email for new operator/i)).toHaveValue('');
   });
 
   it('tells the admin when the login was created but the invitation email failed to send', async () => {
@@ -301,7 +301,7 @@ describe('Administrator Drivers page', () => {
 
     await screen.findByText('Van 1 · ABC123');
 
-    fireEvent.change(screen.getByLabelText(/email for new driver/i), {
+    fireEvent.change(screen.getByLabelText(/email for new operator/i), {
       target: { value: 'new-driver@nulldevice.dev' },
     });
     fireEvent.click(screen.getByRole('button', { name: /^send invite$/i }));
@@ -320,12 +320,12 @@ describe('Administrator Drivers page', () => {
 
     await screen.findByText('Van 1 · ABC123');
 
-    fireEvent.change(screen.getByLabelText(/email for new driver/i), {
+    fireEvent.change(screen.getByLabelText(/email for new operator/i), {
       target: { value: 'broken@nulldevice.dev' },
     });
     fireEvent.click(screen.getByRole('button', { name: /^send invite$/i }));
 
     expect(await screen.findByText('Could not create a login for this email.')).toBeInTheDocument();
-    expect(screen.getByLabelText(/email for new driver/i)).toHaveValue('broken@nulldevice.dev');
+    expect(screen.getByLabelText(/email for new operator/i)).toHaveValue('broken@nulldevice.dev');
   });
 });

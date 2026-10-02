@@ -248,7 +248,7 @@ export default function InvoicePreview({
       </div>
 
       <div className={styles.internalPanel}>
-        <div className={styles.columnLabel}>Internal · driver split (not shown to the customer)</div>
+        <div className={styles.columnLabel}>Internal · operator split (not shown to the customer)</div>
         {routeNotFinalized && (
           <div className={styles.metaLine}>Route not yet finalised — figures may change.</div>
         )}
@@ -256,7 +256,7 @@ export default function InvoicePreview({
           <StatTile label="Duration" value={formatDuration(routeMinutes)} />
           <StatTile label="Distance" value={`${routeDistanceKm.toFixed(1)} km`} />
           <StatTile
-            label="Driver share"
+            label="Operator share"
             value={`$${driverSplit.driverShare.toFixed(2)}`}
             caption={`${driverSplit.splitPercent}% of $${preGstAmount.toFixed(2)} billed`}
           />

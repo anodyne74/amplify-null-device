@@ -240,7 +240,7 @@ describe('RouteForm', () => {
       expect(onCheckDateBlock).toHaveBeenCalledWith('cust-1', expect.any(String));
     });
 
-    expect(await screen.findByText(/no drivers available/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no operators available/i)).toBeInTheDocument();
     expect(screen.getByText(/driver on leave/i)).toBeInTheDocument();
 
     const submitButton = screen.getByRole('button', { name: /create route/i });

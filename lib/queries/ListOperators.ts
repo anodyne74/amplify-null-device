@@ -8,7 +8,7 @@ import { resultData, withDataError } from '@/lib/graphqlResult';
 import { listAll } from '@/lib/listAll';
 
 export async function listOperators() {
-  return withDataError('Failed to load drivers.', async () => {
+  return withDataError('Failed to load operators.', async () => {
     const operators = resultData(await listAll(getDataClient(), 'Operator')) ?? [];
     return [...operators].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   });

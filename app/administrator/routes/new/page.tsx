@@ -527,7 +527,7 @@ function NewRoutePageContent() {
         const customerName = customers.find((c) => c.id === importCustomerId)?.name ?? 'This customer';
         setImportError(
           dateBlock.type === 'no_drivers'
-            ? `Null Device has no drivers available on ${importScheduledDate}${dateBlock.reason ? ` (${dateBlock.reason})` : ''}. Choose another date, or clear the block on the service calendar.`
+            ? `Null Device has no operators available on ${importScheduledDate}${dateBlock.reason ? ` (${dateBlock.reason})` : ''}. Choose another date, or clear the block on the service calendar.`
             : `${customerName}'s agency is closed on ${importScheduledDate}${dateBlock.reason ? ` (${dateBlock.reason})` : ''}. Choose another date.`
         );
         setIsUploading(false);

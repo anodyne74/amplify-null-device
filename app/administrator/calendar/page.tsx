@@ -41,7 +41,7 @@ export default function AdministratorCalendarPage() {
       <div>
         <PageHeader
           title="Service Calendar"
-          subtitle="Block out days Null Device has no drivers available"
+          subtitle="Block out days Null Device has no operators available"
           actions={
             <div className={styles.customerPicker}>
               <Field label="Customer" htmlFor="calendar-customer">

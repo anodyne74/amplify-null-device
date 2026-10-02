@@ -404,7 +404,7 @@ describe('Administrator Payment Details page', () => {
       expect(screen.getByDisplayValue('40')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /save driver split/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save operator split/i }));
 
     await waitFor(() => {
       expect(updateCustomer).toHaveBeenCalledWith('cust-1', {
@@ -415,7 +415,7 @@ describe('Administrator Payment Details page', () => {
       });
     });
 
-    expect(await screen.findByText(/driver split settings saved/i)).toBeInTheDocument();
+    expect(await screen.findByText(/operator split settings saved/i)).toBeInTheDocument();
   });
 
   it('scrolls back to the top when switching customers (#66)', async () => {

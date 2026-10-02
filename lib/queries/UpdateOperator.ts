@@ -21,7 +21,7 @@ export async function updateOperator(
     assignedCustomerIds: string[];
   }>
 ) {
-  return withDataError('Failed to update driver.', async () =>
+  return withDataError('Failed to update operator.', async () =>
     resultData(await getDataClient().models.Operator.update({ id, ...updates }))
   );
 }

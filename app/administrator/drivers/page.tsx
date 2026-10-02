@@ -61,7 +61,7 @@ const PAY_CYCLES: BillingCycle[] = ['weekly', 'fortnightly', 'monthly'];
 function toDriver(cognitoUser: CognitoOperator, record?: Operator): Driver {
   return {
     id: cognitoUser.id || record?.id || '',
-    name: record?.name || cognitoUser.name || 'Unknown driver',
+    name: record?.name || cognitoUser.name || 'Unknown operator',
     email: record?.email || cognitoUser.email || '',
     phone: mobileForDisplay(record?.phone),
     vehicleAndRego: record?.vehicleAndRego || '',
@@ -130,7 +130,7 @@ export default function AdministratorDriversPage() {
       setStops(stopsResult as StopSummary[]);
       setSelectedId((current) => (current && merged.some((d) => d.id === current) ? current : merged[0]?.id || ''));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load drivers.');
+      setError(err instanceof Error ? err.message : 'Could not load operators.');
     } finally {
       setLoading(false);
     }
@@ -202,7 +202,7 @@ export default function AdministratorDriversPage() {
   const handleInviteDriver = async () => {
     const email = inviteEmail.trim();
     if (!email) {
-      setInviteError('Driver email is required.');
+      setInviteError('Operator email is required.');
       return;
     }
 
@@ -229,7 +229,7 @@ export default function AdministratorDriversPage() {
       setInviteName('');
       await load();
     } catch (e) {
-      setInviteError(e instanceof Error ? e.message : 'Could not invite that driver.');
+      setInviteError(e instanceof Error ? e.message : 'Could not invite that operator.');
     }
 
     setInvitePending(false);
@@ -286,7 +286,7 @@ export default function AdministratorDriversPage() {
   const columns: DataColumn<Driver>[] = [
     {
       key: 'name',
-      header: 'Driver',
+      header: 'Operator',
       render: (row) => (
         <div className={styles.driverCell}>
           <Avatar name={row.name} size="sm" />
@@ -344,7 +344,7 @@ export default function AdministratorDriversPage() {
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
         <PageHeader
-          title="Drivers"
+          title="Operators"
           subtitle="Roster, vehicles and pay split for everyone in the operator group"
         />
 
@@ -355,7 +355,7 @@ export default function AdministratorDriversPage() {
         )}
 
         <div className={styles.statsGrid}>
-          <StatTile label="Drivers active" value={activeCount} caption={`${onboardingCount} onboarding`} icon="truck" />
+          <StatTile label="Operators active" value={activeCount} caption={`${onboardingCount} onboarding`} icon="truck" />
           <StatTile
             label="Routes this month"
             value={loading ? '…' : routesStops.currentRoutes}
@@ -365,7 +365,7 @@ export default function AdministratorDriversPage() {
             icon="route"
           />
           <StatTile
-            label="Avg driver split"
+            label="Avg operator split"
             value={avgSplit === null ? '—' : `${avgSplit.toFixed(1)}%`}
             caption="of what we bill"
             icon="chart-column"
@@ -384,7 +384,7 @@ export default function AdministratorDriversPage() {
           />
         </div>
 
-        <Card title="Invite a driver" subtitle="They’ll get a login in the operator group and show up below as onboarding.">
+        <Card title="Invite an operator" subtitle="They’ll get a login in the operator group and show up below as onboarding.">
           <div className={styles.form}>
             {inviteError && (
               <div className={styles.errorBanner} role="alert" aria-live="assertive">
@@ -403,9 +403,9 @@ export default function AdministratorDriversPage() {
                   type="email"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="driver@nulldevice.dev"
+                  placeholder="operator@nulldevice.dev"
                   disabled={invitePending}
-                  aria-label="Email for new driver"
+                  aria-label="Email for new operator"
                 />
               </Field>
               <Field label="Display Name" htmlFor="invite-driver-name" className={styles.inviteField}>
@@ -415,7 +415,7 @@ export default function AdministratorDriversPage() {
                   onChange={(e) => setInviteName(e.target.value)}
                   placeholder="Display name (optional)"
                   disabled={invitePending}
-                  aria-label="Optional display name for new driver"
+                  aria-label="Optional display name for new operator"
                 />
               </Field>
               <Button
@@ -431,18 +431,18 @@ export default function AdministratorDriversPage() {
           </div>
         </Card>
 
-        <Card title="Drivers" subtitle="Pick a driver to configure their roster, vehicle and split" padded={false}>
+        <Card title="Operators" subtitle="Pick an operator to configure their roster, vehicle and split" padded={false}>
           {loading ? (
             <div style={{ padding: 'var(--space-6)' }}>
-              <LoadingSpinner message="Loading drivers..." />
+              <LoadingSpinner message="Loading operators..." />
             </div>
           ) : (
-            <DataTable columns={columns} rows={drivers} empty="No drivers yet. Invite one above." />
+            <DataTable columns={columns} rows={drivers} empty="No operators yet. Invite one above." />
           )}
         </Card>
 
         {selected && (
-          <Card title={selected.name} subtitle="Driver setup">
+          <Card title={selected.name} subtitle="Operator setup">
             <div className={styles.detailLayout}>
               <div className={styles.form}>
                 {saveError && <p className="nd-badge nd-badge--danger">{saveError}</p>}
@@ -488,7 +488,7 @@ export default function AdministratorDriversPage() {
                 )}
                 <div className={styles.formActions}>
                   <Button type="button" loading={saving} disabled={saving} onClick={() => void handleSaveDriver()}>
-                    Save driver
+                    Save operator
                   </Button>
                   <Button
                     type="button"
@@ -518,10 +518,10 @@ export default function AdministratorDriversPage() {
                   <span className={styles.sectionHeading}>Pay split</span>
                   <div className={styles.callout}>
                     Not yet applied to payouts — payout calculations still use the customer&apos;s rate-card split for
-                    every operator on that customer&apos;s routes. Captured here ahead of per-driver overrides.
+                    every operator on that customer&apos;s routes. Captured here ahead of per-operator overrides.
                   </div>
                   <div className={styles.formGrid}>
-                    <Field label="Driver split" hint="Percentage of each billed line" htmlFor="driver-split">
+                    <Field label="Operator split" hint="Percentage of each billed line" htmlFor="driver-split">
                       <Input
                         id="driver-split"
                         type="number"
@@ -557,7 +557,7 @@ export default function AdministratorDriversPage() {
                 <div className={`${styles.form} ${styles.detailDivider}`}>
                   <div>
                     <span className={styles.sectionHeading}>Customers covered</span>
-                    <p className={styles.formHint}>Routes for these accounts come to this driver first</p>
+                    <p className={styles.formHint}>Routes for these accounts come to this operator first</p>
                   </div>
                   {selected.assignedCustomerIds.length > 0 ? (
                     <div className={styles.customerList}>
@@ -577,7 +577,7 @@ export default function AdministratorDriversPage() {
                       ))}
                     </div>
                   ) : (
-                    <span className={styles.formHint}>No accounts yet. Assign one to start rostering this driver.</span>
+                    <span className={styles.formHint}>No accounts yet. Assign one to start rostering this operator.</span>
                   )}
                   {unassignedCustomers.length > 0 && (
                     <div className={styles.assignRow}>

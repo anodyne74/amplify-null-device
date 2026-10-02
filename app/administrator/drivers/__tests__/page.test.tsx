@@ -60,6 +60,7 @@ describe('Administrator Drivers page', () => {
         id: 'sub-1',
         name: 'Jane Driver',
         email: 'jane@nulldevice.dev',
+        phone: '+61412345678',
         status: 'active',
         vehicleAndRego: 'Van 1 · ABC123',
         homeBase: 'Ryde',
@@ -136,6 +137,56 @@ describe('Administrator Drivers page', () => {
         expect.objectContaining({ vehicleAndRego: 'Van 1 · XYZ999' })
       );
     });
+  });
+
+  it.each(['0412 345 678', '+61 412 345 678', '61412345678'])(
+    'saves the mobile %s in international form and shows it in local form',
+    async (typed) => {
+      render(<AdministratorDriversPage />);
+
+      await screen.findByText('Van 1 · ABC123');
+      fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
+      fireEvent.change(screen.getByLabelText('Mobile'), { target: { value: typed } });
+      fireEvent.click(screen.getByRole('button', { name: /save driver/i }));
+
+      await waitFor(() => {
+        expect(updateOperator).toHaveBeenCalledWith('sub-1', expect.objectContaining({ phone: '+61412345678' }));
+      });
+      await waitFor(() => expect(screen.getByLabelText('Mobile')).toHaveValue('0412 345 678'));
+    }
+  );
+
+  it('shows a stored mobile in local form', async () => {
+    render(<AdministratorDriversPage />);
+
+    await screen.findByText('Van 1 · ABC123');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
+    expect(screen.getByLabelText('Mobile')).toHaveValue('0412 345 678');
+  });
+
+  it('saves a cleared mobile as no number', async () => {
+    render(<AdministratorDriversPage />);
+
+    await screen.findByText('Van 1 · ABC123');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
+    fireEvent.change(screen.getByLabelText('Mobile'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /save driver/i }));
+
+    await waitFor(() => {
+      expect(updateOperator).toHaveBeenCalledWith('sub-1', expect.objectContaining({ phone: null }));
+    });
+  });
+
+  it('refuses a number that is not an Australian mobile and saves nothing', async () => {
+    render(<AdministratorDriversPage />);
+
+    await screen.findByText('Van 1 · ABC123');
+    fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
+    fireEvent.change(screen.getByLabelText('Mobile'), { target: { value: '02 9876 5432' } });
+    fireEvent.click(screen.getByRole('button', { name: /save driver/i }));
+
+    expect(await screen.findByText(/Mobile must be an Australian mobile number/)).toBeInTheDocument();
+    expect(updateOperator).not.toHaveBeenCalled();
   });
 
   it('assigns a new customer to the selected driver', async () => {

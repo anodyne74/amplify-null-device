@@ -12,12 +12,22 @@ export interface SignCountStop {
   actualDepartureTime?: string | null;
   numberOfSigns?: number | null;
   missingSignsCount?: number | null;
+  isAuction?: boolean | null;
 }
 
 /** Gross count of signs placed on a Route — sum of numberOfSigns, no exclusions.
  * "How many signs are on this route," independent of what happens afterward. */
 export function signsPlaced(stops: SignCountStop[]): number {
   return stops.reduce((sum, stop) => sum + (stop.numberOfSigns ?? 0), 0);
+}
+
+/** How many of a property's signs are timed (carry a date/time) rather than blank.
+ * Every sign at an auction property is timed — they all carry the auction date/time.
+ * Any other property has exactly one: the main board, with the viewing-times rider. */
+export function timedSigns(stop: SignCountStop): number {
+  const signs = stop.numberOfSigns ?? 0;
+  if (signs <= 0) return 0;
+  return stop.isAuction ? signs : 1;
 }
 
 /** Net count of signs actually recovered during Pickup — summed only over stops that

@@ -1,0 +1,283 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.heading {
+  font-family: var(--font-body);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.countDone {
+  composes: count;
+  color: var(--text-brand);
+}
+
+/* Scrolls on its own so a long run doesn't push the confirm button away. */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 340px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 calc(-1 * var(--space-2));
+  padding: 0 var(--space-2);
+}
+
+/* The red "Remove" sits behind the row and shows as it slides left. */
+.rowTrack {
+  position: relative;
+  flex: none;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--status-danger-bg);
+}
+
+.removeHint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 18px;
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-sm);
+  color: var(--status-danger-fg);
+}
+
+.row {
+  position: relative;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+  background: var(--surface-card);
+  border: var(--border-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  touch-action: pan-y;
+  user-select: none;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.rowLoaded {
+  composes: row;
+  background: linear-gradient(var(--surface-brand-subtle), var(--surface-brand-subtle)), var(--surface-card);
+  border-color: var(--indigo-500);
+}
+
+.seq {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--radius-circle);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-2xs);
+  color: var(--nd-navy);
+  background: var(--amber-400);
+}
+
+.seqLoaded {
+  composes: seq;
+  color: var(--text-on-brand);
+  background: var(--indigo-500);
+}
+
+.rowBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.address,
+.meta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-body);
+}
+
+.address {
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-base);
+  color: var(--text-heading);
+}
+
+.meta {
+  font-weight: var(--fw-medium);
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.empty {
+  padding: var(--space-4) 14px;
+  border-radius: var(--radius-lg);
+  border: 1.5px dashed var(--border-default);
+  font-family: var(--font-body);
+  font-weight: var(--fw-medium);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.openAddButton {
+  min-height: 48px;
+  border-radius: var(--radius-md);
+  border: 1.5px dashed var(--border-default);
+  background: transparent;
+  color: var(--text-brand);
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: 14px;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+
+.openAddButton:hover {
+  background: var(--surface-hover);
+}
+
+.addCard {
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  border: var(--border-hairline) solid var(--indigo-500);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.addTitle {
+  font-family: var(--font-display);
+  font-weight: var(--fw-semibold);
+  font-size: 17px;
+  line-height: 1.25;
+  color: var(--text-heading);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fieldLabel {
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-sm);
+  color: var(--text-body);
+}
+
+.input {
+  min-height: 52px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  border: var(--border-hairline) solid var(--border-default);
+  background: var(--surface-page);
+  color: var(--text-heading);
+  font-family: var(--font-body);
+  font-weight: var(--fw-medium);
+  font-size: var(--text-md);
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--indigo-500);
+  box-shadow: 0 0 0 3px rgba(93, 101, 230, 0.28);
+}
+
+.agentGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.agent {
+  min-height: 48px;
+  border-radius: var(--radius-pill);
+  border: var(--border-hairline) solid var(--border-default);
+  background: transparent;
+  color: var(--text-body);
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: 14px;
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+
+.agentPicked {
+  composes: agent;
+  border-color: transparent;
+  background: var(--action-primary-bg);
+  color: var(--text-on-brand);
+}
+
+.addButton {
+  min-height: 56px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--action-primary-bg);
+  color: var(--text-on-brand);
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: var(--text-md);
+  cursor: pointer;
+  transition: var(--transition-control);
+}
+
+.addButton:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(93, 101, 230, 0.35);
+}
+
+.addButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cancelButton {
+  min-height: 48px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-weight: var(--fw-semibold);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.hint {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-subtle);
+}

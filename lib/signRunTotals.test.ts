@@ -1,4 +1,4 @@
-import { signsPlaced, signsCollected, missingSigns, groupByAgent, type SignCountStop } from './signRunTotals';
+import { signsPlaced, signsCollected, missingSigns, groupByAgent, timedSigns, type SignCountStop } from './signRunTotals';
 import { settleStopNotes } from './stopProgress';
 
 function pickupDoneStop(overrides: Partial<SignCountStop> = {}): SignCountStop {
@@ -113,5 +113,21 @@ describe('groupByAgent', () => {
 
   it('returns an empty array for no stops', () => {
     expect(groupByAgent([])).toEqual([]);
+  });
+});
+
+describe('timedSigns', () => {
+  it('counts every sign at an auction property as timed', () => {
+    expect(timedSigns({ numberOfSigns: 5, isAuction: true })).toBe(5);
+  });
+
+  it('counts one timed sign at any other property', () => {
+    expect(timedSigns({ numberOfSigns: 5, isAuction: false })).toBe(1);
+    expect(timedSigns({ numberOfSigns: 1 })).toBe(1);
+  });
+
+  it('counts none at a property with no signs', () => {
+    expect(timedSigns({ numberOfSigns: 0, isAuction: true })).toBe(0);
+    expect(timedSigns({ numberOfSigns: null })).toBe(0);
   });
 });

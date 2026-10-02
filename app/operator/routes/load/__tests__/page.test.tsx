@@ -181,6 +181,132 @@ describe('Operator Load page', () => {
     expect(push).toHaveBeenCalledWith('/operator/dashboard');
   });
 
+  describe('timed signs checklist', () => {
+    // jsdom has no PointerEvent, so fireEvent.pointer* would drop clientX.
+    beforeAll(() => {
+      class TestPointerEvent extends MouseEvent {
+        pointerId: number;
+        constructor(type: string, init: PointerEventInit = {}) {
+          super(type, init);
+          this.pointerId = init.pointerId ?? 0;
+        }
+      }
+      (window as unknown as { PointerEvent: unknown }).PointerEvent = TestPointerEvent;
+    });
+
+    function stopsWithAddresses(): Stop[] {
+      return baseStops().map((stop, i) => ({ ...stop, address: `${i + 1} Test St, Carlton` }) as Stop);
+    }
+
+    async function renderStartedLoad() {
+      (getRouteWithStops as jest.Mock).mockResolvedValue({
+        route: baseRoute({ loadStartedAt: '2026-09-12T07:37:00.000Z' }),
+        stops: stopsWithAddresses(),
+      });
+      render(<OperatorLoadPage />);
+      await screen.findByText('45 signs to load');
+    }
+
+    it('is not shown before the load starts', async () => {
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: stopsWithAddresses() });
+      render(<OperatorLoadPage />);
+      await screen.findByText('45 signs to load');
+
+      expect(screen.queryByText(/timed signs · placement order/i)).not.toBeInTheDocument();
+    });
+
+    it('lists every property in placement order with its timed signs', async () => {
+      await renderStartedLoad();
+
+      expect(screen.getByText(/timed signs · placement order/i)).toBeInTheDocument();
+      expect(screen.getByText('0 of 4 loaded')).toBeInTheDocument();
+      const rows = screen.getAllByRole('button', { name: /Test St, Carlton/ });
+      expect(rows.map((row) => row.textContent)).toEqual([
+        expect.stringContaining('1 Test St, CarltonRachel Morrow · 9 timed'),
+        expect.stringContaining('2 Test St, CarltonRachel Morrow · 1 timed'),
+        expect.stringContaining('3 Test St, CarltonJem Tran · 1 timed'),
+        expect.stringContaining('4 Test St, CarltonUnassigned · 1 timed'),
+      ]);
+    });
+
+    it('ticks a property loaded on tap, and unticks it on a second tap', async () => {
+      await renderStartedLoad();
+
+      const row = screen.getByRole('button', { name: /2 Test St, Carlton/ });
+      fireEvent.click(row);
+      expect(row).toHaveAttribute('aria-pressed', 'true');
+      expect(row).toHaveTextContent('Loaded');
+      expect(screen.getByText('1 of 4 loaded')).toBeInTheDocument();
+
+      fireEvent.click(row);
+      expect(row).toHaveAttribute('aria-pressed', 'false');
+      expect(screen.getByText('0 of 4 loaded')).toBeInTheDocument();
+    });
+
+    it('removes a property swiped left', async () => {
+      await renderStartedLoad();
+
+      const row = screen.getByRole('button', { name: /3 Test St, Carlton/ });
+      fireEvent.pointerDown(row, { clientX: 300, pointerId: 1 });
+      fireEvent.pointerMove(row, { clientX: 120, pointerId: 1 });
+      fireEvent.pointerUp(row, { clientX: 120, pointerId: 1 });
+
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: /3 Test St, Carlton/ })).not.toBeInTheDocument();
+      });
+      expect(screen.getByText('0 of 3 loaded')).toBeInTheDocument();
+    });
+
+    it('keeps a property swiped only part way, without ticking it', async () => {
+      await renderStartedLoad();
+
+      const row = screen.getByRole('button', { name: /3 Test St, Carlton/ });
+      fireEvent.pointerDown(row, { clientX: 300, pointerId: 1 });
+      fireEvent.pointerMove(row, { clientX: 250, pointerId: 1 });
+      fireEvent.pointerUp(row, { clientX: 250, pointerId: 1 });
+      // The browser follows the drag with a click on the same button.
+      fireEvent.click(row);
+
+      expect(row).toBeInTheDocument();
+      expect(row).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('removes a property with the Delete key', async () => {
+      await renderStartedLoad();
+
+      fireEvent.keyDown(screen.getByRole('button', { name: /1 Test St, Carlton/ }), { key: 'Delete' });
+
+      expect(screen.queryByRole('button', { name: /1 Test St, Carlton/ })).not.toBeInTheDocument();
+    });
+
+    it('adds a property on the day to the end of the list', async () => {
+      (getCustomer as jest.Mock).mockResolvedValue({ name: 'Beltline Group', agentOptions: ['Lena Park'] });
+      await renderStartedLoad();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add property' }));
+      const add = screen.getByRole('button', { name: 'Add to end of list' });
+      expect(add).toBeDisabled();
+
+      fireEvent.change(screen.getByLabelText('Address'), { target: { value: '30 Faraday St, Carlton' } });
+      fireEvent.click(await screen.findByRole('button', { name: 'Lena Park' }));
+      fireEvent.click(add);
+
+      const rows = screen.getAllByRole('button', { name: /Carlton/ });
+      expect(rows[rows.length - 1]).toHaveTextContent('30 Faraday St, CarltonLena Park · Added on the day');
+      expect(screen.getByText('0 of 5 loaded')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Add to end of list' })).not.toBeInTheDocument();
+    });
+
+    it('never saves anything', async () => {
+      await renderStartedLoad();
+
+      fireEvent.click(screen.getByRole('button', { name: /1 Test St, Carlton/ }));
+      fireEvent.keyDown(screen.getByRole('button', { name: /2 Test St, Carlton/ }), { key: 'Delete' });
+
+      expect(queueSignRunTransition).not.toHaveBeenCalled();
+    });
+  });
+
   it('shows a guard message when the route is not on the Load phase', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ status: 'in_progress', executionPhase: 'pickup' }),

@@ -8,13 +8,26 @@ export interface TagProps extends React.HTMLAttributes<HTMLSpanElement> {
   onRemove?: (e: React.MouseEvent) => void;
 }
 
-export function Tag({ selected = false, onRemove, onClick, children, className = '', ...rest }: TagProps) {
+export function Tag({ selected = false, onRemove, onClick, onKeyDown, children, className = '', ...rest }: TagProps) {
   const cls = ['nd-tag', selected ? 'nd-tag--selected' : '', onClick ? 'nd-tag--clickable' : '', className]
     .filter(Boolean)
     .join(' ');
 
+  // A clickable Tag is a filter chip: a toggle button that keyboard users and
+  // screen readers can reach.
+  const toggle = onClick ? { role: 'button', tabIndex: 0, 'aria-pressed': selected } : {};
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
+    onKeyDown?.(e);
+    // Enter and Space press it, as they would a button; Space mustn't scroll the page.
+    if (onClick && e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      e.currentTarget.click();
+    }
+  };
+
   return (
-    <span className={cls} onClick={onClick} {...rest}>
+    <span className={cls} onClick={onClick} onKeyDown={handleKeyDown} {...toggle} {...rest}>
       {children}
       {onRemove && (
         <button

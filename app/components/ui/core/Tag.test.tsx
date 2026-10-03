@@ -65,4 +65,16 @@ describe('Tag', () => {
     expect(onRemove).toHaveBeenCalledTimes(1);
     expect(onClick).not.toHaveBeenCalled();
   });
+
+  it("isn't a button itself when it has a remove button, so buttons never nest", () => {
+    render(
+      <Tag onClick={jest.fn()} onRemove={jest.fn()}>
+        Planned
+      </Tag>
+    );
+
+    expect(screen.getAllByRole('button')).toEqual([screen.getByRole('button', { name: 'Remove' })]);
+    expect(screen.getByText('Planned')).not.toHaveAttribute('aria-pressed');
+    expect(screen.getByRole('button', { name: 'Remove' })).toHaveAttribute('type', 'button');
+  });
 });

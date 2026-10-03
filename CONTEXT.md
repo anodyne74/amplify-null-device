@@ -16,6 +16,14 @@ _Avoid_: Alert, dispatch, job-assigned email
 A single trip assigned to an operator, made up of Stops, progressing through the Sign Run phases in order.
 _Avoid_: Job, trip. "Visit" means one Route at one Property, not the Route itself.
 
+**Placement Date**:
+The day a Route is planned to run Load and Placement. One per Route, a date only, set by staff when the Route is scheduled. It is the plan, not when Placement actually started.
+_Avoid_: Scheduled date, run date
+
+**Pickup Date**:
+The day a Route's signs are planned to come down, usually the day after the Placement Date (placed Friday, picked up Saturday evening after open-home viewings). One per Route, a date only, set by staff from what the Customer asked for; Customers see it but never change it. It is the plan, not when Pickup actually started or finished.
+_Avoid_: Pickup due, scheduled pickup
+
 **Route Request**:
 A Customer's email asking for one Route to be created and scheduled, usually with its Schedule attached. Each Route has at most one, and every Route Request is for exactly one Route. It is kept as received, with who sent it and when, as part of the Route's audit trail. Requests that don't arrive by email (e.g. by phone) are recorded by hand, and are marked as such.
 _Avoid_: Booking, order, job request

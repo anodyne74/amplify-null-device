@@ -16,6 +16,7 @@ import { Card } from '@/app/components/ui/core/Card';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Button } from '@/app/components/ui/core/Button';
+import { Tag } from '@/app/components/ui/core/Tag';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { PropertySearchCard } from './PropertySearchCard';
 import type { Route } from '@/amplify/types';
@@ -239,14 +240,9 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       <div className={styles.filterRow}>
         <span className={styles.filterLabel}>Status:</span>
         {ROUTE_STATUS_FILTERS.map((status) => (
-          <button
-            key={status}
-            type="button"
-            onClick={() => setStatusFilter(status)}
-            className={`${styles.filterBtn} ${statusFilter === status ? styles.filterBtnActive : ''}`}
-          >
+          <Tag key={status} selected={statusFilter === status} onClick={() => setStatusFilter(status)}>
             {formatStatusFilterLabel(status)}
-          </button>
+          </Tag>
         ))}
       </div>
 

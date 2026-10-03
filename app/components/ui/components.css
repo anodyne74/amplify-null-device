@@ -73,6 +73,7 @@
 .nd-tag--selected{border-color:var(--border-brand);background:var(--surface-brand-subtle);color:var(--text-brand)}
 .nd-tag--clickable{cursor:pointer}
 .nd-tag--clickable:hover{border-color:var(--border-strong)}
+.nd-tag--clickable:focus-visible{outline:none;box-shadow:var(--focus-ring)}
 .nd-tag__remove{display:inline-flex;border:none;background:none;padding:0;color:var(--text-subtle);cursor:pointer;line-height:0}
 .nd-tag__remove:hover{color:var(--text-heading)}
 

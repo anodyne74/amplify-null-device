@@ -52,24 +52,6 @@
   font-weight: var(--fw-semibold);
 }
 
-.filterBtn {
-  background: var(--surface-hover);
-  border: var(--border-hairline) solid var(--border-subtle);
-  border-radius: var(--radius-pill);
-  padding: var(--space-2) var(--space-4);
-  font: inherit;
-  font-size: var(--text-xs);
-  font-weight: var(--fw-semibold);
-  color: var(--text-body);
-  cursor: pointer;
-}
-
-.filterBtnActive {
-  background: var(--surface-brand-subtle);
-  border-color: var(--border-brand);
-  color: var(--text-brand);
-}
-
 .tableWrap {
   overflow-x: auto;
 }

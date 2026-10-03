@@ -193,6 +193,20 @@ describe('Operator Routes List Page', () => {
     expect(cta).toHaveAttribute('href', '/administrator/routes/new');
   });
 
+  it('shows which status filter chip is pressed', async () => {
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+
+    render(<RoutesPage />);
+    await screen.findByText('W19-26-001');
+
+    expect(screen.getByRole('button', { name: /^all$/i })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: /^signs placed$/i }));
+
+    expect(screen.getByRole('button', { name: /^signs placed$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /^all$/i })).toHaveAttribute('aria-pressed', 'false');
+  });
+
   it('keeps the status filter visible when a filtered status has no routes', async () => {
     (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 

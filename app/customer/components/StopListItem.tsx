@@ -47,7 +47,7 @@ export default function StopListItem({ stop, sequence, phase }: StopListItemProp
     });
   };
 
-  const circleClass = TONE_CIRCLE_CLASS[stopProgressTone(stop)];
+  const circleClass = TONE_CIRCLE_CLASS[stopProgressTone(stop, phase)];
   const operatorNotes = displayNotes(stop.notes);
 
   const status = getStopStatus(stop, phase);

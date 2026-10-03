@@ -23,7 +23,7 @@ import {
 } from '@/lib/routeDetailHelpers';
 import { computeRouteSummaryStats, getPhaseOverview } from '@/lib/routeDetailSummary';
 import { isStopCompleted, stopProgress } from '@/lib/stopProgress';
-import { getStopStatusLabel, stopProgressTone } from '@/lib/stopStatusLabel';
+import { getStopStatusLabel, labelledPhase, stopProgressTone } from '@/lib/stopStatusLabel';
 import { getUserSettings } from '@/lib/userSettings';
 import type { MapTheme } from '@/lib/mapThemes';
 import { MAP_THEMES } from '@/lib/mapThemes';
@@ -484,7 +484,7 @@ function RouteDetailContent() {
                     <StopCard
                       key={stop.id}
                       sequence={stop.sequence ?? '?'}
-                      tone={stopProgressTone(stop)}
+                      tone={stopProgressTone(stop, labelledPhase(currentExecutionPhase, route?.status))}
                       address={getPrimaryAddressLine(stop.formattedAddress || stop.address)}
                       statusLabel={getStopStatusLabel(stop, currentExecutionPhase, route?.status)}
                       agentName={agentName}

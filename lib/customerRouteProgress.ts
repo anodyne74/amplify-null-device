@@ -27,8 +27,7 @@ export function customerProgressPhase(
 
 /**
  * How far a Route has got, for its Customer: every Stop done in the phase
- * they follow, out of every Stop not skipped in it. Every Stop is placed and
- * picked up, whatever its service type.
+ * they follow, out of every Stop not skipped in it.
  */
 export function customerRouteProgress(
   route: Pick<Route, 'status' | 'executionPhase' | 'pickupStartTime'>,

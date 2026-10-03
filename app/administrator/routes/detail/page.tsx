@@ -35,7 +35,7 @@ import { settleStopAsAdministrator } from '@/lib/administratorRouteActions';
 import { stopPhaseOf } from '@/lib/signRunTransitions';
 import { billedTime } from '@/lib/billedTime';
 import { isStopCompleted, stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
-import { getStopStatusLabel, stopProgressTone } from '@/lib/stopStatusLabel';
+import { getStopStatusLabel, labelledPhase, stopProgressTone } from '@/lib/stopStatusLabel';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
 
@@ -548,7 +548,7 @@ function RouteDetailContent() {
                     <StopCard
                       key={stop.id}
                       sequence={stop.sequence ?? '?'}
-                      tone={stopProgressTone(stop)}
+                      tone={stopProgressTone(stop, labelledPhase(currentExecutionPhase, route?.status))}
                       address={stop.formattedAddress || stop.address || ''}
                       statusLabel={getStopStatusLabel(stop, currentExecutionPhase, route?.status)}
                       agentName={agentName}

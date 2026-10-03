@@ -33,7 +33,7 @@ describe('getStopStatusLabel — in-progress route, phase-specific branch', () =
 describe('getStopStatusLabel — completed/archived routes label each stop by Pickup, its last phase', () => {
   const placed = settleStopNotes('', 'placement', 'complete', '2026-08-31T09:00:00.000Z');
 
-  it('reports a delivery stop collected once its pickup is done, whatever the route last showed', () => {
+  it('reports a stop collected once its pickup is done, whatever the route last showed', () => {
     const notes = settleStopNotes(placed, 'pickup', 'complete', '2026-08-31T10:00:00.000Z');
     expect(getStopStatusLabel({ notes }, 'pickup', 'completed')).toBe('Signs collected');
   });
@@ -71,20 +71,31 @@ describe('getStopStatusLabel — completed/archived routes label each stop by Pi
 
 describe('stopProgressTone', () => {
   const placed = settleStopNotes('', 'placement', 'complete', '2026-08-31T09:00:00.000Z');
+  const pickedUp = settleStopNotes(placed, 'pickup', 'complete', '2026-08-31T10:00:00.000Z');
+  const skippedAtPlacement = settleStopNotes('', 'placement', 'skip', '2026-08-31T09:00:00.000Z');
 
   it('goes from awaiting to placed to picked up', () => {
-    expect(stopProgressTone({ notes: null })).toBe('awaiting');
-    expect(stopProgressTone({ notes: placed })).toBe('placed');
-    expect(stopProgressTone({ notes: settleStopNotes(placed, 'pickup', 'complete', '2026-08-31T10:00:00.000Z') })).toBe('pickedUp');
+    expect(stopProgressTone({ notes: null }, 'placement')).toBe('awaiting');
+    expect(stopProgressTone({ notes: placed }, 'placement')).toBe('placed');
+    expect(stopProgressTone({ notes: placed }, 'pickup')).toBe('placed');
+    expect(stopProgressTone({ notes: pickedUp }, 'pickup')).toBe('pickedUp');
   });
 
-  it('reads a skip in either phase as skipped', () => {
-    expect(stopProgressTone({ notes: settleStopNotes('', 'placement', 'skip', '2026-08-31T09:00:00.000Z') })).toBe('skipped');
-    expect(stopProgressTone({ notes: settleStopNotes(placed, 'pickup', 'skip', '2026-08-31T10:00:00.000Z') })).toBe('skipped');
+  it('reads skipped only for a skip in the phase being shown, as the label does', () => {
+    expect(stopProgressTone({ notes: skippedAtPlacement }, 'placement')).toBe('skipped');
+    expect(stopProgressTone({ notes: settleStopNotes(placed, 'pickup', 'skip', '2026-08-31T10:00:00.000Z') }, 'pickup')).toBe('skipped');
+    // Skipped at Placement but picked up later: collected, like its label.
+    const recovered = settleStopNotes(skippedAtPlacement, 'pickup', 'complete', '2026-08-31T10:00:00.000Z');
+    expect(stopProgressTone({ notes: recovered }, 'pickup')).toBe('pickedUp');
+    expect(getStopStatusLabel({ notes: recovered }, 'pickup', 'completed')).toBe('Signs collected');
+  });
+
+  it('shows a stop skipped at Placement as awaiting while Pickup is being shown', () => {
+    expect(stopProgressTone({ notes: skippedAtPlacement }, 'pickup')).toBe('awaiting');
   });
 
   it('ignores a stored service type', () => {
     const stop = { notes: placed };
-    expect(stopProgressTone({ ...stop, serviceType: 'pickup' } as typeof stop)).toBe(stopProgressTone(stop));
+    expect(stopProgressTone({ ...stop, serviceType: 'pickup' } as typeof stop, 'pickup')).toBe(stopProgressTone(stop, 'pickup'));
   });
 });

@@ -106,12 +106,13 @@ function updateViewport(
   });
 }
 
-/** Each marker's colour shows how far its Stop has got. */
+/** Each marker's colour shows how far its Stop has got in the phase shown. A
+ *  skipped one is drawn by stopMarkerSkipped, from the same phase's state. */
 const TONE_MARKER_CLASS: Record<StopProgressTone, string> = {
   awaiting: styles.stopMarkerAwaiting,
   placed: styles.stopMarkerPlaced,
   pickedUp: styles.stopMarkerPickedUp,
-  skipped: '',
+  skipped: styles.stopMarkerSkipped,
 };
 
 function hasCoordinates(stop: Stop): stop is StopWithCoords {
@@ -247,7 +248,7 @@ export function RouteStopsMap({
         const isActive = stop.id === activeStop.id;
         const isUpcoming = upcomingStopIdSet.has(stop.id);
 
-        const toneClass = TONE_MARKER_CLASS[stopProgressTone(stop)];
+        const toneClass = TONE_MARKER_CLASS[stopProgressTone(stop, phase ?? 'pickup')];
 
         const precisionIndicator = locationPrecisionIndicator(stop.locationPrecision);
 

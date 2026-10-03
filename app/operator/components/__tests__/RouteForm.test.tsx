@@ -74,6 +74,7 @@ describe('RouteForm', () => {
     fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
     // Set notes
     fireEvent.change(screen.getByLabelText(/notes/i), { target: { value: 'Test note' } });
+    fireEvent.change(screen.getByLabelText(/placement date/i), { target: { value: '2026-10-09' } });
 
     // Add one stop via mocked StopForm
     fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
@@ -90,7 +91,8 @@ describe('RouteForm', () => {
       expect(onSubmit).toHaveBeenCalledWith({
         routeCode: 'W20-26-001',
         customerId: 'cust-1',
-        scheduledDate: expect.any(String),
+        scheduledDate: '2026-10-09',
+        pickupDate: '2026-10-10',
         notes: 'Test note',
         stops: [
           expect.objectContaining({
@@ -170,6 +172,7 @@ describe('RouteForm', () => {
         routeCode: 'W20-26-001',
         customerId: 'cust-1',
         scheduledDate: expect.any(String),
+        pickupDate: expect.any(String),
         notes: '',
         stops: [
           expect.objectContaining({
@@ -210,14 +213,49 @@ describe('RouteForm', () => {
     expect(screen.getByRole('button', { name: /jamie lee/i })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('defaults the scheduled date field to today', () => {
-    render(
-      <RouteForm customers={mockCustomers} onSubmit={noop} onCancel={noop} />
-    );
-
+  it('defaults the placement date field to today', () => {
+    render(<RouteForm customers={mockCustomers} onSubmit={noop} onCancel={noop} />);
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    expect(screen.getByLabelText(/scheduled date/i)).toHaveValue(today);
+    expect(screen.getByLabelText(/placement date/i)).toHaveValue(today);
+  });
+
+  it('starts the pickup date on the day after the placement date, and keeps it there as that changes', () => {
+    render(<RouteForm customers={mockCustomers} onSubmit={noop} onCancel={noop} />);
+
+    fireEvent.change(screen.getByLabelText(/placement date/i), { target: { value: '2026-10-09' } });
+    expect(screen.getByLabelText(/pickup date/i)).toHaveValue('2026-10-10');
+
+    fireEvent.change(screen.getByLabelText(/placement date/i), { target: { value: '2026-10-08' } });
+    expect(screen.getByLabelText(/pickup date/i)).toHaveValue('2026-10-09');
+  });
+
+  it('keeps a pickup date the user chose when the placement date changes', () => {
+    render(<RouteForm customers={mockCustomers} onSubmit={noop} onCancel={noop} />);
+
+    fireEvent.change(screen.getByLabelText(/placement date/i), { target: { value: '2026-10-09' } });
+    fireEvent.change(screen.getByLabelText(/pickup date/i), { target: { value: '2026-10-12' } });
+    fireEvent.change(screen.getByLabelText(/placement date/i), { target: { value: '2026-10-08' } });
+
+    expect(screen.getByLabelText(/pickup date/i)).toHaveValue('2026-10-12');
+  });
+
+  it('refuses a pickup date before the placement date', async () => {
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    render(<RouteForm customers={mockCustomers} initialRouteCode="W20-26-001" onSubmit={onSubmit} onCancel={noop} />);
+
+    fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+    fireEvent.change(screen.getByLabelText(/placement date/i), { target: { value: '2026-10-09' } });
+    fireEvent.change(screen.getByLabelText(/pickup date/i), { target: { value: '2026-10-08' } });
+    fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
+    fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: '123 Main St, Epping' } });
+    fireEvent.click(screen.getByRole('button', { name: /add stop to route/i }));
+    await screen.findByText('123 Main St, Epping');
+
+    fireEvent.click(screen.getByRole('button', { name: /create route/i }));
+
+    expect(await screen.findByText(/pickup date must be on or after the placement date/i)).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it('blocks submission and shows a reason when the service calendar has no drivers that day', async () => {
@@ -240,8 +278,7 @@ describe('RouteForm', () => {
       expect(onCheckDateBlock).toHaveBeenCalledWith('cust-1', expect.any(String));
     });
 
-    expect(await screen.findByText(/no operators available/i)).toBeInTheDocument();
-    expect(screen.getByText(/driver on leave/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no operators available.*driver on leave.*choose another date/i)).toBeInTheDocument();
 
     const submitButton = screen.getByRole('button', { name: /create route/i });
     expect(submitButton).toBeDisabled();
@@ -298,6 +335,49 @@ describe('RouteForm', () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalled();
     });
+  });
+
+  it('warns, without blocking, when no operators are available on the pickup date', async () => {
+    const onSubmit = jest.fn().mockResolvedValue(undefined);
+    const onCheckDateBlock = jest.fn(async (_customerId: string, date: string) =>
+      date === '2026-10-10' ? { blocked: true, type: 'no_drivers' as const, reason: 'Driver on leave' } : { blocked: false }
+    );
+    render(
+      <RouteForm
+        customers={mockCustomers}
+        initialRouteCode="W20-26-001"
+        onSubmit={onSubmit}
+        onCancel={noop}
+        onCheckDateBlock={onCheckDateBlock}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+    fireEvent.change(screen.getByLabelText(/placement date/i), { target: { value: '2026-10-09' } });
+
+    expect(await screen.findByText(/no operators available on 2026-10-10 \(driver on leave\)\. the route can still be created/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
+    fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: '123 Main St, Epping' } });
+    fireEvent.click(screen.getByRole('button', { name: /add stop to route/i }));
+    await screen.findByText('123 Main St, Epping');
+    fireEvent.click(screen.getByRole('button', { name: /create route/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ pickupDate: '2026-10-10' })));
+  });
+
+  it("doesn't warn when only the customer's agency is closed on the pickup date", async () => {
+    const onCheckDateBlock = jest.fn(async (_customerId: string, date: string) =>
+      date === '2026-10-10' ? { blocked: true, type: 'closed' as const } : { blocked: false }
+    );
+    render(<RouteForm customers={mockCustomers} onSubmit={noop} onCancel={noop} onCheckDateBlock={onCheckDateBlock} />);
+
+    fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+    fireEvent.change(screen.getByLabelText(/placement date/i), { target: { value: '2026-10-09' } });
+
+    await waitFor(() => expect(onCheckDateBlock).toHaveBeenCalledWith('cust-1', '2026-10-10'));
+    expect(screen.queryByText(/closed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no operators available/i)).not.toBeInTheDocument();
   });
 
   it("refuses a Stop with no suburb that couldn't be found on the map", async () => {

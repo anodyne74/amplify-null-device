@@ -26,6 +26,7 @@ import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
 import { signsPlaced } from '@/lib/signRunTotals';
 import { stopProgress, takesPartIn } from '@/lib/stopProgress';
+import { customerPickupDate } from '@/lib/pickupDate';
 import styles from './_RouteDetailContent.module.css';
 import { updateRoute, updateRouteCustomerInstructions } from '@/lib/routes';
 import { getCustomer, listCustomerUsers } from '@/lib/customers';
@@ -221,7 +222,8 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const totalSigns = signsPlaced(stops);
   const deliveryStops = stops.filter((stop) => stop.serviceType === 'delivery');
   const placedDeliveryStops = deliveryStops.filter((stop) => stopProgress(stop).placement.state === 'done');
-  const pickupDueLabel = route.pickupStartTime ? formatDate(route.pickupStartTime) : 'TBC';
+  const pickupDate = customerPickupDate(route);
+  const pickupDateLabel = pickupDate ? formatRouteDate(pickupDate) : 'TBC';
   // Next and upcoming stops are those still awaiting the phase under way;
   // there's no next stop once every one has been done or skipped.
   const executionPhase = route.executionPhase === 'pickup' ? 'pickup' : 'placement';
@@ -326,8 +328,8 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
             />
           </div>
           <div className="nd-stat">
-            <span className="nd-stat__label">Pickup due</span>
-            <span className="nd-stat__value" style={{ fontSize: 15 }}>{pickupDueLabel}</span>
+            <span className="nd-stat__label">Pickup date</span>
+            <span className="nd-stat__value" style={{ fontSize: 15 }}>{pickupDateLabel}</span>
           </div>
         </div>
 

@@ -112,6 +112,7 @@ export interface Route {
   status?: RouteStatus | null;
   executionPhase?: RouteExecutionPhase | null;
   scheduledDate?: string | null;
+  pickupDate?: string | null;
   estimatedDurationMinutes?: number | null;
   actualStartTime?: string | null;
   actualEndTime?: string | null;

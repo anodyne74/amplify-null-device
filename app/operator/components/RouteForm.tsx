@@ -16,6 +16,8 @@ import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import type { Stop } from '@/amplify/types';
 import type { RouteDateBlockResult } from '@/lib/routeScheduleGuard';
+import { pickupDateProblem } from '@/lib/pickupDate';
+import { usePickupDate } from '@/lib/usePickupDate';
 import styles from './RouteForm.module.css';
 
 const RouteStopsMap = dynamic(
@@ -53,6 +55,7 @@ interface RouteFormProps {
     routeCode: string;
     customerId: string;
     scheduledDate: string;
+    pickupDate: string;
     notes: string;
     stops: RouteDraftStop[];
   }) => Promise<void>;
@@ -89,6 +92,11 @@ export function RouteForm({
   const [routeCode, setRouteCode] = useState(initialRouteCode);
   const [customerId, setCustomerId] = useState('');
   const [scheduledDate, setScheduledDate] = useState(todayDateKey);
+  const {
+    pickupDate,
+    choosePickupDate,
+    noOperatorsWarning: pickupNoOperatorsWarning,
+  } = usePickupDate(scheduledDate, customerId, onCheckDateBlock);
   const [blockCheck, setBlockCheck] = useState<{ status: 'idle' | 'checking' | 'ok' | 'blocked' } & RouteDateBlockResult>({
     status: 'idle',
     blocked: false,
@@ -243,7 +251,13 @@ export function RouteForm({
     }
 
     if (!scheduledDate) {
-      setValidationError('Please choose a scheduled date.');
+      setValidationError('Please choose a placement date.');
+      return;
+    }
+
+    const pickupProblem = pickupDateProblem(scheduledDate, pickupDate);
+    if (pickupProblem) {
+      setValidationError(pickupProblem);
       return;
     }
 
@@ -257,7 +271,7 @@ export function RouteForm({
       return;
     }
 
-    await onSubmit({ routeCode: routeCode.trim(), customerId, scheduledDate, notes, stops });
+    await onSubmit({ routeCode: routeCode.trim(), customerId, scheduledDate, pickupDate, notes, stops });
 
     // Defer one tick so a failure flagged during submit has propagated back
     // down via the `error` prop before we announce success.
@@ -330,7 +344,7 @@ export function RouteForm({
           </Field>
 
           <Field
-            label="Scheduled date"
+            label="Placement date"
             htmlFor="scheduledDate"
             required
             error={blockedDateMessage()}
@@ -341,6 +355,21 @@ export function RouteForm({
               type="date"
               value={scheduledDate}
               onChange={(e) => setScheduledDate(e.target.value)}
+              disabled={isSubmitting}
+            />
+          </Field>
+
+          <Field
+            label="Pickup date"
+            htmlFor="pickupDate"
+            required
+            hint={pickupNoOperatorsWarning}
+          >
+            <Input
+              id="pickupDate"
+              type="date"
+              value={pickupDate}
+              onChange={(e) => choosePickupDate(e.target.value)}
               disabled={isSubmitting}
             />
           </Field>

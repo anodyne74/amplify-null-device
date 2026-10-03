@@ -14,6 +14,7 @@ import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill'
 import { RouteRequestsCard } from '@/app/administrator/components/RouteRequestsCard';
 import { AdministratorFinalisePanel } from '@/app/administrator/components/AdministratorFinalisePanel';
 import { BilledTimeCorrectionPanel } from '@/app/administrator/components/BilledTimeCorrectionPanel';
+import { PickupDateEditor } from '@/app/administrator/components/PickupDateEditor';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
@@ -227,6 +228,14 @@ function RouteDetailContent() {
               <div className="nd-stat">
                 <span className="nd-stat__label">Created</span>
                 <span className="nd-stat__value" style={{ fontSize: 16 }}>{formatRouteDate(route.createdAt)}</span>
+              </div>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Placement Date</span>
+                <span className="nd-stat__value" style={{ fontSize: 16 }}>{formatRouteDate(route.scheduledDate)}</span>
+              </div>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Pickup Date</span>
+                <PickupDateEditor key={route.id} route={route} onSaved={refetch} />
               </div>
               <div className="nd-stat">
                 <span className="nd-stat__label">Time Taken</span>

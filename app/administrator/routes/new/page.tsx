@@ -19,6 +19,8 @@ import { pickStopLocationFields } from '@/lib/locationPrecision';
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseScheduleText } from '@/lib/parseSchedule';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
+import { pickupDateProblem } from '@/lib/pickupDate';
+import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
 import { locateDraftStops } from '@/lib/stopLocation';
 import styles from './page.module.css';
 import { listAllRoutes, createRoute, createStopsForRoute, getRouteWithStops } from '@/lib/routes';
@@ -143,6 +145,11 @@ function NewRoutePageContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importCustomerId, setImportCustomerId] = useState('');
   const [importScheduledDate, setImportScheduledDate] = useState(todayDateKey);
+  const {
+    pickupDate: importPickupDate,
+    choosePickupDate: chooseImportPickupDate,
+    noOperatorsWarning: importPickupWarning,
+  } = useNewRoutePickupDate(importScheduledDate, importCustomerId, checkRouteDateBlocked);
   const [importNotes, setImportNotes] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importText, setImportText] = useState('');
@@ -285,6 +292,7 @@ function NewRoutePageContent() {
     routeCode: string;
     customerId: string;
     scheduledDate: string;
+    pickupDate: string;
     notes: string;
     stops: RouteDraftStop[];
   }) => {
@@ -297,6 +305,7 @@ function NewRoutePageContent() {
         routeCode: values.routeCode.trim(),
         customerId: values.customerId,
         scheduledDate: values.scheduledDate,
+        pickupDate: values.pickupDate,
         status: 'planned',
         notes: values.notes || undefined,
       });
@@ -510,7 +519,9 @@ function NewRoutePageContent() {
   const handleImportSubmit = async () => {
     if (!importCustomerId) { setImportError('Select a customer.'); return; }
     if (!importRouteCode.trim()) { setImportError('Enter a route ID.'); return; }
-    if (!importScheduledDate) { setImportError('Choose a scheduled date.'); return; }
+    if (!importScheduledDate) { setImportError('Choose a placement date.'); return; }
+    const pickupProblem = pickupDateProblem(importScheduledDate, importPickupDate);
+    if (pickupProblem) { setImportError(pickupProblem); return; }
     if (!importDraftStops || importDraftStops.length === 0) {
       setImportError('Copy stops from a previous route or parse an uploaded schedule file first.');
       return;
@@ -539,6 +550,7 @@ function NewRoutePageContent() {
         routeCode: importRouteCode.trim(),
         customerId: importCustomerId,
         scheduledDate: importScheduledDate,
+        pickupDate: importPickupDate,
         status: 'planned',
         notes: importNotes || undefined,
       });
@@ -731,12 +743,21 @@ function NewRoutePageContent() {
                     />
                   </Field>
 
-                  <Field label="Scheduled date" htmlFor="import-scheduled-date" required>
+                  <Field label="Placement date" htmlFor="import-scheduled-date" required>
                     <Input
                       id="import-scheduled-date"
                       type="date"
                       value={importScheduledDate}
                       onChange={(e) => setImportScheduledDate(e.target.value)}
+                    />
+                  </Field>
+
+                  <Field label="Pickup date" htmlFor="import-pickup-date" required hint={importPickupWarning}>
+                    <Input
+                      id="import-pickup-date"
+                      type="date"
+                      value={importPickupDate}
+                      onChange={(e) => chooseImportPickupDate(e.target.value)}
                     />
                   </Field>
 

@@ -1,6 +1,7 @@
 /**
  * What an administrator can change on a Route from its detail page: settle a
- * Stop done or skipped, Finalise, and correct the Billed Time. Unlike the
+ * Stop done or skipped, Finalise, correct the Billed Time, and change the
+ * Pickup Date. Unlike the
  * operator's Sign Run (lib/signRunTransitions.ts and its outbox), each one is
  * saved straight away and recorded in the audit log, and they all report the
  * same way. Settling and Finalise write what the operator's would, from the
@@ -17,6 +18,7 @@ import {
   type BilledTimeRoute,
 } from '@/lib/billedTime';
 import { getDataClient } from '@/lib/data-client';
+import { pickupDateProblem } from '@/lib/pickupDate';
 import { updateRoute, updateStopExecution } from '@/lib/routes';
 import {
   planSignRunTransition,
@@ -165,6 +167,33 @@ export async function correctBilledTime(
     {
       failed: 'Could not save the Billed Time. Nothing was changed.',
       unaudited: 'The Billed Time was saved, but its audit entry could not be written.',
+    }
+  );
+}
+
+/**
+ * An administrator changes a Route's Pickup Date: never before its Placement
+ * Date, and never cleared. Audited with the date before and after.
+ */
+export async function changePickupDate(
+  route: Pick<Route, 'id' | 'customerId' | 'scheduledDate' | 'pickupDate'>,
+  pickupDate: string
+): Promise<AdministratorActionResult> {
+  const problem = pickupDateProblem(route.scheduledDate ?? '', pickupDate);
+  if (problem) return refused(problem);
+
+  return saveAudited(
+    () => updateRoute(route.id, { pickupDate }),
+    {
+      resourceType: 'route',
+      resourceId: route.id,
+      customerId: route.customerId,
+      action: 'route.pickupDate.change',
+      details: { before: route.pickupDate ?? null, after: pickupDate },
+    },
+    {
+      failed: 'Could not save the pickup date. Nothing was changed.',
+      unaudited: 'The pickup date was saved, but its audit entry could not be written.',
     }
   );
 }

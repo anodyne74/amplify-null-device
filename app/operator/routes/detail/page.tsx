@@ -217,6 +217,14 @@ function RouteDetailContent() {
                 <span className="nd-stat__value" style={{ fontSize: 16 }}>{formatRouteDate(route.createdAt)}</span>
               </div>
               <div className="nd-stat">
+                <span className="nd-stat__label">Placement Date</span>
+                <span className="nd-stat__value" style={{ fontSize: 16 }}>{formatRouteDate(route.scheduledDate)}</span>
+              </div>
+              <div className="nd-stat">
+                <span className="nd-stat__label">Pickup Date</span>
+                <span className="nd-stat__value" style={{ fontSize: 16 }}>{formatRouteDate(route.pickupDate)}</span>
+              </div>
+              <div className="nd-stat">
                 <span className="nd-stat__label">Time Taken</span>
                 <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{formatElapsedMinutes(routeDurationMinutes)}</span>
               </div>

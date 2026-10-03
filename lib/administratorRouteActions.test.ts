@@ -21,7 +21,12 @@ jest.mock('./amplify-config', () => ({
 jest.mock('aws-amplify/auth', () => ({ fetchAuthSession: jest.fn().mockResolvedValue({}) }));
 jest.mock('./apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
 
-import { correctBilledTime, finaliseRouteAsAdministrator, settleStopAsAdministrator } from './administratorRouteActions';
+import {
+  changePickupDate,
+  correctBilledTime,
+  finaliseRouteAsAdministrator,
+  settleStopAsAdministrator,
+} from './administratorRouteActions';
 import { stopProgress } from './stopProgress';
 import type { SignRunTransitionRoute } from './signRunTransitions';
 
@@ -272,5 +277,63 @@ describe('settleStopAsAdministrator', () => {
     const result = await settleStopAsAdministrator(pickupRoute, stop, { action: 'complete' });
 
     expect(result).toEqual({ ok: false, error: 'The stop was saved, but its audit entry could not be written.', saved: true });
+  });
+});
+
+describe('changePickupDate', () => {
+  const route = { id: 'route-1', customerId: 'cust-1', scheduledDate: '2026-10-09', pickupDate: '2026-10-10' };
+
+  it('saves the new Pickup Date straight away, and audits it before and after', async () => {
+    await expect(changePickupDate(route, '2026-10-12')).resolves.toEqual({ ok: true });
+
+    expect(mockRouteUpdate).toHaveBeenCalledWith({ id: 'route-1', pickupDate: '2026-10-12' });
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerId: 'cust-1',
+        operatorId: 'admin-sub',
+        resourceType: 'route',
+        resourceId: 'route-1',
+        action: 'route.pickupDate.change',
+        details: JSON.stringify({ before: '2026-10-10', after: '2026-10-12' }),
+      })
+    );
+  });
+
+  it('refuses a Pickup Date before the Placement Date, and writes nothing', async () => {
+    const result = await changePickupDate(route, '2026-10-08');
+
+    expect(result).toEqual({ ok: false, error: 'The pickup date must be on or after the placement date.', saved: false });
+    expect(mockRouteUpdate).not.toHaveBeenCalled();
+    expect(mockAuditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses to clear the Pickup Date', async () => {
+    const result = await changePickupDate(route, '');
+
+    expect(result).toEqual({ ok: false, error: 'Choose a pickup date.', saved: false });
+    expect(mockRouteUpdate).not.toHaveBeenCalled();
+  });
+
+  it('gives a Route from before Pickup Dates its first one', async () => {
+    await expect(changePickupDate({ ...route, pickupDate: null }, '2026-10-10')).resolves.toEqual({ ok: true });
+
+    expect(mockAuditLogCreate.mock.calls[0][0].details).toBe(JSON.stringify({ before: null, after: '2026-10-10' }));
+  });
+
+  it('reports a failed save and writes no audit entry', async () => {
+    mockRouteUpdate.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
+
+    const result = await changePickupDate(route, '2026-10-12');
+
+    expect(result).toEqual({ ok: false, error: 'Could not save the pickup date. Nothing was changed.', saved: false });
+    expect(mockAuditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it('says the Pickup Date was saved when only the audit entry fails', async () => {
+    mockAuditLogCreate.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
+
+    const result = await changePickupDate(route, '2026-10-12');
+
+    expect(result).toEqual({ ok: false, error: 'The pickup date was saved, but its audit entry could not be written.', saved: true });
   });
 });

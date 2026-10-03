@@ -187,7 +187,7 @@ describe('Customer route detail tracker', () => {
     render(<RouteDetailContent params={{ id: 'route-1' }} />);
 
     await screen.findByRole('heading', { name: /route w19-26-001/i });
-    expect(screen.getByText('Date')).toBeInTheDocument();
+    expect(screen.getByText('Placement date')).toBeInTheDocument();
     expect(screen.queryByText('Created')).not.toBeInTheDocument();
     // Once in the Date stat and once on the timeline's Planned step.
     expect(screen.getAllByText('Jan 15, 2024')).toHaveLength(2);

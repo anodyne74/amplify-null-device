@@ -185,6 +185,14 @@ const schema = a.schema({
       // side has blocked. Optional so historical routes (created before this
       // field existed) remain valid.
       scheduledDate: a.date(),
+      // Pickup Date (CONTEXT.md): the day the signs are planned to come down. Staff
+      // set it; customers only read it. The Route's model-level grant lets customer
+      // users update (for customerInstructions), so this field narrows it.
+      pickupDate: a.date().authorization((allow) => [
+        allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
+        allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+        allow.groups(['operator']).to(['read', 'update']),
+      ]),
       estimatedDurationMinutes: a.integer(),
       actualStartTime: a.datetime(),
       actualEndTime: a.datetime(),
@@ -244,10 +252,11 @@ const schema = a.schema({
       payouts: a.hasMany('OperatorPayout', 'routeId'),
     })
     .authorization((allow) => [
-      // 'update' scoped in practice to customerInstructions by the client (lib/queries.ts
-      // updateRouteCustomerInstructions) — Amplify Gen 2 has no field-level authorization,
-      // so this is a coarse grant like the rest of this schema. Covers both account_owner
-      // and read_only CustomerUser sub-roles (not distinguishable at this layer).
+      // 'update' scoped in practice to customerInstructions by the client (lib/routes.ts
+      // updateRouteCustomerInstructions) — a coarse grant like the rest of this schema,
+      // narrowed only on pickupDate, which customers can read but not write (see its
+      // field rule above). Covers both account_owner and read_only CustomerUser
+      // sub-roles (not distinguishable at this layer).
       allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read', 'update']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'update']),

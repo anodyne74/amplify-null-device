@@ -36,6 +36,10 @@ _Avoid_: Property list, run sheet, job sheet
 A later email from a Customer adding or removing Properties on a Route that has already been requested, sometimes with a revised Schedule, sometimes only a sentence in the email. A Route can have any number, kept in the order they were sent.
 _Avoid_: Change request, follow-up, variation
 
+**Load Change**:
+An Operator adding a Stop to, or removing a Stop from, their Route during Load (after Load starts, before it's confirmed), because the Customer told them on the day or because of what they find at the yard. A removed Stop is kept, marked removed with who and when, and counts toward nothing: it is never a Visit, and the Customer sees it as removed on the day. An added Stop is a delivery Stop at the end of the order. Until Load is confirmed the Operator can restore a removed Stop, which is itself a Load Change; after that only an administrator can. Every Load Change is in the Route's audit trail and marked on the Route for administrators. It is not a Route Amendment, which is the Customer's email.
+_Avoid_: Last-minute change, on-the-day edit, amendment (when the Operator made it)
+
 **Stop**:
 One visit to a Property on a Route, where signs are placed and later picked up.
 _Avoid_: Property (when you mean the single visit), location, visit
@@ -53,7 +57,7 @@ The record of every Route that has visited a Property, grouped by Property and e
 _Avoid_: Property search, address lookup
 
 **Visit**:
-One Route's Stop at a Property, as one row of Property History. Only visits on Routes that have happened (signs placed or later) count toward a Property's total. Skipped Stops are listed but not counted, and upcoming Routes appear separately as scheduled.
+One Route's Stop at a Property, as one row of Property History. Only visits on Routes that have happened (signs placed or later) count toward a Property's total. Skipped Stops are listed but not counted, Stops removed by a Load Change aren't listed at all, and upcoming Routes appear separately as scheduled.
 _Avoid_: Job, service (as a noun)
 
 **Property History Report**:

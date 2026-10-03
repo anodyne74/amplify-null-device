@@ -6,7 +6,7 @@
  * skip reason suffix) lands once for every portal instead of being ported by
  * hand from one page's copy to another's.
  */
-import { stopProgress, type ExecutionPhase } from './stopProgress';
+import { stopProgress, type ExecutionPhase, type StopProgressStop } from './stopProgress';
 
 export interface StatusLabelStop {
   notes?: string | null;
@@ -14,16 +14,23 @@ export interface StatusLabelStop {
   actualArrivalTime?: string | null;
 }
 
+/**
+ * The phase a Stop's status is shown for. On a completed/archived route (and
+ * with no phase given) each stop is labelled by Pickup, its last phase, so a
+ * stop skipped at pickup still reads as skipped after the route is done.
+ */
+export function labelledPhase(executionPhase?: ExecutionPhase | null, routeStatus?: string | null): ExecutionPhase {
+  const routeDone = routeStatus === 'completed' || routeStatus === 'archived';
+  return executionPhase && !routeDone ? executionPhase : 'pickup';
+}
+
 export function getStopStatusLabel(
   stop: StatusLabelStop,
   executionPhase?: ExecutionPhase | null,
   routeStatus?: string | null
 ) {
-  // On a completed/archived route (and with no phase given) each stop is
-  // labelled by Pickup, its last phase, so a stop skipped at pickup still reads
-  // as skipped after the route is done.
   const routeDone = routeStatus === 'completed' || routeStatus === 'archived';
-  const phase = executionPhase && !routeDone ? executionPhase : 'pickup';
+  const phase = labelledPhase(executionPhase, routeStatus);
   const { state, reason } = stopProgress(stop)[phase];
   if (state === 'skipped') {
     const base = phase === 'pickup' ? 'Pickup skipped' : 'Placement skipped';
@@ -44,4 +51,16 @@ export function getStopStatusLabel(
 
   if (stop.actualArrivalTime) return 'At stop';
   return 'Signs pending';
+}
+
+/** How far a Stop has got in the phase it's shown for, which colours its
+ *  marker or number circle so the colour always agrees with its label. */
+export type StopProgressTone = 'awaiting' | 'placed' | 'pickedUp' | 'skipped';
+
+export function stopProgressTone(stop: StopProgressStop, phase: ExecutionPhase): StopProgressTone {
+  const progress = stopProgress(stop);
+  const { state } = progress[phase];
+  if (state === 'skipped') return 'skipped';
+  if (state === 'done') return phase === 'pickup' ? 'pickedUp' : 'placed';
+  return phase === 'pickup' && progress.placement.state === 'done' ? 'placed' : 'awaiting';
 }

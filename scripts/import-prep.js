@@ -503,7 +503,6 @@ function parseRouteListFile(filePath) {
       sequence,
       address,
       numberOfSigns: signCount,
-      serviceType: 'delivery',
       isAuction,
       agent,
     });
@@ -997,7 +996,6 @@ async function applyBundle(bundle, args) {
           viewerSubs: customerContext.viewerSubs,
           sequence: stopRecord.sequence,
           address: stopRecord.address,
-          serviceType: isTerminalRoute ? 'pickup' : stopRecord.serviceType,
           actualArrivalTime: isTerminalRoute ? completedAt : undefined,
           actualDepartureTime: isTerminalRoute ? completedAt : undefined,
           numberOfSigns: stopRecord.numberOfSigns ?? undefined,

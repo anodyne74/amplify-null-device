@@ -545,7 +545,6 @@ function RouteEditContent() {
                         <StopForm
                           initialValues={{
                             address: stop.address,
-                            serviceType: stop.serviceType as 'delivery' | 'pickup' | 'inspection' | undefined,
                             numberOfSigns: stop.numberOfSigns ?? undefined,
                             agent: stop.agent ?? undefined,
                             isAuction: Boolean(stop.isAuction),
@@ -591,7 +590,6 @@ function RouteEditContent() {
                       <div className={styles.stopSequence}>{stop.sequence ?? index + 1}</div>
                       <div className={styles.stopBody}>
                         <div className={styles.stopAddress}>{stop.formattedAddress || stop.address || 'Unknown address'}</div>
-                        <div className={styles.stopMeta}>{stop.serviceType || 'delivery'}</div>
                         {typeof stop.numberOfSigns === 'number' && (
                           <div className={styles.stopDetail}>Signs: {stop.numberOfSigns}</div>
                         )}

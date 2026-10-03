@@ -3,6 +3,7 @@
 import type { Stop } from '@/amplify/types';
 import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
 import { displayNotes, stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
+import { stopProgressTone, type StopProgressTone } from '@/lib/stopStatusLabel';
 import styles from './StopListItem.module.css';
 
 interface StopListItemProps {
@@ -12,10 +13,11 @@ interface StopListItemProps {
   phase: ExecutionPhase;
 }
 
-const SERVICE_TYPE_CIRCLE_CLASS: Record<string, string> = {
-  delivery: styles.circleDelivery,
-  pickup: styles.circlePickup,
-  inspection: styles.circleInspection,
+const TONE_CIRCLE_CLASS: Record<StopProgressTone, string> = {
+  awaiting: styles.circleAwaiting,
+  placed: styles.circlePlaced,
+  pickedUp: styles.circlePickedUp,
+  skipped: styles.circleSkipped,
 };
 
 /** Placement/pickup status label + tone for a stop — the single source of
@@ -45,8 +47,7 @@ export default function StopListItem({ stop, sequence, phase }: StopListItemProp
     });
   };
 
-  const serviceTypeKey = (stop.serviceType as string | undefined) ?? 'delivery';
-  const circleClass = SERVICE_TYPE_CIRCLE_CLASS[serviceTypeKey] ?? styles.circleDelivery;
+  const circleClass = TONE_CIRCLE_CLASS[stopProgressTone(stop, phase)];
   const operatorNotes = displayNotes(stop.notes);
 
   const status = getStopStatus(stop, phase);

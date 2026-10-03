@@ -16,7 +16,6 @@ function baseStop(overrides: Partial<Stop> = {}): Stop {
     routeId: 'route-1',
     sequence: 1,
     address: '100 Main St',
-    serviceType: 'delivery',
     ...overrides,
   } as Stop;
 }
@@ -90,7 +89,6 @@ describe('computeRouteSummaryStats', () => {
     const stops = [
       baseStop({
         id: 'stop-1',
-        serviceType: 'pickup',
         actualDepartureTime: '2026-09-01T10:00:00.000Z',
         numberOfSigns: 5,
         missingSignsCount: 2,

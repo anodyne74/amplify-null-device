@@ -182,9 +182,9 @@ describe('computeDriverSplit', () => {
     mockRouteList.mockResolvedValue({ data: [routeOn('route-1'), routeOn('route-2')] });
     mockStopList.mockResolvedValue({
       data: [
-        { id: 'stop-1', routeId: 'route-1', serviceType: 'delivery', actualDepartureTime: at, notes: settleStopNotes(placed, 'pickup', 'complete', at) },
-        { id: 'stop-2', routeId: 'route-1', serviceType: 'delivery', actualDepartureTime: at, notes: settleStopNotes(placed, 'pickup', 'skip', at, 'No access') },
-        { id: 'stop-3', routeId: 'route-2', serviceType: 'delivery', actualDepartureTime: at, notes: placed },
+        { id: 'stop-1', routeId: 'route-1', actualDepartureTime: at, notes: settleStopNotes(placed, 'pickup', 'complete', at) },
+        { id: 'stop-2', routeId: 'route-1', actualDepartureTime: at, notes: settleStopNotes(placed, 'pickup', 'skip', at, 'No access') },
+        { id: 'stop-3', routeId: 'route-2', actualDepartureTime: at, notes: placed },
       ],
     });
 

@@ -7,11 +7,11 @@ const placed = settleStopNotes(null, 'placement', 'complete', AT);
 const pickedUp = settleStopNotes(placed, 'pickup', 'complete', LATER);
 
 describe('customerRouteProgress', () => {
-  it('counts every Stop, whatever its service type, once Pickup is done on a completed Route', () => {
-    // W40-26-001: 6 delivery and 5 pickup Stops, all placed and picked up.
+  it('counts every Stop once Pickup is done on a completed Route', () => {
+    // W40-26-001: 11 Stops, all placed and picked up.
     const stops = [
-      ...Array.from({ length: 6 }, () => ({ serviceType: 'delivery', notes: pickedUp })),
-      ...Array.from({ length: 5 }, () => ({ serviceType: 'pickup', notes: pickedUp })),
+      ...Array.from({ length: 6 }, () => ({ notes: pickedUp })),
+      ...Array.from({ length: 5 }, () => ({ notes: pickedUp })),
     ];
 
     expect(customerRouteProgress({ status: 'completed', executionPhase: 'unload' }, stops)).toEqual({
@@ -24,8 +24,8 @@ describe('customerRouteProgress', () => {
 
   it('counts placed Stops while Placement is under way', () => {
     const stops = [
-      ...Array.from({ length: 4 }, () => ({ serviceType: 'pickup', notes: placed })),
-      ...Array.from({ length: 7 }, () => ({ serviceType: 'delivery', notes: null })),
+      ...Array.from({ length: 4 }, () => ({ notes: placed })),
+      ...Array.from({ length: 7 }, () => ({ notes: null })),
     ];
 
     expect(customerRouteProgress({ status: 'in_progress', executionPhase: 'placement' }, stops)).toEqual({

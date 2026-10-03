@@ -164,7 +164,6 @@ export interface Stop {
   viewerSubs?: string[] | null;
   sequence?: number | null;
   address?: string;
-  serviceType?: ServiceType | null;
   estimatedArrivalTime?: string | null;
   actualArrivalTime?: string | null;
   actualDepartureTime?: string | null;
@@ -362,7 +361,6 @@ export type CustomerUserRole = 'account_owner' | 'read_only';
 export type OperatorRole = 'admin' | 'manager' | 'staff';
 export type RouteStatus = 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
 export type RouteExecutionPhase = 'load' | 'placement' | 'pickup' | 'unload';
-export type ServiceType = 'delivery' | 'pickup' | 'inspection';
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled';
 export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'check' | 'cash' | 'other';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'cancelled';
@@ -453,7 +451,6 @@ export interface CreateStopInput {
   viewerSubs?: string[];
   sequence: number;
   address: string;
-  serviceType: ServiceType;
   estimatedArrivalTime?: string;
   numberOfSigns?: number;
   agent?: string;
@@ -468,7 +465,6 @@ export interface UpdateStopInput {
   id: string;
   sequence?: number;
   address?: string;
-  serviceType?: ServiceType;
   estimatedArrivalTime?: string;
   actualArrivalTime?: string;
   actualDepartureTime?: string;

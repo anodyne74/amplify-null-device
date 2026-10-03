@@ -90,20 +90,18 @@ const mockStops: Stop[] = [
     routeId: 'route-test-id-1234',
     sequence: 1,
     address: '100 First St',
-    serviceType: 'delivery',
   },
   {
     id: 'stop-2',
     routeId: 'route-test-id-1234',
     sequence: 2,
     address: '200 Second Ave',
-    serviceType: 'pickup',
   },
 ];
 
 // A legacy-imported completed route: import-prep.js stamps every phase
 // timestamp with the same single known date (no granular start/end was
-// recorded) and forces every stop's serviceType to 'pickup'.
+// recorded).
 const mockLegacyCompletedRoute: Route = {
   id: 'route-test-id-1234',
   routeCode: 'W14-25-001',
@@ -125,7 +123,6 @@ const mockLegacyCompletedStops: Stop[] = [
     routeId: 'route-test-id-1234',
     sequence: 1,
     address: '100 First St',
-    serviceType: 'pickup',
     actualDepartureTime: '2025-04-15T00:00:00.000Z',
     numberOfSigns: 4,
   },
@@ -194,12 +191,11 @@ describe('Operator Route Detail Page', () => {
     expect(screen.queryByText('Awaiting placement')).not.toBeInTheDocument();
   });
 
-  it('offers to settle every stop during Placement, whatever its service type', async () => {
+  it('offers to settle every stop during Placement', async () => {
     mockFetched.route = { ...mockRoute, status: 'in_progress', executionPhase: 'placement' };
 
     render(<RouteDetailPage />);
 
-    // stop-2 is a 'pickup'-type stop; signs are placed there too.
     expect(await screen.findAllByRole('button', { name: 'Signs Placed' })).toHaveLength(2);
   });
 
@@ -316,7 +312,6 @@ describe('Operator Route Detail Page', () => {
         routeId: 'route-test-id-1234',
         sequence: 1,
         address: '100 First St',
-        serviceType: 'pickup',
         notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]',
         numberOfSigns: 10,
         missingSignsCount: 3,

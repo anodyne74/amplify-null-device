@@ -302,7 +302,6 @@ type NewStopInput = StopLocationInput & {
   viewerSubs?: string[];
   sequence: number;
   address: string;
-  serviceType: 'delivery' | 'pickup' | 'inspection';
   estimatedArrivalTime?: string;
   numberOfSigns?: number;
   agent?: string;
@@ -323,7 +322,6 @@ async function writeNewStop(input: NewStopInput) {
 
 export interface CreateStopsForRouteInput extends StopLocationInput {
   address: string;
-  serviceType: 'delivery' | 'pickup' | 'inspection';
   numberOfSigns?: number;
   agent?: string;
   isAuction?: boolean;
@@ -369,7 +367,6 @@ export async function createStopsForRoute(
           viewerSubs,
           sequence: index + 1,
           address: stop.address,
-          serviceType: stop.serviceType,
           numberOfSigns: stop.numberOfSigns,
           agent: stop.agent,
           isAuction: stop.isAuction,
@@ -404,7 +401,6 @@ export interface UpdateStopInput extends StopLocationInput {
   id: string;
   sequence?: number;
   address?: string;
-  serviceType?: string;
   estimatedArrivalTime?: string;
   actualArrivalTime?: string;
   actualDepartureTime?: string;
@@ -455,7 +451,6 @@ async function writeStopUpdate(input: UpdateStopInput) {
 
 /** What the Stop form submits besides the address. */
 export interface StopDetails {
-  serviceType: 'delivery' | 'pickup' | 'inspection';
   numberOfSigns?: number;
   agent?: string;
   isAuction?: boolean;

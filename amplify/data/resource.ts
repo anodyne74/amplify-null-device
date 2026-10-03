@@ -273,7 +273,6 @@ const schema = a.schema({
       viewerSubs: a.string().array(), // Cognito subs of all customer users — grants read access
       sequence: a.integer().required(), // Order of stops in route
       address: a.string().required(),
-      serviceType: a.enum(['delivery', 'pickup', 'inspection']),
       estimatedArrivalTime: a.datetime(),
       actualArrivalTime: a.datetime(),
       actualDepartureTime: a.datetime(), // When the Stop was last settled done or skipped, a time only; whether it was is its Stop Progress (lib/stopProgress.ts)

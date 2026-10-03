@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { getAgentBadgeInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
-import { Select } from '@/app/components/ui/forms/Select';
 import { Checkbox } from '@/app/components/ui/forms/Checkbox';
 import { Button } from '@/app/components/ui/core/Button';
 import styles from './StopForm.module.css';
@@ -13,7 +12,6 @@ import { AddressAutocompleteInput, type ResolvedAddress } from './AddressAutocom
 interface StopFormProps {
   initialValues?: {
     address?: string;
-    serviceType?: 'delivery' | 'pickup' | 'inspection';
     numberOfSigns?: number;
     agent?: string;
     isAuction?: boolean;
@@ -21,7 +19,6 @@ interface StopFormProps {
   };
   onSubmit: (values: {
     address: string;
-    serviceType: 'delivery' | 'pickup' | 'inspection';
     numberOfSigns?: number;
     agent?: string;
     isAuction?: boolean;
@@ -56,9 +53,6 @@ export function StopForm({
   submitLabel = 'Add Stop',
 }: StopFormProps) {
   const [address, setAddress] = useState(initialValues?.address || '');
-  const [serviceType, setServiceType] = useState<'delivery' | 'pickup' | 'inspection'>(
-    initialValues?.serviceType || 'delivery'
-  );
   const [numberOfSigns, setNumberOfSigns] = useState(
     initialValues?.numberOfSigns?.toString() || defaultNumberOfSigns?.toString() || ''
   );
@@ -123,7 +117,6 @@ export function StopForm({
 
     await onSubmit({
       address: address.trim(),
-      serviceType,
       numberOfSigns: parsedSigns,
       agent: agent.trim() || undefined,
       isAuction,
@@ -183,20 +176,6 @@ export function StopForm({
         </div>
       )}
 
-      <div className={styles.field}>
-        <Field label="Service Type" htmlFor="serviceType">
-          <Select
-            id="serviceType"
-            value={serviceType}
-            onChange={(e) => setServiceType(e.target.value as 'delivery' | 'pickup' | 'inspection')}
-            disabled={isSubmitting}
-          >
-            <option value="delivery">Delivery</option>
-            <option value="pickup">Pickup</option>
-            <option value="inspection">Inspection</option>
-          </Select>
-        </Field>
-      </div>
 
       <div className={styles.field}>
         <Field label="Number of Signs" htmlFor="numberOfSigns">

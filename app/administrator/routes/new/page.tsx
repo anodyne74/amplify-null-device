@@ -85,14 +85,6 @@ function sanitizeCopiedStopNotes(notes?: string | null) {
   return cleaned || undefined;
 }
 
-function normalizeCopiedServiceType(serviceType?: string | null): 'delivery' | 'pickup' | 'inspection' {
-  const normalized = serviceType?.trim().toLowerCase();
-  if (normalized === 'pickup' || normalized === 'inspection') {
-    return normalized;
-  }
-  return 'delivery';
-}
-
 function normalizeOptionalNumber(value: unknown): number | undefined {
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value : undefined;
@@ -345,7 +337,6 @@ function NewRoutePageContent() {
     }))?.stops ?? [];
 
     return stops.map((stop) => {
-      const rawServiceType = stop.serviceType?.toString().trim().toLowerCase();
       const normalizedLatitude = normalizeOptionalNumber(stop.latitude);
       const normalizedLongitude = normalizeOptionalNumber(stop.longitude);
       const normalizedSigns = normalizeOptionalNumber(stop.numberOfSigns);
@@ -353,10 +344,9 @@ function NewRoutePageContent() {
         // The source Stop's precision and address components travel with its pin.
         ...pickStopLocationFields(stop),
         address: stop.address?.trim() || stop.formattedAddress?.trim() || 'Unknown address',
-        serviceType: normalizeCopiedServiceType(stop.serviceType),
         numberOfSigns: normalizedSigns,
         agent: stop.agent ?? undefined,
-        isAuction: stop.isAuction ?? (rawServiceType === 'auction' ? true : undefined),
+        isAuction: stop.isAuction ?? undefined,
         notes: sanitizeCopiedStopNotes(stop.notes),
         latitude: normalizedLatitude,
         longitude: normalizedLongitude,
@@ -452,7 +442,6 @@ function NewRoutePageContent() {
       const located = await locateDraftStops<RouteDraftStop>(
         result.stops.map((stop) => ({
           address: stop.address,
-          serviceType: 'delivery',
           numberOfSigns: stop.numberOfSigns,
           agent: stop.agent,
           isAuction: stop.isAuction,
@@ -588,7 +577,6 @@ function NewRoutePageContent() {
     { key: 'address', header: 'Address', render: (stop) => stop.address },
     { key: 'signs', header: 'Signs', render: (stop) => stop.numberOfSigns },
     { key: 'agent', header: 'Agent', render: (stop) => stop.agent },
-    { key: 'type', header: 'Type', render: (stop) => stop.serviceType },
     {
       key: 'pin',
       header: 'Map pin',

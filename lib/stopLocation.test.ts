@@ -188,9 +188,9 @@ describe('a Confirmed Property (#286)', () => {
 
 describe('locateDraftStops (#343)', () => {
   const drafts = [
-    { address: '12 Smith St, Epping', serviceType: 'delivery' as const },
-    { address: '9 Lost Rd, Eastwood', serviceType: 'delivery' as const },
-    { address: '14 Smith St, Epping', serviceType: 'pickup' as const },
+    { address: '12 Smith St, Epping' },
+    { address: '9 Lost Rd, Eastwood' },
+    { address: '14 Smith St, Epping' },
   ];
 
   beforeEach(() => {
@@ -219,7 +219,7 @@ describe('locateDraftStops (#343)', () => {
 
   it("leaves out a draft with no suburb that couldn't be found on the map, which would have no Property", async () => {
     const { stops, unpinned, leftOut } = await locateDraftStops(
-      [drafts[0], { address: 'Nowhere', serviceType: 'delivery' as const }],
+      [drafts[0], { address: 'Nowhere' }],
       undefined,
       0
     );

@@ -31,7 +31,6 @@ const RouteStopsMap = dynamic(
 /** A stop drafted before the Route exists; carries its geocoded location fields (lib/locationPrecision.ts). */
 export interface RouteDraftStop extends Partial<StopLocationFields> {
   address: string;
-  serviceType: 'delivery' | 'pickup' | 'inspection';
   numberOfSigns?: number;
   agent?: string;
   isAuction?: boolean;
@@ -194,7 +193,6 @@ export function RouteForm({
     latitude: stop.latitude,
     longitude: stop.longitude,
     locationPrecision: stop.locationPrecision,
-    serviceType: stop.serviceType,
     numberOfSigns: stop.numberOfSigns,
     agent: stop.agent,
     isAuction: stop.isAuction,
@@ -462,7 +460,6 @@ export function RouteForm({
                   <div className={styles.stopSequence}>{index + 1}</div>
                   <div className={styles.stopContent}>
                     <div className={styles.stopAddress}>{stop.formattedAddress || stop.address}</div>
-                    <div className={styles.stopMeta}>{stop.serviceType}</div>
                   </div>
                   <Button
                     type="button"

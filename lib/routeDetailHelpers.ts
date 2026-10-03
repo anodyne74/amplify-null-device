@@ -1,5 +1,5 @@
 import type { Route, Stop } from '@/amplify/types';
-import { billedTime } from '@/lib/billedTime';
+import { billedTime, measuredMinutes, minutesBetween } from '@/lib/billedTime';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -85,40 +85,25 @@ export function formatCurrency(amount: number | null) {
 
 /**
  * A Route's duration for display: its Billed Time once there is one (see
- * lib/billedTime.ts), otherwise the time elapsed so far.
+ * lib/billedTime.ts), otherwise the time measured so far.
  */
 export function getRouteDurationMinutes(route: Route) {
   const { totalMinutes } = billedTime(route);
-  return totalMinutes === null ? getElapsedRouteMinutes(route) : Math.max(0, totalMinutes);
+  return totalMinutes === null ? getMeasuredRouteMinutes(route) : Math.max(0, totalMinutes);
 }
 
 /**
- * Time elapsed on a Route from its own timestamps, ticking upward while it's
- * in progress. Never what's charged: that's Billed Time.
+ * Time measured on a Route: the sum of its finished Sign Run phases, each from
+ * its own start and end, so the time between phases never counts. A Route from
+ * before the Sign Run has only its start and end. Null until a phase finishes.
+ * Never what's charged: that's Billed Time.
  */
-export function getElapsedRouteMinutes(route: Route) {
-  if (route.placementStartTime && route.pickupEndTime) {
-    return Math.max(
-      0,
-      Math.round((new Date(route.pickupEndTime).getTime() - new Date(route.placementStartTime).getTime()) / 60000)
-    );
-  }
+export function getMeasuredRouteMinutes(route: Route) {
+  const measured = measuredMinutes(route);
+  if (measured !== null) return measured;
 
   if (route.actualStartTime && route.actualEndTime) {
-    return Math.max(
-      0,
-      Math.round((new Date(route.actualEndTime).getTime() - new Date(route.actualStartTime).getTime()) / 60000)
-    );
-  }
-
-  if (route.status === 'in_progress') {
-    const phaseStart =
-      route.executionPhase === 'pickup'
-        ? route.pickupStartTime ?? route.actualStartTime
-        : route.placementStartTime ?? route.actualStartTime;
-    if (phaseStart) {
-      return Math.max(1, Math.round((Date.now() - new Date(phaseStart).getTime()) / 60000));
-    }
+    return minutesBetween(route.actualStartTime, route.actualEndTime);
   }
 
   return null;

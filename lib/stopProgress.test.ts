@@ -2,10 +2,8 @@ import {
   displayNotes,
   isStopCompleted,
   isStopFinished,
-  lastPhase,
   settleStopNotes,
   stopProgress,
-  takesPartIn,
 } from './stopProgress';
 
 const AT = '2026-08-31T10:00:00.000Z';
@@ -50,22 +48,6 @@ describe('stopProgress', () => {
   });
 });
 
-describe('phases', () => {
-  it('skips Placement for pickup Stops and Pickup for inspections', () => {
-    expect(takesPartIn({ serviceType: 'pickup' }, 'placement')).toBe(false);
-    expect(takesPartIn({ serviceType: 'inspection' }, 'pickup')).toBe(false);
-    expect(takesPartIn({ serviceType: 'delivery' }, 'placement')).toBe(true);
-    expect(takesPartIn({ serviceType: 'delivery' }, 'pickup')).toBe(true);
-  });
-
-  it('ends inspections at Placement and everything else at Pickup', () => {
-    expect(lastPhase({ serviceType: 'inspection' })).toBe('placement');
-    expect(lastPhase({ serviceType: 'delivery' })).toBe('pickup');
-    expect(lastPhase({ serviceType: 'pickup' })).toBe('pickup');
-    expect(lastPhase({})).toBe('pickup');
-  });
-});
-
 describe('finished and completed', () => {
   const placed = settleStopNotes(null, 'placement', 'complete', AT);
 
@@ -78,7 +60,14 @@ describe('finished and completed', () => {
     const notes = settleStopNotes(placed, 'pickup', 'complete', LATER);
     expect(isStopFinished({ serviceType: 'delivery', notes })).toBe(true);
     expect(isStopCompleted({ serviceType: 'delivery', notes })).toBe(true);
-    expect(isStopCompleted({ serviceType: 'inspection', notes: placed })).toBe(true);
+  });
+
+  it('places and picks up every Stop, whatever its service type', () => {
+    for (const serviceType of ['delivery', 'pickup', 'inspection', null]) {
+      expect(isStopFinished({ serviceType, notes: placed })).toBe(false);
+      const notes = settleStopNotes(placed, 'pickup', 'complete', LATER);
+      expect(isStopCompleted({ serviceType, notes })).toBe(true);
+    }
   });
 
   it('counts a skip as finished but not completed', () => {

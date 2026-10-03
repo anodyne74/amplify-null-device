@@ -144,16 +144,14 @@ function RouteDetailContent() {
   const planningLocked = route?.status !== 'planned';
   const currentExecutionPhase: ExecutionPhase = route?.executionPhase === 'pickup' ? 'pickup' : 'placement';
   const routeDone = route?.status === 'completed' || route?.status === 'archived';
-  const placementPhaseStops = stops.filter((stop) => stop.serviceType !== 'pickup');
-  const pickupPhaseStops = stops.filter((stop) => stop.serviceType !== 'inspection');
   const stopPhase = route ? stopPhaseOf(route) : null;
   const visibleStops = (() => {
     if (stopPhase === 'placement') {
-      return placementPhaseStops.filter((stop) => stopProgress(stop).placement.state === 'pending');
+      return stops.filter((stop) => stopProgress(stop).placement.state === 'pending');
     }
 
     if (stopPhase === 'pickup') {
-      return pickupPhaseStops.filter((stop) => stopProgress(stop).pickup.state === 'pending');
+      return stops.filter((stop) => stopProgress(stop).pickup.state === 'pending');
     }
 
     return stops;
@@ -404,8 +402,8 @@ function RouteDetailContent() {
                   ? 'All signs are placed. Start the pickup phase to continue.'
                   : route?.status === 'signs_placed'
                   ? 'Ready for pickup phase. Click Start Route to begin pickup.'
-                  : pickupPhaseStops.length === 0
-                  ? 'No pickup-phase stops on this route. The route can be completed.'
+                  : stops.length === 0
+                  ? 'No stops on this route. The route can be completed.'
                   : 'All pickup stops are complete. Click End Route to finish pickup phase.'}
               </div>
             )}

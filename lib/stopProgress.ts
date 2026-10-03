@@ -22,7 +22,6 @@ export type StopProgress = Record<ExecutionPhase, PhaseProgress>;
 export interface StopProgressStop {
   notes?: string | null;
   actualDepartureTime?: string | null;
-  serviceType?: string | null;
 }
 
 const MARKERS: Record<ExecutionPhase, { done: string; skipped: string }> = {
@@ -62,25 +61,14 @@ export function stopProgress(stop: StopProgressStop): StopProgress {
   return { placement: phaseProgress(notes, 'placement'), pickup: phaseProgress(notes, 'pickup') };
 }
 
-/** Whether a Stop is visited in a phase: pickup Stops have no Placement, and
- *  inspection Stops no Pickup. */
-export function takesPartIn(stop: StopProgressStop, phase: ExecutionPhase): boolean {
-  return stop.serviceType !== (phase === 'placement' ? 'pickup' : 'inspection');
-}
-
-/** The last phase a Stop is visited in: Placement for inspections, otherwise Pickup. */
-export function lastPhase(stop: StopProgressStop): ExecutionPhase {
-  return takesPartIn(stop, 'pickup') ? 'pickup' : 'placement';
-}
-
-/** Done or skipped in its last phase. */
+/** Done or skipped in Pickup, the last phase of every Stop. */
 export function isStopFinished(stop: StopProgressStop): boolean {
-  return stopProgress(stop)[lastPhase(stop)].state !== 'pending';
+  return stopProgress(stop).pickup.state !== 'pending';
 }
 
-/** Done in its last phase; a skipped Stop is finished but not completed. */
+/** Done in Pickup; a skipped Stop is finished but not completed. */
 export function isStopCompleted(stop: StopProgressStop): boolean {
-  return stopProgress(stop)[lastPhase(stop)].state === 'done';
+  return stopProgress(stop).pickup.state === 'done';
 }
 
 /** The notes with a Stop settled done or skipped for a phase, clearing the

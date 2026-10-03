@@ -14,23 +14,28 @@ export function Tag({ selected = false, onRemove, onClick, onKeyDown, children, 
     .join(' ');
 
   // A clickable Tag is a filter chip: a toggle button that keyboard users and
-  // screen readers can reach.
-  const toggle = onClick ? { role: 'button', tabIndex: 0, 'aria-pressed': selected } : {};
+  // screen readers can reach. It stays a <span> with role="button" because the
+  // global button rule in app/globals.css restyles every plain <button> (#445).
+  // Not with a remove button inside, though: buttons mustn't nest. Callers may
+  // still set their own role and ARIA.
+  const isChipButton = Boolean(onClick) && !onRemove;
+  const chipButtonProps = isChipButton ? { role: 'button', tabIndex: 0, 'aria-pressed': selected } : {};
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
     onKeyDown?.(e);
     // Enter and Space press it, as they would a button; Space mustn't scroll the page.
-    if (onClick && e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+    if (isChipButton && e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
       e.currentTarget.click();
     }
   };
 
   return (
-    <span className={cls} onClick={onClick} onKeyDown={handleKeyDown} {...toggle} {...rest}>
+    <span className={cls} onClick={onClick} onKeyDown={handleKeyDown} {...chipButtonProps} {...rest}>
       {children}
       {onRemove && (
         <button
+          type="button"
           className="nd-tag__remove"
           onClick={(e) => {
             e.stopPropagation();

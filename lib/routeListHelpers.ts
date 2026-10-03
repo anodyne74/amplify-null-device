@@ -10,9 +10,9 @@ export function formatRouteDuration(route: Route) {
   // getRouteDurationMinutes only falls through to measured phase time for
   // routes with no Billed Time yet; on an in-progress route that number grows
   // as each phase finishes, so it's labelled rather than shown as settled.
-  const isLiveEstimate = route.status === 'in_progress' && billedTime(route).totalMinutes === null;
+  const stillMeasuring = route.status === 'in_progress' && billedTime(route).totalMinutes === null;
 
-  return isLiveEstimate ? `${minutes} min (in progress)` : `${minutes} min`;
+  return stillMeasuring ? `${minutes} min (in progress)` : `${minutes} min`;
 }
 
 // Route codes are formatted W{week}-{year}-{sequence}, e.g. "W48-23-001" — week

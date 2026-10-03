@@ -114,7 +114,7 @@ export function billedTotalPatch(totalMinutes: number, distanceKm: number) {
 // --- Seeding from what was measured ---
 
 /** Raw elapsed minutes between two ISO timestamps. 0 if either is missing. */
-function minutesBetween(startIso?: string | null, endIso?: string | null): number {
+export function minutesBetween(startIso?: string | null, endIso?: string | null): number {
   if (!startIso || !endIso) return 0;
   const start = new Date(startIso).getTime();
   const end = new Date(endIso).getTime();
@@ -145,6 +145,17 @@ export function measuredPhaseMinutes(route: PhaseTimestamps): BilledPhaseMinutes
     pickup: minutesBetween(route.pickupStartTime, route.pickupEndTime),
     unload: minutesBetween(route.unloadStartedAt, route.unloadConfirmedAt),
   };
+}
+
+/** Raw minutes across every phase that has both started and finished, so the time
+ * between phases never counts. null until one has. */
+export function measuredMinutes(route: PhaseTimestamps): number | null {
+  const anyPhaseFinished =
+    Boolean(route.loadStartedAt && route.loadConfirmedAt) ||
+    Boolean(route.placementStartTime && route.placementEndTime) ||
+    Boolean(route.pickupStartTime && route.pickupEndTime) ||
+    Boolean(route.unloadStartedAt && route.unloadConfirmedAt);
+  return anyPhaseFinished ? sumBilledMinutes(measuredPhaseMinutes(route)) : null;
 }
 
 /** A phase's Billed Time before anyone adjusts it — the measured time rounded to the

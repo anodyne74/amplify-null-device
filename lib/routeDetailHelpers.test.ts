@@ -165,6 +165,84 @@ describe('routeDetailHelpers', () => {
     });
 
     it('sums the finished phases of an in-progress route, not the one under way', () => {
+      const route = makeRoute({
+        status: 'in_progress',
+        executionPhase: 'pickup',
+        actualStartTime: '2024-01-01T09:00:00Z',
+        loadStartedAt: '2024-01-01T09:00:00Z',
+        loadConfirmedAt: '2024-01-01T09:20:00Z',
+        placementStartTime: '2024-01-01T09:30:00Z',
+        placementEndTime: '2024-01-01T10:15:00Z',
+        pickupStartTime: '2024-01-01T13:00:00Z',
+      });
+      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2024-01-01T14:00:00Z').getTime());
+
+      expect(getRouteDurationMinutes(route)).toBe(65);
+
+      nowSpy.mockReturnValue(new Date('2024-01-01T16:30:00Z').getTime());
+      expect(getRouteDurationMinutes(route)).toBe(65);
+
+      nowSpy.mockRestore();
+    });
+
+    it('has no duration while the first phase of a route is still under way', () => {
+      expect(
+        getRouteDurationMinutes(
+          makeRoute({
+            status: 'planned',
+            executionPhase: 'load',
+            actualStartTime: '2024-01-01T09:00:00Z',
+            loadStartedAt: '2024-01-01T09:00:00Z',
+          })
+        )
+      ).toBeNull();
+    });
+
+    it("doesn't count a phase as finished without its start", () => {
+      expect(
+        getRouteDurationMinutes(
+          makeRoute({
+            status: 'in_progress',
+            executionPhase: 'unload',
+            pickupEndTime: '2024-01-01T10:00:00Z',
+          })
+        )
+      ).toBeNull();
+    });
+
+    it('sums all four phases of a route awaiting Finalise, leaving out the time between them', () => {
+      expect(
+        getRouteDurationMinutes(
+          makeRoute({
+            status: 'in_progress',
+            executionPhase: 'unload',
+            actualStartTime: '2024-01-01T09:00:00Z',
+            loadStartedAt: '2024-01-01T09:00:00Z',
+            loadConfirmedAt: '2024-01-01T09:20:00Z',
+            placementStartTime: '2024-01-01T09:30:00Z',
+            placementEndTime: '2024-01-01T10:15:00Z',
+            pickupStartTime: '2024-01-02T17:00:00Z',
+            pickupEndTime: '2024-01-02T17:50:00Z',
+            unloadStartedAt: '2024-01-02T18:00:00Z',
+            unloadConfirmedAt: '2024-01-02T18:15:00Z',
+            actualEndTime: '2024-01-02T18:15:00Z',
+          })
+        )
+      ).toBe(130);
+    });
+
+    it('falls back to actual start and end times', () => {
+      expect(
+        getRouteDurationMinutes(
+          makeRoute({
+            actualStartTime: '2024-01-01T09:00:00Z',
+            actualEndTime: '2024-01-01T09:45:00Z',
+          })
+        )
+      ).toBe(45);
+    });
+
+    it('sums the finished phases of an in-progress route, not the one under way', () => {
       const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2024-01-01T14:00:00Z').getTime());
 
       expect(
@@ -183,19 +261,6 @@ describe('routeDetailHelpers', () => {
       ).toBe(65);
 
       nowSpy.mockRestore();
-    });
-
-    it('has no duration while the first phase of a route is still under way', () => {
-      expect(
-        getRouteDurationMinutes(
-          makeRoute({
-            status: 'in_progress',
-            executionPhase: 'load',
-            actualStartTime: '2024-01-01T09:00:00Z',
-            loadStartedAt: '2024-01-01T09:00:00Z',
-          })
-        )
-      ).toBeNull();
     });
 
     it('returns null when no duration signal is present', () => {

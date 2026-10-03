@@ -1,5 +1,5 @@
 import type { Route, Stop } from '@/amplify/types';
-import { billedTime, measuredPhaseMinutes, sumBilledMinutes } from '@/lib/billedTime';
+import { billedTime, measuredMinutes, minutesBetween } from '@/lib/billedTime';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -99,18 +99,11 @@ export function getRouteDurationMinutes(route: Route) {
  * Never what's charged: that's Billed Time.
  */
 export function getMeasuredRouteMinutes(route: Route) {
-  const anyPhaseFinished = Boolean(
-    route.loadConfirmedAt || route.placementEndTime || route.pickupEndTime || route.unloadConfirmedAt
-  );
-  if (anyPhaseFinished) {
-    return sumBilledMinutes(measuredPhaseMinutes(route));
-  }
+  const measured = measuredMinutes(route);
+  if (measured !== null) return measured;
 
   if (route.actualStartTime && route.actualEndTime) {
-    return Math.max(
-      0,
-      Math.round((new Date(route.actualEndTime).getTime() - new Date(route.actualStartTime).getTime()) / 60000)
-    );
+    return minutesBetween(route.actualStartTime, route.actualEndTime);
   }
 
   return null;

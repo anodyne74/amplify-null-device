@@ -56,7 +56,7 @@ describe('routeListHelpers', () => {
       expect(
         formatRouteDuration(
           makeRoute({
-            status: 'in_progress',
+            status: 'planned',
             executionPhase: 'load',
             actualStartTime: '2024-01-01T09:00:00Z',
             loadStartedAt: '2024-01-01T09:00:00Z',

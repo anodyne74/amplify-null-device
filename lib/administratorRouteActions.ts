@@ -27,7 +27,6 @@ import {
   type SignRunTransitionRoute,
   type StopSettlement,
 } from '@/lib/signRunTransitions';
-import { takesPartIn } from '@/lib/stopProgress';
 import type { Route, RouteExecutionPhase, Stop } from '@/amplify/types';
 
 /** `saved` is set when the change was written but its audit entry wasn't, so
@@ -68,21 +67,18 @@ async function saveAudited(
   return { ok: true };
 }
 
-const PHASE_LABELS = { placement: 'Placement', pickup: 'Pickup' } as const;
-
 /**
  * An administrator settles a Stop done or skipped for the phase its Route is
- * on, as the operator would. Refused, writing nothing, outside Placement and
- * Pickup or for a Stop that isn't visited in the phase.
+ * on, as the operator would. Every Stop is placed and picked up. Refused,
+ * writing nothing, outside Placement and Pickup.
  */
 export async function settleStopAsAdministrator(
   route: Pick<Route, 'status' | 'executionPhase'>,
-  stop: Pick<Stop, 'id' | 'routeId' | 'customerId' | 'notes' | 'actualArrivalTime' | 'serviceType'>,
+  stop: Pick<Stop, 'id' | 'routeId' | 'customerId' | 'notes' | 'actualArrivalTime'>,
   settlement: Omit<StopSettlement, 'phase'>
 ): Promise<AdministratorActionResult> {
   const phase = stopPhaseOf(route);
   if (!phase) return refused('Stops can only be settled while the route is on Placement or Pickup.');
-  if (!takesPartIn(stop, phase)) return refused(`This stop isn't visited during ${PHASE_LABELS[phase]}.`);
 
   const patch = planStopSettlement(stop, { ...settlement, phase }, new Date().toISOString());
   return saveAudited(

@@ -30,7 +30,7 @@ describe('getStopStatusLabel — in-progress route, phase-specific branch', () =
   });
 });
 
-describe('getStopStatusLabel — completed/archived routes label each stop by its last phase', () => {
+describe('getStopStatusLabel — completed/archived routes label each stop by Pickup, its last phase', () => {
   const placed = settleStopNotes('', 'placement', 'complete', '2026-08-31T09:00:00.000Z');
 
   it('reports a delivery stop collected once its pickup is done, whatever the route last showed', () => {
@@ -43,8 +43,9 @@ describe('getStopStatusLabel — completed/archived routes label each stop by it
     expect(getStopStatusLabel({ notes, serviceType: 'delivery' }, 'pickup', 'completed')).toBe('Pickup skipped · Gate locked');
   });
 
-  it('reports an inspection by its placement', () => {
-    expect(getStopStatusLabel({ notes: placed, serviceType: 'inspection' }, 'pickup', 'completed')).toBe('Signs placed');
+  it('labels a stop by its pickup whatever its service type', () => {
+    const notes = settleStopNotes(placed, 'pickup', 'complete', '2026-08-31T10:00:00.000Z');
+    expect(getStopStatusLabel({ notes, serviceType: 'inspection' }, 'pickup', 'completed')).toBe('Signs collected');
   });
 
   it('reports done for a legacy-imported stop regardless of executionPhase', () => {

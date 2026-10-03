@@ -1,0 +1,41 @@
+import type { Route } from '@/amplify/types';
+import { stopProgress, type ExecutionPhase, type StopProgressStop } from '@/lib/stopProgress';
+
+export interface CustomerRouteProgress {
+  phase: ExecutionPhase;
+  label: 'Placed' | 'Picked up';
+  done: number;
+  total: number;
+}
+
+/** The phase a Customer follows a Route by: Placement until Pickup starts,
+ *  then Pickup for the rest of the Route's life. */
+export function customerProgressPhase(
+  route: Pick<Route, 'status' | 'executionPhase' | 'pickupStartTime'>
+): ExecutionPhase {
+  const pickupStarted =
+    Boolean(route.pickupStartTime) ||
+    route.executionPhase === 'unload' ||
+    route.status === 'completed' ||
+    route.status === 'archived';
+  return pickupStarted ? 'pickup' : 'placement';
+}
+
+/**
+ * How far a Route has got, for its Customer: every Stop done in the phase
+ * they follow, out of every Stop not skipped in it. Every Stop is placed and
+ * picked up, whatever its service type.
+ */
+export function customerRouteProgress(
+  route: Pick<Route, 'status' | 'executionPhase' | 'pickupStartTime'>,
+  stops: StopProgressStop[]
+): CustomerRouteProgress {
+  const phase = customerProgressPhase(route);
+  const states = stops.map((stop) => stopProgress(stop)[phase].state);
+  return {
+    phase,
+    label: phase === 'pickup' ? 'Picked up' : 'Placed',
+    done: states.filter((state) => state === 'done').length,
+    total: states.filter((state) => state !== 'skipped').length,
+  };
+}

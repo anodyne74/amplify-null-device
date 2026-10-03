@@ -5,7 +5,7 @@ import type { Circle as LeafletCircle, CircleMarker as LeafletCircleMarker, Map 
 import type { Stop } from '@/amplify/types';
 import { locationPrecisionIndicator } from '@/lib/locationPrecision';
 import { getMapTheme, type MapTheme } from '@/lib/mapThemes';
-import { lastPhase, stopProgress, takesPartIn, type ExecutionPhase } from '@/lib/stopProgress';
+import { stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
 import styles from './RouteStopsMap.module.css';
 
 interface RouteStopsMapProps {
@@ -110,13 +110,13 @@ function hasCoordinates(stop: Stop): stop is StopWithCoords {
 }
 
 function progressState(stop: Stop, phase?: ExecutionPhase) {
-  return stopProgress(stop)[phase ?? lastPhase(stop)].state;
+  return stopProgress(stop)[phase ?? 'pickup'].state;
 }
 
 /** The first Stop still awaiting the phase, or the first Stop when none is. */
 function firstPendingStop(stops: StopWithCoords[], phase?: ExecutionPhase) {
   return (
-    stops.find((stop) => (!phase || takesPartIn(stop, phase)) && progressState(stop, phase) === 'pending') ?? stops[0]
+    stops.find((stop) => progressState(stop, phase) === 'pending') ?? stops[0]
   );
 }
 

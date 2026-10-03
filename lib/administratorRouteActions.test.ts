@@ -255,11 +255,14 @@ describe('settleStopAsAdministrator', () => {
     expect(mockAuditLogCreate).not.toHaveBeenCalled();
   });
 
-  it("refuses a Stop that isn't visited in the phase", async () => {
-    const result = await settleStopAsAdministrator(pickupRoute, { ...stop, serviceType: 'inspection' }, { action: 'complete' });
+  it('settles any Stop in Placement, whatever its service type', async () => {
+    const placementRoute = { status: 'in_progress' as const, executionPhase: 'placement' as const };
 
-    expect(result).toEqual({ ok: false, error: "This stop isn't visited during Pickup.", saved: false });
-    expect(mockStopUpdate).not.toHaveBeenCalled();
+    await expect(
+      settleStopAsAdministrator(placementRoute, { ...stop, serviceType: 'pickup' as const }, { action: 'complete' })
+    ).resolves.toEqual({ ok: true });
+
+    expect(stopProgress(mockStopUpdate.mock.calls[0][0]).placement.state).toBe('done');
   });
 
   it('reports a failed save and writes no audit entry', async () => {

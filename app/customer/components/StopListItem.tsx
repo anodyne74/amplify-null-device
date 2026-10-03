@@ -8,6 +8,8 @@ import styles from './StopListItem.module.css';
 interface StopListItemProps {
   stop: Stop;
   sequence: number;
+  /** The phase the Customer is following the Route by (lib/customerRouteProgress.ts). */
+  phase: ExecutionPhase;
 }
 
 const SERVICE_TYPE_CIRCLE_CLASS: Record<string, string> = {
@@ -18,8 +20,7 @@ const SERVICE_TYPE_CIRCLE_CLASS: Record<string, string> = {
 
 /** Placement/pickup status label + tone for a stop — the single source of
  * truth for how far along its own phase it is, read from the same Stop
- * Progress the operator's Placement/Pickup screens write. Inspection stops aren't tracked
- * through the placement/pickup lifecycle, so they keep a static label. */
+ * Progress the operator's Placement/Pickup screens write. */
 function getStopStatus(stop: Stop, phase: ExecutionPhase): { label: string; tone: BadgeProps['tone'] } {
   const { state } = stopProgress(stop)[phase];
   if (state === 'skipped') {
@@ -35,7 +36,7 @@ function getStopStatus(stop: Stop, phase: ExecutionPhase): { label: string; tone
  * StopListItem component
  * Displays a single delivery stop in a route
  */
-export default function StopListItem({ stop, sequence }: StopListItemProps) {
+export default function StopListItem({ stop, sequence, phase }: StopListItemProps) {
   const formatTime = (dateString?: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleTimeString('en-US', {
@@ -48,10 +49,7 @@ export default function StopListItem({ stop, sequence }: StopListItemProps) {
   const circleClass = SERVICE_TYPE_CIRCLE_CLASS[serviceTypeKey] ?? styles.circleDelivery;
   const operatorNotes = displayNotes(stop.notes);
 
-  const status =
-    serviceTypeKey === 'inspection'
-      ? { label: 'Inspection', tone: 'neutral' as BadgeProps['tone'] }
-      : getStopStatus(stop, serviceTypeKey === 'pickup' ? 'pickup' : 'placement');
+  const status = getStopStatus(stop, phase);
 
   const progress = stopProgress(stop);
   const placementTime = progress.placement.state === 'done' ? progress.placement.at : null;

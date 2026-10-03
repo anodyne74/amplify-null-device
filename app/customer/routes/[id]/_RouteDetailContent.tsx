@@ -25,7 +25,8 @@ import { appendRouteInstruction, parseRouteInstructions, sortRouteInstructionsNe
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
 import { signsPlaced } from '@/lib/signRunTotals';
-import { stopProgress, takesPartIn } from '@/lib/stopProgress';
+import { stopProgress } from '@/lib/stopProgress';
+import { customerRouteProgress } from '@/lib/customerRouteProgress';
 import { customerPickupDate } from '@/lib/pickupDate';
 import styles from './_RouteDetailContent.module.css';
 import { updateRoute, updateRouteCustomerInstructions } from '@/lib/routes';
@@ -220,15 +221,14 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
 
   const routeLabel = route.routeCode || `${route.id.slice(0, 8)}...`;
   const totalSigns = signsPlaced(stops);
-  const deliveryStops = stops.filter((stop) => stop.serviceType === 'delivery');
-  const placedDeliveryStops = deliveryStops.filter((stop) => stopProgress(stop).placement.state === 'done');
+  const progress = customerRouteProgress(route, stops);
   const pickupDate = customerPickupDate(route);
   const pickupDateLabel = pickupDate ? formatRouteDate(pickupDate) : 'TBC';
   // Next and upcoming stops are those still awaiting the phase under way;
   // there's no next stop once every one has been done or skipped.
   const executionPhase = route.executionPhase === 'pickup' ? 'pickup' : 'placement';
   const pendingStops = stops.filter(
-    (stop) => takesPartIn(stop, executionPhase) && stopProgress(stop)[executionPhase].state === 'pending'
+    (stop) => stopProgress(stop)[executionPhase].state === 'pending'
   );
   const nextStop = pendingStops[0] ?? null;
   const showNextStop = Boolean(nextStop) && (currentPhase === 'signs_placed' || currentPhase === 'signs_picked_up');
@@ -244,7 +244,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
       ) : (
         <div className={styles.stopsList}>
           {stops.map((stop, index) => (
-            <StopListItem key={stop.id} stop={stop} sequence={index + 1} />
+            <StopListItem key={stop.id} stop={stop} sequence={index + 1} phase={progress.phase} />
           ))}
         </div>
       )}
@@ -320,11 +320,11 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
           </div>
           <div className="nd-stat">
             <ProgressBar
-              value={placedDeliveryStops.length}
-              max={Math.max(deliveryStops.length, 1)}
-              label={`Placed (${placedDeliveryStops.length}/${deliveryStops.length})`}
+              value={progress.done}
+              max={Math.max(progress.total, 1)}
+              label={`${progress.label} (${progress.done}/${progress.total})`}
               showValue={false}
-              tone={deliveryStops.length > 0 && placedDeliveryStops.length === deliveryStops.length ? 'success' : 'brand'}
+              tone={progress.total > 0 && progress.done === progress.total ? 'success' : 'brand'}
             />
           </div>
           <div className="nd-stat">

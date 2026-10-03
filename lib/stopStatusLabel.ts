@@ -6,11 +6,10 @@
  * skip reason suffix) lands once for every portal instead of being ported by
  * hand from one page's copy to another's.
  */
-import { lastPhase, stopProgress, type ExecutionPhase } from './stopProgress';
+import { stopProgress, type ExecutionPhase } from './stopProgress';
 
 export interface StatusLabelStop {
   notes?: string | null;
-  serviceType?: string | null;
   actualDepartureTime?: string | null;
   actualArrivalTime?: string | null;
 }
@@ -21,11 +20,10 @@ export function getStopStatusLabel(
   routeStatus?: string | null
 ) {
   // On a completed/archived route (and with no phase given) each stop is
-  // labelled by its last phase, so a stop skipped at pickup still reads as
-  // skipped after the route is done. Legacy imports, which force every stop's
-  // serviceType to 'pickup' (see import-prep.js), read as collected.
+  // labelled by Pickup, its last phase, so a stop skipped at pickup still reads
+  // as skipped after the route is done.
   const routeDone = routeStatus === 'completed' || routeStatus === 'archived';
-  const phase = executionPhase && !routeDone ? executionPhase : lastPhase(stop);
+  const phase = executionPhase && !routeDone ? executionPhase : 'pickup';
   const { state, reason } = stopProgress(stop)[phase];
   if (state === 'skipped') {
     const base = phase === 'pickup' ? 'Pickup skipped' : 'Placement skipped';

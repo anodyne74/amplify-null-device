@@ -252,10 +252,11 @@ const schema = a.schema({
       payouts: a.hasMany('OperatorPayout', 'routeId'),
     })
     .authorization((allow) => [
-      // 'update' scoped in practice to customerInstructions by the client (lib/queries.ts
-      // updateRouteCustomerInstructions) — Amplify Gen 2 has no field-level authorization,
-      // so this is a coarse grant like the rest of this schema. Covers both account_owner
-      // and read_only CustomerUser sub-roles (not distinguishable at this layer).
+      // 'update' scoped in practice to customerInstructions by the client (lib/routes.ts
+      // updateRouteCustomerInstructions) — a coarse grant like the rest of this schema,
+      // narrowed only on pickupDate, which customers can read but not write (see its
+      // field rule above). Covers both account_owner and read_only CustomerUser
+      // sub-roles (not distinguishable at this layer).
       allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read', 'update']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'update']),

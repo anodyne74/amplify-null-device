@@ -20,7 +20,7 @@ import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseScheduleText } from '@/lib/parseSchedule';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
 import { pickupDateProblem } from '@/lib/pickupDate';
-import { usePickupDate } from '@/lib/usePickupDate';
+import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
 import { locateDraftStops } from '@/lib/stopLocation';
 import styles from './page.module.css';
 import { listAllRoutes, createRoute, createStopsForRoute, getRouteWithStops } from '@/lib/routes';
@@ -149,7 +149,7 @@ function NewRoutePageContent() {
     pickupDate: importPickupDate,
     choosePickupDate: chooseImportPickupDate,
     noOperatorsWarning: importPickupWarning,
-  } = usePickupDate(importScheduledDate, importCustomerId, checkRouteDateBlocked);
+  } = useNewRoutePickupDate(importScheduledDate, importCustomerId, checkRouteDateBlocked);
   const [importNotes, setImportNotes] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importText, setImportText] = useState('');

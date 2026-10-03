@@ -100,7 +100,7 @@ export async function createRoute(input: {
   status: RouteStatus;
   executionPhase?: 'load' | 'placement' | 'pickup' | 'unload';
   scheduledDate?: string;
-  pickupDate?: string;
+  pickupDate: string;
   notes?: string;
 }) {
   return withDataError('Failed to create route.', async () => {

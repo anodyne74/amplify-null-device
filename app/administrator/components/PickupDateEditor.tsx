@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { Route } from '@/amplify/types';
 import { Button } from '@/app/components/ui/core/Button';
 import { Input } from '@/app/components/ui/forms/Input';
 import { changePickupDate } from '@/lib/administratorRouteActions';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
+import { useNoOperatorsWarning } from '@/lib/useNoOperatorsWarning';
 import styles from './PickupDateEditor.module.css';
 
 type Props = {
@@ -21,23 +22,8 @@ export function PickupDateEditor({ route, onSaved }: Props) {
   const [date, setDate] = useState(route.pickupDate ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [noOperators, setNoOperators] = useState<string | null>(null);
-
-  useEffect(() => {
-    setNoOperators(null);
-    if (!date || date === route.pickupDate) return;
-    let cancelled = false;
-    checkRouteDateBlocked(route.customerId, date)
-      .then((result) => {
-        if (!cancelled && result.blocked && result.type === 'no_drivers') {
-          setNoOperators(`No operators available on ${date}${result.reason ? ` (${result.reason})` : ''}.`);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [date, route.customerId, route.pickupDate]);
+  // Warn only about a date that differs from the one already saved.
+  const noOperators = useNoOperatorsWarning(route.customerId, date === route.pickupDate ? '' : date, checkRouteDateBlocked);
 
   const handleSave = async () => {
     setSaving(true);

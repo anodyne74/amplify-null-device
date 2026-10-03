@@ -17,7 +17,7 @@ import { Select } from '@/app/components/ui/forms/Select';
 import type { Stop } from '@/amplify/types';
 import type { RouteDateBlockResult } from '@/lib/routeScheduleGuard';
 import { pickupDateProblem } from '@/lib/pickupDate';
-import { usePickupDate } from '@/lib/usePickupDate';
+import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
 import styles from './RouteForm.module.css';
 
 const RouteStopsMap = dynamic(
@@ -96,7 +96,7 @@ export function RouteForm({
     pickupDate,
     choosePickupDate,
     noOperatorsWarning: pickupNoOperatorsWarning,
-  } = usePickupDate(scheduledDate, customerId, onCheckDateBlock);
+  } = useNewRoutePickupDate(scheduledDate, customerId, onCheckDateBlock);
   const [blockCheck, setBlockCheck] = useState<{ status: 'idle' | 'checking' | 'ok' | 'blocked' } & RouteDateBlockResult>({
     status: 'idle',
     blocked: false,

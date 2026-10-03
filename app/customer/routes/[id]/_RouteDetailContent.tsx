@@ -302,7 +302,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
           </div>
 
           <div className="nd-stat">
-            <span className="nd-stat__label">Date</span>
+            <span className="nd-stat__label">Placement date</span>
             <span className="nd-stat__value" style={{ fontSize: 15 }}>
               {formatRouteDate(getRouteDate(route))}
             </span>

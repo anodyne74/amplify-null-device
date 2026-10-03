@@ -132,15 +132,25 @@ describe('routeDetailHelpers', () => {
       expect(getRouteDurationMinutes(makeRoute({ overrideDurationMinutes: -4 }))).toBe(0);
     });
 
-    it('derives from placement start and pickup end when available', () => {
+    it('sums all four phases of a route awaiting Finalise, leaving out the time between them', () => {
       expect(
         getRouteDurationMinutes(
           makeRoute({
-            placementStartTime: '2024-01-01T09:00:00Z',
-            pickupEndTime: '2024-01-01T10:30:00Z',
+            status: 'in_progress',
+            executionPhase: 'unload',
+            actualStartTime: '2024-01-01T09:00:00Z',
+            loadStartedAt: '2024-01-01T09:00:00Z',
+            loadConfirmedAt: '2024-01-01T09:20:00Z',
+            placementStartTime: '2024-01-01T09:30:00Z',
+            placementEndTime: '2024-01-01T10:15:00Z',
+            pickupStartTime: '2024-01-02T17:00:00Z',
+            pickupEndTime: '2024-01-02T17:50:00Z',
+            unloadStartedAt: '2024-01-02T18:00:00Z',
+            unloadConfirmedAt: '2024-01-02T18:15:00Z',
+            actualEndTime: '2024-01-02T18:15:00Z',
           })
         )
-      ).toBe(90);
+      ).toBe(130);
     });
 
     it('falls back to actual start and end times', () => {
@@ -154,20 +164,38 @@ describe('routeDetailHelpers', () => {
       ).toBe(45);
     });
 
-    it('derives in-progress elapsed time from phase start', () => {
-      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2024-01-01T10:10:00Z').getTime());
+    it('sums the finished phases of an in-progress route, not the one under way', () => {
+      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2024-01-01T14:00:00Z').getTime());
 
       expect(
         getRouteDurationMinutes(
           makeRoute({
             status: 'in_progress',
             executionPhase: 'pickup',
-            pickupStartTime: '2024-01-01T10:00:00Z',
+            actualStartTime: '2024-01-01T09:00:00Z',
+            loadStartedAt: '2024-01-01T09:00:00Z',
+            loadConfirmedAt: '2024-01-01T09:20:00Z',
+            placementStartTime: '2024-01-01T09:30:00Z',
+            placementEndTime: '2024-01-01T10:15:00Z',
+            pickupStartTime: '2024-01-01T13:00:00Z',
           })
         )
-      ).toBe(10);
+      ).toBe(65);
 
       nowSpy.mockRestore();
+    });
+
+    it('has no duration while the first phase of a route is still under way', () => {
+      expect(
+        getRouteDurationMinutes(
+          makeRoute({
+            status: 'in_progress',
+            executionPhase: 'load',
+            actualStartTime: '2024-01-01T09:00:00Z',
+            loadStartedAt: '2024-01-01T09:00:00Z',
+          })
+        )
+      ).toBeNull();
     });
 
     it('returns null when no duration signal is present', () => {

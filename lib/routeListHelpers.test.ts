@@ -27,17 +27,23 @@ describe('routeListHelpers', () => {
       ).toBe('90 min');
     });
 
-    it('shows in-progress elapsed text when actively running', () => {
-      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2024-01-01T01:10:00Z').getTime());
+    it("labels an in-progress route's finished phase time as in progress", () => {
+      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2024-01-01T14:00:00Z').getTime());
 
       expect(
         formatRouteDuration(
           makeRoute({
             status: 'in_progress',
-            actualStartTime: '2024-01-01T01:00:00Z',
+            executionPhase: 'pickup',
+            actualStartTime: '2024-01-01T09:00:00Z',
+            loadStartedAt: '2024-01-01T09:00:00Z',
+            loadConfirmedAt: '2024-01-01T09:20:00Z',
+            placementStartTime: '2024-01-01T09:30:00Z',
+            placementEndTime: '2024-01-01T10:15:00Z',
+            pickupStartTime: '2024-01-01T13:00:00Z',
           })
         )
-      ).toBe('10 min (in progress)');
+      ).toBe('65 min (in progress)');
 
       nowSpy.mockRestore();
     });
@@ -46,30 +52,26 @@ describe('routeListHelpers', () => {
       expect(formatRouteDuration(makeRoute({ status: 'planned', actualDurationMinutes: undefined }))).toBe('—');
     });
 
-    it('uses the pickup-phase elapsed time once a route is on its pickup leg', () => {
-      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2024-01-01T02:05:00Z').getTime());
-
+    it('shows the fallback marker while the first phase of a route is under way', () => {
       expect(
         formatRouteDuration(
           makeRoute({
             status: 'in_progress',
-            executionPhase: 'pickup',
-            actualStartTime: '2024-01-01T01:00:00Z',
-            pickupStartTime: '2024-01-01T02:00:00Z',
+            executionPhase: 'load',
+            actualStartTime: '2024-01-01T09:00:00Z',
+            loadStartedAt: '2024-01-01T09:00:00Z',
           })
         )
-      ).toBe('5 min (in progress)');
-
-      nowSpy.mockRestore();
+      ).toBe('—');
     });
 
-    it('derives a settled duration from the placement/pickup window when actualDurationMinutes is missing', () => {
+    it('shows a legacy completed route its start-to-end time, unlabelled', () => {
       expect(
         formatRouteDuration(
           makeRoute({
             status: 'completed',
-            placementStartTime: '2024-01-01T01:00:00Z',
-            pickupEndTime: '2024-01-01T02:30:00Z',
+            actualStartTime: '2024-01-01T01:00:00Z',
+            actualEndTime: '2024-01-01T02:30:00Z',
           })
         )
       ).toBe('90 min');

@@ -8,7 +8,6 @@ import { stopProgress } from './stopProgress';
 
 export interface SignCountStop {
   notes?: string | null;
-  serviceType?: string | null;
   actualDepartureTime?: string | null;
   numberOfSigns?: number | null;
   missingSignsCount?: number | null;

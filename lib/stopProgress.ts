@@ -66,7 +66,7 @@ export function isStopFinished(stop: StopProgressStop): boolean {
   return stopProgress(stop).pickup.state !== 'pending';
 }
 
-/** Done in its last phase; a skipped Stop is finished but not completed. */
+/** Done in Pickup; a skipped Stop is finished but not completed. */
 export function isStopCompleted(stop: StopProgressStop): boolean {
   return stopProgress(stop).pickup.state === 'done';
 }

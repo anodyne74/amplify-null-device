@@ -113,12 +113,11 @@ function RouteDetailContent() {
   const planningLocked = route?.status !== 'planned';
   const currentExecutionPhase = route?.executionPhase === 'pickup' ? 'pickup' : 'placement';
   const routeDone = route?.status === 'completed' || route?.status === 'archived';
-  const pickupPhaseStops = stops.filter((stop) => stop.serviceType !== 'inspection');
   const visibleStops = (() => {
     if (!route) return stops;
 
     if (route.status === 'signs_placed') {
-      return pickupPhaseStops.filter((stop) => stopProgress(stop).pickup.state === 'pending');
+      return stops.filter((stop) => stopProgress(stop).pickup.state === 'pending');
     }
 
     return stops;

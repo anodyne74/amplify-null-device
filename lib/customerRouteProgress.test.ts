@@ -56,4 +56,10 @@ describe('customerRouteProgress', () => {
       total: 1,
     });
   });
+
+  it('reads a Route whose status says its signs are picked up as past Pickup', () => {
+    expect(customerRouteProgress({ status: 'signs_picked_up', executionPhase: null }, [{ notes: pickedUp }]).label).toBe(
+      'Picked up'
+    );
+  });
 });

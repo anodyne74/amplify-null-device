@@ -194,6 +194,15 @@ describe('Operator Route Detail Page', () => {
     expect(screen.queryByText('Awaiting placement')).not.toBeInTheDocument();
   });
 
+  it('offers to settle every stop during Placement, whatever its service type', async () => {
+    mockFetched.route = { ...mockRoute, status: 'in_progress', executionPhase: 'placement' };
+
+    render(<RouteDetailPage />);
+
+    // stop-2 is a 'pickup'-type stop; signs are placed there too.
+    expect(await screen.findAllByRole('button', { name: 'Signs Placed' })).toHaveLength(2);
+  });
+
   it('shows "Add Stop" button', async () => {
     render(<RouteDetailPage />);
 

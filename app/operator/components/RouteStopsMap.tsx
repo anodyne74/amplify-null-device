@@ -13,7 +13,7 @@ interface RouteStopsMapProps {
   activeStopId?: string | null;
   upcomingStopIds?: string[];
   /** The phase whose progress the markers show; without one, each Stop shows
-   *  its last phase (as on a finished or not-yet-started Route). */
+   *  its Pickup, every Stop's last phase (as on a finished or not-yet-started Route). */
   phase?: ExecutionPhase;
   currentPosition?: { latitude: number; longitude: number } | null;
   mapTheme?: MapTheme;

@@ -9,13 +9,17 @@ export interface CustomerRouteProgress {
 }
 
 /** The phase a Customer follows a Route by: Placement until Pickup starts,
- *  then Pickup for the rest of the Route's life. */
+ *  then Pickup for the rest of the Route's life. This switches later than the
+ *  Sign Run's phase (lib/signRunPhase.ts), which moves on when Placement ends:
+ *  between placing signs and starting Pickup, often a day apart, a Customer
+ *  should see every sign placed rather than none picked up. */
 export function customerProgressPhase(
   route: Pick<Route, 'status' | 'executionPhase' | 'pickupStartTime'>
 ): ExecutionPhase {
   const pickupStarted =
     Boolean(route.pickupStartTime) ||
     route.executionPhase === 'unload' ||
+    route.status === 'signs_picked_up' ||
     route.status === 'completed' ||
     route.status === 'archived';
   return pickupStarted ? 'pickup' : 'placement';

@@ -224,11 +224,11 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const progress = customerRouteProgress(route, stops);
   const pickupDate = customerPickupDate(route);
   const pickupDateLabel = pickupDate ? formatRouteDate(pickupDate) : 'TBC';
-  // Next and upcoming stops are those still awaiting the phase under way;
-  // there's no next stop once every one has been done or skipped.
-  const executionPhase = route.executionPhase === 'pickup' ? 'pickup' : 'placement';
+  // Next and upcoming stops are those still awaiting the phase the Customer is
+  // following, the same one as the Progress card and the stop list; there's no
+  // next stop once every one has been done or skipped.
   const pendingStops = stops.filter(
-    (stop) => stopProgress(stop)[executionPhase].state === 'pending'
+    (stop) => stopProgress(stop)[progress.phase].state === 'pending'
   );
   const nextStop = pendingStops[0] ?? null;
   const showNextStop = Boolean(nextStop) && (currentPhase === 'signs_placed' || currentPhase === 'signs_picked_up');
@@ -258,7 +258,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
           stops={stops}
           activeStopId={nextStop?.id ?? null}
           upcomingStopIds={upcomingStopIds}
-          phase={route.status === 'in_progress' ? executionPhase : undefined}
+          phase={route.status === 'in_progress' ? progress.phase : undefined}
           mapTheme="dark"
           presentation="field"
         />

@@ -6,6 +6,7 @@ import type { Stop } from '@/amplify/types';
 import { locationPrecisionIndicator } from '@/lib/locationPrecision';
 import { getMapTheme, type MapTheme } from '@/lib/mapThemes';
 import { stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
+import { stopProgressTone, type StopProgressTone } from '@/lib/stopStatusLabel';
 import styles from './RouteStopsMap.module.css';
 
 interface RouteStopsMapProps {
@@ -104,6 +105,14 @@ function updateViewport(
     animate: false,
   });
 }
+
+/** Each marker's colour shows how far its Stop has got. */
+const TONE_MARKER_CLASS: Record<StopProgressTone, string> = {
+  awaiting: styles.stopMarkerAwaiting,
+  placed: styles.stopMarkerPlaced,
+  pickedUp: styles.stopMarkerPickedUp,
+  skipped: '',
+};
 
 function hasCoordinates(stop: Stop): stop is StopWithCoords {
   return typeof stop.latitude === 'number' && typeof stop.longitude === 'number';
@@ -238,18 +247,13 @@ export function RouteStopsMap({
         const isActive = stop.id === activeStop.id;
         const isUpcoming = upcomingStopIdSet.has(stop.id);
 
-        const serviceClass =
-          stop.serviceType === 'pickup'
-            ? styles.stopMarkerPickup
-            : stop.serviceType === 'inspection'
-            ? styles.stopMarkerInspection
-            : styles.stopMarkerDelivery;
+        const toneClass = TONE_MARKER_CLASS[stopProgressTone(stop)];
 
         const precisionIndicator = locationPrecisionIndicator(stop.locationPrecision);
 
         const markerClasses = [
           styles.stopMarker,
-          serviceClass,
+          toneClass,
           precisionIndicator?.level === 'subtle' ? styles.stopMarkerInterpolated : '',
           precisionIndicator?.level === 'clear' ? styles.stopMarkerApproximate : '',
           isActive ? styles.stopMarkerActive : '',

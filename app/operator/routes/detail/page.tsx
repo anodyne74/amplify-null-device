@@ -23,7 +23,7 @@ import {
 } from '@/lib/routeDetailHelpers';
 import { computeRouteSummaryStats, getPhaseOverview } from '@/lib/routeDetailSummary';
 import { isStopCompleted, stopProgress } from '@/lib/stopProgress';
-import { getStopStatusLabel } from '@/lib/stopStatusLabel';
+import { getStopStatusLabel, stopProgressTone } from '@/lib/stopStatusLabel';
 import { getUserSettings } from '@/lib/userSettings';
 import type { MapTheme } from '@/lib/mapThemes';
 import { MAP_THEMES } from '@/lib/mapThemes';
@@ -395,7 +395,6 @@ function RouteDetailContent() {
                         <StopForm
                           initialValues={{
                             address: stop.address,
-                            serviceType: stop.serviceType as 'delivery' | 'pickup' | 'inspection' | undefined,
                             numberOfSigns: stop.numberOfSigns ?? undefined,
                             agent: stop.agent ?? undefined,
                             isAuction: Boolean(stop.isAuction),
@@ -485,7 +484,7 @@ function RouteDetailContent() {
                     <StopCard
                       key={stop.id}
                       sequence={stop.sequence ?? '?'}
-                      serviceType={stop.serviceType}
+                      tone={stopProgressTone(stop)}
                       address={getPrimaryAddressLine(stop.formattedAddress || stop.address)}
                       statusLabel={getStopStatusLabel(stop, currentExecutionPhase, route?.status)}
                       agentName={agentName}

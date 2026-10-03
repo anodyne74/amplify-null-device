@@ -86,7 +86,6 @@ describe('Customer route detail tracker', () => {
       address: '100 First St',
       latitude: -37.8136,
       longitude: 144.9631,
-      serviceType: 'delivery',
       numberOfSigns: 5,
       actualDepartureTime: '2024-01-15T11:00:00Z',
     },
@@ -97,7 +96,6 @@ describe('Customer route detail tracker', () => {
       address: '200 Second St',
       latitude: -37.8236,
       longitude: 144.9731,
-      serviceType: 'delivery',
       numberOfSigns: 3,
     },
     {
@@ -107,7 +105,6 @@ describe('Customer route detail tracker', () => {
       address: '300 Third St',
       latitude: -37.8336,
       longitude: 144.9831,
-      serviceType: 'delivery',
       numberOfSigns: 4,
     },
   ] as Stop[];

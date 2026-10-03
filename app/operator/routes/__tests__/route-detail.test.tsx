@@ -88,14 +88,12 @@ const mockStops: Stop[] = [
     routeId: 'route-test-id-1234',
     sequence: 1,
     address: '100 First St',
-    serviceType: 'delivery',
   },
   {
     id: 'stop-2',
     routeId: 'route-test-id-1234',
     sequence: 2,
     address: '200 Second Ave',
-    serviceType: 'pickup',
   },
 ];
 
@@ -365,7 +363,6 @@ describe('Operator Route Detail Page', () => {
         routeId: 'route-test-id-1234',
         sequence: 1,
         address: '100 First St',
-        serviceType: 'pickup',
         notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]',
         numberOfSigns: 10,
         missingSignsCount: 3,

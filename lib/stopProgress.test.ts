@@ -52,14 +52,14 @@ describe('finished and completed', () => {
   const placed = settleStopNotes(null, 'placement', 'complete', AT);
 
   it('is neither until the last phase is settled', () => {
-    expect(isStopFinished({ serviceType: 'delivery', notes: placed })).toBe(false);
-    expect(isStopCompleted({ serviceType: 'delivery', notes: placed })).toBe(false);
+    expect(isStopFinished({ notes: placed })).toBe(false);
+    expect(isStopCompleted({ notes: placed })).toBe(false);
   });
 
   it('is both once the last phase is done', () => {
     const notes = settleStopNotes(placed, 'pickup', 'complete', LATER);
-    expect(isStopFinished({ serviceType: 'delivery', notes })).toBe(true);
-    expect(isStopCompleted({ serviceType: 'delivery', notes })).toBe(true);
+    expect(isStopFinished({ notes })).toBe(true);
+    expect(isStopCompleted({ notes })).toBe(true);
   });
 
   it('places and picks up every Stop, whatever its service type', () => {
@@ -72,12 +72,12 @@ describe('finished and completed', () => {
 
   it('counts a skip as finished but not completed', () => {
     const notes = settleStopNotes(placed, 'pickup', 'skip', LATER, 'No access');
-    expect(isStopFinished({ serviceType: 'delivery', notes })).toBe(true);
-    expect(isStopCompleted({ serviceType: 'delivery', notes })).toBe(false);
+    expect(isStopFinished({ notes })).toBe(true);
+    expect(isStopCompleted({ notes })).toBe(false);
   });
 
   it('reads a legacy Stop as completed', () => {
-    expect(isStopCompleted({ serviceType: 'pickup', actualDepartureTime: AT })).toBe(true);
+    expect(isStopCompleted({ actualDepartureTime: AT })).toBe(true);
   });
 });
 

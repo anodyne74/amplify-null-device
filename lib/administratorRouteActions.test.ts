@@ -221,7 +221,6 @@ describe('settleStopAsAdministrator', () => {
     customerId: 'cust-1',
     notes: 'Gate code 4821',
     actualArrivalTime: null,
-    serviceType: 'delivery' as const,
   };
 
   it("settles the Stop for the Route's phase straight away, and audits it", async () => {

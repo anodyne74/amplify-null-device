@@ -11,16 +11,20 @@
   border-bottom: none;
 }
 
-.cardDelivery {
+.cardAwaiting {
   border-left-color: var(--indigo-400);
 }
 
-.cardPickup {
+.cardPlaced {
   border-left-color: var(--amber-400);
 }
 
-.cardInspection {
-  border-left-color: var(--violet-500);
+.cardPickedUp {
+  border-left-color: var(--neutral-400);
+}
+
+.cardSkipped {
+  border-left-color: var(--border-default);
 }
 
 .cardTop {
@@ -49,16 +53,22 @@
   font-weight: var(--fw-bold);
 }
 
-.circleDelivery {
+.circleAwaiting {
   background: var(--indigo-400);
 }
 
-.circlePickup {
+.circlePlaced {
   background: var(--amber-400);
 }
 
-.circleInspection {
-  background: var(--violet-500);
+.circlePickedUp {
+  background: var(--neutral-400);
+}
+
+.circleSkipped {
+  background: transparent;
+  border: 2px solid var(--border-default);
+  color: var(--text-subtle);
 }
 
 .body {

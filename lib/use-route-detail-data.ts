@@ -25,7 +25,6 @@ export interface CustomerDefaults {
 
 export interface StopFormValues {
   address: string;
-  serviceType: 'delivery' | 'pickup' | 'inspection';
   numberOfSigns?: number;
   agent?: string;
   isAuction?: boolean;

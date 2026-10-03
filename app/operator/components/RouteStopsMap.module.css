@@ -60,16 +60,16 @@
   transform: rotate(var(--nd-marker-counter-rotation, 0deg));
 }
 
-.stopMarkerDelivery {
+.stopMarkerAwaiting {
   background: var(--indigo-400);
 }
 
-.stopMarkerPickup {
+.stopMarkerPlaced {
   background: var(--amber-400);
 }
 
-.stopMarkerInspection {
-  background: var(--violet-500);
+.stopMarkerPickedUp {
+  background: var(--neutral-400);
 }
 
 .stopMarkerActive {

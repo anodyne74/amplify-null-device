@@ -81,8 +81,8 @@ describe('import-prep', () => {
       },
     });
     expect(bundle.records[0].stops).toEqual([
-      { sequence: 1, address: '10 Example Street', numberOfSigns: 6, serviceType: 'delivery', agent: 'BO', isAuction: false },
-      { sequence: 2, address: '20 Example Street', numberOfSigns: 6, serviceType: 'delivery', agent: 'BO', isAuction: false },
+      { sequence: 1, address: '10 Example Street', numberOfSigns: 6, agent: 'BO', isAuction: false },
+      { sequence: 2, address: '20 Example Street', numberOfSigns: 6, agent: 'BO', isAuction: false },
     ]);
   });
 
@@ -129,9 +129,9 @@ describe('import-prep', () => {
     const bundle = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
 
     expect(bundle.records[0].stops).toEqual([
-      { sequence: 1, address: '10 Example Street', numberOfSigns: 4, serviceType: 'delivery', agent: 'DM', isAuction: true },
-      { sequence: 2, address: '20 Example Street', numberOfSigns: 2, serviceType: 'delivery', agent: 'BO', isAuction: false },
-      { sequence: 3, address: '30 Example Street', numberOfSigns: 3, serviceType: 'delivery', agent: 'KP', isAuction: false },
+      { sequence: 1, address: '10 Example Street', numberOfSigns: 4, agent: 'DM', isAuction: true },
+      { sequence: 2, address: '20 Example Street', numberOfSigns: 2, agent: 'BO', isAuction: false },
+      { sequence: 3, address: '30 Example Street', numberOfSigns: 3, agent: 'KP', isAuction: false },
     ]);
   });
 

@@ -11,11 +11,11 @@ describe('StopForm', () => {
     jest.clearAllMocks();
   });
 
-  it('renders all fields (address, service type, notes, submit/cancel)', () => {
+  it('renders all fields (address, notes, submit/cancel), with no service type', () => {
     render(<StopForm onSubmit={noop} onCancel={noop} availableAgents={['Jamie Lee']} />);
 
     expect(screen.getByLabelText(/address/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/service type/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/service type/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/notes/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /jamie lee/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /add stop/i })).toBeInTheDocument();
@@ -50,20 +50,13 @@ describe('StopForm', () => {
     fireEvent.change(screen.getByLabelText(/address/i), {
       target: { value: '123 Main St' },
     });
-    fireEvent.change(screen.getByLabelText(/service type/i), {
-      target: { value: 'pickup' },
-    });
 
     fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          address: '123 Main St',
-          serviceType: 'pickup',
-        })
-      );
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ address: '123 Main St' }));
     });
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('serviceType');
   });
 
   it('calls onCancel when cancel is clicked', () => {
@@ -79,7 +72,6 @@ describe('StopForm', () => {
       <StopForm
         initialValues={{
           address: '456 Elm Ave',
-          serviceType: 'inspection',
           notes: 'Pre-filled note',
         }}
         onSubmit={noop}
@@ -88,7 +80,6 @@ describe('StopForm', () => {
     );
 
     expect(screen.getByLabelText(/address/i)).toHaveValue('456 Elm Ave');
-    expect(screen.getByLabelText(/service type/i)).toHaveValue('inspection');
     expect(screen.getByLabelText(/notes/i)).toHaveValue('Pre-filled note');
   });
 
@@ -214,7 +205,6 @@ describe('StopForm', () => {
         onCancel={noop}
         initialValues={{
           address: '123 Main St',
-          serviceType: 'delivery',
           agent: 'BO',
         }}
       />

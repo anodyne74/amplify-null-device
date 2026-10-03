@@ -180,13 +180,6 @@
   font-size: var(--text-sm);
 }
 
-.stopMeta {
-  margin-top: var(--space-1);
-  font-size: var(--text-xs);
-  color: var(--text-subtle);
-  text-transform: capitalize;
-}
-
 .stopDetail {
   margin-top: var(--space-1);
   font-size: var(--text-xs);

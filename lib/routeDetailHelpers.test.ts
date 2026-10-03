@@ -25,7 +25,6 @@ function makeStop(overrides: Partial<Stop>): Stop {
     routeId: overrides.routeId ?? 'route-1',
     sequence: overrides.sequence ?? 1,
     address: overrides.address ?? '100 Main St',
-    serviceType: overrides.serviceType ?? 'delivery',
     ...overrides,
   } as Stop;
 }

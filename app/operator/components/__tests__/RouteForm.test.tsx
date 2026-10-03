@@ -84,6 +84,8 @@ describe('RouteForm', () => {
     await waitFor(() => {
       expect(screen.getByText('123 Main St, Epping')).toBeInTheDocument();
     });
+    // A draft stop shows no service type.
+    expect(screen.queryByText(/^delivery$/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /create route/i }));
 
@@ -97,7 +99,6 @@ describe('RouteForm', () => {
         stops: [
           expect.objectContaining({
             address: expect.any(String),
-            serviceType: expect.any(String),
           }),
         ],
       });
@@ -139,7 +140,6 @@ describe('RouteForm', () => {
     const onCopyStopsFromSource = jest.fn().mockResolvedValue([
       {
         address: '123 Sample St',
-        serviceType: 'delivery',
         numberOfSigns: 2,
       },
     ]);
@@ -177,12 +177,12 @@ describe('RouteForm', () => {
         stops: [
           expect.objectContaining({
             address: '123 Sample St',
-            serviceType: 'delivery',
             numberOfSigns: 2,
           }),
         ],
       });
     });
+    expect(onSubmit.mock.calls[0][0].stops[0]).not.toHaveProperty('serviceType');
   });
 
   it('threads customer standing instructions and defaults into stop form', async () => {

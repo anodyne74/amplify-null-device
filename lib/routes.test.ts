@@ -381,9 +381,9 @@ describe('routes', () => {
       );
 
       const stops = [
-        { address: '1 High St, Epping', serviceType: 'delivery' as const },
-        { address: '2 High St, Epping', serviceType: 'delivery' as const },
-        { address: '3 High St, Epping', serviceType: 'delivery' as const },
+        { address: '1 High St, Epping' },
+        { address: '2 High St, Epping' },
+        { address: '3 High St, Epping' },
       ];
 
       const resultPromise = createStopsForRoute('r1', 'c1', stops);
@@ -409,9 +409,9 @@ describe('routes', () => {
         .mockResolvedValueOnce({ data: { id: 's3' }, errors: undefined });
 
       const stops = [
-        { address: '1 High St, Epping', serviceType: 'delivery' as const },
-        { address: '2 High St, Epping', serviceType: 'delivery' as const },
-        { address: '3 High St, Epping', serviceType: 'delivery' as const },
+        { address: '1 High St, Epping' },
+        { address: '2 High St, Epping' },
+        { address: '3 High St, Epping' },
       ];
 
       const results = await createStopsForRoute('r1', 'c1', stops);
@@ -433,9 +433,9 @@ describe('routes', () => {
       mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
 
       const results = await createStopsForRoute('r1', 'c1', [
-        { address: '10 brush road', serviceType: 'delivery' },
-        { address: '10 brush road', serviceType: 'delivery', latitude: -33.79, longitude: 151.08 },
-        { address: '1 High St, Epping', serviceType: 'delivery' },
+        { address: '10 brush road' },
+        { address: '10 brush road', latitude: -33.79, longitude: 151.08 },
+        { address: '1 High St, Epping' },
       ]);
 
       expect(results).toEqual([
@@ -452,8 +452,8 @@ describe('routes', () => {
       mockStopCreate.mockResolvedValue({ data: { id: 's' }, errors: undefined });
 
       await createStopsForRoute('r1', 'c1', [
-        { address: '1 High St, Epping', serviceType: 'delivery' },
-        { address: '2 High St, Epping', serviceType: 'pickup' },
+        { address: '1 High St, Epping' },
+        { address: '2 High St, Epping' },
       ]);
 
       expect(mockCustomerGet).toHaveBeenCalledTimes(1);
@@ -467,7 +467,7 @@ describe('routes', () => {
     it('createStop looks up the customer\'s viewers when none are given', async () => {
       mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
 
-      await createStop({ routeId: 'r1', customerId: 'c1', sequence: 1, address: '1 High St, Epping', serviceType: 'delivery' });
+      await createStop({ routeId: 'r1', customerId: 'c1', sequence: 1, address: '1 High St, Epping' });
 
       expect(mockCustomerGet).toHaveBeenCalledWith({ id: 'c1' }, { selectionSet: ['viewerSubs'] });
       expect(mockStopCreate).toHaveBeenCalledWith(
@@ -478,7 +478,7 @@ describe('routes', () => {
     it('createStop uses the viewers it is given without a lookup', async () => {
       mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
 
-      await createStop({ routeId: 'r1', customerId: 'c1', viewerSubs: ['given'], sequence: 1, address: '1 High St, Epping', serviceType: 'delivery' });
+      await createStop({ routeId: 'r1', customerId: 'c1', viewerSubs: ['given'], sequence: 1, address: '1 High St, Epping' });
 
       expect(mockCustomerGet).not.toHaveBeenCalled();
       expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ viewerSubs: ['given'] }));
@@ -489,7 +489,7 @@ describe('routes', () => {
       mockCustomerGet.mockRejectedValue(new Error('network'));
       mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
 
-      const results = await createStopsForRoute('r1', 'c1', [{ address: '1 High St, Epping', serviceType: 'delivery' }]);
+      const results = await createStopsForRoute('r1', 'c1', [{ address: '1 High St, Epping' }]);
 
       expect(results).toEqual([{ index: 0, address: '1 High St, Epping', success: true }]);
       expect(mockStopCreate).toHaveBeenCalledWith(expect.not.objectContaining({ viewerSubs: expect.anything() }));
@@ -508,7 +508,7 @@ describe('routes', () => {
     });
 
     it('keys a new Stop from its entered address alone when it has no geocode', async () => {
-      await createStopsForRoute('r1', 'c1', [{ address: ADDRESS, serviceType: 'delivery' }]);
+      await createStopsForRoute('r1', 'c1', [{ address: ADDRESS }]);
 
       expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
     });
@@ -519,7 +519,6 @@ describe('routes', () => {
         customerId: 'c1',
         sequence: 1,
         address: '14 Cliff Rd, Epping',
-        serviceType: 'delivery',
         addressStreetNumber: '14',
         addressStreet: 'Cliff Road',
         addressSuburb: 'Epping',
@@ -535,7 +534,6 @@ describe('routes', () => {
         customerId: 'c1',
         sequence: 1,
         address: ADDRESS,
-        serviceType: 'delivery',
         propertyKey: 'somewhere|else|1',
       } as Parameters<typeof createStop>[0]);
 
@@ -543,7 +541,7 @@ describe('routes', () => {
     });
 
     it('writes no key when the address has no street number, street and suburb', async () => {
-      await createStop({ routeId: 'r1', customerId: 'c1', sequence: 1, address: 'Cliff Rd', serviceType: 'delivery' });
+      await createStop({ routeId: 'r1', customerId: 'c1', sequence: 1, address: 'Cliff Rd' });
 
       expect(mockStopCreate).toHaveBeenCalledWith(expect.not.objectContaining({ propertyKey: expect.anything() }));
     });
@@ -633,7 +631,7 @@ describe('routes', () => {
     });
 
     it('adds a geocoded, keyed Stop to the Route', async () => {
-      const result = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery', numberOfSigns: 2 });
+      const result = await saveStop(NEW, { address: ADDRESS, numberOfSigns: 2 });
 
       expect(result).toEqual({ pinned: true });
       expect(mockStopCreate).toHaveBeenCalledWith(
@@ -653,7 +651,7 @@ describe('routes', () => {
     it("adds a Stop whose address can't be geocoded without a pin, still keyed to its Property", async () => {
       mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
 
-      const result = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' });
+      const result = await saveStop(NEW, { address: ADDRESS });
 
       expect(result).toEqual({ pinned: false });
       expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
@@ -663,7 +661,7 @@ describe('routes', () => {
     it("refuses a Stop with no pin and no suburb, since it would have no Property", async () => {
       mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
 
-      const error = await saveStop(NEW, { address: '10 brush road', serviceType: 'delivery' }).catch((e) => e);
+      const error = await saveStop(NEW, { address: '10 brush road' }).catch((e) => e);
 
       expect(mockStopCreate).not.toHaveBeenCalled();
       expect(error).toMatchObject({ name: 'DataError', message: STOP_NEEDS_SUBURB });
@@ -671,7 +669,7 @@ describe('routes', () => {
     });
 
     it('adds a Stop with no suburb typed when the geocode finds one', async () => {
-      const result = await saveStop(NEW, { address: '14 Cliff Rd', serviceType: 'delivery' });
+      const result = await saveStop(NEW, { address: '14 Cliff Rd' });
 
       expect(result).toEqual({ pinned: true });
       expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
@@ -680,7 +678,7 @@ describe('routes', () => {
     it("pins a Stop at its Property's Confirmed pin", async () => {
       mockGetConfirmedPin.mockResolvedValue({ latitude: -33.9, longitude: 151.2 });
 
-      const result = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' });
+      const result = await saveStop(NEW, { address: ADDRESS });
 
       expect(mockGetConfirmedPin).toHaveBeenCalledWith(KEY);
       expect(result.pinned).toBe(true);
@@ -692,7 +690,7 @@ describe('routes', () => {
     it("saves nothing when the Confirmed pin can't be looked up", async () => {
       mockGetConfirmedPin.mockRejectedValue(new Error('offline'));
 
-      await expect(saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' })).rejects.toMatchObject({
+      await expect(saveStop(NEW, { address: ADDRESS })).rejects.toMatchObject({
         name: 'DataError',
         message: 'Failed to save stop.',
       });
@@ -702,7 +700,7 @@ describe('routes', () => {
     it('reports a failed write', async () => {
       mockStopCreate.mockResolvedValue({ data: null, errors: [{ message: 'Unauthorized' }] });
 
-      const error = await saveStop(NEW, { address: ADDRESS, serviceType: 'delivery' }).catch((e) => e);
+      const error = await saveStop(NEW, { address: ADDRESS }).catch((e) => e);
 
       expect(error).toMatchObject({ name: 'DataError', message: 'Failed to save stop.' });
       expect(saveStopFailure(error, 'Failed to add stop.')).toBe('Failed to add stop.');

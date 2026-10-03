@@ -45,3 +45,15 @@ export function getStopStatusLabel(
   if (stop.actualArrivalTime) return 'At stop';
   return 'Signs pending';
 }
+
+/** How far a Stop has got, for colouring its marker: awaiting, placed, picked
+ *  up, or skipped in either phase. Read from Stop Progress alone. */
+export type StopProgressTone = 'awaiting' | 'placed' | 'pickedUp' | 'skipped';
+
+export function stopProgressTone(stop: StatusLabelStop): StopProgressTone {
+  const { placement, pickup } = stopProgress(stop);
+  if (placement.state === 'skipped' || pickup.state === 'skipped') return 'skipped';
+  if (pickup.state === 'done') return 'pickedUp';
+  if (placement.state === 'done') return 'placed';
+  return 'awaiting';
+}

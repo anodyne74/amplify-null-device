@@ -35,7 +35,7 @@ import { settleStopAsAdministrator } from '@/lib/administratorRouteActions';
 import { stopPhaseOf } from '@/lib/signRunTransitions';
 import { billedTime } from '@/lib/billedTime';
 import { isStopCompleted, stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
-import { getStopStatusLabel } from '@/lib/stopStatusLabel';
+import { getStopStatusLabel, stopProgressTone } from '@/lib/stopStatusLabel';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
 
@@ -434,7 +434,6 @@ function RouteDetailContent() {
                         <StopForm
                           initialValues={{
                             address: stop.address,
-                            serviceType: stop.serviceType as 'delivery' | 'pickup' | 'inspection' | undefined,
                             numberOfSigns: stop.numberOfSigns ?? undefined,
                             agent: stop.agent ?? undefined,
                             isAuction: Boolean(stop.isAuction),
@@ -549,7 +548,7 @@ function RouteDetailContent() {
                     <StopCard
                       key={stop.id}
                       sequence={stop.sequence ?? '?'}
-                      serviceType={stop.serviceType}
+                      tone={stopProgressTone(stop)}
                       address={stop.formattedAddress || stop.address || ''}
                       statusLabel={getStopStatusLabel(stop, currentExecutionPhase, route?.status)}
                       agentName={agentName}

@@ -2,23 +2,27 @@
 
 import type { DragEvent, ReactNode } from 'react';
 import { AgentBadge } from '@/app/components/ui/core/AgentBadge';
+import type { StopProgressTone } from '@/lib/stopStatusLabel';
 import styles from './StopCard.module.css';
 
-const SERVICE_TYPE_CLASS: Record<string, string> = {
-  delivery: styles.cardDelivery,
-  pickup: styles.cardPickup,
-  inspection: styles.cardInspection,
+const TONE_CLASS: Record<StopProgressTone, string> = {
+  awaiting: styles.cardAwaiting,
+  placed: styles.cardPlaced,
+  pickedUp: styles.cardPickedUp,
+  skipped: styles.cardSkipped,
 };
 
-const SERVICE_TYPE_CIRCLE_CLASS: Record<string, string> = {
-  delivery: styles.circleDelivery,
-  pickup: styles.circlePickup,
-  inspection: styles.circleInspection,
+const TONE_CIRCLE_CLASS: Record<StopProgressTone, string> = {
+  awaiting: styles.circleAwaiting,
+  placed: styles.circlePlaced,
+  pickedUp: styles.circlePickedUp,
+  skipped: styles.circleSkipped,
 };
 
 interface StopCardProps {
   sequence: number | string;
-  serviceType?: string | null;
+  /** How far the stop has got (lib/stopStatusLabel.ts), which colours it. */
+  tone: StopProgressTone;
   address: string;
   statusLabel: string;
   agentName: string;
@@ -39,7 +43,7 @@ interface StopCardProps {
 /** A single stop row in the operator route-detail planning view (sequence, address, status, agent, actions). */
 export default function StopCard({
   sequence,
-  serviceType,
+  tone,
   address,
   statusLabel,
   agentName,
@@ -56,11 +60,9 @@ export default function StopCard({
   onDragEnd,
   actions,
 }: StopCardProps) {
-  const svcKey = serviceType || 'delivery';
-
   return (
     <div
-      className={`${styles.card} ${SERVICE_TYPE_CLASS[svcKey] ?? ''} ${isTop ? styles.cardTop : ''} ${isCompleted ? styles.cardCompleted : ''} ${isDragging ? styles.cardDragging : ''} ${isDropTarget ? styles.cardDropTarget : ''}`}
+      className={`${styles.card} ${TONE_CLASS[tone]} ${isTop ? styles.cardTop : ''} ${isCompleted ? styles.cardCompleted : ''} ${isDragging ? styles.cardDragging : ''} ${isDropTarget ? styles.cardDropTarget : ''}`}
       draggable={draggable}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
@@ -68,7 +70,7 @@ export default function StopCard({
       onDrop={onDrop}
       onDragEnd={onDragEnd}
     >
-      <div className={`${styles.sequenceCircle} ${SERVICE_TYPE_CIRCLE_CLASS[svcKey] ?? ''}`}>{sequence}</div>
+      <div className={`${styles.sequenceCircle} ${TONE_CIRCLE_CLASS[tone]}`}>{sequence}</div>
 
       <div className={styles.body}>
         <div className={styles.address}>{address}</div>

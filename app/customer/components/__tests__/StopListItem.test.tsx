@@ -2,13 +2,15 @@ import { render, screen } from '@testing-library/react';
 import StopListItem from '../StopListItem';
 import type { Stop } from '@/amplify/types';
 
+// Stops saved before #447 may still carry a service type; it must change nothing.
+const withStoredServiceType = (stop: Stop, serviceType: string) => ({ ...stop, serviceType }) as Stop;
+
 describe('StopListItem', () => {
   const mockStop: Stop = {
     id: 'stop-1',
     routeId: 'route-1',
     sequence: 1,
     address: '123 Main Street',
-    serviceType: 'delivery',
     estimatedArrivalTime: '2024-01-15T10:30:00Z',
     createdAt: '2024-01-15T10:00:00Z',
   };
@@ -21,10 +23,10 @@ describe('StopListItem', () => {
   });
 
   it("shows the status for the Route's phase, whatever the stop's service type", () => {
-    const { rerender } = render(<StopListItem stop={{ ...mockStop, serviceType: 'pickup' }} sequence={1} phase="placement" />);
+    const { rerender } = render(<StopListItem stop={withStoredServiceType(mockStop, 'pickup')} sequence={1} phase="placement" />);
     expect(screen.getByText(/Awaiting placement/i)).toBeInTheDocument();
 
-    rerender(<StopListItem stop={{ ...mockStop, serviceType: 'inspection' }} sequence={1} phase="pickup" />);
+    rerender(<StopListItem stop={withStoredServiceType(mockStop, 'inspection')} sequence={1} phase="pickup" />);
     expect(screen.getByText(/Awaiting pickup/i)).toBeInTheDocument();
     expect(screen.queryByText(/inspection/i)).not.toBeInTheDocument();
   });
@@ -57,5 +59,20 @@ describe('StopListItem', () => {
       <StopListItem stop={{ ...mockStop, estimatedArrivalTime: undefined }} sequence={1} phase="placement" />
     );
     expect(container).toBeInTheDocument();
+  });
+
+  it('colours the stop number by how far the stop has got', () => {
+    const { rerender } = render(<StopListItem stop={mockStop} sequence={7} phase="placement" />);
+    expect(screen.getByText('7')).toHaveClass('circleAwaiting');
+
+    rerender(<StopListItem stop={{ ...mockStop, notes: '[PLACEMENT_DONE:2026-08-31T10:00:00.000Z]' }} sequence={7} phase="placement" />);
+    expect(screen.getByText('7')).toHaveClass('circlePlaced');
+  });
+
+  it('shows a stop with a stored pickup service type exactly like one without', () => {
+    const { container: withType } = render(<StopListItem stop={withStoredServiceType(mockStop, 'pickup')} sequence={1} phase="placement" />);
+    const { container: without } = render(<StopListItem stop={mockStop} sequence={1} phase="placement" />);
+
+    expect(withType.innerHTML).toBe(without.innerHTML);
   });
 });

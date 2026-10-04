@@ -39,6 +39,7 @@ import {
   type AdministratorSettlement,
 } from '@/lib/administratorRouteActions';
 import { canRestoreRemovedStops, isRemovedAtDoor } from '@/lib/loadChange';
+import { routeFeedbackLabel } from '@/lib/routeFeedback';
 import { STOP_PROBLEM_REASONS } from '@/app/operator/components/StopCompletionDialog';
 import { stopPhaseOf } from '@/lib/signRunTransitions';
 import { billedTime } from '@/lib/billedTime';
@@ -301,6 +302,29 @@ function RouteDetailContent() {
                 <strong>Notes: </strong>
                 {route.notes}
               </div>
+            )}
+
+            {(route.status === 'completed' || route.status === 'archived') && (
+              <section className={styles.summaryPanel} aria-labelledby="customer-feedback-heading">
+                <h3 id="customer-feedback-heading" className={styles.summaryHeading}>Customer feedback</h3>
+                {route.customerFeedbackTone ? (
+                  <div className={styles.feedback}>
+                    <Badge tone={route.customerFeedbackTone === 'issue' ? 'danger' : 'success'} dot>
+                      {routeFeedbackLabel(route.customerFeedbackTone)}
+                    </Badge>
+                    {route.customerFeedbackNote && <p className={styles.feedbackNote}>{route.customerFeedbackNote}</p>}
+                    {(route.customerFeedbackByName || route.customerFeedbackAt) && (
+                      <p className={styles.feedbackMeta}>
+                        {[route.customerFeedbackByName, route.customerFeedbackAt && formatRouteDateTime(route.customerFeedbackAt)]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className={styles.feedbackMeta}>No feedback yet.</p>
+                )}
+              </section>
             )}
 
             {/* Route phase. Advancing a route through its phases is an operator

@@ -7,6 +7,7 @@ import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import RouteTimeline from '@/app/customer/components/RouteTimeline';
+import RouteFeedbackCard from '@/app/customer/components/RouteFeedbackCard';
 import StopListItem from '@/app/customer/components/StopListItem';
 import { RouteRequestsSection } from '@/app/customer/components/RouteRequestsSection';
 import { RouteStopsMap } from '@/app/operator/components/RouteStopsMap';
@@ -30,7 +31,7 @@ import { customerRouteProgress } from '@/lib/customerRouteProgress';
 import { activeStops, isStopRemoved } from '@/lib/loadChange';
 import { customerPickupDate } from '@/lib/pickupDate';
 import styles from './_RouteDetailContent.module.css';
-import { updateRoute, updateRouteCustomerInstructions } from '@/lib/routes';
+import { updateRouteCustomerInstructions } from '@/lib/routes';
 import { getCustomer, listCustomerUsers } from '@/lib/customers';
 
 // Mirrors the existing .stopsAndMap collapse breakpoint in
@@ -110,22 +111,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const [savingInstructions, setSavingInstructions] = useState(false);
   const [instructionsError, setInstructionsError] = useState<string | null>(null);
   const [instructionsSuccess, setInstructionsSuccess] = useState<string | null>(null);
-  const [feedbackTone, setFeedbackTone] = useState<'good' | 'issue' | null>(null);
-  const [feedbackNote, setFeedbackNote] = useState('');
-  const [savingFeedback, setSavingFeedback] = useState(false);
-  const [feedbackError, setFeedbackError] = useState<string | null>(null);
-  const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
   const isNarrow = useIsNarrowViewport(NARROW_BREAKPOINT_PX);
-
-  // Keyed on route.id (stable across the optimistic updates handleAddInstruction/
-  // handleSendFeedback make via patchRoute) so those updates don't clobber
-  // in-progress edits to instructionsAgent/feedbackTone/feedbackNote.
-  useEffect(() => {
-    if (!route) return;
-    setFeedbackTone((route.customerFeedbackTone as 'good' | 'issue' | null) ?? null);
-    setFeedbackNote(route.customerFeedbackNote || '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route?.id]);
 
   useEffect(() => {
     if (!customer) return;
@@ -157,28 +143,6 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
     setInstructionsDraft('');
     setInstructionsSuccess('Instruction added.');
     setSavingInstructions(false);
-  };
-
-  const handleSendFeedback = async () => {
-    if (!route || !feedbackTone) return;
-    setSavingFeedback(true);
-    setFeedbackError(null);
-    setFeedbackSuccess(null);
-
-    const result = await updateRoute(route.id, {
-      customerFeedbackTone: feedbackTone,
-      customerFeedbackNote: feedbackNote,
-    });
-
-    if (result.errors && result.errors.length > 0) {
-      setFeedbackError('Could not send your feedback.');
-      setSavingFeedback(false);
-      return;
-    }
-
-    patchRoute({ customerFeedbackTone: feedbackTone, customerFeedbackNote: feedbackNote });
-    setFeedbackSuccess('Feedback sent — thank you.');
-    setSavingFeedback(false);
   };
 
   if (loading) {
@@ -443,52 +407,16 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
         )}
 
         {route.status === 'completed' && (
-          <Card title="How did this route go?" subtitle="Only asked once the route is complete">
-            <div className={styles.instructionsForm}>
-              {feedbackError && <p className="nd-badge nd-badge--danger">{feedbackError}</p>}
-              {feedbackSuccess && <p className="nd-badge nd-badge--success">{feedbackSuccess}</p>}
-
-              <div className={styles.instructionsActions}>
-                <Button
-                  type="button"
-                  variant={feedbackTone === 'good' ? 'primary' : 'secondary'}
-                  size="sm"
-                  onClick={() => setFeedbackTone('good')}
-                  disabled={savingFeedback}
-                >
-                  All good
-                </Button>
-                <Button
-                  type="button"
-                  variant={feedbackTone === 'issue' ? 'primary' : 'secondary'}
-                  size="sm"
-                  onClick={() => setFeedbackTone('issue')}
-                  disabled={savingFeedback}
-                >
-                  Something was off
-                </Button>
-              </div>
-
-              <Input
-                multiline
-                aria-label="Feedback note for this route"
-                value={feedbackNote}
-                onChange={(e) => setFeedbackNote(e.target.value)}
-                placeholder="Two signs at 5 Kent St were facing the wrong way"
-                disabled={savingFeedback}
-              />
-
-              <Button
-                type="button"
-                size="sm"
-                loading={savingFeedback}
-                disabled={savingFeedback || !feedbackTone}
-                onClick={() => void handleSendFeedback()}
-              >
-                {savingFeedback ? 'Sending…' : 'Send feedback'}
-              </Button>
-            </div>
-          </Card>
+          <RouteFeedbackCard
+            key={route.id}
+            routeId={route.id}
+            feedback={
+              route.customerFeedbackTone
+                ? { tone: route.customerFeedbackTone, note: route.customerFeedbackNote || '' }
+                : null
+            }
+            onSaved={({ tone, note }) => patchRoute({ customerFeedbackTone: tone, customerFeedbackNote: note })}
+          />
         )}
 
         <div className={styles.stopsAndMap}>

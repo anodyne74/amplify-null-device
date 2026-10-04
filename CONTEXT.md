@@ -108,6 +108,10 @@ _Avoid_: Summary, totals
 What a Customer is charged for a Route: minutes for each Sign Run phase (Load and Unload at least 15, Placement and Pickup at least 5, the total landing on a 15-minute increment), plus the distance travelled. Set at Finalise, by the operator or an administrator, and correctable by an administrator once the Route is completed. Measured phase time and measured distance only seed it. Routes from before the Sign Run have a total only, with no per-phase split.
 _Avoid_: Duration (when you mean what's charged), invoice values, override
 
+**Route Feedback**:
+A Customer user's verdict on a completed Route: **All good**, or **Something was off** with a note saying what. Asked only once the Route is completed, and can be changed until the Route is invoiced (an Invoice exists for it). Administrators see it on the Route and in the Routes list, Something was off is emailed to admin@, and each one is in the Route's audit trail (without the note).
+_Avoid_: Rating, review, complaint
+
 **Customer User**:
 A person who signs in to the customer portal on one Customer's behalf, as either an Account Owner or a read-only user. Sees only that Customer's records, and is unaware of other Customers or of how Routes are carried out.
 _Avoid_: Team member, teammate, sub-user, customer admin

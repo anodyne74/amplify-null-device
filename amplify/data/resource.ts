@@ -213,6 +213,11 @@ const schema = a.schema({
       customerInstructions: a.string(), // Customer-authored, distinct from the operator's own `notes`
       customerFeedbackTone: a.enum(['good', 'issue']), // Customer-authored, asked once the route is completed
       customerFeedbackNote: a.string(),
+      // Route Feedback (CONTEXT.md): saved by app/api/customer/route-feedback, which
+      // stamps when and who; the name is kept as sent so it reads the same later.
+      customerFeedbackAt: a.datetime(),
+      customerFeedbackBy: a.string(),
+      customerFeedbackByName: a.string(),
       drivingModeEnabled: a.boolean(), // Renders the operator app's simplified in-vehicle driving mode for this route
       // Sign-run flow (drivingModeEnabled routes only) — the Load/Unload confirmations
       // and the four Finalise-screen adjuster rows. Finalise sums the billed*Minutes

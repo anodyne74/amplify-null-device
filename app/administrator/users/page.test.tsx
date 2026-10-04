@@ -169,6 +169,50 @@ describe('UsersAdminPage customer access actions', () => {
     expect(screen.queryByText('User updated.')).not.toBeInTheDocument();
   });
 
+  it('sorts the customer user list from a column header (#441)', async () => {
+    mockListAllCustomerUsers.mockResolvedValue([
+      { id: 'cu-1', customerId: 'cust-1', userSub: 'sub-1', accountOwnerSub: 'sub-owner', name: 'Zara User', email: 'zara@example.com', role: 'read_only' },
+      { id: 'cu-2', customerId: 'cust-1', userSub: 'sub-2', accountOwnerSub: 'sub-owner', name: 'Adam User', email: 'adam@example.com', role: 'read_only' },
+    ] as any);
+
+    render(<UsersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Zara User')).toBeInTheDocument();
+    });
+
+    const table = screen.getByRole('table', { name: 'All customer users' });
+    const firstDataRow = () => within(table).getAllByRole('row')[1];
+    expect(firstDataRow()).toHaveTextContent('Zara User');
+
+    const sortByUser = within(table).getByRole('button', { name: 'Sort by User' });
+    fireEvent.click(sortByUser);
+    expect(sortByUser.closest('th')).toHaveAttribute('aria-sort', 'ascending');
+    expect(firstDataRow()).toHaveTextContent('Adam User');
+
+    fireEvent.click(sortByUser);
+    expect(sortByUser.closest('th')).toHaveAttribute('aria-sort', 'descending');
+    expect(firstDataRow()).toHaveTextContent('Zara User');
+
+    fireEvent.click(sortByUser);
+    expect(sortByUser.closest('th')).toHaveAttribute('aria-sort', 'none');
+  });
+
+  // The shared AdminSortableHeader carries the themed header treatment; a
+  // page-local copy drifts from it (#441).
+  it('uses the shared sortable header for every sortable column', async () => {
+    render(<UsersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Read User')).toBeInTheDocument();
+    });
+
+    const table = screen.getByRole('table', { name: 'All customer users' });
+    for (const label of ['User', 'Customer', 'Role', 'Status']) {
+      expect(within(table).getByRole('button', { name: `Sort by ${label}` })).toHaveClass('sortHeaderButton');
+    }
+  });
+
   it('shows summary stat tiles computed from the loaded data', async () => {
     render(<UsersAdminPage />);
 

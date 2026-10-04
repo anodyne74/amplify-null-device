@@ -6,8 +6,6 @@ import { geocodeAddress } from '@/lib/googleMaps';
 import { createCustomer, listAllCustomerUsers, listAllCustomers, updateCustomer } from '@/lib/customers';
 import { listFeatureFlagSettings } from '@/lib/queries/FeatureFlagSettings';
 
-jest.mock('@/app/dashboard.module.css', () => ({}));
-
 const mockPush = jest.fn();
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush }),
@@ -371,6 +369,20 @@ describe('Operator Customers Page', () => {
     // Status is sortable as well.
     fireEvent.click(screen.getByRole('button', { name: 'Sort by Status' }));
     expect(firstDataRow()).toHaveTextContent('Zenith Co'); // active < inactive
+  });
+
+  // The shared AdminSortableHeader carries the themed header treatment; a
+  // page-local copy drifts from it (#442).
+  it('uses the shared sortable header for every sortable column', async () => {
+    render(<CustomersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('table', { name: 'Customer list' })).toBeInTheDocument();
+    });
+
+    for (const label of ['Customer', 'Status']) {
+      expect(screen.getByRole('button', { name: `Sort by ${label}` })).toHaveClass('sortHeaderButton');
+    }
   });
 
   it('offers a retry action when loading customers fails', async () => {

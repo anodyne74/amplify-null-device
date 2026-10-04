@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import OperatorRoute from '@/app/components/OperatorRoute';
-import { useAdminTableSort, type SortDirection } from '@/app/components/AdminDataTable';
+import { AdminSortableHeader, useAdminTableSort } from '@/app/components/AdminDataTable';
 import type { ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
@@ -46,34 +46,6 @@ function formatCurrency(value: string): string {
   const parsed = parseCurrency(value);
   if (Number.isNaN(parsed)) return value;
   return usdFormatter.format(parsed);
-}
-
-function SortableHeader<K extends string>({
-  label,
-  sortKey,
-  sortBy,
-  sortDirection,
-  onSort,
-}: {
-  label: string;
-  sortKey: K;
-  sortBy: K | null;
-  sortDirection: SortDirection;
-  onSort: (key: K) => void;
-}) {
-  const active = sortBy === sortKey;
-  const ariaSort = active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none';
-
-  return (
-    <th scope="col" aria-sort={ariaSort}>
-      <button type="button" className={styles.sortButton} onClick={() => onSort(sortKey)} aria-label={`Sort by ${label}`}>
-        <span>{label}</span>
-        <span className={styles.sortIndicator} aria-hidden="true">
-          {active ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
-        </span>
-      </button>
-    </th>
-  );
 }
 
 export default function CustomersAdminPage() {
@@ -501,8 +473,8 @@ export default function CustomersAdminPage() {
               <table className="nd-table nd-table--hoverable" aria-label="Customer list">
                 <thead>
                   <tr>
-                    <SortableHeader label="Customer" sortKey="name" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
-                    <SortableHeader label="Status" sortKey="status" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
+                    <AdminSortableHeader label="Customer" sortKey="name" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
+                    <AdminSortableHeader label="Status" sortKey="status" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
                     <th scope="col">Users</th>
                     <th scope="col">Hourly rate</th>
                     <th scope="col">Operator split</th>

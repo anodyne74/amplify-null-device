@@ -5,7 +5,7 @@ import { callApi } from '@/lib/apiClient';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PageHeader from '@/app/administrator/components/PageHeader';
-import { useAdminTableSort, type SortDirection } from '@/app/components/AdminDataTable';
+import { AdminSortableHeader, useAdminTableSort } from '@/app/components/AdminDataTable';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
@@ -50,34 +50,6 @@ type CustomerUser = {
 };
 
 type CustomerUserSortKey = 'name' | 'customer' | 'role' | 'status';
-
-function SortableHeader<K extends string>({
-  label,
-  sortKey,
-  sortBy,
-  sortDirection,
-  onSort,
-}: {
-  label: string;
-  sortKey: K;
-  sortBy: K | null;
-  sortDirection: SortDirection;
-  onSort: (key: K) => void;
-}) {
-  const active = sortBy === sortKey;
-  const ariaSort = active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none';
-
-  return (
-    <th scope="col" aria-sort={ariaSort}>
-      <button type="button" className={styles.sortButton} onClick={() => onSort(sortKey)} aria-label={`Sort by ${label}`}>
-        <span>{label}</span>
-        <span className={styles.sortIndicator} aria-hidden="true">
-          {active ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
-        </span>
-      </button>
-    </th>
-  );
-}
 
 export default function UsersAdminPage() {
   // Customer Access section state
@@ -685,10 +657,10 @@ export default function UsersAdminPage() {
                 <table className="nd-table nd-table--hoverable" aria-label="All customer users">
                   <thead>
                     <tr>
-                      <SortableHeader label="User" sortKey="name" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
-                      <SortableHeader label="Customer" sortKey="customer" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
-                      <SortableHeader label="Role" sortKey="role" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
-                      <SortableHeader label="Status" sortKey="status" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
+                      <AdminSortableHeader label="User" sortKey="name" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
+                      <AdminSortableHeader label="Customer" sortKey="customer" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
+                      <AdminSortableHeader label="Role" sortKey="role" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
+                      <AdminSortableHeader label="Status" sortKey="status" sortBy={usersSortBy} sortDirection={usersSortDirection} onSort={toggleUsersSort} />
                       <th scope="col">Last seen</th>
                       <th scope="col">Actions</th>
                     </tr>

@@ -362,6 +362,13 @@ describe('Operator Route Detail Page', () => {
     expect(screen.queryByLabelText('Pickup date')).not.toBeInTheDocument();
   });
 
+  it('shows "—" for a Route with no Pickup Date (#463)', async () => {
+    render(<RouteDetailPage />);
+
+    const label = await screen.findByText('Pickup Date');
+    expect(label.parentElement).toHaveTextContent('Pickup Date—');
+  });
+
   it('marks a Route changed on the day with a chip that matches the status chip (#463)', async () => {
     mockFetched.stops = [
       ...mockStops,

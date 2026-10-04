@@ -412,16 +412,52 @@ describe('Administrator Route Edit Page', () => {
       expect(changePickupDate).not.toHaveBeenCalled();
     });
 
-    it('says plainly when the rest saved but the Pickup Date was refused', async () => {
-      (changePickupDate as jest.Mock).mockResolvedValue({ ok: false, error: 'The pickup date cannot be before the placement date.', saved: false });
+    it.each([
+      ['before the Placement Date', '2026-10-01', 'The pickup date must be on or after the placement date.'],
+      ['cleared', '', 'Choose a pickup date.'],
+    ])('refuses a Pickup Date %s before saving anything', async (_case, value, message) => {
+      render(<RouteEditPage />);
+
+      fireEvent.change(await screen.findByLabelText('Pickup Date'), { target: { value } });
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(routesModule.updateRoute).not.toHaveBeenCalled();
+      expect(changePickupDate).not.toHaveBeenCalled();
+    });
+
+    it('says plainly when the rest saved but the Pickup Date did not', async () => {
+      (changePickupDate as jest.Mock).mockResolvedValue({ ok: false, error: 'Could not save the pickup date. Nothing was changed.', saved: false });
 
       render(<RouteEditPage />);
 
-      fireEvent.change(await screen.findByLabelText('Pickup Date'), { target: { value: '2026-10-01' } });
+      fireEvent.change(await screen.findByLabelText('Pickup Date'), { target: { value: '2026-10-12' } });
       fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
-      expect(await screen.findByText(/The pickup date cannot be before the placement date\./)).toBeInTheDocument();
+      expect(
+        await screen.findByText('The rest of the route was saved, but not the pickup date: Could not save the pickup date. Nothing was changed.')
+      ).toBeInTheDocument();
       expect(screen.queryByText('Route saved.')).not.toBeInTheDocument();
+    });
+
+    it('shows the unaudited message when only the audit entry failed', async () => {
+      (changePickupDate as jest.Mock).mockResolvedValue({
+        ok: false,
+        error: 'The pickup date was saved, but its audit entry could not be written.',
+        saved: true,
+      });
+
+      render(<RouteEditPage />);
+
+      fireEvent.change(await screen.findByLabelText('Pickup Date'), { target: { value: '2026-10-12' } });
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+      expect(await screen.findByText('The pickup date was saved, but its audit entry could not be written.')).toBeInTheDocument();
+
+      // It counts as saved, so saving again doesn't change it a second time.
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+      await waitFor(() => expect(routesModule.updateRoute).toHaveBeenCalledTimes(2));
+      expect(changePickupDate).toHaveBeenCalledTimes(1);
     });
 
     it('warns, without blocking, when no operators are available on a new Pickup Date', async () => {

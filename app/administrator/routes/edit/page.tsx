@@ -26,6 +26,7 @@ import { listAllCustomers } from '@/lib/customers';
 import { activeStops } from '@/lib/loadChange';
 import { notifyOperatorOutcome, type NotifyOperatorResult } from '@/lib/notifyOperatorOutcome';
 import { changePickupDate } from '@/lib/administratorRouteActions';
+import { pickupDateProblem } from '@/lib/pickupDate';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
 import { useNoOperatorsWarning } from '@/lib/useNoOperatorsWarning';
 
@@ -80,9 +81,10 @@ function RouteEditContent() {
   const [customerId, setCustomerId] = useState('');
   const [notes, setNotes] = useState('');
   const [pickupDate, setPickupDate] = useState('');
-  // The Route's dates as last saved: the Pickup Date is changed through its own
-  // audited action, which checks it against the Placement Date.
-  const [savedDates, setSavedDates] = useState<Pick<Route, 'scheduledDate' | 'pickupDate'>>({});
+  // The Pickup Date as last saved, and the Placement Date it can't come before:
+  // a changed Pickup Date is saved through its own audited action.
+  const [savedPickupDate, setSavedPickupDate] = useState('');
+  const [placementDate, setPlacementDate] = useState('');
   const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapTheme, setMapTheme] = useState<MapTheme>('light');
 
@@ -152,7 +154,8 @@ function RouteEditContent() {
       setCustomerId(route.customerId);
       setNotes(route.notes || '');
       setPickupDate(route.pickupDate || '');
-      setSavedDates({ scheduledDate: route.scheduledDate, pickupDate: route.pickupDate });
+      setSavedPickupDate(route.pickupDate || '');
+      setPlacementDate(route.scheduledDate || '');
       setAssignedOperatorSub(route.assignedOperatorSub || '');
       setInitialAssignedOperatorSub(route.assignedOperatorSub || '');
       setSavedAssignedOperatorEmail(route.assignedOperatorEmail || null);
@@ -245,6 +248,8 @@ function RouteEditContent() {
     setSelectedStopId(stops[0].id);
   }, [selectedStopId, stops]);
 
+  const pickupDateChanged = pickupDate !== savedPickupDate;
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!routeId || !customerId) {
@@ -253,6 +258,13 @@ function RouteEditContent() {
     }
     if (!routeCode.trim()) {
       setError('Route code is required.');
+      return;
+    }
+
+    // Checked before anything is written, so a bad date never leaves the rest half-saved.
+    const pickupProblem = pickupDateChanged ? pickupDateProblem(placementDate, pickupDate) : null;
+    if (pickupProblem) {
+      setError(pickupProblem);
       return;
     }
 
@@ -281,12 +293,15 @@ function RouteEditContent() {
       return;
     }
 
-    let pickupProblem: string | null = null;
-    if (pickupDate !== (savedDates.pickupDate ?? '')) {
-      const pickupResult = await changePickupDate({ id: routeId, customerId, ...savedDates }, pickupDate);
-      if (pickupResult.ok || pickupResult.saved) setSavedDates((prev) => ({ ...prev, pickupDate }));
+    let pickupSaveError: string | null = null;
+    if (pickupDateChanged) {
+      const pickupResult = await changePickupDate(
+        { id: routeId, customerId, scheduledDate: placementDate, pickupDate: savedPickupDate },
+        pickupDate
+      );
+      if (pickupResult.ok || pickupResult.saved) setSavedPickupDate(pickupDate);
       if (!pickupResult.ok) {
-        pickupProblem = pickupResult.saved
+        pickupSaveError = pickupResult.saved
           ? pickupResult.error
           : `The rest of the route was saved, but not the pickup date: ${pickupResult.error}`;
       }
@@ -301,16 +316,12 @@ function RouteEditContent() {
     // operator.
     setSavedAssignedOperatorEmail(selectedOperator?.email || null);
     setInitialAssignedOperatorSub(selectedOperator?.sub || '');
-    if (pickupProblem) setError(pickupProblem);
+    if (pickupSaveError) setError(pickupSaveError);
     else setSaveSuccess('Route saved.');
   };
 
   // Warn only about a Pickup Date that differs from the one already saved.
-  const noOperatorsOnPickup = useNoOperatorsWarning(
-    customerId,
-    pickupDate === (savedDates.pickupDate ?? '') ? '' : pickupDate,
-    checkRouteDateBlocked
-  );
+  const noOperatorsOnPickup = useNoOperatorsWarning(customerId, pickupDateChanged ? pickupDate : '', checkRouteDateBlocked);
 
   // Notify Operator only works for an assignment that's been saved (#267), and a
   // disabled button can't show a tooltip, so say why underneath it.

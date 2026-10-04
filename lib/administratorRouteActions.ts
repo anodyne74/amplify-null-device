@@ -155,8 +155,8 @@ export async function removeStopAsAdministrator(
 }
 
 /**
- * An administrator puts back any Removed Stop, at any point in the Route's
- * life -- unlike the operator, who can only while its window is open.
+ * An administrator puts back any Removed Stop, at any point until the Route is
+ * finalised -- unlike the operator, who can only while its window is open.
  */
 export async function restoreStopAsAdministrator(
   route: LoadChangeRoute,

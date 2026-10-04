@@ -380,4 +380,36 @@ describe('Operator Route Detail Page', () => {
     const chip = await screen.findByText('changed on the day');
     expect(chip.closest('.nd-badge')?.querySelector('.nd-badge__dot')).not.toBeNull();
   });
+
+  describe('Restore on a Removed Stop (#465)', () => {
+    const removedStop = {
+      id: 'stop-3',
+      routeId: 'route-test-id-1234',
+      sequence: 3,
+      address: '300 Third Rd',
+      removed: true,
+      removedAt: '2026-10-04T13:24:16.967Z',
+    };
+
+    it('is offered before the Route is finalised', async () => {
+      mockFetched.route = { ...mockRoute, status: 'in_progress', executionPhase: 'unload', loadConfirmedAt: '2026-10-04T13:24:27.986Z' };
+      mockFetched.stops = [...mockStops, removedStop];
+
+      render(<RouteDetailPage />);
+
+      expect(await screen.findByText('300 Third Rd')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Restore' })).toBeInTheDocument();
+    });
+
+    it('is not offered once the Route is finalised, though the Stop still shows as removed', async () => {
+      mockFetched.route = mockLegacyCompletedRoute;
+      mockFetched.stops = [...mockLegacyCompletedStops, removedStop];
+
+      render(<RouteDetailPage />);
+
+      expect(await screen.findByText('300 Third Rd')).toBeInTheDocument();
+      expect(screen.getByText(/Removed at Load/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Restore' })).not.toBeInTheDocument();
+    });
+  });
 });

@@ -65,6 +65,7 @@ export function removalWindow(route: Omit<LoadChangeRoute, 'id' | 'customerId'>)
 const OUTSIDE_LOAD = 'Stops can only be added or removed between starting and confirming Load.';
 
 const OUTSIDE_WINDOW = 'Stops can only be removed during Load or Placement.';
+const ROUTE_FINALISED = "This route is finalised; its stops can't be restored.";
 
 export const LOAD_STOP_NEEDS_SUBURB = 'Add the suburb to the address, e.g. "30 Faraday St, Carlton".';
 
@@ -106,17 +107,26 @@ export interface StopRestorePatch {
 }
 
 /**
+ * Whether a Removed Stop can still be restored: not once the Route is
+ * finalised, as its Billed Time and invoice are worked out from its Stops.
+ */
+export function canRestoreRemovedStops(route: Pick<LoadChangeRoute, 'status'>): boolean {
+  return route.status !== 'completed' && route.status !== 'archived';
+}
+
+/**
  * Puts a removed Stop back. An Operator can restore a Stop removed at the
  * yard until Load is confirmed, and one removed at the door until Placement
  * is completed -- never one removed at the yard once Load is confirmed, as
  * its signs aren't on the van. `anyPhase` is an administrator's restore,
- * allowed at any time.
+ * allowed in any phase until the Route is finalised.
  */
 export function planStopRestore(
   route: LoadChangeRoute,
   stop: Pick<Stop, 'removed' | 'removedReason'>,
   { anyPhase = false }: { anyPhase?: boolean } = {}
 ): { window: RemovalWindow | null; patch: StopRestorePatch } | { refused: string } {
+  if (!canRestoreRemovedStops(route)) return { refused: ROUTE_FINALISED };
   const window = removalWindow(route);
   if (!anyPhase) {
     if (!window) return { refused: OUTSIDE_WINDOW };

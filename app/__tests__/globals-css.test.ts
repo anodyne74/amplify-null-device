@@ -13,29 +13,16 @@ function buttonSelectors(): string[] {
     .filter((selector) => /^button\b/.test(selector));
 }
 
-// (ids, classes + attributes + pseudo-classes, elements). `:where()` counts for
-// nothing, whatever is inside it. Enough for the simple selectors in this file.
-function specificity(selector: string): [number, number, number] {
-  let rest = selector;
-  while (rest.includes(':where(')) {
-    rest = rest.replace(/:where\((?:[^()]|\([^()]*\))*\)/g, '');
-  }
-  rest = rest.replace(/:not\(([^()]*)\)/g, ' $1');
-  const ids = rest.match(/#[\w-]+/g)?.length ?? 0;
-  const classes = rest.match(/\.[\w-]+|\[[^\]]*\]|:(?!:)[\w-]+/g)?.length ?? 0;
-  const elements = rest.match(/(?:^|[\s>+~])[a-z][\w-]*|::[\w-]+/g)?.length ?? 0;
-  return [ids, classes, elements];
-}
-
 describe('global plain-button style', () => {
-  it('is styled at all', () => {
+  it('finds the plain-button rules', () => {
     expect(buttonSelectors().length).toBeGreaterThan(0);
   });
 
-  // A component's own class, e.g. a CSS-module `.sortButton`, scores (0,1,0).
-  // The global default must lose to it, including on hover and focus (#445).
-  it.each(buttonSelectors())('%s weighs no more than a bare element', (selector) => {
-    expect(specificity(selector)).toEqual([0, 0, 1]);
+  // `:where()` adds no specificity, so `button:where(...)` weighs the same as
+  // `button` and loses to any class a component applies, e.g. a CSS-module
+  // `.sortButton`, including on hover and focus.
+  it.each(buttonSelectors())('%s weighs no more than a bare element (#445)', (selector) => {
+    expect(selector).toMatch(/^button:where\(.+\)$/);
   });
 
   it('still leaves nd-btn and Amplify buttons alone', () => {

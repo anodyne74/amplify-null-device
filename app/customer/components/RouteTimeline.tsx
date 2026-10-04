@@ -34,12 +34,16 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
   }));
 
   const currentStatusIndex = ROUTE_PHASE_KEYS.indexOf(getRoutePhaseKey(route));
+  // Route completed is the last phase: once reached, there's nothing left to
+  // do, so it's ticked like the rest rather than shown as in progress.
+  const routeCompleted = ROUTE_PHASE_KEYS[currentStatusIndex] === 'completed';
 
   return (
     <div className={styles.steps}>
       {statuses.map((status, index) => {
-        const isActive = index === currentStatusIndex;
-        const isCompleted = index < currentStatusIndex;
+        const isCurrent = index === currentStatusIndex;
+        const isActive = isCurrent && !routeCompleted;
+        const isCompleted = index < currentStatusIndex || (isCurrent && routeCompleted);
 
         return (
           <div key={status.id} className={styles.step}>
@@ -51,7 +55,7 @@ export default function RouteTimeline({ route }: RouteTimelineProps) {
             </div>
 
             {/* Status Label */}
-            <p className={`${styles.stepLabel} ${isActive ? styles.stepLabelActive : ''}`}>
+            <p className={`${styles.stepLabel} ${isCurrent ? styles.stepLabelActive : ''}`}>
               {status.label}
             </p>
 

@@ -30,8 +30,11 @@ describe('RouteTimeline', () => {
       placementStartTime: '2024-01-15T09:00:00Z',
     };
 
-    render(<RouteTimeline route={activeRoute} />);
+    const { container } = render(<RouteTimeline route={activeRoute} />);
     expect(screen.getByText(/^Signs placed$/i)).toHaveClass('stepLabelActive');
+    // Only Planned and Signs loaded are behind it.
+    expect(container.querySelectorAll('.circleCompleted')).toHaveLength(2);
+    expect(container.querySelector('.circleActive')).toHaveTextContent('3');
   });
 
   it('shows route completed as the current phase for completed routes', () => {
@@ -44,6 +47,18 @@ describe('RouteTimeline', () => {
 
     render(<RouteTimeline route={completedRoute} />);
     expect(screen.getByText(/^Route completed$/i)).toHaveClass('stepLabelActive');
+  });
+
+  it('ticks every phase, Route completed included, once the route is completed (#466)', () => {
+    const completedRoute: Route = { ...mockRoute, status: 'completed' };
+
+    const { container } = render(<RouteTimeline route={completedRoute} />);
+
+    expect(container.querySelectorAll('.circleCompleted')).toHaveLength(6);
+    expect(container.querySelector('.circleActive')).toBeNull();
+    for (const n of ['1', '2', '3', '4', '5', '6']) {
+      expect(screen.queryByText(n, { selector: '.circle' })).not.toBeInTheDocument();
+    }
   });
 
   it('handles routes with missing timestamps gracefully', () => {

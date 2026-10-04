@@ -15,6 +15,7 @@ import { getSignRunPhase, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS, type RoutePhaseI
 import { calculateRouteDistanceKm, getRouteDurationMinutes } from './routeDetailHelpers';
 import { signsCollected } from './signRunTotals';
 import { isStopCompleted } from './stopProgress';
+import { activeStops } from './loadChange';
 
 export interface PhaseOverview {
   track: readonly SignRunTrackState[];
@@ -38,7 +39,7 @@ export function getPhaseOverview(route: RoutePhaseInput | null, stops: Stop[]): 
   if (route.status === 'completed' || route.status === 'archived') {
     return { track: ['done', 'done', 'done', 'done', 'done', 'done'], caption: ROUTE_PHASE_LABELS.completed, phaseIdx: null };
   }
-  const info = getSignRunPhase(route, stops.length);
+  const info = getSignRunPhase(route, activeStops(stops).length);
   if (!info) return null;
   const currentIdx = info.overallTrack.indexOf('current');
   const idx = currentIdx === -1 ? info.overallTrack.length - 1 : currentIdx;
@@ -61,9 +62,10 @@ export interface RouteSummaryStats {
  * and archived routes summarise only their completed stops (see Stop Progress
  * in CONTEXT.md, so skipped ones are left out), falling back to every stop
  * when none are -- in-progress and planned routes always summarise every stop
- * regardless of progress.
+ * regardless of progress. A Stop a Load Change removed is never summarised.
  */
-export function computeRouteSummaryStats(route: Route | null, stops: Stop[]): RouteSummaryStats {
+export function computeRouteSummaryStats(route: Route | null, allStops: Stop[]): RouteSummaryStats {
+  const stops = activeStops(allStops);
   const completedStops = stops.filter((stop) => isStopCompleted(stop));
   const summaryStops =
     route?.status === 'completed' || route?.status === 'archived'

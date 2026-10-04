@@ -10,6 +10,7 @@ import { listAll } from '@/lib/listAll';
 import type { PropertyHistoryFilters, PropertyHistoryResult, PropertyHistorySearch } from '@/lib/propertyHistory';
 import type { PropertyHistoryReportSummary } from '@/lib/propertyHistoryReport';
 import { buildTypeaheadOptions, type TypeaheadOption } from '@/lib/propertyHistoryTypeahead';
+import { activeStops } from '@/lib/loadChange';
 
 export interface RouteProperty {
   propertyKey: string;
@@ -19,7 +20,10 @@ export interface RouteProperty {
 /** Every suburb, street and Property the signed-in user's readable Stops cover. */
 export async function listTypeaheadOptions(): Promise<{ data: TypeaheadOption[]; error?: string }> {
   try {
-    const { data, errors } = await listAll(getDataClient(), 'Stop', { selectionSet: ['propertyKey', 'address'] });
+    const result = await listAll(getDataClient(), 'Stop', { selectionSet: ['propertyKey', 'address', 'removed'] });
+    const { errors } = result;
+    // A Stop a Load Change removed was never visited, so it has no history to find.
+    const data = activeStops(result.data);
     if (errors.length > 0) {
       console.error('Errors loading Property History search options:', errors);
       return { data: buildTypeaheadOptions(data), error: 'Some addresses could not be loaded, so the suggestions may be incomplete.' };
@@ -39,11 +43,11 @@ export function searchPropertyHistory(search: PropertyHistorySearch, filters: Pr
 export async function listRouteProperties(routeId: string): Promise<RouteProperty[]> {
   const { data, errors } = await listAll(getDataClient(), 'Stop', {
     filter: { routeId: { eq: routeId } },
-    selectionSet: ['propertyKey', 'address', 'sequence'],
+    selectionSet: ['propertyKey', 'address', 'sequence', 'removed'],
   });
   if (errors.length > 0) throw new Error('Could not load the Route’s Stops.');
   const properties = new Map<string, RouteProperty>();
-  for (const stop of [...data].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))) {
+  for (const stop of activeStops(data).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))) {
     if (stop.propertyKey && !properties.has(stop.propertyKey)) {
       properties.set(stop.propertyKey, { propertyKey: stop.propertyKey, address: stop.address });
     }

@@ -7,6 +7,7 @@
  */
 import { stopProgress } from './stopProgress';
 import { signsCollected, missingSigns, type SignCountStop } from './signRunTotals';
+import { activeStops } from './loadChange';
 
 export interface ReconciliationRoute {
   loadedSignsCount?: number | null;
@@ -25,7 +26,7 @@ export function reconcileSignRun(route: ReconciliationRoute, stops: SignCountSto
   let doneCount = 0;
   let skipCount = 0;
 
-  for (const stop of stops) {
+  for (const stop of activeStops(stops)) {
     const { state } = stopProgress(stop).pickup;
     if (state === 'skipped') {
       skipCount += 1;

@@ -314,6 +314,15 @@ const schema = a.schema({
       placedLongitude: a.float(),
       placedAccuracyMeters: a.float(),
       placedPositionAt: a.datetime(),
+      // Load Change (CONTEXT.md, lib/loadChange.ts) — an Operator removing a Stop during Load
+      // keeps it, marked removed, and it counts toward nothing. Restoring sets removed back to
+      // false rather than clearing anything: setting a field to null needs delete permission,
+      // which operators don't have. removedAt/removedBy are the last removal, kept on restore.
+      removed: a.boolean(),
+      removedAt: a.datetime(),
+      removedBy: a.string(),
+      // When an Operator added the Stop with a Load Change; unset for every other Stop.
+      addedAtLoad: a.datetime(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
@@ -328,7 +337,9 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
-      allow.groups(['operator']).to(['read', 'update']),
+      // create: a Load Change adds a Stop. Only during Load, on the Operator's own Route —
+      // enforced in the app (lib/loadChange.ts), as broad as the update operators already have.
+      allow.groups(['operator']).to(['read', 'create', 'update']),
     ]),
 
   /**

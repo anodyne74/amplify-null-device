@@ -34,6 +34,10 @@ This document defines the route payload used by operator clients, including the 
 - `latitude?: number`
 - `longitude?: number`
 - `notes?: string`
+- `removed?: boolean` (removed by a Load Change; counts toward nothing)
+- `removedAt?: string` (ISO-8601, last removal)
+- `removedBy?: string` (Cognito sub of who last removed it)
+- `addedAtLoad?: string` (ISO-8601, set when an Operator added the Stop with a Load Change)
 - `createdAt?: string` (ISO-8601)
 - `updatedAt?: string` (ISO-8601)
 

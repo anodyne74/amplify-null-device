@@ -25,6 +25,7 @@ import {
   changePickupDate,
   correctBilledTime,
   finaliseRouteAsAdministrator,
+  restoreStopAsAdministrator,
   settleStopAsAdministrator,
 } from './administratorRouteActions';
 import { stopProgress } from './stopProgress';
@@ -279,6 +280,35 @@ describe('settleStopAsAdministrator', () => {
     const result = await settleStopAsAdministrator(pickupRoute, stop, { action: 'complete' });
 
     expect(result).toEqual({ ok: false, error: 'The stop was saved, but its audit entry could not be written.', saved: true });
+  });
+});
+
+describe('restoreStopAsAdministrator', () => {
+  const stop = { id: 'stop-1', routeId: 'route-1', customerId: 'cust-1', removed: true };
+  const completed = { id: 'route-1', customerId: 'cust-1', status: 'completed' as const, unloadConfirmedAt: '2026-08-31T09:10:00.000Z' };
+
+  it('restores a removed Stop at any point in the Route, and audits it', async () => {
+    await expect(restoreStopAsAdministrator(completed, stop)).resolves.toEqual({ ok: true });
+
+    expect(mockStopUpdate).toHaveBeenCalledWith({ id: 'stop-1', removed: false });
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerId: 'cust-1',
+        operatorId: 'admin-sub',
+        resourceType: 'stop',
+        resourceId: 'stop-1',
+        action: 'stop.loadChange.restore',
+        details: JSON.stringify({ routeId: 'route-1' }),
+      })
+    );
+  });
+
+  it('refuses a Stop that is not removed, and writes nothing', async () => {
+    const result = await restoreStopAsAdministrator(completed, { ...stop, removed: false });
+
+    expect(result).toEqual({ ok: false, error: 'That stop is not removed.', saved: false });
+    expect(mockStopUpdate).not.toHaveBeenCalled();
+    expect(mockAuditLogCreate).not.toHaveBeenCalled();
   });
 });
 

@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import OperatorLoadPage from '../page';
-import { queueSignRunTransition } from '@/lib/signRunTransitions';
+import { queueLoadChange, queueSignRunTransition } from '@/lib/signRunTransitions';
 import { signRunOutbox } from '@/lib/signRunOutbox';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import type { Route, Stop } from '@/amplify/types';
@@ -26,7 +26,10 @@ jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
   updateRoute: jest.fn(() => new Promise(() => {})),
   updateStopExecution: jest.fn(() => new Promise(() => {})),
+  createLoadStop: jest.fn(() => new Promise(() => {})),
 }));
+
+jest.mock('@/lib/use-user-groups', () => ({ useCurrentUserId: () => 'operator-1' }));
 
 jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
@@ -40,6 +43,7 @@ jest.mock('@/lib/signRunTransitions', () => {
     ...actual,
     queueSignRunTransition: jest.fn(actual.queueSignRunTransition),
     queueStopSettlement: jest.fn(actual.queueStopSettlement),
+    queueLoadChange: jest.fn(actual.queueLoadChange),
   };
 });
 jest.mock('aws-amplify/auth', () => ({ fetchAuthSession: jest.fn().mockResolvedValue({}) }));
@@ -212,24 +216,24 @@ describe('Operator Load page', () => {
       render(<OperatorLoadPage />);
       await screen.findByText('45 signs to load');
 
-      expect(screen.queryByText(/timed signs · placement order/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/properties · placement order/i)).not.toBeInTheDocument();
     });
 
-    it('lists every property in placement order with its timed signs', async () => {
+    it('lists every property in placement order with its timed and blank signs', async () => {
       await renderStartedLoad();
 
-      expect(screen.getByText(/timed signs · placement order/i)).toBeInTheDocument();
+      expect(screen.getByText(/properties · placement order/i)).toBeInTheDocument();
       expect(screen.getByText('0 of 4 loaded')).toBeInTheDocument();
       const rows = screen.getAllByRole('button', { name: /Test St, Carlton/ });
       expect(rows.map((row) => row.textContent)).toEqual([
         expect.stringContaining('1 Test St, CarltonRachel Morrow · 9 timed'),
-        expect.stringContaining('2 Test St, CarltonRachel Morrow · 1 timed'),
-        expect.stringContaining('3 Test St, CarltonJem Tran · 1 timed'),
-        expect.stringContaining('4 Test St, CarltonUnassigned · 1 timed'),
+        expect.stringContaining('2 Test St, CarltonRachel Morrow · 1 timed · 12 blank'),
+        expect.stringContaining('3 Test St, CarltonJem Tran · 1 timed · 17 blank'),
+        expect.stringContaining('4 Test St, CarltonUnassigned · 1 timed · 4 blank'),
       ]);
     });
 
-    it('ticks a property loaded on tap, and unticks it on a second tap', async () => {
+    it('ticks a property loaded on tap, and unticks it on a second tap, saving nothing', async () => {
       await renderStartedLoad();
 
       const row = screen.getByRole('button', { name: /2 Test St, Carlton/ });
@@ -241,9 +245,11 @@ describe('Operator Load page', () => {
       fireEvent.click(row);
       expect(row).toHaveAttribute('aria-pressed', 'false');
       expect(screen.getByText('0 of 4 loaded')).toBeInTheDocument();
+      expect(queueLoadChange).not.toHaveBeenCalled();
+      expect(queueSignRunTransition).not.toHaveBeenCalled();
     });
 
-    it('removes a property swiped left', async () => {
+    it('removes a property swiped left, saving it and leaving it out of the count', async () => {
       await renderStartedLoad();
 
       const row = screen.getByRole('button', { name: /3 Test St, Carlton/ });
@@ -254,7 +260,28 @@ describe('Operator Load page', () => {
       await waitFor(() => {
         expect(screen.queryByRole('button', { name: /3 Test St, Carlton/ })).not.toBeInTheDocument();
       });
+      expect(queueLoadChange).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'route-1' }),
+        expect.objectContaining({ type: 'remove', by: 'operator-1', stop: expect.objectContaining({ id: 's3' }) })
+      );
+      expect(screen.getByText('3 Test St, Carlton')).toBeInTheDocument();
+      expect(screen.getByText('Jem Tran · Removed')).toBeInTheDocument();
       expect(screen.getByText('0 of 3 loaded')).toBeInTheDocument();
+      expect(screen.getByText('27 signs to load')).toBeInTheDocument();
+    });
+
+    it('restores a removed property', async () => {
+      await renderStartedLoad();
+
+      fireEvent.keyDown(screen.getByRole('button', { name: /3 Test St, Carlton/ }), { key: 'Delete' });
+      fireEvent.click(await screen.findByRole('button', { name: 'Restore' }));
+
+      expect(await screen.findByRole('button', { name: /3 Test St, Carlton/ })).toBeInTheDocument();
+      expect(queueLoadChange).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({ type: 'restore', stop: expect.objectContaining({ id: 's3' }) })
+      );
+      expect(screen.getByText('45 signs to load')).toBeInTheDocument();
     });
 
     it('keeps a property swiped only part way, without ticking it', async () => {
@@ -269,17 +296,10 @@ describe('Operator Load page', () => {
 
       expect(row).toBeInTheDocument();
       expect(row).toHaveAttribute('aria-pressed', 'false');
+      expect(queueLoadChange).not.toHaveBeenCalled();
     });
 
-    it('removes a property with the Delete key', async () => {
-      await renderStartedLoad();
-
-      fireEvent.keyDown(screen.getByRole('button', { name: /1 Test St, Carlton/ }), { key: 'Delete' });
-
-      expect(screen.queryByRole('button', { name: /1 Test St, Carlton/ })).not.toBeInTheDocument();
-    });
-
-    it('adds a property on the day to the end of the list', async () => {
+    it('adds a property on the day to the end of the list, saving it', async () => {
       (getCustomer as jest.Mock).mockResolvedValue({ name: 'Beltline Group', agentOptions: ['Lena Park'] });
       await renderStartedLoad();
 
@@ -288,22 +308,29 @@ describe('Operator Load page', () => {
       expect(add).toBeDisabled();
 
       fireEvent.change(screen.getByLabelText('Address'), { target: { value: '30 Faraday St, Carlton' } });
+      fireEvent.change(screen.getByLabelText('Signs'), { target: { value: '3' } });
       fireEvent.click(await screen.findByRole('button', { name: 'Lena Park' }));
       fireEvent.click(add);
 
+      await waitFor(() => expect(screen.getByText('0 of 5 loaded')).toBeInTheDocument());
       const rows = screen.getAllByRole('button', { name: /Carlton/ });
-      expect(rows[rows.length - 1]).toHaveTextContent('30 Faraday St, CarltonLena Park · Added on the day');
-      expect(screen.getByText('0 of 5 loaded')).toBeInTheDocument();
+      expect(rows[rows.length - 1]).toHaveTextContent('30 Faraday St, CarltonLena Park · 1 timed · 2 blank · Added on the day');
+      expect(screen.getByText('48 signs to load')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Add to end of list' })).not.toBeInTheDocument();
     });
 
-    it('never saves anything', async () => {
+    it('keeps the form open with the reason when an added property has no suburb', async () => {
+      (getCustomer as jest.Mock).mockResolvedValue({ name: 'Beltline Group', agentOptions: ['Lena Park'] });
       await renderStartedLoad();
 
-      fireEvent.click(screen.getByRole('button', { name: /1 Test St, Carlton/ }));
-      fireEvent.keyDown(screen.getByRole('button', { name: /2 Test St, Carlton/ }), { key: 'Delete' });
+      fireEvent.click(screen.getByRole('button', { name: 'Add property' }));
+      fireEvent.change(screen.getByLabelText('Address'), { target: { value: '30 Faraday St' } });
+      fireEvent.click(await screen.findByRole('button', { name: 'Lena Park' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Add to end of list' }));
 
-      expect(queueSignRunTransition).not.toHaveBeenCalled();
+      expect(screen.getByRole('alert')).toHaveTextContent('Add the suburb to the address');
+      expect(screen.getByRole('button', { name: 'Add to end of list' })).toBeInTheDocument();
+      expect(screen.getByText('0 of 4 loaded')).toBeInTheDocument();
     });
   });
 

@@ -9,7 +9,8 @@
  * the Route Code label lookups never throw (a label must never stop a screen
  * loading), and the Sign Run writes -- updateRoute, updateRouteCustomerInstructions
  * and updateStopExecution -- keep the raw AppSync {data, errors}, since the Sign
- * Run outbox tells a write to retry from one the server refused by its errors.
+ * Run outbox tells a write to retry from one the server refused by its errors;
+ * so does createLoadStop, for the same reason.
  */
 
 import { getDataClient } from '@/lib/data-client';
@@ -19,6 +20,7 @@ import { unlinkRecordsOfDeletedRoute, type LinkClient } from '@/lib/routeRequest
 import type { RouteStatus } from '@/amplify/types';
 import { pickStopLocationFields, type StopLocationWrite } from '@/lib/locationPrecision';
 import { stopPropertyKey, type StopAddressComponents } from '@/lib/propertyKey';
+import { activeStops } from '@/lib/loadChange';
 import { lacksProperty, locateEditedStop, locateNewStop, type LocatedStop, type StopAddressInput } from '@/lib/stopLocation';
 
 /** Every Route a Customer owns -- see lib/listAll.ts. */
@@ -218,6 +220,10 @@ export interface StopExecutionUpdateInput {
   placedLongitude?: number;
   placedAccuracyMeters?: number;
   placedPositionAt?: string;
+  /** A Load Change removing or restoring the Stop (lib/loadChange.ts). */
+  removed?: boolean;
+  removedAt?: string;
+  removedBy?: string;
 }
 
 /**
@@ -297,6 +303,8 @@ export async function createStop(input: NewStopInput) {
 }
 
 type NewStopInput = StopLocationInput & {
+  /** Set by a Load Change, so a resend after a lost answer can't add the Stop twice. */
+  id?: string;
   routeId: string;
   customerId: string;
   viewerSubs?: string[];
@@ -310,6 +318,7 @@ type NewStopInput = StopLocationInput & {
   longitude?: number;
   formattedAddress?: string;
   notes?: string;
+  addedAtLoad?: string;
 };
 
 async function writeNewStop(input: NewStopInput) {
@@ -389,9 +398,12 @@ export async function listAllRoutes() {
 }
 
 /** Every Stop (admin dashboard aggregation — signs in field, stops
- * serviced), paginated through to the end -- see lib/listAll.ts. */
+ * serviced), paginated through to the end -- see lib/listAll.ts. Stops a Load
+ * Change removed are left out: they count toward nothing. */
 export async function listAllStops() {
-  return withDataError('Failed to load stops.', async () => resultData(await listAll(getDataClient(), 'Stop')) ?? []);
+  return withDataError('Failed to load stops.', async () =>
+    activeStops(resultData(await listAll(getDataClient(), 'Stop')) ?? [])
+  );
 }
 
 /**
@@ -505,6 +517,38 @@ export async function saveStop(
   });
 }
 
+/**
+ * Creates a Stop a Load Change added, with the id it was given on the
+ * operator's device, located as saveStop locates one (saved without a pin when
+ * the address can't be geocoded). Returns AppSync's {data, errors} for the Sign
+ * Run outbox: a resend that finds the Stop already created reads as saved, and
+ * an address with no Property is refused with a server-style error so it isn't
+ * retried. Network trouble comes back as errors without an errorType.
+ */
+export async function createLoadStop(id: string, fields: Record<string, unknown>) {
+  const client = getDataClient();
+  try {
+    const existing = await client.models.Stop.get({ id }, { selectionSet: ['id', 'updatedAt'] });
+    if (existing.data) return { data: existing.data, errors: null };
+
+    const input = fields as Omit<NewStopInput, 'id'>;
+    const location = await locateNewStop({ address: input.address });
+    if (lacksProperty(input.address, location)) {
+      return { data: null, errors: [{ errorType: 'StopNeedsSuburb', message: STOP_NEEDS_SUBURB }] };
+    }
+    const fieldsToWrite = withoutPropertyKey({ ...input, ...location.fields, id });
+    const key = stopPropertyKey(fieldsToWrite.address, fieldsToWrite);
+    const stop = key ? { ...fieldsToWrite, propertyKey: key } : fieldsToWrite;
+    const viewerSubs = await getCustomerViewerSubs(input.customerId);
+    const { data, errors } = await client.models.Stop.create(viewerSubs ? { ...stop, viewerSubs } : stop);
+    if (errors) console.error('Errors creating a Load Change stop:', errors);
+    return { data, errors };
+  } catch (error) {
+    console.error('Error creating a Load Change stop:', error);
+    return { data: null, errors: [error] };
+  }
+}
+
 /** Why a Stop wasn't saved: no pin, and no suburb to find it by later (lib/stopLocation.ts lacksProperty). */
 export const STOP_NEEDS_SUBURB =
   "This address couldn't be found on the map. Add the suburb so the Stop can be found later.";
@@ -532,10 +576,11 @@ export async function deleteStop(stopId: string): Promise<void> {
   });
 }
 
-/** Every Stop a Customer owns, across all its Routes -- see lib/listAll.ts. */
+/** Every Stop a Customer owns, across all its Routes -- see lib/listAll.ts --
+ * bar those a Load Change removed. */
 export async function listCustomerStops(customerId: string) {
   return withDataError('Failed to load stops.', async () =>
-    resultData(await listAll(getDataClient(), 'Stop', { filter: { customerId: { eq: customerId } } })) ?? []
+    activeStops(resultData(await listAll(getDataClient(), 'Stop', { filter: { customerId: { eq: customerId } } })) ?? [])
   );
 }
 

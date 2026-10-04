@@ -18,7 +18,8 @@
  *
  * Stops are settled done/skipped for Placement/Pickup the same way:
  * planStopSettlement is pure, and queueStopSettlement queues it for the
- * operator's Sign Run. An administrator's settlement and Finalise reuse the
+ * operator's Sign Run. So are Load Changes (lib/loadChange.ts), through
+ * queueLoadChange. An administrator's settlement and Finalise reuse the
  * plans but save straight away (lib/administratorRouteActions.ts).
  */
 import { getSignRunPhase, type SignRunPhaseInfo } from '@/lib/signRunPhase';
@@ -26,7 +27,14 @@ import { billedTimePatch } from '@/lib/billedTime';
 import { settleStopNotes, type ExecutionPhase } from '@/lib/stopProgress';
 import type { Route, RouteExecutionPhase, Stop } from '@/amplify/types';
 import { signRunOutbox } from '@/lib/signRunOutbox';
-import type { StopSettlementKind } from '@/lib/signRunTiming';
+import type { LoadChangeKind, StopSettlementKind } from '@/lib/signRunTiming';
+import {
+  planStopAddition,
+  planStopRemoval,
+  planStopRestore,
+  type LoadChangeRoute,
+  type LoadStopInput,
+} from '@/lib/loadChange';
 
 export type SignRunTransition =
   | { type: 'startLoad'; at: string }
@@ -228,4 +236,71 @@ export function queueStopSettlement(
     patch: { ...patch },
   });
   return { patch };
+}
+
+type LoadChangeStop = Pick<Stop, 'id' | 'removed' | 'address' | 'propertyKey'>;
+
+export type LoadChange =
+  | { type: 'remove'; stop: LoadChangeStop; by: string }
+  | { type: 'restore'; stop: LoadChangeStop }
+  | { type: 'add'; stops: Array<Pick<Stop, 'sequence'>>; input: LoadStopInput };
+
+const LOAD_CHANGE_KIND: Record<LoadChange['type'], LoadChangeKind> = {
+  add: 'loadStopAdded',
+  remove: 'loadStopRemoved',
+  restore: 'loadStopRestored',
+};
+
+/**
+ * Applies a Load Change on the operator's device straight away and queues its
+ * write in the Sign Run outbox, with its audit entry written once it saves
+ * (see queueSignRunTransition). A refused change queues nothing.
+ */
+export function queueLoadChange(route: LoadChangeRoute, change: LoadChange): { ok: true } | { error: string } {
+  const at = new Date().toISOString();
+  const kind = LOAD_CHANGE_KIND[change.type];
+
+  if (change.type === 'add') {
+    const plan = planStopAddition(route, change.stops, change.input, globalThis.crypto.randomUUID(), at);
+    if ('refused' in plan) return { error: plan.refused };
+    const { id, ...fields } = plan.stop;
+    signRunOutbox.enqueue({
+      routeId: route.id,
+      target: 'NewStop',
+      recordId: id,
+      kind,
+      patch: { ...fields },
+      audit: {
+        customerId: route.customerId,
+        resourceId: id,
+        action: 'stop.loadChange.add',
+        details: {
+          routeId: route.id,
+          address: fields.address,
+          agent: fields.agent,
+          numberOfSigns: fields.numberOfSigns,
+          isAuction: fields.isAuction,
+        },
+      },
+    });
+    return { ok: true };
+  }
+
+  const plan =
+    change.type === 'remove' ? planStopRemoval(route, change.stop, change.by, at) : planStopRestore(route, change.stop);
+  if ('refused' in plan) return { error: plan.refused };
+  signRunOutbox.enqueue({
+    routeId: route.id,
+    target: 'Stop',
+    recordId: change.stop.id,
+    kind,
+    patch: { ...plan.patch },
+    audit: {
+      customerId: route.customerId,
+      resourceId: change.stop.id,
+      action: `stop.loadChange.${change.type}`,
+      details: { routeId: route.id, address: change.stop.address ?? null, propertyKey: change.stop.propertyKey ?? null },
+    },
+  });
+  return { ok: true };
 }

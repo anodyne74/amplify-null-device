@@ -4,6 +4,7 @@ import { PinpointSMSVoiceV2Client, SendTextMessageCommand } from '@aws-sdk/clien
 import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
 import { APP_DOMAIN } from '@/lib/publicAppConfig';
+import { activeStops } from '@/lib/loadChange';
 import { listAll } from '@/lib/listAll';
 import { recordAudit } from '@/lib/auditLog';
 import type { IamDataClient } from '@/lib/server/iamDataClient';
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
       operatorName: route.assignedOperatorName || 'there',
       routeCode: route.routeCode || route.id,
       customerName: customer?.name || 'a customer',
-      stopCount: String(stops.length),
+      stopCount: String(activeStops(stops).length),
       routeUrl: `${resolvedAppBaseUrl}/operator/routes/detail?id=${routeId}`,
       logoUrl,
       year: `${new Date().getUTCFullYear()}`,

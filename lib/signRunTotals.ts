@@ -2,9 +2,11 @@
  * Sign-count facts about a Route's stops — pure and side-effect free, same style as
  * lib/signRunPhase.ts / lib/billedTime.ts. The single source of truth for "how
  * many signs" a Route has, so every portal reports the same number for the same
- * question instead of each screen re-deriving its own variant.
+ * question instead of each screen re-deriving its own variant. A Stop a Load
+ * Change removed counts toward none of them (lib/loadChange.ts).
  */
 import { stopProgress } from './stopProgress';
+import { activeStops } from './loadChange';
 
 export interface SignCountStop {
   notes?: string | null;
@@ -12,12 +14,13 @@ export interface SignCountStop {
   numberOfSigns?: number | null;
   missingSignsCount?: number | null;
   isAuction?: boolean | null;
+  removed?: boolean | null;
 }
 
-/** Gross count of signs placed on a Route — sum of numberOfSigns, no exclusions.
- * "How many signs are on this route," independent of what happens afterward. */
+/** Gross count of signs placed on a Route — sum of numberOfSigns over every Stop
+ * still on it. "How many signs are on this route," independent of what happens afterward. */
 export function signsPlaced(stops: SignCountStop[]): number {
-  return stops.reduce((sum, stop) => sum + (stop.numberOfSigns ?? 0), 0);
+  return activeStops(stops).reduce((sum, stop) => sum + (stop.numberOfSigns ?? 0), 0);
 }
 
 /** How many of a property's signs are timed (carry a date/time) rather than blank.
@@ -34,7 +37,7 @@ export function timedSigns(stop: SignCountStop): number {
  * signs. Missing signs never count as collected — see Stop.missingSignsCount's schema
  * comment. A route with stops still in progress reports a partial, growing total. */
 export function signsCollected(stops: SignCountStop[]): number {
-  return stops.reduce((sum, stop) => {
+  return activeStops(stops).reduce((sum, stop) => {
     if (stopProgress(stop).pickup.state !== 'done') {
       return sum;
     }
@@ -46,7 +49,7 @@ export function signsCollected(stops: SignCountStop[]): number {
  * tracked independently of reconciliation/billing to identify locations with high
  * loss rates (sign attrition). */
 export function missingSigns(stops: SignCountStop[]): number {
-  return stops.reduce((sum, stop) => sum + (stop.missingSignsCount ?? 0), 0);
+  return activeStops(stops).reduce((sum, stop) => sum + (stop.missingSignsCount ?? 0), 0);
 }
 
 /** Groups stops by agent, preserving first-appearance order, with stops that have no

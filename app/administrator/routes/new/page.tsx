@@ -24,6 +24,7 @@ import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
 import { locateDraftStops } from '@/lib/stopLocation';
 import styles from './page.module.css';
 import { listAllRoutes, createRoute, createStopsForRoute, getRouteWithStops } from '@/lib/routes';
+import { activeStops } from '@/lib/loadChange';
 import { DataError } from '@/lib/graphqlResult';
 import { listAllCustomers } from '@/lib/customers';
 import {
@@ -336,7 +337,8 @@ function NewRoutePageContent() {
       throw new Error('Failed to load source route stops.');
     }))?.stops ?? [];
 
-    return stops.map((stop) => {
+    // A Stop a Load Change removed isn't copied.
+    return activeStops(stops).map((stop) => {
       const normalizedLatitude = normalizeOptionalNumber(stop.latitude);
       const normalizedLongitude = normalizeOptionalNumber(stop.longitude);
       const normalizedSigns = normalizeOptionalNumber(stop.numberOfSigns);

@@ -7,6 +7,7 @@ import {
   planSignRunTransition,
   planStopSettlement,
   queueSignRunTransition,
+  queueLoadChange,
   queueStopSettlement,
   stopPhaseOf,
   type SignRunTransition,
@@ -179,6 +180,85 @@ describe('queueStopSettlement', () => {
     const { patch } = queueStopSettlement(stop, settlement);
 
     expect(mockEnqueue).toHaveBeenCalledWith({ routeId: 'r1', target: 'Stop', recordId: 's1', kind, patch });
+  });
+});
+
+describe('queueLoadChange', () => {
+  const loading = { id: 'r1', customerId: 'c1', status: 'planned' as const, loadStartedAt: AT };
+  const stop = { id: 's1', removed: null, address: '8 Lygon St, Carlton', propertyKey: 'carlton|3053|lygon st|8' };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000001');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('queues a removal on the Stop, with its audit entry', () => {
+    expect(queueLoadChange(loading, { type: 'remove', stop, by: 'operator-1' })).toEqual({ ok: true });
+
+    expect(mockEnqueue).toHaveBeenCalledWith({
+      routeId: 'r1',
+      target: 'Stop',
+      recordId: 's1',
+      kind: 'loadStopRemoved',
+      patch: { removed: true, removedAt: expect.any(String), removedBy: 'operator-1' },
+      audit: {
+        customerId: 'c1',
+        resourceId: 's1',
+        action: 'stop.loadChange.remove',
+        details: { routeId: 'r1', address: '8 Lygon St, Carlton', propertyKey: 'carlton|3053|lygon st|8' },
+      },
+    });
+  });
+
+  it('queues a restore', () => {
+    queueLoadChange(loading, { type: 'restore', stop: { ...stop, removed: true } });
+
+    expect(mockEnqueue.mock.calls[0][0]).toMatchObject({
+      target: 'Stop',
+      kind: 'loadStopRestored',
+      patch: { removed: false },
+      audit: { action: 'stop.loadChange.restore' },
+    });
+  });
+
+  it('queues an added Stop as a new record under a fresh id', () => {
+    const input = { address: '30 Faraday St, Carlton', agent: 'Lena Park', numberOfSigns: 2, isAuction: true };
+    queueLoadChange(loading, { type: 'add', stops: [{ sequence: 1 }], input });
+
+    expect(mockEnqueue).toHaveBeenCalledWith({
+      routeId: 'r1',
+      target: 'NewStop',
+      recordId: '00000000-0000-4000-8000-000000000001',
+      kind: 'loadStopAdded',
+      patch: {
+        routeId: 'r1',
+        customerId: 'c1',
+        sequence: 2,
+        address: '30 Faraday St, Carlton',
+        agent: 'Lena Park',
+        numberOfSigns: 2,
+        isAuction: true,
+        addedAtLoad: expect.any(String),
+      },
+      audit: {
+        customerId: 'c1',
+        resourceId: '00000000-0000-4000-8000-000000000001',
+        action: 'stop.loadChange.add',
+        details: { routeId: 'r1', address: '30 Faraday St, Carlton', agent: 'Lena Park', numberOfSigns: 2, isAuction: true },
+      },
+    });
+  });
+
+  it('queues nothing for a refused change', () => {
+    const confirmed = { ...loading, status: 'in_progress' as const, executionPhase: 'placement' as const, loadConfirmedAt: AT };
+    expect(queueLoadChange(confirmed, { type: 'remove', stop, by: 'operator-1' })).toEqual({
+      error: 'Stops can only be added or removed between starting and confirming Load.',
+    });
+    expect(mockEnqueue).not.toHaveBeenCalled();
   });
 });
 

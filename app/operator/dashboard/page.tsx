@@ -11,6 +11,7 @@ import { Card } from '@/app/components/ui/core/Card';
 import { StatTile } from '@/app/components/ui/data/StatTile';
 import styles from './page.module.css';
 import { getRouteWithStops } from '@/lib/routes';
+import { activeStops } from '@/lib/loadChange';
 import { listAllCustomers } from '@/lib/customers';
 
 interface StopSummary {
@@ -89,7 +90,7 @@ export default function OperatorDashboard() {
           // Best-effort: a route whose Stops can't be read gets no summary.
           const routeWithStops = await getRouteWithStops(route.id).catch(() => null);
           if (!routeWithStops) return null;
-          const { stops } = routeWithStops;
+          const stops = activeStops(routeWithStops.stops);
           return [route.id, { stopCount: stops.length, signsTotal: signsPlaced(stops) }] as const;
         })
       );

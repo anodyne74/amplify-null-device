@@ -9,6 +9,7 @@ import { fetchUserId } from '@/lib/amplify-config';
 import { recordAudit } from '@/lib/auditLog';
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
+import { activeStops } from '@/lib/loadChange';
 import { buildLocationReviewQueue, type Pin, type PropertyReview } from '@/lib/locationReview';
 
 const REVIEW_STOP_FIELDS = [
@@ -25,6 +26,7 @@ const REVIEW_STOP_FIELDS = [
   'placedLongitude',
   'placedAccuracyMeters',
   'placedPositionAt',
+  'removed',
 ] as const;
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -54,7 +56,8 @@ export async function listLocationReviewQueue(): Promise<{ data: PropertyReview[
       console.error('Errors loading the location review queue:', errors);
       return { data: [], error: 'Could not load every Stop, so the queue may be incomplete.' };
     }
-    return { data: buildLocationReviewQueue(stops.data, decisions.data) };
+    // A Stop a Load Change removed is never visited, so needs no pin.
+    return { data: buildLocationReviewQueue(activeStops(stops.data), decisions.data) };
   } catch (error) {
     console.error('Error loading the location review queue:', error);
     return { data: [], error: 'Could not load the location review queue.' };

@@ -1,4 +1,5 @@
 import { listAll, listAllPages } from '@/lib/listAll';
+import { activeStops } from '@/lib/loadChange';
 import {
   buildPropertyHistory,
   propertyKeyCondition,
@@ -41,6 +42,7 @@ const STOP_FIELDS = [
   'notes',
   'missingSignsCount',
   'locationPrecision',
+  'removed',
 ] as const;
 const ROUTE_FIELDS = [
   'id',
@@ -170,7 +172,8 @@ export async function searchPropertyHistory(
     scope.audience === 'customer' ? { ...requestedFilters, customerId: scope.customerId } : requestedFilters;
   const customerScope = filters.customerId ? [filters.customerId] : 'all';
 
-  const found = await findStops(client, search, customerScope);
+  // A Stop a Load Change removed was never a Visit.
+  const found = activeStops(await findStops(client, search, customerScope));
   const stops = scope.audience === 'customer' ? found.filter((stop) => stop.customerId === scope.customerId) : found;
 
   const routesById = await getRoutes(client, [...new Set(stops.map((stop) => stop.routeId))]);

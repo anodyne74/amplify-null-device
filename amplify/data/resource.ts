@@ -314,13 +314,15 @@ const schema = a.schema({
       placedLongitude: a.float(),
       placedAccuracyMeters: a.float(),
       placedPositionAt: a.datetime(),
-      // Load Change (CONTEXT.md, lib/loadChange.ts) — an Operator removing a Stop during Load
-      // keeps it, marked removed, and it counts toward nothing. Restoring sets removed back to
-      // false rather than clearing anything: setting a field to null needs delete permission,
-      // which operators don't have. removedAt/removedBy are the last removal, kept on restore.
+      // Removed Stop (CONTEXT.md, lib/loadChange.ts) — a Stop taken off its Route during Load
+      // or at the door during Placement is kept, marked removed, and counts toward nothing.
+      // Restoring sets removed back to false rather than clearing anything: setting a field to
+      // null needs delete permission, which operators don't have. removedAt/removedBy/
+      // removedReason are the last removal, kept on restore; only a removal at the door has a reason.
       removed: a.boolean(),
       removedAt: a.datetime(),
       removedBy: a.string(),
+      removedReason: a.string(),
       // When an Operator added the Stop with a Load Change; unset for every other Stop.
       addedAtLoad: a.datetime(),
       createdAt: a.datetime(),

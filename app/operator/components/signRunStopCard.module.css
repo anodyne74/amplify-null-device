@@ -220,7 +220,7 @@
   color: var(--text-body);
 }
 
-/* Pinned to the bottom of the viewport so Skip/Complete are always reachable
+/* Pinned to the bottom of the viewport so the problem and Complete buttons are always reachable
  * without scrolling — this is a phone-in-hand flow at a property, not a desk
  * screen. .actionBarSpacer reserves the same height in normal flow, rendered
  * immediately before .actionBar in Placement/Pickup's JSX, so the fixed bar
@@ -258,13 +258,13 @@
 
 /* .primaryAction is combined with shellStyles.primaryButton at the JSX level
  * (see signRunShell.module.css's header comment on that split) to give the
- * Complete button its 2:1 share of .actionBar's flex row, matching .skipButton's
+ * Complete button its 2:1 share of .actionBar's flex row, matching .problemButton's
  * flex: 1 below. */
 .primaryAction {
   flex: 2;
 }
 
-.skipButton {
+.problemButton {
   flex: 1;
   min-height: 58px;
   border-radius: var(--radius-md);
@@ -278,11 +278,11 @@
   transition: var(--transition-control);
 }
 
-.skipButton:hover:not(:disabled) {
+.problemButton:hover:not(:disabled) {
   background: var(--surface-hover);
 }
 
-.skipButton:disabled {
+.problemButton:disabled {
   cursor: not-allowed;
   opacity: 0.7;
 }

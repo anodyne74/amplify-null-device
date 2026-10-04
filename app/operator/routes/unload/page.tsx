@@ -12,6 +12,7 @@ import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
 import { queueSignRunTransition } from '@/lib/signRunTransitions';
 import { formatClockTime } from '@/lib/format';
 import { reconcileSignRun } from '@/lib/signRunReconciliation';
+import { activeStops } from '@/lib/loadChange';
 import type { Route } from '@/amplify/types';
 import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
@@ -40,12 +41,14 @@ export default function OperatorUnloadPage() {
   const {
     routeId,
     route,
-    stops,
+    stops: allStops,
     loading,
     phaseInfo,
     isOnPhase: isUnloadScreen,
     extra,
-  } = useSignRunPhaseScreen({ phaseIdx: 3, fetchExtra: fetchUnloadScreenExtra });
+  } = useSignRunPhaseScreen({ phaseIdx: 3, includeRemoved: true, fetchExtra: fetchUnloadScreenExtra });
+  // Reconciliation counts the signs of Stops removed at the door as returned; every other count leaves them out.
+  const stops = useMemo(() => activeStops(allStops), [allStops]);
   const customerName = extra?.customerName ?? '';
   const yardAddress = extra?.yardAddress ?? null;
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +56,7 @@ export default function OperatorUnloadPage() {
     'start' | 'confirm'
   >();
 
-  const reconciliation = useMemo(() => (route ? reconcileSignRun(route, stops) : null), [route, stops]);
+  const reconciliation = useMemo(() => (route ? reconcileSignRun(route, allStops) : null), [route, allStops]);
 
   // Transitions show at once and save in the background (lib/signRunOutbox.ts).
   const handleStartUnload = (iso: string) => {
@@ -98,7 +101,7 @@ export default function OperatorUnloadPage() {
     );
   }
 
-  const { returnedTotal, doneCount, skipCount, missingTotal, loadedTotal, stillOnSite } = reconciliation!;
+  const { returnedTotal, doneCount, couldntCollectCount, missingTotal, loadedTotal, stillOnSite } = reconciliation!;
 
   return (
     <div className={shellStyles.page}>
@@ -124,7 +127,7 @@ export default function OperatorUnloadPage() {
 
       <div className={shellStyles.statsGrid}>
         <div className={shellStyles.statCell}>
-          <span className={shellStyles.statLabel}>Signs collected</span>
+          <span className={shellStyles.statLabel}>Signs returned</span>
           <span className={shellStyles.statValue}>{returnedTotal}</span>
         </div>
         <div className={shellStyles.statCell}>
@@ -134,8 +137,8 @@ export default function OperatorUnloadPage() {
           </span>
         </div>
         <div className={shellStyles.statCell}>
-          <span className={shellStyles.statLabel}>Left on site</span>
-          <span className={shellStyles.statValue}>{skipCount ? `${skipCount} stops` : 'None'}</span>
+          <span className={shellStyles.statLabel}>Couldn&apos;t collect</span>
+          <span className={shellStyles.statValue}>{couldntCollectCount ? `${couldntCollectCount} stops` : 'None'}</span>
         </div>
         <div className={shellStyles.statCell}>
           <span className={shellStyles.statLabel}>Missing reported</span>

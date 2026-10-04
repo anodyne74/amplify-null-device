@@ -22,6 +22,7 @@ import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
 import { pickupDateProblem } from '@/lib/pickupDate';
 import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
 import { locateDraftStops } from '@/lib/stopLocation';
+import { displayNotes } from '@/lib/stopProgress';
 import styles from './page.module.css';
 import { listAllRoutes, createRoute, createStopsForRoute, getRouteWithStops } from '@/lib/routes';
 import { activeStops } from '@/lib/loadChange';
@@ -77,8 +78,8 @@ async function generateNextRouteCode() {
 function sanitizeCopiedStopNotes(notes?: string | null) {
   if (!notes) return undefined;
 
-  const cleaned = notes
-    .replace(/\[(PLACEMENT_DONE|PICKUP_DONE|PLACEMENT_SKIPPED|PICKUP_SKIPPED):[^\]]*\]/g, ' ')
+  // Stop Progress markers (lib/stopProgress.ts), and an older bare tag from before them.
+  const cleaned = displayNotes(notes)
     .replace(/\[SKIPPED\]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();

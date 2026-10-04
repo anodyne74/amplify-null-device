@@ -16,24 +16,26 @@
  * no refetch, so it guards against a stale screen, not against a concurrent
  * write from another device.
  *
- * Stops are settled done/skipped for Placement/Pickup the same way:
- * planStopSettlement is pure, and queueStopSettlement queues it for the
- * operator's Sign Run. So are Load Changes (lib/loadChange.ts), through
- * queueLoadChange. An administrator's settlement and Finalise reuse the
- * plans but save straight away (lib/administratorRouteActions.ts).
+ * Stops are settled the same way -- done in Placement or Pickup, or Couldn't
+ * Collect in Pickup: planStopSettlement is pure, and queueStopSettlement
+ * queues it for the operator's Sign Run. So are Removed Stops and Load
+ * Changes (lib/loadChange.ts), through queueStopChange. An administrator's
+ * settlement, removal, restore and Finalise reuse the plans but save straight
+ * away (lib/administratorRouteActions.ts).
  */
 import { getSignRunPhase, type SignRunPhaseInfo } from '@/lib/signRunPhase';
 import { billedTimePatch } from '@/lib/billedTime';
 import { settleStopNotes, type ExecutionPhase } from '@/lib/stopProgress';
 import type { Route, RouteExecutionPhase, Stop } from '@/amplify/types';
 import { signRunOutbox } from '@/lib/signRunOutbox';
-import type { LoadChangeKind, StopSettlementKind } from '@/lib/signRunTiming';
+import type { StopChangeKind, StopSettlementKind } from '@/lib/signRunTiming';
 import {
   planStopAddition,
   planStopRemoval,
   planStopRestore,
   type LoadChangeRoute,
   type LoadStopInput,
+  type RemovalWindow,
 } from '@/lib/loadChange';
 
 export type SignRunTransition =
@@ -171,7 +173,7 @@ export function queueSignRunTransition<R extends SignRunTransitionRoute>(
 }
 
 /**
- * Which phase's done/skipped markers a route's stops are being settled
+ * Which phase a route's stops are being settled
  * against right now, or null outside Placement/Pickup. Legacy signs_placed
  * routes predate executionPhase and read as Pickup.
  */
@@ -189,24 +191,25 @@ export interface StopSettlementPatch {
   notes: string;
 }
 
-export interface StopSettlement {
-  phase: ExecutionPhase;
-  action: 'complete' | 'skip';
-  /** Only meaningful for action: 'skip' — an operator-entered reason for skipping. */
-  reason?: string;
-}
+/** Done in Placement or Pickup, or Couldn't Collect in Pickup with the operator's reason. */
+export type StopSettlement =
+  | { phase: ExecutionPhase; action: 'complete' }
+  | { phase: 'pickup'; action: 'couldntCollect'; reason: string };
 
 /**
- * Marks a stop done or skipped for the placement/pickup phase (its Stop
- * Progress, lib/stopProgress.ts), so a skipped stop can later be completed and
- * vice versa. actualDepartureTime is when it was last settled, a time only.
+ * Settles a stop for the placement/pickup phase (its Stop Progress,
+ * lib/stopProgress.ts), so a Couldn't Collect stop can later be done and vice
+ * versa. actualDepartureTime is when it was last settled, a time only.
  */
 export function planStopSettlement(
   stop: Pick<Stop, 'notes' | 'actualArrivalTime'>,
-  { phase, action, reason }: StopSettlement,
+  settlement: StopSettlement,
   at: string
 ): StopSettlementPatch {
-  const notes = settleStopNotes(stop.notes, phase, action, at, reason);
+  const notes =
+    settlement.action === 'couldntCollect'
+      ? settleStopNotes(stop.notes, 'pickup', 'couldntCollect', at, settlement.reason)
+      : settleStopNotes(stop.notes, settlement.phase, 'complete', at);
 
   return {
     actualArrivalTime: stop.actualArrivalTime ?? at,
@@ -215,8 +218,8 @@ export function planStopSettlement(
   };
 }
 
-function settlementKind({ phase, action }: StopSettlement): StopSettlementKind {
-  return `${phase}Stop${action === 'complete' ? 'Done' : 'Skipped'}`;
+function settlementKind(settlement: StopSettlement): StopSettlementKind {
+  return settlement.action === 'couldntCollect' ? 'pickupStopCouldntCollect' : `${settlement.phase}StopDone`;
 }
 
 /**
@@ -238,27 +241,34 @@ export function queueStopSettlement(
   return { patch };
 }
 
-type LoadChangeStop = Pick<Stop, 'id' | 'removed' | 'address' | 'propertyKey'>;
+type ChangedStop = Pick<Stop, 'id' | 'removed' | 'removedReason' | 'address' | 'propertyKey' | 'notes' | 'actualDepartureTime'>;
 
-export type LoadChange =
-  | { type: 'remove'; stop: LoadChangeStop; by: string }
-  | { type: 'restore'; stop: LoadChangeStop }
+/** A Removed Stop or Load Change: remove (with a reason, at the door during
+ *  Placement), restore, or add (during Load only). */
+export type StopChange =
+  | { type: 'remove'; stop: ChangedStop; by: string; reason?: string }
+  | { type: 'restore'; stop: ChangedStop }
   | { type: 'add'; stops: Array<Pick<Stop, 'sequence'>>; input: LoadStopInput };
 
-const LOAD_CHANGE_KIND: Record<LoadChange['type'], LoadChangeKind> = {
-  add: 'loadStopAdded',
-  remove: 'loadStopRemoved',
-  restore: 'loadStopRestored',
+const KIND: Record<RemovalWindow, Record<'remove' | 'restore', StopChangeKind>> = {
+  load: { remove: 'loadStopRemoved', restore: 'loadStopRestored' },
+  placement: { remove: 'placementStopRemoved', restore: 'placementStopRestored' },
+};
+
+/** Audited as a Load Change at the yard, and as a plain removal at the door. */
+const AUDIT_ACTION: Record<RemovalWindow, Record<'remove' | 'restore', string>> = {
+  load: { remove: 'stop.loadChange.remove', restore: 'stop.loadChange.restore' },
+  placement: { remove: 'stop.remove', restore: 'stop.restore' },
 };
 
 /**
- * Applies a Load Change on the operator's device straight away and queues its
- * write in the Sign Run outbox, with its audit entry written once it saves
- * (see queueSignRunTransition). A refused change queues nothing.
+ * Applies a Removed Stop or Load Change on the operator's device straight
+ * away and queues its write in the Sign Run outbox, with its audit entry
+ * written once it saves (see queueSignRunTransition). A refused change queues
+ * nothing.
  */
-export function queueLoadChange(route: LoadChangeRoute, change: LoadChange): { ok: true } | { error: string } {
+export function queueStopChange(route: LoadChangeRoute, change: StopChange): { ok: true } | { error: string } {
   const at = new Date().toISOString();
-  const kind = LOAD_CHANGE_KIND[change.type];
 
   if (change.type === 'add') {
     const plan = planStopAddition(route, change.stops, change.input, globalThis.crypto.randomUUID(), at);
@@ -268,7 +278,7 @@ export function queueLoadChange(route: LoadChangeRoute, change: LoadChange): { o
       routeId: route.id,
       target: 'NewStop',
       recordId: id,
-      kind,
+      kind: 'loadStopAdded',
       patch: { ...fields },
       audit: {
         customerId: route.customerId,
@@ -287,19 +297,28 @@ export function queueLoadChange(route: LoadChangeRoute, change: LoadChange): { o
   }
 
   const plan =
-    change.type === 'remove' ? planStopRemoval(route, change.stop, change.by, at) : planStopRestore(route, change.stop);
+    change.type === 'remove'
+      ? planStopRemoval(route, change.stop, change.by, at, change.reason)
+      : planStopRestore(route, change.stop);
   if ('refused' in plan) return { error: plan.refused };
+  // An operator's restore always has a window; only an administrator's can fall outside one.
+  const window = plan.window ?? 'load';
   signRunOutbox.enqueue({
     routeId: route.id,
     target: 'Stop',
     recordId: change.stop.id,
-    kind,
+    kind: KIND[window][change.type],
     patch: { ...plan.patch },
     audit: {
       customerId: route.customerId,
       resourceId: change.stop.id,
-      action: `stop.loadChange.${change.type}`,
-      details: { routeId: route.id, address: change.stop.address ?? null, propertyKey: change.stop.propertyKey ?? null },
+      action: AUDIT_ACTION[window][change.type],
+      details: {
+        routeId: route.id,
+        address: change.stop.address ?? null,
+        propertyKey: change.stop.propertyKey ?? null,
+        ...('removedReason' in plan.patch ? { reason: plan.patch.removedReason } : {}),
+      },
     },
   });
   return { ok: true };

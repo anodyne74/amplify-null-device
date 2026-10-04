@@ -23,7 +23,7 @@
   border-left-color: var(--neutral-400);
 }
 
-.cardSkipped {
+.cardCouldntCollect {
   border-left-color: var(--border-default);
 }
 
@@ -65,7 +65,7 @@
   background: var(--neutral-400);
 }
 
-.circleSkipped {
+.circleCouldntCollect {
   background: transparent;
   border: 2px solid var(--border-default);
   color: var(--text-subtle);

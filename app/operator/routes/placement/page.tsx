@@ -8,11 +8,14 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { Card } from '@/app/components/ui/core/Card';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
+import { SetAsideStops } from '@/app/operator/components/SetAsideStops';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
 import { recordPlacementPosition } from '@/lib/placementPosition';
-import { queueSignRunTransition, queueStopSettlement } from '@/lib/signRunTransitions';
+import { queueSignRunTransition, queueStopChange, queueStopSettlement } from '@/lib/signRunTransitions';
+import { activeStops, isRemovedAtDoor } from '@/lib/loadChange';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import { formatClockTime } from '@/lib/format';
 import { getAgentBadgeInitials } from '@/lib/customerDefaults';
 import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } from '@/lib/routeDetailHelpers';
@@ -69,13 +72,17 @@ export default function OperatorPlacementPage() {
   const {
     routeId,
     route,
-    stops,
+    stops: allStops,
     patchStop,
     extra: customerName,
     loading,
     phaseInfo,
     isOnPhase: isPlacementScreen,
-  } = useSignRunPhaseScreen({ phaseIdx: 1, fetchExtra: fetchCustomerName });
+  } = useSignRunPhaseScreen({ phaseIdx: 1, includeRemoved: true, fetchExtra: fetchCustomerName });
+  // A Stop removed at the door counts toward nothing, but stays listed here to be restored.
+  const stops = useMemo(() => activeStops(allStops), [allStops]);
+  const removedAtDoor = useMemo(() => allStops.filter(isRemovedAtDoor), [allStops]);
+  const userId = useCurrentUserId();
   const [error, setError] = useState<string | null>(null);
   const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
   const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
@@ -108,25 +115,44 @@ export default function OperatorPlacementPage() {
   };
   const closeStopSheet = () => setActionSheetStopId(null);
 
-  const settleStop = useCallback(
-    (stopId: string, action: 'complete' | 'skip', reason?: string) => {
+  const handleStopCompleted = useCallback(
+    (stopId: string) => {
       const stop = stops.find((s) => s.id === stopId);
       if (!stop) return;
-      queueStopSettlement(stop, { phase: 'placement', action, reason });
-      if (action === 'complete') {
-        // Best-effort and after the fact: placement never waits on, or fails for, GPS (#285).
-        void recordPlacementPosition(stopId).then((position) => {
-          if (position) patchStop(stopId, position);
-        });
-      }
+      queueStopSettlement(stop, { phase: 'placement', action: 'complete' });
+      // Best-effort and after the fact: placement never waits on, or fails for, GPS (#285).
+      void recordPlacementPosition(stopId).then((position) => {
+        if (position) patchStop(stopId, position);
+      });
     },
     [stops, patchStop]
   );
 
-  const handleStopCompleted = useCallback((stopId: string) => settleStop(stopId, 'complete'), [settleStop]);
-  const handleSkipStop = useCallback(
-    (stopId: string, reason: string) => settleStop(stopId, 'skip', reason),
-    [settleStop]
+  // Can't place: the Stop comes off the Route (a Removed Stop), saved like any Sign Run write.
+  const handleRemoveStop = useCallback(
+    (stopId: string, reason: string) => {
+      const stop = stops.find((s) => s.id === stopId);
+      if (!route || !stop) return;
+      setError(null);
+      if (!userId) {
+        setError('Could not tell who is signed in. Try again in a moment.');
+        return;
+      }
+      const result = queueStopChange(route, { type: 'remove', stop, by: userId, reason });
+      if ('error' in result) setError(result.error);
+    },
+    [route, stops, userId]
+  );
+
+  const handleRestoreStop = useCallback(
+    (stopId: string) => {
+      const stop = removedAtDoor.find((s) => s.id === stopId);
+      if (!route || !stop) return;
+      setError(null);
+      const result = queueStopChange(route, { type: 'restore', stop });
+      if ('error' in result) setError(result.error);
+    },
+    [route, removedAtDoor]
   );
 
   // Settling the last stop doesn't close the phase on its own — the design leaves the
@@ -319,15 +345,26 @@ export default function OperatorPlacementPage() {
         )}
       </div>
 
+      <SetAsideStops
+        title="Removed today"
+        stops={removedAtDoor.map((stop) => ({
+          id: stop.id,
+          address: stop.formattedAddress || stop.address || '',
+          reason: stop.removedReason ?? null,
+        }))}
+        actionLabel="Restore"
+        onAction={handleRestoreStop}
+      />
+
       <div className={stopCardStyles.actionBarSpacer} aria-hidden="true" />
       <div className={stopCardStyles.actionBar}>
         {currentStop && (
           <button
             type="button"
-            className={stopCardStyles.skipButton}
+            className={stopCardStyles.problemButton}
             onClick={() => openStopSheet(currentStop.id, 'reason')}
           >
-            Skip
+            Can&apos;t place
           </button>
         )}
         <button
@@ -368,9 +405,9 @@ export default function OperatorPlacementPage() {
           handleStopCompleted(actionSheetStop.id);
           closeStopSheet();
         }}
-        onSkip={(reason) => {
+        onProblem={(reason) => {
           if (!actionSheetStop) return;
-          handleSkipStop(actionSheetStop.id, reason);
+          handleRemoveStop(actionSheetStop.id, reason);
           closeStopSheet();
         }}
         onClose={closeStopSheet}

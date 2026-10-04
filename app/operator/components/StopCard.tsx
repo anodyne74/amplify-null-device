@@ -9,14 +9,14 @@ const TONE_CLASS: Record<StopProgressTone, string> = {
   awaiting: styles.cardAwaiting,
   placed: styles.cardPlaced,
   pickedUp: styles.cardPickedUp,
-  skipped: styles.cardSkipped,
+  couldntCollect: styles.cardCouldntCollect,
 };
 
 const TONE_CIRCLE_CLASS: Record<StopProgressTone, string> = {
   awaiting: styles.circleAwaiting,
   placed: styles.circlePlaced,
   pickedUp: styles.circlePickedUp,
-  skipped: styles.circleSkipped,
+  couldntCollect: styles.circleCouldntCollect,
 };
 
 interface StopCardProps {

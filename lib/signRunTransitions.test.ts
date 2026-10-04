@@ -7,7 +7,7 @@ import {
   planSignRunTransition,
   planStopSettlement,
   queueSignRunTransition,
-  queueLoadChange,
+  queueStopChange,
   queueStopSettlement,
   stopPhaseOf,
   type SignRunTransition,
@@ -173,9 +173,8 @@ describe('queueStopSettlement', () => {
 
   it.each<[StopSettlement, string]>([
     [{ phase: 'placement', action: 'complete' }, 'placementStopDone'],
-    [{ phase: 'placement', action: 'skip' }, 'placementStopSkipped'],
     [{ phase: 'pickup', action: 'complete' }, 'pickupStopDone'],
-    [{ phase: 'pickup', action: 'skip', reason: 'Gate locked' }, 'pickupStopSkipped'],
+    [{ phase: 'pickup', action: 'couldntCollect', reason: 'Gate locked' }, 'pickupStopCouldntCollect'],
   ])('queues %o on the Stop as %s', (settlement, kind) => {
     const { patch } = queueStopSettlement(stop, settlement);
 
@@ -183,7 +182,7 @@ describe('queueStopSettlement', () => {
   });
 });
 
-describe('queueLoadChange', () => {
+describe('queueStopChange', () => {
   const loading = { id: 'r1', customerId: 'c1', status: 'planned' as const, loadStartedAt: AT };
   const stop = { id: 's1', removed: null, address: '8 Lygon St, Carlton', propertyKey: 'carlton|3053|lygon st|8' };
 
@@ -197,7 +196,7 @@ describe('queueLoadChange', () => {
   });
 
   it('queues a removal on the Stop, with its audit entry', () => {
-    expect(queueLoadChange(loading, { type: 'remove', stop, by: 'operator-1' })).toEqual({ ok: true });
+    expect(queueStopChange(loading, { type: 'remove', stop, by: 'operator-1' })).toEqual({ ok: true });
 
     expect(mockEnqueue).toHaveBeenCalledWith({
       routeId: 'r1',
@@ -215,7 +214,7 @@ describe('queueLoadChange', () => {
   });
 
   it('queues a restore', () => {
-    queueLoadChange(loading, { type: 'restore', stop: { ...stop, removed: true } });
+    queueStopChange(loading, { type: 'restore', stop: { ...stop, removed: true } });
 
     expect(mockEnqueue.mock.calls[0][0]).toMatchObject({
       target: 'Stop',
@@ -227,7 +226,7 @@ describe('queueLoadChange', () => {
 
   it('queues an added Stop as a new record under a fresh id', () => {
     const input = { address: '30 Faraday St, Carlton', agent: 'Lena Park', numberOfSigns: 2, isAuction: true };
-    queueLoadChange(loading, { type: 'add', stops: [{ sequence: 1 }], input });
+    queueStopChange(loading, { type: 'add', stops: [{ sequence: 1 }], input });
 
     expect(mockEnqueue).toHaveBeenCalledWith({
       routeId: 'r1',
@@ -254,11 +253,55 @@ describe('queueLoadChange', () => {
   });
 
   it('queues nothing for a refused change', () => {
-    const confirmed = { ...loading, status: 'in_progress' as const, executionPhase: 'placement' as const, loadConfirmedAt: AT };
-    expect(queueLoadChange(confirmed, { type: 'remove', stop, by: 'operator-1' })).toEqual({
-      error: 'Stops can only be added or removed between starting and confirming Load.',
+    const pickingUp = { ...loading, status: 'in_progress' as const, executionPhase: 'pickup' as const, loadConfirmedAt: AT };
+    expect(queueStopChange(pickingUp, { type: 'remove', stop, by: 'operator-1', reason: 'No access' })).toEqual({
+      error: 'Stops can only be removed during Load or Placement.',
     });
     expect(mockEnqueue).not.toHaveBeenCalled();
+  });
+
+  describe('at the door during Placement', () => {
+    const placing = { ...loading, status: 'in_progress' as const, executionPhase: 'placement' as const, loadConfirmedAt: AT };
+
+    it('queues the removal with its reason, audited as a plain removal', () => {
+      queueStopChange(placing, { type: 'remove', stop, by: 'operator-1', reason: 'Gate locked / no access' });
+
+      expect(mockEnqueue).toHaveBeenCalledWith({
+        routeId: 'r1',
+        target: 'Stop',
+        recordId: 's1',
+        kind: 'placementStopRemoved',
+        patch: { removed: true, removedAt: expect.any(String), removedBy: 'operator-1', removedReason: 'Gate locked / no access' },
+        audit: {
+          customerId: 'c1',
+          resourceId: 's1',
+          action: 'stop.remove',
+          details: {
+            routeId: 'r1',
+            address: '8 Lygon St, Carlton',
+            propertyKey: 'carlton|3053|lygon st|8',
+            reason: 'Gate locked / no access',
+          },
+        },
+      });
+    });
+
+    it('refuses a removal with no reason', () => {
+      expect(queueStopChange(placing, { type: 'remove', stop, by: 'operator-1' })).toEqual({
+        error: 'Say why the signs can’t go up.',
+      });
+      expect(mockEnqueue).not.toHaveBeenCalled();
+    });
+
+    it('queues a restore of a Stop removed at the door', () => {
+      queueStopChange(placing, { type: 'restore', stop: { ...stop, removed: true, removedReason: 'No access' } });
+
+      expect(mockEnqueue.mock.calls[0][0]).toMatchObject({
+        kind: 'placementStopRestored',
+        patch: { removed: false },
+        audit: { action: 'stop.restore' },
+      });
+    });
   });
 });
 
@@ -295,21 +338,20 @@ describe('planStopSettlement', () => {
     expect(stopProgress(patch).pickup.state).toBe('done');
   });
 
-  it('completing a previously skipped stop clears the skip marker, keeping other notes', () => {
-    const skipped = planStopSettlement(
+  it("collecting a Couldn't Collect stop clears its reason, keeping other notes", () => {
+    const couldnt = planStopSettlement(
       { notes: 'Gate code 1234', actualArrivalTime: null },
-      { phase: 'placement', action: 'skip', reason: 'Road closed' },
+      { phase: 'pickup', action: 'couldntCollect', reason: 'Access blocked' },
       AT
     );
-    expect(stopProgress(skipped).placement.state).toBe('skipped');
+    expect(stopProgress(couldnt).pickup).toMatchObject({ state: 'couldntCollect', reason: 'Access blocked' });
 
     const completed = planStopSettlement(
-      { notes: skipped.notes, actualArrivalTime: skipped.actualArrivalTime },
-      { phase: 'placement', action: 'complete' },
+      { notes: couldnt.notes, actualArrivalTime: couldnt.actualArrivalTime },
+      { phase: 'pickup', action: 'complete' },
       AT
     );
-    expect(stopProgress(completed).placement.state).toBe('done');
-    expect(completed.notes).not.toContain('PLACEMENT_SKIPPED');
+    expect(stopProgress(completed).pickup).toMatchObject({ state: 'done', reason: null });
     expect(completed.notes).toContain('Gate code 1234');
   });
 });

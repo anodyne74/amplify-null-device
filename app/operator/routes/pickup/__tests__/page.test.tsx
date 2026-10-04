@@ -204,14 +204,14 @@ describe('Operator Pickup page', () => {
     expect(await screen.findByText('PICKUP · STOP 2 OF 2')).toBeInTheDocument();
   });
 
-  it('skips the current stop via the reason sheet', async () => {
+  it("marks the current stop Couldn't collect with a reason, and lets it be collected before Pickup ends", async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPickupPage />);
     await screen.findByText('PICKUP · STOP 1 OF 2');
 
-    fireEvent.click(screen.getByRole('button', { name: /^skip$/i }));
-    expect(await screen.findByText('Why is this stop skipped?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: "Couldn't collect" }));
+    expect(await screen.findByText("Why couldn't the signs be collected?")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /gate locked/i }));
 
@@ -221,10 +221,18 @@ describe('Operator Pickup page', () => {
         expect.objectContaining({ notes: expect.stringContaining('[PICKUP_SKIPPED:') })
       );
     });
+    // Still on the Route, so still counted: the next stop is 2 of 2.
     expect(await screen.findByText('PICKUP · STOP 2 OF 2')).toBeInTheDocument();
+    const couldnt = screen.getByRole('region', { name: "Couldn't collect" });
+    expect(couldnt).toHaveTextContent('Gate locked / no access');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collected' }));
+
+    await waitFor(() => expect(screen.queryByRole('region', { name: "Couldn't collect" })).not.toBeInTheDocument());
+    expect(screen.getByText('PICKUP · STOP 2 OF 2')).toBeInTheDocument();
   });
 
-  it('shows pickup progress on the map, so already-skipped stops are marked', async () => {
+  it("shows pickup progress on the map, so stops that couldn't be collected are marked", async () => {
     const stops = baseStops();
     stops[0] = { ...stops[0], notes: '[PICKUP_SKIPPED:2026-08-31T09:05:00.000Z|Gate locked]' } as Stop;
     (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops });

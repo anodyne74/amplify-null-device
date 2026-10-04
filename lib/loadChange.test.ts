@@ -6,11 +6,14 @@ import {
   planStopAddition,
   planStopRemoval,
   planStopRestore,
+  removalWindow,
   type LoadChangeRoute,
 } from './loadChange';
+import { settleStopNotes } from './stopProgress';
 
 const AT = '2026-10-04T07:30:00.000Z';
 const OUTSIDE_LOAD = 'Stops can only be added or removed between starting and confirming Load.';
+const OUTSIDE_WINDOW = 'Stops can only be removed during Load or Placement.';
 
 function route(overrides: Partial<LoadChangeRoute> = {}): LoadChangeRoute {
   return { id: 'route-1', customerId: 'cust-1', status: 'planned', loadStartedAt: AT, ...overrides } as LoadChangeRoute;
@@ -18,6 +21,8 @@ function route(overrides: Partial<LoadChangeRoute> = {}): LoadChangeRoute {
 
 const notStarted = route({ loadStartedAt: null });
 const confirmed = route({ status: 'in_progress', executionPhase: 'placement', loadConfirmedAt: AT });
+const placing = confirmed;
+const pickingUp = route({ status: 'in_progress', executionPhase: 'pickup', loadConfirmedAt: AT });
 
 describe('activeStops', () => {
   it('leaves out only the Stops a Load Change removed', () => {
@@ -42,30 +47,67 @@ describe('isLoadChangeOpen', () => {
   });
 });
 
+describe('removalWindow', () => {
+  it('is Load until Load is confirmed, then Placement, then shut from Pickup on', () => {
+    expect(removalWindow(notStarted)).toBeNull();
+    expect(removalWindow(route())).toBe('load');
+    expect(removalWindow(placing)).toBe('placement');
+    expect(removalWindow(pickingUp)).toBeNull();
+    expect(removalWindow(route({ status: 'completed', loadConfirmedAt: AT }))).toBeNull();
+  });
+});
+
 describe('planStopRemoval', () => {
-  it('marks the Stop removed, when and by whom', () => {
-    expect(planStopRemoval(route(), {}, 'operator-1', AT)).toEqual({
+  it('marks the Stop removed at Load, when and by whom, with no reason', () => {
+    expect(planStopRemoval(route(), {}, 'operator-1', AT, 'ignored')).toEqual({
+      window: 'load',
       patch: { removed: true, removedAt: AT, removedBy: 'operator-1' },
     });
   });
 
-  it('refuses outside Load, and a Stop already removed', () => {
-    expect(planStopRemoval(notStarted, {}, 'operator-1', AT)).toEqual({ refused: OUTSIDE_LOAD });
-    expect(planStopRemoval(confirmed, {}, 'operator-1', AT)).toEqual({ refused: OUTSIDE_LOAD });
+  it('marks a Stop removed at the door during Placement with its reason', () => {
+    expect(planStopRemoval(placing, {}, 'operator-1', AT, ' Gate locked / no access ')).toEqual({
+      window: 'placement',
+      patch: { removed: true, removedAt: AT, removedBy: 'operator-1', removedReason: 'Gate locked / no access' },
+    });
+  });
+
+  it('needs a reason at the door, and refuses a Stop whose signs are already up', () => {
+    expect(planStopRemoval(placing, {}, 'operator-1', AT)).toEqual({ refused: 'Say why the signs can’t go up.' });
+    const placed = { notes: settleStopNotes(null, 'placement', 'complete', AT) };
+    expect(planStopRemoval(placing, placed, 'operator-1', AT, 'Owner or tenant refused')).toEqual({
+      refused: 'Its signs are already up, so that stop can’t be removed.',
+    });
+  });
+
+  it('refuses before Load, from Pickup on, and a Stop already removed', () => {
+    expect(planStopRemoval(notStarted, {}, 'operator-1', AT)).toEqual({ refused: OUTSIDE_WINDOW });
+    expect(planStopRemoval(pickingUp, {}, 'operator-1', AT, 'No access')).toEqual({ refused: OUTSIDE_WINDOW });
     expect(planStopRemoval(route(), { removed: true }, 'operator-1', AT)).toEqual({ refused: 'That stop is already removed.' });
   });
 });
 
 describe('planStopRestore', () => {
+  const removedAtLoad = { removed: true };
+  const removedAtDoor = { removed: true, removedReason: 'Gate locked / no access' };
+
   it('sets removed back to false, never clearing a field to null', () => {
-    expect(planStopRestore(route(), { removed: true })).toEqual({ patch: { removed: false } });
+    expect(planStopRestore(route(), removedAtLoad)).toEqual({ window: 'load', patch: { removed: false } });
   });
 
-  it("refuses an operator's restore once Load is confirmed, but not an administrator's", () => {
-    expect(planStopRestore(confirmed, { removed: true })).toEqual({ refused: OUTSIDE_LOAD });
-    expect(planStopRestore(route({ status: 'completed', loadConfirmedAt: AT }), { removed: true }, { anyPhase: true })).toEqual({
-      patch: { removed: false },
-    });
+  it('lets the Operator restore a Stop removed at the door until Placement is completed', () => {
+    expect(planStopRestore(placing, removedAtDoor)).toEqual({ window: 'placement', patch: { removed: false } });
+    expect(planStopRestore(pickingUp, removedAtDoor)).toEqual({ refused: OUTSIDE_WINDOW });
+  });
+
+  it("doesn't let the Operator restore a Stop removed at Load once Load is confirmed, as its signs aren't on the van", () => {
+    expect(planStopRestore(placing, removedAtLoad)).toEqual({ refused: 'Only an administrator can restore a stop removed at Load.' });
+  });
+
+  it("lets an administrator restore either at any time", () => {
+    const completed = route({ status: 'completed', loadConfirmedAt: AT });
+    expect(planStopRestore(completed, removedAtLoad, { anyPhase: true })).toEqual({ window: null, patch: { removed: false } });
+    expect(planStopRestore(placing, removedAtLoad, { anyPhase: true })).toEqual({ window: 'placement', patch: { removed: false } });
   });
 
   it('refuses a Stop that is not removed', () => {

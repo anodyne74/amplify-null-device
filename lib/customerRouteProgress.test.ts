@@ -36,13 +36,13 @@ describe('customerRouteProgress', () => {
     });
   });
 
-  it('leaves a skipped Stop out of the total', () => {
-    const skipped = settleStopNotes(null, 'placement', 'skip', AT, 'No access');
-    const stops = [{ notes: skipped }, ...Array.from({ length: 10 }, () => ({ notes: placed }))];
+  it("counts a Couldn't Collect Stop in the total but not as picked up, and leaves a Removed Stop out", () => {
+    const couldntCollect = settleStopNotes(placed, 'pickup', 'couldntCollect', LATER, 'No access');
+    const stops = [{ notes: couldntCollect }, { notes: pickedUp }, { notes: placed, removed: true, removedReason: 'Gate locked' }];
 
-    expect(customerRouteProgress({ status: 'in_progress', executionPhase: 'placement' }, stops)).toMatchObject({
-      done: 10,
-      total: 10,
+    expect(customerRouteProgress({ status: 'in_progress', executionPhase: 'pickup', pickupStartTime: LATER }, stops)).toMatchObject({
+      done: 1,
+      total: 2,
     });
   });
 

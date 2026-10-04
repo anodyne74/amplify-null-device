@@ -5,7 +5,7 @@
  * of attributed entries (who posted it, which on-account agent they posted as, when)
  * without any schema or authorization change: the whole feed is still just one JSON
  * string stored in that same field, the same way stop.notes already packs structured
- * data (done/skipped markers) into a single string elsewhere in this codebase.
+ * data (Stop Progress markers) into a single string elsewhere in this codebase.
  *
  * Backward compatible: a route saved before this change has a plain-text
  * customerInstructions value, which parses as a single legacy entry with no

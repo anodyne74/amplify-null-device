@@ -19,7 +19,7 @@ const TONE_CIRCLE_CLASS: Record<StopProgressTone, string> = {
   awaiting: styles.circleAwaiting,
   placed: styles.circlePlaced,
   pickedUp: styles.circlePickedUp,
-  skipped: styles.circleSkipped,
+  couldntCollect: styles.circleMuted,
 };
 
 /** Placement/pickup status label + tone for a stop — the single source of
@@ -28,9 +28,7 @@ const TONE_CIRCLE_CLASS: Record<StopProgressTone, string> = {
 function getStopStatus(stop: Stop, phase: ExecutionPhase): { label: string; tone: BadgeProps['tone'] } {
   if (isStopRemoved(stop)) return { label: 'Removed on the day', tone: 'neutral' };
   const { state } = stopProgress(stop)[phase];
-  if (state === 'skipped') {
-    return { label: phase === 'pickup' ? 'Pickup skipped' : 'Placement skipped', tone: 'danger' };
-  }
+  if (state === 'couldntCollect') return { label: 'Not yet collected', tone: 'warning' };
   if (state === 'done') {
     return { label: phase === 'pickup' ? 'Picked up' : 'Placed', tone: 'success' };
   }
@@ -50,7 +48,7 @@ export default function StopListItem({ stop, sequence, phase }: StopListItemProp
     });
   };
 
-  const circleClass = isStopRemoved(stop) ? styles.circleSkipped : TONE_CIRCLE_CLASS[stopProgressTone(stop, phase)];
+  const circleClass = isStopRemoved(stop) ? styles.circleMuted : TONE_CIRCLE_CLASS[stopProgressTone(stop, phase)];
   const operatorNotes = displayNotes(stop.notes);
 
   const status = getStopStatus(stop, phase);

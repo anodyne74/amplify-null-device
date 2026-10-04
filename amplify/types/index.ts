@@ -194,6 +194,7 @@ export interface Stop {
   removed?: boolean | null;
   removedAt?: string | null;
   removedBy?: string | null;
+  removedReason?: string | null;
   addedAtLoad?: string | null;
   createdAt?: string;
   updatedAt?: string;

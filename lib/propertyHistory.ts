@@ -6,14 +6,13 @@
  *
  * Grouping stops at the searched level: a suburb search returns Street ->
  * Property, a street search Property, an address search one Property. Only
- * Routes at signs_placed or later are Visits, and only those count; a Stop
- * skipped at placement is listed as Skipped but not counted; planned and
+ * Routes at signs_placed or later are Visits, and only those count, Couldn't
+ * Collect Stops included; Removed Stops are never listed; planned and
  * in-progress Routes come back separately as Scheduled.
  */
 import type { RouteStatus } from '@/amplify/types';
 import { comparePropertyKeys, parsePropertyKey, propertyKeyLabel, propertyKeyPrefix, streetKeyOf } from '@/lib/propertyKey';
 import { getRouteRunDate } from '@/lib/routeDetailHelpers';
-import { stopProgress } from '@/lib/stopProgress';
 
 export type PropertyHistorySearch =
   | { level: 'suburb'; suburb: string; postcode?: string }
@@ -80,7 +79,7 @@ export interface VisitRow {
   signsPlaced: number;
   /** Empty means "Not yet invoiced". */
   invoices: InvoiceLink[];
-  status: RouteStatus | 'skipped';
+  status: RouteStatus;
   // Administrator-only:
   customerName?: string | null;
   operatorName?: string | null;
@@ -92,7 +91,7 @@ export interface PropertyGroup {
   propertyKey: string;
   address: string;
   visitCount: number;
-  /** Visits (counted) and Skipped Stops, newest first. */
+  /** Visits, newest first. */
   visits: VisitRow[];
   /** Planned and in-progress Routes, soonest first. Never counted. */
   scheduled: VisitRow[];
@@ -227,7 +226,6 @@ export const VISIT_STATUS_LABELS: Record<VisitRow['status'], string> = {
   signs_picked_up: 'Signs picked up',
   completed: 'Completed',
   archived: 'Archived',
-  skipped: 'Skipped',
 };
 
 /** A row's Invoice(s) as screens and reports show them. */
@@ -319,8 +317,6 @@ export function buildPropertyHistory(input: BuildInput): PropertyHistoryResult {
 
     if (!VISIT_STATUSES.includes(route.status as RouteStatus)) {
       entry.group.scheduled.push(toRow(stop, route, route.status ?? 'planned', input));
-    } else if (stopProgress(stop).placement.state === 'skipped') {
-      entry.group.visits.push(toRow(stop, route, 'skipped', input));
     } else {
       entry.group.visits.push(toRow(stop, route, route.status as RouteStatus, input));
       entry.group.visitCount += 1;

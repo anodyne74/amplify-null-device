@@ -44,7 +44,6 @@ const STATUS_TONES: Record<VisitRow['status'], BadgeProps['tone']> = {
   signs_picked_up: 'info',
   completed: 'success',
   archived: 'neutral',
-  skipped: 'danger',
 };
 
 const AUCTION_OPTIONS = [

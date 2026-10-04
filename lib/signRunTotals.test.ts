@@ -14,7 +14,7 @@ function pickupSkippedStop(overrides: Partial<SignCountStop> = {}): SignCountSto
   return {
     numberOfSigns: 4,
     missingSignsCount: 0,
-    notes: settleStopNotes('', 'pickup', 'skip', '2026-08-31T10:00:00.000Z', 'No access'),
+    notes: settleStopNotes('', 'pickup', 'couldntCollect', '2026-08-31T10:00:00.000Z', 'No access'),
     ...overrides,
   };
 }

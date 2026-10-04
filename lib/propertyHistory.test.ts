@@ -111,17 +111,7 @@ describe('buildPropertyHistory counting', () => {
     expect(p.visits.map((v) => v.routeCode)).toEqual(['W26-08-202', 'W26-08-101', 'W26-07-505']);
   });
 
-  it('lists a skipped Stop as Skipped without counting it', () => {
-    const p = property([stop(CLIFF_14, 'r1'), stop(CLIFF_14, 'r2', { notes: '[PLACEMENT_SKIPPED:2026-08-15T01:00:00Z|No access]' })]);
-
-    expect(p.visitCount).toBe(1);
-    expect(p.visits.map((v) => [v.routeCode, v.status])).toEqual([
-      ['W26-08-202', 'skipped'],
-      ['W26-08-101', 'completed'],
-    ]);
-  });
-
-  it('still counts a Visit whose signs were placed but skipped at pickup', () => {
+  it("still counts a Visit whose signs were placed but couldn't be collected", () => {
     const p = property([stop(CLIFF_14, 'r1', { notes: '[PLACEMENT_DONE:2026-08-01T01:00:00Z] [PICKUP_SKIPPED:2026-08-02T01:00:00Z]' })]);
 
     expect(p.visitCount).toBe(1);

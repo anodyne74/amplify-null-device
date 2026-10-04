@@ -43,6 +43,7 @@ jest.mock('@/lib/signRunTransitions', () => {
 });
 jest.mock('aws-amplify/auth', () => ({ fetchAuthSession: jest.fn().mockResolvedValue({}) }));
 jest.mock('@/lib/apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
+jest.mock('@/lib/use-user-groups', () => ({ useCurrentUserId: () => 'operator-1' }));
 
 jest.mock('@/app/operator/components/RouteStopsMap', () => ({
   RouteStopsMap: ({
@@ -252,50 +253,67 @@ describe('Operator Placement page', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
-    it('does not record a position for a skipped stop', async () => {
+    it("does not record a position for a stop that can't be placed", async () => {
       const getCurrentPosition = jest.fn();
       setGeolocation({ getCurrentPosition });
       (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
       render(<OperatorPlacementPage />);
       await screen.findByText('PLACEMENT · STOP 1 OF 2');
-      fireEvent.click(screen.getByRole('button', { name: /^skip$/i }));
+      fireEvent.click(screen.getByRole('button', { name: "Can't place" }));
       fireEvent.click(await screen.findByRole('button', { name: /gate locked/i }));
 
-      expect(await screen.findByText('PLACEMENT · STOP 2 OF 2')).toBeInTheDocument();
+      expect(await screen.findByText('PLACEMENT · STOP 1 OF 1')).toBeInTheDocument();
       expect(getCurrentPosition).not.toHaveBeenCalled();
     });
   });
 
-  it('skips the current stop via the reason sheet', async () => {
+  it("removes the current stop with a reason when its signs can't go up, and lets it be restored", async () => {
+    // Removals save, with the version the outbox shows them under until the live data catches up.
+    (updateStopExecution as jest.Mock).mockImplementation((id: string) =>
+      Promise.resolve({ data: { id, updatedAt: '2026-09-30T00:00:00.000Z' }, errors: undefined })
+    );
     (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPlacementPage />);
     await screen.findByText('PLACEMENT · STOP 1 OF 2');
 
-    fireEvent.click(screen.getByRole('button', { name: /^skip$/i }));
-    expect(await screen.findByText('Why is this stop skipped?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: "Can't place" }));
+    expect(await screen.findByText("Why can't the signs go up?")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /gate locked/i }));
 
     await waitFor(() => {
       expect(updateStopExecution).toHaveBeenCalledWith(
         's1',
-        expect.objectContaining({ notes: expect.stringContaining('[PLACEMENT_SKIPPED:') })
+        expect.objectContaining({ removed: true, removedBy: 'operator-1', removedReason: 'Gate locked / no access' })
       );
     });
-    expect(await screen.findByText('PLACEMENT · STOP 2 OF 2')).toBeInTheDocument();
+    // It counts toward nothing: one stop left, and it's off the map.
+    expect(await screen.findByText('PLACEMENT · STOP 1 OF 1')).toBeInTheDocument();
+    expect(screen.getByTestId('placement-map')).toHaveAttribute('data-stop-count', '1');
+    const removed = screen.getByRole('region', { name: 'Removed today' });
+    expect(removed).toHaveTextContent('100 First St');
+    expect(removed).toHaveTextContent('Gate locked / no access');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+
+    await waitFor(() => expect(updateStopExecution).toHaveBeenCalledWith('s1', { removed: false }));
+    expect(await screen.findByText('PLACEMENT · STOP 1 OF 2')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Removed today' })).not.toBeInTheDocument();
   });
 
-  it('shows placement progress on the map, so already-skipped stops are marked', async () => {
+  it("doesn't offer to restore a stop removed at Load, nor show it", async () => {
     const stops = baseStops();
-    stops[0] = { ...stops[0], notes: '[PLACEMENT_SKIPPED:2026-08-31T09:05:00.000Z|Gate locked]' } as Stop;
+    // Newer than any write saved earlier in this file, as live data is once it has caught up.
+    stops[0] = { ...stops[0], removed: true, removedAt: '2026-08-31T07:30:00.000Z', updatedAt: '2026-12-01T00:00:00.000Z' } as Stop;
     (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops });
 
     render(<OperatorPlacementPage />);
-    await screen.findByText('PLACEMENT · STOP 2 OF 2');
+    await screen.findByText('PLACEMENT · STOP 1 OF 1');
 
     expect(screen.getByTestId('placement-map')).toHaveAttribute('data-phase', 'placement');
+    expect(screen.queryByRole('button', { name: 'Restore' })).not.toBeInTheDocument();
   });
 
   it('opens the out-of-order sheet from the THEN list', async () => {

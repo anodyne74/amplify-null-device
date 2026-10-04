@@ -107,13 +107,6 @@ export interface StopRestorePatch {
 }
 
 /**
- * Puts a removed Stop back. An Operator can restore a Stop removed at the
- * yard until Load is confirmed, and one removed at the door until Placement
- * is completed -- never one removed at the yard once Load is confirmed, as
- * its signs aren't on the van. `anyPhase` is an administrator's restore,
- * allowed at any time.
- */
-/**
  * Whether a Removed Stop can still be restored: not once the Route is
  * finalised, as its Billed Time and invoice are worked out from its Stops.
  */
@@ -121,6 +114,13 @@ export function canRestoreRemovedStops(route: Pick<LoadChangeRoute, 'status'>): 
   return route.status !== 'completed' && route.status !== 'archived';
 }
 
+/**
+ * Puts a removed Stop back. An Operator can restore a Stop removed at the
+ * yard until Load is confirmed, and one removed at the door until Placement
+ * is completed -- never one removed at the yard once Load is confirmed, as
+ * its signs aren't on the van. `anyPhase` is an administrator's restore,
+ * allowed in any phase until the Route is finalised.
+ */
 export function planStopRestore(
   route: LoadChangeRoute,
   stop: Pick<Stop, 'removed' | 'removedReason'>,

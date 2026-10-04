@@ -352,4 +352,25 @@ describe('Operator Route Detail Page', () => {
     });
     expect(screen.queryByRole('heading', { name: /correct billed time/i })).not.toBeInTheDocument();
   });
+
+  it('shows the Pickup Date read-only; it is changed on Edit Route (#463)', async () => {
+    mockFetched.route = { ...mockRoute, scheduledDate: '2026-10-06', pickupDate: '2026-10-10' };
+
+    render(<RouteDetailPage />);
+
+    expect(await screen.findByText('Oct 10, 2026')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Pickup date')).not.toBeInTheDocument();
+  });
+
+  it('marks a Route changed on the day with a chip that matches the status chip (#463)', async () => {
+    mockFetched.stops = [
+      ...mockStops,
+      { id: 'stop-3', routeId: 'route-test-id-1234', sequence: 3, address: '300 Third Rd', removed: true, removedAt: '2026-10-04T13:24:16.967Z' },
+    ];
+
+    render(<RouteDetailPage />);
+
+    const chip = await screen.findByText('changed on the day');
+    expect(chip.closest('.nd-badge')?.querySelector('.nd-badge__dot')).not.toBeNull();
+  });
 });

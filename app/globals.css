@@ -400,7 +400,10 @@ a:hover {
 /* ─────────────────────────────────────────────────────────────────────────────
    Buttons
    ───────────────────────────────────────────────────────────────────────────── */
-button:not(.amplify-button):not(.nd-btn) {
+/* A default for buttons with no styling of their own. Everything after `button`
+   sits inside :where() so these rules weigh no more than a bare element, and any
+   class a component applies wins, on hover and focus too (#445). */
+button:where(:not(.amplify-button):not(.nd-btn)) {
   border-radius: var(--nd-radius-md);
   border: 1px solid var(--nd-border-default);
   padding: 0.6em 1.2em;
@@ -415,11 +418,11 @@ button:not(.amplify-button):not(.nd-btn) {
               background-color var(--nd-transition-fast),
               box-shadow var(--nd-transition-fast);
 }
-button:not(.amplify-button):not(.nd-btn):hover {
+button:where(:not(.amplify-button):not(.nd-btn):hover) {
   border-color: var(--nd-logo-primary);
   box-shadow: var(--nd-logo-primary-glow);
 }
-button:not(.amplify-button):not(.nd-btn):focus-visible {
+button:where(:not(.amplify-button):not(.nd-btn):focus-visible) {
   outline: 2px solid var(--nd-role-focus-ring);
   outline-offset: 2px;
 }
@@ -515,7 +518,7 @@ textarea:focus-visible,
     min-height: auto;
   }
 
-  button:not(.amplify-button):not(.nd-btn) {
+  button:where(:not(.amplify-button):not(.nd-btn)) {
     padding: 0.5em 1em;
   }
 }

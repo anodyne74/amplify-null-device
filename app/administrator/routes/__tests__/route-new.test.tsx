@@ -21,6 +21,7 @@ jest.mock('@/app/components/OperatorRoute', () => ({
 }));
 
 jest.mock('@/app/operator/components/RouteForm', () => ({
+  ...jest.requireActual('@/app/operator/components/RouteForm'),
   RouteForm: () => <div>Route form</div>,
 }));
 

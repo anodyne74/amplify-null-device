@@ -37,6 +37,15 @@ export interface RouteDraftStop extends Partial<StopLocationFields> {
   notes?: string;
 }
 
+/**
+ * A draft Stop with its note changed. A copied note may only have applied to the
+ * old Route (#464), so it's shown to keep, change or clear before the Route is
+ * created; one left empty, or only spaces, is dropped so the Stop gets none.
+ */
+export function withDraftStopNote<S extends RouteDraftStop>(stop: S, note: string): S {
+  return { ...stop, notes: note.trim() ? note : undefined };
+}
+
 interface RouteFormCustomer {
   id: string;
   name: string;
@@ -226,10 +235,8 @@ export function RouteForm({
     setStops((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // A copied note may only have applied to the old Route (#464, #475), so each
-  // Stop's note is shown to keep, change or clear. Empty or only spaces drops it.
   const changeStopNote = (index: number, note: string) => {
-    setStops((prev) => prev.map((stop, i) => (i === index ? { ...stop, notes: note.trim() ? note : undefined } : stop)));
+    setStops((prev) => prev.map((stop, i) => (i === index ? withDraftStopNote(stop, note) : stop)));
   };
 
   const blockedDateMessage = () => {

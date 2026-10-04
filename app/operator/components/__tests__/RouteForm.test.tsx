@@ -450,6 +450,48 @@ describe('RouteForm', () => {
       expect((await submittedStops(onSubmit))[1].notes).toBe('Gate code 5678');
     });
 
+    it('edits the right note after a Stop above it is removed', async () => {
+      const onSubmit = await renderWithCopiedStops();
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]);
+      fireEvent.change(screen.getByLabelText('Notes for stop 2, 9 Grayson Rd, North Epping'), { target: { value: 'Beware of dog' } });
+
+      const stops = await submittedStops(onSubmit);
+      expect(stops.map((stop) => [stop.address, stop.notes])).toEqual([
+        ['20 Gloucester Road, Epping', 'Gate code 1234'],
+        ['9 Grayson Rd, North Epping', 'Beware of dog'],
+      ]);
+    });
+
+    it('starts over from the source notes when the Stops are copied again', async () => {
+      await renderWithCopiedStops();
+      fireEvent.change(screen.getByLabelText('Notes for stop 2, 20 Gloucester Road, Epping'), { target: { value: 'Changed' } });
+
+      fireEvent.click(screen.getByRole('button', { name: /copy stops/i }));
+
+      await waitFor(() => expect(screen.getByLabelText('Notes for stop 2, 20 Gloucester Road, Epping')).toHaveValue('Gate code 1234'));
+    });
+
+    it('locks the notes while the Route is being created', async () => {
+      const props = {
+        customers: mockCustomers,
+        onSubmit: noop,
+        onCancel: noop,
+        copyStopSources: [{ id: 'route-1', customerId: 'cust-1', label: 'W19-26-003' }],
+        onCopyStopsFromSource: jest.fn().mockResolvedValue([{ address: '20 Gloucester Road, Epping', notes: 'Gate code 1234' }]),
+      };
+      const { rerender } = render(<RouteForm {...props} />);
+      fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+      fireEvent.change(screen.getByLabelText(/copy stops from previous route/i), { target: { value: 'route-1' } });
+      fireEvent.click(screen.getByRole('button', { name: /copy stops/i }));
+      const note = await screen.findByLabelText('Notes for stop 1, 20 Gloucester Road, Epping');
+      expect(note).toBeEnabled();
+
+      rerender(<RouteForm {...props} isSubmitting />);
+
+      expect(note).toBeDisabled();
+    });
+
     it('shows, and lets you edit, a note given when the Stop was added', async () => {
       const onSubmit = jest.fn().mockResolvedValue(undefined);
       render(<RouteForm customers={mockCustomers} initialRouteCode="W20-26-001" onSubmit={onSubmit} onCancel={noop} />);

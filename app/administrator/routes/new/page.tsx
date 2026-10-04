@@ -575,6 +575,13 @@ function NewRoutePageContent() {
     }
   };
 
+  // A note left empty (or only spaces) is dropped, so the new Stop is created with none.
+  const handleDraftNoteChange = (draftIndex: number, note: string) => {
+    setImportDraftStops((prev) =>
+      prev ? prev.map((stop, i) => (i === draftIndex ? { ...stop, notes: note.trim() ? note : undefined } : stop)) : prev
+    );
+  };
+
   const previewColumns: DataColumn<RouteDraftStop & { id: number; seq: number }>[] = [
     { key: 'seq', header: '#', render: (stop) => stop.seq },
     { key: 'address', header: 'Address', render: (stop) => stop.address },
@@ -590,6 +597,23 @@ function NewRoutePageContent() {
       key: 'flags',
       header: 'Flags',
       render: (stop) => (stop.isAuction ? <span className={styles.auctionBadge}>Auction</span> : null),
+    },
+    {
+      // A copied note may only have applied to the old Route (#464), so it's shown
+      // here to keep, change or clear before the Stops are created.
+      key: 'notes',
+      header: 'Notes',
+      render: (stop) => (
+        <Input
+          size="sm"
+          className={styles.draftNoteInput}
+          aria-label={`Notes for stop ${stop.seq}, ${stop.address}`}
+          value={stop.notes ?? ''}
+          // A preview row's id is its position in the draft list.
+          onChange={(e) => handleDraftNoteChange(stop.id, e.target.value)}
+          disabled={isUploading}
+        />
+      ),
     },
   ];
 

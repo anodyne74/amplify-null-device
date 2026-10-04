@@ -14,7 +14,6 @@ import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill'
 import { RouteRequestsCard } from '@/app/administrator/components/RouteRequestsCard';
 import { AdministratorFinalisePanel } from '@/app/administrator/components/AdministratorFinalisePanel';
 import { BilledTimeCorrectionPanel } from '@/app/administrator/components/BilledTimeCorrectionPanel';
-import { PickupDateEditor } from '@/app/administrator/components/PickupDateEditor';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Badge } from '@/app/components/ui/core/Badge';
@@ -245,7 +244,7 @@ function RouteDetailContent() {
                 Route {route.routeCode || route.id.slice(0, 8)}
               </h1>
               <RouteStatusPill route={route} />
-              {loadChanged && <Badge tone="info">Changed on the day</Badge>}
+              {loadChanged && <Badge tone="info" dot>changed on the day</Badge>}
               <div className={styles.headerActions}>
                 <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
                   Edit Route
@@ -278,7 +277,7 @@ function RouteDetailContent() {
               </div>
               <div className="nd-stat">
                 <span className="nd-stat__label">Pickup Date</span>
-                <PickupDateEditor key={route.id} route={route} onSaved={refetch} />
+                <span className="nd-stat__value" style={{ fontSize: 16 }}>{formatRouteDate(route.pickupDate)}</span>
               </div>
               <div className="nd-stat">
                 <span className="nd-stat__label">Time Taken</span>

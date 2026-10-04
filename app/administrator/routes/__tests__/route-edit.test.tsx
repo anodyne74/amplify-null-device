@@ -6,6 +6,8 @@ import * as customersModule from '@/lib/customers';
 import * as userSettingsModule from '@/lib/userSettings';
 import * as routesModule from '@/lib/routes';
 import { callApi } from '@/lib/apiClient';
+import { changePickupDate } from '@/lib/administratorRouteActions';
+import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
 import type { Route, Stop } from '@/amplify/types';
 
 const mockRouterPush = jest.fn();
@@ -62,6 +64,13 @@ jest.mock('@/app/operator/components/RouteStopsMap', () => ({
 jest.mock('@/lib/customers');
 jest.mock('@/lib/userSettings');
 jest.mock('@/lib/routes');
+jest.mock('@/lib/administratorRouteActions', () => ({
+  changePickupDate: jest.fn(),
+}));
+jest.mock('@/lib/routeScheduleGuard', () => ({
+  ...jest.requireActual('@/lib/routeScheduleGuard'),
+  checkRouteDateBlocked: jest.fn(),
+}));
 
 const mockRoute: Route = {
   id: 'route-test-id-1234',
@@ -122,6 +131,8 @@ describe('Administrator Route Edit Page', () => {
 
     (routesModule.createStop as jest.Mock).mockResolvedValue({});
     (routesModule.updateRoute as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
+    (changePickupDate as jest.Mock).mockResolvedValue({ ok: true });
+    (checkRouteDateBlocked as jest.Mock).mockResolvedValue({ blocked: false });
   });
 
   it('syncs selected marker when a stop card is clicked', async () => {
@@ -364,5 +375,100 @@ describe('Administrator Route Edit Page', () => {
     await screen.findByLabelText(/route code/i);
 
     expect(screen.queryByText(/to enable Notify Operator/)).not.toBeInTheDocument();
+  });
+
+  describe('Pickup Date (#463)', () => {
+    const datedRoute = { ...mockRoute, scheduledDate: '2026-10-06', pickupDate: '2026-10-10' };
+
+    beforeEach(() => {
+      (routesModule.getRouteWithStops as jest.Mock).mockResolvedValue({ route: datedRoute, stops: mockStops });
+    });
+
+    it('starts with the saved Pickup Date', async () => {
+      render(<RouteEditPage />);
+      expect(await screen.findByLabelText('Pickup Date')).toHaveValue('2026-10-10');
+    });
+
+    it('saves a changed Pickup Date with Save Changes, through the audited change', async () => {
+      render(<RouteEditPage />);
+
+      fireEvent.change(await screen.findByLabelText('Pickup Date'), { target: { value: '2026-10-12' } });
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(changePickupDate).toHaveBeenCalledWith(expect.objectContaining({ id: 'route-test-id-1234', pickupDate: '2026-10-10' }), '2026-10-12');
+      });
+      expect(routesModule.updateRoute).toHaveBeenCalledWith('route-test-id-1234', expect.not.objectContaining({ pickupDate: expect.anything() }));
+      expect(await screen.findByText('Route saved.')).toBeInTheDocument();
+    });
+
+    it('leaves the Pickup Date alone when it did not change', async () => {
+      render(<RouteEditPage />);
+
+      await screen.findByLabelText('Pickup Date');
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => expect(routesModule.updateRoute).toHaveBeenCalled());
+      expect(changePickupDate).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['before the Placement Date', '2026-10-01', 'The pickup date must be on or after the placement date.'],
+      ['cleared', '', 'Choose a pickup date.'],
+    ])('refuses a Pickup Date %s before saving anything', async (_case, value, message) => {
+      render(<RouteEditPage />);
+
+      fireEvent.change(await screen.findByLabelText('Pickup Date'), { target: { value } });
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(routesModule.updateRoute).not.toHaveBeenCalled();
+      expect(changePickupDate).not.toHaveBeenCalled();
+    });
+
+    it('says plainly when the rest saved but the Pickup Date did not', async () => {
+      (changePickupDate as jest.Mock).mockResolvedValue({ ok: false, error: 'Could not save the pickup date. Nothing was changed.', saved: false });
+
+      render(<RouteEditPage />);
+
+      fireEvent.change(await screen.findByLabelText('Pickup Date'), { target: { value: '2026-10-12' } });
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+      expect(
+        await screen.findByText('The rest of the route was saved, but not the pickup date: Could not save the pickup date. Nothing was changed.')
+      ).toBeInTheDocument();
+      expect(screen.queryByText('Route saved.')).not.toBeInTheDocument();
+    });
+
+    it('shows the unaudited message when only the audit entry failed', async () => {
+      (changePickupDate as jest.Mock).mockResolvedValue({
+        ok: false,
+        error: 'The pickup date was saved, but its audit entry could not be written.',
+        saved: true,
+      });
+
+      render(<RouteEditPage />);
+
+      fireEvent.change(await screen.findByLabelText('Pickup Date'), { target: { value: '2026-10-12' } });
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+      expect(await screen.findByText('The pickup date was saved, but its audit entry could not be written.')).toBeInTheDocument();
+
+      // It counts as saved, so saving again doesn't change it a second time.
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+      await waitFor(() => expect(routesModule.updateRoute).toHaveBeenCalledTimes(2));
+      expect(changePickupDate).toHaveBeenCalledTimes(1);
+    });
+
+    it('warns, without blocking, when no operators are available on a new Pickup Date', async () => {
+      (checkRouteDateBlocked as jest.Mock).mockResolvedValue({ blocked: true, type: 'no_drivers' });
+
+      render(<RouteEditPage />);
+
+      fireEvent.change(await screen.findByLabelText('Pickup Date'), { target: { value: '2026-10-12' } });
+
+      expect(await screen.findByText('Null Device has no operators available on 2026-10-12.')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /save changes/i })).toBeEnabled();
+    });
   });
 });

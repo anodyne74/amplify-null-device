@@ -21,9 +21,13 @@ export interface RouteFeedbackPatch {
   customerFeedbackByName: string;
 }
 
-type FeedbackRoute = Pick<Route, 'id' | 'customerId' | 'status' | 'customerFeedbackTone'> & {
-  viewerSubs?: ReadonlyArray<string | null> | null;
-};
+/** The Route fields Route Feedback reads. */
+export type FeedbackRoute = Pick<Route, 'id' | 'customerId' | 'status' | 'customerFeedbackTone'>;
+
+/** How a choice reads: the customer's two buttons, and what administrators are shown. */
+export function routeFeedbackLabel(tone: RouteFeedbackTone): string {
+  return tone === 'issue' ? 'Something was off' : 'All good';
+}
 
 const NOT_COMPLETE = 'This route isn’t complete yet.';
 const INVOICED = 'This route has been invoiced, so its feedback can no longer be changed.';
@@ -36,9 +40,9 @@ export function routeFeedbackLocked(route: Pick<Route, 'status'>, invoiced: bool
 }
 
 /**
- * What to save for one submission, or why not. The caller must be a viewer of
- * the Route; "Something was off" needs a note. `changed` is true when it
- * replaces earlier feedback.
+ * What to save for one submission, or why not. "Something was off" needs a
+ * note. `changed` is true when it replaces earlier feedback. Whether the
+ * caller may see the Route at all is checked before this (lib/server/routeFeedback.ts).
  */
 export function planRouteFeedback({
   route,
@@ -52,9 +56,7 @@ export function planRouteFeedback({
   invoiced: boolean;
   input: RouteFeedbackInput;
   at: string;
-}): { patch: RouteFeedbackPatch; changed: boolean } | { refused: string; status: 400 | 404 | 409 } {
-  // A Route the caller can't see is reported as not found, as AppSync would.
-  if (!route.viewerSubs?.includes(caller.sub)) return { refused: 'Route not found', status: 404 };
+}): { patch: RouteFeedbackPatch; changed: boolean } | { refused: string; status: 400 | 409 } {
   if (input.tone !== 'good' && input.tone !== 'issue') return { refused: 'Choose All good or Something was off.', status: 400 };
 
   const locked = routeFeedbackLocked(route, invoiced);
@@ -102,5 +104,5 @@ export function routeFeedbackEmail({
     ...(changed ? ['This replaces earlier feedback on this route.', ''] : []),
     `View the route: ${link}`,
   ];
-  return { subject: `Route ${routeCode}: ${customerName} says something was off`, text: lines.join('\n') };
+  return { subject: `Route ${routeCode}: ${customerName} says ${routeFeedbackLabel('issue').toLowerCase()}`, text: lines.join('\n') };
 }

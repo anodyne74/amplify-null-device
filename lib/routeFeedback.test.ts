@@ -1,12 +1,10 @@
-import { planRouteFeedback, routeFeedbackEmail, routeFeedbackLocked } from './routeFeedback';
+import { planRouteFeedback, routeFeedbackEmail, routeFeedbackLabel, routeFeedbackLocked, type FeedbackRoute } from './routeFeedback';
 
 const AT = '2026-10-05T01:00:00.000Z';
 const caller = { sub: 'sub-ann', name: 'Ann Agent', email: 'ann@agency.test' };
 
 function route(overrides: Record<string, unknown> = {}) {
-  return { id: 'route-1', customerId: 'cust-1', status: 'completed', viewerSubs: ['sub-ann', 'sub-ben'], ...overrides } as Parameters<
-    typeof planRouteFeedback
-  >[0]['route'];
+  return { id: 'route-1', customerId: 'cust-1', status: 'completed', ...overrides } as FeedbackRoute;
 }
 
 describe('routeFeedbackLocked', () => {
@@ -52,13 +50,6 @@ describe('planRouteFeedback', () => {
     expect(plan).toMatchObject({ changed: true });
   });
 
-  it('refuses anyone who is not a viewer of the Route', () => {
-    expect(planRouteFeedback({ ...base, caller: { ...caller, sub: 'sub-stranger' }, input: { tone: 'good' } })).toEqual({
-      refused: 'Route not found',
-      status: 404,
-    });
-  });
-
   it('refuses a Route that is not completed, or is invoiced', () => {
     expect(planRouteFeedback({ ...base, route: route({ status: 'in_progress' }), input: { tone: 'good' } })).toEqual({
       refused: 'This route isn’t complete yet.',
@@ -72,6 +63,13 @@ describe('planRouteFeedback', () => {
 
   it('refuses an unknown choice', () => {
     expect(planRouteFeedback({ ...base, input: { tone: 'great' as never } })).toEqual({ refused: 'Choose All good or Something was off.', status: 400 });
+  });
+});
+
+describe('routeFeedbackLabel', () => {
+  it('reads the same everywhere it is shown', () => {
+    expect(routeFeedbackLabel('good')).toBe('All good');
+    expect(routeFeedbackLabel('issue')).toBe('Something was off');
   });
 });
 

@@ -10,8 +10,8 @@ const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeas
 /**
  * Saves a customer user's Route Feedback (CONTEXT.md) on a completed Route
  * that hasn't been invoiced, records it in the audit trail (without the note),
- * and emails admin@ when something was off. The email is best-effort, as in
- * ADR 0006: the feedback stays saved if it can't be sent.
+ * and emails admin@ when something was off. The email is best-effort: the
+ * feedback stays saved, and the failure is logged, if it can't be sent.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -57,15 +57,16 @@ export async function POST(request: NextRequest) {
           byName: plan.patch.customerFeedbackByName,
           note: plan.patch.customerFeedbackNote,
           changed: plan.changed,
-          appBaseUrl: process.env.NEXT_PUBLIC_APP_URL || `https://${APP_DOMAIN}`,
+          appBaseUrl: process.env.NEXT_PUBLIC_APP_URL?.trim() || `https://${APP_DOMAIN}`,
         });
-        await sesClient.send(
+        const sent = await sesClient.send(
           new SendEmailCommand({
             Source: process.env.SES_SENDER_EMAIL || `no-reply@${APP_DOMAIN}`,
             Destination: { ToAddresses: [ADMIN_EMAIL] },
             Message: { Subject: { Data: email.subject }, Body: { Text: { Data: email.text } } },
           })
         );
+        console.log('Route Feedback emailed to admin:', sent.MessageId);
         emailed = true;
       } catch (err) {
         console.error('Route Feedback was saved, but emailing admin failed:', err);

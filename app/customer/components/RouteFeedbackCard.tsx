@@ -5,7 +5,7 @@ import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Input } from '@/app/components/ui/forms/Input';
 import { callApi } from '@/lib/apiClient';
-import type { RouteFeedbackTone } from '@/lib/routeFeedback';
+import { routeFeedbackLabel, type RouteFeedbackTone } from '@/lib/routeFeedback';
 import styles from './RouteFeedbackCard.module.css';
 
 export interface RouteFeedbackValue {
@@ -21,7 +21,8 @@ interface RouteFeedbackCardProps {
 }
 
 function describe(feedback: RouteFeedbackValue) {
-  return feedback.tone === 'good' ? 'You said: All good' : `You said: Something was off — “${feedback.note}”`;
+  const label = `You said: ${routeFeedbackLabel(feedback.tone)}`;
+  return feedback.tone === 'issue' ? `${label} — “${feedback.note}”` : label;
 }
 
 /**
@@ -94,7 +95,7 @@ export default function RouteFeedbackCard({ routeId, feedback, onSaved }: RouteF
                 onClick={() => void send({ tone: 'good', note: '' })}
                 disabled={sending || locked === undefined}
               >
-                All good
+                {routeFeedbackLabel('good')}
               </Button>
               <Button
                 type="button"
@@ -106,7 +107,7 @@ export default function RouteFeedbackCard({ routeId, feedback, onSaved }: RouteF
                 }}
                 disabled={sending || locked === undefined}
               >
-                Something was off
+                {routeFeedbackLabel('issue')}
               </Button>
             </div>
 

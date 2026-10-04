@@ -12,6 +12,7 @@ import { usePropertySearch } from '@/lib/usePropertySearch';
 import { formatRouteDate, formatRouteDuration } from '@/lib/routeListHelpers';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
 import { Badge } from '@/app/components/ui/core/Badge';
+import { routeFeedbackLabel } from '@/lib/routeFeedback';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Field } from '@/app/components/ui/forms/Field';
@@ -126,7 +127,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
           <RouteStatusPill route={route} />
           {route.customerFeedbackTone === 'issue' && (
             <Badge tone="danger" dot>
-              Feedback: something was off
+              Feedback: {routeFeedbackLabel('issue').toLowerCase()}
             </Badge>
           )}
         </div>

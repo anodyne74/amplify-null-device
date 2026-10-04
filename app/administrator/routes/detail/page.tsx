@@ -39,6 +39,7 @@ import {
   type AdministratorSettlement,
 } from '@/lib/administratorRouteActions';
 import { canRestoreRemovedStops, isRemovedAtDoor } from '@/lib/loadChange';
+import { routeFeedbackLabel } from '@/lib/routeFeedback';
 import { STOP_PROBLEM_REASONS } from '@/app/operator/components/StopCompletionDialog';
 import { stopPhaseOf } from '@/lib/signRunTransitions';
 import { billedTime } from '@/lib/billedTime';
@@ -309,7 +310,7 @@ function RouteDetailContent() {
                 {route.customerFeedbackTone ? (
                   <div className={styles.feedback}>
                     <Badge tone={route.customerFeedbackTone === 'issue' ? 'danger' : 'success'} dot>
-                      {route.customerFeedbackTone === 'issue' ? 'Something was off' : 'All good'}
+                      {routeFeedbackLabel(route.customerFeedbackTone)}
                     </Badge>
                     {route.customerFeedbackNote && <p className={styles.feedbackNote}>{route.customerFeedbackNote}</p>}
                     {(route.customerFeedbackByName || route.customerFeedbackAt) && (

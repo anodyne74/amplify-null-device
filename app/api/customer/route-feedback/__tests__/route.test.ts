@@ -141,8 +141,17 @@ describe('customer route-feedback API (#467)', () => {
 
     const res = await POST(makeRequest({ routeId: 'route-1', tone: 'good' }));
 
-    expect([401, 403]).toContain(res.status);
+    expect(res.status).toBe(401);
     expect(routeUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a Route the caller can see but is no longer a viewer of', async () => {
+    routeGetMock.mockResolvedValue({ data: { ...completedRoute, viewerSubs: [] } });
+
+    const res = await POST(makeRequest({ routeId: 'route-1', tone: 'good' }));
+
+    expect(res.status).toBe(404);
+    expect(invoiceListMock).not.toHaveBeenCalled();
   });
 
   describe('status', () => {

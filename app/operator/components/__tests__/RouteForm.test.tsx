@@ -390,4 +390,82 @@ describe('RouteForm', () => {
     expect(await screen.findByText(STOP_NEEDS_SUBURB)).toBeInTheDocument();
     expect(screen.getByText('No stops added yet.')).toBeInTheDocument();
   });
+
+  describe('Stop notes in the list (#475)', () => {
+    async function renderWithCopiedStops(onSubmit = jest.fn().mockResolvedValue(undefined)) {
+      const onCopyStopsFromSource = jest.fn().mockResolvedValue([
+        { address: '1409/26 Cambridge St, Epping', notes: 'Late addition to list' },
+        { address: '20 Gloucester Road, Epping', notes: 'Gate code 1234' },
+        { address: '9 Grayson Rd, North Epping' },
+      ]);
+      render(
+        <RouteForm
+          customers={mockCustomers}
+          initialRouteCode="W20-26-001"
+          onSubmit={onSubmit}
+          onCancel={noop}
+          copyStopSources={[{ id: 'route-1', customerId: 'cust-1', label: 'W19-26-003' }]}
+          onCopyStopsFromSource={onCopyStopsFromSource}
+        />
+      );
+      fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+      fireEvent.change(screen.getByLabelText(/copy stops from previous route/i), { target: { value: 'route-1' } });
+      fireEvent.click(screen.getByRole('button', { name: /copy stops/i }));
+      await screen.findByLabelText('Notes for stop 1, 1409/26 Cambridge St, Epping');
+      return onSubmit;
+    }
+
+    async function submittedStops(onSubmit: jest.Mock) {
+      fireEvent.click(screen.getByRole('button', { name: /create route/i }));
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      return onSubmit.mock.calls[0][0].stops as Array<{ address: string; notes?: string }>;
+    }
+
+    it("shows each copied Stop's note", async () => {
+      await renderWithCopiedStops();
+
+      expect(screen.getByLabelText('Notes for stop 1, 1409/26 Cambridge St, Epping')).toHaveValue('Late addition to list');
+      expect(screen.getByLabelText('Notes for stop 2, 20 Gloucester Road, Epping')).toHaveValue('Gate code 1234');
+      expect(screen.getByLabelText('Notes for stop 3, 9 Grayson Rd, North Epping')).toHaveValue('');
+    });
+
+    it('submits the notes as edited, cleared or left as copied', async () => {
+      const onSubmit = await renderWithCopiedStops();
+
+      fireEvent.change(screen.getByLabelText('Notes for stop 1, 1409/26 Cambridge St, Epping'), { target: { value: '' } });
+      fireEvent.change(screen.getByLabelText('Notes for stop 3, 9 Grayson Rd, North Epping'), { target: { value: '   ' } });
+
+      const [cambridge, gloucester, grayson] = await submittedStops(onSubmit);
+      expect(cambridge.notes).toBeUndefined();
+      expect(gloucester.notes).toBe('Gate code 1234');
+      // Only spaces counts as cleared.
+      expect(grayson.notes).toBeUndefined();
+    });
+
+    it('submits an edited note', async () => {
+      const onSubmit = await renderWithCopiedStops();
+
+      fireEvent.change(screen.getByLabelText('Notes for stop 2, 20 Gloucester Road, Epping'), { target: { value: 'Gate code 5678' } });
+
+      expect((await submittedStops(onSubmit))[1].notes).toBe('Gate code 5678');
+    });
+
+    it('shows, and lets you edit, a note given when the Stop was added', async () => {
+      const onSubmit = jest.fn().mockResolvedValue(undefined);
+      render(<RouteForm customers={mockCustomers} initialRouteCode="W20-26-001" onSubmit={onSubmit} onCancel={noop} />);
+      fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+
+      fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
+      fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: '123 Main St, Epping' } });
+      // The Stop form's own Notes field, not the Route's.
+      fireEvent.change(document.getElementById('stopNotes')!, { target: { value: 'Side gate' } });
+      fireEvent.click(screen.getByRole('button', { name: /add stop to route/i }));
+
+      const note = await screen.findByLabelText('Notes for stop 1, 123 Main St, Epping');
+      expect(note).toHaveValue('Side gate');
+      fireEvent.change(note, { target: { value: 'Side gate, left' } });
+
+      expect((await submittedStops(onSubmit))[0].notes).toBe('Side gate, left');
+    });
+  });
 });

@@ -226,6 +226,12 @@ export function RouteForm({
     setStops((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // A copied note may only have applied to the old Route (#464, #475), so each
+  // Stop's note is shown to keep, change or clear. Empty or only spaces drops it.
+  const changeStopNote = (index: number, note: string) => {
+    setStops((prev) => prev.map((stop, i) => (i === index ? { ...stop, notes: note.trim() ? note : undefined } : stop)));
+  };
+
   const blockedDateMessage = () => {
     if (blockCheck.status !== 'blocked') return null;
     if (blockCheck.type === 'no_drivers') {
@@ -460,11 +466,21 @@ export function RouteForm({
                   <div className={styles.stopSequence}>{index + 1}</div>
                   <div className={styles.stopContent}>
                     <div className={styles.stopAddress}>{stop.formattedAddress || stop.address}</div>
+                    <Input
+                      size="sm"
+                      className={styles.stopNoteInput}
+                      aria-label={`Notes for stop ${index + 1}, ${stop.formattedAddress || stop.address}`}
+                      placeholder="No notes"
+                      value={stop.notes ?? ''}
+                      onChange={(e) => changeStopNote(index, e.target.value)}
+                      disabled={isSubmitting}
+                    />
                   </div>
                   <Button
                     type="button"
                     variant="danger"
                     size="sm"
+                    className={styles.stopRemove}
                     onClick={() => removeStop(index)}
                     disabled={isSubmitting}
                   >

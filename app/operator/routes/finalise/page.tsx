@@ -7,6 +7,7 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { reconcileSignRun } from '@/lib/signRunReconciliation';
+import { activeStops } from '@/lib/loadChange';
 import { queueSignRunTransition } from '@/lib/signRunTransitions';
 import { sumBilledMinutes } from '@/lib/billedTime';
 import { formatDuration } from '@/lib/format';
@@ -21,17 +22,19 @@ export default function OperatorFinalisePage() {
   const {
     routeId,
     route,
-    stops,
+    stops: allStops,
     loading,
     phaseInfo,
     isOnPhase: isFinaliseScreen,
-  } = useSignRunPhaseScreen({ phaseIdx: 4 });
+  } = useSignRunPhaseScreen({ phaseIdx: 4, includeRemoved: true });
+  // Reconciliation counts the signs of Stops removed at the door as returned; every other count leaves them out.
+  const stops = useMemo(() => activeStops(allStops), [allStops]);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const adjusters = useFinaliseAdjusters(route);
   const { measured, billedMinutes, distanceKm, billTotal, canConfirm } = adjusters;
 
-  const summary = useMemo(() => (route ? reconcileSignRun(route, stops) : null), [route, stops]);
+  const summary = useMemo(() => (route ? reconcileSignRun(route, allStops) : null), [route, allStops]);
   // Cumulative duration of the completed phases, not raw wall-clock start-to-end —
   // a phase with no recorded times (e.g. pickup/unload never actioned) contributes 0.
   const duration = measured ? sumBilledMinutes(measured) : 0;
@@ -100,7 +103,7 @@ export default function OperatorFinalisePage() {
           </span>
         </div>
         <div className={shellStyles.statCell}>
-          <span className={shellStyles.statLabel}>Signs collected</span>
+          <span className={shellStyles.statLabel}>Signs returned</span>
           <span className={shellStyles.statValue}>{summary!.returnedTotal}</span>
         </div>
         <div className={shellStyles.statCell}>

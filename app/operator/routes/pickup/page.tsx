@@ -8,6 +8,7 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { Card } from '@/app/components/ui/core/Card';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
+import { SetAsideStops } from '@/app/operator/components/SetAsideStops';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
@@ -101,6 +102,11 @@ export default function OperatorPickupPage() {
   const openStops = useMemo(() => stops.filter((stop) => stopProgress(stop).pickup.state === 'pending'), [stops]);
   const currentStop = openStops[0] ?? null;
   const upcomingStops = openStops.slice(1);
+  // Couldn't Collect Stops stay listed, so one can still be collected before Pickup is completed.
+  const couldntCollectStops = useMemo(
+    () => stops.filter((stop) => stopProgress(stop).pickup.state === 'couldntCollect'),
+    [stops]
+  );
   const actionSheetStop = stops.find((stop) => stop.id === actionSheetStopId) ?? null;
 
   const openStopSheet = (stopId: string, step: 'action' | 'reason' = 'action') => {
@@ -109,19 +115,19 @@ export default function OperatorPickupPage() {
   };
   const closeStopSheet = () => setActionSheetStopId(null);
 
-  const settleStop = useCallback(
-    (stopId: string, action: 'complete' | 'skip', reason?: string) => {
+  const handleStopCompleted = useCallback(
+    (stopId: string) => {
       const stop = stops.find((s) => s.id === stopId);
-      if (!stop) return;
-      queueStopSettlement(stop, { phase: 'pickup', action, reason });
+      if (stop) queueStopSettlement(stop, { phase: 'pickup', action: 'complete' });
     },
     [stops]
   );
-
-  const handleStopCompleted = useCallback((stopId: string) => settleStop(stopId, 'complete'), [settleStop]);
-  const handleSkipStop = useCallback(
-    (stopId: string, reason: string) => settleStop(stopId, 'skip', reason),
-    [settleStop]
+  const handleCouldntCollect = useCallback(
+    (stopId: string, reason: string) => {
+      const stop = stops.find((s) => s.id === stopId);
+      if (stop) queueStopSettlement(stop, { phase: 'pickup', action: 'couldntCollect', reason });
+    },
+    [stops]
   );
 
   // Logs one missing sign at the current stop, capped at that stop's sign count, and
@@ -384,6 +390,19 @@ export default function OperatorPickupPage() {
         )}
       </div>
 
+      <div>
+        <SetAsideStops
+          title="Couldn't collect"
+          stops={couldntCollectStops.map((stop) => ({
+            id: stop.id,
+            address: stop.formattedAddress || stop.address || '',
+            reason: stopProgress(stop).pickup.reason,
+          }))}
+          actionLabel="Collected"
+          onAction={handleStopCompleted}
+        />
+      </div>
+
       {currentStop && (
         <div className={styles.missingStrip}>
           <button
@@ -430,10 +449,10 @@ export default function OperatorPickupPage() {
         {currentStop && (
           <button
             type="button"
-            className={stopCardStyles.skipButton}
+            className={stopCardStyles.problemButton}
             onClick={() => openStopSheet(currentStop.id, 'reason')}
           >
-            Skip
+            Couldn&apos;t collect
           </button>
         )}
         <button
@@ -474,9 +493,9 @@ export default function OperatorPickupPage() {
           handleStopCompleted(actionSheetStop.id);
           closeStopSheet();
         }}
-        onSkip={(reason) => {
+        onProblem={(reason) => {
           if (!actionSheetStop) return;
-          handleSkipStop(actionSheetStop.id, reason);
+          handleCouldntCollect(actionSheetStop.id, reason);
           closeStopSheet();
         }}
         onClose={closeStopSheet}

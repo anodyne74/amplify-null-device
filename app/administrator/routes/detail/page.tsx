@@ -32,7 +32,15 @@ import { getUserSettings } from '@/lib/userSettings';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { computeRouteSummaryStats, getPhaseOverview } from '@/lib/routeDetailSummary';
 import { getSignRunPhase } from '@/lib/signRunPhase';
-import { restoreStopAsAdministrator, settleStopAsAdministrator } from '@/lib/administratorRouteActions';
+import {
+  removeStopAsAdministrator,
+  restoreStopAsAdministrator,
+  settleStopAsAdministrator,
+  type AdministratorActionResult,
+  type AdministratorSettlement,
+} from '@/lib/administratorRouteActions';
+import { isRemovedAtDoor } from '@/lib/loadChange';
+import { STOP_PROBLEM_REASONS } from '@/app/operator/components/StopCompletionDialog';
 import { stopPhaseOf } from '@/lib/signRunTransitions';
 import { billedTime } from '@/lib/billedTime';
 import { isStopCompleted, stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
@@ -112,30 +120,51 @@ function RouteDetailContent() {
     successMessage: 'Invoice counts saved.',
   });
 
-  const settleStop = useCallback(async (stopId: string, action: 'complete' | 'skip') => {
-    const stop = stops.find((s) => s.id === stopId);
-    if (!route || !stop) return;
+  // The Stop whose "Can't place" / "Couldn't collect" reasons are showing.
+  const [problemStopId, setProblemStopId] = useState<string | null>(null);
 
-    setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-    setStopErrors((prev) => ({ ...prev, [stopId]: null }));
-    const result = await settleStopAsAdministrator(route, stop, { action });
-    if (!result.ok) setStopErrors((prev) => ({ ...prev, [stopId]: result.error }));
-    // Refetch once the Stop is saved, even if only its audit entry failed.
-    if (result.ok || result.saved) void refetch();
-    setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [refetch, route, stops]);
+  const runStopAction = useCallback(
+    async (stopId: string, action: () => Promise<AdministratorActionResult>) => {
+      setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
+      setStopErrors((prev) => ({ ...prev, [stopId]: null }));
+      const result = await action();
+      if (!result.ok) setStopErrors((prev) => ({ ...prev, [stopId]: result.error }));
+      // Refetch once the Stop is saved, even if only its audit entry failed.
+      if (result.ok || result.saved) void refetch();
+      setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
+    },
+    [refetch]
+  );
 
-  const restoreStop = useCallback(async (stopId: string) => {
-    const stop = removedStops.find((s) => s.id === stopId);
-    if (!route || !stop) return;
+  const settleStop = useCallback(
+    (stopId: string, settlement: AdministratorSettlement) => {
+      const stop = stops.find((s) => s.id === stopId);
+      if (!route || !stop) return;
+      setProblemStopId(null);
+      void runStopAction(stopId, () => settleStopAsAdministrator(route, stop, settlement));
+    },
+    [route, runStopAction, stops]
+  );
 
-    setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-    setStopErrors((prev) => ({ ...prev, [stopId]: null }));
-    const result = await restoreStopAsAdministrator(route, stop);
-    if (!result.ok) setStopErrors((prev) => ({ ...prev, [stopId]: result.error }));
-    if (result.ok || result.saved) void refetch();
-    setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-  }, [refetch, removedStops, route]);
+  // Can't place, during Placement: the Stop comes off the Route with the reason.
+  const removeStop = useCallback(
+    (stopId: string, reason: string) => {
+      const stop = stops.find((s) => s.id === stopId);
+      if (!route || !stop) return;
+      setProblemStopId(null);
+      void runStopAction(stopId, () => removeStopAsAdministrator(route, stop, reason));
+    },
+    [route, runStopAction, stops]
+  );
+
+  const restoreStop = useCallback(
+    (stopId: string) => {
+      const stop = removedStops.find((s) => s.id === stopId);
+      if (!route || !stop) return;
+      void runStopAction(stopId, () => restoreStopAsAdministrator(route, stop));
+    },
+    [removedStops, route, runStopAction]
+  );
 
   useEffect(() => {
     if (!user?.userId) return;
@@ -216,7 +245,7 @@ function RouteDetailContent() {
                 Route {route.routeCode || route.id.slice(0, 8)}
               </h1>
               <RouteStatusPill route={route} />
-              {loadChanged && <Badge tone="info">Changed at Load</Badge>}
+              {loadChanged && <Badge tone="info">Changed on the day</Badge>}
               <div className={styles.headerActions}>
                 <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
                   Edit Route
@@ -475,8 +504,7 @@ function RouteDetailContent() {
                   const phaseProgress = stopProgress(stop)[currentExecutionPhase];
                   const phaseComplete = phaseProgress.state !== 'pending';
                   const completedStop = routeDone ? isStopCompleted(stop) : phaseComplete;
-                  const phaseSkipped = phaseProgress.state === 'skipped';
-                  const phaseCompletedAt = phaseProgress.at ?? stop.actualDepartureTime;
+                  const pickupProgress = stopProgress(stop).pickup;
                   const agentName = stop.agent?.trim() || 'Unassigned';
 
                   let stopActions: React.ReactNode = null;
@@ -519,44 +547,75 @@ function RouteDetailContent() {
                       </div>
                     );
                   } else if (route?.status === 'in_progress' && isCurrentPhaseStop) {
-                    stopActions = !phaseComplete ? (
+                    const inPickup = currentExecutionPhase === 'pickup';
+                    stopActions = (
+                      <>
+                        {problemStopId === stop.id ? (
+                          <div className={styles.execActionRow}>
+                            <span className={styles.execPrompt}>
+                              {inPickup ? "Why couldn't the signs be collected?" : "Why can't the signs go up?"}
+                            </span>
+                            {STOP_PROBLEM_REASONS[currentExecutionPhase].map((reason) => (
+                              <Button
+                                key={reason}
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  if (inPickup) settleStop(stop.id, { action: 'couldntCollect', reason });
+                                  else removeStop(stop.id, reason);
+                                }}
+                                disabled={!!stopExecuting[stop.id]}
+                              >
+                                {reason}
+                              </Button>
+                            ))}
+                            <Button size="sm" variant="ghost" onClick={() => setProblemStopId(null)}>
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className={styles.execActionRow}>
+                            <Button
+                              size="sm"
+                              onClick={() => settleStop(stop.id, { action: 'complete' })}
+                              disabled={!!stopExecuting[stop.id]}
+                            >
+                              {stopExecuting[stop.id] ? 'Saving…' : inPickup ? 'Signs Picked Up' : 'Signs Placed'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => setProblemStopId(stop.id)}
+                              disabled={!!stopExecuting[stop.id]}
+                            >
+                              {inPickup ? "Couldn't collect" : "Can't place"}
+                            </Button>
+                          </div>
+                        )}
+                        {stopErrors[stop.id] && (
+                          <div className={styles.errorBanner} role="alert">{stopErrors[stop.id]}</div>
+                        )}
+                      </>
+                    );
+                  } else if (pickupProgress.state === 'couldntCollect') {
+                    // Its signs are still out there: settled collected once someone recovers them,
+                    // during Pickup or any time after.
+                    stopActions = (
                       <>
                         <div className={styles.execActionRow}>
                           <Button
                             size="sm"
-                            onClick={() => { void settleStop(stop.id, 'complete'); }}
-                            disabled={!!stopExecuting[stop.id]}
-                          >
-                            {stopExecuting[stop.id]
-                              ? 'Saving…'
-                              : route.executionPhase === 'pickup'
-                              ? 'Signs Picked Up'
-                              : 'Signs Placed'}
-                          </Button>
-                          <Button
-                            size="sm"
                             variant="secondary"
-                            onClick={() => { void settleStop(stop.id, 'skip'); }}
+                            onClick={() => settleStop(stop.id, { action: 'complete' })}
                             disabled={!!stopExecuting[stop.id]}
                           >
-                            Skip Stop
+                            {stopExecuting[stop.id] ? 'Saving…' : 'Signs Collected'}
                           </Button>
                         </div>
                         {stopErrors[stop.id] && (
                           <div className={styles.errorBanner} role="alert">{stopErrors[stop.id]}</div>
                         )}
                       </>
-                    ) : (
-                      <div className={styles.execDone}>
-                        {phaseSkipped ? (
-                          <span className={styles.execSkippedBadge}>⏭ Skipped</span>
-                        ) : (
-                          <span>
-                            ✓ {currentExecutionPhase === 'pickup' ? 'Collected' : 'Placed'}:{' '}
-                            {formatRouteDateTime(phaseCompletedAt)}
-                          </span>
-                        )}
-                      </div>
                     );
                   }
 
@@ -600,15 +659,20 @@ function RouteDetailContent() {
             </Card>
 
             {removedStops.length > 0 && (
-              <Card title={`Removed at Load (${removedStops.length})`} padded={false}>
+              <Card title={`Removed on the day (${removedStops.length})`} padded={false}>
                 <div className={styles.stopsList}>
                   {removedStops.map((stop) => (
                     <StopCard
                       key={stop.id}
                       sequence="–"
-                      tone="skipped"
+                      tone="couldntCollect"
                       address={stop.formattedAddress || stop.address || ''}
-                      statusLabel={`Removed ${formatRouteDateTime(stop.removedAt)}`}
+                      statusLabel={[
+                        `Removed ${isRemovedAtDoor(stop) ? 'at the door' : 'at Load'} ${formatRouteDateTime(stop.removedAt)}`,
+                        stop.removedReason && isRemovedAtDoor(stop) ? stop.removedReason : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                       agentName={stop.agent?.trim() || 'Unassigned'}
                       isAuction={Boolean(stop.isAuction)}
                       actions={

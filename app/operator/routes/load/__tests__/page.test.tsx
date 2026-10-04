@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import OperatorLoadPage from '../page';
-import { queueLoadChange, queueSignRunTransition } from '@/lib/signRunTransitions';
+import { queueStopChange, queueSignRunTransition } from '@/lib/signRunTransitions';
 import { signRunOutbox } from '@/lib/signRunOutbox';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import type { Route, Stop } from '@/amplify/types';
@@ -43,7 +43,7 @@ jest.mock('@/lib/signRunTransitions', () => {
     ...actual,
     queueSignRunTransition: jest.fn(actual.queueSignRunTransition),
     queueStopSettlement: jest.fn(actual.queueStopSettlement),
-    queueLoadChange: jest.fn(actual.queueLoadChange),
+    queueStopChange: jest.fn(actual.queueStopChange),
   };
 });
 jest.mock('aws-amplify/auth', () => ({ fetchAuthSession: jest.fn().mockResolvedValue({}) }));
@@ -245,7 +245,7 @@ describe('Operator Load page', () => {
       fireEvent.click(row);
       expect(row).toHaveAttribute('aria-pressed', 'false');
       expect(screen.getByText('0 of 4 loaded')).toBeInTheDocument();
-      expect(queueLoadChange).not.toHaveBeenCalled();
+      expect(queueStopChange).not.toHaveBeenCalled();
       expect(queueSignRunTransition).not.toHaveBeenCalled();
     });
 
@@ -260,7 +260,7 @@ describe('Operator Load page', () => {
       await waitFor(() => {
         expect(screen.queryByRole('button', { name: /3 Test St, Carlton/ })).not.toBeInTheDocument();
       });
-      expect(queueLoadChange).toHaveBeenCalledWith(
+      expect(queueStopChange).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'route-1' }),
         expect.objectContaining({ type: 'remove', by: 'operator-1', stop: expect.objectContaining({ id: 's3' }) })
       );
@@ -277,7 +277,7 @@ describe('Operator Load page', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Restore' }));
 
       expect(await screen.findByRole('button', { name: /3 Test St, Carlton/ })).toBeInTheDocument();
-      expect(queueLoadChange).toHaveBeenLastCalledWith(
+      expect(queueStopChange).toHaveBeenLastCalledWith(
         expect.anything(),
         expect.objectContaining({ type: 'restore', stop: expect.objectContaining({ id: 's3' }) })
       );
@@ -296,7 +296,7 @@ describe('Operator Load page', () => {
 
       expect(row).toBeInTheDocument();
       expect(row).toHaveAttribute('aria-pressed', 'false');
-      expect(queueLoadChange).not.toHaveBeenCalled();
+      expect(queueStopChange).not.toHaveBeenCalled();
     });
 
     it('adds a property on the day to the end of the list, saving it', async () => {

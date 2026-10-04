@@ -73,7 +73,7 @@ const SUBURB_RESULT = {
       properties: [
         property(CLIFF_14, '14 Cliff Rd, Epping', {
           visitCount: 1,
-          visits: [visit(), visit({ stopId: 's2', routeId: 'r2', routeCode: 'W26-07-202', status: 'skipped', invoices: [] })],
+          visits: [visit()],
           scheduled: [visit({ stopId: 's3', routeId: 'r3', routeCode: 'W26-10-303', status: 'planned', invoices: [] })],
         }),
         property(CLIFF_96, '96 Cliff Rd, Epping'),
@@ -114,13 +114,12 @@ describe('Administrator Property History page', () => {
     );
   });
 
-  it('shows collapsible Street and Property groups with Visit counts, Skipped and Scheduled rows', async () => {
+  it('shows collapsible Street and Property groups with Visit counts and Scheduled rows', async () => {
     render(<AdministratorPropertyHistoryPage />);
     await pick('epping', /^Epping 2121/);
 
     const property14 = await screen.findByRole('group', { name: /14 Cliff Rd, Epping/ });
     expect(within(property14).getByText('1 Visit')).toBeInTheDocument();
-    expect(within(property14).getByText('Skipped')).toBeInTheDocument();
     expect(within(property14).getByText('Scheduled')).toBeInTheDocument();
     expect(within(property14).getByRole('link', { name: 'W26-10-303' })).toHaveAttribute('href', '/administrator/routes/detail?id=r3');
     expect(screen.getByText('Cliff Road')).toBeInTheDocument();

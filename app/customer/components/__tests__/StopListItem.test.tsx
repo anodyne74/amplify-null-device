@@ -43,6 +43,27 @@ describe('StopListItem', () => {
     expect(screen.getByText(/Picked up:/i)).toBeInTheDocument();
   });
 
+  it("shows a Couldn't Collect stop as not yet collected, never with the reason", () => {
+    const stop: Stop = {
+      ...mockStop,
+      notes: '[PLACEMENT_DONE:2026-08-31T10:00:00.000Z] [PICKUP_SKIPPED:2026-08-31T11:00:00.000Z|Owner or tenant refused]',
+    };
+
+    render(<StopListItem stop={stop} sequence={1} phase="pickup" />);
+
+    expect(screen.getByText('Not yet collected')).toBeInTheDocument();
+    expect(screen.queryByText(/refused/i)).not.toBeInTheDocument();
+  });
+
+  it('shows a stop removed at the door as removed on the day, never with the reason', () => {
+    const stop: Stop = { ...mockStop, removed: true, removedReason: 'Owner or tenant refused' };
+
+    render(<StopListItem stop={stop} sequence={null} phase="placement" />);
+
+    expect(screen.getByText('Removed on the day')).toBeInTheDocument();
+    expect(screen.queryByText(/refused/i)).not.toBeInTheDocument();
+  });
+
   it('renders with notes when provided, stripped of execution markers', () => {
     const stopWithNotes: Stop = {
       ...mockStop,

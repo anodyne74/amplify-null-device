@@ -1,6 +1,7 @@
 /**
  * What an administrator can change on a Route from its detail page: settle a
- * Stop done or skipped, restore a Stop a Load Change removed, Finalise,
+ * Stop done or Couldn't Collect, remove a Stop at the door during Placement,
+ * restore any Removed Stop, Finalise,
  * correct the Billed Time, and change the Pickup Date. Unlike the
  * operator's Sign Run (lib/signRunTransitions.ts and its outbox), each one is
  * saved straight away and recorded in the audit log, and they all report the
@@ -18,7 +19,8 @@ import {
   type BilledTimeRoute,
 } from '@/lib/billedTime';
 import { getDataClient } from '@/lib/data-client';
-import { planStopRestore, type LoadChangeRoute } from '@/lib/loadChange';
+import { isRemovedAtDoor, planStopRemoval, planStopRestore, type LoadChangeRoute } from '@/lib/loadChange';
+import { stopProgress } from '@/lib/stopProgress';
 import { pickupDateProblem } from '@/lib/pickupDate';
 import { updateRoute, updateStopExecution } from '@/lib/routes';
 import {
@@ -68,20 +70,37 @@ async function saveAudited(
   return { ok: true };
 }
 
+/** What an administrator settles a Stop as: done, or Couldn't Collect (Pickup only) with a reason. */
+export type AdministratorSettlement = { action: 'complete' } | { action: 'couldntCollect'; reason: string };
+
 /**
- * An administrator settles a Stop done or skipped for the phase its Route is
- * on, as the operator would. Every Stop is placed and picked up. Refused,
- * writing nothing, outside Placement and Pickup.
+ * An administrator settles a Stop for the phase its Route is on, as the
+ * operator would: done in Placement, or collected or Couldn't Collect in
+ * Pickup. Once the Route is past Pickup, a Couldn't Collect Stop can still be
+ * settled collected when its signs are recovered. Anything else is refused,
+ * writing nothing.
  */
 export async function settleStopAsAdministrator(
   route: Pick<Route, 'status' | 'executionPhase'>,
-  stop: Pick<Stop, 'id' | 'routeId' | 'customerId' | 'notes' | 'actualArrivalTime'>,
-  settlement: Omit<StopSettlement, 'phase'>
+  stop: Pick<Stop, 'id' | 'routeId' | 'customerId' | 'notes' | 'actualArrivalTime' | 'actualDepartureTime'>,
+  settlement: AdministratorSettlement
 ): Promise<AdministratorActionResult> {
-  const phase = stopPhaseOf(route);
+  const recovered =
+    settlement.action === 'complete' && stopProgress(stop).pickup.state === 'couldntCollect' && !stopPhaseOf(route);
+  const phase = recovered ? 'pickup' : stopPhaseOf(route);
   if (!phase) return refused('Stops can only be settled while the route is on Placement or Pickup.');
 
-  const patch = planStopSettlement(stop, { ...settlement, phase }, new Date().toISOString());
+  let full: StopSettlement;
+  if (settlement.action === 'complete') {
+    full = { phase, action: 'complete' };
+  } else {
+    if (phase !== 'pickup') return refused("Only a pickup can be Couldn't Collect.");
+    const reason = settlement.reason.trim();
+    if (!reason) return refused('Say why the signs couldn’t be collected.');
+    full = { phase, action: 'couldntCollect', reason };
+  }
+
+  const patch = planStopSettlement(stop, full, new Date().toISOString());
   return saveAudited(
     () => updateStopExecution(stop.id, patch),
     {
@@ -89,7 +108,12 @@ export async function settleStopAsAdministrator(
       resourceId: stop.id,
       customerId: stop.customerId,
       action: 'stop.settle',
-      details: { routeId: stop.routeId, phase, action: settlement.action, reason: settlement.reason ?? null },
+      details: {
+        routeId: stop.routeId,
+        phase,
+        action: settlement.action,
+        reason: full.action === 'couldntCollect' ? full.reason : null,
+      },
     },
     {
       failed: 'Could not save that stop. Nothing was changed.',
@@ -99,12 +123,44 @@ export async function settleStopAsAdministrator(
 }
 
 /**
- * An administrator puts back a Stop a Load Change removed, at any point in the
- * Route's life -- unlike the operator, who can only until Load is confirmed.
+ * An administrator takes a Stop off its Route at the door during Placement,
+ * as the operator would, with a reason. Refused outside Placement -- during
+ * Load it's the operator's Load Change -- and for a Stop whose signs are up.
+ */
+export async function removeStopAsAdministrator(
+  route: LoadChangeRoute,
+  stop: Pick<Stop, 'id' | 'routeId' | 'customerId' | 'removed' | 'notes' | 'actualDepartureTime'>,
+  reason: string
+): Promise<AdministratorActionResult> {
+  const actor = await fetchUserId();
+  if (!actor) return refused('Could not tell who is signed in. Try again in a moment.');
+  const plan = planStopRemoval(route, stop, actor, new Date().toISOString(), reason);
+  if ('refused' in plan) return refused(plan.refused);
+  if (plan.window !== 'placement') return refused('Stops can only be removed by an administrator during Placement.');
+
+  return saveAudited(
+    () => updateStopExecution(stop.id, plan.patch),
+    {
+      resourceType: 'stop',
+      resourceId: stop.id,
+      customerId: stop.customerId,
+      action: 'stop.remove',
+      details: { routeId: stop.routeId, reason: plan.patch.removedReason ?? null },
+    },
+    {
+      failed: 'Could not remove that stop. Nothing was changed.',
+      unaudited: 'The stop was removed, but its audit entry could not be written.',
+    }
+  );
+}
+
+/**
+ * An administrator puts back any Removed Stop, at any point in the Route's
+ * life -- unlike the operator, who can only while its window is open.
  */
 export async function restoreStopAsAdministrator(
   route: LoadChangeRoute,
-  stop: Pick<Stop, 'id' | 'routeId' | 'customerId' | 'removed'>
+  stop: Pick<Stop, 'id' | 'routeId' | 'customerId' | 'removed' | 'removedReason'>
 ): Promise<AdministratorActionResult> {
   const plan = planStopRestore(route, stop, { anyPhase: true });
   if ('refused' in plan) return refused(plan.refused);
@@ -115,7 +171,7 @@ export async function restoreStopAsAdministrator(
       resourceType: 'stop',
       resourceId: stop.id,
       customerId: stop.customerId,
-      action: 'stop.loadChange.restore',
+      action: isRemovedAtDoor(stop) ? 'stop.restore' : 'stop.loadChange.restore',
       details: { routeId: stop.routeId },
     },
     {

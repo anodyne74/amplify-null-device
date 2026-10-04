@@ -230,7 +230,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   const pickupDateLabel = pickupDate ? formatRouteDate(pickupDate) : 'TBC';
   // Next and upcoming stops are those still awaiting the phase the Customer is
   // following, the same one as the Progress card and the stop list; there's no
-  // next stop once every one has been done or skipped.
+  // next stop once every one has been done or couldn't be collected.
   const pendingStops = stops.filter(
     (stop) => stopProgress(stop)[progress.phase].state === 'pending'
   );

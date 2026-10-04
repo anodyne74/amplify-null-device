@@ -10,11 +10,11 @@ function doneStop(numberOfSigns: number, missingSignsCount = 0): SignCountStop {
   };
 }
 
-function skippedStop(numberOfSigns: number, missingSignsCount = 0): SignCountStop {
+function couldntCollectStop(numberOfSigns: number, missingSignsCount = 0): SignCountStop {
   return {
     numberOfSigns,
     missingSignsCount,
-    notes: settleStopNotes('', 'pickup', 'skip', '2026-08-31T10:00:00.000Z', 'No access'),
+    notes: settleStopNotes('', 'pickup', 'couldntCollect', '2026-08-31T10:00:00.000Z', 'No access'),
   };
 }
 
@@ -23,20 +23,29 @@ function pendingStop(numberOfSigns: number): SignCountStop {
 }
 
 describe('reconcileSignRun', () => {
-  it('counts done vs skipped stops separately', () => {
-    const result = reconcileSignRun({ loadedSignsCount: 20 }, [doneStop(5), doneStop(5), skippedStop(5), pendingStop(5)]);
+  it("counts done vs Couldn't Collect stops separately", () => {
+    const result = reconcileSignRun({ loadedSignsCount: 20 }, [doneStop(5), doneStop(5), couldntCollectStop(5), pendingStop(5)]);
     expect(result.doneCount).toBe(2);
-    expect(result.skipCount).toBe(1);
+    expect(result.couldntCollectCount).toBe(1);
   });
 
   it('returnedTotal nets missing signs, only across completed stops', () => {
-    const result = reconcileSignRun({ loadedSignsCount: 20 }, [doneStop(5, 1), doneStop(3, 0), skippedStop(10)]);
+    const result = reconcileSignRun({ loadedSignsCount: 20 }, [doneStop(5, 1), doneStop(3, 0), couldntCollectStop(10)]);
     expect(result.returnedTotal).toBe(7);
   });
 
   it('missingTotal sums missingSignsCount across every stop, done or not', () => {
-    const result = reconcileSignRun({ loadedSignsCount: 20 }, [doneStop(5, 1), skippedStop(5, 2), pendingStop(5)]);
+    const result = reconcileSignRun({ loadedSignsCount: 20 }, [doneStop(5, 1), couldntCollectStop(5, 2), pendingStop(5)]);
     expect(result.missingTotal).toBe(3);
+  });
+
+  it("counts the signs of a Stop removed at the door as returned, and those at a Couldn't Collect Stop as still on site", () => {
+    const removedAtDoor = { numberOfSigns: 4, notes: '', removed: true, removedReason: 'Gate locked / no access' };
+    const removedAtLoad = { numberOfSigns: 6, notes: '', removed: true };
+    const result = reconcileSignRun({ loadedSignsCount: 14 }, [doneStop(5), couldntCollectStop(5), removedAtDoor, removedAtLoad]);
+    expect(result.returnedTotal).toBe(9);
+    expect(result.stillOnSite).toBe(5);
+    expect(result.couldntCollectCount).toBe(1);
   });
 
   it('stillOnSite is loadedTotal minus returned and missing, floored at 0', () => {

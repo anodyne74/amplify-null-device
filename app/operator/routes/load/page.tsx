@@ -9,7 +9,7 @@ import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
-import { queueLoadChange, queueSignRunTransition } from '@/lib/signRunTransitions';
+import { queueStopChange, queueSignRunTransition } from '@/lib/signRunTransitions';
 import { activeStops, type LoadStopInput } from '@/lib/loadChange';
 import { useCurrentUserId } from '@/lib/use-user-groups';
 import { formatClockTime } from '@/lib/format';
@@ -112,9 +112,9 @@ export default function OperatorLoadPage() {
   };
 
   // Load Changes, like transitions, show at once and save in the background.
-  const changeLoad = (change: Parameters<typeof queueLoadChange>[1]): string | null => {
+  const changeLoad = (change: Parameters<typeof queueStopChange>[1]): string | null => {
     if (!route) return null;
-    const result = queueLoadChange(route, change);
+    const result = queueStopChange(route, change);
     return 'error' in result ? result.error : null;
   };
 

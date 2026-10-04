@@ -28,8 +28,8 @@ export function customerProgressPhase(
 
 /**
  * How far a Route has got, for its Customer: every Stop done in the phase
- * they follow, out of every Stop not skipped in it. A Stop a Load Change
- * removed is in neither.
+ * they follow, out of every Stop. A Couldn't Collect Stop is in the total but
+ * not done; a Removed Stop is in neither.
  */
 export function customerRouteProgress(
   route: Pick<Route, 'status' | 'executionPhase' | 'pickupStartTime'>,
@@ -41,6 +41,6 @@ export function customerRouteProgress(
     phase,
     label: phase === 'pickup' ? 'Picked up' : 'Placed',
     done: states.filter((state) => state === 'done').length,
-    total: states.filter((state) => state !== 'skipped').length,
+    total: states.length,
   };
 }

@@ -97,7 +97,7 @@ export function describeSearch(search: PropertyHistorySearch, result: PropertyHi
   return `${kind}: ${text}`;
 }
 
-/** The figures in a report's totals band. Skipped Stops aren't Visits, so they count toward none of them. */
+/** The figures in a report's totals band. Removed Stops are never Visits, so they're never in the rows. */
 export function reportTotals(result: PropertyHistoryResult): {
   properties: number;
   completedVisits: number;
@@ -105,7 +105,7 @@ export function reportTotals(result: PropertyHistoryResult): {
   scheduled: number;
 } {
   const properties = resultProperties(result);
-  const visits = properties.flatMap((property) => property.visits).filter((row) => row.status !== 'skipped');
+  const visits = properties.flatMap((property) => property.visits);
   return {
     properties: properties.length,
     completedVisits: visits.length,

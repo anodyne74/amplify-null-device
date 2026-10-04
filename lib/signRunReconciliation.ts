@@ -7,16 +7,17 @@
  */
 import { stopProgress } from './stopProgress';
 import { signsCollected, missingSigns, type SignCountStop } from './signRunTotals';
-import { activeStops } from './loadChange';
+import { activeStops, isRemovedAtDoor } from './loadChange';
 
 export interface ReconciliationRoute {
   loadedSignsCount?: number | null;
 }
 
 export interface SignRunReconciliation {
+  /** Signs collected, plus the signs of Stops removed at the door, which came back unplaced. */
   returnedTotal: number;
   doneCount: number;
-  skipCount: number;
+  couldntCollectCount: number;
   missingTotal: number;
   loadedTotal: number;
   stillOnSite: number;
@@ -24,21 +25,23 @@ export interface SignRunReconciliation {
 
 export function reconcileSignRun(route: ReconciliationRoute, stops: SignCountStop[]): SignRunReconciliation {
   let doneCount = 0;
-  let skipCount = 0;
+  let couldntCollectCount = 0;
 
   for (const stop of activeStops(stops)) {
     const { state } = stopProgress(stop).pickup;
-    if (state === 'skipped') {
-      skipCount += 1;
+    if (state === 'couldntCollect') {
+      couldntCollectCount += 1;
     } else if (state === 'done') {
       doneCount += 1;
     }
   }
 
-  const returnedTotal = signsCollected(stops);
+  // A Stop removed at Load never had its signs loaded; one removed at the door did, and they came back.
+  const returnedUnplaced = stops.filter(isRemovedAtDoor).reduce((sum, stop) => sum + (stop.numberOfSigns ?? 0), 0);
+  const returnedTotal = signsCollected(stops) + returnedUnplaced;
   const missingTotal = missingSigns(stops);
   const loadedTotal = route.loadedSignsCount ?? 0;
   const stillOnSite = Math.max(0, loadedTotal - returnedTotal - missingTotal);
 
-  return { returnedTotal, doneCount, skipCount, missingTotal, loadedTotal, stillOnSite };
+  return { returnedTotal, doneCount, couldntCollectCount, missingTotal, loadedTotal, stillOnSite };
 }

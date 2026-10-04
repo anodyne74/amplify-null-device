@@ -60,9 +60,9 @@ export interface RouteSummaryStats {
 /**
  * Duration/distance/stop/sign counts for a route's summary strip. Completed
  * and archived routes summarise only their completed stops (see Stop Progress
- * in CONTEXT.md, so skipped ones are left out), falling back to every stop
+ * in CONTEXT.md, so Couldn't Collect ones are left out), falling back to every stop
  * when none are -- in-progress and planned routes always summarise every stop
- * regardless of progress. A Stop a Load Change removed is never summarised.
+ * regardless of progress. A Removed Stop is never summarised.
  */
 export function computeRouteSummaryStats(route: Route | null, allStops: Stop[]): RouteSummaryStats {
   const stops = activeStops(allStops);

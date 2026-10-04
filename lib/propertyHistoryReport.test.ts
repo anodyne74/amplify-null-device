@@ -94,7 +94,7 @@ function row(status: VisitRow['status'], signsPlaced: number, date: string | nul
 }
 
 describe('reportTotals', () => {
-  it('counts Properties, completed Visits and their signs, and scheduled Visits, leaving out Skipped Stops', () => {
+  it('counts Properties, completed Visits and their signs, and scheduled Visits', () => {
     const result: PropertyHistoryResult = {
       level: 'suburb',
       streets: [
@@ -102,7 +102,7 @@ describe('reportTotals', () => {
           street: 'cliff road',
           properties: [
             { ...property('a', '14 Cliff Rd', 2), visits: [row('completed', 3), row('archived', 2)], scheduled: [row('planned', 2)] },
-            { ...property('b', '16 Cliff Rd', 1), visits: [row('signs_placed', 4), row('skipped', 5)], scheduled: [] },
+            { ...property('b', '16 Cliff Rd', 1), visits: [row('signs_placed', 4)], scheduled: [] },
           ],
         },
         {

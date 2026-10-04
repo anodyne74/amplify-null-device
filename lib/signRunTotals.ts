@@ -15,6 +15,7 @@ export interface SignCountStop {
   missingSignsCount?: number | null;
   isAuction?: boolean | null;
   removed?: boolean | null;
+  removedReason?: string | null;
 }
 
 /** Gross count of signs placed on a Route — sum of numberOfSigns over every Stop
@@ -33,7 +34,7 @@ export function timedSigns(stop: SignCountStop): number {
 }
 
 /** Net count of signs actually recovered during Pickup — summed only over stops that
- * were completed (not skipped), each stop's contribution reduced by its own missing
+ * were completed (not Couldn't Collect), each stop's contribution reduced by its own missing
  * signs. Missing signs never count as collected — see Stop.missingSignsCount's schema
  * comment. A route with stops still in progress reports a partial, growing total. */
 export function signsCollected(stops: SignCountStop[]): number {

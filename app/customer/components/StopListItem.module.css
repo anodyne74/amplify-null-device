@@ -36,7 +36,7 @@
   background: var(--neutral-600);
 }
 
-.circleSkipped {
+.circleMuted {
   background: transparent;
   border: 2px solid var(--border-default);
   color: var(--text-subtle);

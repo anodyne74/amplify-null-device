@@ -223,10 +223,11 @@ export interface StopExecutionUpdateInput {
   placedLongitude?: number;
   placedAccuracyMeters?: number;
   placedPositionAt?: string;
-  /** A Load Change removing or restoring the Stop (lib/loadChange.ts). */
+  /** Removing or restoring the Stop (lib/loadChange.ts). */
   removed?: boolean;
   removedAt?: string;
   removedBy?: string;
+  removedReason?: string;
 }
 
 /**

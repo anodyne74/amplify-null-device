@@ -107,12 +107,12 @@ function updateViewport(
 }
 
 /** Each marker's colour shows how far its Stop has got in the phase shown. A
- *  skipped one is drawn by stopMarkerSkipped, from the same phase's state. */
+ *  Couldn't Collect one is drawn by stopMarkerCouldntCollect, from the same phase's state. */
 const TONE_MARKER_CLASS: Record<StopProgressTone, string> = {
   awaiting: styles.stopMarkerAwaiting,
   placed: styles.stopMarkerPlaced,
   pickedUp: styles.stopMarkerPickedUp,
-  skipped: styles.stopMarkerSkipped,
+  couldntCollect: styles.stopMarkerCouldntCollect,
 };
 
 function hasCoordinates(stop: Stop): stop is StopWithCoords {
@@ -259,7 +259,7 @@ export function RouteStopsMap({
           precisionIndicator?.level === 'clear' ? styles.stopMarkerApproximate : '',
           isActive ? styles.stopMarkerActive : '',
           isUpcoming ? styles.stopMarkerUpcoming : '',
-          state === 'skipped' ? styles.stopMarkerSkipped : state === 'done' ? styles.stopMarkerCompleted : '',
+          state === 'couldntCollect' ? styles.stopMarkerCouldntCollect : state === 'done' ? styles.stopMarkerCompleted : '',
         ]
           .filter(Boolean)
           .join(' ');

@@ -6,32 +6,52 @@ import { Button } from '@/app/components/ui/core/Button';
 import type { Stop } from '@/amplify/types';
 import styles from './StopCompletionDialog.module.css';
 
-export const SKIP_REASONS = [
-  'Gate locked / no access',
-  'Owner or tenant refused',
-  'Signs already on site',
-  'No safe placement',
-  'Property not ready',
-];
+/** Why a Stop can't be done, per phase: in Placement it becomes a Removed
+ *  Stop, in Pickup it's Couldn't Collect (see CONTEXT.md). */
+export const STOP_PROBLEM_REASONS: Record<'placement' | 'pickup', string[]> = {
+  placement: [
+    'Gate locked / no access',
+    'Owner or tenant refused',
+    'Signs already on site',
+    'No safe placement',
+    'Property not ready',
+    'Cancelled on the spot',
+  ],
+  pickup: ['Gate locked / no access', 'Owner or tenant refused', 'Access blocked', 'Not safe to collect'],
+};
+
+const PROBLEM_COPY = {
+  placement: {
+    button: "Can't place",
+    title: "Why can't the signs go up?",
+    hint: 'The stop comes off the route and its signs stay on the van.',
+  },
+  pickup: {
+    button: "Couldn't collect",
+    title: "Why couldn't the signs be collected?",
+    hint: 'The signs stay on site until someone goes back for them.',
+  },
+};
 
 interface StopCompletionDialogProps {
   stop: Stop | null;
   phase: 'placement' | 'pickup';
-  /** Opens straight to the skip-reason step — used by the primary "Skip" button, which
-   * already knows the driver wants to skip rather than complete. */
+  /** Opens straight to the reason step — used by the action bar's problem button, which
+   * already knows the operator can't do the stop. */
   initialStep?: 'action' | 'reason';
   onComplete: () => void;
-  onSkip: (reason: string) => void;
+  /** Can't place (Placement) or Couldn't collect (Pickup), with the reason picked. */
+  onProblem: (reason: string) => void;
   onClose: () => void;
 }
 
-/** Tap-row-to-sheet completion flow: address/facts + primary action, or the skip-reason picker. */
+/** Tap-row-to-sheet completion flow: address/facts + primary action, or the reason picker. */
 export function StopCompletionDialog({
   stop,
   phase,
   initialStep = 'action',
   onComplete,
-  onSkip,
+  onProblem,
   onClose,
 }: StopCompletionDialogProps) {
   const [step, setStep] = useState<'action' | 'reason'>(initialStep);
@@ -48,17 +68,18 @@ export function StopCompletionDialog({
 
   const primaryLabel = phase === 'pickup' ? 'Signs Picked Up' : 'Signs Placed';
   const address = stop.formattedAddress || stop.address || '';
+  const copy = PROBLEM_COPY[phase];
 
   if (step === 'reason') {
     return (
-      <Dialog open title="Why is this stop skipped?" description={address} onClose={onClose}>
+      <Dialog open title={copy.title} description={`${address} · ${copy.hint}`} onClose={onClose}>
         <div className={styles.reasonList}>
-          {SKIP_REASONS.map((reason) => (
+          {STOP_PROBLEM_REASONS[phase].map((reason) => (
             <button
               key={reason}
               type="button"
               className={styles.reasonButton}
-              onClick={() => onSkip(reason)}
+              onClick={() => onProblem(reason)}
             >
               {reason}
             </button>
@@ -77,7 +98,7 @@ export function StopCompletionDialog({
       footer={
         <>
           <Button variant="secondary" onClick={() => setStep('reason')}>
-            Skip
+            {copy.button}
           </Button>
           <Button onClick={onComplete}>
             {primaryLabel}

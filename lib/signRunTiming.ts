@@ -8,16 +8,17 @@
  */
 import type { SignRunTransitionType } from '@/lib/signRunTransitions';
 
-export type StopSettlementKind =
-  | 'placementStopDone'
-  | 'placementStopSkipped'
-  | 'pickupStopDone'
-  | 'pickupStopSkipped';
+export type StopSettlementKind = 'placementStopDone' | 'pickupStopDone' | 'pickupStopCouldntCollect';
 
-/** A Load Change (lib/loadChange.ts), saved through the same outbox. */
-export type LoadChangeKind = 'loadStopAdded' | 'loadStopRemoved' | 'loadStopRestored';
+/** A Removed Stop or Load Change (lib/loadChange.ts), saved through the same outbox. */
+export type StopChangeKind =
+  | 'loadStopAdded'
+  | 'loadStopRemoved'
+  | 'loadStopRestored'
+  | 'placementStopRemoved'
+  | 'placementStopRestored';
 
-export type SignRunTimingKind = SignRunTransitionType | StopSettlementKind | LoadChangeKind;
+export type SignRunTimingKind = SignRunTransitionType | StopSettlementKind | StopChangeKind;
 
 // A Record, so a new transition type doesn't compile until it's listed here.
 const KIND: Record<SignRunTimingKind, true> = {
@@ -31,12 +32,13 @@ const KIND: Record<SignRunTimingKind, true> = {
   confirmUnload: true,
   finalise: true,
   placementStopDone: true,
-  placementStopSkipped: true,
   pickupStopDone: true,
-  pickupStopSkipped: true,
+  pickupStopCouldntCollect: true,
   loadStopAdded: true,
   loadStopRemoved: true,
   loadStopRestored: true,
+  placementStopRemoved: true,
+  placementStopRestored: true,
 };
 
 export const SIGN_RUN_TIMING_KINDS = Object.keys(KIND) as SignRunTimingKind[];

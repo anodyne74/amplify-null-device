@@ -2,14 +2,14 @@ import { getStopStatusLabel, stopProgressTone } from './stopStatusLabel';
 import { settleStopNotes } from './stopProgress';
 
 describe('getStopStatusLabel — in-progress route, phase-specific branch', () => {
-  it('shows a skip reason when one is present', () => {
-    const notes = settleStopNotes('', 'placement', 'skip', '2026-08-31T10:00:00.000Z', 'Gate locked / no access');
-    expect(getStopStatusLabel({ notes }, 'placement', 'in_progress')).toBe('Placement skipped · Gate locked / no access');
+  it("shows Couldn't Collect with its reason", () => {
+    const notes = settleStopNotes('', 'pickup', 'couldntCollect', '2026-08-31T10:00:00.000Z', 'Gate locked / no access');
+    expect(getStopStatusLabel({ notes }, 'pickup', 'in_progress')).toBe("Couldn't collect · Gate locked / no access");
   });
 
-  it('shows a bare skip label when no reason was recorded', () => {
-    const notes = settleStopNotes('', 'pickup', 'skip', '2026-08-31T10:00:00.000Z');
-    expect(getStopStatusLabel({ notes }, 'pickup', 'in_progress')).toBe('Pickup skipped');
+  it("shows a bare Couldn't Collect label when no reason was recorded", () => {
+    const notes = settleStopNotes('', 'pickup', 'couldntCollect', '2026-08-31T10:00:00.000Z');
+    expect(getStopStatusLabel({ notes }, 'pickup', 'in_progress')).toBe("Couldn't collect");
   });
 
   it('shows the completed label for the current phase', () => {
@@ -38,9 +38,9 @@ describe('getStopStatusLabel — completed/archived routes label each stop by Pi
     expect(getStopStatusLabel({ notes }, 'pickup', 'completed')).toBe('Signs collected');
   });
 
-  it('keeps a pickup skip, with its reason, after the route is completed', () => {
-    const notes = settleStopNotes(placed, 'pickup', 'skip', '2026-08-31T10:00:00.000Z', 'Gate locked');
-    expect(getStopStatusLabel({ notes }, 'pickup', 'completed')).toBe('Pickup skipped · Gate locked');
+  it("keeps Couldn't Collect, with its reason, after the route is completed", () => {
+    const notes = settleStopNotes(placed, 'pickup', 'couldntCollect', '2026-08-31T10:00:00.000Z', 'Gate locked');
+    expect(getStopStatusLabel({ notes }, 'pickup', 'completed')).toBe("Couldn't collect · Gate locked");
   });
 
   it('labels a stop by its pickup whatever its service type', () => {
@@ -72,7 +72,7 @@ describe('getStopStatusLabel — completed/archived routes label each stop by Pi
 describe('stopProgressTone', () => {
   const placed = settleStopNotes('', 'placement', 'complete', '2026-08-31T09:00:00.000Z');
   const pickedUp = settleStopNotes(placed, 'pickup', 'complete', '2026-08-31T10:00:00.000Z');
-  const skippedAtPlacement = settleStopNotes('', 'placement', 'skip', '2026-08-31T09:00:00.000Z');
+  const couldntCollect = settleStopNotes(placed, 'pickup', 'couldntCollect', '2026-08-31T10:00:00.000Z', 'No access');
 
   it('goes from awaiting to placed to picked up', () => {
     expect(stopProgressTone({ notes: null }, 'placement')).toBe('awaiting');
@@ -81,17 +81,13 @@ describe('stopProgressTone', () => {
     expect(stopProgressTone({ notes: pickedUp }, 'pickup')).toBe('pickedUp');
   });
 
-  it('reads skipped only for a skip in the phase being shown, as the label does', () => {
-    expect(stopProgressTone({ notes: skippedAtPlacement }, 'placement')).toBe('skipped');
-    expect(stopProgressTone({ notes: settleStopNotes(placed, 'pickup', 'skip', '2026-08-31T10:00:00.000Z') }, 'pickup')).toBe('skipped');
-    // Skipped at Placement but picked up later: collected, like its label.
-    const recovered = settleStopNotes(skippedAtPlacement, 'pickup', 'complete', '2026-08-31T10:00:00.000Z');
+  it("reads Couldn't Collect in Pickup, and placed while Placement is shown, as the label does", () => {
+    expect(stopProgressTone({ notes: couldntCollect }, 'pickup')).toBe('couldntCollect');
+    expect(stopProgressTone({ notes: couldntCollect }, 'placement')).toBe('placed');
+    // Collected later: picked up, like its label.
+    const recovered = settleStopNotes(couldntCollect, 'pickup', 'complete', '2026-08-31T11:00:00.000Z');
     expect(stopProgressTone({ notes: recovered }, 'pickup')).toBe('pickedUp');
     expect(getStopStatusLabel({ notes: recovered }, 'pickup', 'completed')).toBe('Signs collected');
-  });
-
-  it('shows a stop skipped at Placement as awaiting while Pickup is being shown', () => {
-    expect(stopProgressTone({ notes: skippedAtPlacement }, 'pickup')).toBe('awaiting');
   });
 
   it('ignores a stored service type', () => {

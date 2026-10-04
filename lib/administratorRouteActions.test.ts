@@ -25,10 +25,11 @@ import {
   changePickupDate,
   correctBilledTime,
   finaliseRouteAsAdministrator,
+  removeStopAsAdministrator,
   restoreStopAsAdministrator,
   settleStopAsAdministrator,
 } from './administratorRouteActions';
-import { stopProgress } from './stopProgress';
+import { settleStopNotes, stopProgress } from './stopProgress';
 import type { SignRunTransitionRoute } from './signRunTransitions';
 
 const BILLED = { load: 15, placement: 20, pickup: 10, unload: 30 };
@@ -225,11 +226,13 @@ describe('settleStopAsAdministrator', () => {
   };
 
   it("settles the Stop for the Route's phase straight away, and audits it", async () => {
-    await expect(settleStopAsAdministrator(pickupRoute, stop, { action: 'skip', reason: 'No access' })).resolves.toEqual({ ok: true });
+    await expect(settleStopAsAdministrator(pickupRoute, stop, { action: 'couldntCollect', reason: 'No access' })).resolves.toEqual({
+      ok: true,
+    });
 
     const written = mockStopUpdate.mock.calls[0][0];
     expect(written.id).toBe('stop-1');
-    expect(stopProgress(written).pickup).toMatchObject({ state: 'skipped', reason: 'No access' });
+    expect(stopProgress(written).pickup).toMatchObject({ state: 'couldntCollect', reason: 'No access' });
     expect(written.notes).toContain('Gate code 4821');
     expect(mockAuditLogCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -238,9 +241,31 @@ describe('settleStopAsAdministrator', () => {
         resourceType: 'stop',
         resourceId: 'stop-1',
         action: 'stop.settle',
-        details: JSON.stringify({ routeId: 'route-1', phase: 'pickup', action: 'skip', reason: 'No access' }),
+        details: JSON.stringify({ routeId: 'route-1', phase: 'pickup', action: 'couldntCollect', reason: 'No access' }),
       })
     );
+  });
+
+  it("refuses Couldn't Collect in Placement, and one with no reason", async () => {
+    const placementRoute = { status: 'in_progress' as const, executionPhase: 'placement' as const };
+    await expect(settleStopAsAdministrator(placementRoute, stop, { action: 'couldntCollect', reason: 'No access' })).resolves.toEqual({
+      ok: false,
+      error: "Only a pickup can be Couldn't Collect.",
+      saved: false,
+    });
+    await expect(settleStopAsAdministrator(pickupRoute, stop, { action: 'couldntCollect', reason: ' ' })).resolves.toMatchObject({
+      ok: false,
+    });
+    expect(mockStopUpdate).not.toHaveBeenCalled();
+  });
+
+  it("settles a Couldn't Collect Stop collected after the Route is completed, once its signs are recovered", async () => {
+    const couldnt = { ...stop, notes: settleStopNotes(stop.notes, 'pickup', 'couldntCollect', '2026-08-31T09:00:00.000Z', 'No access') };
+
+    await expect(settleStopAsAdministrator({ status: 'completed', executionPhase: 'unload' }, couldnt, { action: 'complete' })).resolves.toEqual({
+      ok: true,
+    });
+    expect(stopProgress(mockStopUpdate.mock.calls[0][0]).pickup.state).toBe('done');
   });
 
   it('refuses a Route that is not on Placement or Pickup, and writes nothing', async () => {
@@ -280,6 +305,44 @@ describe('settleStopAsAdministrator', () => {
     const result = await settleStopAsAdministrator(pickupRoute, stop, { action: 'complete' });
 
     expect(result).toEqual({ ok: false, error: 'The stop was saved, but its audit entry could not be written.', saved: true });
+  });
+});
+
+describe('removeStopAsAdministrator', () => {
+  const stop = { id: 'stop-1', routeId: 'route-1', customerId: 'cust-1', removed: null, notes: null };
+  const placing = {
+    id: 'route-1',
+    customerId: 'cust-1',
+    status: 'in_progress' as const,
+    executionPhase: 'placement' as const,
+    loadStartedAt: '2026-08-31T07:00:00.000Z',
+    loadConfirmedAt: '2026-08-31T07:30:00.000Z',
+  };
+
+  it('removes a Stop at the door during Placement with its reason, and audits it', async () => {
+    await expect(removeStopAsAdministrator(placing, stop, 'Owner or tenant refused')).resolves.toEqual({ ok: true });
+
+    expect(mockStopUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'stop-1', removed: true, removedBy: 'admin-sub', removedReason: 'Owner or tenant refused' })
+    );
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'stop.remove',
+        details: JSON.stringify({ routeId: 'route-1', reason: 'Owner or tenant refused' }),
+      })
+    );
+  });
+
+  it("refuses outside Placement -- during Load it's the operator's Load Change -- and writes nothing", async () => {
+    const loading = { ...placing, status: 'planned' as const, executionPhase: null, loadConfirmedAt: null };
+    await expect(removeStopAsAdministrator(loading, stop, 'No access')).resolves.toEqual({
+      ok: false,
+      error: 'Stops can only be removed by an administrator during Placement.',
+      saved: false,
+    });
+    const pickingUp = { ...placing, executionPhase: 'pickup' as const };
+    await expect(removeStopAsAdministrator(pickingUp, stop, 'No access')).resolves.toMatchObject({ ok: false });
+    expect(mockStopUpdate).not.toHaveBeenCalled();
   });
 });
 

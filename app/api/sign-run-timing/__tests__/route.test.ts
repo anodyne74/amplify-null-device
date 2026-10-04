@@ -74,10 +74,10 @@ describe('POST /api/sign-run-timing', () => {
   });
 
   it('logs a stop settlement', async () => {
-    const result = await call(OPERATOR, { ...RECORD, kind: 'pickupStopSkipped', outcome: 'failed' });
+    const result = await call(OPERATOR, { ...RECORD, kind: 'pickupStopCouldntCollect', outcome: 'failed' });
 
     expect(result.status).toBe(200);
-    expect(JSON.parse(logSpy.mock.calls[0][0])).toMatchObject({ kind: 'pickupStopSkipped', outcome: 'failed' });
+    expect(JSON.parse(logSpy.mock.calls[0][0])).toMatchObject({ kind: 'pickupStopCouldntCollect', outcome: 'failed' });
   });
 
   it('logs a write the operator discarded unsaved (#355)', async () => {

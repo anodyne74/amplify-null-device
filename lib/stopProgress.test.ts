@@ -26,13 +26,19 @@ describe('stopProgress', () => {
     });
   });
 
-  it('reads a skip with its time and reason', () => {
-    const notes = settleStopNotes(null, 'pickup', 'skip', LATER, 'Gate locked / no access');
-    expect(stopProgress({ notes }).pickup).toEqual({ state: 'skipped', at: LATER, reason: 'Gate locked / no access' });
+  it("reads Couldn't Collect with its time and reason", () => {
+    const notes = settleStopNotes(null, 'pickup', 'couldntCollect', LATER, 'Gate locked / no access');
+    expect(stopProgress({ notes }).pickup).toEqual({ state: 'couldntCollect', at: LATER, reason: 'Gate locked / no access' });
   });
 
-  it('reads a skip without a reason', () => {
-    expect(stopProgress({ notes: settleStopNotes(null, 'pickup', 'skip', LATER) }).pickup.reason).toBeNull();
+  it("keeps a reason from breaking the marker it's stored in", () => {
+    const notes = settleStopNotes(null, 'pickup', 'couldntCollect', LATER, 'Gate [locked] | dog');
+    expect(stopProgress({ notes }).pickup.reason).toBe('Gate [locked dog');
+  });
+
+  it('reads an old Placement skip marker as nothing: Placement is only ever awaiting or done', () => {
+    expect(stopProgress({ notes: `[PLACEMENT_SKIPPED:${AT}|No access]` }).placement.state).toBe('pending');
+    expect(displayNotes(`Gate code [PLACEMENT_SKIPPED:${AT}|No access]`)).toBe('Gate code');
   });
 
   it('reads a legacy Stop, with a departure time but no markers, as done in both phases, untimed', () => {
@@ -70,8 +76,8 @@ describe('finished and completed', () => {
     }
   });
 
-  it('counts a skip as finished but not completed', () => {
-    const notes = settleStopNotes(placed, 'pickup', 'skip', LATER, 'No access');
+  it("counts Couldn't Collect as finished but not completed", () => {
+    const notes = settleStopNotes(placed, 'pickup', 'couldntCollect', LATER, 'No access');
     expect(isStopFinished({ notes })).toBe(true);
     expect(isStopCompleted({ notes })).toBe(false);
   });
@@ -87,17 +93,24 @@ describe('settleStopNotes', () => {
   });
 
   it('replaces an earlier settlement of the same phase rather than adding another', () => {
-    const first = settleStopNotes(null, 'placement', 'skip', AT, 'Owner or tenant refused');
-    const second = settleStopNotes(first, 'placement', 'skip', LATER, 'Property not ready');
-    expect(stopProgress({ notes: second }).placement).toEqual({ state: 'skipped', at: LATER, reason: 'Property not ready' });
-    expect(second.match(/PLACEMENT_SKIPPED/g)).toHaveLength(1);
+    const first = settleStopNotes(null, 'pickup', 'couldntCollect', AT, 'Owner or tenant refused');
+    const second = settleStopNotes(first, 'pickup', 'couldntCollect', LATER, 'Access blocked');
+    expect(stopProgress({ notes: second }).pickup).toEqual({ state: 'couldntCollect', at: LATER, reason: 'Access blocked' });
+    expect(second.match(/PICKUP_SKIPPED/g)).toHaveLength(1);
   });
 
-  it('lets a skipped Stop be done later, and a done one skipped', () => {
-    const skipped = settleStopNotes(null, 'placement', 'skip', AT, 'No access');
-    const done = settleStopNotes(skipped, 'placement', 'complete', LATER);
-    expect(stopProgress({ notes: done }).placement).toEqual({ state: 'done', at: LATER, reason: null });
-    expect(stopProgress({ notes: settleStopNotes(done, 'placement', 'skip', LATER) }).placement.state).toBe('skipped');
+  it("lets a Couldn't Collect Stop be collected later, and a collected one Couldn't Collect", () => {
+    const couldnt = settleStopNotes(null, 'pickup', 'couldntCollect', AT, 'No access');
+    const done = settleStopNotes(couldnt, 'pickup', 'complete', LATER);
+    expect(stopProgress({ notes: done }).pickup).toEqual({ state: 'done', at: LATER, reason: null });
+    expect(stopProgress({ notes: settleStopNotes(done, 'pickup', 'couldntCollect', LATER, 'No access') }).pickup.state).toBe(
+      'couldntCollect'
+    );
+  });
+
+  it("completing Placement leaves a Pickup outcome alone", () => {
+    const couldnt = settleStopNotes(null, 'pickup', 'couldntCollect', LATER, 'No access');
+    expect(stopProgress({ notes: settleStopNotes(couldnt, 'placement', 'complete', AT) }).pickup.state).toBe('couldntCollect');
   });
 
   it('leaves the other phase alone', () => {
@@ -112,7 +125,7 @@ describe('settleStopNotes', () => {
 
 describe('displayNotes', () => {
   it('strips every progress marker, keeping the operator-typed text', () => {
-    const notes = settleStopNotes(settleStopNotes('Gate code 4821', 'placement', 'complete', AT), 'pickup', 'skip', LATER, 'No access');
+    const notes = settleStopNotes(settleStopNotes('Gate code 4821', 'placement', 'complete', AT), 'pickup', 'couldntCollect', LATER, 'No access');
     expect(displayNotes(notes)).toBe('Gate code 4821');
   });
 

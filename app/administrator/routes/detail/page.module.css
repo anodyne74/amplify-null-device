@@ -218,6 +218,7 @@
   text-align: right;
 }
 
-.execSkippedBadge {
-  color: var(--status-warning-fg);
+.execPrompt {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
 }

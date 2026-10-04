@@ -1,24 +1,26 @@
 /**
- * Load Change (see CONTEXT.md) — an Operator adding a Stop to, or removing a
- * Stop from, their Route during Load. The one place that decides whether a
- * Load Change is allowed and what it writes, and the one place that knows a
- * Stop is removed.
+ * Removed Stops and Load Changes (see CONTEXT.md) — a Stop taken off its Route
+ * on the day, at the yard during Load or at the door during Placement, and a
+ * Stop added during Load. The one place that decides whether a change is
+ * allowed and what it writes, and the one place that knows a Stop is removed.
  *
  * - A removed Stop is kept, marked removed (Stop.removed, with removedAt and
- *   removedBy), and counts toward nothing: every count and list reads through
- *   activeStops(). Restoring sets removed back to false; nothing is ever
- *   cleared to null (operators can't delete Stops, and an update to null needs
- *   that permission).
+ *   removedBy, and removedReason for one removed at the door), and counts
+ *   toward nothing: every count and list reads through activeStops().
+ *   Restoring sets removed back to false; nothing is ever cleared to null
+ *   (operators can't delete Stops, and an update to null needs that
+ *   permission).
  * - An added Stop is a delivery Stop at the end of the order, stamped
  *   addedAtLoad.
  *
- * Pure: queueLoadChange (lib/signRunTransitions.ts) applies a plan on the
+ * Pure: queueStopChange (lib/signRunTransitions.ts) applies a plan on the
  * operator's device and saves it through the Sign Run outbox, audited once it
- * saves. An administrator's restore reuses the plan but saves straight away
- * (lib/administratorRouteActions.ts).
+ * saves. An administrator's removal and restore reuse the plans but save
+ * straight away (lib/administratorRouteActions.ts).
  */
 import { getSignRunPhase } from './signRunPhase';
 import { stopPropertyKey } from './propertyKey';
+import { stopProgress } from './stopProgress';
 import type { Route, Stop } from '../amplify/types';
 
 export function isStopRemoved(stop: { removed?: boolean | null }): boolean {
@@ -30,12 +32,17 @@ export function activeStops<T extends { removed?: boolean | null }>(stops: T[]):
   return stops.filter((stop) => !isStopRemoved(stop));
 }
 
-/** Whether a Route has had a Load Change: a Stop added at Load, or one ever removed. */
+/** A Stop removed at the door during Placement, rather than at the yard: only those carry a reason. */
+export function isRemovedAtDoor(stop: { removed?: boolean | null; removedReason?: string | null }): boolean {
+  return isStopRemoved(stop) && Boolean(stop.removedReason);
+}
+
+/** Whether a Route was changed on the day: a Stop added at Load, or one ever removed. */
 export function hasLoadChanges(stops: Array<Pick<Stop, 'addedAtLoad' | 'removedAt'>>): boolean {
   return stops.some((stop) => Boolean(stop.addedAtLoad || stop.removedAt));
 }
 
-/** The Route fields the Load window reads. */
+/** The Route fields the Load and Placement windows read. */
 export type LoadChangeRoute = Pick<
   Route,
   'id' | 'customerId' | 'status' | 'executionPhase' | 'loadStartedAt' | 'loadConfirmedAt' | 'unloadConfirmedAt'
@@ -47,7 +54,17 @@ export function isLoadChangeOpen(route: Omit<LoadChangeRoute, 'id' | 'customerId
   return phase?.phaseIdx === 0 && Boolean(route.loadStartedAt) && !route.loadConfirmedAt;
 }
 
+/** When a Stop can be removed: at the yard during Load, at the door during Placement, or not at all. */
+export type RemovalWindow = 'load' | 'placement';
+
+export function removalWindow(route: Omit<LoadChangeRoute, 'id' | 'customerId'>): RemovalWindow | null {
+  if (isLoadChangeOpen(route)) return 'load';
+  return getSignRunPhase(route, 0)?.phaseIdx === 1 ? 'placement' : null;
+}
+
 const OUTSIDE_LOAD = 'Stops can only be added or removed between starting and confirming Load.';
+
+const OUTSIDE_WINDOW = 'Stops can only be removed during Load or Placement.';
 
 export const LOAD_STOP_NEEDS_SUBURB = 'Add the suburb to the address, e.g. "30 Faraday St, Carlton".';
 
@@ -55,32 +72,60 @@ export interface StopRemovalPatch {
   removed: true;
   removedAt: string;
   removedBy: string;
+  /** Only for a Stop removed at the door during Placement. */
+  removedReason?: string;
 }
 
+/**
+ * Takes a Stop off its Route. During Load it needs no reason; during
+ * Placement it needs one, and only a Stop whose signs aren't up yet can go --
+ * once placed, its signs are out there.
+ */
 export function planStopRemoval(
   route: LoadChangeRoute,
-  stop: Pick<Stop, 'removed'>,
+  stop: Pick<Stop, 'removed' | 'notes' | 'actualDepartureTime'>,
   by: string,
-  at: string
-): { patch: StopRemovalPatch } | { refused: string } {
-  if (!isLoadChangeOpen(route)) return { refused: OUTSIDE_LOAD };
+  at: string,
+  reason?: string
+): { window: RemovalWindow; patch: StopRemovalPatch } | { refused: string } {
+  const window = removalWindow(route);
+  if (!window) return { refused: OUTSIDE_WINDOW };
   if (isStopRemoved(stop)) return { refused: 'That stop is already removed.' };
-  return { patch: { removed: true, removedAt: at, removedBy: by } };
+  if (window === 'load') return { window, patch: { removed: true, removedAt: at, removedBy: by } };
+
+  const removedReason = reason?.trim();
+  if (!removedReason) return { refused: 'Say why the signs can’t go up.' };
+  if (stopProgress(stop).placement.state === 'done') {
+    return { refused: 'Its signs are already up, so that stop can’t be removed.' };
+  }
+  return { window, patch: { removed: true, removedAt: at, removedBy: by, removedReason } };
 }
 
 export interface StopRestorePatch {
   removed: false;
 }
 
-/** Puts a removed Stop back. `anyPhase` is an administrator's restore, allowed at any time. */
+/**
+ * Puts a removed Stop back. An Operator can restore a Stop removed at the
+ * yard until Load is confirmed, and one removed at the door until Placement
+ * is completed -- never one removed at the yard once Load is confirmed, as
+ * its signs aren't on the van. `anyPhase` is an administrator's restore,
+ * allowed at any time.
+ */
 export function planStopRestore(
   route: LoadChangeRoute,
-  stop: Pick<Stop, 'removed'>,
+  stop: Pick<Stop, 'removed' | 'removedReason'>,
   { anyPhase = false }: { anyPhase?: boolean } = {}
-): { patch: StopRestorePatch } | { refused: string } {
-  if (!anyPhase && !isLoadChangeOpen(route)) return { refused: OUTSIDE_LOAD };
+): { window: RemovalWindow | null; patch: StopRestorePatch } | { refused: string } {
+  const window = removalWindow(route);
+  if (!anyPhase) {
+    if (!window) return { refused: OUTSIDE_WINDOW };
+    if (window === 'placement' && isStopRemoved(stop) && !isRemovedAtDoor(stop)) {
+      return { refused: 'Only an administrator can restore a stop removed at Load.' };
+    }
+  }
   if (!isStopRemoved(stop)) return { refused: 'That stop is not removed.' };
-  return { patch: { removed: false } };
+  return { window, patch: { removed: false } };
 }
 
 /** What the Operator enters to add a property. Timed and blank signs follow from

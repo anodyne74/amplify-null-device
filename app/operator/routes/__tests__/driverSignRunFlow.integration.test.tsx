@@ -186,7 +186,7 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     load.unmount();
     push.mockClear();
 
-    // --- Placement: place s1 and s2, skip s3 --------------------------
+    // --- Placement: place s1 and s2; s3's signs can't go up, so it's removed --
     const placement = render(<OperatorPlacementPage />);
     expect(await screen.findByText('3 stops to place')).toBeInTheDocument();
 
@@ -200,9 +200,10 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /signs placed/i }));
     expect(await screen.findByText('PLACEMENT · STOP 3 OF 3')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /^skip$/i }));
-    expect(await screen.findByText('Why is this stop skipped?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: "Can't place" }));
+    expect(await screen.findByText("Why can't the signs go up?")).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /gate locked/i }));
+    await waitFor(() => expect(store.stops.find((s) => s.id === 's3')!.removedReason).toBe('Gate locked / no access'));
 
     // All stops settled — the phase doesn't close until the driver confirms.
     fireEvent.click(await screen.findByRole('button', { name: /complete placement/i }));
@@ -215,24 +216,21 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     placement.unmount();
     push.mockClear();
 
-    // --- Pickup: pick up s1, log a missing sign then pick up s2, skip s3 --
+    // --- Pickup: log a missing sign then pick up s1; s2 couldn't be collected --
     const pickup = render(<OperatorPickupPage />);
-    expect(await screen.findByText('3 stops to pick up')).toBeInTheDocument();
+    expect(await screen.findByText('2 stops to pick up')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Start pickup' }));
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
-    expect(await screen.findByText('PICKUP · STOP 1 OF 3')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /signs picked up/i }));
-    expect(await screen.findByText('PICKUP · STOP 2 OF 3')).toBeInTheDocument();
+    expect(await screen.findByText('PICKUP · STOP 1 OF 2')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /sign missing/i }));
     await waitFor(() => expect(screen.getByText('1 missing')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /signs picked up/i }));
-    expect(await screen.findByText('PICKUP · STOP 3 OF 3')).toBeInTheDocument();
+    expect(await screen.findByText('PICKUP · STOP 2 OF 2')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /^skip$/i }));
-    expect(await screen.findByText('Why is this stop skipped?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: "Couldn't collect" }));
+    expect(await screen.findByText("Why couldn't the signs be collected?")).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /gate locked/i }));
 
     // All stops settled — the phase doesn't close until the driver confirms.
@@ -243,26 +241,26 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     await waitFor(() => expect(store.route.executionPhase).toBe('unload'));
     expect(store.route.pickupStartTime).toBe(T3);
     expect(store.route.pickupEndTime).toBe(T4);
-    await waitFor(() => expect(store.stops.find((s) => s.id === 's3')!.notes).toContain('PICKUP_SKIPPED'));
-    const s2 = store.stops.find((s) => s.id === 's2')!;
-    expect(s2.missingSignsCount).toBe(1);
+    await waitFor(() => expect(store.stops.find((s) => s.id === 's2')!.notes).toContain('PICKUP_SKIPPED'));
+    const s1 = store.stops.find((s) => s.id === 's1')!;
+    expect(s1.missingSignsCount).toBe(1);
     pickup.unmount();
     push.mockClear();
 
     // --- Unload: reconcile against the load and confirm ---------------
     const unload = render(<OperatorUnloadPage />);
-    // s1 (9) + s2 (13 - 1 missing = 12) returned; s3 skipped; 1 reported missing on s2;
-    // 40 loaded - 21 returned - 1 missing = 18 still on site.
-    expect(await screen.findByText('21 signs to return')).toBeInTheDocument();
-    expect(screen.getByText('2 / 3')).toBeInTheDocument();
+    // s1 (9 - 1 missing = 8) collected, plus s3's 18 back unplaced = 26 returned; 1 reported
+    // missing on s1; s2 couldn't be collected, so 40 - 26 - 1 = its 13 are still on site.
+    expect(await screen.findByText('26 signs to return')).toBeInTheDocument();
+    expect(screen.getByText('1 / 2')).toBeInTheDocument();
     expect(screen.getByText('1 stops')).toBeInTheDocument();
-    expect(screen.getByText('40 loaded · 21 returned · 1 reported missing · 18 still on site.')).toBeInTheDocument();
+    expect(screen.getByText('40 loaded · 26 returned · 1 reported missing · 13 still on site.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Start unload' }));
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     await waitFor(() => expect(store.route.unloadStartedAt).toBe(T4));
 
-    fireEvent.click(await screen.findByRole('button', { name: /confirm 21 signs returned/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /confirm 26 signs returned/i }));
     fireEvent.click(screen.getByRole('button', { name: 'OK' }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
     await waitFor(() => expect(store.route.unloadConfirmedAt).toBe(T5));
@@ -276,8 +274,8 @@ describe('Driver Sign Run — full Load through Finalise flow', () => {
     expect(await screen.findByText('Finalise route')).toBeInTheDocument();
 
     // Independently recomputed by Finalise's own buildSummary — should match Unload.
-    expect(screen.getByText('2 / 3')).toBeInTheDocument();
-    expect(screen.getByText('21')).toBeInTheDocument();
+    expect(screen.getByText('1 / 2')).toBeInTheDocument();
+    expect(screen.getByText('26')).toBeInTheDocument();
     expect(screen.getByText('1')).toBeInTheDocument();
     // Cumulative of the completed phases' measured times, not the actualStartTime ->
     // actualEndTime wall clock: 0 (load) + 20 (placement) + 12 (pickup) + 18 (unload) = 50 min.

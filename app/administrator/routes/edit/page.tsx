@@ -283,6 +283,14 @@ function RouteEditContent() {
     setSaveSuccess('Route saved.');
   };
 
+  // Notify Operator only works for an assignment that's been saved (#267), and a
+  // disabled button can't show a tooltip, so say why underneath it.
+  const notifyHint = savedAssignedOperatorEmail || notifying
+    ? null
+    : assignedOperatorSub && assignedOperatorSub !== initialAssignedOperatorSub
+      ? 'Save changes to enable Notify Operator.'
+      : 'Assign an operator and save changes to enable Notify Operator.';
+
   const handleNotifyOperator = async () => {
     if (!routeId) return;
     setNotifying(true);
@@ -474,7 +482,7 @@ function RouteEditContent() {
               onClick={() => router.push(`/administrator/routes/detail?id=${routeId}`)}
               disabled={saving}
             >
-              Cancel
+              Close
             </Button>
             <Button
               type="button"
@@ -482,10 +490,16 @@ function RouteEditContent() {
               onClick={() => { void handleNotifyOperator(); }}
               loading={notifying}
               disabled={notifying || !savedAssignedOperatorEmail}
+              aria-describedby={notifyHint ? 'notify-operator-hint' : undefined}
             >
               {notifying ? 'Notifying...' : 'Notify Operator'}
             </Button>
           </div>
+          {notifyHint && (
+            <p id="notify-operator-hint" className={styles.actionsHint}>
+              {notifyHint}
+            </p>
+          )}
           {saveSuccess && <p className={styles.successText}>{saveSuccess}</p>}
           {notifyError && <div className={styles.errorBanner}>{notifyError}</div>}
           {notifyOutcome?.tone === 'success' && <p className={styles.successText}>{notifyOutcome.message}</p>}

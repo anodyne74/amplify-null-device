@@ -303,4 +303,52 @@ describe('Administrator Route Edit Page', () => {
     await screen.findByLabelText(/route code/i);
     expect(screen.getByRole('button', { name: /notify operator/i })).toBeEnabled();
   });
+
+  it('goes back to the route with Close (#469)', async () => {
+    render(<RouteEditPage />);
+    await screen.findByLabelText(/route code/i);
+
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/administrator/routes/detail?id=route-test-id-1234');
+  });
+
+  it('explains why Notify Operator is disabled until an assignment is saved (#469)', async () => {
+    render(<RouteEditPage />);
+    await screen.findByLabelText(/route code/i);
+
+    const notifyButton = screen.getByRole('button', { name: /notify operator/i });
+    expect(notifyButton).toBeDisabled();
+    expect(notifyButton).toHaveAccessibleDescription('Assign an operator and save changes to enable Notify Operator.');
+
+    fireEvent.change(await screen.findByLabelText(/assigned operator/i), { target: { value: 'op-sub-1' } });
+    expect(screen.getByRole('button', { name: /notify operator/i })).toHaveAccessibleDescription(
+      'Save changes to enable Notify Operator.'
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /notify operator/i })).toBeEnabled();
+    });
+    expect(screen.getByRole('button', { name: /notify operator/i })).not.toHaveAccessibleDescription();
+    expect(screen.queryByText(/to enable Notify Operator/)).not.toBeInTheDocument();
+  });
+
+  it('shows no hint when re-opening an already-assigned route (#469)', async () => {
+    (routesModule.getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: {
+        ...mockRoute,
+        assignedOperatorSub: 'op-sub-1',
+        assignedOperatorEmail: 'operator-one@example.com',
+      },
+      stops: mockStops,
+    });
+
+    render(<RouteEditPage />);
+    await screen.findByLabelText(/route code/i);
+
+    expect(screen.queryByText(/to enable Notify Operator/)).not.toBeInTheDocument();
+  });
 });

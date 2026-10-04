@@ -348,10 +348,18 @@ describe('removeStopAsAdministrator', () => {
 
 describe('restoreStopAsAdministrator', () => {
   const stop = { id: 'stop-1', routeId: 'route-1', customerId: 'cust-1', removed: true };
-  const completed = { id: 'route-1', customerId: 'cust-1', status: 'completed' as const, unloadConfirmedAt: '2026-08-31T09:10:00.000Z' };
+  // Unloaded and waiting on Finalise: past every Operator window, still restorable.
+  const unloaded = {
+    id: 'route-1',
+    customerId: 'cust-1',
+    status: 'in_progress' as const,
+    executionPhase: 'unload' as const,
+    unloadConfirmedAt: '2026-08-31T09:10:00.000Z',
+  };
+  const completed = { ...unloaded, status: 'completed' as const };
 
-  it('restores a removed Stop at any point in the Route, and audits it', async () => {
-    await expect(restoreStopAsAdministrator(completed, stop)).resolves.toEqual({ ok: true });
+  it('restores a removed Stop at any point before Finalise, and audits it', async () => {
+    await expect(restoreStopAsAdministrator(unloaded, stop)).resolves.toEqual({ ok: true });
 
     expect(mockStopUpdate).toHaveBeenCalledWith({ id: 'stop-1', removed: false });
     expect(mockAuditLogCreate).toHaveBeenCalledWith(
@@ -367,9 +375,17 @@ describe('restoreStopAsAdministrator', () => {
   });
 
   it('refuses a Stop that is not removed, and writes nothing', async () => {
-    const result = await restoreStopAsAdministrator(completed, { ...stop, removed: false });
+    const result = await restoreStopAsAdministrator(unloaded, { ...stop, removed: false });
 
     expect(result).toEqual({ ok: false, error: 'That stop is not removed.', saved: false });
+    expect(mockStopUpdate).not.toHaveBeenCalled();
+    expect(mockAuditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses once the Route is finalised, and writes nothing (#465)', async () => {
+    const result = await restoreStopAsAdministrator(completed, stop);
+
+    expect(result).toEqual({ ok: false, error: "This route is finalised; its stops can't be restored.", saved: false });
     expect(mockStopUpdate).not.toHaveBeenCalled();
     expect(mockAuditLogCreate).not.toHaveBeenCalled();
   });

@@ -38,7 +38,7 @@ import {
   type AdministratorActionResult,
   type AdministratorSettlement,
 } from '@/lib/administratorRouteActions';
-import { isRemovedAtDoor } from '@/lib/loadChange';
+import { canRestoreRemovedStops, isRemovedAtDoor } from '@/lib/loadChange';
 import { STOP_PROBLEM_REASONS } from '@/app/operator/components/StopCompletionDialog';
 import { stopPhaseOf } from '@/lib/signRunTransitions';
 import { billedTime } from '@/lib/billedTime';
@@ -217,6 +217,9 @@ function RouteDetailContent() {
     const ok = await deleteRouteCapability.remove();
     if (ok) router.push('/administrator/routes');
   };
+
+  // A finalised Route's Removed Stops stay removed (#465).
+  const restorable = route ? canRestoreRemovedStops(route) : false;
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
@@ -676,14 +679,16 @@ function RouteDetailContent() {
                       isAuction={Boolean(stop.isAuction)}
                       actions={
                         <>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => { void restoreStop(stop.id); }}
-                            disabled={!!stopExecuting[stop.id]}
-                          >
-                            {stopExecuting[stop.id] ? 'Saving…' : 'Restore'}
-                          </Button>
+                          {restorable && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => { void restoreStop(stop.id); }}
+                              disabled={!!stopExecuting[stop.id]}
+                            >
+                              {stopExecuting[stop.id] ? 'Saving…' : 'Restore'}
+                            </Button>
+                          )}
                           {stopErrors[stop.id] && (
                             <div className={styles.errorBanner} role="alert">{stopErrors[stop.id]}</div>
                           )}

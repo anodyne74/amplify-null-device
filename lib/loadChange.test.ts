@@ -7,6 +7,7 @@ import {
   planStopRemoval,
   planStopRestore,
   removalWindow,
+  canRestoreRemovedStops,
   type LoadChangeRoute,
 } from './loadChange';
 import { settleStopNotes } from './stopProgress';
@@ -14,6 +15,7 @@ import { settleStopNotes } from './stopProgress';
 const AT = '2026-10-04T07:30:00.000Z';
 const OUTSIDE_LOAD = 'Stops can only be added or removed between starting and confirming Load.';
 const OUTSIDE_WINDOW = 'Stops can only be removed during Load or Placement.';
+const ROUTE_FINALISED = "This route is finalised; its stops can't be restored.";
 
 function route(overrides: Partial<LoadChangeRoute> = {}): LoadChangeRoute {
   return { id: 'route-1', customerId: 'cust-1', status: 'planned', loadStartedAt: AT, ...overrides } as LoadChangeRoute;
@@ -104,14 +106,29 @@ describe('planStopRestore', () => {
     expect(planStopRestore(placing, removedAtLoad)).toEqual({ refused: 'Only an administrator can restore a stop removed at Load.' });
   });
 
-  it("lets an administrator restore either at any time", () => {
-    const completed = route({ status: 'completed', loadConfirmedAt: AT });
-    expect(planStopRestore(completed, removedAtLoad, { anyPhase: true })).toEqual({ window: null, patch: { removed: false } });
+  it('lets an administrator restore either in any phase until the Route is finalised', () => {
+    const unloading = route({ status: 'in_progress', executionPhase: 'unload', loadConfirmedAt: AT });
+    expect(planStopRestore(unloading, removedAtLoad, { anyPhase: true })).toEqual({ window: null, patch: { removed: false } });
     expect(planStopRestore(placing, removedAtLoad, { anyPhase: true })).toEqual({ window: 'placement', patch: { removed: false } });
+  });
+
+  it.each(['completed', 'archived'] as const)('restores nothing on a %s Route, even for an administrator (#465)', (status) => {
+    const finalised = route({ status, loadConfirmedAt: AT });
+    expect(planStopRestore(finalised, removedAtLoad, { anyPhase: true })).toEqual({ refused: ROUTE_FINALISED });
+    expect(planStopRestore(finalised, removedAtDoor)).toEqual({ refused: ROUTE_FINALISED });
   });
 
   it('refuses a Stop that is not removed', () => {
     expect(planStopRestore(route(), {}, { anyPhase: true })).toEqual({ refused: 'That stop is not removed.' });
+  });
+});
+
+describe('canRestoreRemovedStops', () => {
+  it('holds until the Route is finalised (#465)', () => {
+    expect(canRestoreRemovedStops(route())).toBe(true);
+    expect(canRestoreRemovedStops(route({ status: 'in_progress', executionPhase: 'unload' }))).toBe(true);
+    expect(canRestoreRemovedStops(route({ status: 'completed' }))).toBe(false);
+    expect(canRestoreRemovedStops(route({ status: 'archived' }))).toBe(false);
   });
 });
 

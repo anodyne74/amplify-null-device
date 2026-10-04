@@ -37,8 +37,16 @@ A later email from a Customer adding or removing Properties on a Route that has 
 _Avoid_: Change request, follow-up, variation
 
 **Load Change**:
-An Operator adding a Stop to, or removing a Stop from, their Route during Load (after Load starts, before it's confirmed), because the Customer told them on the day or because of what they find at the yard. A removed Stop is kept, marked removed with who and when, and counts toward nothing: it is never a Visit, and the Customer sees it as removed on the day. An added Stop is a delivery Stop at the end of the order. Until Load is confirmed the Operator can restore a removed Stop, which is itself a Load Change; after that only an administrator can. Every Load Change is in the Route's audit trail and marked on the Route for administrators. It is not a Route Amendment, which is the Customer's email.
+An Operator adding a Stop to, or removing a Stop from, their Route during Load (after Load starts, before it's confirmed), because the Customer told them on the day or because of what they find at the yard. A Stop removed this way is a Removed Stop. An added Stop is a delivery Stop at the end of the order. Until Load is confirmed the Operator can restore a Stop they removed, which is itself a Load Change; after that only an administrator can. Every Load Change is in the Route's audit trail. It is not a Route Amendment, which is the Customer's email.
 _Avoid_: Last-minute change, on-the-day edit, amendment (when the Operator made it)
+
+**Removed Stop**:
+A Stop taken off its Route on the day: by a Load Change at the yard, or by the Operator at the door during Placement when its signs can't go up (gate locked, vendor refused, cancelled on the spot), with a reason. It is kept, marked removed with who, when and any reason, and counts toward nothing: it is never a Visit, its signs come back on the van, and the Customer sees it as removed on the day, never why. The Operator can restore a Stop removed during Placement until Placement is completed; an administrator can restore any Removed Stop at any time, and can remove one during Placement too. Operators can't remove a Stop during Pickup, because its signs are out there. Every removal and restore is in the Route's audit trail, and a Route with a Removed Stop or a Stop added at Load is marked as changed on the day for administrators.
+_Avoid_: Skipped, cancelled, deleted (a Removed Stop is kept)
+
+**Couldn't Collect**:
+A Stop whose signs the Operator couldn't take down during Pickup (gate locked, access blocked), with a reason. Its signs stay at the Property: they count as still on-site, never as collected or missing, and the Stop stays on the Route as a Visit that happened. The Operator can change it to collected while Pickup is still going; after that an administrator settles it collected once the signs are recovered. The Customer sees it as not yet collected.
+_Avoid_: Skipped, missed, failed pickup
 
 **Stop**:
 One visit to a Property on a Route, where signs are placed and later picked up.
@@ -57,7 +65,7 @@ The record of every Route that has visited a Property, grouped by Property and e
 _Avoid_: Property search, address lookup
 
 **Visit**:
-One Route's Stop at a Property, as one row of Property History. Only visits on Routes that have happened (signs placed or later) count toward a Property's total. Skipped Stops are listed but not counted, Stops removed by a Load Change aren't listed at all, and upcoming Routes appear separately as scheduled.
+One Route's Stop at a Property, as one row of Property History. Only visits on Routes that have happened (signs placed or later) count toward a Property's total, Couldn't Collect Stops included. Removed Stops aren't listed at all, and upcoming Routes appear separately as scheduled.
 _Avoid_: Job, service (as a noun)
 
 **Property History Report**:
@@ -73,19 +81,19 @@ The phase flow a Route moves through: Load (signs collected from the customer, o
 _Avoid_: Delivery run, job flow. Also avoid calling the Load phase "signs collected" — that phrase is reserved for the Signs Collected metric below, a different phase and a different count.
 
 **Sign Run Transition**:
-One operator action that moves a Route along its Sign Run — start or confirm Load, start or complete Placement, start or complete Pickup, start or confirm Unload, Finalise. Each is only allowed from its own phase; one attempted from any other phase is refused and nothing is written. A transition takes effect for the operator the moment they confirm it, at the time they confirmed; saving it follows, and the operator never waits on the network to carry on. A transition that can't be saved is reported to the operator and undone on their screen. The same holds for settling a Stop done or skipped. Finalise is the one transition an administrator can also make, and an administrator can also settle a Stop done or skipped, both from the Route's detail page: these are saved straight away rather than after confirming, and recorded in the audit log.
+One operator action that moves a Route along its Sign Run — start or confirm Load, start or complete Placement, start or complete Pickup, start or confirm Unload, Finalise. Each is only allowed from its own phase; one attempted from any other phase is refused and nothing is written. A transition takes effect for the operator the moment they confirm it, at the time they confirmed; saving it follows, and the operator never waits on the network to carry on. A transition that can't be saved is reported to the operator and undone on their screen. The same holds for settling a Stop: done or removed during Placement, collected or Couldn't Collect during Pickup. Finalise is the one transition an administrator can also make, and an administrator can also settle a Stop the same ways, both from the Route's detail page: these are saved straight away rather than after confirming, and recorded in the audit log.
 _Avoid_: Status change, phase update
 
 **Stop Progress**:
-How far a Stop has got in each of Placement and Pickup: awaiting, done, or skipped (with a reason), and when. A Stop is finished when its last phase is done or skipped; skipped Stops aren't counted as completed.
-_Avoid_: departed, completed (when you mean finished)
+How far a Stop has got in each of Placement and Pickup, and when: in Placement awaiting or done (a Stop whose signs can't go up becomes a Removed Stop instead); in Pickup awaiting, done, or Couldn't Collect (with a reason). A Stop is finished when Pickup is done or Couldn't Collect; a Couldn't Collect Stop isn't counted as completed.
+_Avoid_: departed, completed (when you mean finished), skipped
 
 **Signs Placed**:
 The gross count of signs put out on a Route — `sum(Stop.numberOfSigns)`, no exclusions. Answers "how many signs are on this route," independent of what happens afterward.
 _Avoid_: Total signs, sign count
 
 **Signs Collected**:
-The net count of signs actually recovered during Pickup — summed only over Stops that were completed (not skipped), each stop's contribution reduced by that stop's Missing Signs. A Route with Stops still in progress reports a partial, growing figure.
+The net count of signs actually recovered during Pickup — summed only over Stops that were completed (not Couldn't Collect), each stop's contribution reduced by that stop's Missing Signs. A Route with Stops still in progress reports a partial, growing figure.
 _Avoid_: Total signs, returned signs
 
 **Missing Signs**:
@@ -93,7 +101,7 @@ Signs logged as lost during the Pickup phase (`Stop.missingSignsCount`) — one 
 _Avoid_: Lost signs, sign loss (except when specifically discussing the attrition-analysis use case)
 
 **Reconciliation**:
-The Unload/Finalise-time accounting of a Route's signs — how many were loaded onto the van, returned, still on-site, or missing, plus how many Stops were completed vs. skipped. Distinct from Signs Placed/Collected, which are simpler standalone counts usable anywhere in a Route's lifecycle.
+The Unload/Finalise-time accounting of a Route's signs — how many were loaded onto the van, returned, still on-site (at Couldn't Collect Stops), or missing, plus how many Stops were completed vs. Couldn't Collect. Distinct from Signs Placed/Collected, which are simpler standalone counts usable anywhere in a Route's lifecycle.
 _Avoid_: Summary, totals
 
 **Billed Time**:

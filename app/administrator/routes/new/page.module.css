@@ -64,7 +64,7 @@
 }
 
 .draftNoteInput {
-  min-width: 16rem;
+  min-width: 256px;
 }
 
 .noPinBadge {

@@ -205,32 +205,42 @@ describe('NewRoutePage copied Stop notes (#464)', () => {
   it('shows each copied note in the review table', async () => {
     await copyStops();
 
-    expect(screen.getByLabelText('Notes for 1409/26 Cambridge St, Epping')).toHaveValue('Late addition to list');
-    expect(screen.getByLabelText('Notes for 20 Gloucester Road, Epping')).toHaveValue('Gate code 1234');
-    expect(screen.getByLabelText('Notes for 9 Grayson Rd, North Epping')).toHaveValue('');
+    expect(screen.getByLabelText('Notes for stop 1, 1409/26 Cambridge St, Epping')).toHaveValue('Late addition to list');
+    expect(screen.getByLabelText('Notes for stop 2, 20 Gloucester Road, Epping')).toHaveValue('Gate code 1234');
+    expect(screen.getByLabelText('Notes for stop 3, 9 Grayson Rd, North Epping')).toHaveValue('');
   });
 
-  it('creates the Stops with the notes as edited, cleared, or left as copied', async () => {
+  it('keeps a copied note nobody touched', async () => {
+    await copyStops();
+    fireEvent.click(screen.getByRole('button', { name: 'Create Route (3 stops)' }));
+
+    await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
+    expect(createdStops()[1].notes).toBe('Gate code 1234');
+  });
+
+  it('creates the Stops with the notes as edited or cleared', async () => {
     await copyStops();
 
-    fireEvent.change(screen.getByLabelText('Notes for 1409/26 Cambridge St, Epping'), { target: { value: '' } });
-    fireEvent.change(screen.getByLabelText('Notes for 9 Grayson Rd, North Epping'), { target: { value: 'Beware of dog' } });
+    fireEvent.change(screen.getByLabelText('Notes for stop 1, 1409/26 Cambridge St, Epping'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Notes for stop 2, 20 Gloucester Road, Epping'), { target: { value: '   ' } });
+    fireEvent.change(screen.getByLabelText('Notes for stop 3, 9 Grayson Rd, North Epping'), { target: { value: 'Beware of dog' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create Route (3 stops)' }));
 
     await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
     const [cambridge, gloucester, grayson] = createdStops();
     expect(cambridge.notes).toBeUndefined();
-    expect(gloucester.notes).toBe('Gate code 1234');
+    // Only spaces counts as cleared.
+    expect(gloucester.notes).toBeUndefined();
     expect(grayson.notes).toBe('Beware of dog');
   });
 
   it('starts over from the source notes when the Stops are copied again', async () => {
     await copyStops();
-    fireEvent.change(screen.getByLabelText('Notes for 20 Gloucester Road, Epping'), { target: { value: 'Changed' } });
+    fireEvent.change(screen.getByLabelText('Notes for stop 2, 20 Gloucester Road, Epping'), { target: { value: 'Changed' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
 
-    await waitFor(() => expect(screen.getByLabelText('Notes for 20 Gloucester Road, Epping')).toHaveValue('Gate code 1234'));
+    await waitFor(() => expect(screen.getByLabelText('Notes for stop 2, 20 Gloucester Road, Epping')).toHaveValue('Gate code 1234'));
   });
 
   it('gives Stops from an uploaded Schedule an empty, editable note', async () => {

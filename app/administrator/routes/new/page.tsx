@@ -575,10 +575,10 @@ function NewRoutePageContent() {
     }
   };
 
-  // An emptied note is dropped, so the new Stop is created with none.
-  const handleDraftNoteChange = (index: number, note: string) => {
+  // A note left empty (or only spaces) is dropped, so the new Stop is created with none.
+  const handleDraftNoteChange = (draftIndex: number, note: string) => {
     setImportDraftStops((prev) =>
-      prev ? prev.map((stop, i) => (i === index ? { ...stop, notes: note || undefined } : stop)) : prev
+      prev ? prev.map((stop, i) => (i === draftIndex ? { ...stop, notes: note.trim() ? note : undefined } : stop)) : prev
     );
   };
 
@@ -607,8 +607,9 @@ function NewRoutePageContent() {
         <Input
           size="sm"
           className={styles.draftNoteInput}
-          aria-label={`Notes for ${stop.address}`}
+          aria-label={`Notes for stop ${stop.seq}, ${stop.address}`}
           value={stop.notes ?? ''}
+          // A preview row's id is its position in the draft list.
           onChange={(e) => handleDraftNoteChange(stop.id, e.target.value)}
           disabled={isUploading}
         />

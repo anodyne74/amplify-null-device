@@ -371,9 +371,9 @@ describe('Operator Customers Page', () => {
     expect(firstDataRow()).toHaveTextContent('Zenith Co'); // active < inactive
   });
 
-  // The shared AdminSortableHeader carries the themed header treatment; a
-  // page-local copy drifts from it (#442).
-  it('uses the shared sortable header for every sortable column', async () => {
+  it('uses the shared sortable header for every sortable column (#442)', async () => {
+    // The shared AdminSortableHeader carries the themed header treatment; a
+    // page-local copy drifts from it.
     render(<CustomersAdminPage />);
 
     await waitFor(() => {

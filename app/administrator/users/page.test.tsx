@@ -198,9 +198,9 @@ describe('UsersAdminPage customer access actions', () => {
     expect(sortByUser.closest('th')).toHaveAttribute('aria-sort', 'none');
   });
 
-  // The shared AdminSortableHeader carries the themed header treatment; a
-  // page-local copy drifts from it (#441).
-  it('uses the shared sortable header for every sortable column', async () => {
+  it('uses the shared sortable header for every sortable column (#441)', async () => {
+    // The shared AdminSortableHeader carries the themed header treatment; a
+    // page-local copy drifts from it.
     render(<UsersAdminPage />);
 
     await waitFor(() => {

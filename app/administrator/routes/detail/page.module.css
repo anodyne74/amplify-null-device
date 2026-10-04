@@ -110,6 +110,25 @@
   color: var(--text-heading);
 }
 
+.feedback {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.feedbackNote {
+  margin: 0;
+  color: var(--text-body);
+  white-space: pre-wrap;
+}
+
+.feedbackMeta {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
+}
+
 .billingSection {
   margin-top: var(--space-6);
   padding-top: var(--space-6);

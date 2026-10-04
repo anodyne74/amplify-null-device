@@ -303,6 +303,29 @@ function RouteDetailContent() {
               </div>
             )}
 
+            {(route.status === 'completed' || route.status === 'archived') && (
+              <section className={styles.summaryPanel} aria-labelledby="customer-feedback-heading">
+                <h3 id="customer-feedback-heading" className={styles.summaryHeading}>Customer feedback</h3>
+                {route.customerFeedbackTone ? (
+                  <div className={styles.feedback}>
+                    <Badge tone={route.customerFeedbackTone === 'issue' ? 'danger' : 'success'} dot>
+                      {route.customerFeedbackTone === 'issue' ? 'Something was off' : 'All good'}
+                    </Badge>
+                    {route.customerFeedbackNote && <p className={styles.feedbackNote}>{route.customerFeedbackNote}</p>}
+                    {(route.customerFeedbackByName || route.customerFeedbackAt) && (
+                      <p className={styles.feedbackMeta}>
+                        {[route.customerFeedbackByName, route.customerFeedbackAt && formatRouteDateTime(route.customerFeedbackAt)]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className={styles.feedbackMeta}>No feedback yet.</p>
+                )}
+              </section>
+            )}
+
             {/* Route phase. Advancing a route through its phases is an operator
                 action on the Load/Placement/Pickup/Unload/Finalise screens, apart
                 from Finalise, which an administrator can also do here (#408). */}

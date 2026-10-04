@@ -123,6 +123,22 @@ describe('Operator Routes List Page', () => {
     expect(screen.getByText('Globex Inc')).toBeInTheDocument();
   });
 
+  it('flags a Route whose customer said something was off (#467)', async () => {
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({
+      routes: [
+        { ...mockRoutes[0], status: 'completed', customerFeedbackTone: 'issue', customerFeedbackNote: 'Missing sign' },
+        { ...mockRoutes[1], status: 'completed', customerFeedbackTone: 'good' },
+      ],
+      loading: false,
+      error: null,
+    });
+
+    render(<RoutesPage />);
+
+    expect(await screen.findByText('Feedback: something was off')).toBeInTheDocument();
+    expect(screen.getAllByText(/^Feedback:/)).toHaveLength(1);
+  });
+
   it('shows "Create New Route" link', async () => {
     (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: null });
 

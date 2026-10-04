@@ -412,4 +412,40 @@ describe('Operator Route Detail Page', () => {
       expect(screen.queryByRole('button', { name: 'Restore' })).not.toBeInTheDocument();
     });
   });
+
+  describe('Customer feedback (#467)', () => {
+    it('shows what the customer said, who and when', async () => {
+      mockFetched.route = {
+        ...mockLegacyCompletedRoute,
+        customerFeedbackTone: 'issue',
+        customerFeedbackNote: 'Two signs faced the wrong way.',
+        customerFeedbackByName: 'Ann Agent',
+        customerFeedbackAt: '2026-10-05T01:00:00.000Z',
+      };
+      mockFetched.stops = mockLegacyCompletedStops;
+
+      render(<RouteDetailPage />);
+
+      const section = await screen.findByRole('region', { name: 'Customer feedback' });
+      expect(section).toHaveTextContent('Something was off');
+      expect(section).toHaveTextContent('Two signs faced the wrong way.');
+      expect(section).toHaveTextContent(/Ann Agent/);
+    });
+
+    it('says when none has been given on a completed Route', async () => {
+      mockFetched.route = mockLegacyCompletedRoute;
+      mockFetched.stops = mockLegacyCompletedStops;
+
+      render(<RouteDetailPage />);
+
+      expect(await screen.findByRole('region', { name: 'Customer feedback' })).toHaveTextContent('No feedback yet.');
+    });
+
+    it('is not shown before the Route is completed', async () => {
+      render(<RouteDetailPage />);
+
+      await screen.findByText('100 First St');
+      expect(screen.queryByRole('region', { name: 'Customer feedback' })).not.toBeInTheDocument();
+    });
+  });
 });

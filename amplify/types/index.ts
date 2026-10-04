@@ -133,6 +133,9 @@ export interface Route {
   customerInstructions?: string;
   customerFeedbackTone?: 'good' | 'issue' | null;
   customerFeedbackNote?: string;
+  customerFeedbackAt?: string | null;
+  customerFeedbackBy?: string | null;
+  customerFeedbackByName?: string | null;
   drivingModeEnabled?: boolean | null;
   loadStartedAt?: string | null;
   loadConfirmedAt?: string | null;

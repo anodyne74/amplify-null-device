@@ -11,6 +11,7 @@ import { useRoutesList, ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/us
 import { usePropertySearch } from '@/lib/usePropertySearch';
 import { formatRouteDate, formatRouteDuration } from '@/lib/routeListHelpers';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
+import { Badge } from '@/app/components/ui/core/Badge';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Field } from '@/app/components/ui/forms/Field';
@@ -117,7 +118,20 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       header: 'Customer',
       render: (route) => customersById[route.customerId] || 'Unknown customer',
     },
-    { key: 'status', header: 'Status', render: (route) => <RouteStatusPill route={route} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (route) => (
+        <div className={styles.statusCell}>
+          <RouteStatusPill route={route} />
+          {route.customerFeedbackTone === 'issue' && (
+            <Badge tone="danger" dot>
+              Feedback: something was off
+            </Badge>
+          )}
+        </div>
+      ),
+    },
     { key: 'created', header: 'Created', render: (route) => formatRouteDate(route.createdAt) },
     {
       key: 'duration',

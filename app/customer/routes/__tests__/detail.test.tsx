@@ -21,6 +21,12 @@ jest.mock('@/lib/customerRouteRequests', () => ({
   downloadCustomerRouteRequestFile: jest.fn(),
 }));
 
+const mockCallApi = jest.fn();
+jest.mock('@/lib/apiClient', () => ({
+  ...jest.requireActual('@/lib/apiClient'),
+  callApi: (...args: unknown[]) => mockCallApi(...args),
+}));
+
 jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
   updateRouteCustomerInstructions: jest.fn(),
@@ -111,6 +117,8 @@ describe('Customer route detail tracker', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // The feedback card on a completed Route asks whether it's still open.
+    mockCallApi.mockResolvedValue({ locked: null });
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({
       role: 'read_only',
       customerId: 'cust-1',
@@ -378,11 +386,14 @@ describe('Customer route detail tracker', () => {
     expect(screen.getByText('Old freeform note from before this feature')).toBeInTheDocument();
   });
 
-  it('only shows the feedback card for a completed route, and lets a customer send it', async () => {
+  it('only shows the feedback card for a completed route, and sends All good in one click (#467)', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: { ...route, status: 'completed' },
       stops,
     });
+    mockCallApi.mockImplementation(async (path: string) =>
+      path === '/api/customer/route-feedback/status' ? { locked: null } : { success: true, emailed: false }
+    );
 
     render(<RouteDetailContent params={{ id: 'route-1' }} />);
 
@@ -390,17 +401,15 @@ describe('Customer route detail tracker', () => {
 
     expect(screen.getByRole('heading', { name: /how did this route go\?/i })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /^all good$/i }));
-    fireEvent.click(screen.getByRole('button', { name: /send feedback/i }));
+    const allGood = screen.getByRole('button', { name: /^all good$/i });
+    await waitFor(() => expect(allGood).toBeEnabled());
+    fireEvent.click(allGood);
 
     await waitFor(() => {
-      expect(updateRoute).toHaveBeenCalledWith('route-1', {
-        customerFeedbackTone: 'good',
-        customerFeedbackNote: '',
-      });
+      expect(mockCallApi).toHaveBeenCalledWith('/api/customer/route-feedback', { routeId: 'route-1', tone: 'good', note: '' });
     });
-
-    expect(await screen.findByText(/feedback sent/i)).toBeInTheDocument();
+    expect(updateRoute).not.toHaveBeenCalled();
+    expect(await screen.findByText(/feedback was sent/i)).toBeInTheDocument();
   });
 
   it('hides the feedback card for a route that is not completed', async () => {

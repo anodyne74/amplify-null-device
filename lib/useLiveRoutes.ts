@@ -48,7 +48,9 @@ function useObservedRoutes(
       .models.Route.observeQuery(field && value ? { filter: { [field]: { eq: value } } } : {})
       .subscribe({
         next: ({ items, isSynced }) => {
-          setState({ items: items as unknown as Route[], loading: !isSynced, error: null });
+          // observeQuery grows and edits one array in place across pages and
+          // live events; a copy lets anything keyed on it (useMemo) see each change.
+          setState({ items: [...items] as unknown as Route[], loading: !isSynced, error: null });
         },
         error: (err: unknown) => {
           setState({

@@ -155,6 +155,32 @@ describe('useLiveAllRoutes', () => {
     jest.clearAllMocks();
   });
 
+  // observeQuery hands back the same array every time, growing it page by
+  // page and on each live event.
+  it('shows every page and live event, though observeQuery reuses one array', () => {
+    const feed = makeObservable();
+    mockObserveQuery.mockReturnValue(feed.observable);
+    const items: unknown[] = [{ id: 'route-1' }];
+
+    const { result } = renderHook(() => useLiveAllRoutes());
+    act(() => {
+      feed.emit({ items, isSynced: false });
+    });
+    expect(result.current.routes.map((route) => route.id)).toEqual(['route-1']);
+
+    act(() => {
+      items.push({ id: 'route-2' });
+      feed.emit({ items, isSynced: true });
+    });
+    expect(result.current.routes.map((route) => route.id)).toEqual(['route-1', 'route-2']);
+
+    act(() => {
+      items[0] = { id: 'route-1', status: 'in_progress' };
+      feed.emit({ items, isSynced: true });
+    });
+    expect(result.current.routes[0].status).toBe('in_progress');
+  });
+
   it('subscribes without a filter and reflects the initial sync', () => {
     const feed = makeObservable();
     mockObserveQuery.mockReturnValue(feed.observable);

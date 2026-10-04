@@ -27,6 +27,11 @@ jest.mock('@/app/operator/components/RouteForm', () => ({
 jest.mock('@/lib/routes');
 jest.mock('@/lib/customers');
 jest.mock('@/lib/extractScheduleText', () => ({ extractScheduleText: jest.fn() }));
+jest.mock('@/lib/stopLocation', () => ({
+  ...jest.requireActual('@/lib/stopLocation'),
+  // Pins every draft as-is: these tests are about the draft list, not the map.
+  locateDraftStops: jest.fn(async (drafts: unknown[]) => ({ stops: drafts, unpinned: 0, leftOut: [] })),
+}));
 jest.mock('@/lib/routeScheduleGuard', () => ({ checkRouteDateBlocked: jest.fn().mockResolvedValue({ blocked: false }) }));
 jest.mock('@/lib/routeRequests', () => {
   const actual = jest.requireActual('@/lib/routeRequests');
@@ -161,5 +166,84 @@ describe('NewRoutePage Route Request', () => {
     render(<NewRoutePage />);
 
     expect(await screen.findByText(/no longer in the Request inbox/)).toBeInTheDocument();
+  });
+});
+
+describe('NewRoutePage copied Stop notes (#464)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockRequestParam = null;
+    (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'c1', name: 'First Agency', email: 'a@first.test' }]);
+    (listAllRoutes as jest.Mock).mockResolvedValue([{ id: 'old-route', customerId: 'c1', routeCode: 'OLD-1' }]);
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      stops: [
+        { address: '1409/26 Cambridge St, Epping', notes: 'Late addition to list [PLACEMENT_DONE:2026-10-04T04:11:27.513Z]' },
+        { address: '20 Gloucester Road, Epping', notes: 'Gate code 1234' },
+        { address: '9 Grayson Rd, North Epping' },
+      ],
+    });
+    (createRoute as jest.Mock).mockResolvedValue({ id: 'new-route' });
+    (createStopsForRoute as jest.Mock).mockResolvedValue([
+      { success: true, index: 0 },
+      { success: true, index: 1 },
+      { success: true, index: 2 },
+    ]);
+    (attachNewRouteRequest as jest.Mock).mockResolvedValue({ ok: true });
+  });
+
+  async function copyStops() {
+    render(<NewRoutePage />);
+    fireEvent.change(await screen.findByLabelText('Copy Stops From Previous Route'), { target: { value: 'old-route' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
+    await screen.findByRole('button', { name: 'Create Route (3 stops)' });
+  }
+
+  function createdStops() {
+    return (createStopsForRoute as jest.Mock).mock.calls[0][2] as Array<{ address: string; notes?: string }>;
+  }
+
+  it('shows each copied note in the review table', async () => {
+    await copyStops();
+
+    expect(screen.getByLabelText('Notes for 1409/26 Cambridge St, Epping')).toHaveValue('Late addition to list');
+    expect(screen.getByLabelText('Notes for 20 Gloucester Road, Epping')).toHaveValue('Gate code 1234');
+    expect(screen.getByLabelText('Notes for 9 Grayson Rd, North Epping')).toHaveValue('');
+  });
+
+  it('creates the Stops with the notes as edited, cleared, or left as copied', async () => {
+    await copyStops();
+
+    fireEvent.change(screen.getByLabelText('Notes for 1409/26 Cambridge St, Epping'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Notes for 9 Grayson Rd, North Epping'), { target: { value: 'Beware of dog' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Route (3 stops)' }));
+
+    await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
+    const [cambridge, gloucester, grayson] = createdStops();
+    expect(cambridge.notes).toBeUndefined();
+    expect(gloucester.notes).toBe('Gate code 1234');
+    expect(grayson.notes).toBe('Beware of dog');
+  });
+
+  it('starts over from the source notes when the Stops are copied again', async () => {
+    await copyStops();
+    fireEvent.change(screen.getByLabelText('Notes for 20 Gloucester Road, Epping'), { target: { value: 'Changed' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
+
+    await waitFor(() => expect(screen.getByLabelText('Notes for 20 Gloucester Road, Epping')).toHaveValue('Gate code 1234'));
+  });
+
+  it('gives Stops from an uploaded Schedule an empty, editable note', async () => {
+    (extractScheduleText as jest.Mock).mockResolvedValue('2 1 Main St, Epping  BO');
+    render(<NewRoutePage />);
+    const input = (await screen.findByText('Choose File')).closest('div')!.querySelector('input[type="file"]')!;
+    fireEvent.change(input, { target: { files: [new File(['pdf'], 'mine.pdf', { type: 'application/pdf' })] } });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Preview Stops' }));
+
+    const note = await screen.findByLabelText(/^Notes for /);
+    expect(note).toHaveValue('');
+    fireEvent.change(note, { target: { value: 'Side gate' } });
+    expect(note).toHaveValue('Side gate');
   });
 });

@@ -336,6 +336,20 @@ describe('Administrator Route Edit Page', () => {
     expect(screen.queryByText(/to enable Notify Operator/)).not.toBeInTheDocument();
   });
 
+  it('asks only for a save when the loaded assignment has no email yet (#469)', async () => {
+    (routesModule.getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: { ...mockRoute, assignedOperatorSub: 'op-sub-1', assignedOperatorEmail: null },
+      stops: mockStops,
+    });
+
+    render(<RouteEditPage />);
+    await screen.findByLabelText(/route code/i);
+
+    expect(screen.getByRole('button', { name: /notify operator/i })).toHaveAccessibleDescription(
+      'Save changes to enable Notify Operator.'
+    );
+  });
+
   it('shows no hint when re-opening an already-assigned route (#469)', async () => {
     (routesModule.getRouteWithStops as jest.Mock).mockResolvedValue({
       route: {

@@ -285,11 +285,13 @@ function RouteEditContent() {
 
   // Notify Operator only works for an assignment that's been saved (#267), and a
   // disabled button can't show a tooltip, so say why underneath it.
-  const notifyHint = savedAssignedOperatorEmail || notifying
-    ? null
-    : assignedOperatorSub && assignedOperatorSub !== initialAssignedOperatorSub
+  const assignmentSaved = Boolean(savedAssignedOperatorEmail);
+  let notifyHint: string | null = null;
+  if (!assignmentSaved) {
+    notifyHint = assignedOperatorSub
       ? 'Save changes to enable Notify Operator.'
       : 'Assign an operator and save changes to enable Notify Operator.';
+  }
 
   const handleNotifyOperator = async () => {
     if (!routeId) return;
@@ -489,7 +491,7 @@ function RouteEditContent() {
               variant="secondary"
               onClick={() => { void handleNotifyOperator(); }}
               loading={notifying}
-              disabled={notifying || !savedAssignedOperatorEmail}
+              disabled={notifying || !assignmentSaved}
               aria-describedby={notifyHint ? 'notify-operator-hint' : undefined}
             >
               {notifying ? 'Notifying...' : 'Notify Operator'}

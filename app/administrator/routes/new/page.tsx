@@ -13,7 +13,7 @@ import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { Tabs } from '@/app/components/ui/navigation/Tabs';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
-import { RouteForm, type RouteDraftStop } from '@/app/operator/components/RouteForm';
+import { RouteForm, withDraftStopNote, type RouteDraftStop } from '@/app/operator/components/RouteForm';
 import { RequesterFields, RouteRequestView, localNow, recordTitle } from '@/app/administrator/components/RouteRequests';
 import { pickStopLocationFields } from '@/lib/locationPrecision';
 import { extractScheduleText } from '@/lib/extractScheduleText';
@@ -575,11 +575,8 @@ function NewRoutePageContent() {
     }
   };
 
-  // A note left empty (or only spaces) is dropped, so the new Stop is created with none.
   const handleDraftNoteChange = (draftIndex: number, note: string) => {
-    setImportDraftStops((prev) =>
-      prev ? prev.map((stop, i) => (i === draftIndex ? { ...stop, notes: note.trim() ? note : undefined } : stop)) : prev
-    );
+    setImportDraftStops((prev) => (prev ? prev.map((stop, i) => (i === draftIndex ? withDraftStopNote(stop, note) : stop)) : prev));
   };
 
   const previewColumns: DataColumn<RouteDraftStop & { id: number; seq: number }>[] = [
@@ -599,8 +596,7 @@ function NewRoutePageContent() {
       render: (stop) => (stop.isAuction ? <span className={styles.auctionBadge}>Auction</span> : null),
     },
     {
-      // A copied note may only have applied to the old Route (#464), so it's shown
-      // here to keep, change or clear before the Stops are created.
+      // Each draft's note, to keep, change or clear (withDraftStopNote).
       key: 'notes',
       header: 'Notes',
       render: (stop) => (

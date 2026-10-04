@@ -37,6 +37,15 @@ export interface RouteDraftStop extends Partial<StopLocationFields> {
   notes?: string;
 }
 
+/**
+ * A draft Stop with its note changed. A copied note may only have applied to the
+ * old Route (#464), so it's shown to keep, change or clear before the Route is
+ * created; one left empty, or only spaces, is dropped so the Stop gets none.
+ */
+export function withDraftStopNote<S extends RouteDraftStop>(stop: S, note: string): S {
+  return { ...stop, notes: note.trim() ? note : undefined };
+}
+
 interface RouteFormCustomer {
   id: string;
   name: string;
@@ -224,6 +233,10 @@ export function RouteForm({
 
   const removeStop = (index: number) => {
     setStops((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const changeStopNote = (index: number, note: string) => {
+    setStops((prev) => prev.map((stop, i) => (i === index ? withDraftStopNote(stop, note) : stop)));
   };
 
   const blockedDateMessage = () => {
@@ -460,11 +473,21 @@ export function RouteForm({
                   <div className={styles.stopSequence}>{index + 1}</div>
                   <div className={styles.stopContent}>
                     <div className={styles.stopAddress}>{stop.formattedAddress || stop.address}</div>
+                    <Input
+                      size="sm"
+                      className={styles.stopNoteInput}
+                      aria-label={`Notes for stop ${index + 1}, ${stop.formattedAddress || stop.address}`}
+                      placeholder="No notes"
+                      value={stop.notes ?? ''}
+                      onChange={(e) => changeStopNote(index, e.target.value)}
+                      disabled={isSubmitting}
+                    />
                   </div>
                   <Button
                     type="button"
                     variant="danger"
                     size="sm"
+                    className={styles.stopRemove}
                     onClick={() => removeStop(index)}
                     disabled={isSubmitting}
                   >

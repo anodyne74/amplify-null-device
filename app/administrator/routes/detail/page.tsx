@@ -17,6 +17,7 @@ import { BilledTimeCorrectionPanel } from '@/app/administrator/components/Billed
 import { PickupDateEditor } from '@/app/administrator/components/PickupDateEditor';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
+import { Badge } from '@/app/components/ui/core/Badge';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { useRouteDetailData } from '@/lib/use-route-detail-data';
@@ -31,7 +32,7 @@ import { getUserSettings } from '@/lib/userSettings';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { computeRouteSummaryStats, getPhaseOverview } from '@/lib/routeDetailSummary';
 import { getSignRunPhase } from '@/lib/signRunPhase';
-import { settleStopAsAdministrator } from '@/lib/administratorRouteActions';
+import { restoreStopAsAdministrator, settleStopAsAdministrator } from '@/lib/administratorRouteActions';
 import { stopPhaseOf } from '@/lib/signRunTransitions';
 import { billedTime } from '@/lib/billedTime';
 import { isStopCompleted, stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
@@ -61,6 +62,8 @@ function RouteDetailContent() {
   const {
     route,
     stops,
+    removedStops,
+    loadChanged,
     loading,
     error,
     customerName,
@@ -121,6 +124,18 @@ function RouteDetailContent() {
     if (result.ok || result.saved) void refetch();
     setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
   }, [refetch, route, stops]);
+
+  const restoreStop = useCallback(async (stopId: string) => {
+    const stop = removedStops.find((s) => s.id === stopId);
+    if (!route || !stop) return;
+
+    setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
+    setStopErrors((prev) => ({ ...prev, [stopId]: null }));
+    const result = await restoreStopAsAdministrator(route, stop);
+    if (!result.ok) setStopErrors((prev) => ({ ...prev, [stopId]: result.error }));
+    if (result.ok || result.saved) void refetch();
+    setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
+  }, [refetch, removedStops, route]);
 
   useEffect(() => {
     if (!user?.userId) return;
@@ -201,6 +216,7 @@ function RouteDetailContent() {
                 Route {route.routeCode || route.id.slice(0, 8)}
               </h1>
               <RouteStatusPill route={route} />
+              {loadChanged && <Badge tone="info">Changed at Load</Badge>}
               <div className={styles.headerActions}>
                 <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
                   Edit Route
@@ -582,6 +598,39 @@ function RouteDetailContent() {
                 })}
               </div>
             </Card>
+
+            {removedStops.length > 0 && (
+              <Card title={`Removed at Load (${removedStops.length})`} padded={false}>
+                <div className={styles.stopsList}>
+                  {removedStops.map((stop) => (
+                    <StopCard
+                      key={stop.id}
+                      sequence="–"
+                      tone="skipped"
+                      address={stop.formattedAddress || stop.address || ''}
+                      statusLabel={`Removed ${formatRouteDateTime(stop.removedAt)}`}
+                      agentName={stop.agent?.trim() || 'Unassigned'}
+                      isAuction={Boolean(stop.isAuction)}
+                      actions={
+                        <>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => { void restoreStop(stop.id); }}
+                            disabled={!!stopExecuting[stop.id]}
+                          >
+                            {stopExecuting[stop.id] ? 'Saving…' : 'Restore'}
+                          </Button>
+                          {stopErrors[stop.id] && (
+                            <div className={styles.errorBanner} role="alert">{stopErrors[stop.id]}</div>
+                          )}
+                        </>
+                      }
+                    />
+                  ))}
+                </div>
+              </Card>
+            )}
           </div>
         </>
       )}

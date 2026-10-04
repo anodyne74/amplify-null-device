@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useReducer, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { Stop } from '@/amplify/types';
-import { checklistAgents, checklistFromStops, checklistReducer } from './timedSignChecklist';
+import type { LoadStopInput } from '@/lib/loadChange';
+import { checklistAgents, checklistFromStops, toggleLoaded } from './timedSignChecklist';
 import styles from './TimedSignsChecklist.module.css';
 
 /** Past this far left, letting go removes the row. */
@@ -20,14 +21,21 @@ interface Swipe {
 }
 
 interface TimedSignsChecklistProps {
+  /** Every Stop on the Route, removed ones included. */
   stops: Stop[];
   customerAgents: Array<string | null>;
+  /** Each saves a Load Change, returning why it was refused, if it was. */
+  onRemove: (stopId: string) => string | null;
+  onRestore: (stopId: string) => string | null;
+  onAdd: (input: LoadStopInput) => string | null;
 }
 
-/** Checklist only — never saved. Seeded once from the stops; later stop
- * updates don't reset what the operator has ticked, removed or added. */
-export function TimedSignsChecklist({ stops, customerAgents }: TimedSignsChecklistProps) {
-  const [properties, dispatch] = useReducer(checklistReducer, stops, checklistFromStops);
+/** The rows follow the stops, so a property added or removed is saved; the
+ * ticks are this screen's alone and never saved. */
+export function TimedSignsChecklist({ stops, customerAgents, onRemove, onRestore, onAdd }: TimedSignsChecklistProps) {
+  const [loadedIds, setLoadedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const properties = checklistFromStops(stops, loadedIds);
+  const [changeError, setChangeError] = useState<string | null>(null);
   const [swipe, setSwipe] = useState<Swipe | null>(null);
   // A drag ends in a click on the same button; this swallows it.
   const swallowClick = useRef(false);
@@ -36,16 +44,24 @@ export function TimedSignsChecklist({ stops, customerAgents }: TimedSignsCheckli
   const [adding, setAdding] = useState(false);
   const [address, setAddress] = useState('');
   const [agent, setAgent] = useState('');
+  const [numberOfSigns, setNumberOfSigns] = useState(1);
+  const [isAuction, setIsAuction] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
-  const loadedCount = properties.filter((p) => p.loaded).length;
-  const allLoaded = properties.length > 0 && loadedCount === properties.length;
+  const onRoute = properties.filter((p) => !p.removed);
+  const loadedCount = onRoute.filter((p) => p.loaded).length;
+  const allLoaded = onRoute.length > 0 && loadedCount === onRoute.length;
   const agents = checklistAgents(stops, customerAgents);
-  const canAdd = address.trim() !== '' && agent !== '';
+  const canAdd = address.trim() !== '' && agent !== '' && numberOfSigns >= 1;
+
+  const remove = (id: string) => setChangeError(onRemove(id));
+
+  const restore = (id: string) => setChangeError(onRestore(id));
 
   const slideOut = (id: string) => {
     setSwipe({ id, x0: 0, dx: -420, dragging: false });
     slideOutTimer.current = setTimeout(() => {
-      dispatch({ type: 'remove', id });
+      remove(id);
       setSwipe(null);
     }, SLIDE_OUT_MS);
   };
@@ -76,45 +92,74 @@ export function TimedSignsChecklist({ stops, customerAgents }: TimedSignsCheckli
       swallowClick.current = false;
       return;
     }
-    dispatch({ type: 'toggle', id });
+    setLoadedIds((current) => toggleLoaded(current, id));
   };
 
   const onKeyDown = (id: string) => (e: KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
-      dispatch({ type: 'remove', id });
+      remove(id);
     }
   };
 
   const openAdd = () => {
     setAddress('');
     setAgent('');
+    setNumberOfSigns(1);
+    setIsAuction(false);
+    setAddError(null);
     setAdding(true);
   };
 
   const add = () => {
     if (!canAdd) return;
-    dispatch({ type: 'add', id: `added-${Date.now()}`, address, agent });
-    setAdding(false);
+    const refused = onAdd({ address, agent, numberOfSigns, isAuction });
+    setAddError(refused);
+    if (!refused) setAdding(false);
   };
 
   return (
     <div className={styles.section}>
       <div className={styles.header}>
-        <span className={styles.heading}>Timed signs · placement order</span>
+        <span className={styles.heading}>Properties · placement order</span>
         <span className={allLoaded ? styles.countDone : styles.count}>
-          {loadedCount} of {properties.length} loaded
+          {loadedCount} of {onRoute.length} loaded
         </span>
       </div>
 
+      {changeError && (
+        <div className={styles.error} role="alert">
+          {changeError}
+        </div>
+      )}
+
       <div className={styles.list}>
-        {properties.map((property, i) => {
+        {properties.map((property) => {
           const dx = swipe?.id === property.id ? swipe.dx : 0;
           const meta = [
             property.agent,
-            property.timed === null ? 'Added on the day' : `${property.timed} timed`,
+            `${property.timed} timed`,
+            ...(property.blank > 0 ? [`${property.blank} blank`] : []),
+            ...(property.addedAtLoad ? ['Added on the day'] : []),
             ...(property.loaded ? ['Loaded'] : []),
           ].join(' · ');
+          if (property.removed) {
+            return (
+              <div key={property.id} className={styles.rowRemoved}>
+                <span className={styles.seqRemoved} aria-hidden="true">
+                  –
+                </span>
+                <span className={styles.rowBody}>
+                  <span className={styles.address}>{property.address}</span>
+                  <span className={styles.meta}>{property.agent} · Removed</span>
+                </span>
+                <button type="button" className={styles.restoreButton} onClick={() => restore(property.id)}>
+                  Restore
+                </button>
+              </div>
+            );
+          }
+          const sequence = onRoute.indexOf(property) + 1;
           return (
             <div key={property.id} className={styles.rowTrack}>
               <div className={styles.removeHint} aria-hidden="true">
@@ -136,7 +181,7 @@ export function TimedSignsChecklist({ stops, customerAgents }: TimedSignsCheckli
                 onKeyDown={onKeyDown(property.id)}
               >
                 <span className={property.loaded ? styles.seqLoaded : styles.seq} aria-hidden="true">
-                  {i + 1}
+                  {sequence}
                 </span>
                 <span className={styles.rowBody}>
                   <span className={styles.address}>{property.address}</span>
@@ -146,7 +191,7 @@ export function TimedSignsChecklist({ stops, customerAgents }: TimedSignsCheckli
             </div>
           );
         })}
-        {properties.length === 0 && <div className={styles.empty}>No timed signs on this run.</div>}
+        {properties.length === 0 && <div className={styles.empty}>No properties on this run.</div>}
       </div>
 
       {adding ? (
@@ -179,6 +224,30 @@ export function TimedSignsChecklist({ stops, customerAgents }: TimedSignsCheckli
               </div>
             </div>
           )}
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Signs</span>
+            <input
+              className={styles.input}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              value={numberOfSigns}
+              onChange={(e) => setNumberOfSigns(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+            />
+          </label>
+          <button
+            type="button"
+            aria-pressed={isAuction}
+            className={isAuction ? styles.agentPicked : styles.agent}
+            onClick={() => setIsAuction((current) => !current)}
+          >
+            Auction — every sign timed
+          </button>
+          {addError && (
+            <div className={styles.error} role="alert">
+              {addError}
+            </div>
+          )}
           <button type="button" className={styles.addButton} disabled={!canAdd} onClick={add}>
             Add to end of list
           </button>
@@ -193,7 +262,8 @@ export function TimedSignsChecklist({ stops, customerAgents }: TimedSignsCheckli
       )}
 
       <p className={styles.hint}>
-        Tap to mark loaded · swipe left to remove. Checklist only — not recorded. Route order is set by an administrator.
+        Tap to mark loaded · swipe left to remove. Ticks aren&apos;t saved; adding, removing or restoring a property is.
+        Route order is set by an administrator.
       </p>
     </div>
   );

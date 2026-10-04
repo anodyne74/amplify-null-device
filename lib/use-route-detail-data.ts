@@ -6,6 +6,7 @@ import { isAdmin } from '@/lib/amplify-config';
 import { geocodeAddress } from '@/lib/googleMaps';
 import type { GeocodedLocation } from '@/lib/locationPrecision';
 import { useRouteWithStops } from '@/lib/useRouteWithStops';
+import { activeStops, hasLoadChanges, isStopRemoved } from '@/lib/loadChange';
 import {
   deleteRoute as deleteRouteQuery,
   deleteStop as deleteStopQuery,
@@ -91,12 +92,17 @@ export function useRouteDetailData(id: string, user: unknown) {
 
   const {
     route,
-    stops,
+    stops: allStops,
     loading: routeLoading,
     error: routeError,
     patchStop,
     refetch,
   } = useRouteWithStops(id || null);
+  // Every list, map and count works on the Stops that count; a Stop a Load
+  // Change removed is shown apart, where an administrator can restore it.
+  const stops = useMemo(() => activeStops(allStops), [allStops]);
+  const removedStops = useMemo(() => allStops.filter(isStopRemoved), [allStops]);
+  const loadChanged = useMemo(() => hasLoadChanges(allStops), [allStops]);
   const [customerLoading, setCustomerLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -231,7 +237,7 @@ export function useRouteDetailData(id: string, user: unknown) {
       setAddStopError(null);
       setStopNotice(null);
       try {
-        const { pinned } = await saveStop({ routeId: route.id, customerId: route.customerId, sequence: stops.length + 1 }, values);
+        const { pinned } = await saveStop({ routeId: route.id, customerId: route.customerId, sequence: allStops.length + 1 }, values);
         if (!pinned) setStopNotice(UNPINNED_STOP_NOTICE);
         setShowAddStop(false);
         await refetch();
@@ -240,7 +246,7 @@ export function useRouteDetailData(id: string, user: unknown) {
       }
       setAddingStop(false);
     },
-    [canManagePlanning, refetch, route, stops.length]
+    [allStops.length, canManagePlanning, refetch, route]
   );
 
   const startEditingStop = useCallback((stopId: string) => setEditingStopId(stopId), []);
@@ -440,6 +446,10 @@ export function useRouteDetailData(id: string, user: unknown) {
   return {
     route,
     stops,
+    /** Stops a Load Change removed, kept out of `stops`. */
+    removedStops,
+    /** Whether a Stop was added or removed at Load ("Changed at Load"). */
+    loadChanged,
     loading,
     error: error ?? loadError,
     customerName,

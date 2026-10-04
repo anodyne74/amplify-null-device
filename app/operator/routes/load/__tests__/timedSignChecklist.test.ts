@@ -1,4 +1,4 @@
-import { checklistAgents, checklistFromStops, checklistReducer, type ChecklistProperty } from '../timedSignChecklist';
+import { checklistAgents, checklistFromStops, toggleLoaded } from '../timedSignChecklist';
 import type { Stop } from '@/amplify/types';
 
 function stop(overrides: Partial<Stop>): Stop {
@@ -13,50 +13,44 @@ const stops: Stop[] = [
 ];
 
 describe('checklistFromStops', () => {
-  it('lists every property with signs in placement order, with its timed sign count', () => {
-    expect(checklistFromStops(stops)).toEqual([
-      { id: 's1', address: '12 Faraday St, Carlton', agent: 'Rachel Morrow', timed: 4, loaded: false },
-      { id: 's2', address: '8 Lygon St, Carlton', agent: 'Jem Tran', timed: 1, loaded: false },
-      { id: 's4', address: '2 Elgin St, Carlton', agent: 'Unassigned', timed: 1, loaded: false },
+  const property = { addedAtLoad: false, removed: false, loaded: false };
+
+  it('lists every property in placement order, blank-only and sign-less ones too, with its timed and blank signs', () => {
+    expect(checklistFromStops(stops, new Set())).toEqual([
+      { ...property, id: 's1', address: '12 Faraday St, Carlton', agent: 'Rachel Morrow', timed: 4, blank: 0 },
+      { ...property, id: 's2', address: '8 Lygon St, Carlton', agent: 'Jem Tran', timed: 1, blank: 2 },
+      { ...property, id: 's3', address: '40 Drummond St, Carlton', agent: 'Jem Tran', timed: 0, blank: 0 },
+      { ...property, id: 's4', address: '2 Elgin St, Carlton', agent: 'Unassigned', timed: 1, blank: 1 },
+    ]);
+  });
+
+  it('marks the ticked properties loaded', () => {
+    const loaded = checklistFromStops(stops, new Set(['s2']));
+    expect(loaded.filter((p) => p.loaded).map((p) => p.id)).toEqual(['s2']);
+  });
+
+  it('keeps a removed property, never loaded, and flags one added on the day', () => {
+    const changed = checklistFromStops(
+      [
+        stop({ id: 'r', removed: true, removedAt: '2026-10-04T07:00:00.000Z' }),
+        stop({ id: 'a', addedAtLoad: '2026-10-04T07:05:00.000Z' }),
+      ],
+      new Set(['r'])
+    );
+    expect(changed.map(({ id, removed, addedAtLoad, loaded }) => ({ id, removed, addedAtLoad, loaded }))).toEqual([
+      { id: 'r', removed: true, addedAtLoad: false, loaded: false },
+      { id: 'a', removed: false, addedAtLoad: true, loaded: false },
     ]);
   });
 });
 
-describe('checklistReducer', () => {
-  const start: ChecklistProperty[] = checklistFromStops(stops);
-
-  it('toggles a property loaded and back', () => {
-    const loaded = checklistReducer(start, { type: 'toggle', id: 's2' });
-    expect(loaded.find((p) => p.id === 's2')?.loaded).toBe(true);
-    expect(loaded.find((p) => p.id === 's1')?.loaded).toBe(false);
-
-    const unloaded = checklistReducer(loaded, { type: 'toggle', id: 's2' });
-    expect(unloaded.find((p) => p.id === 's2')?.loaded).toBe(false);
-  });
-
-  it('removes a property', () => {
-    expect(checklistReducer(start, { type: 'remove', id: 's1' }).map((p) => p.id)).toEqual(['s2', 's4']);
-  });
-
-  it('adds a property on the day to the end of the list, unloaded and with no timed count', () => {
-    const next = checklistReducer(start, {
-      type: 'add',
-      id: 'added-1',
-      address: '  30 Faraday St, Carlton ',
-      agent: 'Jem Tran',
-    });
-    expect(next[next.length - 1]).toEqual({
-      id: 'added-1',
-      address: '30 Faraday St, Carlton',
-      agent: 'Jem Tran',
-      timed: null,
-      loaded: false,
-    });
-  });
-
-  it('ignores an add with no address or no agent', () => {
-    expect(checklistReducer(start, { type: 'add', id: 'a', address: '  ', agent: 'Jem Tran' })).toBe(start);
-    expect(checklistReducer(start, { type: 'add', id: 'a', address: '1 A St', agent: '' })).toBe(start);
+describe('toggleLoaded', () => {
+  it('ticks a property and unticks it, leaving the set it was given alone', () => {
+    const none = new Set<string>();
+    const ticked = toggleLoaded(none, 's2');
+    expect([...ticked]).toEqual(['s2']);
+    expect(none.size).toBe(0);
+    expect([...toggleLoaded(ticked, 's2')]).toEqual([]);
   });
 });
 

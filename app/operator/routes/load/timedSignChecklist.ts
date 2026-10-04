@@ -1,50 +1,48 @@
 /**
- * The Load screen's timed-sign checklist: one row per property, in placement
- * order, ticked off as its timed signs go onto the van. Checklist only — it
- * lives on this screen and is never saved, so nothing here touches the Route.
+ * The Load screen's checklist: one row per property, in placement order,
+ * ticked off as its signs go onto the van. The rows follow the Route's Stops,
+ * so adding or removing a property is a Load Change (lib/loadChange.ts) and is
+ * saved; a tick is not — it lives on this screen only.
  */
 import { groupByAgent, timedSigns } from '@/lib/signRunTotals';
+import { isStopRemoved } from '@/lib/loadChange';
 import type { Stop } from '@/amplify/types';
 
 export interface ChecklistProperty {
   id: string;
   address: string;
   agent: string;
-  /** Timed signs for the property; null for one added on the day. */
-  timed: number | null;
+  timed: number;
+  blank: number;
+  addedAtLoad: boolean;
+  removed: boolean;
   loaded: boolean;
 }
 
-export type ChecklistAction =
-  | { type: 'toggle'; id: string }
-  | { type: 'remove'; id: string }
-  | { type: 'add'; id: string; address: string; agent: string };
-
-/** Every property with signs, in sequence order (stops arrive already sorted). */
-export function checklistFromStops(stops: Stop[]): ChecklistProperty[] {
-  return stops
-    .filter((stop) => timedSigns(stop) > 0)
-    .map((stop) => ({
+/** Every Stop, in sequence order (stops arrive already sorted), removed ones
+ *  included so they can be restored. A removed property is never loaded. */
+export function checklistFromStops(stops: Stop[], loadedIds: ReadonlySet<string>): ChecklistProperty[] {
+  return stops.map((stop) => {
+    const removed = isStopRemoved(stop);
+    const timed = timedSigns(stop);
+    return {
       id: stop.id,
       address: stop.address ?? '',
       agent: stop.agent?.trim() || 'Unassigned',
-      timed: timedSigns(stop),
-      loaded: false,
-    }));
+      timed,
+      blank: (stop.numberOfSigns ?? 0) - timed,
+      addedAtLoad: Boolean(stop.addedAtLoad),
+      removed,
+      loaded: !removed && loadedIds.has(stop.id),
+    };
+  });
 }
 
-export function checklistReducer(state: ChecklistProperty[], action: ChecklistAction): ChecklistProperty[] {
-  switch (action.type) {
-    case 'toggle':
-      return state.map((p) => (p.id === action.id ? { ...p, loaded: !p.loaded } : p));
-    case 'remove':
-      return state.filter((p) => p.id !== action.id);
-    case 'add': {
-      const address = action.address.trim();
-      if (!address || !action.agent) return state;
-      return [...state, { id: action.id, address, agent: action.agent, timed: null, loaded: false }];
-    }
-  }
+/** The ticked ids with `id` flipped. */
+export function toggleLoaded(loadedIds: ReadonlySet<string>, id: string): Set<string> {
+  const next = new Set(loadedIds);
+  if (!next.delete(id)) next.add(id);
+  return next;
 }
 
 /** Agents a property added on the day can belong to: the route's own agents in

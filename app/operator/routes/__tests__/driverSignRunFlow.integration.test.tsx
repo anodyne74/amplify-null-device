@@ -54,6 +54,7 @@ jest.mock('aws-amplify/auth', () => ({
 }));
 
 jest.mock('@/lib/apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
+jest.mock('@/lib/use-user-groups', () => ({ useCurrentUserId: () => 'operator-1' }));
 
 jest.mock('@/lib/queries/OrganizationSettings', () => ({
   getOrganizationSettings: jest.fn(),

@@ -11,6 +11,7 @@ import { BILLING_EMAIL } from '@/lib/publicAppConfig';
 import { buildInvoiceFileName } from '@/lib/invoiceFileName';
 import type { StopSummary } from '@/app/administrator/invoices/stopFormatting';
 import { getRouteWithStops } from '@/lib/routes';
+import { activeStops } from '@/lib/loadChange';
 import { billedTime } from '@/lib/billedTime';
 import { getInvoiceWithLineItems, updateInvoice, updateInvoicePdfKey } from '@/lib/invoices';
 
@@ -202,7 +203,7 @@ export function useInvoiceDocumentActions({
         amount?: number | null;
       }>) ?? [];
       const routeStops = invoice.routeId
-        ? (((await getRouteWithStops(invoice.routeId))?.stops ?? []) as StopSummary[])
+        ? (activeStops((await getRouteWithStops(invoice.routeId))?.stops ?? []) as StopSummary[])
         : [];
       const groupStopsByAgentForCustomer = Boolean(customer?.groupLineItemsByAgent);
       const { jsPDF } = await import('jspdf');

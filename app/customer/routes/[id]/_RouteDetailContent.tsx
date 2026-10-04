@@ -27,6 +27,7 @@ import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
 import { signsPlaced } from '@/lib/signRunTotals';
 import { stopProgress } from '@/lib/stopProgress';
 import { customerRouteProgress } from '@/lib/customerRouteProgress';
+import { activeStops, isStopRemoved } from '@/lib/loadChange';
 import { customerPickupDate } from '@/lib/pickupDate';
 import styles from './_RouteDetailContent.module.css';
 import { updateRoute, updateRouteCustomerInstructions } from '@/lib/routes';
@@ -83,7 +84,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
   } = useCustomerPortalContext({ fetchData: fetchCustomerData });
   const {
     route: liveRoute,
-    stops,
+    stops: allStops,
     loading: routeLoading,
     error: routeError,
     patchRoute,
@@ -98,6 +99,9 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
     (routeError ? 'Failed to load route details' : null) ||
     (forbidden ? 'You do not have permission to view this route' : null);
   const customer = data?.customer ?? null;
+  // A Stop removed on the day counts toward nothing; it's listed after the rest.
+  const stops = activeStops(allStops);
+  const removedStops = allStops.filter(isStopRemoved);
   const customerUsers = data?.customerUsers ?? [];
 
   const [instructionsExpanded, setInstructionsExpanded] = useState(true);
@@ -245,6 +249,9 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
         <div className={styles.stopsList}>
           {stops.map((stop, index) => (
             <StopListItem key={stop.id} stop={stop} sequence={index + 1} phase={progress.phase} />
+          ))}
+          {removedStops.map((stop) => (
+            <StopListItem key={stop.id} stop={stop} sequence={null} phase={progress.phase} />
           ))}
         </div>
       )}

@@ -23,6 +23,7 @@ import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
 import { getRouteWithStops, updateRoute, deleteStop, saveStop, resequenceStops, UNPINNED_STOP_NOTICE, saveStopFailure } from '@/lib/routes';
 import { listAllCustomers } from '@/lib/customers';
+import { activeStops } from '@/lib/loadChange';
 import { notifyOperatorOutcome, type NotifyOperatorResult } from '@/lib/notifyOperatorOutcome';
 
 type CustomerOption = {
@@ -90,7 +91,7 @@ function RouteEditContent() {
   const fetchStops = useCallback(async () => {
     if (!routeId) return;
     const routeWithStops = await getRouteWithStops(routeId).catch(() => null);
-    if (routeWithStops) setStops(routeWithStops.stops as unknown as Stop[]);
+    if (routeWithStops) setStops(activeStops(routeWithStops.stops) as unknown as Stop[]);
   }, [routeId]);
 
   const persistStopOrder = useCallback(async (orderedStops: Stop[]) => {
@@ -169,7 +170,8 @@ function RouteEditContent() {
         );
       }
 
-      setStops(routeResult.stops as unknown as Stop[]);
+      // A Stop a Load Change removed is restored from the Route's page, not planned here.
+      setStops(activeStops(routeResult.stops) as unknown as Stop[]);
 
       setLoading(false);
     }

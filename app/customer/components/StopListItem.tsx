@@ -4,11 +4,13 @@ import type { Stop } from '@/amplify/types';
 import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
 import { displayNotes, stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
 import { stopProgressTone, type StopProgressTone } from '@/lib/stopStatusLabel';
+import { isStopRemoved } from '@/lib/loadChange';
 import styles from './StopListItem.module.css';
 
 interface StopListItemProps {
   stop: Stop;
-  sequence: number;
+  /** Null for a Stop removed on the day, which has no place in the order. */
+  sequence: number | null;
   /** The phase the Customer is following the Route by (lib/customerRouteProgress.ts). */
   phase: ExecutionPhase;
 }
@@ -24,6 +26,7 @@ const TONE_CIRCLE_CLASS: Record<StopProgressTone, string> = {
  * truth for how far along its own phase it is, read from the same Stop
  * Progress the operator's Placement/Pickup screens write. */
 function getStopStatus(stop: Stop, phase: ExecutionPhase): { label: string; tone: BadgeProps['tone'] } {
+  if (isStopRemoved(stop)) return { label: 'Removed on the day', tone: 'neutral' };
   const { state } = stopProgress(stop)[phase];
   if (state === 'skipped') {
     return { label: phase === 'pickup' ? 'Pickup skipped' : 'Placement skipped', tone: 'danger' };
@@ -47,7 +50,7 @@ export default function StopListItem({ stop, sequence, phase }: StopListItemProp
     });
   };
 
-  const circleClass = TONE_CIRCLE_CLASS[stopProgressTone(stop, phase)];
+  const circleClass = isStopRemoved(stop) ? styles.circleSkipped : TONE_CIRCLE_CLASS[stopProgressTone(stop, phase)];
   const operatorNotes = displayNotes(stop.notes);
 
   const status = getStopStatus(stop, phase);
@@ -59,7 +62,7 @@ export default function StopListItem({ stop, sequence, phase }: StopListItemProp
   return (
     <div className={styles.card}>
       {/* Sequence Number */}
-      <div className={`${styles.sequenceCircle} ${circleClass}`}>{sequence}</div>
+      <div className={`${styles.sequenceCircle} ${circleClass}`}>{sequence ?? '–'}</div>
 
       {/* Stop Details */}
       <div className={styles.body}>

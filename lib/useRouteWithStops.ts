@@ -215,8 +215,8 @@ export function useRouteWithStops(routeId: string | null) {
   const outbox = useSignRunOutbox();
   const { route, stops } = useMemo(() => {
     const view = routeWithStopsView(state);
-    return { route: view.route && overlayRoute(view.route, outbox), stops: overlayStops(view.stops, outbox) };
-  }, [state, outbox]);
+    return { route: view.route && overlayRoute(view.route, outbox), stops: overlayStops(view.stops, outbox, routeId) };
+  }, [state, outbox, routeId]);
 
   return { route, stops, loading: state.loading, error: state.error, patchRoute, patchStop, refetch };
 }

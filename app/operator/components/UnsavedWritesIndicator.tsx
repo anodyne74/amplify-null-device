@@ -22,6 +22,9 @@ const ACTION_LABEL: Record<SignRunTimingKind, string> = {
   placementStopSkipped: 'Stop skipped',
   pickupStopDone: 'Stop picked up',
   pickupStopSkipped: 'Stop skipped',
+  loadStopAdded: 'Property added',
+  loadStopRemoved: 'Property removed',
+  loadStopRestored: 'Property restored',
 };
 
 /** "1 action" / "3 actions". */

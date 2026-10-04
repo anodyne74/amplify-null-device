@@ -44,6 +44,7 @@ export interface HistoryStop {
   notes?: string | null;
   missingSignsCount?: number | null;
   locationPrecision?: string | null;
+  removed?: boolean | null;
 }
 
 export interface HistoryRoute {

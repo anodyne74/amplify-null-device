@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getSignRunPhase, type SignRunPhaseInfo } from '@/lib/signRunPhase';
 import { useRouteWithStops } from '@/lib/useRouteWithStops';
+import { activeStops } from '@/lib/loadChange';
 import type { Route, Stop } from '@/amplify/types';
 
 interface UseSignRunPhaseScreenOptions<TExtra> {
@@ -12,6 +13,9 @@ interface UseSignRunPhaseScreenOptions<TExtra> {
   /** Most phase screens are meaningless with no stops; Load is the exception
    * (it gates on signs at the yard, not on a per-stop route). Defaults true. */
   requireStops?: boolean;
+  /** Stops a Load Change removed count toward nothing, so they're left out —
+   *  except on Load, which shows them so they can be restored. Defaults false. */
+  includeRemoved?: boolean;
   /** Fetches whatever this screen needs beyond the route/stops themselves
    * (customer name, yard address, ...), run once when the route first
    * resolves. If it fails, `extra` stays null. */
@@ -21,6 +25,7 @@ interface UseSignRunPhaseScreenOptions<TExtra> {
 interface UseSignRunPhaseScreenResult<TExtra> {
   routeId: string | null;
   route: Route | null;
+  /** The Route's Stops, without removed ones unless includeRemoved. */
   stops: Stop[];
   /** Shows a write's result straight away — see useRouteWithStops. */
   patchRoute: (patch: Partial<Route>) => void;
@@ -42,12 +47,15 @@ interface UseSignRunPhaseScreenResult<TExtra> {
 export function useSignRunPhaseScreen<TExtra = undefined>({
   phaseIdx,
   requireStops = true,
+  includeRemoved = false,
   fetchExtra,
 }: UseSignRunPhaseScreenOptions<TExtra>): UseSignRunPhaseScreenResult<TExtra> {
   const searchParams = useSearchParams();
   const routeId = searchParams.get('id');
 
-  const { route, stops, loading: routeLoading, patchRoute, patchStop } = useRouteWithStops(routeId);
+  const { route, stops: allStops, loading: routeLoading, patchRoute, patchStop } = useRouteWithStops(routeId);
+  const active = useMemo(() => activeStops(allStops), [allStops]);
+  const stops = includeRemoved ? allStops : active;
   const [extra, setExtra] = useState<TExtra | null>(null);
   const [extraFor, setExtraFor] = useState<string | null>(null);
 
@@ -78,9 +86,9 @@ export function useSignRunPhaseScreen<TExtra = undefined>({
 
   const loading = routeLoading || Boolean(route && fetchExtra && extraFor !== route.id);
 
-  const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
+  const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, active.length) : null), [route, active.length]);
   const isOnPhase = Boolean(
-    route && phaseInfo && phaseInfo.phaseIdx === phaseIdx && (!requireStops || stops.length > 0)
+    route && phaseInfo && phaseInfo.phaseIdx === phaseIdx && (!requireStops || active.length > 0)
   );
 
   return { routeId, route, stops, patchRoute, patchStop, extra, loading, phaseInfo, isOnPhase };

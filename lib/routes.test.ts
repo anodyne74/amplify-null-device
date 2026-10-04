@@ -60,6 +60,7 @@ import {
   updateStopExecution,
   deleteRoute,
   createStop,
+  createLoadStop,
   createStopsForRoute,
   listCustomerStops,
   resequenceStops,
@@ -592,6 +593,69 @@ describe('routes', () => {
       });
       expect(mockStopUpdate).not.toHaveBeenCalled();
       consoleError.mockRestore();
+    });
+  });
+
+  describe('createLoadStop', () => {
+    const FIELDS = {
+      routeId: 'r1',
+      customerId: 'c1',
+      sequence: 5,
+      address: '14 Cliff Rd, Epping NSW 2121',
+      agent: 'Lena Park',
+      numberOfSigns: 2,
+      isAuction: false,
+      addedAtLoad: '2026-10-04T07:30:00.000Z',
+    };
+    let consoleError: jest.SpyInstance;
+
+    beforeEach(() => {
+      mockStopGet.mockResolvedValue({ data: null, errors: undefined });
+      mockGeocodeAddress.mockResolvedValue({
+        formattedAddress: '14 Cliff Rd, Epping NSW 2121, Australia',
+        latitude: -33.77,
+        longitude: 151.08,
+        locationPrecision: 'precise',
+        addressComponents: { streetNumber: '14', street: 'Cliff Road', suburb: 'Epping', postcode: '2121' },
+      });
+      mockGetConfirmedPin.mockResolvedValue(null);
+      mockCustomerGet.mockResolvedValue({ data: { viewerSubs: ['viewer-1'] }, errors: undefined });
+      mockStopCreate.mockResolvedValue({ data: { id: 'new-1', updatedAt: 'v1' }, errors: undefined });
+      consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleError.mockRestore();
+    });
+
+    it("creates the Stop under the device's id, located, keyed and readable by the Customer's viewers", async () => {
+      await expect(createLoadStop('new-1', FIELDS)).resolves.toEqual({ data: { id: 'new-1', updatedAt: 'v1' }, errors: undefined });
+
+      expect(mockStopCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ...FIELDS,
+          id: 'new-1',
+          latitude: -33.77,
+          propertyKey: 'epping|2121|cliff road|14',
+          viewerSubs: ['viewer-1'],
+        })
+      );
+    });
+
+    it('reads a resend whose Stop already exists as saved, creating nothing', async () => {
+      mockStopGet.mockResolvedValue({ data: { id: 'new-1', updatedAt: 'v1' }, errors: undefined });
+
+      await expect(createLoadStop('new-1', FIELDS)).resolves.toEqual({ data: { id: 'new-1', updatedAt: 'v1' }, errors: null });
+      expect(mockStopCreate).not.toHaveBeenCalled();
+    });
+
+    it('turns network trouble into errors to retry', async () => {
+      mockStopGet.mockRejectedValue(new Error('Network error'));
+
+      const result = await createLoadStop('new-1', FIELDS);
+      expect(result.data).toBeNull();
+      expect(result.errors).toHaveLength(1);
+      expect(mockStopCreate).not.toHaveBeenCalled();
     });
   });
 

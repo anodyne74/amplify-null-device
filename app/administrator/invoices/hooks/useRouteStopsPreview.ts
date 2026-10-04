@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { StopSummary } from '@/app/administrator/invoices/stopFormatting';
 import { getRouteWithStops } from '@/lib/routes';
+import { activeStops } from '@/lib/loadChange';
 
 /**
  * Fetches stops for the route currently selected in the invoice-create form —
@@ -22,7 +23,7 @@ export function useRouteStopsPreview(routeId: string) {
 
     void getRouteWithStops(routeId).catch(() => null).then((result) => {
       if (cancelled) return;
-      setStops((result?.stops ?? []) as StopSummary[]);
+      setStops(activeStops(result?.stops ?? []) as StopSummary[]);
       setLoading(false);
     });
 

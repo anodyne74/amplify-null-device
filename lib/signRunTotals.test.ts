@@ -44,6 +44,16 @@ describe('signsPlaced', () => {
   });
 });
 
+describe('a Stop a Load Change removed', () => {
+  it('counts toward no total', () => {
+    const removed = pickupDoneStop({ numberOfSigns: 7, missingSignsCount: 2, removed: true });
+    const stops = [pickupDoneStop({ numberOfSigns: 3, missingSignsCount: 1 }), removed];
+    expect(signsPlaced(stops)).toBe(3);
+    expect(signsCollected(stops)).toBe(2);
+    expect(missingSigns(stops)).toBe(1);
+  });
+});
+
 describe('signsCollected', () => {
   it('counts a completed, non-skipped stop net of its own missing signs', () => {
     const stops = [pickupDoneStop({ numberOfSigns: 5, missingSignsCount: 2 })];

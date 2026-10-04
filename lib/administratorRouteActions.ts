@@ -1,7 +1,7 @@
 /**
  * What an administrator can change on a Route from its detail page: settle a
- * Stop done or skipped, Finalise, correct the Billed Time, and change the
- * Pickup Date. Unlike the
+ * Stop done or skipped, restore a Stop a Load Change removed, Finalise,
+ * correct the Billed Time, and change the Pickup Date. Unlike the
  * operator's Sign Run (lib/signRunTransitions.ts and its outbox), each one is
  * saved straight away and recorded in the audit log, and they all report the
  * same way. Settling and Finalise write what the operator's would, from the
@@ -18,6 +18,7 @@ import {
   type BilledTimeRoute,
 } from '@/lib/billedTime';
 import { getDataClient } from '@/lib/data-client';
+import { planStopRestore, type LoadChangeRoute } from '@/lib/loadChange';
 import { pickupDateProblem } from '@/lib/pickupDate';
 import { updateRoute, updateStopExecution } from '@/lib/routes';
 import {
@@ -93,6 +94,33 @@ export async function settleStopAsAdministrator(
     {
       failed: 'Could not save that stop. Nothing was changed.',
       unaudited: 'The stop was saved, but its audit entry could not be written.',
+    }
+  );
+}
+
+/**
+ * An administrator puts back a Stop a Load Change removed, at any point in the
+ * Route's life -- unlike the operator, who can only until Load is confirmed.
+ */
+export async function restoreStopAsAdministrator(
+  route: LoadChangeRoute,
+  stop: Pick<Stop, 'id' | 'routeId' | 'customerId' | 'removed'>
+): Promise<AdministratorActionResult> {
+  const plan = planStopRestore(route, stop, { anyPhase: true });
+  if ('refused' in plan) return refused(plan.refused);
+
+  return saveAudited(
+    () => updateStopExecution(stop.id, plan.patch),
+    {
+      resourceType: 'stop',
+      resourceId: stop.id,
+      customerId: stop.customerId,
+      action: 'stop.loadChange.restore',
+      details: { routeId: stop.routeId },
+    },
+    {
+      failed: 'Could not restore that stop. Nothing was changed.',
+      unaudited: 'The stop was restored, but its audit entry could not be written.',
     }
   );
 }

@@ -9,7 +9,9 @@ import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
-import { queueSignRunTransition } from '@/lib/signRunTransitions';
+import { queueLoadChange, queueSignRunTransition } from '@/lib/signRunTransitions';
+import { activeStops, type LoadStopInput } from '@/lib/loadChange';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import { formatClockTime } from '@/lib/format';
 import { groupByAgent, signsPlaced, timedSigns } from '@/lib/signRunTotals';
 import type { Route, Stop } from '@/amplify/types';
@@ -67,12 +69,15 @@ export default function OperatorLoadPage() {
   const {
     routeId,
     route,
-    stops,
+    stops: allStops,
     loading,
     phaseInfo,
     isOnPhase: isValidLoadScreen,
     extra,
-  } = useSignRunPhaseScreen({ phaseIdx: 0, requireStops: false, fetchExtra: fetchLoadScreenExtra });
+  } = useSignRunPhaseScreen({ phaseIdx: 0, requireStops: false, includeRemoved: true, fetchExtra: fetchLoadScreenExtra });
+  // Removed properties stay in the checklist to be restored, and count toward nothing.
+  const stops = useMemo(() => activeStops(allStops), [allStops]);
+  const userId = useCurrentUserId();
   const customerName = extra?.customerName ?? '';
   const yardAddress = extra?.yardAddress ?? null;
   const customerAgents = extra?.customerAgents ?? [];
@@ -105,6 +110,29 @@ export default function OperatorLoadPage() {
 
     closeDialog();
   };
+
+  // Load Changes, like transitions, show at once and save in the background.
+  const changeLoad = (change: Parameters<typeof queueLoadChange>[1]): string | null => {
+    if (!route) return null;
+    const result = queueLoadChange(route, change);
+    return 'error' in result ? result.error : null;
+  };
+
+  const findStop = (stopId: string) => allStops.find((stop) => stop.id === stopId);
+
+  const handleRemoveStop = (stopId: string) => {
+    const stop = findStop(stopId);
+    if (!stop) return null;
+    if (!userId) return 'Could not tell who is signed in. Try again in a moment.';
+    return changeLoad({ type: 'remove', stop, by: userId });
+  };
+
+  const handleRestoreStop = (stopId: string) => {
+    const stop = findStop(stopId);
+    return stop ? changeLoad({ type: 'restore', stop }) : null;
+  };
+
+  const handleAddStop = (input: LoadStopInput) => changeLoad({ type: 'add', stops: allStops, input });
 
   const handleConfirmLoad = (iso: string) => {
     if (!route) return;
@@ -182,7 +210,15 @@ export default function OperatorLoadPage() {
         <div className={styles.startPanel}>Tap start once you&apos;re at the yard to begin loading.</div>
       )}
 
-      {route.loadStartedAt && <TimedSignsChecklist stops={stops} customerAgents={customerAgents} />}
+      {route.loadStartedAt && (
+        <TimedSignsChecklist
+          stops={allStops}
+          customerAgents={customerAgents}
+          onRemove={handleRemoveStop}
+          onRestore={handleRestoreStop}
+          onAdd={handleAddStop}
+        />
+      )}
 
       {route.loadStartedAt && (
         <div className={styles.stampLine}>Load started {formatClockTime(route.loadStartedAt)}</div>

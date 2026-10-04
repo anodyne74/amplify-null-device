@@ -191,6 +191,10 @@ export interface Stop {
   placedLongitude?: number | null;
   placedAccuracyMeters?: number | null;
   placedPositionAt?: string | null;
+  removed?: boolean | null;
+  removedAt?: string | null;
+  removedBy?: string | null;
+  addedAtLoad?: string | null;
   createdAt?: string;
   updatedAt?: string;
   route?: Route;

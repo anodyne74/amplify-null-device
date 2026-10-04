@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * The Sign Run outbox (#355, ADR 0007): a Sign Run Transition or Stop
- * settlement takes effect on the operator's screen the moment they confirm
- * it, and is saved afterwards from here, so the operator never waits on the
- * network.
+ * The Sign Run outbox (#355, ADR 0007): a Sign Run Transition, Stop
+ * settlement or Load Change takes effect on the operator's screen the moment
+ * they confirm it, and is saved afterwards from here, so the operator never
+ * waits on the network.
  *
  * - One outbox per device and signed-in operator, kept in localStorage.
  * - A Route's writes (its own and its Stops') are sent strictly in the order
@@ -17,27 +17,45 @@
  *   overlayStops) until the operator picks Try again or Discard.
  * - Writes under 12 hours old are resent when the app reopens; older ones are
  *   held until the operator sends or discards them.
+ * - A write that carries an audit entry (a Load Change) has it written once
+ *   the write saves. An entry that can't be written is logged, not retried:
+ *   the change itself has saved.
  *
  * Concurrent edits stay last-write-wins: there's no version check.
  */
 import { useEffect, useSyncExternalStore } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { updateRoute, updateStopExecution } from '@/lib/routes';
+import { createLoadStop, updateRoute, updateStopExecution } from '@/lib/routes';
 import { callApi } from '@/lib/apiClient';
+import { fetchUserId } from '@/lib/amplify-config';
+import { recordAudit } from '@/lib/auditLog';
+import { getDataClient } from '@/lib/data-client';
 import { refreshSessionIfStale } from '@/lib/useSessionRefresh';
 import type { SignRunTimingKind, SignRunTimingRecord } from '@/lib/signRunTiming';
 
 export type OutboxEntryState = 'pending' | 'rejected' | 'held';
 
+/** The audit entry a write records once it saves. */
+export interface OutboxAudit {
+  customerId?: string | null;
+  /** The Stop's id. */
+  resourceId: string;
+  action: string;
+  details: unknown;
+}
+
 export interface OutboxEntry {
   id: string;
   routeId: string;
-  target: 'Route' | 'Stop';
+  /** NewStop: a Stop a Load Change adds, created with recordId as its id. */
+  target: 'Route' | 'Stop' | 'NewStop';
   /** The Route's or the Stop's id. */
   recordId: string;
   kind: SignRunTimingKind;
-  /** Exactly what planSignRunTransition / planStopSettlement produced. */
+  /** Exactly what planSignRunTransition / planStopSettlement / a Load Change plan
+   *  produced; for a NewStop, the new Stop's fields bar its id. */
   patch: Record<string, unknown>;
+  audit?: OutboxAudit;
   /** When the operator tapped OK (epoch ms). */
   confirmedAt: number;
   attempts: number;
@@ -48,6 +66,8 @@ export interface OutboxEntry {
 interface SavedFields {
   updatedAt: string;
   fields: Record<string, unknown>;
+  /** For a Stop this device created: its Route, so it shows before the live feed brings it. */
+  createdOnRoute?: string;
 }
 
 export interface OutboxSnapshot {
@@ -61,6 +81,9 @@ export interface OutboxDeps {
   storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | null;
   writeRoute: (id: string, patch: Record<string, unknown>) => Promise<WriteResult>;
   writeStop: (id: string, patch: Record<string, unknown>) => Promise<WriteResult>;
+  createStop: (id: string, fields: Record<string, unknown>) => Promise<WriteResult>;
+  /** Writes a saved write's audit entry. Never delays the queue. */
+  audit: (audit: OutboxAudit) => Promise<unknown>;
   /** The token check timed as authCheckMs before each attempt. */
   checkAuth: () => Promise<unknown>;
   /** Run before retryNow() resends, so a resend rarely waits on a token refresh. */
@@ -126,7 +149,7 @@ function isEntry(value: unknown): value is OutboxEntry {
     !!entry &&
     typeof entry.id === 'string' &&
     typeof entry.routeId === 'string' &&
-    (entry.target === 'Route' || entry.target === 'Stop') &&
+    (entry.target === 'Route' || entry.target === 'Stop' || entry.target === 'NewStop') &&
     typeof entry.recordId === 'string' &&
     typeof entry.kind === 'string' &&
     !!entry.patch &&
@@ -213,13 +236,22 @@ export function createSignRunOutbox(deps: OutboxDeps) {
     }
   }
 
+  function auditEntry(audit: OutboxAudit): Promise<unknown> {
+    try {
+      return deps.audit(audit).catch((error) => console.error(`Writing the ${audit.action} audit entry failed:`, error));
+    } catch (error) {
+      console.error(`Writing the ${audit.action} audit entry failed:`, error);
+      return Promise.resolve();
+    }
+  }
+
   async function attempt(entry: OutboxEntry): Promise<AttemptOutcome> {
     const startedAt = deps.now();
     let mutationStart: number | undefined;
     try {
       await deps.checkAuth();
       mutationStart = deps.now();
-      const write = entry.target === 'Route' ? deps.writeRoute : deps.writeStop;
+      const write = { Route: deps.writeRoute, Stop: deps.writeStop, NewStop: deps.createStop }[entry.target];
       const result = await withTimeout(write(entry.recordId, entry.patch), ATTEMPT_TIMEOUT_MS);
       if (result === TIMED_OUT) return { type: 'retry' };
 
@@ -263,10 +295,13 @@ export function createSignRunOutbox(deps: OutboxDeps) {
             saved[head.recordId] = {
               updatedAt: outcome.updatedAt,
               fields: { ...previous?.fields, ...head.patch },
+              ...(head.target === 'NewStop' ? { createdOnRoute: head.routeId } : {}),
+              ...(previous?.createdOnRoute ? { createdOnRoute: previous.createdOnRoute } : {}),
             };
           }
           commit({ entries: snapshot.entries.filter((entry) => entry.id !== head.id), saved });
           void reportEntry(attempted, 'saved', outcome.authCheckMs, outcome.mutationMs);
+          if (head.audit) void auditEntry(head.audit);
           continue;
         }
 
@@ -339,7 +374,7 @@ export function createSignRunOutbox(deps: OutboxDeps) {
     },
 
     /** Queues one write and starts sending it. The write shows on screen at once. */
-    enqueue(write: Pick<OutboxEntry, 'routeId' | 'target' | 'recordId' | 'kind' | 'patch'>): OutboxEntry {
+    enqueue(write: Pick<OutboxEntry, 'routeId' | 'target' | 'recordId' | 'kind' | 'patch' | 'audit'>): OutboxEntry {
       const now = deps.now();
       const entry: OutboxEntry = { ...write, id: newEntryId(now), confirmedAt: now, attempts: 0, state: 'pending' };
       setEntries((entries) => [...entries, entry]);
@@ -433,11 +468,34 @@ export function overlayRoute<T extends Versioned>(route: T, snapshot: OutboxSnap
   return overlay(route, 'Route', snapshot, visibleEntries(snapshot));
 }
 
-/** Each Stop as the operator's screen shows it — see overlayRoute. */
-export function overlayStops<T extends Versioned>(stops: T[], snapshot: OutboxSnapshot): T[] {
+/**
+ * Each Stop as the operator's screen shows it — see overlayRoute. With the
+ * Route's id, Stops this device has added to it (a Load Change) show too, from
+ * the moment they're queued until the live data brings them, after the rest.
+ */
+export function overlayStops<T extends Versioned>(stops: T[], snapshot: OutboxSnapshot, routeId?: string | null): T[] {
   if (snapshot.entries.length === 0 && Object.keys(snapshot.saved).length === 0) return stops;
   const visible = visibleEntries(snapshot);
-  return stops.map((stop) => overlay(stop, 'Stop', snapshot, visible));
+  const all = routeId ? [...stops, ...addedStops<T>(stops, snapshot, visible, routeId)] : stops;
+  return all.map((stop) => overlay(stop, 'Stop', snapshot, visible));
+}
+
+function addedStops<T extends Versioned>(stops: T[], snapshot: OutboxSnapshot, visible: OutboxEntry[], routeId: string): T[] {
+  const held = new Set(stops.map((stop) => stop.id));
+  const added: T[] = [];
+  for (const [id, saved] of Object.entries(snapshot.saved)) {
+    if (saved.createdOnRoute === routeId && !held.has(id)) {
+      added.push({ ...saved.fields, id, routeId } as unknown as T);
+      held.add(id);
+    }
+  }
+  for (const entry of visible) {
+    if (entry.target === 'NewStop' && entry.routeId === routeId && !held.has(entry.recordId)) {
+      added.push({ ...entry.patch, id: entry.recordId, routeId } as unknown as T);
+      held.add(entry.recordId);
+    }
+  }
+  return added;
 }
 
 function reportTiming(record: SignRunTimingRecord) {
@@ -449,6 +507,18 @@ export const signRunOutbox = createSignRunOutbox({
   storage: typeof window === 'undefined' ? null : window.localStorage,
   writeRoute: (id, patch) => updateRoute(id, patch),
   writeStop: (id, patch) => updateStopExecution(id, patch),
+  createStop: (id, fields) => createLoadStop(id, fields),
+  audit: async (audit) => {
+    const result = await recordAudit(getDataClient(), {
+      actor: await fetchUserId(),
+      customerId: audit.customerId,
+      eventType: 'data_modification',
+      resource: { type: 'stop', id: audit.resourceId },
+      action: audit.action,
+      details: audit.details,
+    });
+    if (!result.ok) console.error(`Writing the ${audit.action} audit entry failed:`, result.errors);
+  },
   checkAuth: () => fetchAuthSession(),
   refreshSession: refreshSessionIfStale,
   report: reportTiming,

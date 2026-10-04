@@ -10,6 +10,7 @@ import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
 import { billedTime } from '@/lib/billedTime';
 import { isStopFinished } from '@/lib/stopProgress';
+import { activeStops } from '@/lib/loadChange';
 
 export interface OperatorSplitSummary {
   operatorSub: string;
@@ -65,7 +66,8 @@ export async function computeDriverSplit(params: ComputeDriverSplitParams): Prom
   });
 
   const stopsByRoute = new Map<string, typeof customerStops>();
-  for (const stop of customerStops || []) {
+  // A Stop a Load Change removed counts toward nothing.
+  for (const stop of activeStops(customerStops || [])) {
     if (!stop.routeId) continue;
     const list = stopsByRoute.get(stop.routeId) || [];
     list.push(stop);

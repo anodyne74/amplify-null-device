@@ -52,6 +52,8 @@ function setup(overrides: Partial<OutboxDeps> = {}) {
   let now = NOW;
   const routes = controlledWrites();
   const stops = controlledWrites();
+  const newStops = controlledWrites();
+  const audit = jest.fn().mockResolvedValue(undefined);
   const storage = memoryStorage();
   const report = jest.fn().mockResolvedValue(undefined);
   const refreshSession = jest.fn().mockResolvedValue(undefined);
@@ -59,6 +61,8 @@ function setup(overrides: Partial<OutboxDeps> = {}) {
     storage,
     writeRoute: routes.write,
     writeStop: stops.write,
+    createStop: newStops.write,
+    audit,
     checkAuth: jest.fn().mockResolvedValue({}),
     refreshSession,
     report,
@@ -70,6 +74,8 @@ function setup(overrides: Partial<OutboxDeps> = {}) {
     outbox,
     routes,
     stops,
+    newStops,
+    audit,
     storage,
     report,
     refreshSession,
@@ -531,6 +537,92 @@ describe('createSignRunOutbox', () => {
 
       expect(routes.calls).toHaveLength(1);
     });
+  });
+});
+
+describe('a Load Change through the outbox', () => {
+  beforeEach(() => {
+    jest.spyOn(console, 'info').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const loadAudit = { customerId: 'c1', resourceId: 'new-1', action: 'stop.loadChange.add', details: { routeId: 'r1' } };
+
+  function newStopWrite() {
+    return {
+      routeId: 'r1',
+      target: 'NewStop' as const,
+      recordId: 'new-1',
+      kind: 'loadStopAdded' as const,
+      patch: { routeId: 'r1', sequence: 3, address: '30 Faraday St, Carlton', addedAtLoad: '2026-09-30T08:59:00.000Z' },
+      audit: loadAudit,
+    };
+  }
+
+  it('shows an added Stop on its Route at once, after the rest, and never on another Route', () => {
+    const { outbox } = setup();
+    outbox.enqueue(newStopWrite());
+
+    const stops = [{ id: 's1' }, { id: 's2' }];
+    expect(overlayStops(stops, outbox.getSnapshot(), 'r1').map((stop) => stop.id)).toEqual(['s1', 's2', 'new-1']);
+    expect(overlayStops(stops, outbox.getSnapshot(), 'r2').map((stop) => stop.id)).toEqual(['s1', 's2']);
+  });
+
+  it('creates the Stop with the id it was shown under, then writes its audit entry', async () => {
+    const { outbox, newStops, audit } = setup();
+    outbox.enqueue(newStopWrite());
+    await flush();
+
+    expect(newStops.calls).toHaveLength(1);
+    expect(newStops.calls[0].id).toBe('new-1');
+    expect(newStops.calls[0].patch).toEqual(expect.objectContaining({ address: '30 Faraday St, Carlton' }));
+    expect(audit).not.toHaveBeenCalled();
+
+    newStops.calls[0].answer.resolve(saved());
+    await flush();
+    expect(audit).toHaveBeenCalledWith(loadAudit);
+  });
+
+  it('keeps showing a saved added Stop until the live data brings it, once', async () => {
+    const { outbox, newStops } = setup();
+    outbox.enqueue(newStopWrite());
+    await flush();
+    newStops.calls[0].answer.resolve(saved());
+    await flush();
+
+    const snapshot = outbox.getSnapshot();
+    expect(overlayStops([{ id: 's1' }], snapshot, 'r1').map((stop) => stop.id)).toEqual(['s1', 'new-1']);
+    expect(overlayStops([{ id: 's1' }, { id: 'new-1', updatedAt: 'v9' }], snapshot, 'r1').map((stop) => stop.id)).toEqual([
+      's1',
+      'new-1',
+    ]);
+  });
+
+  it("doesn't audit a write that was refused", async () => {
+    const { outbox, newStops, audit } = setup();
+    outbox.enqueue(newStopWrite());
+    await flush();
+    newStops.calls[0].answer.resolve(rejected());
+    await flush();
+
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  it('a failed audit entry leaves the write saved and the queue moving', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { outbox, newStops, stops, audit } = setup();
+    audit.mockRejectedValue(new Error('audit down'));
+    outbox.enqueue(newStopWrite());
+    outbox.enqueue(stopWrite('r1', 's1', { removed: true }));
+    await flush();
+    newStops.calls[0].answer.resolve(saved());
+    await flush();
+
+    expect(stops.calls).toHaveLength(1);
+    expect(outbox.getSnapshot().entries.map((entry) => entry.target)).toEqual(['Stop']);
   });
 });
 

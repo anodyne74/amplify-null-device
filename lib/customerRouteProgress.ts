@@ -1,5 +1,6 @@
 import type { Route } from '@/amplify/types';
 import { stopProgress, type ExecutionPhase, type StopProgressStop } from '@/lib/stopProgress';
+import { activeStops } from '@/lib/loadChange';
 
 export interface CustomerRouteProgress {
   phase: ExecutionPhase;
@@ -27,14 +28,15 @@ export function customerProgressPhase(
 
 /**
  * How far a Route has got, for its Customer: every Stop done in the phase
- * they follow, out of every Stop not skipped in it.
+ * they follow, out of every Stop not skipped in it. A Stop a Load Change
+ * removed is in neither.
  */
 export function customerRouteProgress(
   route: Pick<Route, 'status' | 'executionPhase' | 'pickupStartTime'>,
-  stops: StopProgressStop[]
+  stops: Array<StopProgressStop & { removed?: boolean | null }>
 ): CustomerRouteProgress {
   const phase = customerProgressPhase(route);
-  const states = stops.map((stop) => stopProgress(stop)[phase].state);
+  const states = activeStops(stops).map((stop) => stopProgress(stop)[phase].state);
   return {
     phase,
     label: phase === 'pickup' ? 'Picked up' : 'Placed',

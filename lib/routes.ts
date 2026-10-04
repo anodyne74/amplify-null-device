@@ -93,7 +93,9 @@ export async function getRouteWithStops(routeId: string) {
 }
 
 /**
- * Create a new route for a customer
+ * Create a new route for a customer. Customers read Routes only through
+ * viewerSubs, so a Route is stamped with the customer's current viewers --
+ * looked up here unless the caller passes them -- as a new Stop is.
  */
 export async function createRoute(input: {
   routeCode?: string;
@@ -106,7 +108,8 @@ export async function createRoute(input: {
   notes?: string;
 }) {
   return withDataError('Failed to create route.', async () => {
-    const route = resultData(await getDataClient().models.Route.create(input));
+    const viewerSubs = input.viewerSubs ?? (await getCustomerViewerSubs(input.customerId));
+    const route = resultData(await getDataClient().models.Route.create(viewerSubs ? { ...input, viewerSubs } : input));
     if (!route) throw new Error('The created Route was not returned.');
     return route;
   });
@@ -248,10 +251,10 @@ export async function updateStopExecution(stopId: string, updates: StopExecution
 }
 
 /**
- * The customer's current viewers (Customer.viewerSubs), which a new Stop needs
- * for customer read access. On failure this logs and returns undefined: the
- * Stop is still created, and syncCustomerAccess stamps it on the customer's
- * next portal visit.
+ * The customer's current viewers (Customer.viewerSubs), which a new Route or
+ * Stop needs for customer read access. On failure this logs and returns
+ * undefined: the record is still created, and syncCustomerAccess stamps it on
+ * the customer's next portal visit.
  */
 async function getCustomerViewerSubs(customerId: string): Promise<string[] | undefined> {
   try {

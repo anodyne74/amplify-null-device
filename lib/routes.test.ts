@@ -232,6 +232,7 @@ describe('routes', () => {
         routeCode: 'W19-26-001',
         customerId: 'c1',
         status: 'planned',
+        viewerSubs: ['owner-sub', 'viewer-sub'],
       });
       expect(result).toEqual(mockRoute);
     });
@@ -463,6 +464,25 @@ describe('routes', () => {
       mockStopCreate.mock.calls.forEach(([input]) => {
         expect(input.viewerSubs).toEqual(['owner-sub', 'viewer-sub']);
       });
+    });
+
+    it("createRoute gives the Route the customer's current viewers", async () => {
+      mockRouteCreate.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
+
+      await createRoute({ routeCode: 'W40-26-002', customerId: 'c1', status: 'planned', pickupDate: '2026-10-05' });
+
+      expect(mockCustomerGet).toHaveBeenCalledWith({ id: 'c1' }, { selectionSet: ['viewerSubs'] });
+      expect(mockRouteCreate).toHaveBeenCalledWith(expect.objectContaining({ viewerSubs: ['owner-sub', 'viewer-sub'] }));
+    });
+
+    it('still creates the Route when the customer lookup fails, leaving it for the access sync', async () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockCustomerGet.mockRejectedValue(new Error('network'));
+      mockRouteCreate.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
+
+      await expect(createRoute({ customerId: 'c1', status: 'planned', pickupDate: '2026-10-05' })).resolves.toEqual({ id: 'r1' });
+      expect(mockRouteCreate).toHaveBeenCalledWith(expect.not.objectContaining({ viewerSubs: expect.anything() }));
+      consoleError.mockRestore();
     });
 
     it('createStop looks up the customer\'s viewers when none are given', async () => {

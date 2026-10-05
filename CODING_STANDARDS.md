@@ -29,7 +29,7 @@ Applies to every string a Customer User can read: portal screens, help pages (`c
 
 ## Infrastructure (`amplify/backend.ts`)
 
-- **Imported-role construct IDs are unique across all stacks.** CDK names an imported role's inline policy from the construct ID alone, so a repeated ID collides and the deploy rolls back (#341 → #351). CI doesn't synth, so only the Amplify build shows it.
+- **Imported-role construct IDs are unique across all stacks, and import `AmplifyHostingSSRCompute` through `importSsrComputeRole`.** CDK names an imported role's inline policy from the construct ID, so a repeated ID collides and the deploy rolls back (#341 → #351). Every branch shares that role, so its policy name also needs the branch, or one branch's deploy overwrites another's grants (#418). CI doesn't synth, so only the Amplify build shows it.
 
 ## Live data
 

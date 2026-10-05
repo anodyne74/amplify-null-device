@@ -16,6 +16,7 @@ import { reportPurge } from './functions/report-purge/resource';
 import { routeRequestCapture } from './functions/route-request-capture/resource';
 import { configureObservability } from './observability/resource';
 import { branchName, emailDomain } from './shared/branch';
+import { importSsrComputeRole } from './shared/ssrComputeRole';
 import { missingSignsReportTemplate } from './ses/missingSignsReportTemplate';
 
 const backend = defineBackend({
@@ -58,17 +59,11 @@ backend.auth.resources.cfnResources.cfnUserPool.userPoolAddOns = {
 // sync-profile-access returning "No customer mapping found for this user"
 // for accounts that had a mapping all along) rather than an auth error.
 //
-// AmplifyHostingSSRCompute is a single IAM role Amplify Hosting creates once
-// per AWS account/region and shares across every Web Compute app's SSR
-// runtime -- it isn't created by this stack, so it's imported by name rather
-// than referenced via `backend.*`. The grant below is scoped to this
+// The SSR runtime's role isn't created by this stack, so it's imported by
+// name (see importSsrComputeRole). The grant below is scoped to this
 // branch's own AppSync API ARN, so it doesn't widen access for any other
 // Amplify app using the same shared role.
-const ssrComputeRole = Role.fromRoleName(
-	Stack.of(backend.data.resources.graphqlApi),
-	'AmplifyHostingSSRComputeRole',
-	'AmplifyHostingSSRCompute',
-);
+const ssrComputeRole = importSsrComputeRole(Stack.of(backend.data.resources.graphqlApi), 'AmplifyHostingSSRComputeRole');
 backend.data.resources.graphqlApi.grantMutation(ssrComputeRole);
 backend.data.resources.graphqlApi.grantQuery(ssrComputeRole);
 
@@ -100,11 +95,10 @@ ssrComputeRole.addToPrincipalPolicy(
 // ID: CDK names an imported role's inline policy after that ID, so reusing
 // 'AmplifyHostingSSRComputeRole' gave both stacks a policy of the same name on
 // the same role, and CloudFormation refused the second ("already managed by
-// another stack").
-const ssrComputeRoleForStorage = Role.fromRoleName(
+// another stack"). importSsrComputeRole adds the branch to the name.
+const ssrComputeRoleForStorage = importSsrComputeRole(
 	Stack.of(backend.storage.resources.bucket),
 	'AmplifyHostingSSRComputeRoleReports',
-	'AmplifyHostingSSRCompute',
 );
 backend.storage.resources.bucket.grantReadWrite(ssrComputeRoleForStorage, 'reports/*');
 backend.storage.resources.bucket.grantRead(ssrComputeRoleForStorage, 'invoices/*');
@@ -845,7 +839,7 @@ routeRequestCaptureLambda.addPermission('AllowSESInvoke', {
 // /api/route-requests/file hands administrators a Route Request's raw message.
 // Its own construct ID, for the reason given at ssrComputeRoleForStorage.
 inboundBucket.grantRead(
-	Role.fromRoleName(forwarderStack, 'AmplifyHostingSSRComputeRoleInboundMail', 'AmplifyHostingSSRCompute'),
+	importSsrComputeRole(forwarderStack, 'AmplifyHostingSSRComputeRoleInboundMail'),
 );
 
 // SES only ever delivers through whichever ONE receipt rule set is "active"

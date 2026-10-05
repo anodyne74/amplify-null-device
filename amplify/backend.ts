@@ -95,7 +95,7 @@ ssrComputeRole.addToPrincipalPolicy(
 // ID: CDK names an imported role's inline policy after that ID, so reusing
 // 'AmplifyHostingSSRComputeRole' gave both stacks a policy of the same name on
 // the same role, and CloudFormation refused the second ("already managed by
-// another stack").
+// another stack"). importSsrComputeRole adds the branch to the name.
 const ssrComputeRoleForStorage = importSsrComputeRole(
 	Stack.of(backend.storage.resources.bucket),
 	'AmplifyHostingSSRComputeRoleReports',

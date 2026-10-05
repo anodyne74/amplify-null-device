@@ -30,6 +30,7 @@ import { stopProgress } from '@/lib/stopProgress';
 import { customerRouteProgress } from '@/lib/customerRouteProgress';
 import { activeStops, isStopRemoved } from '@/lib/loadChange';
 import { customerPickupDate } from '@/lib/pickupDate';
+import HelpLink from '@/app/customer/components/HelpLink';
 import styles from './_RouteDetailContent.module.css';
 import { updateRouteCustomerInstructions } from '@/lib/routes';
 import { getCustomer, listCustomerUsers } from '@/lib/customers';
@@ -248,7 +249,10 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
           ]}
         />
 
-        <h1 className={styles.pageTitle}>Route {routeLabel}</h1>
+        <div className={styles.titleRow}>
+          <h1 className={styles.pageTitle}>Route {routeLabel}</h1>
+          <HelpLink />
+        </div>
 
         <Card title="Route status" subtitle="Placement then pickup">
           <RouteTimeline route={route} />

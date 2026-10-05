@@ -21,6 +21,7 @@ const CUSTOMER_NAV: (PortalNavItem & { featureFlag?: FeatureFlagName })[] = [
   { href: '/customer/billing-details', label: 'Billing Details', icon: 'receipt' },
   { href: '/customer/users', label: 'Users', icon: 'user-plus' },
   { href: '/customer/settings', label: 'Settings', icon: 'settings' },
+  { href: '/customer/help', label: 'Help', icon: 'circle-help', featureFlag: 'customer-help' },
 ];
 
 const READ_ONLY_HIDDEN_PATHS = ['/customer/invoices', '/customer/billing-details', '/customer/users'];

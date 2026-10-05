@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useCurrentUserId } from '@/lib/use-user-groups';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import { fetchUserDisplayName } from '@/lib/amplify-config';
@@ -24,9 +24,11 @@ type RoleVariant = 'administrator' | 'operator' | 'customer';
 interface UserSettingsPageProps {
   title: string;
   roleVariant: RoleVariant;
+  /** Shown beside the heading, e.g. the customer portal's help link. */
+  headingAction?: ReactNode;
 }
 
-export default function UserSettingsPage({ title, roleVariant }: UserSettingsPageProps) {
+export default function UserSettingsPage({ title, roleVariant, headingAction }: UserSettingsPageProps) {
   const userId = useCurrentUserId();
   const { mode, setMode } = useThemeMode();
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
@@ -109,7 +111,10 @@ export default function UserSettingsPage({ title, roleVariant }: UserSettingsPag
   return (
     <div className={styles.container}>
       <div>
-        <h1 className={styles.heading}>{title}</h1>
+        <div className={styles.headingRow}>
+          <h1 className={styles.heading}>{title}</h1>
+          {headingAction}
+        </div>
         <p className={styles.subtext}>{roleLabel} profile and preferences.</p>
       </div>
 

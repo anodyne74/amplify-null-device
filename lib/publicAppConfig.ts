@@ -22,3 +22,5 @@ export const APP_DOMAIN = resolveAppDomain();
 export const BILLING_EMAIL = process.env.NEXT_PUBLIC_BILLING_EMAIL?.trim() || `billing@${APP_DOMAIN}`;
 export const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || `support@${APP_DOMAIN}`;
 export const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL?.trim() || `admin@${APP_DOMAIN}`;
+// Route Requests and Route Amendments are emailed here (ADR 0008).
+export const REQUESTS_EMAIL = process.env.NEXT_PUBLIC_REQUESTS_EMAIL?.trim() || `requests@${APP_DOMAIN}`;

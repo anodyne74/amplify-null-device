@@ -17,9 +17,9 @@ const CUSTOMER_NAV: (PortalNavItem & { featureFlag?: FeatureFlagName })[] = [
   { href: '/customer/invoices', label: 'Invoices', icon: 'file-text' },
   { href: '/customer/calendar', label: 'Calendar', icon: 'calendar' },
   { href: '/customer/property-history', label: 'Property History', icon: 'history', featureFlag: 'property-history' },
-  { href: '/customer/orders', label: 'Standing Orders', icon: 'clipboard-list' },
+  { href: '/customer/route-defaults', label: 'Route Defaults', icon: 'clipboard-list' },
   { href: '/customer/billing-details', label: 'Billing Details', icon: 'receipt' },
-  { href: '/customer/users', label: 'Team', icon: 'user-plus' },
+  { href: '/customer/users', label: 'Users', icon: 'user-plus' },
   { href: '/customer/settings', label: 'Settings', icon: 'settings' },
 ];
 

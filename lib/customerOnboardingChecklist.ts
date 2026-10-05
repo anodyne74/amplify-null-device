@@ -46,7 +46,7 @@ function formatWhen(iso: string | null): string | null {
 }
 
 /**
- * Up to five milestones ("First teammate invited" only while account-owner-invite
+ * Up to five milestones ("First user invited" only while account-owner-invite
  * is on for the Customer), worst-case-honest: each "when" is only shown if we actually have a
  * date for it (e.g. "default agent assigned" has no tracked timestamp, so it's left blank
  * rather than guessing).
@@ -75,8 +75,8 @@ export function buildOnboardingChecklist(
       when: null,
     },
     {
-      id: 'teammate-invited',
-      label: 'First teammate invited',
+      id: 'user-invited',
+      label: 'First user invited',
       done: customerUsers.length > 0,
       when: formatWhen(earliest(customerUsers.map((user) => user.createdAt))),
     },
@@ -94,9 +94,9 @@ export function buildOnboardingChecklist(
     },
   ];
 
-  // A Customer whose Account Owner can't invite teammates isn't asked to --
+  // A Customer whose Account Owner can't invite users isn't asked to --
   // the item is dropped rather than left looking incomplete (#298). A
   // display-only exception to flags never limiting staff: admins can still
   // add Customer users themselves.
-  return onFlags.includes('account-owner-invite') ? items : items.filter((item) => item.id !== 'teammate-invited');
+  return onFlags.includes('account-owner-invite') ? items : items.filter((item) => item.id !== 'user-invited');
 }

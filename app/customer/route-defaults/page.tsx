@@ -30,15 +30,15 @@ function formatUpdatedAt(value?: string | null) {
   return new Date(value).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-async function fetchOrdersData(context: CustomerPortalContext): Promise<Customer | null> {
+async function fetchRouteDefaults(context: CustomerPortalContext): Promise<Customer | null> {
   try {
     return (await getCustomer(context.customerId)) as Customer | null;
   } catch {
-    throw new Error('Could not load standing orders.');
+    throw new Error('Could not load your Route Defaults.');
   }
 }
 
-export default function CustomerStandingOrdersPage() {
+export default function CustomerRouteDefaultsPage() {
   const {
     role: customerRole,
     customerId,
@@ -46,7 +46,7 @@ export default function CustomerStandingOrdersPage() {
     setData: setCustomer,
     loading,
     error: loadError,
-  } = useCustomerPortalContext({ fetchData: fetchOrdersData });
+  } = useCustomerPortalContext({ fetchData: fetchRouteDefaults });
 
   const [standingInstructions, setStandingInstructions] = useState('');
   const [defaultNumberOfSigns, setDefaultNumberOfSigns] = useState('');
@@ -93,7 +93,7 @@ export default function CustomerStandingOrdersPage() {
         sendMissingSignsReport,
       });
     } catch {
-      setSaveError('Could not save standing orders.');
+      setSaveError('Could not save your Route Defaults.');
       setSaving(false);
       return;
     }
@@ -101,7 +101,7 @@ export default function CustomerStandingOrdersPage() {
     const nextCustomer = (await getCustomer(customerId).catch(() => null)) as Customer | null;
     if (nextCustomer) setCustomer(nextCustomer);
 
-    setSaveSuccess('Preferences saved.');
+    setSaveSuccess('Route Defaults saved.');
     setSaving(false);
   };
 
@@ -117,33 +117,33 @@ export default function CustomerStandingOrdersPage() {
 
   return (
     <div className={styles.container}>
-      <PageHeader title="Standing Orders" subtitle="Your default placement preferences" />
+      <PageHeader title="Route Defaults" subtitle="What every new route we build for you starts from" />
 
       {loadError && <p className="nd-badge nd-badge--danger">{loadError}</p>}
 
       {!loading && (
         <div className={styles.layout}>
-          <Card title="Sign placement preferences" subtitle="Every route we build for you starts from this">
+          <Card title="Sign placement" subtitle="You can still ask for something different on any route">
             {isAccountOwner ? (
               <div className={styles.form}>
                 {saveError && <p className="nd-badge nd-badge--danger">{saveError}</p>}
                 {saveSuccess && <p className="nd-badge nd-badge--success">{saveSuccess}</p>}
 
-                <Field label="Standing instructions" htmlFor="orders-instructions">
+                <Field label="Standing instructions" htmlFor="route-defaults-instructions">
                   <Input
-                    id="orders-instructions"
+                    id="route-defaults-instructions"
                     multiline
                     value={standingInstructions}
                     onChange={(e) => setStandingInstructions(e.target.value)}
-                    placeholder="Instructions operators should see by default"
+                    placeholder="Instructions for every route, such as gate codes or where to put signs"
                     disabled={saving}
                   />
                 </Field>
 
                 <div className={styles.grid}>
-                  <Field label="Default signs per stop" htmlFor="orders-default-signs">
+                  <Field label="Default signs per stop" htmlFor="route-defaults-default-signs">
                     <Input
-                      id="orders-default-signs"
+                      id="route-defaults-default-signs"
                       type="number"
                       min={0}
                       value={defaultNumberOfSigns}
@@ -153,11 +153,11 @@ export default function CustomerStandingOrdersPage() {
                   </Field>
                   <Field
                     label="Standing sign collection day"
-                    htmlFor="orders-collection-day"
+                    htmlFor="route-defaults-collection-day"
                     hint="We'll plan sign collection for the next one after your signs go up."
                   >
                     <Select
-                      id="orders-collection-day"
+                      id="route-defaults-collection-day"
                       value={standingPickupDay}
                       onChange={(e) => setStandingPickupDay(e.target.value as StandingPickupDay | '')}
                       disabled={saving}
@@ -184,7 +184,7 @@ export default function CustomerStandingOrdersPage() {
 
                 <div className={styles.actions}>
                   <Button type="button" loading={saving} disabled={saving} onClick={() => void handleSave()}>
-                    {saving ? 'Saving…' : 'Save preferences'}
+                    {saving ? 'Saving…' : 'Save Route Defaults'}
                   </Button>
                   {lastUpdated && <span className={styles.savedNote}>Last saved {lastUpdated} · applies from the next route</span>}
                 </div>
@@ -218,7 +218,7 @@ export default function CustomerStandingOrdersPage() {
           </Card>
 
           <div className={styles.sidebar}>
-            <Card title="Agents on this account" subtitle="Codes appear on the operator run sheet">
+            <Card title="Agents on this account" subtitle="Each Stop is labelled with one of these codes">
               {agents.length === 0 ? (
                 <p className={styles.mutedText}>No agents configured yet.</p>
               ) : (

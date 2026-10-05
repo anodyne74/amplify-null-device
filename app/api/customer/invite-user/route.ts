@@ -15,7 +15,7 @@ function emailDomain(email: string): string {
 }
 
 /**
- * Lets a customer account_owner invite a teammate ("agent") into their own
+ * Lets a customer account_owner invite another user ("agent") into their own
  * portal. Creates a real Cognito login (via the shared createOrGetCognitoUser
  * helper -- same one the admin invite flow uses) and a read_only CustomerUser
  * record. Runs with the SSR compute role's elevated data access (same pattern
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       (row) => (row.email || '').trim().toLowerCase() === normalizedEmail
     );
     if (alreadyInvited) {
-      return NextResponse.json({ error: 'This email has already been invited to your team.' }, { status: 409 });
+      return NextResponse.json({ error: 'This email has already been invited to your account.' }, { status: 409 });
     }
 
     const { sub, username, created: cognitoUserCreated, temporaryPassword } = await createOrGetCognitoUser({
@@ -90,11 +90,11 @@ export async function POST(request: NextRequest) {
     });
     if (errors && errors.length > 0) {
       console.error('Errors creating CustomerUser:', errors);
-      return NextResponse.json({ error: 'Failed to add teammate to your account.' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to add this user to your account.' }, { status: 500 });
     }
 
     // Errors are logged by the sync; the invite itself has succeeded, and the
-    // teammate's next portal visit re-runs the sync (sync-profile-access).
+    // new user's next portal visit re-runs the sync (sync-profile-access).
     await syncCustomerAccess(client, customerId, { added: sub });
 
     let emailSent = false;
@@ -103,14 +103,14 @@ export async function POST(request: NextRequest) {
         await sendInvitationEmail({
           toEmail: normalizedEmail,
           inviteeName: name,
-          customerName: customer.companyName || customer.name || 'your team',
-          inviterName: ownRow.name || 'A teammate',
+          customerName: customer.companyName || customer.name || 'Null Device',
+          inviterName: ownRow.name || 'Your account owner',
           inviterEmail: ownRow.email || '',
           temporaryPassword,
         });
         emailSent = true;
       } catch (err) {
-        // Non-blocking: the teammate's login and access are already set up.
+        // Non-blocking: the new user's login and access are already set up.
         console.error('Failed to send branded invitation email:', err);
       }
     }

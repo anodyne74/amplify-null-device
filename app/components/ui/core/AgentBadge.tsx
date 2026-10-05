@@ -5,7 +5,7 @@ import { getAgentBadgeInitials, getAgentBadgeTone } from '@/lib/customerDefaults
 export interface AgentBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   /** Initials and colour are derived from it; it is also the accessible name. */
   agentName: string;
-  /** sm: stop cards; md: customer Standing Orders. */
+  /** sm: stop cards; md: customer Route Defaults. */
   size?: 'sm' | 'md';
   /** Shows the default-agent star and adds "(default agent)" to the name. */
   isDefault?: boolean;

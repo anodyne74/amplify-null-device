@@ -784,7 +784,7 @@ export async function POST(request: NextRequest) {
           await sendInvitationEmail({
             toEmail: email,
             inviteeName: body.name,
-            customerName: body.customerName?.trim() || 'your team',
+            customerName: body.customerName?.trim() || 'Null Device',
             inviterName: authResult.claims.name || authResult.claims.email || 'Null Device',
             inviterEmail: authResult.claims.email || '',
             temporaryPassword,
@@ -841,7 +841,7 @@ export async function POST(request: NextRequest) {
             await sendInvitationEmail({
               toEmail: body.email.trim().toLowerCase(),
               inviteeName: body.name,
-              customerName: body.customerName?.trim() || 'your team',
+              customerName: body.customerName?.trim() || 'Null Device',
               inviterName: authResult.claims.name || authResult.claims.email || 'Null Device',
               inviterEmail: authResult.claims.email || '',
               temporaryPassword,

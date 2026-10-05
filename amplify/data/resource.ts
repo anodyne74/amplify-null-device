@@ -90,6 +90,15 @@ const schema = a.schema({
       standingPickupDay: a.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
       notifyOnLowSigns: a.boolean(),
       sendMissingSignsReport: a.boolean(),
+      // Missing Signs Report (CONTEXT.md): off until an administrator switches it on;
+      // only then does the Customer's own sendMissingSignsReport preference count.
+      // Customers and operators can read it but not change it (#468).
+      missingSignsReportEnabled: a.boolean().authorization((allow) => [
+        allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read']),
+        allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
+        allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+        allow.groups(['operator']).to(['read']),
+      ]),
       // Billing details — self-service, account_owner-editable
       billingCcEmails: a.string().array(),
       attachAgentBreakdown: a.boolean(),
@@ -233,6 +242,9 @@ const schema = a.schema({
       customerFeedbackAt: a.datetime().authorization(customerReadOnlyRouteField),
       customerFeedbackBy: a.string().authorization(customerReadOnlyRouteField),
       customerFeedbackByName: a.string().authorization(customerReadOnlyRouteField),
+      // When this Route's Missing Signs Report was emailed, so it's sent once
+      // (app/api/missing-signs-report, IAM).
+      missingSignsReportSentAt: a.datetime().authorization(customerReadOnlyRouteField),
       drivingModeEnabled: a.boolean(), // Renders the operator app's simplified in-vehicle driving mode for this route
       // Sign-run flow (drivingModeEnabled routes only) — the Load/Unload confirmations
       // and the four Finalise-screen adjuster rows. Finalise sums the billed*Minutes

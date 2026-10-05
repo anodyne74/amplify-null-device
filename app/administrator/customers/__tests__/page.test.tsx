@@ -191,6 +191,27 @@ describe('Operator Customers Page', () => {
     expect(screen.getByRole('heading', { name: /configure — acme corp/i })).toBeInTheDocument();
   });
 
+  it('switches Missing Signs reports on for a customer (#468)', async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', billingRatePerHour: 95, status: 'active', addressLine1: '11 Old St' },
+    ]);
+
+    render(<CustomersAdminPage />);
+    const customerRow = (await screen.findByText('Acme Corp')).closest('tr') as HTMLElement;
+    fireEvent.click(within(customerRow).getByRole('button', { name: /configure customer acme corp/i }));
+    const panel = (await screen.findByRole('heading', { name: /configure — acme corp/i })).closest('.nd-card') as HTMLElement;
+    const scoped = within(panel);
+
+    const reports = scoped.getByRole('checkbox', { name: /^Email Missing Signs reports/ });
+    expect(reports).not.toBeChecked();
+    fireEvent.click(reports);
+    fireEvent.click(scoped.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() =>
+      expect(updateCustomer).toHaveBeenCalledWith('c-1', expect.objectContaining({ missingSignsReportEnabled: true }))
+    );
+  });
+
   it('sets an agent as the default by clicking its tag', async () => {
     (listAllCustomers as jest.Mock).mockResolvedValue([
       {

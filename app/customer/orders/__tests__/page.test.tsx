@@ -24,6 +24,7 @@ describe('Customer Standing Orders page', () => {
       defaultNumberOfSigns: 3,
       standingPickupDay: 'saturday',
       sendMissingSignsReport: true,
+      missingSignsReportEnabled: true,
       agentOptions: ['BO', 'Jamie Lee', 'Pat Doe'],
       updatedAt: '2026-08-12T00:00:00Z',
     });
@@ -53,6 +54,23 @@ describe('Customer Standing Orders page', () => {
     });
 
     expect(await screen.findByText(/preferences saved/i)).toBeInTheDocument();
+  });
+
+  it("hides the missing-signs switch until Null Device has switched reports on, and still saves the preference unchanged (#468)", async () => {
+    (getCustomer as jest.Mock).mockResolvedValue({
+      id: 'cust-1',
+      standingInstructions: 'Call before arrival',
+      sendMissingSignsReport: false,
+      missingSignsReportEnabled: null,
+    });
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
+
+    render(<CustomerStandingOrdersPage />);
+    await screen.findByDisplayValue('Call before arrival');
+
+    expect(screen.queryByText('Send a list of missing signs after every sign collection')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /save preferences/i }));
+    await waitFor(() => expect(updateCustomer).toHaveBeenCalledWith('cust-1', expect.objectContaining({ sendMissingSignsReport: false })));
   });
 
   it('validates non-negative default signs before save', async () => {

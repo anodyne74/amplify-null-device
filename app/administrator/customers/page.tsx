@@ -136,6 +136,8 @@ export default function CustomersAdminPage() {
     setDefaultAgentOption,
     editRestrictInvitesToOwnDomain,
     setEditRestrictInvitesToOwnDomain,
+    editMissingSignsReportEnabled,
+    setEditMissingSignsReportEnabled,
     editResolvedAddress,
     setEditResolvedAddress,
     editSaving,
@@ -345,6 +347,7 @@ export default function CustomersAdminPage() {
         defaultNumberOfSigns: editSigns,
         agentOptions: editAgentOptions,
         restrictInvitesToOwnDomain: editRestrictInvitesToOwnDomain,
+        missingSignsReportEnabled: editMissingSignsReportEnabled,
         ...standingInstructionsStamp,
       }).then(() => true, () => false);
 
@@ -372,6 +375,7 @@ export default function CustomersAdminPage() {
                     : null,
                   agentOptions: editAgentOptions,
                   restrictInvitesToOwnDomain: editRestrictInvitesToOwnDomain,
+                  missingSignsReportEnabled: editMissingSignsReportEnabled,
                   ...standingInstructionsStamp,
                 }
               : customer
@@ -514,6 +518,7 @@ export default function CustomersAdminPage() {
             editDefaultNumberOfSigns={editDefaultNumberOfSigns}
             editAgentOptions={editAgentOptions}
             editRestrictInvitesToOwnDomain={editRestrictInvitesToOwnDomain}
+            editMissingSignsReportEnabled={editMissingSignsReportEnabled}
             editSaving={editSaving}
             editError={editError}
             editSuccess={editSuccess}
@@ -540,6 +545,7 @@ export default function CustomersAdminPage() {
             onSetDefaultAgentOption={setDefaultAgentOption}
             onEditStandingInstructionsChange={setEditStandingInstructions}
             onEditRestrictInvitesToOwnDomainChange={setEditRestrictInvitesToOwnDomain}
+            onEditMissingSignsReportEnabledChange={setEditMissingSignsReportEnabled}
             onSave={() => {
               void handleUpdateCustomer(selectedCustomer.id);
             }}

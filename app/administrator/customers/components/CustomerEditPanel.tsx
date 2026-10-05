@@ -27,6 +27,7 @@ interface CustomerEditPanelProps {
   editDefaultNumberOfSigns: string;
   editAgentOptions: string[];
   editRestrictInvitesToOwnDomain: boolean;
+  editMissingSignsReportEnabled: boolean;
   editSaving: boolean;
   editError: string | null;
   editSuccess: string | null;
@@ -49,6 +50,7 @@ interface CustomerEditPanelProps {
   onSetDefaultAgentOption: (value: string) => void;
   onEditStandingInstructionsChange: (value: string) => void;
   onEditRestrictInvitesToOwnDomainChange: (value: boolean) => void;
+  onEditMissingSignsReportEnabledChange: (value: boolean) => void;
   onSave: () => void;
   onCancel: () => void;
   onSuspendToggle: () => void;
@@ -67,6 +69,7 @@ export default function CustomerEditPanel({
   editDefaultNumberOfSigns,
   editAgentOptions,
   editRestrictInvitesToOwnDomain,
+  editMissingSignsReportEnabled,
   editSaving,
   editError,
   editSuccess,
@@ -88,6 +91,7 @@ export default function CustomerEditPanel({
   onSetDefaultAgentOption,
   onEditStandingInstructionsChange,
   onEditRestrictInvitesToOwnDomainChange,
+  onEditMissingSignsReportEnabledChange,
   onSave,
   onCancel,
   onSuspendToggle,
@@ -186,6 +190,14 @@ export default function CustomerEditPanel({
               disabled={editSaving}
               label={`Restrict invited users to @${emailDomain(editEmail || customer.email)} email addresses`}
               description="When on, this customer's account owner can only invite teammates whose email matches this domain."
+            />
+            <Checkbox
+              className={styles.fieldsGridFull}
+              checked={editMissingSignsReportEnabled}
+              onChange={(event) => onEditMissingSignsReportEnabledChange(event.target.checked)}
+              disabled={editSaving}
+              label="Email Missing Signs reports"
+              description="When on, a list of missing signs is emailed to this customer's billing contacts (admin@ copied) after each route is finalised, unless they turn it off in their portal."
             />
           </div>
 

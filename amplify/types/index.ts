@@ -57,6 +57,7 @@ export interface Customer {
   standingPickupDay?: StandingPickupDay | null;
   notifyOnLowSigns?: boolean | null;
   sendMissingSignsReport?: boolean | null;
+  missingSignsReportEnabled?: boolean | null;
   billingCcEmails?: string[] | null;
   attachAgentBreakdown?: boolean | null;
   sendPaymentReminder?: boolean | null;
@@ -136,6 +137,7 @@ export interface Route {
   customerFeedbackAt?: string | null;
   customerFeedbackBy?: string | null;
   customerFeedbackByName?: string | null;
+  missingSignsReportSentAt?: string | null;
   drivingModeEnabled?: boolean | null;
   loadStartedAt?: string | null;
   loadConfirmedAt?: string | null;

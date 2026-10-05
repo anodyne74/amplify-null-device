@@ -100,6 +100,10 @@ _Avoid_: Total signs, returned signs
 Signs logged as lost during the Pickup phase (`Stop.missingSignsCount`) — one tap logs one missing sign; a missing sign never counts as collected. Tracked as its own metric to identify locations with high loss rates (sign attrition), independent of reconciliation or billing. Administrators see them on each Stop and as a Route total; the Customer sees them on each Property and, once Pickup has started and any are missing, as a Route total. Each tap, and each undo, is in the Route's audit trail.
 _Avoid_: Lost signs, sign loss (except when specifically discussing the attrition-analysis use case)
 
+**Missing Signs Report**:
+One email after a Route is finalised, listing each Property on it where signs went missing and how many, with the total. Sent only when an administrator has switched reports on for the Customer (off by default), the Customer hasn't turned them off in their portal (their setting only shows once reports are switched on), and some signs are missing. It goes to whoever gets the Customer's invoices and its billing CC addresses, with admin@ copied, once per Route. Like all customer copy, it speaks of Properties and signs only.
+_Avoid_: Loss report, missing sign alert
+
 **Reconciliation**:
 The Unload/Finalise-time accounting of a Route's signs — how many were loaded onto the van, returned, still on-site (at Couldn't Collect Stops), or missing, plus how many Stops were completed vs. Couldn't Collect. Distinct from Signs Placed/Collected, which are simpler standalone counts usable anywhere in a Route's lifecycle.
 _Avoid_: Summary, totals

@@ -36,7 +36,18 @@ import { routeRequestCapture } from '../functions/route-request-capture/resource
  * - All access attempts are logged for audit trail
  */
 
+// Route fields customers may read but never write directly: the same rules as
+// the Route model, without the customer's coarse `update` (kept for customerInstructions).
+type FieldAuthAllow = Parameters<Parameters<ReturnType<typeof a.string>['authorization']>[0]>[0];
+const routeFeedbackFieldAuth = (allow: FieldAuthAllow) => [
+  allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
+  allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+  allow.groups(['operator']).to(['read', 'update']),
+];
+
 const schema = a.schema({
+  RouteCustomerFeedbackTone: a.enum(['good', 'issue']),
+
   /**
    * Customer - Represents a business customer using the delivery service
    * Authorization: account_owner CustomerUser (via accountOwnerSub) can read/update their own
@@ -211,13 +222,17 @@ const schema = a.schema({
       overrideAmount: a.float(),
       notes: a.string(),
       customerInstructions: a.string(), // Customer-authored, distinct from the operator's own `notes`
-      customerFeedbackTone: a.enum(['good', 'issue']), // Customer-authored, asked once the route is completed
-      customerFeedbackNote: a.string(),
-      // Route Feedback (CONTEXT.md): saved by app/api/customer/route-feedback, which
-      // stamps when and who; the name is kept as sent so it reads the same later.
-      customerFeedbackAt: a.datetime(),
-      customerFeedbackBy: a.string(),
-      customerFeedbackByName: a.string(),
+      // Route Feedback (CONTEXT.md): saved only by app/api/customer/route-feedback
+      // (IAM, so these rules don't bind it), which enforces the invoiced lock,
+      // audits and emails admin@. Customers can read the fields but not write them
+      // directly (#478); the read rules match the model's, so subscriptions keep
+      // them (see pickupDate). The name is kept as sent so it reads the same later.
+      // A named enum (same GraphQL name the inline one had): only a ref takes field-level auth.
+      customerFeedbackTone: a.ref('RouteCustomerFeedbackTone').authorization(routeFeedbackFieldAuth),
+      customerFeedbackNote: a.string().authorization(routeFeedbackFieldAuth),
+      customerFeedbackAt: a.datetime().authorization(routeFeedbackFieldAuth),
+      customerFeedbackBy: a.string().authorization(routeFeedbackFieldAuth),
+      customerFeedbackByName: a.string().authorization(routeFeedbackFieldAuth),
       drivingModeEnabled: a.boolean(), // Renders the operator app's simplified in-vehicle driving mode for this route
       // Sign-run flow (drivingModeEnabled routes only) — the Load/Unload confirmations
       // and the four Finalise-screen adjuster rows. Finalise sums the billed*Minutes

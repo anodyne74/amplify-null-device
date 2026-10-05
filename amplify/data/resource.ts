@@ -48,7 +48,7 @@ const customerReadOnlyRouteField = (allow: FieldAuthAllow) => [
   allow.groups(['operator']).to(['read', 'update']),
 ];
 
-const schema = a.schema({
+export const schema = a.schema({
   /**
    * Customer - Represents a business customer using the delivery service
    * Authorization: account_owner CustomerUser (via accountOwnerSub) can read/update their own

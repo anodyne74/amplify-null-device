@@ -23,6 +23,8 @@ import shellStyles from '../signRunShell.module.css';
 import stopCardStyles from '../../components/signRunStopCard.module.css';
 import styles from './page.module.css';
 import { updateStopExecution } from '@/lib/routes';
+import { missingSignAudit } from '@/lib/missingSignAudit';
+import { recordStopAudit } from '@/lib/signRunOutbox';
 import { getCustomer } from '@/lib/customers';
 
 async function fetchCustomerName(route: Route) {
@@ -152,6 +154,8 @@ export default function OperatorPickupPage() {
         const { errors } = await updateStopExecution(stopId, nextFields);
         if (!errors || errors.length === 0) {
           patchStop(stopId, nextFields);
+          // In the audit trail once saved (#468); a failed entry never undoes the tap.
+          void recordStopAudit(missingSignAudit(stop, 'log', nextCount));
         } else {
           setError('Could not log that missing sign. Try again.');
         }
@@ -187,6 +191,7 @@ export default function OperatorPickupPage() {
             missingSignsLastLatitude: nextFields.missingSignsLastLatitude ?? null,
             missingSignsLastLongitude: nextFields.missingSignsLastLongitude ?? null,
           });
+          void recordStopAudit(missingSignAudit(stop, 'undo', nextCount));
         } else {
           setError('Could not update that missing sign. Try again.');
         }

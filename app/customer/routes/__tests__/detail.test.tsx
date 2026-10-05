@@ -458,4 +458,40 @@ describe('Customer route detail tracker', () => {
 
     expect(screen.getByText('2h 30m')).toBeInTheDocument();
   });
+
+  it('totals missing signs once pickup has started, and not before (#468)', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: { ...route, status: 'in_progress', executionPhase: 'pickup', pickupStartTime: '2026-10-10T01:00:00.000Z' },
+      stops: [
+        { ...stops[0], missingSignsCount: 2 },
+        ...stops.slice(1),
+      ],
+    });
+
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    const label = await screen.findByText('Signs missing');
+    expect(label.parentElement).toHaveTextContent('Signs missing2');
+  });
+
+  it('shows no missing-signs total when none are missing (#468)', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: { ...route, status: 'completed' },
+      stops,
+    });
+
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+    expect(screen.queryByText('Signs missing')).not.toBeInTheDocument();
+  });
+
+  it('shows no missing-signs total before pickup (#468)', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route, stops: [{ ...stops[0], missingSignsCount: 1 }, ...stops.slice(1)] });
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+    expect(screen.queryByText('Signs missing')).not.toBeInTheDocument();
+  });
+
 });

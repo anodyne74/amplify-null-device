@@ -25,7 +25,7 @@ import { billedTime } from '@/lib/billedTime';
 import { appendRouteInstruction, parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
-import { signsPlaced } from '@/lib/signRunTotals';
+import { missingSigns, signsPlaced } from '@/lib/signRunTotals';
 import { stopProgress } from '@/lib/stopProgress';
 import { customerRouteProgress } from '@/lib/customerRouteProgress';
 import { activeStops, isStopRemoved } from '@/lib/loadChange';
@@ -189,6 +189,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
 
   const routeLabel = route.routeCode || `${route.id.slice(0, 8)}...`;
   const totalSigns = signsPlaced(stops);
+  const missingTotal = missingSigns(stops);
   const progress = customerRouteProgress(route, stops);
   const pickupDate = customerPickupDate(route);
   const pickupDateLabel = pickupDate ? formatRouteDate(pickupDate) : 'TBC';
@@ -289,6 +290,13 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
             <span className="nd-stat__label">Signs out</span>
             <span className="nd-stat__value" style={{ fontSize: 20, fontFamily: 'var(--font-mono)' }}>{totalSigns}</span>
           </div>
+          {/* Once Pickup has started, and only if any are missing. */}
+          {progress.phase === 'pickup' && missingTotal > 0 && (
+            <div className="nd-stat">
+              <span className="nd-stat__label">Signs missing</span>
+              <span className="nd-stat__value" style={{ fontSize: 20, fontFamily: 'var(--font-mono)' }}>{missingTotal}</span>
+            </div>
+          )}
           <div className="nd-stat">
             <ProgressBar
               value={progress.done}

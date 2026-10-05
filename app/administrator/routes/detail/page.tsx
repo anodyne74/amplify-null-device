@@ -45,6 +45,7 @@ import { stopPhaseOf } from '@/lib/signRunTransitions';
 import { billedTime } from '@/lib/billedTime';
 import { isStopCompleted, stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
 import { getStopStatusLabel, labelledPhase, stopProgressTone } from '@/lib/stopStatusLabel';
+import { missingSigns } from '@/lib/signRunTotals';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
 
@@ -365,6 +366,10 @@ function RouteDetailContent() {
                     <span className="nd-stat__value" style={{ fontSize: 16 }}>{invoiceCounts.signs}</span>
                   </div>
                   <div className="nd-stat">
+                    <span className="nd-stat__label">Signs Missing</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16 }}>{missingSigns(stops)}</span>
+                  </div>
+                  <div className="nd-stat">
                     <span className="nd-stat__label">Customer Rate</span>
                     <span className="nd-stat__value" style={{ fontSize: 16 }}>
                       {customerRatePerHour === null ? '—' : formatCurrency(customerRatePerHour)} / hr
@@ -654,6 +659,7 @@ function RouteDetailContent() {
                       statusLabel={getStopStatusLabel(stop, currentExecutionPhase, route?.status)}
                       agentName={agentName}
                       isAuction={Boolean(stop.isAuction)}
+                      missingSigns={stop.missingSignsCount ?? 0}
                       isTop={isTopVisibleStop}
                       isCompleted={completedStop}
                       isDragging={reorder.draggingStopId === stop.id}

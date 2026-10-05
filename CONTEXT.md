@@ -97,7 +97,7 @@ The net count of signs actually recovered during Pickup — summed only over Sto
 _Avoid_: Total signs, returned signs
 
 **Missing Signs**:
-Signs logged as lost during the Pickup phase (`Stop.missingSignsCount`) — one tap logs one missing sign; a missing sign never counts as collected. Tracked as its own metric to identify locations with high loss rates (sign attrition), independent of reconciliation or billing.
+Signs logged as lost during the Pickup phase (`Stop.missingSignsCount`) — one tap logs one missing sign; a missing sign never counts as collected. Tracked as its own metric to identify locations with high loss rates (sign attrition), independent of reconciliation or billing. Administrators see them on each Stop and as a Route total; the Customer sees them on each Property and, once Pickup has started and any are missing, as a Route total. Each tap, and each undo, is in the Route's audit trail.
 _Avoid_: Lost signs, sign loss (except when specifically discussing the attrition-analysis use case)
 
 **Reconciliation**:

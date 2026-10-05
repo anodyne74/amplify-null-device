@@ -502,13 +502,14 @@ function reportTiming(record: SignRunTimingRecord) {
   return callApi('/api/sign-run-timing', record);
 }
 
-/** The device's outbox. The operator portal scopes it with setOwner. */
-export const signRunOutbox = createSignRunOutbox({
-  storage: typeof window === 'undefined' ? null : window.localStorage,
-  writeRoute: (id, patch) => updateRoute(id, patch),
-  writeStop: (id, patch) => updateStopExecution(id, patch),
-  createStop: (id, fields) => createLoadStop(id, fields),
-  audit: async (audit) => {
+/**
+ * Writes the audit entry for an Operator's change to a Stop, after the change
+ * has saved. The change stands either way, so a failed entry -- refused, or
+ * thrown (no session, no data client) -- is only logged; this never rejects.
+ * Used by the outbox, and by writes that save straight away (Missing Signs).
+ */
+export async function recordStopAudit(audit: OutboxAudit): Promise<void> {
+  try {
     const result = await recordAudit(getDataClient(), {
       actor: await fetchUserId(),
       customerId: audit.customerId,
@@ -518,7 +519,18 @@ export const signRunOutbox = createSignRunOutbox({
       details: audit.details,
     });
     if (!result.ok) console.error(`Writing the ${audit.action} audit entry failed:`, result.errors);
-  },
+  } catch (error) {
+    console.error(`Writing the ${audit.action} audit entry failed:`, error);
+  }
+}
+
+/** The device's outbox. The operator portal scopes it with setOwner. */
+export const signRunOutbox = createSignRunOutbox({
+  storage: typeof window === 'undefined' ? null : window.localStorage,
+  writeRoute: (id, patch) => updateRoute(id, patch),
+  writeStop: (id, patch) => updateStopExecution(id, patch),
+  createStop: (id, fields) => createLoadStop(id, fields),
+  audit: recordStopAudit,
   checkAuth: () => fetchAuthSession(),
   refreshSession: refreshSessionIfStale,
   report: reportTiming,

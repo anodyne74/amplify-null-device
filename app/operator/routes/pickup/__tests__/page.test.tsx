@@ -27,6 +27,12 @@ jest.mock('@/lib/routes', () => ({
   updateStopExecution: jest.fn(),
 }));
 
+const mockRecordStopAudit = jest.fn();
+jest.mock('@/lib/signRunOutbox', () => ({
+  ...jest.requireActual('@/lib/signRunOutbox'),
+  recordStopAudit: (...args: unknown[]) => mockRecordStopAudit(...args),
+}));
+
 jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
 }));
@@ -116,6 +122,7 @@ describe('Operator Pickup page', () => {
     jest.clearAllMocks();
     searchParamId = 'route-1';
     (getCustomer as jest.Mock).mockResolvedValue({ name: 'Beltline Group' });
+    mockRecordStopAudit.mockResolvedValue(undefined);
     // Stop settlements (they carry notes) hang; other stop writes save.
     (updateStopExecution as jest.Mock).mockImplementation((id: string, fields: object) =>
       'notes' in fields ? new Promise(() => {}) : Promise.resolve({ data: { id }, errors: undefined })
@@ -346,6 +353,22 @@ describe('Operator Pickup page', () => {
       });
       expect(await screen.findByText('1 of 9 missing here')).toBeInTheDocument();
       expect(screen.getByText('1 missing')).toBeInTheDocument();
+      // #468: every tap is in the audit trail, after the count is saved.
+      expect(mockRecordStopAudit).toHaveBeenCalledWith(
+        expect.objectContaining({ resourceId: 's1', action: 'stop.missingSign.log', details: expect.objectContaining({ missingSignsCount: 1 }) })
+      );
+    });
+
+    it("doesn't audit a missing sign that wasn't saved (#468)", async () => {
+      (updateStopExecution as jest.Mock).mockResolvedValueOnce({ data: null, errors: [{ message: 'nope' }] });
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+
+      render(<OperatorPickupPage />);
+      await screen.findByText('PICKUP · STOP 1 OF 2');
+      fireEvent.click(screen.getByRole('button', { name: /sign missing/i }));
+
+      expect(await screen.findByText(/could not log that missing sign/i)).toBeInTheDocument();
+      expect(mockRecordStopAudit).not.toHaveBeenCalled();
     });
 
     it('undoes a logged missing sign, clearing the count line once it reaches zero', async () => {
@@ -378,6 +401,9 @@ describe('Operator Pickup page', () => {
       await waitFor(() => {
         expect(screen.queryByText(/missing here/)).not.toBeInTheDocument();
       });
+      expect(mockRecordStopAudit).toHaveBeenCalledWith(
+        expect.objectContaining({ resourceId: 's1', action: 'stop.missingSign.undo', details: expect.objectContaining({ missingSignsCount: 0 }) })
+      );
     });
   });
 });

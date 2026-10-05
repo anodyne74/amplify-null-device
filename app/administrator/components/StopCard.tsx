@@ -27,6 +27,8 @@ interface StopCardProps {
   statusLabel: string;
   agentName: string;
   isAuction?: boolean;
+  /** Signs logged missing at this Stop during Pickup (Missing Signs, CONTEXT.md). */
+  missingSigns?: number;
   isTop?: boolean;
   isCompleted?: boolean;
   isDragging?: boolean;
@@ -48,6 +50,7 @@ export default function StopCard({
   statusLabel,
   agentName,
   isAuction = false,
+  missingSigns = 0,
   isTop = false,
   isCompleted = false,
   isDragging = false,
@@ -76,6 +79,7 @@ export default function StopCard({
         <div className={styles.address}>{address}</div>
         <div className={styles.status}>{statusLabel}</div>
         {isAuction && <span className={styles.auctionBadge}>Auction</span>}
+        {missingSigns > 0 && <span className={styles.missingBadge}>{missingSigns} missing</span>}
       </div>
 
       <AgentBadge agentName={agentName} size="sm" />

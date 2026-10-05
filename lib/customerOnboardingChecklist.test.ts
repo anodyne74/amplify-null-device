@@ -21,7 +21,7 @@ describe('buildOnboardingChecklist', () => {
     expect(agent).toMatchObject({ done: true, when: null });
   });
 
-  it('marks "first teammate invited" done using the earliest CustomerUser record', () => {
+  it('marks "first user invited" done using the earliest CustomerUser record', () => {
     const items = buildOnboardingChecklist(
       {},
       [{ createdAt: '2026-03-10T00:00:00Z' }, { createdAt: '2026-02-01T00:00:00Z' }],
@@ -29,7 +29,7 @@ describe('buildOnboardingChecklist', () => {
       [],
       INVITE_ON
     );
-    const invited = items.find((item) => item.id === 'teammate-invited');
+    const invited = items.find((item) => item.id === 'user-invited');
     expect(invited).toMatchObject({ done: true, when: '1 Feb 2026' });
   });
 
@@ -60,12 +60,12 @@ describe('buildOnboardingChecklist', () => {
     expect(invoiced).toMatchObject({ done: false, when: null });
   });
 
-  it('shows "first teammate invited" while account-owner-invite is on for the Customer', () => {
+  it('shows "first user invited" while account-owner-invite is on for the Customer', () => {
     const items = buildOnboardingChecklist({}, [], [], [], INVITE_ON);
-    expect(items.map((item) => item.id)).toContain('teammate-invited');
+    expect(items.map((item) => item.id)).toContain('user-invited');
   });
 
-  it('omits "first teammate invited" -- not shown as incomplete -- while account-owner-invite is off', () => {
+  it('omits "first user invited" -- not shown as incomplete -- while account-owner-invite is off', () => {
     const items = buildOnboardingChecklist({}, [{ createdAt: '2026-03-10T00:00:00Z' }], [], [], []);
     expect(items.map((item) => item.id)).toEqual(['account-created', 'default-agent', 'first-route', 'first-invoice']);
   });

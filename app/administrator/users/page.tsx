@@ -431,7 +431,7 @@ export default function UsersAdminPage() {
         return;
       }
       if (editRole === 'read_only' && editTarget.role === 'account_owner') {
-        setAccessError('Promote a teammate to primary contact before changing this one to read-only.');
+        setAccessError('Promote another user to primary contact before changing this one to read-only.');
         return;
       }
     }
@@ -610,7 +610,7 @@ export default function UsersAdminPage() {
                 onChange={() => setEditRole('account_owner')}
                 disabled={accessPending || (editTarget?.role !== 'account_owner' && hasAccountOwner)}
                 label="Primary contact (account owner)"
-                description="Manages billing, standing orders, and invoices; can invite and remove teammates."
+                description="Manages billing, Route Defaults and invoices; can invite and remove users."
               />
               <Radio
                 name="editCustomerUserRole"
@@ -722,7 +722,7 @@ export default function UsersAdminPage() {
                           onChange={() => setNewUserRole('account_owner')}
                           disabled={accessPending}
                           label="Primary contact (account owner)"
-                          description="Manages billing, standing orders, and invoices; can invite and remove teammates."
+                          description="Manages billing, Route Defaults and invoices; can invite and remove users."
                         />
                         <Radio
                           name="newCustomerRole"
@@ -777,13 +777,13 @@ export default function UsersAdminPage() {
                 <div className={styles.roleExplainerItem}>
                   <Badge tone="success">Owner</Badge>
                   <p className={styles.mutedText}>
-                    Metrics with cost, billing history, standing orders, billing details.
+                    Metrics with cost, billing history, Route Defaults, billing details.
                   </p>
                 </div>
                 <div className={styles.roleExplainerItem}>
                   <Badge tone="neutral">Read-only</Badge>
                   <p className={styles.mutedText}>
-                    Metrics without cost, routes, standing orders, route instructions.
+                    Metrics without cost, routes, Route Defaults, route instructions.
                   </p>
                 </div>
               </div>

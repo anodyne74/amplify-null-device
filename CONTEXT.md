@@ -128,6 +128,10 @@ _Avoid_: Team member, teammate, sub-user, customer admin
 A Customer User who can see the Customer's invoices and manage its Customer Users and Property History reports. The other Customer User role, read-only, sees Routes and Stops only.
 _Avoid_: Customer Admin, customer administrator
 
+**Route Defaults**:
+An Account Owner's preferences applied to every new Route for their Customer: instructions for the Operator, signs per Stop, the default agent, and the Standing Pickup Day. Staff can still change them on any single Route.
+_Avoid_: Standing orders, preferences
+
 **Customer Access Sync**:
 Rewriting who may read a Customer's records after its users change — every record the Customer owns carries the list of its users (and, on the Customer itself, the Account Owner), and all of them are restamped together whenever a user is added, removed or activated. Derived from the Customer's current users, never supplied by the caller; a sync that can't read the full user list changes nothing.
 _Avoid_: viewerSubs sync, backfill, profile access sync

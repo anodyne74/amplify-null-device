@@ -20,9 +20,9 @@ export interface FeatureFlagDefinition {
 
 export const FEATURE_FLAGS = {
   'account-owner-invite': {
-    label: 'Account Owner invites teammates',
+    label: 'Account Owner invites users',
     description:
-      "Account Owners can invite teammates from their portal's Team page. Staff can always add Customer users from the admin portal.",
+      "Account Owners can invite users from their portal's Users page. Staff can always add Customer users from the admin portal.",
   },
   'property-history': {
     label: 'Property History',

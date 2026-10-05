@@ -13,7 +13,7 @@ import type { Customer } from '@/amplify/types';
 import styles from './page.module.css';
 import { getCustomer, listCustomerUsers } from '@/lib/customers';
 
-interface TeammateRow {
+interface CustomerUserRow {
   id: string;
   name?: string | null;
   email?: string | null;
@@ -26,25 +26,25 @@ function roleLabel(role?: string | null) {
 
 interface UsersData {
   customer: Customer | null;
-  teammates: TeammateRow[];
+  users: CustomerUserRow[];
 }
 
 async function fetchUsersData(context: CustomerPortalContext): Promise<UsersData> {
   try {
-    const [customer, teammates] = await Promise.all([
+    const [customer, users] = await Promise.all([
       getCustomer(context.customerId),
       listCustomerUsers(context.customerId),
     ]);
     return {
       customer: (customer as unknown as Customer) || null,
-      teammates: teammates as TeammateRow[],
+      users: users as CustomerUserRow[],
     };
   } catch {
-    throw new Error('Could not load your team.');
+    throw new Error('Could not load users.');
   }
 }
 
-export default function CustomerTeamPage() {
+export default function CustomerUsersPage() {
   const {
     role,
     customerId,
@@ -55,10 +55,10 @@ export default function CustomerTeamPage() {
   } = useCustomerPortalContext({ fetchData: fetchUsersData });
   const isAccountOwner = role === 'account_owner';
   // account-owner-invite (#298): while off -- or still loading, or failed -- no
-  // invite card or invite wording for anyone; the team list is unaffected.
+  // invite card or invite wording for anyone; the user list is unaffected.
   const inviteOn = useFeatureFlags().isOn('account-owner-invite');
   const customer = data?.customer ?? null;
-  const teammates = data?.teammates ?? [];
+  const users = data?.users ?? [];
 
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -66,12 +66,12 @@ export default function CustomerTeamPage() {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
 
-  const loadTeammates = useCallback(
+  const loadUsers = useCallback(
     async (id: string) => {
       // Best-effort refresh after an invite: on failure the list stays as it was.
-      const teammateData = await listCustomerUsers(id).catch(() => null);
-      if (!teammateData) return;
-      setData((prev) => (prev ? { ...prev, teammates: teammateData as TeammateRow[] } : prev));
+      const userData = await listCustomerUsers(id).catch(() => null);
+      if (!userData) return;
+      setData((prev) => (prev ? { ...prev, users: userData as CustomerUserRow[] } : prev));
     },
     [setData]
   );
@@ -93,11 +93,11 @@ export default function CustomerTeamPage() {
       setInviteSuccess(
         payload?.emailSent
           ? `Invited ${email.trim()} — they'll receive an email with a temporary password.`
-          : `Added ${email.trim()} to your team, but the invitation email could not be sent. Ask them to use "Forgot password" to get access, or contact support.`
+          : `Added ${email.trim()} as a user, but the invitation email could not be sent. Ask them to use "Forgot password" to get access, or contact support.`
       );
       setEmail('');
       setName('');
-      if (customerId) await loadTeammates(customerId);
+      if (customerId) await loadUsers(customerId);
     } catch (e) {
       setInviteError(e instanceof Error ? e.message : 'Failed to send invite.');
     }
@@ -112,7 +112,7 @@ export default function CustomerTeamPage() {
   if (loading) {
     return (
       <div>
-        <PageHeader title="Team" />
+        <PageHeader title="Users" />
         <p className={styles.text}>Loading...</p>
       </div>
     );
@@ -121,9 +121,9 @@ export default function CustomerTeamPage() {
   return (
     <div>
       <PageHeader
-        title="Team"
+        title="Users"
         subtitle={
-          inviteOn ? "Invite teammates into your company's portal access." : "People with access to your company's portal."
+          inviteOn ? "Invite people from your company to your portal." : "People with access to your company's portal."
         }
       />
 
@@ -132,7 +132,7 @@ export default function CustomerTeamPage() {
       {!inviteOn ? null : isAccountOwner ? (
         <Card
           className={styles.inviteCard}
-          title="Invite a teammate"
+          title="Invite a user"
           subtitle="They'll get a login in the customer group with read-only access to your routes and invoices."
         >
           <div className={styles.form}>
@@ -159,7 +159,7 @@ export default function CustomerTeamPage() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   disabled={sending}
-                  placeholder="teammate@company.com"
+                  placeholder="name@company.com"
                 />
               </Field>
               <Field label="Display Name" htmlFor="invite-name" className={styles.inviteField}>
@@ -185,17 +185,17 @@ export default function CustomerTeamPage() {
         </Card>
       ) : (
         <Card className={styles.inviteCard}>
-          <p className={styles.text}>Only your account owner can invite teammates.</p>
+          <p className={styles.text}>Only your account owner can invite users.</p>
         </Card>
       )}
 
       <Card className={styles.listCard}>
-        <h2 className={styles.cardTitle}>Your team</h2>
-        {teammates.length === 0 ? (
-          <p className={styles.text}>No teammates yet.</p>
+        <h2 className={styles.cardTitle}>Users on this account</h2>
+        {users.length === 0 ? (
+          <p className={styles.text}>No users yet.</p>
         ) : (
           <div className={styles.list}>
-            {teammates.map((row) => (
+            {users.map((row) => (
               <div key={row.id} className={styles.listRow}>
                 <div>
                   <div className={styles.listName}>{row.name || row.email || '—'}</div>

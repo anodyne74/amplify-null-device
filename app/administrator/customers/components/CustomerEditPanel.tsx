@@ -189,7 +189,7 @@ export default function CustomerEditPanel({
               onChange={(event) => onEditRestrictInvitesToOwnDomainChange(event.target.checked)}
               disabled={editSaving}
               label={`Restrict invited users to @${emailDomain(editEmail || customer.email)} email addresses`}
-              description="When on, this customer's account owner can only invite teammates whose email matches this domain."
+              description="When on, this customer's account owner can only invite users whose email matches this domain."
             />
             <Checkbox
               className={styles.fieldsGridFull}

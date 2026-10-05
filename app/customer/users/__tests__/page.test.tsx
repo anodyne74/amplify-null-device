@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import CustomerTeamPage from '../page';
+import CustomerUsersPage from '../page';
 import { ApiError, callApi } from '@/lib/apiClient';
 import { getCustomer, getCustomerPortalContext, listCustomerUsers } from '@/lib/customers';
 
@@ -26,7 +26,7 @@ jest.mock('@/lib/useFeatureFlags', () => ({
   useFeatureFlags: () => ({ isOn: (name: string) => mockOnFlags.includes(name), loading: false }),
 }));
 
-describe('Customer Team page', () => {
+describe('Customer Users page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockOnFlags = ['account-owner-invite'];
@@ -36,10 +36,10 @@ describe('Customer Team page', () => {
     ]);
   });
 
-  it('shows the invite form and current team for an account owner', async () => {
+  it('shows the invite form and current users for an account owner', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
 
-    render(<CustomerTeamPage />);
+    render(<CustomerUsersPage />);
 
     await waitFor(() => {
       expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
@@ -47,12 +47,12 @@ describe('Customer Team page', () => {
     expect(screen.getByText('Priya Owner')).toBeInTheDocument();
   });
 
-  it('hides the invite form for a read_only teammate', async () => {
+  it('hides the invite form for a read_only user', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'read_only', customerId: 'cust-1' });
 
-    render(<CustomerTeamPage />);
+    render(<CustomerUsersPage />);
 
-    expect(await screen.findByText(/only your account owner can invite teammates/i)).toBeInTheDocument();
+    expect(await screen.findByText(/only your account owner can invite users/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/^email$/i)).not.toBeInTheDocument();
   });
 
@@ -60,7 +60,7 @@ describe('Customer Team page', () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
     (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', email: 'owner@rangeproperty.com.au', restrictInvitesToOwnDomain: true });
 
-    render(<CustomerTeamPage />);
+    render(<CustomerUsersPage />);
 
     expect(await screen.findByText(/must be an @rangeproperty\.com\.au address/i)).toBeInTheDocument();
   });
@@ -69,7 +69,7 @@ describe('Customer Team page', () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
     (callApi as jest.Mock).mockResolvedValue({ success: true, user: { sub: 'sub-new' }, emailSent: true });
 
-    render(<CustomerTeamPage />);
+    render(<CustomerUsersPage />);
 
     await waitFor(() => {
       expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
@@ -94,7 +94,7 @@ describe('Customer Team page', () => {
       new ApiError('Invited emails must use the @rangeproperty.com.au domain.', 400)
     );
 
-    render(<CustomerTeamPage />);
+    render(<CustomerUsersPage />);
 
     await waitFor(() => {
       expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
@@ -110,7 +110,7 @@ describe('Customer Team page', () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
     (callApi as jest.Mock).mockResolvedValue({ success: true, user: { sub: 'sub-new' }, emailSent: false });
 
-    render(<CustomerTeamPage />);
+    render(<CustomerUsersPage />);
 
     await waitFor(() => {
       expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument();
@@ -122,12 +122,17 @@ describe('Customer Team page', () => {
     expect(await screen.findByText(/invitation email could not be sent/i)).toBeInTheDocument();
   });
 
-  it("keeps today's invite wording while account-owner-invite is on", async () => {
+  it('invites people as users, never as a team or teammates, while account-owner-invite is on', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
 
-    render(<CustomerTeamPage />);
+    render(<CustomerUsersPage />);
 
-    expect(await screen.findByText("Invite teammates into your company's portal access.")).toBeInTheDocument();
+    expect(await screen.findByText("Invite people from your company to your portal.")).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Users' })).toBeInTheDocument();
+    expect(screen.getByText('Invite a user')).toBeInTheDocument();
+    expect(screen.getByText('Users on this account')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('name@company.com')).toBeInTheDocument();
+    expect(screen.queryByText(/\bteam/i)).not.toBeInTheDocument();
   });
 
   describe('while account-owner-invite is off (or flags are loading or failed)', () => {
@@ -135,10 +140,10 @@ describe('Customer Team page', () => {
       mockOnFlags = [];
     });
 
-    it('shows an account owner no invite card or invite wording, but still the team list', async () => {
+    it('shows an account owner no invite card or invite wording, but still the user list', async () => {
       (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
 
-      render(<CustomerTeamPage />);
+      render(<CustomerUsersPage />);
 
       expect(await screen.findByText('Priya Owner')).toBeInTheDocument();
       expect(screen.getByText("People with access to your company's portal.")).toBeInTheDocument();
@@ -146,10 +151,10 @@ describe('Customer Team page', () => {
       expect(screen.queryByLabelText(/^email$/i)).not.toBeInTheDocument();
     });
 
-    it('shows a read_only teammate no "Only your account owner" card', async () => {
+    it('shows a read_only user no "Only your account owner" card', async () => {
       (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'read_only', customerId: 'cust-1' });
 
-      render(<CustomerTeamPage />);
+      render(<CustomerUsersPage />);
 
       expect(await screen.findByText('Priya Owner')).toBeInTheDocument();
       expect(screen.queryByText(/only your account owner/i)).not.toBeInTheDocument();

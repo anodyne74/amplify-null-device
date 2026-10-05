@@ -440,7 +440,7 @@ describe('Operator Customers Page', () => {
       await screen.findByRole('heading', { name: /configure — acme corp/i });
     }
 
-    it('lists the flags on for the Customer and keeps "First teammate invited" in the checklist', async () => {
+    it('lists the flags on for the Customer and keeps "First user invited" in the checklist', async () => {
       (listFeatureFlagSettings as jest.Mock).mockResolvedValue([
         { id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['c-1'] },
         { id: 'retired', state: 'everyone' },
@@ -448,26 +448,26 @@ describe('Operator Customers Page', () => {
       await openAcme();
 
       const list = await screen.findByRole('list', { name: 'Feature flags on' });
-      expect(within(list).getByText('Account Owner invites teammates')).toBeInTheDocument();
+      expect(within(list).getByText('Account Owner invites users')).toBeInTheDocument();
       expect(within(list).queryByText('retired')).not.toBeInTheDocument();
-      expect(screen.getByText('First teammate invited')).toBeInTheDocument();
+      expect(screen.getByText('First user invited')).toBeInTheDocument();
     });
 
-    it('omits "First teammate invited" and says no flags are on when account-owner-invite is off', async () => {
+    it('omits "First user invited" and says no flags are on when account-owner-invite is off', async () => {
       (listFeatureFlagSettings as jest.Mock).mockResolvedValue([{ id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['c-2'] }]);
       await openAcme();
 
       expect(await screen.findByText(/this Customer sees no flagged features/)).toBeInTheDocument();
       expect(screen.getByText('First route built')).toBeInTheDocument();
-      expect(screen.queryByText('First teammate invited')).not.toBeInTheDocument();
+      expect(screen.queryByText('First user invited')).not.toBeInTheDocument();
     });
 
-    it('says so, and omits the teammate item, when the flags cannot be read', async () => {
+    it('says so, and omits the user-invited item, when the flags cannot be read', async () => {
       (listFeatureFlagSettings as jest.Mock).mockRejectedValue(new Error('read failed'));
       await openAcme();
 
       expect(await screen.findByText('Could not load feature flags.')).toBeInTheDocument();
-      expect(screen.queryByText('First teammate invited')).not.toBeInTheDocument();
+      expect(screen.queryByText('First user invited')).not.toBeInTheDocument();
     });
   });
 });

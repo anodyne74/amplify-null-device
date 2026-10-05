@@ -29,7 +29,7 @@ interface ResolvedPortalState {
 
 interface UseCustomerPortalContextOptions<TData> {
   /** Fetches whatever this screen needs beyond role/customerId themselves
-   * (Customer record, route/invoice list, teammates, ...), run once the
+   * (Customer record, route/invoice list, Customer Users, ...), run once the
    * portal context resolves with a customerId. Throw an Error with a
    * page-specific message to surface it via the returned `error`. */
   fetchData?: (context: CustomerPortalContext) => Promise<TData>;

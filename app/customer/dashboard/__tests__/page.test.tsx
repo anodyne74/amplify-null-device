@@ -30,6 +30,11 @@ jest.mock('@/lib/invoices', () => ({
   listMyInvoices: jest.fn(),
 }));
 
+jest.mock('@/app/customer/components/WelcomeCard', () => ({
+  __esModule: true,
+  default: () => <section aria-label="Welcome" />,
+}));
+
 const mockListCustomerStops = jest.fn();
 jest.mock('@/lib/routes', () => ({
   listCustomerStops: (...args: unknown[]) => mockListCustomerStops(...args),
@@ -137,6 +142,17 @@ describe('Customer Dashboard', () => {
     expect(screen.getByRole('table').closest('.nd-table-scroll')).toBeInTheDocument();
 
     expect(screen.queryByRole('heading', { name: /recent routes/i })).not.toBeInTheDocument();
+  });
+
+  it('opens with the welcome card, under the header and above the stats (#486)', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
+
+    render(<CustomerDashboard />);
+
+    const welcome = await screen.findByRole('region', { name: 'Welcome' });
+    const heading = screen.getByRole('heading', { name: /^dashboard$/i });
+    expect(heading.compareDocumentPosition(welcome) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(welcome.compareDocumentPosition(screen.getByText(/invoiced this month/i)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('hides financial dashboard surfaces for reviewer role and does not fetch invoices', async () => {

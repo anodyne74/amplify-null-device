@@ -26,6 +26,7 @@ import {
   type OverviewInvoice,
 } from '@/lib/customerDashboardOverview';
 import PageHeader from '@/app/customer/components/PageHeader';
+import WelcomeCard from '@/app/customer/components/WelcomeCard';
 import { Card } from '@/app/components/ui/core/Card';
 import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
 import { StatTile } from '@/app/components/ui/data/StatTile';
@@ -196,6 +197,8 @@ export default function CustomerDashboard() {
         title="Dashboard"
         subtitle={`Welcome,${displayName ? ` ${displayName}` : ''} · ${isAccountOwner ? 'Owner' : 'Reviewer'}`}
       />
+
+      <WelcomeCard />
 
       {(customerLoadError || routesError) && (
         <p className="nd-badge nd-badge--danger">{customerLoadError || routesError}</p>

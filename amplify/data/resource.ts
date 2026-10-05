@@ -676,6 +676,8 @@ export const schema = a.schema({
       name: a.string(),
       defaultTheme: a.enum(['system', 'light', 'dark']),
       mapTheme: a.enum(['light', 'dark', 'satellite', 'streets']),
+      // When a Customer User dismissed the Dashboard welcome card (#486); unset until then.
+      welcomeDismissedAt: a.datetime(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })

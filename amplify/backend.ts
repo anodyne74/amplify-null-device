@@ -16,6 +16,7 @@ import { reportPurge } from './functions/report-purge/resource';
 import { routeRequestCapture } from './functions/route-request-capture/resource';
 import { configureObservability } from './observability/resource';
 import { branchName, emailDomain } from './shared/branch';
+import { missingSignsReportTemplate } from './ses/missingSignsReportTemplate';
 
 const backend = defineBackend({
 	auth,
@@ -72,10 +73,10 @@ backend.data.resources.graphqlApi.grantMutation(ssrComputeRole);
 backend.data.resources.graphqlApi.grantQuery(ssrComputeRole);
 
 // /api/admin/send-invoice-email sends a raw MIME message (the invoice PDF is
-// an attachment), and /api/customer/route-feedback and
-// /api/missing-signs-report send plain SendEmail messages; the role's
-// hand-made SESSendTemplatedEmails policy covers neither -- it allows
-// SendTemplatedEmail only. Scoped to this branch's sending domain and the
+// an attachment), and /api/customer/route-feedback sends a plain SendEmail
+// message; the role's hand-made SESSendTemplatedEmails policy covers neither
+// -- it allows SendTemplatedEmail only (which /api/missing-signs-report and
+// the invitation emails use). Scoped to this branch's sending domain and the
 // configuration set SES applies to it by default (SES checks both).
 const ssrSesArn = (resource: string) =>
 	`arn:aws:ses:${Stack.of(backend.data.resources.graphqlApi).region}:${Stack.of(backend.data.resources.graphqlApi).account}:${resource}`;
@@ -140,6 +141,7 @@ const jobAssignedTemplateName = withMaxLength(`NullDeviceJobAssignedTemplate-${b
 const welcomeTemplateName = withMaxLength(`NullDeviceWelcomeTemplate-${branchName}`, 64);
 const invitationTemplateName = withMaxLength(`NullDeviceInvitationTemplate-${branchName}`, 64);
 const staffInvitationTemplateName = withMaxLength(`NullDeviceStaffInvitationTemplate-${branchName}`, 64);
+const missingSignsReportTemplateName = withMaxLength(`NullDeviceMissingSignsReportTemplate-${branchName}`, 64);
 const inboundBucketName = withMaxLength(`ses-inbound-nulldevice-${branchName}`, 63);
 const forwarderFunctionName = withMaxLength(`ses-forwarder-nulldevice-${branchName}`, 64);
 // Not branch-scoped: every branch's rule lives in this one rule set (ADR 0009).
@@ -230,6 +232,12 @@ View online: {{pdfUrl}}
 This is an automated message. Please do not reply.
 `.trim(),
 	},
+});
+
+// Sent by /api/missing-signs-report (#489). Its parts live in their own module
+// so lib/missingSignsReportTemplate.test.ts can render them.
+new CfnTemplate(sesStack, 'MissingSignsReportTemplate', {
+	template: { templateName: missingSignsReportTemplateName, ...missingSignsReportTemplate },
 });
 
 new CfnTemplate(sesStack, 'JobAssignedTemplate', {
@@ -955,6 +963,7 @@ backend.addOutput({
 		sesJobAssignedTemplateName: jobAssignedTemplateName,
 		sesInvitationTemplateName: invitationTemplateName,
 		sesStaffInvitationTemplateName: staffInvitationTemplateName,
+		sesMissingSignsReportTemplateName: missingSignsReportTemplateName,
 		sesInboundRuleSetName: inboundRuleSetName,
 		sesInboundBucketName: inboundBucketName,
 		smsConfigurationSetName,

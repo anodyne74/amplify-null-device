@@ -56,13 +56,37 @@ describe('missingSignsReportRecipients (#468)', () => {
   });
 });
 
-describe('missingSignsReportEmail (#468)', () => {
-  it('lists each Property and the total, in customer-facing words', () => {
-    const email = missingSignsReportEmail({
-      routeCode: 'W40-26-003',
-      customerName: 'Harcourts Epping',
-      placementDate: '2026-10-06',
-      pickupDate: '2026-10-10',
+describe('missingSignsReportEmail (#468, #489)', () => {
+  const base = {
+    routeCode: 'W40-26-003',
+    customerName: 'Harcourts Epping',
+    placementDate: '2026-10-06',
+    pickupDate: '2026-10-10',
+    properties: [{ address: '44 Eastcote Rd, North Epping', missing: 1 }],
+    total: 1,
+    logoUrl: 'https://portal.example.com/logo.svg',
+    year: '2026',
+  };
+
+  it('keeps the subject and gives the template everything it shows', () => {
+    expect(missingSignsReportEmail(base)).toEqual({
+      subject: 'Missing signs on Route W40-26-003',
+      templateData: {
+        customerName: 'Harcourts Epping',
+        routeCode: 'W40-26-003',
+        placedDate: 'Oct 6, 2026',
+        collectedDate: 'Oct 10, 2026',
+        properties: [{ address: '44 Eastcote Rd, North Epping', missingLabel: '1 sign' }],
+        totalLabel: '1 sign',
+        logoUrl: 'https://portal.example.com/logo.svg',
+        year: '2026',
+      },
+    });
+  });
+
+  it('lists several Properties in order, each with its own count, and the total', () => {
+    const { templateData } = missingSignsReportEmail({
+      ...base,
       properties: [
         { address: '44 Eastcote Rd, North Epping', missing: 1 },
         { address: '20 Gloucester Road, Epping', missing: 2 },
@@ -70,12 +94,28 @@ describe('missingSignsReportEmail (#468)', () => {
       total: 3,
     });
 
-    expect(email.subject).toBe('Missing signs on Route W40-26-003');
-    expect(email.text).toContain('44 Eastcote Rd, North Epping — 1 sign');
-    expect(email.text).toContain('20 Gloucester Road, Epping — 2 signs');
-    expect(email.text).toContain('3 signs missing in total.');
-    expect(email.text).toMatch(/Oct 6, 2026/);
-    expect(email.text).toMatch(/Oct 10, 2026/);
-    expect(email.text).not.toMatch(/operator|driver|staff/i);
+    expect(templateData.properties).toEqual([
+      { address: '44 Eastcote Rd, North Epping', missingLabel: '1 sign' },
+      { address: '20 Gloucester Road, Epping', missingLabel: '2 signs' },
+    ]);
+    expect(templateData.totalLabel).toBe('3 signs');
+  });
+
+  it('shows a dash for a date the Route never had', () => {
+    const { templateData } = missingSignsReportEmail({ ...base, placementDate: null, pickupDate: undefined });
+
+    expect(templateData.placedDate).toBe('—');
+    expect(templateData.collectedDate).toBe('—');
+  });
+
+  it('hands an address over as written, for the template to escape', () => {
+    const address = '5 <b>Smith</b> & Sons Lane, "Epping"';
+    const { templateData } = missingSignsReportEmail({ ...base, properties: [{ address, missing: 1 }] });
+
+    expect(templateData.properties[0].address).toBe(address);
+  });
+
+  it('speaks of Properties and signs only', () => {
+    expect(JSON.stringify(missingSignsReportEmail(base))).not.toMatch(/operator|driver|staff/i);
   });
 });

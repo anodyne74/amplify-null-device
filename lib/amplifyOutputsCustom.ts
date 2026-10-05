@@ -20,6 +20,7 @@ export interface AmplifyOutputsCustom {
   sesJobAssignedTemplateName?: string;
   sesInvitationTemplateName?: string;
   sesStaffInvitationTemplateName?: string;
+  sesMissingSignsReportTemplateName?: string;
   sesInboundRuleSetName?: string;
   sesInboundBucketName?: string;
   /** The branch's End User Messaging configuration set, for Notify Operator texts. */

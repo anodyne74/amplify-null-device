@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SendEmailCommand, SESClient } from '@aws-sdk/client-ses';
+import { SendTemplatedEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
 import { invoiceRecipientEmail } from '@/lib/server/invoiceRecipient';
 import { listAll } from '@/lib/listAll';
 import { recordAudit } from '@/lib/auditLog';
+import { customOutputs } from '@/lib/amplifyOutputsCustom';
+import { sesTemplateName } from '@/lib/server/sesTemplateName';
 import { missingSignsReportDecision, missingSignsReportEmail, missingSignsReportRecipients } from '@/lib/missingSignsReport';
 import { ADMIN_EMAIL, APP_DOMAIN } from '@/lib/publicAppConfig';
 import type { Route, Stop } from '@/amplify/types';
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
+const templateName = sesTemplateName('NullDeviceMissingSignsReportTemplate', {
+  override: process.env.SES_MISSING_SIGNS_REPORT_TEMPLATE_NAME,
+  deployed: customOutputs.sesMissingSignsReportTemplateName,
+});
 
 /**
  * Sends a finalised Route's Missing Signs Report (CONTEXT.md), if it should go
@@ -68,6 +74,7 @@ export async function POST(request: NextRequest) {
     const recipientCount = recipients.to.length + recipients.cc.length;
     if (recipients.cc.length === 0) console.warn(`Route ${route.id}: the Customer has no email, so its Missing Signs Report goes to admin@ only.`);
 
+    const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || `https://${APP_DOMAIN}`).replace(/\/$/, '');
     const email = missingSignsReportEmail({
       routeCode: route.routeCode || route.id.slice(0, 8),
       customerName: customer.name,
@@ -75,14 +82,17 @@ export async function POST(request: NextRequest) {
       pickupDate: route.pickupDate,
       properties: decision.properties,
       total: decision.total,
+      logoUrl: `${appBaseUrl}/logo.svg`,
+      year: String(new Date().getFullYear()),
     });
 
     try {
       const sent = await sesClient.send(
-        new SendEmailCommand({
+        new SendTemplatedEmailCommand({
           Source: process.env.SES_SENDER_EMAIL || `no-reply@${APP_DOMAIN}`,
           Destination: { ToAddresses: recipients.to, CcAddresses: recipients.cc },
-          Message: { Subject: { Data: email.subject }, Body: { Text: { Data: email.text } } },
+          Template: templateName,
+          TemplateData: JSON.stringify(email.templateData),
         })
       );
       console.log('Missing Signs Report sent:', sent.MessageId);

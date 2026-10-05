@@ -16,7 +16,10 @@ npm run typecheck         # tsc --noEmit
 npm run lint              # ESLint
 npm run test              # Jest watch mode
 npm run test:ci           # Jest CI mode with coverage (used in GitHub Actions)
+npm run synth:auth -- <Model>  # generated AppSync auth per role, offline
 ```
+
+A dev server is usually already running on :3000 (Next allows one per directory): curl it rather than starting another. Its log is `.next/dev/logs/next-development.log`.
 
 To run a single test file:
 ```bash
@@ -57,6 +60,8 @@ Authorization is enforced at the AppSync model level in `amplify/data/resource.t
 - **customer** — reads own data scoped by `customerId == user.sub`; `CustomerUser` records define sub-roles (`account_owner` reads invoices, `read_only` reads routes/stops only — both sub-roles may add route instructions via the `Route.customerInstructions` field, a deliberate exception noted on the `Route` model's authorization comment in `amplify/data/resource.ts`)
 - **operator** — full CRUD on all models; read/create AuditLog
 - **administrator** — full access including user management and system settings
+
+After changing an `.authorization()` rule, run `npm run synth:auth -- <Model>` and check who may set, null, delete and read before asking for a deploy.
 
 Cognito groups are created post-deployment via `scripts/ensure-cognito-groups.js`. Group membership is read from the ID token (`cognito:groups`). After adding a user to a group, they must log out and back in for the token to refresh.
 

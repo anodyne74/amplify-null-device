@@ -1,6 +1,7 @@
 /**
- * A user's own UserSettings (display name, theme, map style) as the browser
- * reads and writes it through the signed-in user's data client.
+ * A user's own UserSettings (display name, theme, map style, welcome card
+ * dismissal) as the browser reads and writes it through the signed-in user's
+ * data client.
  *
  * Both functions return their data or throw a DataError (lib/graphqlResult.ts);
  * a user with no saved settings is null, not an error.
@@ -18,6 +19,8 @@ export interface UserSettingsRecord {
   name?: string | null;
   defaultTheme?: ThemeModeSetting | null;
   mapTheme?: MapThemeSetting | null;
+  /** When the user dismissed the customer Dashboard welcome card; unset until then. */
+  welcomeDismissedAt?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
 }
@@ -43,6 +46,7 @@ export async function upsertUserSettings(
     name: string;
     defaultTheme: ThemeModeSetting;
     mapTheme: MapThemeSetting;
+    welcomeDismissedAt: string;
   }>
 ) {
   const current = await getUserSettings(userSub);

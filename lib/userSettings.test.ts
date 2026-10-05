@@ -105,6 +105,17 @@ describe('userSettings', () => {
       expect(mockUserSettingsCreate).toHaveBeenCalledWith(expect.objectContaining({ defaultTheme: 'light' }));
     });
 
+    it('stores when the welcome card was dismissed (#486)', async () => {
+      mockUserSettingsList.mockResolvedValue({ data: [{ id: 'settings-1', userSub: 'user-1' }], errors: undefined });
+      mockUserSettingsUpdate.mockResolvedValue({ data: { id: 'settings-1' }, errors: undefined });
+
+      await upsertUserSettings('user-1', { welcomeDismissedAt: '2026-10-05T01:00:00.000Z' });
+
+      expect(mockUserSettingsUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'settings-1', welcomeDismissedAt: '2026-10-05T01:00:00.000Z' })
+      );
+    });
+
     it("doesn't write when the current settings can't be read", async () => {
       mockUserSettingsList.mockResolvedValue({ data: [], errors: [{ message: 'Not Authorized' }] });
 

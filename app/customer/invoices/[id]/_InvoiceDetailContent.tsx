@@ -11,6 +11,7 @@ import { useToast } from '@/app/components/ToastProvider';
 import { InvoiceStatusPill } from '@/app/customer/components/InvoiceListItem';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
+import HelpLink from '@/app/customer/components/HelpLink';
 import styles from './_InvoiceDetailContent.module.css';
 import { getInvoiceDetail, openInvoicePdf, type InvoiceDetail } from '@/lib/invoices';
 import { getInvoiceRouteLabel } from '@/lib/customerInvoiceList';
@@ -172,7 +173,10 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
         ]}
       />
 
-      <h1 className={styles.pageTitle}>Invoice {invoice.invoiceNumber || invoice.id}</h1>
+      <div className={styles.titleRow}>
+        <h1 className={styles.pageTitle}>Invoice {invoice.invoiceNumber || invoice.id}</h1>
+        <HelpLink />
+      </div>
 
       <div className={styles.layout}>
         <Card padded={false}>

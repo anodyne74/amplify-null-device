@@ -23,6 +23,12 @@
   gap: var(--space-6);
 }
 
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .pageTitle {
   margin: 0;
   font-size: var(--text-3xl);

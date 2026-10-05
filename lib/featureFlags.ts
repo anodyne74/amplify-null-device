@@ -29,6 +29,11 @@ export const FEATURE_FLAGS = {
     description:
       "Customer users can search their Customer's past Visits by suburb, street or address. Staff can always search Property History.",
   },
+  'customer-help': {
+    label: 'Customer help',
+    description:
+      'Customer users get the in-portal user guide: a Help page in the sidebar and a "?" link on each screen.',
+  },
 } satisfies Record<string, FeatureFlagDefinition>;
 
 export type FeatureFlagName = keyof typeof FEATURE_FLAGS;

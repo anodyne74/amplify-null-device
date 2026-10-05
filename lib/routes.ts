@@ -141,8 +141,6 @@ export async function updateRoute(
     overrideDurationMinutes: number;
     notes: string;
     customerInstructions: string;
-    customerFeedbackTone: 'good' | 'issue';
-    customerFeedbackNote: string;
     drivingModeEnabled: boolean;
     loadStartedAt: string;
     loadConfirmedAt: string;

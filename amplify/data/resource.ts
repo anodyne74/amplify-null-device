@@ -36,6 +36,18 @@ import { routeRequestCapture } from '../functions/route-request-capture/resource
  * - All access attempts are logged for audit trail
  */
 
+// Route fields customers may read but never write directly (pickupDate, Route
+// Feedback): the same rules as the Route model, without the customer's coarse
+// `update` (kept for customerInstructions). Read rules stay identical to the
+// model's, so subscriptions don't redact these fields (#443).
+// The library exports no type for a field rule's `allow`, so it's taken from a.string().
+type FieldAuthAllow = Parameters<Parameters<ReturnType<typeof a.string>['authorization']>[0]>[0];
+const customerReadOnlyRouteField = (allow: FieldAuthAllow) => [
+  allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
+  allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+  allow.groups(['operator']).to(['read', 'update']),
+];
+
 const schema = a.schema({
   /**
    * Customer - Represents a business customer using the delivery service
@@ -166,6 +178,10 @@ const schema = a.schema({
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
+  // Route Feedback's choice: a named enum (the GraphQL name the inline one had),
+  // as only a ref takes field-level auth.
+  RouteCustomerFeedbackTone: a.enum(['good', 'issue']),
+
   /**
    * Route - Represents a delivery route assigned to a customer
    * Time tracking: estimatedDurationMinutes (entered by operator) vs actualDurationMinutes (recorded at completion)
@@ -188,11 +204,7 @@ const schema = a.schema({
       // Pickup Date (CONTEXT.md): the day the signs are planned to come down. Staff
       // set it; customers only read it. The Route's model-level grant lets customer
       // users update (for customerInstructions), so this field narrows it.
-      pickupDate: a.date().authorization((allow) => [
-        allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
-        allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
-        allow.groups(['operator']).to(['read', 'update']),
-      ]),
+      pickupDate: a.date().authorization(customerReadOnlyRouteField),
       estimatedDurationMinutes: a.integer(),
       actualStartTime: a.datetime(),
       actualEndTime: a.datetime(),
@@ -211,13 +223,16 @@ const schema = a.schema({
       overrideAmount: a.float(),
       notes: a.string(),
       customerInstructions: a.string(), // Customer-authored, distinct from the operator's own `notes`
-      customerFeedbackTone: a.enum(['good', 'issue']), // Customer-authored, asked once the route is completed
-      customerFeedbackNote: a.string(),
-      // Route Feedback (CONTEXT.md): saved by app/api/customer/route-feedback, which
-      // stamps when and who; the name is kept as sent so it reads the same later.
-      customerFeedbackAt: a.datetime(),
-      customerFeedbackBy: a.string(),
-      customerFeedbackByName: a.string(),
+      // Route Feedback (CONTEXT.md): saved only by app/api/customer/route-feedback
+      // (IAM, so these rules don't bind it), which enforces the invoiced lock,
+      // audits and emails admin@. Customers can read the fields but not write them
+      // directly (#478); the read rules match the model's, so subscriptions keep
+      // them (see pickupDate). The name is kept as sent so it reads the same later.
+      customerFeedbackTone: a.ref('RouteCustomerFeedbackTone').authorization(customerReadOnlyRouteField),
+      customerFeedbackNote: a.string().authorization(customerReadOnlyRouteField),
+      customerFeedbackAt: a.datetime().authorization(customerReadOnlyRouteField),
+      customerFeedbackBy: a.string().authorization(customerReadOnlyRouteField),
+      customerFeedbackByName: a.string().authorization(customerReadOnlyRouteField),
       drivingModeEnabled: a.boolean(), // Renders the operator app's simplified in-vehicle driving mode for this route
       // Sign-run flow (drivingModeEnabled routes only) — the Load/Unload confirmations
       // and the four Finalise-screen adjuster rows. Finalise sums the billed*Minutes
@@ -259,9 +274,9 @@ const schema = a.schema({
     .authorization((allow) => [
       // 'update' scoped in practice to customerInstructions by the client (lib/routes.ts
       // updateRouteCustomerInstructions) — a coarse grant like the rest of this schema,
-      // narrowed only on pickupDate, which customers can read but not write (see its
-      // field rule above). Covers both account_owner and read_only CustomerUser
-      // sub-roles (not distinguishable at this layer).
+      // narrowed on pickupDate and the customerFeedback* fields, which customers can
+      // read but not write (customerReadOnlyRouteField). Covers both account_owner and
+      // read_only CustomerUser sub-roles (not distinguishable at this layer).
       allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read', 'update']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'update']),

@@ -290,7 +290,8 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
             <span className="nd-stat__label">Signs out</span>
             <span className="nd-stat__value" style={{ fontSize: 20, fontFamily: 'var(--font-mono)' }}>{totalSigns}</span>
           </div>
-          {progress.phase === 'pickup' && (
+          {/* Once Pickup has started, and only if any are missing. */}
+          {progress.phase === 'pickup' && missingTotal > 0 && (
             <div className="nd-stat">
               <span className="nd-stat__label">Signs missing</span>
               <span className="nd-stat__value" style={{ fontSize: 20, fontFamily: 'var(--font-mono)' }}>{missingTotal}</span>

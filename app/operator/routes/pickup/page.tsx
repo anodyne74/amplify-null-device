@@ -23,7 +23,8 @@ import shellStyles from '../signRunShell.module.css';
 import stopCardStyles from '../../components/signRunStopCard.module.css';
 import styles from './page.module.css';
 import { updateStopExecution } from '@/lib/routes';
-import { auditMissingSign } from '@/lib/missingSignAudit';
+import { missingSignAudit } from '@/lib/missingSignAudit';
+import { recordStopAudit } from '@/lib/signRunOutbox';
 import { getCustomer } from '@/lib/customers';
 
 async function fetchCustomerName(route: Route) {
@@ -131,13 +132,6 @@ export default function OperatorPickupPage() {
     [stops]
   );
 
-  // Each saved tap or undo goes in the audit trail (#468). The count is already
-  // saved, so an entry that can't be written is only logged, never undone.
-  const recordMissingSignChange = async (stop: Stop, change: 'log' | 'undo', count: number) => {
-    const audit = await auditMissingSign(stop, change, count);
-    if (!audit.ok) console.error(`The missing sign was saved, but its ${change} audit entry could not be written:`, audit.errors);
-  };
-
   // Logs one missing sign at the current stop, capped at that stop's sign count, and
   // stamps the stop's own stored coordinates/time — there's no live device geolocation
   // in this flow, matching the design's own approximation.
@@ -160,7 +154,8 @@ export default function OperatorPickupPage() {
         const { errors } = await updateStopExecution(stopId, nextFields);
         if (!errors || errors.length === 0) {
           patchStop(stopId, nextFields);
-          void recordMissingSignChange(stop, 'log', nextCount);
+          // In the audit trail once saved (#468); a failed entry never undoes the tap.
+          void recordStopAudit(missingSignAudit(stop, 'log', nextCount));
         } else {
           setError('Could not log that missing sign. Try again.');
         }
@@ -196,7 +191,7 @@ export default function OperatorPickupPage() {
             missingSignsLastLatitude: nextFields.missingSignsLastLatitude ?? null,
             missingSignsLastLongitude: nextFields.missingSignsLastLongitude ?? null,
           });
-          void recordMissingSignChange(stop, 'undo', nextCount);
+          void recordStopAudit(missingSignAudit(stop, 'undo', nextCount));
         } else {
           setError('Could not update that missing sign. Try again.');
         }

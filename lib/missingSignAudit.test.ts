@@ -1,41 +1,21 @@
-const mockAuditLogCreate = jest.fn();
-
-jest.mock('@/lib/data-client', () => ({
-  getDataClient: () => ({ models: { AuditLog: { create: (...args: unknown[]) => mockAuditLogCreate(...args) } } }),
-}));
-jest.mock('@/lib/amplify-config', () => ({ fetchUserId: jest.fn().mockResolvedValue('operator-sub') }));
-
-import { auditMissingSign } from './missingSignAudit';
+import { missingSignAudit } from './missingSignAudit';
 
 const stop = { id: 'stop-1', routeId: 'route-1', customerId: 'cust-1', propertyKey: 'epping|2121|eastcote road|44' };
 
-describe('auditMissingSign (#468)', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockAuditLogCreate.mockResolvedValue({ errors: undefined });
-  });
-
+describe('missingSignAudit (#468)', () => {
   it.each([
-    ['log', 'stop.missing_sign.log', 2],
-    ['undo', 'stop.missing_sign.undo', 1],
-  ] as const)('records a %s with the new count', async (change, action, count) => {
-    await expect(auditMissingSign(stop, change, count)).resolves.toEqual({ ok: true });
-
-    expect(mockAuditLogCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        operatorId: 'operator-sub',
-        customerId: 'cust-1',
-        resourceType: 'stop',
-        resourceId: 'stop-1',
-        action,
-        details: JSON.stringify({ routeId: 'route-1', missingSignsCount: count, propertyKey: 'epping|2121|eastcote road|44' }),
-      })
-    );
+    ['log', 'stop.missingSign.log', 2],
+    ['undo', 'stop.missingSign.undo', 1],
+  ] as const)('describes a %s with the new count', (change, action, count) => {
+    expect(missingSignAudit(stop, change, count)).toEqual({
+      customerId: 'cust-1',
+      resourceId: 'stop-1',
+      action,
+      details: { routeId: 'route-1', missingSignsCount: count, propertyKey: 'epping|2121|eastcote road|44' },
+    });
   });
 
-  it('hands back a failed write rather than throwing', async () => {
-    mockAuditLogCreate.mockResolvedValue({ errors: [{ message: 'nope' }] });
-
-    await expect(auditMissingSign(stop, 'log', 1)).resolves.toEqual({ ok: false, errors: [{ message: 'nope' }] });
+  it('records a Stop with no Property key as null', () => {
+    expect(missingSignAudit({ ...stop, propertyKey: null }, 'log', 1).details).toMatchObject({ propertyKey: null });
   });
 });

@@ -454,6 +454,8 @@ describe('Operator Route Detail Page', () => {
       { id: 'stop-1', routeId: 'route-test-id-1234', sequence: 1, address: '100 First St', notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]', numberOfSigns: 4, missingSignsCount: 1 },
       { id: 'stop-2', routeId: 'route-test-id-1234', sequence: 2, address: '200 Second Ave', notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]', numberOfSigns: 5, missingSignsCount: 2 },
       { id: 'stop-3', routeId: 'route-test-id-1234', sequence: 3, address: '300 Third Rd', notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]', numberOfSigns: 3 },
+      // Couldn't Collect, yet one sign was already found missing there.
+      { id: 'stop-4', routeId: 'route-test-id-1234', sequence: 4, address: '400 Fourth St', notes: '[PICKUP_SKIPPED:2025-04-15T00:00:00.000Z:Gate locked]', numberOfSigns: 2, missingSignsCount: 1 },
     ];
 
     it('shows how many signs went missing at each Stop', async () => {
@@ -462,9 +464,10 @@ describe('Operator Route Detail Page', () => {
 
       render(<RouteDetailPage />);
 
-      expect(await screen.findByText('1 missing')).toBeInTheDocument();
-      expect(screen.getByText('2 missing')).toBeInTheDocument();
-      expect(screen.getAllByText(/^\d+ missing$/)).toHaveLength(2);
+      expect(await screen.findByText('2 missing')).toBeInTheDocument();
+      // 100 First St, and the Couldn't Collect Stop at 400 Fourth St.
+      expect(screen.getAllByText('1 missing')).toHaveLength(2);
+      expect(screen.getAllByText(/^\d+ missing$/)).toHaveLength(3);
     });
 
     it('totals them in the Route Summary', async () => {
@@ -474,7 +477,7 @@ describe('Operator Route Detail Page', () => {
       render(<RouteDetailPage />);
 
       const label = await screen.findByText('Signs Missing');
-      expect(label.parentElement).toHaveTextContent('Signs Missing3');
+      expect(label.parentElement).toHaveTextContent('Signs Missing4');
     });
   });
 });

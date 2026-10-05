@@ -474,7 +474,20 @@ describe('Customer route detail tracker', () => {
     expect(label.parentElement).toHaveTextContent('Signs missing2');
   });
 
+  it('shows no missing-signs total when none are missing (#468)', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: { ...route, status: 'completed' },
+      stops,
+    });
+
+    render(<RouteDetailContent params={{ id: 'route-1' }} />);
+
+    await screen.findByRole('heading', { name: /route w19-26-001/i });
+    expect(screen.queryByText('Signs missing')).not.toBeInTheDocument();
+  });
+
   it('shows no missing-signs total before pickup (#468)', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route, stops: [{ ...stops[0], missingSignsCount: 1 }, ...stops.slice(1)] });
     render(<RouteDetailContent params={{ id: 'route-1' }} />);
 
     await screen.findByRole('heading', { name: /route w19-26-001/i });

@@ -240,6 +240,22 @@ describe('RouteForm', () => {
     expect(screen.getByLabelText(/pickup date/i)).toHaveValue('2026-10-12');
   });
 
+  it("starts the pickup date on the customer's standing pickup day, and the user can still change it", () => {
+    const customers = [...mockCustomers, { id: 'cust-3', name: 'Initech', email: 'initech@example.com', standingPickupDay: 'saturday' as const }];
+    render(<RouteForm customers={customers} onSubmit={noop} onCancel={noop} />);
+
+    fireEvent.change(screen.getByLabelText(/placement date/i), { target: { value: '2026-10-08' } });
+    fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-3' } });
+    expect(screen.getByLabelText(/pickup date/i)).toHaveValue('2026-10-10');
+
+    fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+    expect(screen.getByLabelText(/pickup date/i)).toHaveValue('2026-10-09');
+
+    fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-3' } });
+    fireEvent.change(screen.getByLabelText(/pickup date/i), { target: { value: '2026-10-08' } });
+    expect(screen.getByLabelText(/pickup date/i)).toHaveValue('2026-10-08');
+  });
+
   it('refuses a pickup date before the placement date', async () => {
     const onSubmit = jest.fn().mockResolvedValue(undefined);
     render(<RouteForm customers={mockCustomers} initialRouteCode="W20-26-001" onSubmit={onSubmit} onCancel={noop} />);

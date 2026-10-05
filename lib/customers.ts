@@ -7,6 +7,7 @@
  * Every function returns its data or throws a DataError (lib/graphqlResult.ts);
  * a Customer that doesn't exist is null.
  */
+import type { StandingPickupDay } from '@/amplify/types';
 import { normalizeCustomerDefaults } from '@/lib/customerDefaults';
 import { getDataClient } from '@/lib/data-client';
 import { resultData, withDataError } from '@/lib/graphqlResult';
@@ -81,7 +82,7 @@ export async function updateCustomer(
     groupLineItemsByAgent: boolean;
     autoSendInvoiceOnPeriodClose: boolean;
     gstExclusive: boolean;
-    standingPickupDay: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+    standingPickupDay: StandingPickupDay | null;
     notifyOnLowSigns: boolean;
     sendMissingSignsReport: boolean;
     missingSignsReportEnabled: boolean;

@@ -21,6 +21,7 @@ import { parseScheduleText } from '@/lib/parseSchedule';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
 import { pickupDateProblem } from '@/lib/pickupDate';
 import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
+import type { StandingPickupDay } from '@/amplify/types';
 import { locateDraftStops } from '@/lib/stopLocation';
 import { displayNotes } from '@/lib/stopProgress';
 import styles from './page.module.css';
@@ -118,6 +119,7 @@ function NewRoutePageContent() {
     defaultNumberOfSigns?: number | null;
     defaultAgentInitials?: string | null;
     agentOptions?: string[] | null;
+    standingPickupDay?: StandingPickupDay | null;
   }>>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -143,7 +145,12 @@ function NewRoutePageContent() {
     pickupDate: importPickupDate,
     choosePickupDate: chooseImportPickupDate,
     noOperatorsWarning: importPickupWarning,
-  } = useNewRoutePickupDate(importScheduledDate, importCustomerId, checkRouteDateBlocked);
+  } = useNewRoutePickupDate(
+    importScheduledDate,
+    importCustomerId,
+    customers.find((customer) => customer.id === importCustomerId)?.standingPickupDay,
+    checkRouteDateBlocked
+  );
   const [importNotes, setImportNotes] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importText, setImportText] = useState('');
@@ -235,6 +242,7 @@ function NewRoutePageContent() {
             defaultNumberOfSigns: c.defaultNumberOfSigns ?? null,
             defaultAgentInitials: c.defaultAgentInitials ?? null,
             agentOptions: c.agentOptions ?? null,
+            standingPickupDay: c.standingPickupDay ?? null,
           }))
         );
         // Pre-select first customer for import tab

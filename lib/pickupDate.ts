@@ -1,12 +1,22 @@
+import type { StandingPickupDay } from '@/amplify/types';
+
 /**
  * Pickup Date (CONTEXT.md): the day a Route's signs are planned to come down,
  * usually the day after its Placement Date. Dates are YYYY-MM-DD.
  */
 
-/** The Pickup Date a new Route starts with: the day after its Placement Date. */
-export function defaultPickupDate(placementDate: string): string {
+const WEEKDAYS: StandingPickupDay[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+/** The Pickup Date a new Route starts with: the first day on the Customer's
+ *  Standing Pickup Day strictly after its Placement Date, or the day after
+ *  the Placement Date when the Customer has none. */
+export function defaultPickupDate(placementDate: string, standingPickupDay?: StandingPickupDay | null): string {
   const next = new Date(`${placementDate}T00:00:00Z`);
-  next.setUTCDate(next.getUTCDate() + 1);
+  // The field is a plain string in the schema, so anything else counts as no day.
+  const weekday = standingPickupDay ? WEEKDAYS.indexOf(standingPickupDay) : -1;
+  // 1 to 7 days ahead: never the Placement Date itself, so the same weekday is a week later.
+  const days = weekday === -1 ? 1 : ((weekday - next.getUTCDay() + 6) % 7) + 1;
+  next.setUTCDate(next.getUTCDate() + days);
   return next.toISOString().slice(0, 10);
 }
 

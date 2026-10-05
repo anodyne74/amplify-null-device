@@ -73,6 +73,42 @@ describe('Customer Standing Orders page', () => {
     await waitFor(() => expect(updateCustomer).toHaveBeenCalledWith('cust-1', expect.objectContaining({ sendMissingSignsReport: false })));
   });
 
+  it('shows "No preference" for a Customer who never chose a day, and saving leaves it unset', async () => {
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', standingInstructions: 'Call before arrival', standingPickupDay: null });
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
+
+    render(<CustomerStandingOrdersPage />);
+    await screen.findByDisplayValue('Call before arrival');
+
+    expect(screen.getByLabelText('Standing sign collection day')).toHaveDisplayValue('No preference');
+    fireEvent.click(screen.getByRole('button', { name: /save preferences/i }));
+
+    await waitFor(() => expect(updateCustomer).toHaveBeenCalled());
+    expect((updateCustomer as jest.Mock).mock.calls[0][1].standingPickupDay).toBeUndefined();
+  });
+
+  it('clears a stored day when "No preference" is chosen', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
+
+    render(<CustomerStandingOrdersPage />);
+    await screen.findByDisplayValue('Call before arrival');
+
+    fireEvent.change(screen.getByLabelText('Standing sign collection day'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: /save preferences/i }));
+
+    await waitFor(() =>
+      expect(updateCustomer).toHaveBeenCalledWith('cust-1', expect.objectContaining({ standingPickupDay: null }))
+    );
+  });
+
+  it('says what the collection day does, in terms of signs and collection', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
+
+    render(<CustomerStandingOrdersPage />);
+
+    expect(await screen.findByText("We'll plan sign collection for the next one after your signs go up.")).toBeInTheDocument();
+  });
+
   it('validates non-negative default signs before save', async () => {
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
 
@@ -117,6 +153,17 @@ describe('Customer Standing Orders page', () => {
 
     expect(await screen.findByText('Sign collection day')).toBeInTheDocument();
     expect(screen.queryByText(/pickup/i)).not.toBeInTheDocument();
+  });
+
+  it('shows "No preference" as the read-only day when none was chosen', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'read_only', customerId: 'cust-1' });
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', standingPickupDay: null });
+
+    render(<CustomerStandingOrdersPage />);
+
+    await screen.findByText('Sign collection day');
+    expect(screen.getByText('No preference')).toBeInTheDocument();
+    expect(screen.queryByText('Saturday')).not.toBeInTheDocument();
   });
 
   it('shows each agent as a coloured initials badge, with only the default starred', async () => {

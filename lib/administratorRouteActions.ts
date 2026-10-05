@@ -10,6 +10,7 @@
  */
 import { fetchUserId } from '@/lib/amplify-config';
 import { recordAudit } from '@/lib/auditLog';
+import { requestMissingSignsReport } from '@/lib/requestMissingSignsReport';
 import {
   billedTime,
   billedTimePatch,
@@ -183,7 +184,8 @@ export async function restoreStopAsAdministrator(
 
 /**
  * An administrator finalises a Route that's waiting on Finalise (#408). It
- * writes what the operator's Finalise writes, from the same plan.
+ * writes what the operator's Finalise writes, from the same plan, and then
+ * asks for the Route's Missing Signs Report, as the operator's outbox does.
  */
 export async function finaliseRouteAsAdministrator(
   route: SignRunTransitionRoute & Pick<Route, 'customerId'>,
@@ -192,7 +194,7 @@ export async function finaliseRouteAsAdministrator(
   const plan = planSignRunTransition(route, { type: 'finalise', ...input });
   if ('refused' in plan) return refused(plan.refused);
 
-  return saveAudited(
+  const result = await saveAudited(
     () => updateRoute(route.id, plan.patch),
     {
       resourceType: 'route',
@@ -206,6 +208,9 @@ export async function finaliseRouteAsAdministrator(
       unaudited: 'The route was finalised, but its audit entry could not be written.',
     }
   );
+  // Once Finalise has saved, its Missing Signs Report may be due (#468). Never awaited for its outcome.
+  if (result.ok || result.saved) void requestMissingSignsReport(route.id);
+  return result;
 }
 
 /** A Route with phases is corrected phase by phase; a total-only Route by its total. */

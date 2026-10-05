@@ -84,6 +84,7 @@ export async function updateCustomer(
     standingPickupDay: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
     notifyOnLowSigns: boolean;
     sendMissingSignsReport: boolean;
+    missingSignsReportEnabled: boolean;
     billingCcEmails: string[];
     attachAgentBreakdown: boolean;
     sendPaymentReminder: boolean;

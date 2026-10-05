@@ -20,6 +20,10 @@ jest.mock('./amplify-config', () => ({
 // The outbox isn't used here; keep its localStorage and auth out of the way.
 jest.mock('aws-amplify/auth', () => ({ fetchAuthSession: jest.fn().mockResolvedValue({}) }));
 jest.mock('./apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
+const mockRequestMissingSignsReport = jest.fn().mockResolvedValue(undefined);
+jest.mock('./requestMissingSignsReport', () => ({
+  requestMissingSignsReport: (...args: unknown[]) => mockRequestMissingSignsReport(...args),
+}));
 
 import {
   changePickupDate,
@@ -82,6 +86,29 @@ describe('finaliseRouteAsAdministrator', () => {
         details: JSON.stringify({ billedMinutes: BILLED, distanceKm: 37.5 }),
       })
     );
+  });
+
+  it('asks for the Missing Signs Report once Finalise has saved (#468)', async () => {
+    await finaliseRouteAsAdministrator(readyRoute(), { billedMinutes: BILLED, distanceKm: 37.5 });
+
+    expect(mockRequestMissingSignsReport).toHaveBeenCalledWith('route-1');
+  });
+
+  it('asks for it even when only the audit entry failed, as Finalise saved (#468)', async () => {
+    mockAuditLogCreate.mockResolvedValueOnce({ errors: [{ message: 'nope' }] });
+
+    const result = await finaliseRouteAsAdministrator(readyRoute(), { billedMinutes: BILLED, distanceKm: 37.5 });
+
+    expect(result).toMatchObject({ ok: false, saved: true });
+    expect(mockRequestMissingSignsReport).toHaveBeenCalledWith('route-1');
+  });
+
+  it("doesn't ask for it when Finalise didn't save (#468)", async () => {
+    mockRouteUpdate.mockResolvedValueOnce({ data: null, errors: [{ message: 'nope' }] });
+
+    await finaliseRouteAsAdministrator(readyRoute(), { billedMinutes: BILLED, distanceKm: 37.5 });
+
+    expect(mockRequestMissingSignsReport).not.toHaveBeenCalled();
   });
 
   it('leaves customerId out of the audit entry when the Route has none', async () => {

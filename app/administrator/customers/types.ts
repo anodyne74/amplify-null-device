@@ -17,6 +17,7 @@ export type Customer = {
   defaultAgentInitials?: string | null;
   agentOptions?: string[] | null;
   restrictInvitesToOwnDomain?: boolean | null;
+  missingSignsReportEnabled?: boolean | null;
   driverSplitPercent?: number | null;
   billingCycle?: 'weekly' | 'fortnightly' | 'monthly' | null;
 };

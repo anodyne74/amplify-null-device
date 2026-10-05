@@ -165,12 +165,15 @@ export default function CustomerStandingOrdersPage() {
                   </Field>
                 </div>
 
-                <Switch
-                  checked={sendMissingSignsReport}
-                  onChange={(e) => setSendMissingSignsReport(e.target.checked)}
-                  label="Send a list of missing signs after every sign collection"
-                  disabled={saving}
-                />
+                {/* Only once Null Device has switched Missing Signs Reports on for this Customer (#468). */}
+                {customer?.missingSignsReportEnabled && (
+                  <Switch
+                    checked={sendMissingSignsReport}
+                    onChange={(e) => setSendMissingSignsReport(e.target.checked)}
+                    label="Send a list of missing signs after every sign collection"
+                    disabled={saving}
+                  />
+                )}
 
                 <div className={styles.actions}>
                   <Button type="button" loading={saving} disabled={saving} onClick={() => void handleSave()}>

@@ -169,6 +169,41 @@ describe('createSignRunOutbox', () => {
     expect(outbox.getSnapshot().entries).toHaveLength(0);
   });
 
+  it('tells afterSaved about each write once it has saved, and only then (#468)', async () => {
+    const afterSaved = jest.fn();
+    const { outbox, routes } = setup({ afterSaved });
+    outbox.enqueue({ ...routeWrite('r1', { status: 'completed' }), kind: 'finalise' });
+    await flush();
+    expect(afterSaved).not.toHaveBeenCalled();
+
+    routes.calls[0].answer.resolve(rejected());
+    await flush();
+    expect(afterSaved).not.toHaveBeenCalled();
+
+    outbox.resend('r1');
+    await flush();
+    routes.calls[1].answer.resolve(saved());
+    await flush();
+    expect(afterSaved).toHaveBeenCalledTimes(1);
+    expect(afterSaved).toHaveBeenCalledWith(expect.objectContaining({ routeId: 'r1', kind: 'finalise' }));
+  });
+
+  it('carries on sending when afterSaved throws (#468)', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { outbox, routes } = setup({
+      afterSaved: () => {
+        throw new Error('boom');
+      },
+    });
+    outbox.enqueue(routeWrite('r1', { placementStartTime: 'T1' }));
+    outbox.enqueue(routeWrite('r1', { placementEndTime: 'T2' }));
+    await flush();
+    routes.calls[0].answer.resolve(saved());
+    await flush();
+
+    expect(routes.calls.map((call) => call.patch)).toEqual([{ placementStartTime: 'T1' }, { placementEndTime: 'T2' }]);
+  });
+
   it("doesn't hold one Route's writes behind another's", async () => {
     const { outbox, routes } = setup();
 

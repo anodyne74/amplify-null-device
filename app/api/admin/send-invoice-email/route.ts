@@ -5,7 +5,7 @@ import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
 import { APP_DOMAIN } from '@/lib/publicAppConfig';
 import { buildInvoiceFileName } from '@/lib/invoiceFileName';
-import { listAll } from '@/lib/listAll';
+import { invoiceRecipientEmail } from '@/lib/server/invoiceRecipient';
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
 function sanitizeNamePart(value: string, fallback: string) {
@@ -120,17 +120,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
-    // Resolve recipient email: use provided, or find primary contact, or fallback to customer email
-    let toEmail = recipientEmail;
-    if (!toEmail) {
-      // Try to find primary contact (account_owner role)
-      const usersResult = await listAll(client, 'CustomerUser', {
-        filter: { customerId: { eq: invoice.customerId } },
-      });
-      const customerUsers = (usersResult.data as Array<{ role?: string | null; email?: string | null }> | undefined) || [];
-      const owner = customerUsers.find((row) => row.role === 'account_owner' && row.email);
-      toEmail = owner?.email || customer.email;
-    }
+    // Resolve recipient email: use provided, else the Customer's invoice recipient.
+    const toEmail = recipientEmail || (await invoiceRecipientEmail(client, { id: invoice.customerId, email: customer.email }));
 
     if (!toEmail) {
       return NextResponse.json({ error: 'No recipient email available' }, { status: 400 });

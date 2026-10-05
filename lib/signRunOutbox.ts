@@ -27,6 +27,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { createLoadStop, updateRoute, updateStopExecution } from '@/lib/routes';
 import { callApi } from '@/lib/apiClient';
+import { requestMissingSignsReport } from '@/lib/requestMissingSignsReport';
 import { fetchUserId } from '@/lib/amplify-config';
 import { recordAudit } from '@/lib/auditLog';
 import { getDataClient } from '@/lib/data-client';
@@ -90,6 +91,9 @@ export interface OutboxDeps {
   refreshSession: () => Promise<void>;
   /** Sends a timing record. Never delays a write; only sign-out waits on it. */
   report: (record: SignRunTimingRecord) => Promise<unknown>;
+  /** Told about each write once it has saved (e.g. Finalise asks for the Missing
+   *  Signs Report). Never delays the queue; a throw is only logged. */
+  afterSaved?: (entry: OutboxEntry) => void;
   now: () => number;
 }
 
@@ -302,6 +306,11 @@ export function createSignRunOutbox(deps: OutboxDeps) {
           commit({ entries: snapshot.entries.filter((entry) => entry.id !== head.id), saved });
           void reportEntry(attempted, 'saved', outcome.authCheckMs, outcome.mutationMs);
           if (head.audit) void auditEntry(head.audit);
+          try {
+            deps.afterSaved?.(attempted);
+          } catch (error) {
+            console.error(`After saving ${attempted.kind}:`, error);
+          }
           continue;
         }
 
@@ -534,6 +543,9 @@ export const signRunOutbox = createSignRunOutbox({
   checkAuth: () => fetchAuthSession(),
   refreshSession: refreshSessionIfStale,
   report: reportTiming,
+  afterSaved: (entry) => {
+    if (entry.kind === 'finalise') void requestMissingSignsReport(entry.routeId);
+  },
   now: () => Date.now(),
 });
 

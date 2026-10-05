@@ -87,7 +87,17 @@ const schema = a.schema({
       autoSendInvoiceOnPeriodClose: a.boolean(),
       gstExclusive: a.boolean(), // Rates are ex GST — 10% is added at invoice time (see Invoice.gstAmount)
       // Standing orders — the customer's own default placement preferences (account_owner-editable)
-      standingPickupDay: a.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+      // Standing Pickup Day (CONTEXT.md): a lowercase weekday (StandingPickupDay), or
+      // unset. A string, not an enum, because enums can't carry field rules: clearing it
+      // ("No preference") sets it to null, which needs delete, so the account owner gets
+      // delete on this field only. Deleting the Customer still needs delete on every
+      // field. Read rules match the model's so subscriptions don't redact it.
+      standingPickupDay: a.string().authorization((allow) => [
+        allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read', 'update', 'delete']),
+        allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
+        allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+        allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
+      ]),
       notifyOnLowSigns: a.boolean(),
       sendMissingSignsReport: a.boolean(),
       // Missing Signs Report (CONTEXT.md): off until an administrator switches it on;

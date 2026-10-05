@@ -24,6 +24,10 @@ _Avoid_: Scheduled date, run date
 The day a Route's signs are planned to come down, usually the day after the Placement Date (placed Friday, picked up Saturday evening after open-home viewings). One per Route, a date only, set by staff from what the Customer asked for; Customers see it but never change it. It is the plan, not when Pickup actually started or finished.
 _Avoid_: Pickup due, scheduled pickup
 
+**Standing Pickup Day**:
+The weekday a Customer usually wants their signs picked up, set by the Customer. A new Route's Pickup Date starts on the first such day after its Placement Date (never the same day), and staff can change it; a Customer without one gets the day after placement. Changing it never moves the Pickup Date of a Route that already exists. Customer copy calls it the "sign collection day".
+_Avoid_: Default pickup date, preferred pickup
+
 **Route Request**:
 A Customer's email asking for one Route to be created and scheduled, usually with its Schedule attached. Each Route has at most one, and every Route Request is for exactly one Route. It is kept as received, with who sent it and when, as part of the Route's audit trail. Requests that don't arrive by email (e.g. by phone) are recorded by hand, and are marked as such.
 _Avoid_: Booking, order, job request

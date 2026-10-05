@@ -50,7 +50,8 @@ export default function CustomerStandingOrdersPage() {
 
   const [standingInstructions, setStandingInstructions] = useState('');
   const [defaultNumberOfSigns, setDefaultNumberOfSigns] = useState('');
-  const [standingPickupDay, setStandingPickupDay] = useState<StandingPickupDay>('saturday');
+  // '' is "No preference": no Standing Pickup Day stored.
+  const [standingPickupDay, setStandingPickupDay] = useState<StandingPickupDay | ''>('');
   const [sendMissingSignsReport, setSendMissingSignsReport] = useState(true);
 
   const [saving, setSaving] = useState(false);
@@ -63,7 +64,7 @@ export default function CustomerStandingOrdersPage() {
     setDefaultNumberOfSigns(
       typeof customer.defaultNumberOfSigns === 'number' ? String(customer.defaultNumberOfSigns) : ''
     );
-    setStandingPickupDay((customer.standingPickupDay as StandingPickupDay | null) ?? 'saturday');
+    setStandingPickupDay((customer.standingPickupDay as StandingPickupDay | null) ?? '');
     setSendMissingSignsReport(customer.sendMissingSignsReport ?? true);
   }, [customer]);
 
@@ -87,7 +88,8 @@ export default function CustomerStandingOrdersPage() {
       await updateCustomer(customerId, {
         standingInstructions,
         defaultNumberOfSigns: parsedSigns,
-        standingPickupDay,
+        // Null clears a stored day; a day that was never set isn't sent at all.
+        standingPickupDay: standingPickupDay || (customer?.standingPickupDay ? null : undefined),
         sendMissingSignsReport,
       });
     } catch {
@@ -149,13 +151,18 @@ export default function CustomerStandingOrdersPage() {
                       disabled={saving}
                     />
                   </Field>
-                  <Field label="Standing sign collection day" htmlFor="orders-collection-day">
+                  <Field
+                    label="Standing sign collection day"
+                    htmlFor="orders-collection-day"
+                    hint="We'll plan sign collection for the next one after your signs go up."
+                  >
                     <Select
                       id="orders-collection-day"
                       value={standingPickupDay}
-                      onChange={(e) => setStandingPickupDay(e.target.value as StandingPickupDay)}
+                      onChange={(e) => setStandingPickupDay(e.target.value as StandingPickupDay | '')}
                       disabled={saving}
                     >
+                      <option value="">No preference</option>
                       {COLLECTION_DAYS.map((day) => (
                         <option key={day.value} value={day.value}>
                           {day.label}
@@ -195,7 +202,7 @@ export default function CustomerStandingOrdersPage() {
                   <div>
                     <div className={styles.statLabel}>Sign collection day</div>
                     <div className={styles.statValue}>
-                      {COLLECTION_DAYS.find((day) => day.value === standingPickupDay)?.label ?? '—'}
+                      {COLLECTION_DAYS.find((day) => day.value === standingPickupDay)?.label ?? 'No preference'}
                     </div>
                   </div>
                   <div>

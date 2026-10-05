@@ -14,7 +14,7 @@ import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
-import type { Stop } from '@/amplify/types';
+import type { StandingPickupDay, Stop } from '@/amplify/types';
 import type { RouteDateBlockResult } from '@/lib/routeScheduleGuard';
 import { pickupDateProblem } from '@/lib/pickupDate';
 import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
@@ -55,6 +55,7 @@ interface RouteFormCustomer {
   defaultNumberOfSigns?: number | null;
   defaultAgentInitials?: string | null;
   agentOptions?: string[] | null;
+  standingPickupDay?: StandingPickupDay | null;
 }
 
 interface RouteFormProps {
@@ -104,7 +105,12 @@ export function RouteForm({
     pickupDate,
     choosePickupDate,
     noOperatorsWarning: pickupNoOperatorsWarning,
-  } = useNewRoutePickupDate(scheduledDate, customerId, onCheckDateBlock);
+  } = useNewRoutePickupDate(
+    scheduledDate,
+    customerId,
+    customers.find((customer) => customer.id === customerId)?.standingPickupDay,
+    onCheckDateBlock
+  );
   const [blockCheck, setBlockCheck] = useState<{ status: 'idle' | 'checking' | 'ok' | 'blocked' } & RouteDateBlockResult>({
     status: 'idle',
     blocked: false,

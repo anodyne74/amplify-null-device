@@ -448,4 +448,33 @@ describe('Operator Route Detail Page', () => {
       expect(screen.queryByRole('region', { name: 'Customer feedback' })).not.toBeInTheDocument();
     });
   });
+
+  describe('Missing Signs (#468)', () => {
+    const stopsWithMissing: Stop[] = [
+      { id: 'stop-1', routeId: 'route-test-id-1234', sequence: 1, address: '100 First St', notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]', numberOfSigns: 4, missingSignsCount: 1 },
+      { id: 'stop-2', routeId: 'route-test-id-1234', sequence: 2, address: '200 Second Ave', notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]', numberOfSigns: 5, missingSignsCount: 2 },
+      { id: 'stop-3', routeId: 'route-test-id-1234', sequence: 3, address: '300 Third Rd', notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]', numberOfSigns: 3 },
+    ];
+
+    it('shows how many signs went missing at each Stop', async () => {
+      mockFetched.route = mockLegacyCompletedRoute;
+      mockFetched.stops = stopsWithMissing;
+
+      render(<RouteDetailPage />);
+
+      expect(await screen.findByText('1 missing')).toBeInTheDocument();
+      expect(screen.getByText('2 missing')).toBeInTheDocument();
+      expect(screen.getAllByText(/^\d+ missing$/)).toHaveLength(2);
+    });
+
+    it('totals them in the Route Summary', async () => {
+      mockFetched.route = mockLegacyCompletedRoute;
+      mockFetched.stops = stopsWithMissing;
+
+      render(<RouteDetailPage />);
+
+      const label = await screen.findByText('Signs Missing');
+      expect(label.parentElement).toHaveTextContent('Signs Missing3');
+    });
+  });
 });

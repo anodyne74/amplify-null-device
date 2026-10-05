@@ -96,4 +96,15 @@ describe('StopListItem', () => {
 
     expect(withType.innerHTML).toBe(without.innerHTML);
   });
+
+  it('says how many of the Property\'s signs are missing (#468)', () => {
+    const { rerender } = render(<StopListItem stop={{ ...mockStop, missingSignsCount: 1 }} sequence={1} phase="pickup" />);
+    expect(screen.getByText('1 sign missing')).toBeInTheDocument();
+
+    rerender(<StopListItem stop={{ ...mockStop, missingSignsCount: 3 }} sequence={1} phase="pickup" />);
+    expect(screen.getByText('3 signs missing')).toBeInTheDocument();
+
+    rerender(<StopListItem stop={{ ...mockStop, missingSignsCount: 0 }} sequence={1} phase="pickup" />);
+    expect(screen.queryByText(/missing/)).not.toBeInTheDocument();
+  });
 });

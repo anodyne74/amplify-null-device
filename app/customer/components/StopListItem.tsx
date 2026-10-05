@@ -52,6 +52,8 @@ export default function StopListItem({ stop, sequence, phase }: StopListItemProp
   const operatorNotes = displayNotes(stop.notes);
 
   const status = getStopStatus(stop, phase);
+  // Missing Signs (CONTEXT.md): signs the Customer won't get back from this Property.
+  const missingCount = stop.missingSignsCount ?? 0;
 
   const progress = stopProgress(stop);
   const placementTime = progress.placement.state === 'done' ? progress.placement.at : null;
@@ -73,6 +75,12 @@ export default function StopListItem({ stop, sequence, phase }: StopListItemProp
         <Badge tone={status.tone} size="sm">
           {status.label}
         </Badge>
+
+        {missingCount > 0 && (
+          <Badge tone="danger" size="sm">
+            {missingCount} {missingCount === 1 ? 'sign' : 'signs'} missing
+          </Badge>
+        )}
 
         {placementTime && <p className={styles.departureTime}>Placed: {formatTime(placementTime)}</p>}
         {pickupTime && <p className={styles.departureTime}>Picked up: {formatTime(pickupTime)}</p>}

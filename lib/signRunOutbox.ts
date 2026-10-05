@@ -504,19 +504,24 @@ function reportTiming(record: SignRunTimingRecord) {
 
 /**
  * Writes the audit entry for an Operator's change to a Stop, after the change
- * has saved. The change stands either way, so a failed entry is only logged.
+ * has saved. The change stands either way, so a failed entry -- refused, or
+ * thrown (no session, no data client) -- is only logged; this never rejects.
  * Used by the outbox, and by writes that save straight away (Missing Signs).
  */
 export async function recordStopAudit(audit: OutboxAudit): Promise<void> {
-  const result = await recordAudit(getDataClient(), {
-    actor: await fetchUserId(),
-    customerId: audit.customerId,
-    eventType: 'data_modification',
-    resource: { type: 'stop', id: audit.resourceId },
-    action: audit.action,
-    details: audit.details,
-  });
-  if (!result.ok) console.error(`Writing the ${audit.action} audit entry failed:`, result.errors);
+  try {
+    const result = await recordAudit(getDataClient(), {
+      actor: await fetchUserId(),
+      customerId: audit.customerId,
+      eventType: 'data_modification',
+      resource: { type: 'stop', id: audit.resourceId },
+      action: audit.action,
+      details: audit.details,
+    });
+    if (!result.ok) console.error(`Writing the ${audit.action} audit entry failed:`, result.errors);
+  } catch (error) {
+    console.error(`Writing the ${audit.action} audit entry failed:`, error);
+  }
 }
 
 /** The device's outbox. The operator portal scopes it with setOwner. */

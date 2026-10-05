@@ -70,7 +70,22 @@ export function missingSignsReportRecipients({
 
 const signs = (count: number) => `${count} ${count === 1 ? 'sign' : 'signs'}`;
 
-/** The email itself: Properties and signs only, as the Customer sees them. */
+/** What the Missing Signs Report SES template (amplify/ses/missingSignsReportTemplate.ts) fills in. */
+export interface MissingSignsReportTemplateData {
+  customerName: string;
+  routeCode: string;
+  placedDate: string;
+  collectedDate: string;
+  properties: { address: string; missingLabel: string }[];
+  totalLabel: string;
+  logoUrl: string;
+  year: string;
+}
+
+/**
+ * The email itself: Properties and signs only, as the Customer sees them.
+ * Values are left as written -- the template escapes them.
+ */
 export function missingSignsReportEmail({
   routeCode,
   customerName,
@@ -78,6 +93,8 @@ export function missingSignsReportEmail({
   pickupDate,
   properties,
   total,
+  logoUrl,
+  year,
 }: {
   routeCode: string;
   customerName: string;
@@ -85,17 +102,20 @@ export function missingSignsReportEmail({
   pickupDate?: string | null;
   properties: MissingSignsProperty[];
   total: number;
-}): { subject: string; text: string } {
-  const lines = [
-    `Hello ${customerName},`,
-    '',
-    `When we collected the signs for Route ${routeCode}, some couldn't be found:`,
-    '',
-    ...properties.map((property) => `• ${property.address} — ${signs(property.missing)}`),
-    '',
-    `${signs(total)} missing in total.`,
-    '',
-    `Placed ${formatRouteDate(placementDate)}, collected ${formatRouteDate(pickupDate)}.`,
-  ];
-  return { subject: `Missing signs on Route ${routeCode}`, text: lines.join('\n') };
+  logoUrl: string;
+  year: string;
+}): { subject: string; templateData: MissingSignsReportTemplateData } {
+  return {
+    subject: `Missing signs on Route ${routeCode}`,
+    templateData: {
+      customerName,
+      routeCode,
+      placedDate: formatRouteDate(placementDate),
+      collectedDate: formatRouteDate(pickupDate),
+      properties: properties.map((property) => ({ address: property.address, missingLabel: signs(property.missing) })),
+      totalLabel: signs(total),
+      logoUrl,
+      year,
+    },
+  };
 }

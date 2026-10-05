@@ -32,7 +32,11 @@ jest.mock('@/lib/server/iamDataClient', () => ({
 
 jest.mock('@aws-sdk/client-ses', () => ({
   SESClient: jest.fn(() => ({ send: (...args: unknown[]) => sesSendMock(...args) })),
-  SendEmailCommand: jest.fn((input: unknown) => ({ input })),
+  SendTemplatedEmailCommand: jest.fn((input: unknown) => ({ input })),
+}));
+
+jest.mock('@/lib/amplifyOutputsCustom', () => ({
+  customOutputs: { sesMissingSignsReportTemplateName: 'NullDeviceMissingSignsReportTemplate-development' },
 }));
 
 import { POST } from '@/app/api/missing-signs-report/route';
@@ -89,7 +93,17 @@ describe('missing-signs-report API (#468)', () => {
     const sent = sesSendMock.mock.calls[0][0].input;
     expect(sent.Destination.ToAddresses).toEqual(['owner@agency.test', 'accounts@agency.test']);
     expect(sent.Destination.CcAddresses).toEqual([expect.stringMatching(/^admin@/)]);
-    expect(sent.Message.Subject.Data).toBe('Missing signs on Route W40-26-003');
+    expect(sent.Template).toBe('NullDeviceMissingSignsReportTemplate-development');
+    expect(JSON.parse(sent.TemplateData)).toEqual({
+      customerName: 'Harcourts Epping',
+      routeCode: 'W40-26-003',
+      placedDate: 'Oct 6, 2026',
+      collectedDate: 'Oct 10, 2026',
+      properties: [{ address: '44 Eastcote Road, North Epping', missingLabel: '1 sign' }],
+      totalLabel: '1 sign',
+      logoUrl: expect.stringMatching(/^https:\/\/.+\/logo\.svg$/),
+      year: String(new Date().getFullYear()),
+    });
     expect(routeUpdateMock).toHaveBeenCalledWith({ id: 'route-1', missingSignsReportSentAt: expect.any(String) });
     expect(audits()).toEqual([
       { action: 'route.missingSignsReport.send', status: 'success', details: { outcome: 'sent', recipients: 3 } },

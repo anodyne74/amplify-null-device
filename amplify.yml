@@ -7,6 +7,7 @@ backend:
         - npm run preflight:ampx
         - npx ampx pipeline-deploy --app-id "$AWS_APP_ID" --branch "$AWS_BRANCH"
         - node scripts/ensure-cognito-groups.js
+        - node scripts/ensure-ses-active-ruleset.js
 frontend:
   phases:
     preBuild:
@@ -17,6 +18,12 @@ frontend:
         - npm run validate:amplify-outputs
     build:
       commands:
+        # Amplify hands its environment variables to the build, not to the SSR
+        # runtime; writing one to .env.production is how it reaches API routes.
+        # SMS_TEST_NUMBERS: the mobiles a non-production branch may text
+        # (Notify Operator, ADR 0010). Kept out of amplify_outputs.json, which
+        # browsers download.
+        - '[ -z "$SMS_TEST_NUMBERS" ] || echo "SMS_TEST_NUMBERS=$SMS_TEST_NUMBERS" >> .env.production'
         # Build frontend (quality checks already passed in GitHub Actions)
         - npm run build
   artifacts:

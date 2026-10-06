@@ -2,84 +2,54 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import AdminHomePage from '../page';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
-import { listAllStops } from '@/lib/queries/ListAllStops';
-import { listInvoices, listCustomerUsers } from '@/lib/queries';
+import { listAllRoutes, listAllStops } from '@/lib/routes';
+import { listAllCustomers, listCustomerUsers } from '@/lib/customers';
+import { listInvoices } from '@/lib/invoices';
 
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-jest.mock('@/lib/queries/ListAllRoutes', () => ({
+jest.mock('@/lib/routes', () => ({
   listAllRoutes: jest.fn(),
-}));
-
-jest.mock('@/lib/queries/ListAllStops', () => ({
   listAllStops: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
-  listInvoices: jest.fn(),
+jest.mock('@/lib/customers', () => ({
+  listAllCustomers: jest.fn(),
   listCustomerUsers: jest.fn(),
 }));
 
-const mockCustomerList = jest.fn();
-
-jest.mock('aws-amplify/data', () => ({
-  generateClient: () => ({
-    models: {
-      Customer: {
-        list: mockCustomerList,
-      },
-    },
-  }),
+jest.mock('@/lib/invoices', () => ({
+  listInvoices: jest.fn(),
 }));
 
 describe('Administrator dashboard overview', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    (listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'route-1', customerId: 'customer-1', status: 'signs_placed', actualEndTime: new Date().toISOString() },
-        { id: 'route-2', customerId: 'customer-2', status: 'completed', actualEndTime: new Date().toISOString() },
-      ],
-      nextToken: undefined,
-      errors: undefined,
-    });
+    (listAllRoutes as jest.Mock).mockResolvedValue([
+      { id: 'route-1', customerId: 'customer-1', status: 'signs_placed', actualEndTime: new Date().toISOString() },
+      { id: 'route-2', customerId: 'customer-2', status: 'completed', actualEndTime: new Date().toISOString() },
+    ]);
 
-    (listAllStops as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'stop-1', routeId: 'route-1', numberOfSigns: 5 },
-        { id: 'stop-2', routeId: 'route-2', numberOfSigns: 2 },
-      ],
-      nextToken: undefined,
-      errors: undefined,
-    });
+    (listAllStops as jest.Mock).mockResolvedValue([
+      { id: 'stop-1', routeId: 'route-1', numberOfSigns: 5 },
+      { id: 'stop-2', routeId: 'route-2', numberOfSigns: 2 },
+    ]);
 
-    (listInvoices as jest.Mock).mockResolvedValue({
-      data: [
+    (listInvoices as jest.Mock).mockResolvedValue([
         { id: 'invoice-1', customerId: 'customer-1', totalAmount: 2000, invoiceDate: new Date().toISOString(), status: 'sent' },
         { id: 'invoice-2', customerId: 'customer-2', totalAmount: 500, invoiceDate: new Date().toISOString(), status: 'draft' },
-      ],
-      nextToken: undefined,
-      errors: undefined,
-    });
+      ]);
 
-    (listCustomerUsers as jest.Mock).mockResolvedValue({
-      data: [{ customerId: 'customer-1', role: 'account_owner' }],
-      errors: undefined,
-    });
+    (listCustomerUsers as jest.Mock).mockResolvedValue([{ customerId: 'customer-1', role: 'account_owner' }]);
 
-    mockCustomerList.mockResolvedValue({
-      data: [
-        { id: 'customer-1', name: 'Acme Corp' },
-        { id: 'customer-2', name: 'Beta Signs' },
-      ],
-      nextToken: undefined,
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'customer-1', name: 'Acme Corp' },
+      { id: 'customer-2', name: 'Beta Signs' },
+    ]);
   });
 
   it('renders overview stat tiles, charts, customer volume, and needs-attention derived from live data', async () => {
@@ -114,9 +84,9 @@ describe('Administrator dashboard overview', () => {
   });
 
   it('shows an empty state when there is no recent customer activity', async () => {
-    (listAllRoutes as jest.Mock).mockResolvedValue({ data: [], nextToken: undefined, errors: undefined });
-    (listAllStops as jest.Mock).mockResolvedValue({ data: [], nextToken: undefined, errors: undefined });
-    (listInvoices as jest.Mock).mockResolvedValue({ data: [], nextToken: undefined, errors: undefined });
+    (listAllRoutes as jest.Mock).mockResolvedValue([]);
+    (listAllStops as jest.Mock).mockResolvedValue([]);
+    (listInvoices as jest.Mock).mockResolvedValue([]);
 
     render(<AdminHomePage />);
 

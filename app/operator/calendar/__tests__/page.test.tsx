@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import OperatorCalendarPage from '../page';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
+import { listAllCustomers } from '@/lib/customers';
 
 jest.mock('@aws-amplify/ui-react', () => ({
   useAuthenticator: () => ({ user: { userId: 'operator-sub-1' } }),
@@ -13,7 +13,7 @@ jest.mock('@/app/components/OperatorRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/lib/queries/ListAllCustomers', () => ({
+jest.mock('@/lib/customers', () => ({
   listAllCustomers: jest.fn(),
 }));
 
@@ -26,10 +26,7 @@ jest.mock('@/app/components/ServiceCalendar', () => ({
 describe('Operator Calendar page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [{ id: 'cust-1', name: 'Harcourts Epping', viewerSubs: ['sub-a'] }],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'cust-1', name: 'Harcourts Epping', viewerSubs: ['sub-a'] }]);
   });
 
   it('loads customers and renders the calendar in staff role', async () => {

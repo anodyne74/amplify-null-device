@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
@@ -13,14 +13,30 @@ import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { Tabs } from '@/app/components/ui/navigation/Tabs';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
-import { RouteForm, type RouteDraftStop } from '@/app/operator/components/RouteForm';
+import { RouteForm, withDraftStopNote, type RouteDraftStop } from '@/app/operator/components/RouteForm';
+import { RequesterFields, RouteRequestView, localNow, recordTitle } from '@/app/administrator/components/RouteRequests';
+import { pickStopLocationFields } from '@/lib/locationPrecision';
 import { extractScheduleText } from '@/lib/extractScheduleText';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
-import { createRoute, createStop, getRouteWithStops } from '@/lib/queries';
 import { parseScheduleText } from '@/lib/parseSchedule';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
+import { pickupDateProblem } from '@/lib/pickupDate';
+import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
+import type { StandingPickupDay } from '@/amplify/types';
+import { locateDraftStops } from '@/lib/stopLocation';
+import { displayNotes } from '@/lib/stopProgress';
 import styles from './page.module.css';
+import { listAllRoutes, createRoute, createStopsForRoute, getRouteWithStops } from '@/lib/routes';
+import { activeStops } from '@/lib/loadChange';
+import { DataError } from '@/lib/graphqlResult';
+import { listAllCustomers } from '@/lib/customers';
+import {
+  attachNewRouteRequest,
+  fetchRouteRequestAttachment,
+  getRouteRequest,
+  requesterLabel,
+  scheduleAttachmentIndex,
+  type RouteRequestRecord,
+} from '@/lib/routeRequests';
 
 function todayDateKey() {
   const now = new Date();
@@ -41,13 +57,13 @@ function getExcelStyleWeekPrefix(date = new Date()) {
 
 async function generateNextRouteCode() {
   const prefix = getExcelStyleWeekPrefix();
-  const result = await listAllRoutes({ limit: 500 });
-  if (result.errors && result.errors.length > 0) {
+  const routes = await listAllRoutes().catch(() => null);
+  if (!routes) {
     return `${prefix}-001`;
   }
 
   const used = new Set<number>();
-  (result.data as Array<{ routeCode?: string | null }>).forEach((route) => {
+  (routes as Array<{ routeCode?: string | null }>).forEach((route) => {
     const code = route.routeCode;
     if (!code || !code.startsWith(`${prefix}-`)) return;
     const match = code.match(/-(\d{3})$/);
@@ -63,21 +79,13 @@ async function generateNextRouteCode() {
 function sanitizeCopiedStopNotes(notes?: string | null) {
   if (!notes) return undefined;
 
-  const cleaned = notes
-    .replace(/\[(PLACEMENT_DONE|PICKUP_DONE|PLACEMENT_SKIPPED|PICKUP_SKIPPED):[^\]]*\]/g, ' ')
+  // Stop Progress markers (lib/stopProgress.ts), and an older bare tag from before them.
+  const cleaned = displayNotes(notes)
     .replace(/\[SKIPPED\]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
   return cleaned || undefined;
-}
-
-function normalizeCopiedServiceType(serviceType?: string | null): 'delivery' | 'pickup' | 'inspection' {
-  const normalized = serviceType?.trim().toLowerCase();
-  if (normalized === 'pickup' || normalized === 'inspection') {
-    return normalized;
-  }
-  return 'delivery';
 }
 
 function normalizeOptionalNumber(value: unknown): number | undefined {
@@ -92,7 +100,16 @@ function normalizeOptionalNumber(value: unknown): number | undefined {
 }
 
 export default function NewRoutePage() {
+  return (
+    <Suspense fallback={<LoadingSpinner message="Loading..." />}>
+      <NewRoutePageContent />
+    </Suspense>
+  );
+}
+
+function NewRoutePageContent() {
   const router = useRouter();
+  const fromRecordId = useSearchParams().get('request');
   const [customers, setCustomers] = useState<Array<{
     id: string;
     name: string;
@@ -102,6 +119,7 @@ export default function NewRoutePage() {
     defaultNumberOfSigns?: number | null;
     defaultAgentInitials?: string | null;
     agentOptions?: string[] | null;
+    standingPickupDay?: StandingPickupDay | null;
   }>>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -123,6 +141,16 @@ export default function NewRoutePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importCustomerId, setImportCustomerId] = useState('');
   const [importScheduledDate, setImportScheduledDate] = useState(todayDateKey);
+  const {
+    pickupDate: importPickupDate,
+    choosePickupDate: chooseImportPickupDate,
+    noOperatorsWarning: importPickupWarning,
+  } = useNewRoutePickupDate(
+    importScheduledDate,
+    importCustomerId,
+    customers.find((customer) => customer.id === importCustomerId)?.standingPickupDay,
+    checkRouteDateBlocked
+  );
   const [importNotes, setImportNotes] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importText, setImportText] = useState('');
@@ -133,6 +161,20 @@ export default function NewRoutePage() {
   const [parseWarnings, setParseWarnings] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [locatingProgress, setLocatingProgress] = useState<{ located: number; total: number } | null>(null);
+  // Bumped whenever the drafts change, so a slow locate of an earlier parse is dropped.
+  const locateRunRef = useRef(0);
+
+  // The Route Request (#359): the inbox record this Route is created from, or
+  // one recorded by hand from the uploaded Schedule and an optional requester.
+  const [fromRecord, setFromRecord] = useState<RouteRequestRecord | null>(null);
+  const [fromRecordError, setFromRecordError] = useState<string | null>(null);
+  const [fromAttachment, setFromAttachment] = useState('');
+  const [requesterName, setRequesterName] = useState('');
+  const [requesterEmail, setRequesterEmail] = useState('');
+  const [requestedAt, setRequestedAt] = useState(localNow);
+  const [requestNote, setRequestNote] = useState('');
+  const needsRequester = Boolean(fromRecord?.loggedByStaff);
 
   const importCopySourcesForCustomer = copyStopSources
     .filter((route) => route.customerId === importCustomerId)
@@ -159,12 +201,39 @@ export default function NewRoutePage() {
   }, [routeCodeInitialized]);
 
   useEffect(() => {
+    if (!fromRecordId) return;
+    let cancelled = false;
+    void getRouteRequest(fromRecordId).then((record) => {
+      if (cancelled) return;
+      if (!record || record.status !== 'unlinked') {
+        setFromRecordError('That email is no longer in the Request inbox, so this Route won\u2019t be linked to it.');
+        return;
+      }
+      setFromRecord(record);
+      const index = scheduleAttachmentIndex(record.attachments);
+      if (index !== null) void loadRecordAttachment(record, index);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // loadRecordAttachment only sets state; it's run once per record.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromRecordId]);
+
+  // The suggested Customer, once both it and the Customers have loaded.
+  useEffect(() => {
+    const suggested = fromRecord?.suggestedCustomerId;
+    if (!suggested || !customers.some((customer) => customer.id === suggested)) return;
+    setImportCustomerId(suggested);
+  }, [fromRecord, customers]);
+
+  useEffect(() => {
     async function fetchCustomers() {
       setLoadingCustomers(true);
-      const result = await listAllCustomers({ limit: 100 });
-      if (!result.errors || result.errors.length === 0) {
+      const result = await listAllCustomers().catch(() => null);
+      if (result) {
         setCustomers(
-          (result.data as any[]).map((c) => ({
+          (result as any[]).map((c) => ({
             id: c.id,
             name: c.name,
             email: c.email,
@@ -173,11 +242,12 @@ export default function NewRoutePage() {
             defaultNumberOfSigns: c.defaultNumberOfSigns ?? null,
             defaultAgentInitials: c.defaultAgentInitials ?? null,
             agentOptions: c.agentOptions ?? null,
+            standingPickupDay: c.standingPickupDay ?? null,
           }))
         );
         // Pre-select first customer for import tab
-        if ((result.data as any[]).length > 0) {
-          setImportCustomerId((result.data as any[])[0].id);
+        if (result.length > 0) {
+          setImportCustomerId(result[0].id);
         }
       }
       setLoadingCustomers(false);
@@ -189,13 +259,10 @@ export default function NewRoutePage() {
     let cancelled = false;
 
     async function fetchRoutesForCopy() {
-      const result = await listAllRoutes({ limit: 500 });
-      if (cancelled) return;
-      if (result.errors && result.errors.length > 0) {
-        return;
-      }
+      const routes = await listAllRoutes().catch(() => null);
+      if (cancelled || !routes) return;
 
-      const mapped = (result.data as Array<{
+      const mapped = (routes as Array<{
         id: string;
         customerId: string;
         routeCode?: string | null;
@@ -227,70 +294,45 @@ export default function NewRoutePage() {
     routeCode: string;
     customerId: string;
     scheduledDate: string;
+    pickupDate: string;
     notes: string;
     stops: RouteDraftStop[];
   }) => {
+    const requestProblem = routeRequestProblem();
+    if (requestProblem) { setSubmitError(requestProblem); return; }
     setIsSubmitting(true);
     setSubmitError(null);
     try {
-      const result = await createRoute({
+      const route = await createRoute({
         routeCode: values.routeCode.trim(),
         customerId: values.customerId,
         scheduledDate: values.scheduledDate,
+        pickupDate: values.pickupDate,
         status: 'planned',
         notes: values.notes || undefined,
       });
 
-      if (result.errors && result.errors.length > 0) {
-        const msg = (result.errors as Array<{ message?: string }>)
-          .map((e) => e.message ?? String(e))
-          .join('; ');
-        setSubmitError(`Failed to create route: ${msg}`);
+      const stopResults = await createStopsForRoute(route.id, values.customerId, values.stops);
+      const failedStops = stopResults
+        .filter((stopResult) => !stopResult.success)
+        .map((stopResult) => `#${stopResult.index + 1} (${stopResult.address || 'Unknown address'}): ${stopResult.errorMessage}`);
+
+      if (failedStops.length > 0) {
+        setSubmitError(`Route was created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}`);
         setIsSubmitting(false);
         return;
       }
 
-      if (result.data?.id) {
-        const failedStops: string[] = [];
-        for (let index = 0; index < values.stops.length; index += 1) {
-          const stop = values.stops[index];
-          const stopResult = await createStop({
-            routeId: result.data.id,
-            customerId: values.customerId,
-            sequence: index + 1,
-            address: stop.address,
-            serviceType: stop.serviceType,
-            numberOfSigns: stop.numberOfSigns,
-            agent: stop.agent,
-            isAuction: stop.isAuction,
-            latitude: stop.latitude,
-            longitude: stop.longitude,
-            formattedAddress: stop.formattedAddress,
-            notes: stop.notes,
-          });
-
-          if (stopResult.errors && stopResult.errors.length > 0) {
-                const stopErrorMessage = (stopResult.errors as Array<{ message?: string }>)
-              .map((entry) => entry.message ?? String(entry))
-              .join('; ');
-                const failure = `#${index + 1} (${stop.address || 'Unknown address'}): ${stopErrorMessage || 'Unknown stop creation error'}`;
-            failedStops.push(failure);
-          }
-        }
-
-        if (failedStops.length > 0) {
-          setSubmitError(`Route was created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}`);
-              setIsSubmitting(false);
-              return;
-            }
-
-        router.push(`/administrator/routes/detail?id=${result.data.id}`);
-      } else {
-        setSubmitError('Route created but ID not returned.');
+      const attached = await attachRouteRequest(route.id, values.customerId, null);
+      if (!attached.ok) {
+        setSubmitError(`Route was created, but not linked to its Route Request: ${attached.error} Link it from the Route's Requests.`);
         setIsSubmitting(false);
+        return;
       }
-    } catch {
-      setSubmitError('An unexpected error occurred.');
+
+      router.push(`/administrator/routes/detail?id=${route.id}`);
+    } catch (err) {
+      setSubmitError(err instanceof DataError ? err.message : 'An unexpected error occurred.');
       setIsSubmitting(false);
     }
   };
@@ -300,22 +342,22 @@ export default function NewRoutePage() {
   };
 
   const handleCopyStopsFromRoute = async (sourceRouteId: string): Promise<RouteDraftStop[]> => {
-    const { stops, errors } = await getRouteWithStops(sourceRouteId);
-    if (errors && errors.length > 0) {
+    const stops = (await getRouteWithStops(sourceRouteId).catch(() => {
       throw new Error('Failed to load source route stops.');
-    }
+    }))?.stops ?? [];
 
-    return stops.map((stop) => {
-      const rawServiceType = stop.serviceType?.toString().trim().toLowerCase();
+    // A Stop a Load Change removed isn't copied.
+    return activeStops(stops).map((stop) => {
       const normalizedLatitude = normalizeOptionalNumber(stop.latitude);
       const normalizedLongitude = normalizeOptionalNumber(stop.longitude);
       const normalizedSigns = normalizeOptionalNumber(stop.numberOfSigns);
       return {
+        // The source Stop's precision and address components travel with its pin.
+        ...pickStopLocationFields(stop),
         address: stop.address?.trim() || stop.formattedAddress?.trim() || 'Unknown address',
-        serviceType: normalizeCopiedServiceType(stop.serviceType),
         numberOfSigns: normalizedSigns,
         agent: stop.agent ?? undefined,
-        isAuction: stop.isAuction ?? (rawServiceType === 'auction' ? true : undefined),
+        isAuction: stop.isAuction ?? undefined,
         notes: sanitizeCopiedStopNotes(stop.notes),
         latitude: normalizedLatitude,
         longitude: normalizedLongitude,
@@ -325,6 +367,8 @@ export default function NewRoutePage() {
   };
 
   const handleImportCustomerChange = (customerId: string) => {
+    locateRunRef.current += 1;
+    setLocatingProgress(null);
     setImportCustomerId(customerId);
     setImportCopySourceRouteId('');
     setImportDraftStops(null);
@@ -336,7 +380,11 @@ export default function NewRoutePage() {
   // ── Import tab handlers ───────────────────────────────────────────────────
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
+    setFromAttachment('');
+    loadImportFile(e.target.files?.[0] ?? null);
+  };
+
+  const loadImportFile = (file: File | null) => {
     setImportFile(file);
     setImportText('');
     setParseWarnings([]);
@@ -353,7 +401,39 @@ export default function NewRoutePage() {
     }
   };
 
-  const handleParse = () => {
+  const loadRecordAttachment = async (record: RouteRequestRecord, index: number) => {
+    const attachment = record.attachments?.[index];
+    if (!attachment) return;
+    setFromAttachment(String(index));
+    try {
+      loadImportFile(await fetchRouteRequestAttachment(record.id, index, attachment.filename, attachment.contentType));
+    } catch (error) {
+      console.error('Failed to load the email attachment:', error);
+      setImportError(`Could not load ${attachment.filename} from the email.`);
+    }
+  };
+
+  const routeRequestProblem = () => {
+    if (needsRequester && !requesterName.trim()) return 'Enter the name of the person who asked for this Route, under Route Request.';
+    if (!fromRecord && !requestedAt) return 'Enter when the Route was requested, under Route Request.';
+    return null;
+  };
+
+  // Links the email, or records the upload, as the new Route's Route Request.
+  const attachRouteRequest = async (routeId: string, customerId: string, file: File | null) => {
+    const name = requesterName.trim();
+    return attachNewRouteRequest({
+      routeId,
+      customerId,
+      fromRecordId: fromRecord?.id ?? null,
+      requester: name ? { name, email: requesterEmail } : null,
+      requestedAt: new Date(requestedAt).toISOString(),
+      note: fromRecord ? null : requestNote,
+      file: fromRecord ? null : file,
+    });
+  };
+
+  const handleParse = async () => {
     if (importDraftSource === 'copy') {
       setImportError('Stops are currently sourced from a copied route. Clear copied stops first to use uploaded file stops.');
       return;
@@ -362,22 +442,43 @@ export default function NewRoutePage() {
     const text = importText.trim();
     if (!text) { setImportError('Upload a schedule file first.'); return; }
     const result = parseScheduleText(text);
+    const run = ++locateRunRef.current;
+    setImportDraftStops(null);
+    setImportDraftSource(null);
+    let unpinned = 0;
+    let leftOut: string[] = [];
     if (result.stops.length > 0) {
-      setImportDraftStops(
+      setImportError(null);
+      setLocatingProgress({ located: 0, total: result.stops.length });
+      const located = await locateDraftStops<RouteDraftStop>(
         result.stops.map((stop) => ({
           address: stop.address,
-          serviceType: 'delivery',
           numberOfSigns: stop.numberOfSigns,
           agent: stop.agent,
           isAuction: stop.isAuction,
-        }))
+        })),
+        (count, total) => {
+          if (locateRunRef.current === run) setLocatingProgress({ located: count, total });
+        }
       );
+      if (locateRunRef.current !== run) return;
+      setLocatingProgress(null);
+      setImportDraftStops(located.stops);
       setImportDraftSource('upload');
-    } else {
-      setImportDraftStops(null);
-      setImportDraftSource(null);
+      unpinned = located.unpinned;
+      leftOut = located.leftOut;
     }
     const warnings: string[] = [];
+    if (leftOut.length) {
+      warnings.push(
+        `Left out ${leftOut.length} stop(s) with no suburb that couldn't be found on the map: ${leftOut.join(', ')}. Add them to the Route once it's created, with the suburb.`
+      );
+    }
+    if (unpinned > 0) {
+      warnings.push(
+        `${unpinned} stop(s) couldn't be found on the map and will be created without a pin. They still appear in Property History.`
+      );
+    }
     if (result.duplicatesRemoved.length) {
       warnings.push(`Removed ${result.duplicatesRemoved.length} duplicate address(es): ${result.duplicatesRemoved.join(', ')}`);
     }
@@ -403,6 +504,8 @@ export default function NewRoutePage() {
         return;
       }
 
+      locateRunRef.current += 1;
+      setLocatingProgress(null);
       setImportDraftStops(copiedStops);
       setImportDraftSource('copy');
       setParseWarnings([]);
@@ -416,11 +519,15 @@ export default function NewRoutePage() {
   const handleImportSubmit = async () => {
     if (!importCustomerId) { setImportError('Select a customer.'); return; }
     if (!importRouteCode.trim()) { setImportError('Enter a route ID.'); return; }
-    if (!importScheduledDate) { setImportError('Choose a scheduled date.'); return; }
+    if (!importScheduledDate) { setImportError('Choose a placement date.'); return; }
+    const pickupProblem = pickupDateProblem(importScheduledDate, importPickupDate);
+    if (pickupProblem) { setImportError(pickupProblem); return; }
     if (!importDraftStops || importDraftStops.length === 0) {
       setImportError('Copy stops from a previous route or parse an uploaded schedule file first.');
       return;
     }
+    const requestProblem = routeRequestProblem();
+    if (requestProblem) { setImportError(requestProblem); return; }
 
     setIsUploading(true);
     setImportError(null);
@@ -431,72 +538,28 @@ export default function NewRoutePage() {
         const customerName = customers.find((c) => c.id === importCustomerId)?.name ?? 'This customer';
         setImportError(
           dateBlock.type === 'no_drivers'
-            ? `Null Device has no drivers available on ${importScheduledDate}${dateBlock.reason ? ` (${dateBlock.reason})` : ''}. Choose another date, or clear the block on the service calendar.`
+            ? `Null Device has no operators available on ${importScheduledDate}${dateBlock.reason ? ` (${dateBlock.reason})` : ''}. Choose another date, or clear the block on the service calendar.`
             : `${customerName}'s agency is closed on ${importScheduledDate}${dateBlock.reason ? ` (${dateBlock.reason})` : ''}. Choose another date.`
         );
         setIsUploading(false);
         return;
       }
 
-      // 1. Upload file to S3 if one was selected
-      let scheduleS3Key: string | undefined;
-      if (importFile) {
-        const { uploadData } = await import('aws-amplify/storage');
-        const tempKey = `schedules/${importCustomerId}/${Date.now()}-${importFile.name}`;
-        await uploadData({
-          path: tempKey,
-          data: importFile,
-          options: { contentType: importFile.type || 'text/plain' },
-        }).result;
-        scheduleS3Key = tempKey;
-      }
-
-      // 2. Create route
-      const routeResult = await createRoute({
+      // 1. Create route
+      const { id: routeId } = await createRoute({
         routeCode: importRouteCode.trim(),
         customerId: importCustomerId,
         scheduledDate: importScheduledDate,
+        pickupDate: importPickupDate,
         status: 'planned',
         notes: importNotes || undefined,
-        scheduleS3Key,
       });
 
-      if (routeResult.errors && routeResult.errors.length > 0) {
-        const msg = (routeResult.errors as Array<{ message?: string }>)
-          .map((e) => e.message ?? String(e)).join('; ');
-        setImportError(`Failed to create route: ${msg}`);
-        setIsUploading(false);
-        return;
-      }
-
-      const routeId = routeResult.data?.id;
-      if (!routeId) { setImportError('Route created but ID not returned.'); setIsUploading(false); return; }
-
-      // 3. Create stops
-      const failedStops: string[] = [];
-      for (let i = 0; i < importDraftStops.length; i++) {
-        const stop = importDraftStops[i];
-        const stopResult = await createStop({
-          routeId,
-          customerId: importCustomerId,
-          sequence: i + 1,
-          address: stop.address,
-          serviceType: stop.serviceType,
-          numberOfSigns: stop.numberOfSigns,
-          agent: stop.agent,
-          isAuction: stop.isAuction,
-          latitude: stop.latitude,
-          longitude: stop.longitude,
-          formattedAddress: stop.formattedAddress,
-          notes: stop.notes,
-        });
-        if (stopResult.errors && stopResult.errors.length > 0) {
-          const stopErrorMessage = (stopResult.errors as Array<{ message?: string }>)
-            .map((entry) => entry.message ?? String(entry))
-            .join('; ');
-          failedStops.push(`#${i + 1} (${stop.address || 'Unknown address'}): ${stopErrorMessage || 'Unknown stop creation error'}`);
-        }
-      }
+      // 2. Create stops
+      const stopResults = await createStopsForRoute(routeId, importCustomerId, importDraftStops);
+      const failedStops = stopResults
+        .filter((stopResult) => !stopResult.success)
+        .map((stopResult) => `#${stopResult.index + 1} (${stopResult.address || 'Unknown address'}): ${stopResult.errorMessage}`);
 
       if (failedStops.length > 0) {
         setImportError(`Route created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}`);
@@ -504,12 +567,24 @@ export default function NewRoutePage() {
         return;
       }
 
+      // 3. Link or record its Route Request, with the uploaded Schedule
+      const attached = await attachRouteRequest(routeId, importCustomerId, importFile);
+      if (!attached.ok) {
+        setImportError(`Route created, but not linked to its Route Request: ${attached.error} Link it from the Route's Requests.`);
+        setIsUploading(false);
+        return;
+      }
+
       router.push(`/administrator/routes/detail?id=${routeId}`);
     } catch (err) {
       console.error('Import error:', err);
-      setImportError('An unexpected error occurred during import.');
+      setImportError(err instanceof DataError ? err.message : 'An unexpected error occurred during import.');
       setIsUploading(false);
     }
+  };
+
+  const handleDraftNoteChange = (draftIndex: number, note: string) => {
+    setImportDraftStops((prev) => (prev ? prev.map((stop, i) => (i === draftIndex ? withDraftStopNote(stop, note) : stop)) : prev));
   };
 
   const previewColumns: DataColumn<RouteDraftStop & { id: number; seq: number }>[] = [
@@ -517,11 +592,32 @@ export default function NewRoutePage() {
     { key: 'address', header: 'Address', render: (stop) => stop.address },
     { key: 'signs', header: 'Signs', render: (stop) => stop.numberOfSigns },
     { key: 'agent', header: 'Agent', render: (stop) => stop.agent },
-    { key: 'type', header: 'Type', render: (stop) => stop.serviceType },
+    {
+      key: 'pin',
+      header: 'Map pin',
+      render: (stop) =>
+        typeof stop.latitude === 'number' ? null : <span className={styles.noPinBadge}>No pin</span>,
+    },
     {
       key: 'flags',
       header: 'Flags',
       render: (stop) => (stop.isAuction ? <span className={styles.auctionBadge}>Auction</span> : null),
+    },
+    {
+      // Each draft's note, to keep, change or clear (withDraftStopNote).
+      key: 'notes',
+      header: 'Notes',
+      render: (stop) => (
+        <Input
+          size="sm"
+          className={styles.draftNoteInput}
+          aria-label={`Notes for stop ${stop.seq}, ${stop.address}`}
+          value={stop.notes ?? ''}
+          // A preview row's id is its position in the draft list.
+          onChange={(e) => handleDraftNoteChange(stop.id, e.target.value)}
+          disabled={isUploading}
+        />
+      ),
     },
   ];
 
@@ -540,6 +636,50 @@ export default function NewRoutePage() {
           <LoadingSpinner message="Loading customers..." />
         ) : (
           <>
+            <Card title="Route Request">
+              {fromRecordError && <div className={styles.warningsBanner}>{fromRecordError}</div>}
+              {fromRecord ? (
+                <details className={styles.fromRecord} open>
+                  <summary>
+                    Creating from <strong>{recordTitle(fromRecord)}</strong> from {requesterLabel(fromRecord)}. It becomes this
+                    Route&rsquo;s Route Request.
+                  </summary>
+                  <RouteRequestView record={fromRecord} />
+                </details>
+              ) : (
+                <p className={styles.importHint}>
+                  Who asked for this Route. An uploaded Schedule is kept with it; with neither, the Route has no Route Request yet.
+                </p>
+              )}
+              {(!fromRecord || needsRequester) && (
+                <div className={styles.fieldsStack}>
+                  <RequesterFields
+                    idPrefix="request"
+                    name={requesterName}
+                    email={requesterEmail}
+                    required={needsRequester}
+                    onName={setRequesterName}
+                    onEmail={setRequesterEmail}
+                  />
+                  {!fromRecord && (
+                    <Field label="Requested at" htmlFor="request-requested-at">
+                      <Input
+                        id="request-requested-at"
+                        type="datetime-local"
+                        value={requestedAt}
+                        onChange={(e) => setRequestedAt(e.target.value)}
+                      />
+                    </Field>
+                  )}
+                  {!fromRecord && (
+                    <Field label="Note (optional)" htmlFor="request-note" hint="e.g. what was asked for on the phone">
+                      <Input id="request-note" value={requestNote} onChange={(e) => setRequestNote(e.target.value)} />
+                    </Field>
+                  )}
+                </div>
+              )}
+            </Card>
+
             <Tabs
               items={[
                 { id: 'import', label: 'Import from Schedule' },
@@ -622,7 +762,7 @@ export default function NewRoutePage() {
                     />
                   </Field>
 
-                  <Field label="Scheduled date" htmlFor="import-scheduled-date" required>
+                  <Field label="Placement date" htmlFor="import-scheduled-date" required>
                     <Input
                       id="import-scheduled-date"
                       type="date"
@@ -631,7 +771,39 @@ export default function NewRoutePage() {
                     />
                   </Field>
 
-                  <Field label="Upload Schedule File" hint="PDF, CSV, TXT — stored and linked to route">
+                  <Field label="Pickup date" htmlFor="import-pickup-date" required hint={importPickupWarning}>
+                    <Input
+                      id="import-pickup-date"
+                      type="date"
+                      value={importPickupDate}
+                      onChange={(e) => chooseImportPickupDate(e.target.value)}
+                    />
+                  </Field>
+
+                  {fromRecord && (fromRecord.attachments ?? []).length > 0 && (
+                    <Field label="Schedule from the email" htmlFor="import-from-attachment">
+                      <Select
+                        id="import-from-attachment"
+                        value={fromAttachment}
+                        onChange={(e) => {
+                          if (e.target.value) void loadRecordAttachment(fromRecord, Number(e.target.value));
+                        }}
+                        disabled={isUploading}
+                      >
+                        <option value="">Choose an attachment...</option>
+                        {(fromRecord.attachments ?? []).map((attachment, index) =>
+                          attachment ? (
+                            <option key={attachment.key} value={index}>{attachment.filename}</option>
+                          ) : null
+                        )}
+                      </Select>
+                    </Field>
+                  )}
+
+                  <Field
+                    label="Upload Schedule File"
+                    hint={fromRecord ? 'PDF, CSV, TXT — to parse; the email keeps its own files' : 'PDF, CSV, TXT — kept with the Route Request'}
+                  >
                     <div className={styles.fileRow}>
                       <input
                         ref={fileInputRef}
@@ -648,6 +820,8 @@ export default function NewRoutePage() {
                           type="button"
                           variant="ghost"
                           onClick={() => {
+                            locateRunRef.current += 1;
+                            setLocatingProgress(null);
                             setImportFile(null);
                             setImportText('');
                             if (importDraftSource === 'upload') {
@@ -668,11 +842,23 @@ export default function NewRoutePage() {
 
                   <Button
                     type="button"
-                    onClick={handleParse}
-                    disabled={!importText.trim() || isUploading || copyingImportStops || importDraftSource === 'copy'}
+                    onClick={() => void handleParse()}
+                    loading={locatingProgress !== null}
+                    disabled={
+                      !importText.trim() ||
+                      isUploading ||
+                      copyingImportStops ||
+                      locatingProgress !== null ||
+                      importDraftSource === 'copy'
+                    }
                   >
                     Preview Stops
                   </Button>
+                  {locatingProgress && (
+                    <p className={styles.mutedText} role="status">
+                      Finding stops on the map… {locatingProgress.located} of {locatingProgress.total}
+                    </p>
+                  )}
                 </div>
 
                 {parseWarnings.length > 0 && (

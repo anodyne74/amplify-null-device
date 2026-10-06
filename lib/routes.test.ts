@@ -1,0 +1,943 @@
+// Mock the Amplify client BEFORE importing the Route aggregate
+const mockRouteList = jest.fn();
+const mockRouteGet = jest.fn();
+const mockRouteCreate = jest.fn();
+const mockRouteUpdate = jest.fn();
+const mockRouteDelete = jest.fn();
+const mockStopList = jest.fn();
+const mockStopCreate = jest.fn();
+const mockStopDelete = jest.fn();
+const mockStopUpdate = jest.fn();
+const mockStopGet = jest.fn();
+const mockCustomerGet = jest.fn();
+
+jest.mock('aws-amplify/data', () => ({
+  generateClient: () => ({
+    models: {
+      Route: {
+        list: mockRouteList,
+        get: mockRouteGet,
+        create: mockRouteCreate,
+        update: mockRouteUpdate,
+        delete: mockRouteDelete,
+      },
+      Stop: {
+        list: mockStopList,
+        get: mockStopGet,
+        create: mockStopCreate,
+        delete: mockStopDelete,
+        update: mockStopUpdate,
+      },
+      Customer: {
+        get: mockCustomerGet,
+      },
+    },
+  }),
+}));
+
+const mockUnlinkRecordsOfDeletedRoute = jest.fn();
+jest.mock('./routeRequestLinks', () => ({
+  unlinkRecordsOfDeletedRoute: (...args: unknown[]) => mockUnlinkRecordsOfDeletedRoute(...args),
+}));
+
+const mockGeocodeAddress = jest.fn();
+const mockGetConfirmedPin = jest.fn();
+
+jest.mock('./googleMaps', () => ({
+  geocodeAddress: (...args: unknown[]) => mockGeocodeAddress(...args),
+}));
+
+jest.mock('./propertyLocations', () => ({
+  getConfirmedPin: (...args: unknown[]) => mockGetConfirmedPin(...args),
+}));
+
+import {
+  listCustomerRoutes,
+  getRouteWithStops,
+  listAllStopsForRoute,
+  createRoute,
+  updateRoute,
+  updateStopExecution,
+  deleteRoute,
+  createStop,
+  createLoadStop,
+  createStopsForRoute,
+  listCustomerStops,
+  resequenceStops,
+  saveStop,
+  saveStopFailure,
+  STOP_NEEDS_SUBURB,
+  updateStop,
+} from './routes';
+
+describe('routes', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCustomerGet.mockResolvedValue({ data: { viewerSubs: ['owner-sub', 'viewer-sub'] }, errors: undefined });
+    mockUnlinkRecordsOfDeletedRoute.mockResolvedValue([]);
+  });
+
+  describe('listCustomerRoutes', () => {
+    it('should fetch routes for a specific customer', async () => {
+      const mockRoutes = [
+        { id: 'r1', customerId: 'c1', status: 'planned', name: 'Route 1' },
+        { id: 'r2', customerId: 'c1', status: 'signs_placed', name: 'Route 2' },
+      ];
+
+      mockRouteList.mockResolvedValue({
+        data: mockRoutes,
+        errors: undefined,
+      });
+
+      const result = await listCustomerRoutes('c1');
+
+      expect(mockRouteList).toHaveBeenCalledWith({
+        filter: { customerId: { eq: 'c1' } },
+        limit: 1000,
+        nextToken: undefined,
+      });
+      expect(result).toEqual(mockRoutes);
+    });
+
+    it('throws a DataError when the read fails', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockRouteList.mockResolvedValue({ data: [], errors: [{ message: 'Not Authorized' }] });
+
+      await expect(listCustomerRoutes('c1')).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to load routes.',
+      });
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('getRouteWithStops', () => {
+    it('should fetch route and its associated stops', async () => {
+      const mockRoute = { id: 'r1', customerId: 'c1', status: 'signs_placed' };
+      const mockStops = [
+        { id: 's1', routeId: 'r1', sequence: 1, address: '123 Main St' },
+        { id: 's2', routeId: 'r1', sequence: 2, address: '456 Oak Ave' },
+      ];
+
+      mockRouteGet.mockResolvedValue({
+        data: mockRoute,
+        errors: undefined,
+      });
+
+      mockStopList.mockResolvedValue({
+        data: mockStops,
+        errors: undefined,
+      });
+
+      const result = await getRouteWithStops('r1');
+
+      expect(result?.route).toEqual(mockRoute);
+      expect(result?.stops).toHaveLength(2);
+    });
+
+    it("returns null for a Route that doesn't exist", async () => {
+      mockRouteGet.mockResolvedValue({ data: null, errors: undefined });
+
+      await expect(getRouteWithStops('missing')).resolves.toBeNull();
+      expect(mockStopList).not.toHaveBeenCalled();
+    });
+
+    it('throws rather than return a Route with Stops missing', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockRouteGet.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
+      mockStopList
+        .mockResolvedValueOnce({ data: [{ id: 's1', routeId: 'r1', sequence: 1 }], errors: undefined, nextToken: 'next-page' })
+        .mockResolvedValueOnce({ data: undefined, errors: [{ message: 'boom' }], nextToken: undefined });
+
+      await expect(getRouteWithStops('r1')).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to load route.',
+      });
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should aggregate paginated stop results and sort by sequence', async () => {
+      const mockRoute = { id: 'r1', customerId: 'c1', status: 'planned' };
+
+      mockRouteGet.mockResolvedValue({
+        data: mockRoute,
+        errors: undefined,
+      });
+
+      mockStopList
+        .mockResolvedValueOnce({
+          data: [{ id: 's2', routeId: 'r1', sequence: 2 }],
+          errors: undefined,
+          nextToken: 'next-page',
+        })
+        .mockResolvedValueOnce({
+          data: [{ id: 's1', routeId: 'r1', sequence: 1 }],
+          errors: undefined,
+          nextToken: null,
+        });
+
+      const result = await getRouteWithStops('r1');
+
+      expect(mockStopList).toHaveBeenCalledTimes(2);
+      expect(result?.stops.map((stop: { id: string }) => stop.id)).toEqual(['s1', 's2']);
+    });
+  });
+
+  describe('listAllStopsForRoute', () => {
+    it('pages through every Stop.list call until nextToken is exhausted', async () => {
+      mockStopList
+        .mockResolvedValueOnce({
+          data: [{ id: 's1', routeId: 'r1', sequence: 1 }],
+          errors: undefined,
+          nextToken: 'next-page',
+        })
+        .mockResolvedValueOnce({
+          data: [{ id: 's2', routeId: 'r1', sequence: 2 }],
+          errors: undefined,
+          nextToken: null,
+        });
+
+      const result = await listAllStopsForRoute('r1');
+
+      expect(mockStopList).toHaveBeenCalledTimes(2);
+      expect(mockStopList).toHaveBeenNthCalledWith(1, {
+        filter: { routeId: { eq: 'r1' } },
+        nextToken: undefined,
+        limit: 1000,
+      });
+      expect(mockStopList).toHaveBeenNthCalledWith(2, {
+        filter: { routeId: { eq: 'r1' } },
+        nextToken: 'next-page',
+        limit: 1000,
+      });
+      expect(result.map((stop: { id: string }) => stop.id)).toEqual(['s1', 's2']);
+    });
+  });
+
+  describe('createRoute', () => {
+    it('should create a new route', async () => {
+      const mockRoute = { id: 'r1', customerId: 'c1', status: 'planned' };
+      mockRouteCreate.mockResolvedValue({
+        data: mockRoute,
+        errors: undefined,
+      });
+
+      const result = await createRoute({
+        routeCode: 'W19-26-001',
+        customerId: 'c1',
+        status: 'planned',
+      });
+
+      expect(mockRouteCreate).toHaveBeenCalledWith({
+        routeCode: 'W19-26-001',
+        customerId: 'c1',
+        status: 'planned',
+        viewerSubs: ['owner-sub', 'viewer-sub'],
+      });
+      expect(result).toEqual(mockRoute);
+    });
+
+    it('throws a DataError when route creation fails', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockRouteCreate.mockRejectedValue(new Error('route create failed'));
+
+      await expect(
+        createRoute({ routeCode: 'W19-26-002', customerId: 'c1', status: 'planned' })
+      ).rejects.toMatchObject({ name: 'DataError', message: 'Failed to create route.' });
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('updateRoute', () => {
+    it('should update an existing route', async () => {
+      const mockRoute = { id: 'r1', status: 'completed', actualDurationMinutes: 115 };
+      mockRouteUpdate.mockResolvedValue({
+        data: mockRoute,
+        errors: undefined,
+      });
+
+      const result = await updateRoute('r1', {
+        status: 'completed',
+        actualDurationMinutes: 115,
+      });
+
+      expect(mockRouteUpdate).toHaveBeenCalledWith({
+        id: 'r1',
+        status: 'completed',
+        actualDurationMinutes: 115,
+      });
+      expect(result.data).toEqual(mockRoute);
+    });
+
+    it('should return wrapped errors when route update throws', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockRouteUpdate.mockRejectedValue(new Error('route update failed'));
+
+      const result = await updateRoute('r1', { status: 'completed' });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toHaveLength(1);
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('deleteRoute', () => {
+    it('should delete child stops before deleting the route', async () => {
+      mockStopList.mockResolvedValue({
+        data: [{ id: 's1' }, { id: 's2' }],
+        errors: undefined,
+      });
+      mockStopDelete.mockResolvedValue({ data: {}, errors: undefined });
+      mockRouteDelete.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
+
+      await deleteRoute('r1');
+
+      expect(mockStopDelete).toHaveBeenCalledTimes(2);
+      expect(mockRouteDelete).toHaveBeenCalledWith({ id: 'r1' });
+    });
+
+    it('should delete stops spanning multiple Stop.list pages, not just the first', async () => {
+      mockStopList
+        .mockResolvedValueOnce({
+          data: [{ id: 's1' }],
+          errors: undefined,
+          nextToken: 'next-page',
+        })
+        .mockResolvedValueOnce({
+          data: [{ id: 's2' }],
+          errors: undefined,
+          nextToken: null,
+        });
+      mockStopDelete.mockResolvedValue({ data: {}, errors: undefined });
+      mockRouteDelete.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
+
+      await deleteRoute('r1');
+
+      expect(mockStopList).toHaveBeenCalledTimes(2);
+      expect(mockStopDelete).toHaveBeenCalledTimes(2);
+      expect(mockStopDelete).toHaveBeenCalledWith({ id: 's1' });
+      expect(mockStopDelete).toHaveBeenCalledWith({ id: 's2' });
+      expect(mockRouteDelete).toHaveBeenCalledWith({ id: 'r1' });
+    });
+
+    it("returns the route's Route Request records to the inbox, naming the route, before deleting it", async () => {
+      mockStopList.mockResolvedValue({ data: [], errors: undefined });
+      mockRouteGet.mockResolvedValue({ data: { routeCode: 'W40-26-001' }, errors: undefined });
+      mockRouteDelete.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
+
+      await deleteRoute('r1');
+
+      expect(mockUnlinkRecordsOfDeletedRoute).toHaveBeenCalledWith(expect.anything(), 'r1', 'W40-26-001');
+      expect(mockRouteDelete).toHaveBeenCalledWith({ id: 'r1' });
+    });
+
+    it('keeps the route when its Route Request records cannot be returned to the inbox', async () => {
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockStopList.mockResolvedValue({ data: [], errors: undefined });
+      mockRouteGet.mockResolvedValue({ data: { routeCode: 'W40-26-001' }, errors: undefined });
+      mockUnlinkRecordsOfDeletedRoute.mockResolvedValue(['Could not unlink it.']);
+
+      await expect(deleteRoute('r1')).rejects.toMatchObject({ name: 'DataError', message: 'Failed to delete route.' });
+      expect(mockRouteDelete).not.toHaveBeenCalled();
+    });
+
+    it('should stop when stop list returns errors', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockStopList.mockResolvedValue({
+        data: [],
+        errors: [{ message: 'cannot list stops' }],
+      });
+
+      await expect(deleteRoute('r1')).rejects.toMatchObject({ name: 'DataError', message: 'Failed to delete route.' });
+      expect(mockRouteDelete).not.toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("keeps the route when one of its Stops can't be deleted", async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockStopList.mockResolvedValue({
+        data: [{ id: 's1' }],
+        errors: undefined,
+      });
+      mockStopDelete.mockResolvedValue({ data: null, errors: [{ message: 'stop delete failed' }] });
+
+      await expect(deleteRoute('r1')).rejects.toMatchObject({ name: 'DataError', message: 'Failed to delete route.' });
+      expect(mockRouteDelete).not.toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('throws a DataError when the Stop list throws', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockStopList.mockRejectedValue(new Error('delete route failed'));
+
+      await expect(deleteRoute('r1')).rejects.toMatchObject({ name: 'DataError', message: 'Failed to delete route.' });
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('createStopsForRoute', () => {
+    it('issues all stop-creation calls concurrently, not one at a time', async () => {
+      const resolvers: Array<(value: { data: { id: string }; errors: undefined }) => void> = [];
+      mockStopCreate.mockImplementation(
+        () => new Promise((resolve) => { resolvers.push(resolve); })
+      );
+
+      const stops = [
+        { address: '1 High St, Epping' },
+        { address: '2 High St, Epping' },
+        { address: '3 High St, Epping' },
+      ];
+
+      const resultPromise = createStopsForRoute('r1', 'c1', stops);
+
+      // Let the customer lookup settle without resolving any create call. A
+      // sequential await-in-a-loop implementation would have only issued the
+      // first call by this point; a concurrent one issues all of them upfront.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(mockStopCreate).toHaveBeenCalledTimes(3);
+
+      resolvers.forEach((resolve, i) => resolve({ data: { id: `s${i}` }, errors: undefined }));
+      const results = await resultPromise;
+
+      expect(results).toHaveLength(3);
+      expect(results.every((r) => r.success)).toBe(true);
+    });
+
+    it('reports per-stop success and failure without failing the whole batch', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockStopCreate
+        .mockResolvedValueOnce({ data: { id: 's1' }, errors: undefined })
+        .mockResolvedValueOnce({ data: null, errors: [{ message: 'address invalid' }] })
+        .mockResolvedValueOnce({ data: { id: 's3' }, errors: undefined });
+
+      const stops = [
+        { address: '1 High St, Epping' },
+        { address: '2 High St, Epping' },
+        { address: '3 High St, Epping' },
+      ];
+
+      const results = await createStopsForRoute('r1', 'c1', stops);
+
+      expect(results).toEqual([
+        { index: 0, address: '1 High St, Epping', success: true },
+        { index: 1, address: '2 High St, Epping', success: false, errorMessage: 'Failed to create stop.' },
+        { index: 2, address: '3 High St, Epping', success: true },
+      ]);
+      expect(mockStopCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ routeId: 'r1', customerId: 'c1', sequence: 1, address: '1 High St, Epping' })
+      );
+      expect(mockStopCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ routeId: 'r1', customerId: 'c1', sequence: 2, address: '2 High St, Epping' })
+      );
+      consoleErrorSpy.mockRestore();
+    });
+    it("refuses a Stop with no pin and no suburb, which would have no Property, and creates the rest", async () => {
+      mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+
+      const results = await createStopsForRoute('r1', 'c1', [
+        { address: '10 brush road' },
+        { address: '10 brush road', latitude: -33.79, longitude: 151.08 },
+        { address: '1 High St, Epping' },
+      ]);
+
+      expect(results).toEqual([
+        { index: 0, address: '10 brush road', success: false, errorMessage: STOP_NEEDS_SUBURB },
+        { index: 1, address: '10 brush road', success: true },
+        { index: 2, address: '1 High St, Epping', success: true },
+      ]);
+      expect(mockStopCreate).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('stamping customer viewers at creation', () => {
+    it('createStopsForRoute gives every Stop the customer\'s current viewers, looking them up once', async () => {
+      mockStopCreate.mockResolvedValue({ data: { id: 's' }, errors: undefined });
+
+      await createStopsForRoute('r1', 'c1', [
+        { address: '1 High St, Epping' },
+        { address: '2 High St, Epping' },
+      ]);
+
+      expect(mockCustomerGet).toHaveBeenCalledTimes(1);
+      expect(mockCustomerGet).toHaveBeenCalledWith({ id: 'c1' }, { selectionSet: ['viewerSubs'] });
+      expect(mockStopCreate).toHaveBeenCalledTimes(2);
+      mockStopCreate.mock.calls.forEach(([input]) => {
+        expect(input.viewerSubs).toEqual(['owner-sub', 'viewer-sub']);
+      });
+    });
+
+    it("createRoute gives the Route the customer's current viewers", async () => {
+      mockRouteCreate.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
+
+      await createRoute({ routeCode: 'W40-26-002', customerId: 'c1', status: 'planned', pickupDate: '2026-10-05' });
+
+      expect(mockCustomerGet).toHaveBeenCalledWith({ id: 'c1' }, { selectionSet: ['viewerSubs'] });
+      expect(mockRouteCreate).toHaveBeenCalledWith(expect.objectContaining({ viewerSubs: ['owner-sub', 'viewer-sub'] }));
+    });
+
+    it('still creates the Route when the customer lookup fails, leaving it for the access sync', async () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockCustomerGet.mockRejectedValue(new Error('network'));
+      mockRouteCreate.mockResolvedValue({ data: { id: 'r1' }, errors: undefined });
+
+      await expect(createRoute({ customerId: 'c1', status: 'planned', pickupDate: '2026-10-05' })).resolves.toEqual({ id: 'r1' });
+      expect(mockRouteCreate).toHaveBeenCalledWith(expect.not.objectContaining({ viewerSubs: expect.anything() }));
+      consoleError.mockRestore();
+    });
+
+    it('createStop looks up the customer\'s viewers when none are given', async () => {
+      mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+
+      await createStop({ routeId: 'r1', customerId: 'c1', sequence: 1, address: '1 High St, Epping' });
+
+      expect(mockCustomerGet).toHaveBeenCalledWith({ id: 'c1' }, { selectionSet: ['viewerSubs'] });
+      expect(mockStopCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ routeId: 'r1', viewerSubs: ['owner-sub', 'viewer-sub'] })
+      );
+    });
+
+    it('createStop uses the viewers it is given without a lookup', async () => {
+      mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+
+      await createStop({ routeId: 'r1', customerId: 'c1', viewerSubs: ['given'], sequence: 1, address: '1 High St, Epping' });
+
+      expect(mockCustomerGet).not.toHaveBeenCalled();
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ viewerSubs: ['given'] }));
+    });
+
+    it('still creates the Stop when the customer lookup fails, leaving it for the access sync', async () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockCustomerGet.mockRejectedValue(new Error('network'));
+      mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+
+      const results = await createStopsForRoute('r1', 'c1', [{ address: '1 High St, Epping' }]);
+
+      expect(results).toEqual([{ index: 0, address: '1 High St, Epping', success: true }]);
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.not.objectContaining({ viewerSubs: expect.anything() }));
+      expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+  });
+
+  describe('the Property key on a Stop write', () => {
+    const ADDRESS = '14 Cliff Rd, Epping NSW 2121';
+    const KEY = 'epping|2121|cliff road|14';
+
+    beforeEach(() => {
+      mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+      mockStopUpdate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+    });
+
+    it('keys a new Stop from its entered address alone when it has no geocode', async () => {
+      await createStopsForRoute('r1', 'c1', [{ address: ADDRESS }]);
+
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+    });
+
+    it("keys a new Stop from its geocoded components, where the entered address doesn't say", async () => {
+      await createStop({
+        routeId: 'r1',
+        customerId: 'c1',
+        sequence: 1,
+        address: '14 Cliff Rd, Epping',
+        addressStreetNumber: '14',
+        addressStreet: 'Cliff Road',
+        addressSuburb: 'Epping',
+        addressPostcode: '2121',
+      });
+
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+    });
+
+    it('ignores a Property key the caller passes', async () => {
+      await createStop({
+        routeId: 'r1',
+        customerId: 'c1',
+        sequence: 1,
+        address: ADDRESS,
+        propertyKey: 'somewhere|else|1',
+      } as Parameters<typeof createStop>[0]);
+
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+    });
+
+    it('writes no key when the address has no street number, street and suburb', async () => {
+      await createStop({ routeId: 'r1', customerId: 'c1', sequence: 1, address: 'Cliff Rd' });
+
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.not.objectContaining({ propertyKey: expect.anything() }));
+    });
+
+    it("leaves the key alone on an update that doesn't write an address", async () => {
+      await updateStop({ id: 's1', numberOfSigns: 3 });
+
+      expect(mockStopGet).not.toHaveBeenCalled();
+      expect(mockStopUpdate).toHaveBeenCalledWith({ id: 's1', numberOfSigns: 3 });
+    });
+
+    it('re-keys from the geocoded components an update writes', async () => {
+      await updateStop({ id: 's1', address: '14 Cliff Rd, Epping', addressSuburb: 'Epping', addressPostcode: '2121' });
+
+      expect(mockStopGet).not.toHaveBeenCalled();
+      expect(mockStopUpdate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+    });
+
+    it("keys an unchanged address from the Stop's stored components", async () => {
+      mockStopGet.mockResolvedValue({
+        data: { address: '14 Cliff Rd, Epping ', addressSuburb: 'Epping', addressPostcode: '2121' },
+        errors: undefined,
+      });
+
+      await updateStop({ id: 's1', address: '14 Cliff Rd, Epping', numberOfSigns: 3 });
+
+      expect(mockStopUpdate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY, numberOfSigns: 3 }));
+    });
+
+    it("keys a changed address from its text, not the old address's components", async () => {
+      mockStopGet.mockResolvedValue({
+        data: { address: '2 Beecroft Rd, Beecroft', addressSuburb: 'Beecroft', addressPostcode: '2119' },
+        errors: undefined,
+      });
+
+      await updateStop({ id: 's1', address: ADDRESS });
+
+      expect(mockStopUpdate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+    });
+
+    it("doesn't write when the stored Stop can't be read", async () => {
+      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+      mockStopGet.mockResolvedValue({ data: null, errors: [{ message: 'Unauthorized' }] });
+
+      await expect(updateStop({ id: 's1', address: ADDRESS })).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to update stop.',
+      });
+      expect(mockStopUpdate).not.toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+  });
+
+  describe('createLoadStop', () => {
+    const FIELDS = {
+      routeId: 'r1',
+      customerId: 'c1',
+      sequence: 5,
+      address: '14 Cliff Rd, Epping NSW 2121',
+      agent: 'Lena Park',
+      numberOfSigns: 2,
+      isAuction: false,
+      addedAtLoad: '2026-10-04T07:30:00.000Z',
+    };
+    let consoleError: jest.SpyInstance;
+
+    beforeEach(() => {
+      mockStopGet.mockResolvedValue({ data: null, errors: undefined });
+      mockGeocodeAddress.mockResolvedValue({
+        formattedAddress: '14 Cliff Rd, Epping NSW 2121, Australia',
+        latitude: -33.77,
+        longitude: 151.08,
+        locationPrecision: 'precise',
+        addressComponents: { streetNumber: '14', street: 'Cliff Road', suburb: 'Epping', postcode: '2121' },
+      });
+      mockGetConfirmedPin.mockResolvedValue(null);
+      mockCustomerGet.mockResolvedValue({ data: { viewerSubs: ['viewer-1'] }, errors: undefined });
+      mockStopCreate.mockResolvedValue({ data: { id: 'new-1', updatedAt: 'v1' }, errors: undefined });
+      consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleError.mockRestore();
+    });
+
+    it("creates the Stop under the device's id, located, keyed and readable by the Customer's viewers", async () => {
+      await expect(createLoadStop('new-1', FIELDS)).resolves.toEqual({ data: { id: 'new-1', updatedAt: 'v1' }, errors: undefined });
+
+      expect(mockStopCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ...FIELDS,
+          id: 'new-1',
+          latitude: -33.77,
+          propertyKey: 'epping|2121|cliff road|14',
+          viewerSubs: ['viewer-1'],
+        })
+      );
+    });
+
+    it('reads a resend whose Stop already exists as saved, creating nothing', async () => {
+      mockStopGet.mockResolvedValue({ data: { id: 'new-1', updatedAt: 'v1' }, errors: undefined });
+
+      await expect(createLoadStop('new-1', FIELDS)).resolves.toEqual({ data: { id: 'new-1', updatedAt: 'v1' }, errors: null });
+      expect(mockStopCreate).not.toHaveBeenCalled();
+    });
+
+    it('turns network trouble into errors to retry', async () => {
+      mockStopGet.mockRejectedValue(new Error('Network error'));
+
+      const result = await createLoadStop('new-1', FIELDS);
+      expect(result.data).toBeNull();
+      expect(result.errors).toHaveLength(1);
+      expect(mockStopCreate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('saveStop', () => {
+    const ADDRESS = '14 Cliff Rd, Epping NSW 2121';
+    const KEY = 'epping|2121|cliff road|14';
+    const GEOCODED = {
+      formattedAddress: '14 Cliff Rd, Epping NSW 2121, Australia',
+      latitude: -33.77,
+      longitude: 151.08,
+      locationPrecision: 'precise' as const,
+      addressComponents: { streetNumber: '14', street: 'Cliff Road', suburb: 'Epping', postcode: '2121' },
+    };
+    const NEW = { routeId: 'r1', customerId: 'c1', sequence: 3 };
+    const ORIGINAL = {
+      id: 's1',
+      address: '2 Beecroft Rd, Beecroft',
+      latitude: -33.75,
+      longitude: 151.06,
+      locationPrecision: 'precise',
+    };
+    let consoleWarn: jest.SpyInstance;
+    let consoleError: jest.SpyInstance;
+
+    beforeEach(() => {
+      mockGeocodeAddress.mockResolvedValue(GEOCODED);
+      mockGetConfirmedPin.mockResolvedValue(null);
+      mockStopCreate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+      mockStopUpdate.mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+      consoleWarn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleWarn.mockRestore();
+      consoleError.mockRestore();
+    });
+
+    it('adds a geocoded, keyed Stop to the Route', async () => {
+      const result = await saveStop(NEW, { address: ADDRESS, numberOfSigns: 2 });
+
+      expect(result).toEqual({ pinned: true });
+      expect(mockStopCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ...NEW,
+          address: ADDRESS,
+          numberOfSigns: 2,
+          latitude: -33.77,
+          longitude: 151.08,
+          locationPrecision: 'precise',
+          propertyKey: KEY,
+        })
+      );
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.not.objectContaining({ resolvedLocation: expect.anything() }));
+    });
+
+    it("adds a Stop whose address can't be geocoded without a pin, still keyed to its Property", async () => {
+      mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
+
+      const result = await saveStop(NEW, { address: ADDRESS });
+
+      expect(result).toEqual({ pinned: false });
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.not.objectContaining({ latitude: expect.anything() }));
+    });
+
+    it("refuses a Stop with no pin and no suburb, since it would have no Property", async () => {
+      mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
+
+      const error = await saveStop(NEW, { address: '10 brush road' }).catch((e) => e);
+
+      expect(mockStopCreate).not.toHaveBeenCalled();
+      expect(error).toMatchObject({ name: 'DataError', message: STOP_NEEDS_SUBURB });
+      expect(saveStopFailure(error, 'Failed to add stop.')).toBe(STOP_NEEDS_SUBURB);
+    });
+
+    it('adds a Stop with no suburb typed when the geocode finds one', async () => {
+      const result = await saveStop(NEW, { address: '14 Cliff Rd' });
+
+      expect(result).toEqual({ pinned: true });
+      expect(mockStopCreate).toHaveBeenCalledWith(expect.objectContaining({ propertyKey: KEY }));
+    });
+
+    it("pins a Stop at its Property's Confirmed pin", async () => {
+      mockGetConfirmedPin.mockResolvedValue({ latitude: -33.9, longitude: 151.2 });
+
+      const result = await saveStop(NEW, { address: ADDRESS });
+
+      expect(mockGetConfirmedPin).toHaveBeenCalledWith(KEY);
+      expect(result.pinned).toBe(true);
+      expect(mockStopCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ latitude: -33.9, longitude: 151.2, locationPrecision: 'confirmed', propertyKey: KEY })
+      );
+    });
+
+    it("saves nothing when the Confirmed pin can't be looked up", async () => {
+      mockGetConfirmedPin.mockRejectedValue(new Error('offline'));
+
+      await expect(saveStop(NEW, { address: ADDRESS })).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to save stop.',
+      });
+      expect(mockStopCreate).not.toHaveBeenCalled();
+    });
+
+    it('reports a failed write', async () => {
+      mockStopCreate.mockResolvedValue({ data: null, errors: [{ message: 'Unauthorized' }] });
+
+      const error = await saveStop(NEW, { address: ADDRESS }).catch((e) => e);
+
+      expect(error).toMatchObject({ name: 'DataError', message: 'Failed to save stop.' });
+      expect(saveStopFailure(error, 'Failed to add stop.')).toBe('Failed to add stop.');
+    });
+
+    it("edits a Stop without re-geocoding an address that hasn't changed (#58)", async () => {
+      mockStopGet.mockResolvedValue({ data: { address: ORIGINAL.address }, errors: undefined });
+
+      const result = await saveStop({ original: ORIGINAL }, { address: ORIGINAL.address, notes: 'Side gate' });
+
+      expect(result).toEqual({ pinned: true });
+      expect(mockGeocodeAddress).not.toHaveBeenCalled();
+      expect(mockStopUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 's1', address: ORIGINAL.address, notes: 'Side gate' })
+      );
+      expect(mockStopUpdate).toHaveBeenCalledWith(expect.not.objectContaining({ latitude: expect.anything() }));
+    });
+
+    it('moves an edited Stop to its new address, re-keyed', async () => {
+      const result = await saveStop({ original: ORIGINAL }, { address: ADDRESS });
+
+      expect(result.pinned).toBe(true);
+      expect(mockStopUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 's1', latitude: -33.77, longitude: 151.08, propertyKey: KEY })
+      );
+    });
+
+    it("clears the old pin when the new address can't be geocoded, keying the Stop by its new address", async () => {
+      mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
+
+      const result = await saveStop({ original: ORIGINAL }, { address: ADDRESS });
+
+      expect(result).toEqual({ pinned: false });
+      expect(mockStopGet).not.toHaveBeenCalled();
+      expect(mockStopUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 's1',
+          latitude: null,
+          longitude: null,
+          locationPrecision: null,
+          addressSuburb: null,
+          propertyKey: KEY,
+        })
+      );
+    });
+
+    it("refuses an edit to an address with no suburb that can't be geocoded", async () => {
+      mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
+
+      await expect(saveStop({ original: ORIGINAL }, { address: '10 brush road' })).rejects.toMatchObject({
+        name: 'DataError',
+        message: STOP_NEEDS_SUBURB,
+      });
+      expect(mockStopUpdate).not.toHaveBeenCalled();
+    });
+
+    it('still saves other edits to a Stop already stored with no suburb and no pin', async () => {
+      mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
+      mockStopGet.mockResolvedValue({ data: { address: '10 brush road' }, errors: undefined });
+
+      const result = await saveStop({ original: { id: 's2', address: '10 brush road' } }, { address: '10 brush road', notes: 'Gate' });
+
+      expect(result).toEqual({ pinned: false });
+      expect(mockStopUpdate).toHaveBeenCalledWith(expect.objectContaining({ id: 's2', notes: 'Gate' }));
+    });
+
+    it("clears a Confirmed Stop's pin when its new address can't be geocoded: the pin was Confirmed for the old address", async () => {
+      mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
+      mockStopGet.mockResolvedValue({ data: { address: ORIGINAL.address }, errors: undefined });
+
+      const result = await saveStop({ original: { ...ORIGINAL, locationPrecision: 'confirmed' } }, { address: ADDRESS });
+
+      expect(result.pinned).toBe(false);
+      expect(mockStopUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ latitude: null, longitude: null, locationPrecision: null, propertyKey: KEY })
+      );
+    });
+  });
+
+  describe('updateStopExecution', () => {
+    it('should update stop execution fields', async () => {
+      mockStopUpdate.mockResolvedValue({
+        data: { id: 's1' },
+        errors: undefined,
+      });
+
+      const result = await updateStopExecution('s1', {
+        actualArrivalTime: '2024-01-01T10:00:00Z',
+      });
+
+      expect(mockStopUpdate).toHaveBeenCalledWith({
+        id: 's1',
+        actualArrivalTime: '2024-01-01T10:00:00Z',
+      });
+      expect(result.data).toEqual({ id: 's1' });
+    });
+
+    it('should return wrapped errors when stop update throws', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      mockStopUpdate.mockRejectedValue(new Error('stop update failed'));
+
+      const result = await updateStopExecution('s1', {
+        actualDepartureTime: '2024-01-01T11:00:00Z',
+      });
+
+      expect(result.data).toBeNull();
+      expect(result.errors).toHaveLength(1);
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('listCustomerStops', () => {
+    it("reads every page of the Customer's Stops", async () => {
+      // `limit` caps items scanned before the customerId filter, so a
+      // Customer's Stops can land on different pages.
+      mockStopList
+        .mockResolvedValueOnce({ data: [{ id: 's1', customerId: 'cust-1' }], errors: undefined, nextToken: 'page-2' })
+        .mockResolvedValueOnce({ data: [{ id: 's2', customerId: 'cust-1' }], errors: undefined, nextToken: null });
+
+      const result = await listCustomerStops('cust-1');
+
+      expect(result.map((stop) => stop.id)).toEqual(['s1', 's2']);
+      expect(mockStopList).toHaveBeenCalledWith(
+        expect.objectContaining({ filter: { customerId: { eq: 'cust-1' } } })
+      );
+      expect(mockStopList).toHaveBeenLastCalledWith(expect.objectContaining({ nextToken: 'page-2' }));
+    });
+  });
+
+  describe('resequenceStops', () => {
+    it('numbers the Stops 1, 2, ... in the order given', async () => {
+      mockStopUpdate.mockResolvedValue({ data: {}, errors: undefined });
+
+      await resequenceStops(['s3', 's1', 's2']);
+
+      expect(mockStopUpdate).toHaveBeenCalledTimes(3);
+      expect(mockStopUpdate).toHaveBeenCalledWith({ id: 's3', sequence: 1 });
+      expect(mockStopUpdate).toHaveBeenCalledWith({ id: 's1', sequence: 2 });
+      expect(mockStopUpdate).toHaveBeenCalledWith({ id: 's2', sequence: 3 });
+    });
+
+    it('throws a DataError when any write fails', async () => {
+      mockStopUpdate
+        .mockResolvedValueOnce({ data: {}, errors: undefined })
+        .mockResolvedValueOnce({ data: null, errors: [{ message: 'conditional check failed' }] });
+
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await expect(resequenceStops(['s1', 's2'])).rejects.toMatchObject({
+        name: 'DataError',
+        message: 'Failed to save stop order.',
+      });
+      consoleErrorSpy.mockRestore();
+    });
+  });
+});

@@ -9,6 +9,8 @@ import {
 } from '@aws-sdk/client-cognito-identity-provider';
 import { SendTemplatedEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import type { Schema } from '../../data/resource';
+import { listAll } from '../../../lib/listAll';
+import { syncCustomerAccess } from '../../../lib/customerAccess';
 
 const PENDING_SUB_PREFIX = 'pending:';
 const cognitoClient = new CognitoIdentityProviderClient({});
@@ -30,8 +32,12 @@ const defaultWelcomeTemplateName = branchName
 const welcomeTemplateName = process.env.SES_WELCOME_TEMPLATE_NAME || defaultWelcomeTemplateName;
 
 async function sendWelcomeEmail(recipientEmail: string, customerName: string) {
-  const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nulldevice.dev').replace(/\/$/, '');
-  const senderEmail = process.env.SES_SENDER_EMAIL || 'no-reply.nulldevice.dev';
+  // Unlike Amplify Console's app/branch env vars, NEXT_PUBLIC_APP_URL and
+  // SES_SENDER_EMAIL aren't auto-injected into this function -- amplify/backend.ts
+  // wires both explicitly (branch-derived) via addEnvironment, so these literal
+  // fallbacks are only reached if that wiring is ever removed.
+  const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nulldevice.com.au').replace(/\/$/, '');
+  const senderEmail = process.env.SES_SENDER_EMAIL || 'no-reply@nulldevice.com.au';
 
   try {
     await sesClient.send(
@@ -99,67 +105,6 @@ async function ensureCustomerGroup(userPoolId: string, username: string) {
   }
 }
 
-async function syncViewerSubsForCustomer(customerId: string, viewerSubs: string[]) {
-  const client = await getDataClient();
-  const { data: routes } = await client.models.Route.list({
-    filter: { customerId: { eq: customerId } },
-    limit: 1000,
-  });
-
-  for (const route of routes || []) {
-    if (!route?.id) continue;
-    await client.models.Route.update({ id: route.id, viewerSubs });
-
-    const { data: stops } = await client.models.Stop.list({
-      filter: { routeId: { eq: route.id } },
-      limit: 1000,
-    });
-
-    for (const stop of stops || []) {
-      if (!stop?.id) continue;
-      await client.models.Stop.update({ id: stop.id, viewerSubs });
-    }
-  }
-
-  const { data: invoices } = await client.models.Invoice.list({
-    filter: { customerId: { eq: customerId } },
-    limit: 1000,
-  });
-  for (const invoice of invoices || []) {
-    if (!invoice?.id) continue;
-    await client.models.Invoice.update({ id: invoice.id, viewerSubs });
-  }
-
-  const { data: lineItems } = await client.models.LineItem.list({
-    filter: { customerId: { eq: customerId } },
-    limit: 1000,
-  });
-  for (const lineItem of lineItems || []) {
-    if (!lineItem?.id) continue;
-    await client.models.LineItem.update({ id: lineItem.id, viewerSubs });
-  }
-
-  const { data: paymentRecords } = await client.models.PaymentRecord.list({
-    filter: { customerId: { eq: customerId } },
-    limit: 1000,
-  });
-  for (const paymentRecord of paymentRecords || []) {
-    if (!paymentRecord?.id) continue;
-    await client.models.PaymentRecord.update({ id: paymentRecord.id, viewerSubs });
-  }
-
-  // CustomerUser itself also carries viewerSubs, so every customer user
-  // (not just the account owner) can read the whole team directory.
-  const { data: customerUsers } = await client.models.CustomerUser.list({
-    filter: { customerId: { eq: customerId } },
-    limit: 1000,
-  });
-  for (const customerUser of customerUsers || []) {
-    if (!customerUser?.id) continue;
-    await client.models.CustomerUser.update({ id: customerUser.id, viewerSubs });
-  }
-}
-
 export const handler: PostConfirmationTriggerHandler = async (event) => {
   const userSub = event.request.userAttributes?.sub?.trim();
   const email = event.request.userAttributes?.email?.trim().toLowerCase();
@@ -172,9 +117,8 @@ export const handler: PostConfirmationTriggerHandler = async (event) => {
   const client = await getDataClient();
   const pendingSubForEmail = `${PENDING_SUB_PREFIX}${email}`;
 
-  const { data: matches, errors: listErrors } = await client.models.CustomerUser.list({
+  const { data: matches, errors: listErrors } = await listAll(client, 'CustomerUser', {
     filter: { email: { eq: email } },
-    limit: 1000,
   });
 
   if (listErrors?.length || !matches || matches.length === 0) {
@@ -216,9 +160,8 @@ export const handler: PostConfirmationTriggerHandler = async (event) => {
   }
 
   for (const [customerId, ownerPendingSubs] of ownerSubRekeys.entries()) {
-    const { data: rows } = await client.models.CustomerUser.list({
+    const { data: rows } = await listAll(client, 'CustomerUser', {
       filter: { customerId: { eq: customerId } },
-      limit: 1000,
     });
 
     for (const row of rows || []) {
@@ -237,30 +180,11 @@ export const handler: PostConfirmationTriggerHandler = async (event) => {
     await sendWelcomeEmail(email, customer?.companyName || customer?.name || 'there');
   }
 
+  // The re-keyed rows were written moments ago and `list` is eventually
+  // consistent, so pass the new sub as a hint. Errors are logged by the sync;
+  // activation still succeeds and sync-profile-access repairs on first visit.
   for (const customerId of affectedCustomerIds) {
-    const { data: rows } = await client.models.CustomerUser.list({
-      filter: { customerId: { eq: customerId } },
-      limit: 1000,
-    });
-
-    const viewerSubs = [
-      ...new Set(
-        (rows || [])
-          .map((row) => row.userSub?.trim())
-          .filter((value): value is string => Boolean(value) && !value.startsWith(PENDING_SUB_PREFIX))
-      ),
-    ];
-
-    const accountOwnerRow = (rows || []).find(
-      (row) => row.role === 'account_owner' && !isPendingSub(row.userSub)
-    );
-
-    await syncViewerSubsForCustomer(customerId, viewerSubs);
-    await client.models.Customer.update({
-      id: customerId,
-      viewerSubs,
-      accountOwnerSub: accountOwnerRow?.userSub || undefined,
-    });
+    await syncCustomerAccess(client, customerId, { added: userSub });
   }
 
   return event;

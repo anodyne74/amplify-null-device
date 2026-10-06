@@ -1,29 +1,34 @@
 'use client';
 
 import type { DragEvent, ReactNode } from 'react';
+import { AgentBadge } from '@/app/components/ui/core/AgentBadge';
+import type { StopProgressTone } from '@/lib/stopStatusLabel';
 import styles from './StopCard.module.css';
 
-const SERVICE_TYPE_CLASS: Record<string, string> = {
-  delivery: styles.cardDelivery,
-  pickup: styles.cardPickup,
-  inspection: styles.cardInspection,
+const TONE_CLASS: Record<StopProgressTone, string> = {
+  awaiting: styles.cardAwaiting,
+  placed: styles.cardPlaced,
+  pickedUp: styles.cardPickedUp,
+  couldntCollect: styles.cardCouldntCollect,
 };
 
-const SERVICE_TYPE_CIRCLE_CLASS: Record<string, string> = {
-  delivery: styles.circleDelivery,
-  pickup: styles.circlePickup,
-  inspection: styles.circleInspection,
+const TONE_CIRCLE_CLASS: Record<StopProgressTone, string> = {
+  awaiting: styles.circleAwaiting,
+  placed: styles.circlePlaced,
+  pickedUp: styles.circlePickedUp,
+  couldntCollect: styles.circleCouldntCollect,
 };
 
 interface StopCardProps {
   sequence: number | string;
-  serviceType?: string | null;
+  /** How far the stop has got (lib/stopStatusLabel.ts), which colours it. */
+  tone: StopProgressTone;
   address: string;
   statusLabel: string;
-  agentInitials: string;
   agentName: string;
-  agentBadgeTone: { backgroundColor: string; color: string };
   isAuction?: boolean;
+  /** Signs logged missing at this Stop during Pickup (Missing Signs, CONTEXT.md). */
+  missingSigns?: number;
   isTop?: boolean;
   isCompleted?: boolean;
   isDragging?: boolean;
@@ -40,13 +45,12 @@ interface StopCardProps {
 /** A single stop row in the operator route-detail planning view (sequence, address, status, agent, actions). */
 export default function StopCard({
   sequence,
-  serviceType,
+  tone,
   address,
   statusLabel,
-  agentInitials,
   agentName,
-  agentBadgeTone,
   isAuction = false,
+  missingSigns = 0,
   isTop = false,
   isCompleted = false,
   isDragging = false,
@@ -59,11 +63,9 @@ export default function StopCard({
   onDragEnd,
   actions,
 }: StopCardProps) {
-  const svcKey = serviceType || 'delivery';
-
   return (
     <div
-      className={`${styles.card} ${SERVICE_TYPE_CLASS[svcKey] ?? ''} ${isTop ? styles.cardTop : ''} ${isCompleted ? styles.cardCompleted : ''} ${isDragging ? styles.cardDragging : ''} ${isDropTarget ? styles.cardDropTarget : ''}`}
+      className={`${styles.card} ${TONE_CLASS[tone]} ${isTop ? styles.cardTop : ''} ${isCompleted ? styles.cardCompleted : ''} ${isDragging ? styles.cardDragging : ''} ${isDropTarget ? styles.cardDropTarget : ''}`}
       draggable={draggable}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
@@ -71,27 +73,16 @@ export default function StopCard({
       onDrop={onDrop}
       onDragEnd={onDragEnd}
     >
-      <div className={`${styles.sequenceCircle} ${SERVICE_TYPE_CIRCLE_CLASS[svcKey] ?? ''}`}>{sequence}</div>
+      <div className={`${styles.sequenceCircle} ${TONE_CIRCLE_CLASS[tone]}`}>{sequence}</div>
 
       <div className={styles.body}>
         <div className={styles.address}>{address}</div>
         <div className={styles.status}>{statusLabel}</div>
         {isAuction && <span className={styles.auctionBadge}>Auction</span>}
+        {missingSigns > 0 && <span className={styles.missingBadge}>{missingSigns} missing</span>}
       </div>
 
-      <span
-        className={styles.agentBadge}
-        aria-label={agentName}
-        title={agentName}
-        style={
-          {
-            '--nd-agent-badge-bg': agentBadgeTone.backgroundColor,
-            '--nd-agent-badge-fg': agentBadgeTone.color,
-          } as React.CSSProperties
-        }
-      >
-        {agentInitials}
-      </span>
+      <AgentBadge agentName={agentName} size="sm" />
 
       {actions && <div className={styles.actions}>{actions}</div>}
     </div>

@@ -1,16 +1,17 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useSessionTimeout, useLogout } from '../sessionManager';
 import { useRouter } from 'next/navigation';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { signOut } from 'aws-amplify/auth';
 
 // Mock next/navigation
 jest.mock('next/navigation', () => ({
   useRouter: jest.fn(),
 }));
 
-// Mock @aws-amplify/ui-react
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: jest.fn(),
+// Mock aws-amplify/auth -- sessionManager calls signOut() directly rather
+// than going through useAuthenticator(), see sessionManager.ts for why.
+jest.mock('aws-amplify/auth', () => ({
+  signOut: jest.fn(),
 }));
 
 describe('Session Management', () => {
@@ -22,14 +23,11 @@ describe('Session Management', () => {
     jest.useFakeTimers();
 
     mockPush = jest.fn();
-    mockSignOut = jest.fn().mockResolvedValue(undefined);
+    mockSignOut = signOut as jest.Mock;
+    mockSignOut.mockResolvedValue(undefined);
 
     (useRouter as jest.Mock).mockReturnValue({
       push: mockPush,
-    });
-
-    (useAuthenticator as jest.Mock).mockReturnValue({
-      signOut: mockSignOut,
     });
   });
 
@@ -67,7 +65,9 @@ describe('Session Management', () => {
         expect(mockSignOut).toHaveBeenCalled();
       });
 
-      expect(mockPush).toHaveBeenCalledWith('/');
+      await waitFor(() => {
+        expect(window.location.href).toBe('http://localhost/');
+      });
     });
 
     it('does not timeout if activity occurs within timeout period', async () => {
@@ -135,7 +135,7 @@ describe('Session Management', () => {
       });
 
       expect(mockSignOut).toHaveBeenCalled();
-      expect(mockPush).toHaveBeenCalledWith('/');
+      expect(window.location.href).toBe('http://localhost/');
     });
 
     it('handles signOut errors gracefully', async () => {
@@ -144,12 +144,15 @@ describe('Session Management', () => {
 
       const { result } = renderHook(() => useLogout());
 
-      // Should not throw
+      // Should not throw, and should still navigate away even though
+      // signOut() failed -- getting the user off the current page is more
+      // important than a clean sign-out.
       await act(async () => {
         await result.current.logout();
       });
 
       expect(mockSignOut).toHaveBeenCalled();
+      expect(window.location.href).toBe('http://localhost/');
       consoleErrorSpy.mockRestore();
     });
 

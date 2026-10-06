@@ -46,26 +46,20 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 34px;
+  width: 34px;
   height: 34px;
-  padding: 0 var(--space-3);
+  padding: 0;
   border: var(--border-hairline) solid var(--border-default);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-circle);
   font-size: var(--text-sm);
   font-weight: var(--fw-bold);
   letter-spacing: 0.04em;
   cursor: pointer;
-  background: var(--surface-card);
-  color: var(--text-body);
+  background: var(--nd-agent-badge-bg, var(--surface-card));
+  color: var(--nd-agent-badge-fg, var(--text-body));
   transition: var(--transition-control);
   white-space: nowrap;
   box-sizing: border-box;
-}
-
-.agentBadgeCircle {
-  width: 34px;
-  min-width: 34px;
-  padding: 0;
 }
 
 .agentBadgeSelected {

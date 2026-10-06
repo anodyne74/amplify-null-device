@@ -1,10 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { generateAgentInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
+import { useEffect, useRef, useState } from 'react';
+import { getAgentBadgeInitials, getAgentBadgeTone } from '@/lib/customerDefaults';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
-import { Select } from '@/app/components/ui/forms/Select';
 import { Checkbox } from '@/app/components/ui/forms/Checkbox';
 import { Button } from '@/app/components/ui/core/Button';
 import styles from './StopForm.module.css';
@@ -13,7 +12,6 @@ import { AddressAutocompleteInput, type ResolvedAddress } from './AddressAutocom
 interface StopFormProps {
   initialValues?: {
     address?: string;
-    serviceType?: 'delivery' | 'pickup' | 'inspection';
     numberOfSigns?: number;
     agent?: string;
     isAuction?: boolean;
@@ -21,14 +19,12 @@ interface StopFormProps {
   };
   onSubmit: (values: {
     address: string;
-    serviceType: 'delivery' | 'pickup' | 'inspection';
     numberOfSigns?: number;
     agent?: string;
     isAuction?: boolean;
     notes?: string;
-    latitude?: number;
-    longitude?: number;
-    formattedAddress?: string;
+    /** The autocomplete pick, if the address was chosen from suggestions on this edit. */
+    resolvedLocation?: ResolvedAddress;
   }) => Promise<void>;
   onCancel: () => void;
   addressSearchOrigin?: { latitude: number; longitude: number } | null;
@@ -57,13 +53,24 @@ export function StopForm({
   submitLabel = 'Add Stop',
 }: StopFormProps) {
   const [address, setAddress] = useState(initialValues?.address || '');
-  const [serviceType, setServiceType] = useState<'delivery' | 'pickup' | 'inspection'>(
-    initialValues?.serviceType || 'delivery'
-  );
   const [numberOfSigns, setNumberOfSigns] = useState(
     initialValues?.numberOfSigns?.toString() || defaultNumberOfSigns?.toString() || ''
   );
   const [agent, setAgent] = useState(initialValues?.agent || defaultAgentInitials || '');
+  // The Customer's defaults can arrive after the form opens: fill them in
+  // then, unless the field was already set or changed by hand.
+  const signsChosen = useRef(Boolean(initialValues?.numberOfSigns?.toString() || defaultNumberOfSigns?.toString()));
+  const agentChosen = useRef(Boolean(initialValues?.agent || defaultAgentInitials));
+  useEffect(() => {
+    if (signsChosen.current || typeof defaultNumberOfSigns !== 'number') return;
+    signsChosen.current = true;
+    setNumberOfSigns(defaultNumberOfSigns.toString());
+  }, [defaultNumberOfSigns]);
+  useEffect(() => {
+    if (agentChosen.current || !defaultAgentInitials) return;
+    agentChosen.current = true;
+    setAgent(defaultAgentInitials);
+  }, [defaultAgentInitials]);
   const [isAuction, setIsAuction] = useState(Boolean(initialValues?.isAuction));
   const [resolvedAddress, setResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [notes, setNotes] = useState(initialValues?.notes || '');
@@ -110,14 +117,11 @@ export function StopForm({
 
     await onSubmit({
       address: address.trim(),
-      serviceType,
       numberOfSigns: parsedSigns,
       agent: agent.trim() || undefined,
       isAuction,
       notes: notes || undefined,
-      latitude: resolvedAddress?.latitude,
-      longitude: resolvedAddress?.longitude,
-      formattedAddress: resolvedAddress?.formattedAddress,
+      resolvedLocation: resolvedAddress ?? undefined,
     });
   };
 
@@ -172,20 +176,6 @@ export function StopForm({
         </div>
       )}
 
-      <div className={styles.field}>
-        <Field label="Service Type" htmlFor="serviceType">
-          <Select
-            id="serviceType"
-            value={serviceType}
-            onChange={(e) => setServiceType(e.target.value as 'delivery' | 'pickup' | 'inspection')}
-            disabled={isSubmitting}
-          >
-            <option value="delivery">Delivery</option>
-            <option value="pickup">Pickup</option>
-            <option value="inspection">Inspection</option>
-          </Select>
-        </Field>
-      </div>
 
       <div className={styles.field}>
         <Field label="Number of Signs" htmlFor="numberOfSigns">
@@ -195,6 +185,7 @@ export function StopForm({
             min={0}
             value={numberOfSigns}
             onChange={(e) => {
+              signsChosen.current = true;
               setNumberOfSigns(e.target.value);
               setFieldErrors((prev) =>
                 prev.numberOfSigns
@@ -229,20 +220,28 @@ export function StopForm({
           <div className={styles.agentBadgeGroup} role="radiogroup" aria-label="Listing Agent">
             {agentOptions.map((option) => {
               const selected = agent === option;
-              const agentInitials = generateAgentInitials(option) ?? option.slice(0, 2).toUpperCase();
+              const tone = getAgentBadgeTone(option);
               return (
                 <button
                   key={option}
                   type="button"
-                  className={`${styles.agentBadge} ${agentInitials.length <= 2 ? styles.agentBadgeCircle : ''} ${selected ? styles.agentBadgeSelected : ''}`}
-                  onClick={() => setAgent(selected ? '' : option)}
+                  className={`${styles.agentBadge} ${selected ? styles.agentBadgeSelected : ''}`}
+                  onClick={() => {
+                    agentChosen.current = true;
+                    setAgent(selected ? '' : option);
+                  }}
                   disabled={isSubmitting}
                   aria-pressed={selected}
                   aria-label={option}
                   title={option}
-                  style={getAgentBadgeTone(option)}
+                  style={
+                    {
+                      '--nd-agent-badge-bg': tone.backgroundColor,
+                      '--nd-agent-badge-fg': tone.color,
+                    } as React.CSSProperties
+                  }
                 >
-                  {agentInitials}
+                  {getAgentBadgeInitials(option)}
                 </button>
               );
             })}

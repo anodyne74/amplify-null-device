@@ -2,8 +2,8 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import RoutesPage from '../page';
-import * as listAllRoutesModule from '@/lib/queries/ListAllRoutes';
-import * as listAllCustomersModule from '@/lib/queries/ListAllCustomers';
+import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
+import * as listAllCustomersModule from '@/lib/customers';
 import * as amplifyConfigModule from '@/lib/amplify-config';
 import type { Route } from '@/amplify/types';
 
@@ -34,8 +34,10 @@ jest.mock('@/app/components/OperatorRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/lib/queries/ListAllRoutes');
-jest.mock('@/lib/queries/ListAllCustomers');
+jest.mock('@/lib/useLiveRoutes', () => ({
+  useLiveAllRoutes: jest.fn(),
+}));
+jest.mock('@/lib/customers');
 
 const mockRoutes: Route[] = [
   {
@@ -58,27 +60,20 @@ describe('Operator Routes List Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (amplifyConfigModule.isAdmin as jest.Mock).mockReturnValue(true);
-    (listAllCustomersModule.listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-bbbb-2222', name: 'Acme Corp', email: 'acme@example.com' },
-        { id: 'cust-dddd-4444', name: 'Globex Inc', email: 'globex@example.com' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomersModule.listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-bbbb-2222', name: 'Acme Corp', email: 'acme@example.com' },
+      { id: 'cust-dddd-4444', name: 'Globex Inc', email: 'globex@example.com' },
+    ]);
   });
 
   it('renders loading spinner initially', async () => {
-    // Never resolves during this check
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockReturnValue(new Promise(() => {}));
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: true, error: null });
     render(<RoutesPage />);
     expect(screen.getByText(/loading routes/i)).toBeInTheDocument();
   });
 
   it('renders routes list after data loads', async () => {
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-      data: mockRoutes,
-      errors: undefined,
-    });
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -95,11 +90,26 @@ describe('Operator Routes List Page', () => {
     expect(screen.getByText('Globex Inc')).toBeInTheDocument();
   });
 
-  it('shows "Create New Route" link', async () => {
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [],
-      errors: undefined,
+  it('reflects a route newly assigned via a live update, without a manual reload', async () => {
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [mockRoutes[0]], loading: false, error: null });
+
+    const { rerender } = render(<RoutesPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/loading routes/i)).not.toBeInTheDocument();
     });
+    expect(screen.queryByText('W19-26-002')).not.toBeInTheDocument();
+
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+    rerender(<RoutesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('W19-26-002')).toBeInTheDocument();
+    });
+  });
+
+  it('shows "Create New Route" link', async () => {
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -114,10 +124,7 @@ describe('Operator Routes List Page', () => {
 
   it('hides "Create New Route" link for non-admin operators', async () => {
     (amplifyConfigModule.isAdmin as jest.Mock).mockReturnValue(false);
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [],
-      errors: undefined,
-    });
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -129,10 +136,7 @@ describe('Operator Routes List Page', () => {
   });
 
   it('shows empty state when no routes', async () => {
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [],
-      errors: undefined,
-    });
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: null });
 
     render(<RoutesPage />);
 
@@ -142,10 +146,7 @@ describe('Operator Routes List Page', () => {
   });
 
   it('shows error when fetch fails', async () => {
-    (listAllRoutesModule.listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [],
-      errors: [{ message: 'Network error' }],
-    });
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: 'Network error' });
 
     render(<RoutesPage />);
 

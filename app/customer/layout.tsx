@@ -1,24 +1,27 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { useEffect, useMemo } from 'react';
+import { callApi } from '@/lib/apiClient';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
-import CustomerShell from '@/app/customer/components/CustomerShell';
-import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
-import { getUserDisplayName } from '@/lib/amplify-config';
-import { getCustomerPortalContext, getUserSettings } from '@/lib/queries';
-import { useSessionTimeout, useLogout } from '@/app/auth/sessionManager';
+import PortalShell, { type PortalNavItem } from '@/app/components/PortalShell';
+import { usePortalUser } from '@/lib/usePortalUser';
+import { CustomerPortalContextProvider, useCustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { useSessionTimeout } from '@/app/auth/sessionManager';
+import { FeatureFlagsProvider, useFeatureFlags } from '@/lib/useFeatureFlags';
+import type { FeatureFlagName } from '@/lib/featureFlags';
 
-const CUSTOMER_NAV = [
+// featureFlag: the entry only shows while that Feature Flag is on for the Customer.
+const CUSTOMER_NAV: (PortalNavItem & { featureFlag?: FeatureFlagName })[] = [
   { href: '/customer/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
   { href: '/customer/routes', label: 'Routes', icon: 'route' },
   { href: '/customer/invoices', label: 'Invoices', icon: 'file-text' },
   { href: '/customer/calendar', label: 'Calendar', icon: 'calendar' },
-  { href: '/customer/orders', label: 'Standing Orders', icon: 'clipboard-list' },
+  { href: '/customer/property-history', label: 'Property History', icon: 'history', featureFlag: 'property-history' },
+  { href: '/customer/route-defaults', label: 'Route Defaults', icon: 'clipboard-list' },
   { href: '/customer/billing-details', label: 'Billing Details', icon: 'receipt' },
-  { href: '/customer/users', label: 'Team', icon: 'user-plus' },
+  { href: '/customer/users', label: 'Users', icon: 'user-plus' },
   { href: '/customer/settings', label: 'Settings', icon: 'settings' },
+  { href: '/customer/help', label: 'Help', icon: 'circle-help', featureFlag: 'customer-help' },
 ];
 
 const READ_ONLY_HIDDEN_PATHS = ['/customer/invoices', '/customer/billing-details', '/customer/users'];
@@ -29,92 +32,52 @@ const READ_ONLY_HIDDEN_PATHS = ['/customer/invoices', '/customer/billing-details
  * Includes session timeout after 30 minutes of inactivity.
  */
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuthenticator();
-  const fallbackDisplayName = user ? getUserDisplayName(user) ?? '' : '';
-  const [userDisplayName, setUserDisplayName] = useState(fallbackDisplayName);
-  const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('account_owner');
-  const { logout } = useLogout();
-  const { setMode: applyThemeMode } = useThemeMode();
+  return (
+    // account_owner while loading matches the pre-refactor default here: this
+    // only affects nav-item visibility (READ_ONLY_HIDDEN_PATHS below), never a
+    // data fetch, so showing the fuller nav briefly for the common
+    // account-owner case beats flashing the reduced nav for everyone.
+    <CustomerPortalContextProvider defaultRole="account_owner">
+      <FeatureFlagsProvider>
+        <CustomerLayoutContent>{children}</CustomerLayoutContent>
+      </FeatureFlagsProvider>
+    </CustomerPortalContextProvider>
+  );
+}
+
+// Rendered beneath CustomerPortalContextProvider so both this component's own
+// useCustomerPortalContext() call and every page's below it share the one
+// resolved role/customerId instead of each fetching it independently.
+function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
+  const { userId, displayName, logout } = usePortalUser();
+  const { role: customerRole } = useCustomerPortalContext();
+  const { isOn } = useFeatureFlags();
 
   useSessionTimeout();
 
   useEffect(() => {
-    setUserDisplayName(fallbackDisplayName);
-  }, [fallbackDisplayName]);
+    if (!userId) return;
 
-  useEffect(() => {
-    if (!user?.userId) return;
-    if (typeof getUserSettings !== 'function') return;
-    let cancelled = false;
-
-    void getUserSettings(user.userId)
-      .then((result) => {
-        const configuredName = result.data?.name?.trim();
-        if (!cancelled) {
-          setUserDisplayName(configuredName || fallbackDisplayName);
-        }
-
-        const defaultTheme = result.data?.defaultTheme;
-        if (cancelled || !defaultTheme) return;
-        applyThemeMode(defaultTheme);
-      })
-      .catch(() => {
-        // Non-blocking: keep current theme if settings cannot be loaded.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [applyThemeMode, fallbackDisplayName, user?.userId]);
-
-  useEffect(() => {
-    if (!user?.userId) return;
-    let cancelled = false;
-
-    void getCustomerPortalContext(user.userId)
-      .then((ctx) => {
-        if (!cancelled) setCustomerRole(ctx.role);
-      })
-      .catch(() => {
-        if (!cancelled) setCustomerRole('account_owner');
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.userId]);
-
-  useEffect(() => {
-    if (!user?.userId) return;
-
-    void fetchAuthSession()
-      .then((session) => {
-        const idToken = session.tokens?.idToken?.toString();
-        if (!idToken) return;
-        return fetch('/api/customer/sync-profile-access', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({}),
-        });
-      })
-      .catch(() => {
+    callApi('/api/customer/sync-profile-access', {}).catch(() => {
         // Non-blocking: existing accounts self-heal on a later visit if this fails.
       });
-  }, [user?.userId]);
+  }, [userId]);
 
   const navItems = useMemo(
-    () => (customerRole === 'read_only' ? CUSTOMER_NAV.filter((item) => !READ_ONLY_HIDDEN_PATHS.includes(item.href)) : CUSTOMER_NAV),
-    [customerRole]
+    () =>
+      CUSTOMER_NAV.filter(
+        (item) =>
+          (customerRole !== 'read_only' || !READ_ONLY_HIDDEN_PATHS.includes(item.href)) &&
+          (!item.featureFlag || isOn(item.featureFlag))
+      ),
+    [customerRole, isOn]
   );
 
   return (
     <ProtectedRoute requireCustomer={true}>
-      <CustomerShell navItems={navItems} userEmail={userDisplayName} onLogout={logout}>
+      <PortalShell variant="customer" navItems={navItems} userName={displayName} onLogout={logout}>
         {children}
-      </CustomerShell>
+      </PortalShell>
     </ProtectedRoute>
   );
 }

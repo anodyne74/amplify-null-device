@@ -2,13 +2,16 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AdministratorPaymentDetailsPage from '../page';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listRateLines } from '@/lib/queries/ListRateLines';
 import { createRateLine } from '@/lib/queries/CreateRateLine';
 import { deleteRateLine } from '@/lib/queries/DeleteRateLine';
-import { getCustomer, updateCustomer } from '@/lib/queries';
 import { computeDriverSplit } from '@/lib/driverSplit';
 import { getOrganizationSettings, upsertOrganizationSettings } from '@/lib/queries/OrganizationSettings';
+import { listAllCustomers, getCustomer, updateCustomer } from '@/lib/customers';
+
+jest.mock('next/navigation', () => ({
+  useSearchParams: () => ({ get: () => null }),
+}));
 
 jest.mock('@/lib/queries/OrganizationSettings', () => ({
   getOrganizationSettings: jest.fn(),
@@ -20,8 +23,10 @@ jest.mock('@/app/components/OperatorRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/lib/queries/ListAllCustomers', () => ({
+jest.mock('@/lib/customers', () => ({
   listAllCustomers: jest.fn(),
+  getCustomer: jest.fn(),
+  updateCustomer: jest.fn(),
 }));
 
 jest.mock('@/lib/queries/ListRateLines', () => ({
@@ -36,11 +41,6 @@ jest.mock('@/lib/queries/DeleteRateLine', () => ({
   deleteRateLine: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
-  getCustomer: jest.fn(),
-  updateCustomer: jest.fn(),
-}));
-
 jest.mock('@/lib/driverSplit', () => ({
   computeDriverSplit: jest.fn(),
 }));
@@ -48,38 +48,32 @@ jest.mock('@/lib/driverSplit', () => ({
 describe('Administrator Payment Details page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-1', name: 'Harcourts Epping' },
-        { id: 'cust-2', name: 'Ray White Eastwood' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping' },
+      { id: 'cust-2', name: 'Ray White Eastwood' },
+    ]);
     (getCustomer as jest.Mock).mockResolvedValue({
-      data: {
-        id: 'cust-1',
-        billingCycle: 'monthly',
-        paymentTermsDays: 14,
-        gstAbn: '48 221 604 992',
-        gstRegistered: true,
-        gstExclusive: true,
-        groupLineItemsByAgent: false,
-        autoSendInvoiceOnPeriodClose: false,
-        directDebitAccountName: 'Harcourts Epping Pty Ltd',
-        directDebitBsb: '062-217',
-        directDebitAccountNumber: '4192',
-        directDebitAuthorizedAt: '2026-07-04T00:00:00Z',
-        billingRatePerHour: 30,
-        driverSplitPercent: 40,
-        hideDriverSplitFromCustomer: false,
-        paySplitOnCompletedStopsOnly: false,
-      },
-      errors: undefined,
+      id: 'cust-1',
+      billingCycle: 'monthly',
+      paymentTermsDays: 14,
+      gstAbn: '48 221 604 992',
+      gstRegistered: true,
+      gstExclusive: true,
+      groupLineItemsByAgent: false,
+      autoSendInvoiceOnPeriodClose: false,
+      directDebitAccountName: 'Harcourts Epping Pty Ltd',
+      directDebitBsb: '062-217',
+      directDebitAccountNumber: '4192',
+      directDebitAuthorizedAt: '2026-07-04T00:00:00Z',
+      billingRatePerHour: 30,
+      driverSplitPercent: 40,
+      hideDriverSplitFromCustomer: false,
+      paySplitOnCompletedStopsOnly: false,
     });
-    (updateCustomer as jest.Mock).mockResolvedValue({ data: { id: 'cust-1' }, errors: undefined });
-    (listRateLines as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
-    (createRateLine as jest.Mock).mockResolvedValue({ data: { id: 'line-new' }, errors: undefined });
-    (deleteRateLine as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
+    (updateCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1' });
+    (listRateLines as jest.Mock).mockResolvedValue([]);
+    (createRateLine as jest.Mock).mockResolvedValue({ id: 'line-new' });
+    (deleteRateLine as jest.Mock).mockResolvedValue({});
     (computeDriverSplit as jest.Mock).mockResolvedValue({
       periodStartDate: '2026-08-01',
       periodEndDate: '2026-08-20',
@@ -90,19 +84,16 @@ describe('Administrator Payment Details page', () => {
       byOperator: [],
     });
     (getOrganizationSettings as jest.Mock).mockResolvedValue({
-      data: {
-        id: 'organization',
-        companyName: 'Null Device',
-        abn: 'ABN 93 374 916 783',
-        phone: '+61 406 199 785',
-        address: '31 Chester Street, Epping NSW 2121',
-        paymentAccountName: 'Null Device',
-        bsb: '000-000',
-        accountNumber: '00000000',
-      },
-      errors: undefined,
+      id: 'organization',
+      companyName: 'Null Device',
+      abn: 'ABN 93 374 916 783',
+      phone: '+61 406 199 785',
+      address: '31 Chester Street, Epping NSW 2121',
+      paymentAccountName: 'Null Device',
+      bsb: '000-000',
+      accountNumber: '00000000',
     });
-    (upsertOrganizationSettings as jest.Mock).mockResolvedValue({ data: { id: 'organization' }, errors: undefined });
+    (upsertOrganizationSettings as jest.Mock).mockResolvedValue({ id: 'organization' });
   });
 
   it('loads the first customer and shows their billing cycle & tax settings', async () => {
@@ -114,6 +105,16 @@ describe('Administrator Payment Details page', () => {
 
     expect(await screen.findByDisplayValue('48 221 604 992')).toBeInTheDocument();
     expect(screen.getByText(/mandate signed/i)).toBeInTheDocument();
+  });
+
+  it('shows a load error and no save panels when the customer cannot be read', async () => {
+    (getCustomer as jest.Mock).mockRejectedValue(new Error('customer read failed'));
+
+    render(<AdministratorPaymentDetailsPage />);
+
+    expect(await screen.findByText("Couldn't load this customer. Reload to try again.")).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save billing cycle & tax/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save payment details/i })).not.toBeInTheDocument();
   });
 
   it('saves billing cycle & tax settings', async () => {
@@ -164,7 +165,7 @@ describe('Administrator Payment Details page', () => {
   });
 
   it('shows an empty state when there are no customers', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllCustomers as jest.Mock).mockResolvedValue([]);
 
     render(<AdministratorPaymentDetailsPage />);
 
@@ -172,7 +173,7 @@ describe('Administrator Payment Details page', () => {
   });
 
   it('loads and displays the org-wide pay-to details, even with no customers', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllCustomers as jest.Mock).mockResolvedValue([]);
 
     render(<AdministratorPaymentDetailsPage />);
 
@@ -181,6 +182,25 @@ describe('Administrator Payment Details page', () => {
     expect(screen.getByLabelText('Pay-To Account Name')).toBeInTheDocument();
     expect(screen.getByLabelText('Pay-To BSB')).toBeInTheDocument();
     expect(screen.getByLabelText('Pay-To Account Number')).toBeInTheDocument();
+  });
+
+  it('shows a load error and no pay-to form when the pay-to details cannot be read', async () => {
+    (getOrganizationSettings as jest.Mock).mockRejectedValue(new Error('read failed'));
+
+    render(<AdministratorPaymentDetailsPage />);
+
+    expect(await screen.findByText("Couldn't load the pay-to details. Reload to try again.")).toBeInTheDocument();
+    expect(screen.queryByLabelText('Pay-To Account Name')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save pay-to details/i })).not.toBeInTheDocument();
+  });
+
+  it('shows an empty pay-to form when none has been saved yet', async () => {
+    (getOrganizationSettings as jest.Mock).mockResolvedValue(null);
+
+    render(<AdministratorPaymentDetailsPage />);
+
+    expect(await screen.findByLabelText('Pay-To Account Name')).toHaveValue('');
+    expect(screen.getByRole('button', { name: /save pay-to details/i })).toBeInTheDocument();
   });
 
   it('saves pay-to details as an org-wide singleton, unrelated to the selected customer', async () => {
@@ -217,10 +237,7 @@ describe('Administrator Payment Details page', () => {
   });
 
   it('renders rate lines for the selected customer', async () => {
-    (listRateLines as jest.Mock).mockResolvedValue({
-      data: [{ id: 'line-1', customerId: 'cust-1', label: 'Placement', unit: 'per_hour', ratePerUnit: 30 }],
-      errors: undefined,
-    });
+    (listRateLines as jest.Mock).mockResolvedValue([{ id: 'line-1', customerId: 'cust-1', label: 'Placement', unit: 'per_hour', ratePerUnit: 30 }]);
 
     render(<AdministratorPaymentDetailsPage />);
 
@@ -259,10 +276,7 @@ describe('Administrator Payment Details page', () => {
   });
 
   it('removes a rate line', async () => {
-    (listRateLines as jest.Mock).mockResolvedValue({
-      data: [{ id: 'line-1', customerId: 'cust-1', label: 'Placement', unit: 'per_hour', ratePerUnit: 30 }],
-      errors: undefined,
-    });
+    (listRateLines as jest.Mock).mockResolvedValue([{ id: 'line-1', customerId: 'cust-1', label: 'Placement', unit: 'per_hour', ratePerUnit: 30 }]);
 
     render(<AdministratorPaymentDetailsPage />);
 
@@ -279,22 +293,18 @@ describe('Administrator Payment Details page', () => {
   });
 
   it('copies rate lines from another customer', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-1', name: 'Harcourts Epping' },
-        { id: 'cust-2', name: 'Ray White Eastwood' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping' },
+      { id: 'cust-2', name: 'Ray White Eastwood' },
+    ]);
 
     (listRateLines as jest.Mock).mockImplementation((customerId: string) => {
       if (customerId === 'cust-2') {
-        return Promise.resolve({
-          data: [{ id: 'line-src', customerId: 'cust-2', label: 'Placement', unit: 'per_hour', ratePerUnit: 30 }],
-          errors: undefined,
-        });
+        return Promise.resolve([
+          { id: 'line-src', customerId: 'cust-2', label: 'Placement', unit: 'per_hour', ratePerUnit: 30 },
+        ]);
       }
-      return Promise.resolve({ data: [], errors: undefined });
+      return Promise.resolve([]);
     });
 
     render(<AdministratorPaymentDetailsPage />);
@@ -315,6 +325,57 @@ describe('Administrator Payment Details page', () => {
         expect.objectContaining({ customerId: 'cust-1', label: 'Placement', ratePerUnit: 30 })
       );
     });
+  });
+
+  it('shows a load error and holds off adding or copying when rate lines cannot be read', async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping' },
+      { id: 'cust-2', name: 'Ray White Eastwood' },
+    ]);
+    (listRateLines as jest.Mock).mockRejectedValue(new Error('read failed'));
+
+    render(<AdministratorPaymentDetailsPage />);
+
+    expect(await screen.findByText("Couldn't load rate lines. Reload to try again.")).toBeInTheDocument();
+    expect(screen.queryByText(/this customer uses the flat billing rate/i)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'After-hours surcharge' } });
+    fireEvent.change(screen.getByLabelText('Rate'), { target: { value: '95' } });
+    fireEvent.change(screen.getByLabelText('Copy from another customer'), { target: { value: 'cust-2' } });
+    expect(screen.getByRole('button', { name: /add rate line/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /copy rate lines/i })).toBeDisabled();
+  });
+
+  it("says so, and copies nothing, when the other customer's rate lines cannot be read", async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping' },
+      { id: 'cust-2', name: 'Ray White Eastwood' },
+    ]);
+    (listRateLines as jest.Mock).mockImplementation((customerId: string) =>
+      customerId === 'cust-2' ? Promise.reject(new Error('read failed')) : Promise.resolve([])
+    );
+
+    render(<AdministratorPaymentDetailsPage />);
+
+    await screen.findByText(/this customer uses the flat billing rate/i);
+    fireEvent.change(screen.getByLabelText('Copy from another customer'), { target: { value: 'cust-2' } });
+    fireEvent.click(screen.getByRole('button', { name: /copy rate lines/i }));
+
+    expect(await screen.findByText("Couldn't load that customer's rate lines.")).toBeInTheDocument();
+    expect(createRateLine).not.toHaveBeenCalled();
+  });
+
+  it('shows an error when a rate line cannot be added', async () => {
+    (createRateLine as jest.Mock).mockRejectedValue(new Error('write failed'));
+
+    render(<AdministratorPaymentDetailsPage />);
+
+    await screen.findByText(/this customer uses the flat billing rate/i);
+    fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'After-hours surcharge' } });
+    fireEvent.change(screen.getByLabelText('Rate'), { target: { value: '95' } });
+    fireEvent.click(screen.getByRole('button', { name: /add rate line/i }));
+
+    expect(await screen.findByText('Could not add rate line.')).toBeInTheDocument();
   });
 
   it('loads the driver split percent and shows the computed period preview', async () => {
@@ -343,7 +404,7 @@ describe('Administrator Payment Details page', () => {
       expect(screen.getByDisplayValue('40')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /save driver split/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save operator split/i }));
 
     await waitFor(() => {
       expect(updateCustomer).toHaveBeenCalledWith('cust-1', {
@@ -354,7 +415,7 @@ describe('Administrator Payment Details page', () => {
       });
     });
 
-    expect(await screen.findByText(/driver split settings saved/i)).toBeInTheDocument();
+    expect(await screen.findByText(/operator split settings saved/i)).toBeInTheDocument();
   });
 
   it('scrolls back to the top when switching customers (#66)', async () => {

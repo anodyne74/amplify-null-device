@@ -2,9 +2,9 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import RouteDetailPage from '../detail/page';
-import * as getRouteDetailModule from '@/lib/queries/GetRouteDetail';
-import { getCustomer } from '@/lib/queries';
+import type { RouteWithStopsFeedHandlers } from '@/lib/routeWithStopsFeed';
 import type { Route } from '@/amplify/types';
+import { getCustomer } from '@/lib/customers';
 
 // GitHub issue #57: opening a route from the operator portal could hang on the
 // loading spinner forever if `id` was missing on first render, or if anything
@@ -47,30 +47,29 @@ jest.mock('@/app/components/ToastProvider', () => ({
   useToast: () => ({ showToast: jest.fn() }),
 }));
 
-jest.mock('@/lib/queries/GetRouteDetail');
-jest.mock('@/lib/queries/DeleteStop', () => ({
-  deleteStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-}));
-jest.mock('@/lib/queries', () => ({
-  getCustomer: jest.fn(),
-  getRouteWithStops: jest.fn().mockResolvedValue({ stops: [], errors: undefined }),
-  createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
-  deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-  updateStopExecution: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-  updateRouteExecution: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-  updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-}));
-jest.mock('@/lib/queries/UpdateStop', () => ({
-  updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+// Nothing is pushed live unless a test does so through mockFeed.
+const mockFeed: { handlers: RouteWithStopsFeedHandlers | null } = { handlers: null };
+jest.mock('@/lib/routeWithStopsFeed', () => ({
+  subscribeRouteWithStops: (_routeId: string, handlers: RouteWithStopsFeedHandlers) => {
+    mockFeed.handlers = handlers;
+    return () => {};
+  },
 }));
 
-jest.mock('aws-amplify/data', () => ({
-  generateClient: jest.fn(() => ({
-    models: {
-      Stop: { list: jest.fn().mockResolvedValue({ data: [], errors: undefined }), update: jest.fn() },
-      Route: { update: jest.fn() },
-    },
-  })),
+// What getRouteWithStops resolves to; tests override route/stops per case.
+const mockFetched: { route: unknown; stops: unknown[] } = { route: null, stops: [] };
+jest.mock('@/lib/routes', () => ({
+  deleteStop: jest.fn().mockResolvedValue(undefined),
+  getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched })),
+  createStop: jest.fn().mockResolvedValue({ id: 'new-stop' }),
+  deleteRoute: jest.fn().mockResolvedValue(undefined),
+  updateStopExecution: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+  updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+  updateStop: jest.fn().mockResolvedValue({}),
+}));
+
+jest.mock('@/lib/customers', () => ({
+  getCustomer: jest.fn(),
 }));
 
 const mockRoute: Route = {
@@ -86,11 +85,8 @@ describe('Operator Route Detail Page — load-failure handling (#57)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     searchParamId = 'route-test-id-1234';
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: mockRoute,
-      errors: undefined,
-    });
-    (getCustomer as jest.Mock).mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined });
+    mockFetched.route = mockRoute;
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-abcd-5678', name: 'Acme Corp' });
   });
 
   it('shows an error instead of an infinite spinner when no route id is present', async () => {

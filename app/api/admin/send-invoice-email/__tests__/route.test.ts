@@ -12,10 +12,10 @@ const { TextEncoder } = require('util');
 const verifyMock = jest.fn();
 const sesSendMock = jest.fn();
 const invoiceGetMock = jest.fn();
+const invoiceUpdateMock = jest.fn();
 const getUrlMock = jest.fn();
-const listCustomerUsersMock = jest.fn();
-const getCustomerMock = jest.fn();
-const updateInvoiceMock = jest.fn();
+const customerUserListMock = jest.fn();
+const customerGetMock = jest.fn();
 
 jest.mock('aws-jwt-verify', () => ({
   CognitoJwtVerifier: {
@@ -33,11 +33,22 @@ jest.mock('@aws-sdk/client-ses', () => ({
   }),
 }));
 
-jest.mock('aws-amplify/data', () => ({
-  generateClient: () => ({
+// lib/server/iamDataClient re-exports generateClient's return value wired
+// with real IAM credentials -- mocked wholesale here so tests never import
+// its @aws-sdk/credential-provider-node dependency (which pulls in an
+// ESM-only build jest's CJS transform can't load).
+jest.mock('@/lib/server/iamDataClient', () => ({
+  getIamDataClient: () => ({
     models: {
       Invoice: {
         get: invoiceGetMock,
+        update: invoiceUpdateMock,
+      },
+      Customer: {
+        get: customerGetMock,
+      },
+      CustomerUser: {
+        list: customerUserListMock,
       },
     },
   }),
@@ -45,12 +56,6 @@ jest.mock('aws-amplify/data', () => ({
 
 jest.mock('aws-amplify/storage', () => ({
   getUrl: (...args: unknown[]) => getUrlMock(...args),
-}));
-
-jest.mock('@/lib/queries', () => ({
-  listCustomerUsers: (...args: unknown[]) => listCustomerUsersMock(...args),
-  getCustomer: (...args: unknown[]) => getCustomerMock(...args),
-  updateInvoice: (...args: unknown[]) => updateInvoiceMock(...args),
 }));
 
 import { POST } from '@/app/api/admin/send-invoice-email/route';
@@ -78,9 +83,9 @@ describe('send invoice email API', () => {
       errors: undefined,
     });
 
-    getCustomerMock.mockResolvedValue({ data: { id: 'cust-1', name: 'Acme', email: 'billing@acme.test' }, errors: undefined });
-    listCustomerUsersMock.mockResolvedValue({ data: [], errors: undefined });
-    updateInvoiceMock.mockResolvedValue({ data: {}, errors: undefined });
+    customerGetMock.mockResolvedValue({ data: { id: 'cust-1', name: 'Acme', email: 'billing@acme.test' }, errors: undefined });
+    customerUserListMock.mockResolvedValue({ data: [], errors: undefined });
+    invoiceUpdateMock.mockResolvedValue({ data: {}, errors: undefined });
 
     getUrlMock.mockResolvedValue({
       url: new URL('https://example.test/invoice.pdf'),
@@ -170,13 +175,22 @@ describe('send invoice email API', () => {
   });
 
   it('returns 400 when no recipient email can be resolved', async () => {
-    getCustomerMock.mockResolvedValue({ data: { id: 'cust-1', name: 'Acme', email: null }, errors: undefined });
-    listCustomerUsersMock.mockResolvedValue({ data: [], errors: undefined });
+    customerGetMock.mockResolvedValue({ data: { id: 'cust-1', name: 'Acme', email: null }, errors: undefined });
+    customerUserListMock.mockResolvedValue({ data: [], errors: undefined });
 
     const response = await POST(makeRequest({ token: 'admin-token' }));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: 'No recipient email available' });
+  });
+
+  it('returns 404 when customer lookup errors (e.g. no Amplify session in SSR)', async () => {
+    customerGetMock.mockResolvedValue({ data: null, errors: [{ message: 'NoValidAuthTokens' }] });
+
+    const response = await POST(makeRequest({ token: 'admin-token' }));
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: 'Customer not found' });
   });
 
   it('sends invoice email successfully', async () => {
@@ -190,6 +204,6 @@ describe('send invoice email API', () => {
       invoiceNumber: 'INV-001',
     });
     expect(sesSendMock).toHaveBeenCalledTimes(2);
-    expect(updateInvoiceMock).toHaveBeenCalled();
+    expect(invoiceUpdateMock).toHaveBeenCalled();
   });
 });

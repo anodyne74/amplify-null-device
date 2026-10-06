@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { RateLine, Route } from '@/amplify/types';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
@@ -20,12 +20,15 @@ interface InvoiceCreateFormProps {
   customerRoutes: Route[];
   rateLines: RateLine[];
   rateLineQuantities: Record<string, string>;
+  visibleRateLineIds: ReadonlySet<string>;
   onCustomerChange: (value: string) => void;
   onRouteChange: (value: string) => void;
   onInvoiceNumberChange: (value: string) => void;
   onTotalHoursChange: (value: string) => void;
   onTotalAmountChange: (value: string) => void;
   onRateLineQuantityChange: (rateLineId: string, value: string) => void;
+  onAddRateLine: (rateLineId: string) => void;
+  onRemoveRateLine: (rateLineId: string) => void;
   onSubmit: (event: FormEvent) => void;
 }
 
@@ -41,15 +44,31 @@ export default function InvoiceCreateForm({
   customerRoutes,
   rateLines,
   rateLineQuantities,
+  visibleRateLineIds,
   onCustomerChange,
   onRouteChange,
   onInvoiceNumberChange,
   onTotalHoursChange,
   onTotalAmountChange,
   onRateLineQuantityChange,
+  onAddRateLine,
+  onRemoveRateLine,
   onSubmit,
 }: InvoiceCreateFormProps) {
+  const [pickerOpen, setPickerOpen] = useState(false);
   const hasRateLines = rateLines.length > 0;
+  // Progressive disclosure only applies when there's an hours line to show by
+  // default — a customer with no per_hour line falls back to showing every
+  // rate line at once, same as before.
+  const hoursLines = rateLines.filter((line) => line.unit === 'per_hour');
+  const useProgressiveDisclosure = hoursLines.length > 0;
+  const shownRateLines = useProgressiveDisclosure
+    ? rateLines.filter((line) => line.unit === 'per_hour' || visibleRateLineIds.has(line.id))
+    : rateLines;
+  const hiddenRateLines = useProgressiveDisclosure
+    ? rateLines.filter((line) => line.unit !== 'per_hour' && !visibleRateLineIds.has(line.id))
+    : [];
+
   return (
     <Card>
       <form onSubmit={onSubmit}>
@@ -101,7 +120,7 @@ export default function InvoiceCreateForm({
             <div className={styles.fieldsGridFull}>
               <span className={styles.rateCardLabel}>Rate card lines</span>
               <div className={styles.rateLineRows}>
-                {rateLines.map((line) => (
+                {shownRateLines.map((line) => (
                   <div key={line.id} className={styles.rateLineRow}>
                     <span className={styles.rateLineName}>{line.label}</span>
                     <span className={styles.rateLineRate}>${line.ratePerUnit.toFixed(2)}</span>
@@ -114,9 +133,58 @@ export default function InvoiceCreateForm({
                       step="0.01"
                       placeholder="0"
                     />
+                    {useProgressiveDisclosure && line.unit !== 'per_hour' && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onRemoveRateLine(line.id)}
+                        aria-label={`Remove ${line.label}`}
+                      >
+                        Remove
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
+
+              {useProgressiveDisclosure && hiddenRateLines.length > 0 && (
+                pickerOpen ? (
+                  <div className={styles.rateLinePicker}>
+                    <Select
+                      aria-label="Choose a rate card item to add"
+                      value=""
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (value) {
+                          onAddRateLine(value);
+                          setPickerOpen(false);
+                        }
+                      }}
+                    >
+                      <option value="">— Choose an item —</option>
+                      {hiddenRateLines.map((line) => (
+                        <option key={line.id} value={line.id}>
+                          {line.label}
+                        </option>
+                      ))}
+                    </Select>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setPickerOpen(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className={styles.addRateLineButton}
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    + Add rate card item
+                  </Button>
+                )
+              )}
             </div>
           ) : (
             <Field label="Total Hours" htmlFor="invoice-hours">

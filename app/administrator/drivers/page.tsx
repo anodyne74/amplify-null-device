@@ -1,13 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { callApi } from '@/lib/apiClient';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Badge } from '@/app/components/ui/core/Badge';
+import { Avatar } from '@/app/components/ui/core/Avatar';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
@@ -16,9 +17,14 @@ import { StatTile } from '@/app/components/ui/data/StatTile';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { listOperators } from '@/lib/queries/ListOperators';
 import { updateOperator } from '@/lib/queries/UpdateOperator';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import type { BillingCycle, Operator, OperatorStatus } from '@/amplify/types';
+import { mobileForDisplay, mobileToStore } from '@/lib/operatorMobile';
+import { getDateGroup } from '@/lib/aggregateRouteData';
+import { formatDurationCompact } from '@/lib/dashboardAnalytics';
+import { summarizeRoutesStopsThisMonth, summarizeAverageRouteDuration } from '@/lib/adminDashboardOverview';
+import type { BillingCycle, Operator, OperatorStatus, Route } from '@/amplify/types';
 import styles from './page.module.css';
+import { listAllRoutes, listAllStops } from '@/lib/routes';
+import { listAllCustomers } from '@/lib/customers';
 
 type CognitoOperator = {
   id?: string;
@@ -28,6 +34,8 @@ type CognitoOperator = {
 };
 
 type CustomerSummary = { id: string; name: string };
+
+type StopSummary = { id: string; routeId?: string | null };
 
 // A Driver is an Operator record joined to its Cognito identity — see the
 // Operator model's doc comment in amplify/data/resource.ts: Driver and
@@ -53,9 +61,9 @@ const PAY_CYCLES: BillingCycle[] = ['weekly', 'fortnightly', 'monthly'];
 function toDriver(cognitoUser: CognitoOperator, record?: Operator): Driver {
   return {
     id: cognitoUser.id || record?.id || '',
-    name: record?.name || cognitoUser.name || 'Unknown driver',
+    name: record?.name || cognitoUser.name || 'Unknown operator',
     email: record?.email || cognitoUser.email || '',
-    phone: record?.phone || '',
+    phone: mobileForDisplay(record?.phone),
     vehicleAndRego: record?.vehicleAndRego || '',
     homeBase: record?.homeBase || '',
     status: record?.status || 'onboarding',
@@ -72,39 +80,43 @@ function statusTone(status: OperatorStatus): 'success' | 'warning' | 'neutral' {
   return 'neutral';
 }
 
+function statusLabel(status: OperatorStatus): string {
+  return status === 'active' ? 'Active' : status === 'onboarding' ? 'Onboarding' : 'Inactive';
+}
+
 export default function AdministratorDriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [stops, setStops] = useState<StopSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [assignCustomerId, setAssignCustomerId] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName, setInviteName] = useState('');
+  const [invitePending, setInvitePending] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+  const [resendPending, setResendPending] = useState(false);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const session = await fetchAuthSession();
-      const idToken = session.tokens?.idToken?.toString();
-      if (!idToken) throw new Error('No session token found. Please sign in again.');
-
-      const [usersResponse, operatorsResult, customersResult] = await Promise.all([
-        fetch('/api/admin/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-          body: JSON.stringify({ action: 'listUsersInGroup', groupName: 'operator' }),
-        }),
+      const [usersPayload, operatorsResult, customersResult, routesResult, stopsResult] = await Promise.all([
+        callApi('/api/admin/users', { action: 'listUsersInGroup', groupName: 'operator' }),
         listOperators(),
-        listAllCustomers({ limit: 200 }),
+        listAllCustomers().catch(() => []),
+        listAllRoutes(),
+        listAllStops(),
       ]);
 
-      const usersPayload = await usersResponse.json();
-      if (!usersResponse.ok) throw new Error(usersPayload?.error || 'Could not load drivers.');
-
       const cognitoOperators = (usersPayload.users as CognitoOperator[]) || [];
-      const records = (operatorsResult.data as Operator[]) || [];
+      const records = operatorsResult as Operator[];
       const recordsById = new Map(records.map((r) => [r.id, r]));
 
       const merged = cognitoOperators
@@ -113,10 +125,12 @@ export default function AdministratorDriversPage() {
         .sort((a, b) => a.name.localeCompare(b.name));
 
       setDrivers(merged);
-      setCustomers((customersResult.data as CustomerSummary[]) || []);
+      setCustomers(customersResult as CustomerSummary[]);
+      setRoutes(routesResult as unknown as Route[]);
+      setStops(stopsResult as StopSummary[]);
       setSelectedId((current) => (current && merged.some((d) => d.id === current) ? current : merged[0]?.id || ''));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load drivers.');
+      setError(err instanceof Error ? err.message : 'Could not load operators.');
     } finally {
       setLoading(false);
     }
@@ -136,22 +150,27 @@ export default function AdministratorDriversPage() {
   const persist = async (id: string, updates: Partial<Driver>, appliedFields: Parameters<typeof updateOperator>[1]) => {
     setSaving(true);
     setSaveError(null);
-    const result = await updateOperator(id, appliedFields);
-    if (result.errors && result.errors.length > 0) {
-      setSaveError('Could not save that change.');
-    } else {
+    try {
+      await updateOperator(id, appliedFields);
       setDrivers((prev) => prev.map((d) => (d.id === id ? { ...d, ...updates } : d)));
+    } catch {
+      setSaveError('Could not save that change.');
     }
     setSaving(false);
   };
 
   const handleSaveDriver = async () => {
     if (!selected) return;
+    const mobile = mobileToStore(selected.phone);
+    if (!mobile.ok) {
+      setSaveError(mobile.error);
+      return;
+    }
     await persist(
       selected.id,
-      {},
+      { phone: mobileForDisplay(mobile.phone) },
       {
-        phone: selected.phone || undefined,
+        phone: mobile.phone,
         vehicleAndRego: selected.vehicleAndRego || undefined,
         homeBase: selected.homeBase || undefined,
         driverSplitPercent: selected.driverSplitPercent === '' ? undefined : Number(selected.driverSplitPercent),
@@ -180,6 +199,65 @@ export default function AdministratorDriversPage() {
     await persist(selected.id, { assignedCustomerIds: nextIds }, { assignedCustomerIds: nextIds });
   };
 
+  const handleInviteDriver = async () => {
+    const email = inviteEmail.trim();
+    if (!email) {
+      setInviteError('Operator email is required.');
+      return;
+    }
+
+    setInvitePending(true);
+    setInviteError(null);
+    setInviteSuccess(null);
+
+    try {
+      const result = await callApi('/api/admin/users', {
+        action: 'createUser',
+        email,
+        name: inviteName.trim() || undefined,
+        groupName: 'operator',
+      });
+
+      setInviteSuccess(
+        result.created
+          ? result.emailSent
+            ? 'Invited — they’ll get an email with a temporary password.'
+            : 'Login created, but the invitation email could not be sent. Ask them to use "Forgot password" to get access.'
+          : 'Already had a login — added them to the operator group.'
+      );
+      setInviteEmail('');
+      setInviteName('');
+      await load();
+    } catch (e) {
+      setInviteError(e instanceof Error ? e.message : 'Could not invite that operator.');
+    }
+
+    setInvitePending(false);
+  };
+
+  const handleResendInvite = async () => {
+    if (!selected) return;
+    setResendPending(true);
+    setResendMessage(null);
+    setSaveError(null);
+    try {
+      const result = await callApi('/api/admin/users', {
+        action: 'resendInvite',
+        email: selected.email,
+        groupName: 'operator',
+        name: selected.name,
+      });
+      setResendMessage(
+        result.emailSent
+          ? `Invitation resent to ${selected.email}.`
+          : `Invitation reset for ${selected.email}, but the email could not be sent. Ask them to use "Forgot password".`
+      );
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Could not resend that invite.');
+    }
+    setResendPending(false);
+  };
+
   const customerName = (id: string) => customers.find((c) => c.id === id)?.name ?? id.slice(0, 8);
   const unassignedCustomers = customers.filter((c) => !selected?.assignedCustomerIds.includes(c.id));
 
@@ -187,35 +265,77 @@ export default function AdministratorDriversPage() {
   const onboardingCount = drivers.filter((d) => d.status === 'onboarding').length;
   const splitValues = drivers.map((d) => d.driverSplitPercent).filter((v): v is number => v !== '');
   const avgSplit = splitValues.length > 0 ? splitValues.reduce((sum, v) => sum + v, 0) / splitValues.length : null;
-  const totalAssignments = drivers.reduce((sum, d) => sum + d.assignedCustomerIds.length, 0);
-  const unassignedDriverCount = drivers.filter((d) => d.assignedCustomerIds.length === 0).length;
+
+  const routesStops = useMemo(() => summarizeRoutesStopsThisMonth(routes, stops), [routes, stops]);
+  const avgDuration = useMemo(() => summarizeAverageRouteDuration(routes, stops), [routes, stops]);
+
+  // Routes assigned to each driver this calendar month, for the "N routes
+  // this month" hint in the detail panel below.
+  const routesThisMonthByDriver = useMemo(() => {
+    const thisMonthKey = getDateGroup(new Date().toISOString(), 'month');
+    const counts = new Map<string, number>();
+    routes.forEach((route) => {
+      const date = route.actualEndTime || route.actualStartTime || route.createdAt;
+      if (!date || !route.assignedOperatorSub) return;
+      if (getDateGroup(date, 'month') !== thisMonthKey) return;
+      counts.set(route.assignedOperatorSub, (counts.get(route.assignedOperatorSub) || 0) + 1);
+    });
+    return counts;
+  }, [routes]);
 
   const columns: DataColumn<Driver>[] = [
     {
       key: 'name',
-      header: 'Driver',
+      header: 'Operator',
       render: (row) => (
-        <button type="button" className={styles.driverLink} onClick={() => setSelectedId(row.id)}>
-          {row.name}
-        </button>
+        <div className={styles.driverCell}>
+          <Avatar name={row.name} size="sm" />
+          <div>
+            <div className={styles.driverCellName}>{row.name}</div>
+            <div className={styles.driverCellMeta}>{row.homeBase ? `based ${row.homeBase}` : 'Home base not set'}</div>
+          </div>
+        </div>
       ),
-    },
-    { key: 'email', header: 'Email' },
-    { key: 'vehicle', header: 'Vehicle', render: (row) => row.vehicleAndRego || '—' },
-    { key: 'homeBase', header: 'Home base', render: (row) => row.homeBase || '—' },
-    {
-      key: 'split',
-      header: 'Driver split',
-      numeric: true,
-      render: (row) => (row.driverSplitPercent === '' ? '—' : `${row.driverSplitPercent}%`),
     },
     {
       key: 'status',
       header: 'Status',
       render: (row) => (
         <Badge tone={statusTone(row.status)} dot>
-          {row.status === 'active' ? 'Active' : row.status === 'onboarding' ? 'Onboarding' : 'Inactive'}
+          {statusLabel(row.status)}
         </Badge>
+      ),
+    },
+    { key: 'vehicle', header: 'Vehicle', render: (row) => row.vehicleAndRego || '—' },
+    {
+      key: 'split',
+      header: 'Split',
+      align: 'right',
+      render: (row) => (row.driverSplitPercent === '' ? '—' : `${row.driverSplitPercent}%`),
+    },
+    {
+      key: 'covers',
+      header: 'Covers',
+      render: (row) =>
+        row.assignedCustomerIds.length === 0
+          ? 'Unassigned'
+          : `${row.assignedCustomerIds.length} customer${row.assignedCustomerIds.length === 1 ? '' : 's'}`,
+    },
+    {
+      key: 'action',
+      header: '',
+      width: 120,
+      align: 'right',
+      render: (row) => (
+        <Button
+          type="button"
+          variant={row.id === selectedId ? 'secondary' : 'ghost'}
+          size="sm"
+          aria-label={`Configure ${row.name}`}
+          onClick={() => setSelectedId(row.id)}
+        >
+          {row.id === selectedId ? 'Configuring' : 'Configure'}
+        </Button>
       ),
     },
   ];
@@ -224,7 +344,7 @@ export default function AdministratorDriversPage() {
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
         <PageHeader
-          title="Drivers"
+          title="Operators"
           subtitle="Roster, vehicles and pay split for everyone in the operator group"
         />
 
@@ -235,46 +355,105 @@ export default function AdministratorDriversPage() {
         )}
 
         <div className={styles.statsGrid}>
-          <StatTile label="Drivers active" value={activeCount} caption={`${onboardingCount} onboarding`} icon="truck" />
-          <StatTile label="Total drivers" value={drivers.length} caption={`${drivers.length - activeCount - onboardingCount} inactive`} icon="users" />
+          <StatTile label="Operators active" value={activeCount} caption={`${onboardingCount} onboarding`} icon="truck" />
           <StatTile
-            label="Avg driver split"
+            label="Routes this month"
+            value={loading ? '…' : routesStops.currentRoutes}
+            delta={loading ? undefined : `${routesStops.deltaPercent}%`}
+            direction={loading ? 'flat' : routesStops.direction}
+            caption={`${routesStops.stopsServiced.toLocaleString()} stops serviced`}
+            icon="route"
+          />
+          <StatTile
+            label="Avg operator split"
             value={avgSplit === null ? '—' : `${avgSplit.toFixed(1)}%`}
             caption="of what we bill"
             icon="chart-column"
           />
           <StatTile
-            label="Customers assigned"
-            value={totalAssignments}
-            caption={`${unassignedDriverCount} drivers unassigned`}
-            icon="route"
+            label="Average route duration"
+            value={loading || avgDuration.currentAverageMinutes === null ? '—' : formatDurationCompact(avgDuration.currentAverageMinutes)}
+            delta={loading || avgDuration.currentAverageMinutes === null ? undefined : `${avgDuration.deltaPercent}%`}
+            direction={loading ? 'flat' : avgDuration.direction}
+            caption={
+              avgDuration.averageStopsPerRoute === null
+                ? 'No completed routes yet'
+                : `${avgDuration.averageStopsPerRoute.toFixed(1)} stops per route`
+            }
+            icon="timer"
           />
         </div>
 
-        <Card
-          title="Drivers"
-          subtitle="A driver's login is added from Users → operator group. Pick a driver here to configure their profile and split."
-          padded={false}
-        >
+        <Card title="Invite an operator" subtitle="They’ll get a login in the operator group and show up below as onboarding.">
+          <div className={styles.form}>
+            {inviteError && (
+              <div className={styles.errorBanner} role="alert" aria-live="assertive">
+                {inviteError}
+              </div>
+            )}
+            {inviteSuccess && (
+              <div className={styles.successBanner} role="status" aria-live="polite">
+                {inviteSuccess}
+              </div>
+            )}
+            <div className={styles.inviteForm}>
+              <Field label="Email" htmlFor="invite-driver-email" className={styles.inviteField}>
+                <Input
+                  id="invite-driver-email"
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="operator@nulldevice.dev"
+                  disabled={invitePending}
+                  aria-label="Email for new operator"
+                />
+              </Field>
+              <Field label="Display Name" htmlFor="invite-driver-name" className={styles.inviteField}>
+                <Input
+                  id="invite-driver-name"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  placeholder="Display name (optional)"
+                  disabled={invitePending}
+                  aria-label="Optional display name for new operator"
+                />
+              </Field>
+              <Button
+                type="button"
+                iconLeft="plus"
+                loading={invitePending}
+                disabled={invitePending || !inviteEmail.trim()}
+                onClick={() => void handleInviteDriver()}
+              >
+                {invitePending ? 'Sending...' : 'Send invite'}
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="Operators" subtitle="Pick an operator to configure their roster, vehicle and split" padded={false}>
           {loading ? (
             <div style={{ padding: 'var(--space-6)' }}>
-              <LoadingSpinner message="Loading drivers..." />
+              <LoadingSpinner message="Loading operators..." />
             </div>
           ) : (
-            <DataTable columns={columns} rows={drivers} empty="No drivers yet. Add one via Users → operator group." />
+            <DataTable columns={columns} rows={drivers} empty="No operators yet. Invite one above." />
           )}
         </Card>
 
         {selected && (
-          <div className={styles.detailGrid}>
-            <Card title={selected.name} subtitle="Driver setup">
+          <Card title={selected.name} subtitle="Operator setup">
+            <div className={styles.detailLayout}>
               <div className={styles.form}>
                 {saveError && <p className="nd-badge nd-badge--danger">{saveError}</p>}
                 <div className={styles.formRow}>
                   <Badge tone={statusTone(selected.status)} dot>
-                    {selected.status === 'active' ? 'Active' : selected.status === 'onboarding' ? 'Onboarding' : 'Inactive'}
+                    {statusLabel(selected.status)}
                   </Badge>
-                  <span className={styles.formHint}>{selected.assignedCustomerIds.length} customer(s) assigned</span>
+                  <span className={styles.formHint}>
+                    {routesThisMonthByDriver.get(selected.id) || 0} routes this month · {selected.assignedCustomerIds.length}{' '}
+                    customer(s) assigned
+                  </span>
                 </div>
                 <div className={styles.formGrid}>
                   <Field label="Mobile" htmlFor="driver-phone">
@@ -302,9 +481,14 @@ export default function AdministratorDriversPage() {
                     onChange={(e) => updateSelected({ homeBase: e.target.value })}
                   />
                 </Field>
+                {resendMessage && (
+                  <p className={styles.formHint} role="status" aria-live="polite">
+                    {resendMessage}
+                  </p>
+                )}
                 <div className={styles.formActions}>
                   <Button type="button" loading={saving} disabled={saving} onClick={() => void handleSaveDriver()}>
-                    Save driver
+                    Save operator
                   </Button>
                   <Button
                     type="button"
@@ -314,19 +498,30 @@ export default function AdministratorDriversPage() {
                   >
                     Deactivate
                   </Button>
+                  {selected.status === 'onboarding' && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      iconLeft="send"
+                      loading={resendPending}
+                      disabled={resendPending}
+                      onClick={() => void handleResendInvite()}
+                    >
+                      Resend invite
+                    </Button>
+                  )}
                 </div>
               </div>
-            </Card>
 
-            <div className={styles.sideCards}>
-              <Card title="Pay split" subtitle="Internal — never shown to customers">
+              <div className={styles.detailSide}>
                 <div className={styles.form}>
+                  <span className={styles.sectionHeading}>Pay split</span>
                   <div className={styles.callout}>
                     Not yet applied to payouts — payout calculations still use the customer&apos;s rate-card split for
-                    every operator on that customer&apos;s routes. Captured here ahead of per-driver overrides.
+                    every operator on that customer&apos;s routes. Captured here ahead of per-operator overrides.
                   </div>
                   <div className={styles.formGrid}>
-                    <Field label="Driver split" hint="Percentage of each billed line" htmlFor="driver-split">
+                    <Field label="Operator split" hint="Percentage of each billed line" htmlFor="driver-split">
                       <Input
                         id="driver-split"
                         type="number"
@@ -358,10 +553,12 @@ export default function AdministratorDriversPage() {
                     label="Pay on completed stops only"
                   />
                 </div>
-              </Card>
 
-              <Card title="Customers covered" subtitle="Routes for these accounts come to this driver first">
-                <div className={styles.form}>
+                <div className={`${styles.form} ${styles.detailDivider}`}>
+                  <div>
+                    <span className={styles.sectionHeading}>Customers covered</span>
+                    <p className={styles.formHint}>Routes for these accounts come to this operator first</p>
+                  </div>
                   {selected.assignedCustomerIds.length > 0 ? (
                     <div className={styles.customerList}>
                       {selected.assignedCustomerIds.map((customerId) => (
@@ -380,7 +577,7 @@ export default function AdministratorDriversPage() {
                       ))}
                     </div>
                   ) : (
-                    <span className={styles.formHint}>No accounts yet. Assign one to start rostering this driver.</span>
+                    <span className={styles.formHint}>No accounts yet. Assign one to start rostering this operator.</span>
                   )}
                   {unassignedCustomers.length > 0 && (
                     <div className={styles.assignRow}>
@@ -409,9 +606,9 @@ export default function AdministratorDriversPage() {
                     </div>
                   )}
                 </div>
-              </Card>
+              </div>
             </div>
-          </div>
+          </Card>
         )}
       </div>
     </OperatorRoute>

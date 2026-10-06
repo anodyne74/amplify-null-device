@@ -1,0 +1,70 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.map {
+  height: 360px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.markerIcon {
+  background: transparent;
+  border: 0;
+}
+
+.marker {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-on-brand);
+  border: 2px solid var(--surface-page);
+  box-shadow: var(--shadow-md);
+}
+
+.confirming {
+  background: var(--indigo-500);
+  cursor: grab;
+}
+
+.current {
+  background: var(--amber-500);
+  opacity: 0.85;
+}
+
+.suggested {
+  background: var(--violet-500);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+}

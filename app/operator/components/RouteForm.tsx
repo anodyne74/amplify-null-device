@@ -5,13 +5,19 @@ import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/app/components/ToastProvider';
 import { StopForm } from '@/app/operator/components/StopForm';
 import { geocodeAddress } from '@/lib/googleMaps';
+import type { StopLocationFields } from '@/lib/locationPrecision';
+import { lacksProperty, locateNewStop } from '@/lib/stopLocation';
+import { STOP_NEEDS_SUBURB } from '@/lib/routes';
+import type { StopFormValues } from '@/lib/use-route-detail-data';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
-import type { Stop } from '@/amplify/types';
+import type { StandingPickupDay, Stop } from '@/amplify/types';
 import type { RouteDateBlockResult } from '@/lib/routeScheduleGuard';
+import { pickupDateProblem } from '@/lib/pickupDate';
+import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
 import styles from './RouteForm.module.css';
 
 const RouteStopsMap = dynamic(
@@ -22,16 +28,22 @@ const RouteStopsMap = dynamic(
   }
 );
 
-export interface RouteDraftStop {
+/** A stop drafted before the Route exists; carries its geocoded location fields (lib/locationPrecision.ts). */
+export interface RouteDraftStop extends Partial<StopLocationFields> {
   address: string;
-  serviceType: 'delivery' | 'pickup' | 'inspection';
   numberOfSigns?: number;
   agent?: string;
   isAuction?: boolean;
   notes?: string;
-  latitude?: number;
-  longitude?: number;
-  formattedAddress?: string;
+}
+
+/**
+ * A draft Stop with its note changed. A copied note may only have applied to the
+ * old Route (#464), so it's shown to keep, change or clear before the Route is
+ * created; one left empty, or only spaces, is dropped so the Stop gets none.
+ */
+export function withDraftStopNote<S extends RouteDraftStop>(stop: S, note: string): S {
+  return { ...stop, notes: note.trim() ? note : undefined };
 }
 
 interface RouteFormCustomer {
@@ -43,6 +55,7 @@ interface RouteFormCustomer {
   defaultNumberOfSigns?: number | null;
   defaultAgentInitials?: string | null;
   agentOptions?: string[] | null;
+  standingPickupDay?: StandingPickupDay | null;
 }
 
 interface RouteFormProps {
@@ -51,6 +64,7 @@ interface RouteFormProps {
     routeCode: string;
     customerId: string;
     scheduledDate: string;
+    pickupDate: string;
     notes: string;
     stops: RouteDraftStop[];
   }) => Promise<void>;
@@ -87,6 +101,16 @@ export function RouteForm({
   const [routeCode, setRouteCode] = useState(initialRouteCode);
   const [customerId, setCustomerId] = useState('');
   const [scheduledDate, setScheduledDate] = useState(todayDateKey);
+  const {
+    pickupDate,
+    choosePickupDate,
+    noOperatorsWarning: pickupNoOperatorsWarning,
+  } = useNewRoutePickupDate(
+    scheduledDate,
+    customerId,
+    customers.find((customer) => customer.id === customerId)?.standingPickupDay,
+    onCheckDateBlock
+  );
   const [blockCheck, setBlockCheck] = useState<{ status: 'idle' | 'checking' | 'ok' | 'blocked' } & RouteDateBlockResult>({
     status: 'idle',
     blocked: false,
@@ -183,55 +207,31 @@ export function RouteForm({
     formattedAddress: stop.formattedAddress,
     latitude: stop.latitude,
     longitude: stop.longitude,
-    serviceType: stop.serviceType,
+    locationPrecision: stop.locationPrecision,
     numberOfSigns: stop.numberOfSigns,
     agent: stop.agent,
     isAuction: stop.isAuction,
     notes: stop.notes,
   }));
 
-  const handleAddStop = async (values: {
-    address: string;
-    serviceType: 'delivery' | 'pickup' | 'inspection';
-    numberOfSigns?: number;
-    agent?: string;
-    isAuction?: boolean;
-    notes?: string;
-    latitude?: number;
-    longitude?: number;
-    formattedAddress?: string;
-  }) => {
+  const handleAddStop = async ({ resolvedLocation, ...values }: StopFormValues) => {
     setAddingStop(true);
     setStopError(null);
 
     try {
-      let geocoded: { latitude: number; longitude: number; formattedAddress: string } | undefined;
-
-      if (values.latitude !== undefined && values.longitude !== undefined) {
-        // Coordinates already resolved by the autocomplete input — no extra API call needed.
-        geocoded = {
-          latitude: values.latitude,
-          longitude: values.longitude,
-          formattedAddress: values.formattedAddress ?? values.address,
-        };
-      } else {
-        try {
-          geocoded = await geocodeAddress(values.address);
-        } catch {
-          setStopError('Stop added without coordinates. Map preview may be incomplete until address geocoding succeeds.');
-        }
+      const location = await locateNewStop({ address: values.address, resolvedLocation });
+      if (lacksProperty(values.address, location)) {
+        setStopError(STOP_NEEDS_SUBURB);
+        return;
+      }
+      if (!location.pinned) {
+        setStopError("Stop added without a map pin: its address couldn't be found on the map.");
       }
 
-      setStops((prev) => [
-        ...prev,
-        {
-          ...values,
-          latitude: geocoded?.latitude,
-          longitude: geocoded?.longitude,
-          formattedAddress: geocoded?.formattedAddress,
-        },
-      ]);
+      setStops((prev) => [...prev, { ...values, ...location.fields }]);
       setShowAddStop(false);
+    } catch {
+      setStopError('Failed to add stop.');
     } finally {
       setAddingStop(false);
     }
@@ -241,10 +241,14 @@ export function RouteForm({
     setStops((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const changeStopNote = (index: number, note: string) => {
+    setStops((prev) => prev.map((stop, i) => (i === index ? withDraftStopNote(stop, note) : stop)));
+  };
+
   const blockedDateMessage = () => {
     if (blockCheck.status !== 'blocked') return null;
     if (blockCheck.type === 'no_drivers') {
-      return `Null Device has no drivers available on ${scheduledDate}${blockCheck.reason ? ` (${blockCheck.reason})` : ''}. Choose another date, or clear the block on the service calendar.`;
+      return `Null Device has no operators available on ${scheduledDate}${blockCheck.reason ? ` (${blockCheck.reason})` : ''}. Choose another date, or clear the block on the service calendar.`;
     }
     return `${selectedCustomer?.name ?? 'This customer'}'s agency is closed on ${scheduledDate}${blockCheck.reason ? ` (${blockCheck.reason})` : ''}. Choose another date.`;
   };
@@ -264,7 +268,13 @@ export function RouteForm({
     }
 
     if (!scheduledDate) {
-      setValidationError('Please choose a scheduled date.');
+      setValidationError('Please choose a placement date.');
+      return;
+    }
+
+    const pickupProblem = pickupDateProblem(scheduledDate, pickupDate);
+    if (pickupProblem) {
+      setValidationError(pickupProblem);
       return;
     }
 
@@ -278,7 +288,7 @@ export function RouteForm({
       return;
     }
 
-    await onSubmit({ routeCode: routeCode.trim(), customerId, scheduledDate, notes, stops });
+    await onSubmit({ routeCode: routeCode.trim(), customerId, scheduledDate, pickupDate, notes, stops });
 
     // Defer one tick so a failure flagged during submit has propagated back
     // down via the `error` prop before we announce success.
@@ -351,7 +361,7 @@ export function RouteForm({
           </Field>
 
           <Field
-            label="Scheduled date"
+            label="Placement date"
             htmlFor="scheduledDate"
             required
             error={blockedDateMessage()}
@@ -362,6 +372,21 @@ export function RouteForm({
               type="date"
               value={scheduledDate}
               onChange={(e) => setScheduledDate(e.target.value)}
+              disabled={isSubmitting}
+            />
+          </Field>
+
+          <Field
+            label="Pickup date"
+            htmlFor="pickupDate"
+            required
+            hint={pickupNoOperatorsWarning}
+          >
+            <Input
+              id="pickupDate"
+              type="date"
+              value={pickupDate}
+              onChange={(e) => choosePickupDate(e.target.value)}
               disabled={isSubmitting}
             />
           </Field>
@@ -454,12 +479,21 @@ export function RouteForm({
                   <div className={styles.stopSequence}>{index + 1}</div>
                   <div className={styles.stopContent}>
                     <div className={styles.stopAddress}>{stop.formattedAddress || stop.address}</div>
-                    <div className={styles.stopMeta}>{stop.serviceType}</div>
+                    <Input
+                      size="sm"
+                      className={styles.stopNoteInput}
+                      aria-label={`Notes for stop ${index + 1}, ${stop.formattedAddress || stop.address}`}
+                      placeholder="No notes"
+                      value={stop.notes ?? ''}
+                      onChange={(e) => changeStopNote(index, e.target.value)}
+                      disabled={isSubmitting}
+                    />
                   </div>
                   <Button
                     type="button"
                     variant="danger"
                     size="sm"
+                    className={styles.stopRemove}
                     onClick={() => removeStop(index)}
                     disabled={isSubmitting}
                   >

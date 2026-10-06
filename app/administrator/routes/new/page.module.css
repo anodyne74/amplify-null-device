@@ -63,6 +63,22 @@
   font-size: var(--text-sm);
 }
 
+.draftNoteInput {
+  min-width: 256px;
+}
+
+.noPinBadge {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--status-neutral-bg);
+  color: var(--status-neutral-fg);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .auctionBadge {
   display: inline-block;
   padding: 2px var(--space-2);
@@ -72,4 +88,19 @@
   font-size: var(--text-2xs);
   font-weight: var(--fw-semibold);
   text-transform: uppercase;
+}
+
+.fromRecord {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.fromRecord summary {
+  cursor: pointer;
+  margin-bottom: var(--space-3);
 }

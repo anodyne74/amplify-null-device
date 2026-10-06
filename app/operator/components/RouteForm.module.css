@@ -76,6 +76,8 @@
 }
 
 .stopRow {
+  /* The sequence badge's size; the phone layout lines the note and Remove up past it. */
+  --stop-seq-size: 28px;
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -88,8 +90,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: var(--stop-seq-size);
+  height: var(--stop-seq-size);
   flex-shrink: 0;
   border-radius: var(--radius-circle);
   background: var(--surface-brand-subtle);
@@ -109,11 +111,9 @@
   font-size: var(--text-sm);
 }
 
-.stopMeta {
-  margin-top: var(--space-1);
-  font-size: var(--text-xs);
-  color: var(--text-subtle);
-  text-transform: capitalize;
+.stopNoteInput {
+  margin-top: var(--space-2);
+  width: 100%;
 }
 
 .mapSection {
@@ -124,4 +124,19 @@
   display: flex;
   gap: var(--space-3);
   margin-top: var(--space-6);
+}
+
+/* On a phone the note needs the row's width; Remove drops to its own line. */
+@media (max-width: 640px) {
+  .stopRow {
+    flex-wrap: wrap;
+  }
+
+  .stopContent {
+    flex-basis: calc(100% - var(--stop-seq-size) - var(--space-4));
+  }
+
+  .stopRemove {
+    margin-left: calc(var(--stop-seq-size) + var(--space-4));
+  }
 }

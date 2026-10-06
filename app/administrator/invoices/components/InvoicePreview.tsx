@@ -4,10 +4,15 @@ import { useMemo } from 'react';
 import type { RateLine, Route } from '@/amplify/types';
 import { Card } from '@/app/components/ui/core/Card';
 import { Badge } from '@/app/components/ui/core/Badge';
+import { StatTile } from '@/app/components/ui/data/StatTile';
 import { Switch } from '@/app/components/ui/forms/Switch';
 import type { CustomerOption } from '@/app/administrator/invoices/types';
 import { formatStopProperty, groupStopsByAgent, type StopSummary } from '@/app/administrator/invoices/stopFormatting';
 import { computeDriverSplitPreview } from '@/app/administrator/invoices/driverSplitPreview';
+import { billedTime } from '@/lib/billedTime';
+import { formatDuration } from '@/lib/format';
+import { formatAbn } from '@/lib/companyBilling';
+import { signsPlaced } from '@/lib/signRunTotals';
 import styles from './InvoicePreview.module.css';
 
 interface InvoicePreviewProps {
@@ -108,13 +113,18 @@ export default function InvoicePreview({
 
   const subtotal = Number(lineRows.reduce((sum, row) => sum + row.total, 0).toFixed(2));
 
-  const totalSigns = stops.reduce((sum, stop) => sum + (stop.numberOfSigns ?? 0), 0);
+  const totalSigns = signsPlaced(stops);
   const agentGroups = useMemo(() => groupStopsByAgent(stops), [stops]);
 
   const driverSplit = computeDriverSplitPreview({
     billedAmount: preGstAmount,
     driverSplitPercent: customer?.driverSplitPercent,
   });
+
+  const billed = route ? billedTime(route) : null;
+  const routeMinutes = billed?.totalMinutes ?? 0;
+  const routeDistanceKm = billed?.distanceKm ?? 0;
+  const routeNotFinalized = Boolean(route) && route?.status !== 'completed';
 
   if (!customer) {
     return null;
@@ -126,7 +136,7 @@ export default function InvoicePreview({
         <div>
           <div className={styles.companyName}>{billingCompanyName}</div>
           <div className={styles.companyDetail}>
-            {billingAbn} · {billingPhone}
+            {[formatAbn(billingAbn), billingPhone].filter(Boolean).join(' · ')}
             <br />
             {billingCompanyAddress}
           </div>
@@ -238,16 +248,19 @@ export default function InvoicePreview({
       </div>
 
       <div className={styles.internalPanel}>
-        <div className={styles.columnLabel}>Internal · driver split (not shown to the customer)</div>
-        <div className={styles.splitRow}>
-          <div>
-            <div className={styles.metaLine}>Driver share ({driverSplit.splitPercent}%)</div>
-            <div className={styles.splitAmount}>${driverSplit.driverShare.toFixed(2)}</div>
-          </div>
-          <div>
-            <div className={styles.metaLine}>We retain</div>
-            <div className={styles.splitAmount}>${driverSplit.retained.toFixed(2)}</div>
-          </div>
+        <div className={styles.columnLabel}>Internal · operator split (not shown to the customer)</div>
+        {routeNotFinalized && (
+          <div className={styles.metaLine}>Route not yet finalised — figures may change.</div>
+        )}
+        <div className={styles.statRow}>
+          <StatTile label="Duration" value={formatDuration(routeMinutes)} />
+          <StatTile label="Distance" value={`${routeDistanceKm.toFixed(1)} km`} />
+          <StatTile
+            label="Operator share"
+            value={`$${driverSplit.driverShare.toFixed(2)}`}
+            caption={`${driverSplit.splitPercent}% of $${preGstAmount.toFixed(2)} billed`}
+          />
+          <StatTile label="We retain" value={`$${driverSplit.retained.toFixed(2)}`} caption="ex GST" />
         </div>
       </div>
 

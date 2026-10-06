@@ -1,4 +1,4 @@
-import { deriveInvoiceStatus } from '../import-prep.js';
+import { deriveInvoiceStatus, round2 } from '../import-prep.js';
 
 describe('deriveInvoiceStatus', () => {
   it('returns paid when paidDate is set', () => {
@@ -15,5 +15,19 @@ describe('deriveInvoiceStatus', () => {
 
   it('returns draft when both dates are empty strings', () => {
     expect(deriveInvoiceStatus('', '')).toBe('draft');
+  });
+});
+
+describe('round2', () => {
+  it('rounds to two decimal places', () => {
+    expect(round2(30.005)).toBe(30.01);
+  });
+
+  it('computes 10% GST amount for a whole-dollar total', () => {
+    expect(round2(300 * 0.1)).toBe(30);
+  });
+
+  it('handles values that already have two decimal places', () => {
+    expect(round2(12.34)).toBe(12.34);
   });
 });

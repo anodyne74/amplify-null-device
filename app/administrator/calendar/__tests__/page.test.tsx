@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import AdministratorCalendarPage from '../page';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
+import { listAllCustomers } from '@/lib/customers';
 
 jest.mock('@aws-amplify/ui-react', () => ({
   useAuthenticator: () => ({ user: { userId: 'admin-sub-1' } }),
@@ -13,7 +13,7 @@ jest.mock('@/app/components/OperatorRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/lib/queries/ListAllCustomers', () => ({
+jest.mock('@/lib/customers', () => ({
   listAllCustomers: jest.fn(),
 }));
 
@@ -26,13 +26,10 @@ jest.mock('@/app/components/ServiceCalendar', () => ({
 describe('Administrator Calendar page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-1', name: 'Harcourts Epping', viewerSubs: ['sub-a'] },
-        { id: 'cust-2', name: 'Ray White Eastwood', viewerSubs: ['sub-b'] },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping', viewerSubs: ['sub-a'] },
+      { id: 'cust-2', name: 'Ray White Eastwood', viewerSubs: ['sub-b'] },
+    ]);
   });
 
   it('loads customers and renders the calendar for the first one in staff role', async () => {
@@ -47,7 +44,7 @@ describe('Administrator Calendar page', () => {
   });
 
   it('shows an empty state when there are no customers', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllCustomers as jest.Mock).mockResolvedValue([]);
 
     render(<AdministratorCalendarPage />);
 

@@ -1,12 +1,56 @@
 import type { Route, Stop } from '@/amplify/types';
+import { billedTime, measuredMinutes, minutesBetween } from '@/lib/billedTime';
 
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Formats a timestamp, or a date-only value such as a route date. A date-only
+ * value is a calendar day, so it's shown in UTC -- in the viewer's timezone
+ * '2024-01-15' (midnight UTC) would show as Jan 14 anywhere west of UTC.
+ */
 export function formatRouteDate(dateString?: string | null) {
   if (!dateString) return '—';
   return new Date(dateString).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    ...(DATE_ONLY.test(dateString) ? { timeZone: 'UTC' } : {}),
   });
+}
+
+type RouteDateFields = {
+  scheduledDate?: string | null;
+  actualStartTime?: string | null;
+  placementStartTime?: string | null;
+  createdAt?: string | null;
+};
+
+/** The UTC calendar day (YYYY-MM-DD) of the first usable timestamp, or null. */
+function firstUtcDay(...timestamps: Array<string | null | undefined>): string | null {
+  const timestamp = timestamps.find(Boolean);
+  if (!timestamp) return null;
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
+/**
+ * The route's date as customers know it (YYYY-MM-DD): its scheduledDate, else
+ * the UTC day it started, else the UTC day it was created. Routes imported in
+ * bulk have no scheduledDate and a createdAt of the import, so their run date
+ * only survives in actualStartTime (#314).
+ */
+export function getRouteDate(route: RouteDateFields): string | null {
+  return route.scheduledDate || firstUtcDay(route.actualStartTime, route.createdAt);
+}
+
+/**
+ * The day the route ran (YYYY-MM-DD): its scheduledDate, else the UTC day it
+ * started, else the UTC day placement started, else null. Unlike getRouteDate
+ * it never falls back to createdAt -- for an imported Route that's the import
+ * date, and a wrong date in a Property's history is worse than none (#388).
+ */
+export function getRouteRunDate(route: RouteDateFields): string | null {
+  return route.scheduledDate || firstUtcDay(route.actualStartTime, route.placementStartTime);
 }
 
 export function formatRouteDateTime(dateString?: string | null) {
@@ -39,33 +83,27 @@ export function formatCurrency(amount: number | null) {
   }).format(amount);
 }
 
+/**
+ * A Route's duration for display: its Billed Time once there is one (see
+ * lib/billedTime.ts), otherwise the time measured so far.
+ */
 export function getRouteDurationMinutes(route: Route) {
-  if (typeof route.actualDurationMinutes === 'number') {
-    return Math.max(0, route.actualDurationMinutes);
-  }
+  const { totalMinutes } = billedTime(route);
+  return totalMinutes === null ? getMeasuredRouteMinutes(route) : Math.max(0, totalMinutes);
+}
 
-  if (route.placementStartTime && route.pickupEndTime) {
-    return Math.max(
-      0,
-      Math.round((new Date(route.pickupEndTime).getTime() - new Date(route.placementStartTime).getTime()) / 60000)
-    );
-  }
+/**
+ * Time measured on a Route: the sum of its finished Sign Run phases, each from
+ * its own start and end, so the time between phases never counts. A Route from
+ * before the Sign Run has only its start and end. Null until a phase finishes.
+ * Never what's charged: that's Billed Time.
+ */
+export function getMeasuredRouteMinutes(route: Route) {
+  const measured = measuredMinutes(route);
+  if (measured !== null) return measured;
 
   if (route.actualStartTime && route.actualEndTime) {
-    return Math.max(
-      0,
-      Math.round((new Date(route.actualEndTime).getTime() - new Date(route.actualStartTime).getTime()) / 60000)
-    );
-  }
-
-  if (route.status === 'in_progress') {
-    const phaseStart =
-      route.executionPhase === 'pickup'
-        ? route.pickupStartTime ?? route.actualStartTime
-        : route.placementStartTime ?? route.actualStartTime;
-    if (phaseStart) {
-      return Math.max(1, Math.round((Date.now() - new Date(phaseStart).getTime()) / 60000));
-    }
+    return minutesBetween(route.actualStartTime, route.actualEndTime);
   }
 
   return null;

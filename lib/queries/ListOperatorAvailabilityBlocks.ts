@@ -1,23 +1,16 @@
 /**
  * List no-driver-availability blocks for a customer
+ *
+ * Returns its data or throws a DataError (lib/graphqlResult.ts).
  */
 import { getDataClient } from '@/lib/data-client';
+import { resultData, withDataError } from '@/lib/graphqlResult';
+import { listAll } from '@/lib/listAll';
 
 export async function listOperatorAvailabilityBlocks(customerId: string) {
-  try {
-    const { data, errors } = await getDataClient().models.OperatorAvailabilityBlock.list({
-      filter: { customerId: { eq: customerId } },
-      limit: 1000,
-    });
-
-    if (errors) {
-      console.error('Errors fetching operator availability blocks:', errors);
-      return { data: [], errors };
-    }
-
-    return { data: data || [], errors: undefined };
-  } catch (error) {
-    console.error('Error listing operator availability blocks:', error);
-    return { data: [], errors: [error as Error] };
-  }
+  return withDataError('Failed to load the service calendar.', async () =>
+    resultData(
+      await listAll(getDataClient(), 'OperatorAvailabilityBlock', { filter: { customerId: { eq: customerId } } })
+    ) ?? []
+  );
 }

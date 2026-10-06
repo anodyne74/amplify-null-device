@@ -18,7 +18,7 @@ A serverless delivery management platform built with Next.js 15, AWS Amplify Gen
 ## Current Features
 
 - Role-aware login with branded Amplify Authenticator, request-access signup, pending approval, and multi-role portal selection.
-- Administrator, operator, and customer portals each run on their own shell (`AdminShell`, `OperatorShell`, `CustomerShell`) with a shared navy staff-chrome look, collapsible mobile sidebar, and safe-area-aware bottom padding.
+- Administrator, operator, and customer portals share one shell (`PortalShell`) with a collapsible mobile sidebar and safe-area-aware bottom padding: navy staff chrome for administrators and operators, a theme-following sidebar for customers.
 - Administrator portal with dashboard KPIs, customer management, user management, route management, invoice management, and settings.
 - Route management with create/edit/detail flows, customer-aware listings, status filtering, and support for copying stops from a previous route or importing schedule files. Route creation is blocked on any date either the operator (no drivers available) or the customer (agency closed) has marked out on the service calendar.
 - Operator portal with a phone-friendly dashboard for planned and active routes, a legacy route detail flow for stop execution and map-based route review, and a five-phase Driver Sign Run flow (Load → Placement → Pickup → Unload → Finalise) for routes with `drivingModeEnabled`, covering van sign counts, placement/pickup progression with missing-sign tracking, and billing finalisation.
@@ -68,7 +68,6 @@ Amplify Data schema currently defines 17 entities:
 - CustomerClosureBlock
 - RateLine
 - OperatorPayout
-- VanSignCount
 
 ## Getting Started
 
@@ -105,6 +104,7 @@ App URL: `http://localhost:3000`
 | `npm run generate:config` | Generate local `amplify_outputs.json` |
 | `npm run validate:amplify-outputs` | Validate generated Amplify outputs |
 | `npm run import:prep` | Prepare or apply a legacy tracker + route-list import bundle |
+| `npm run backfill:geocodes` | Backfill `Stop.latitude`/`longitude` for stops missing GPS coordinates |
 
 ## Configuration
 
@@ -128,11 +128,19 @@ Set these in Amplify Console for builds/runtime:
 | `AWS_REGION` | AWS region (for example `ap-southeast-2`) |
 | `SES_SENDER_EMAIL` | Sender used by SES invoice email API |
 | `SES_INVOICE_TEMPLATE_NAME` | SES template name for invoice emails (default: branch-scoped, e.g. `NullDeviceInvoiceTemplate-main`) |
+| `SES_INVITATION_TEMPLATE_NAME` | SES template name for branded customer invite emails (default: branch-scoped, e.g. `NullDeviceInvitationTemplate-main`) |
+| `SES_STAFF_INVITATION_TEMPLATE_NAME` | SES template name for branded operator/administrator invite emails (default: branch-scoped, e.g. `NullDeviceStaffInvitationTemplate-main`) |
+| `SES_MISSING_SIGNS_REPORT_TEMPLATE_NAME` | SES template name for Missing Signs Report emails (default: branch-scoped, e.g. `NullDeviceMissingSignsReportTemplate-main`) |
+| `SES_COMPANY_ADDRESS` | Postal address shown in email footers (invoice + invitation) |
+| `NEXT_PUBLIC_SUPPORT_EMAIL` | Support address shown in email footers and "not expecting this?" text |
+| `NEXT_PUBLIC_APP_URL` | Base URL used to build portal/reset links and the logo asset URL in emails |
 
 Notes:
 
-- If `SES_SENDER_EMAIL` is not set, API falls back to `no-reply.nulldevice.dev`.
-- If `SES_INVOICE_TEMPLATE_NAME` is not set, API uses a branch-scoped default (`NullDeviceInvoiceTemplate-${AWS_BRANCH}` when `AWS_BRANCH`/`AMPLIFY_BRANCH` is available, otherwise `NullDeviceInvoiceTemplate`).
+- If `SES_SENDER_EMAIL` is not set, API falls back to `no-reply@<domain>`, where `<domain>` is the host of `NEXT_PUBLIC_APP_URL` (or `nulldevice.com.au` if that isn't set either). `nulldevice.dev` is used for the `development` branch, `nulldevice.com.au` for `main`/production.
+- If `SES_INVOICE_TEMPLATE_NAME` (or its `SES_INVITATION_TEMPLATE_NAME` / `SES_STAFF_INVITATION_TEMPLATE_NAME` / `SES_MISSING_SIGNS_REPORT_TEMPLATE_NAME` siblings) is not set, the API falls back to the branch-scoped name `amplify/backend.ts` deployed, read out of `amplify_outputs.json`'s `custom` section (see `lib/amplifyOutputsCustom.ts`) -- not from `AWS_BRANCH`/`AMPLIFY_BRANCH`, which aren't set in the Amplify Hosting SSR runtime (only during the CDK build step).
+- If `SES_COMPANY_ADDRESS` is not set, emails fall back to a placeholder ("Melbourne, Australia") -- set it per environment so production email doesn't ship the placeholder.
+- If `NEXT_PUBLIC_SUPPORT_EMAIL` is not set, emails fall back to `support@nulldevice.dev`.
 - Verify sender identity/domain in SES for the configured region.
 - The SES template is provisioned by Amplify backend deployment in `amplify/backend.ts`.
 
@@ -208,6 +216,37 @@ Notes:
 - The current importer defaults stop service types to `delivery`.
 - Apply mode now defaults to `--auth-mode userPool` and requires a signed-in Cognito operator/administrator account.
 - If you see `No federated jwt`, you are using IAM/federated auth without valid identity credentials; switch to `--auth-mode userPool` and provide `IMPORT_PREP_USERNAME` / `IMPORT_PREP_PASSWORD`.
+- Apply mode copies `viewerSubs` onto every Route/Stop/Invoice/LineItem it writes, read from the target `Customer` record (never recomputed here — it's kept in sync elsewhere whenever `CustomerUser` membership changes). Without this, imported records are invisible in the customer portal, since those models use `ownersDefinedIn('viewerSubs')` authorization with no `customerId` fallback. If a customer's `viewerSubs` is empty at import time (no `CustomerUser` linked yet), re-run apply after linking a user to backfill it.
+- Apply mode also sets `Invoice.gstAmount` (10% of `totalAmount`) when the customer's `gstExclusive` flag is set.
+- Newly imported stops don't include GPS coordinates — see [Geocode Backfill](#geocode-backfill) below to populate `Stop.latitude`/`longitude` so they render on route maps.
+- Newly imported stops don't get a Property key either (the app builds one on every Stop it writes, but this script writes Stops directly), so they're missing from Property History until you run `npm run backfill:geocodes -- --assess --customer-id "YOUR_CUSTOMER_ID"` (dry run first, then `--mode apply --confirm-apply`).
+
+## Geocode Backfill
+
+Route/Stop maps (`RouteStopsMap`) only render stops that already have `latitude`/`longitude`. Legacy tracker imports don't set those fields, so newly imported stops (and any older stop created before geocoding existed) are silently omitted from maps until backfilled.
+
+Use `scripts/backfill-geocodes.js` to geocode every stop for a customer that's missing coordinates, using the Google Geocoding REST API directly (server-side — this script doesn't run in a browser, so it can't use the Maps JS SDK path that `lib/googleMaps.ts` uses in the app itself).
+
+```bash
+export IMPORT_PREP_USERNAME="operator-or-admin@example.com"
+export IMPORT_PREP_PASSWORD="your-password"
+export GOOGLE_MAPS_API_KEY="your-server-side-key"
+
+npm run backfill:geocodes -- \
+	--customer-id "YOUR_CUSTOMER_ID" \
+	--outputs-path amplify_outputs.json \
+	--mode dry-run
+```
+
+Re-run with `--mode apply --confirm-apply` to write `latitude`, `longitude`, and `formattedAddress` back to each `Stop`.
+
+Notes:
+
+- Requires `GOOGLE_MAPS_API_KEY` (or `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` as a fallback) in the environment.
+- **The key must not have an HTTP referrer restriction.** `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is normally referrer-restricted for browser use (Maps JS SDK), which the Geocoding REST API rejects outright (`API keys with referer restrictions cannot be used with this API`). Use a separate key restricted by IP or API instead, set as `GOOGLE_MAPS_API_KEY`.
+- By default only stops missing `latitude`/`longitude` are geocoded; pass `--force` to re-geocode stops that already have coordinates.
+- `--delay-ms` (default `200`) throttles requests between stops to stay under Google's per-second quota; `--limit` caps how many stops are processed in one run.
+- Same `--auth-mode`/`--outputs-path`/`--username`/`--password` conventions as `import-prep.js`.
 
 ## Deployment
 

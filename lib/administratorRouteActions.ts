@@ -1,0 +1,284 @@
+/**
+ * What an administrator can change on a Route from its detail page: settle a
+ * Stop done or Couldn't Collect, remove a Stop at the door during Placement,
+ * restore any Removed Stop, Finalise,
+ * correct the Billed Time, and change the Pickup Date. Unlike the
+ * operator's Sign Run (lib/signRunTransitions.ts and its outbox), each one is
+ * saved straight away and recorded in the audit log, and they all report the
+ * same way. Settling and Finalise write what the operator's would, from the
+ * same plans.
+ */
+import { fetchUserId } from '@/lib/amplify-config';
+import { recordAudit } from '@/lib/auditLog';
+import { requestMissingSignsReport } from '@/lib/requestMissingSignsReport';
+import {
+  billedTime,
+  billedTimePatch,
+  billedTotalPatch,
+  isBillableTotal,
+  type BilledPhaseMinutes,
+  type BilledTimeRoute,
+} from '@/lib/billedTime';
+import { getDataClient } from '@/lib/data-client';
+import { isRemovedAtDoor, planStopRemoval, planStopRestore, type LoadChangeRoute } from '@/lib/loadChange';
+import { stopProgress } from '@/lib/stopProgress';
+import { pickupDateProblem } from '@/lib/pickupDate';
+import { updateRoute, updateStopExecution } from '@/lib/routes';
+import {
+  planSignRunTransition,
+  planStopSettlement,
+  stopPhaseOf,
+  type SignRunTransitionRoute,
+  type StopSettlement,
+} from '@/lib/signRunTransitions';
+import type { Route, RouteExecutionPhase, Stop } from '@/amplify/types';
+
+/** `saved` is set when the change was written but its audit entry wasn't, so
+ *  the caller should still reload what it shows. */
+export type AdministratorActionResult = { ok: true } | { ok: false; error: string; saved: boolean };
+
+const refused = (error: string): AdministratorActionResult => ({ ok: false, error, saved: false });
+
+interface AuditedChange {
+  resourceType: 'route' | 'stop';
+  resourceId: string;
+  customerId?: string | null;
+  action: string;
+  details: unknown;
+}
+
+/** Writes a change and then its audit entry. Nothing is audited if the write fails. */
+async function saveAudited(
+  write: () => Promise<{ errors?: readonly unknown[] | null }>,
+  change: AuditedChange,
+  messages: { failed: string; unaudited: string }
+): Promise<AdministratorActionResult> {
+  const { errors } = await write();
+  if (errors?.length) return refused(messages.failed);
+
+  const audit = await recordAudit(getDataClient(), {
+    actor: await fetchUserId(),
+    customerId: change.customerId,
+    eventType: 'data_modification',
+    resource: { type: change.resourceType, id: change.resourceId },
+    action: change.action,
+    details: change.details,
+  });
+  if (!audit.ok) {
+    console.error(`Writing the ${change.action} audit entry failed:`, audit.errors);
+    return { ok: false, error: messages.unaudited, saved: true };
+  }
+  return { ok: true };
+}
+
+/** What an administrator settles a Stop as: done, or Couldn't Collect (Pickup only) with a reason. */
+export type AdministratorSettlement = { action: 'complete' } | { action: 'couldntCollect'; reason: string };
+
+/**
+ * An administrator settles a Stop for the phase its Route is on, as the
+ * operator would: done in Placement, or collected or Couldn't Collect in
+ * Pickup. Once the Route is past Pickup, a Couldn't Collect Stop can still be
+ * settled collected when its signs are recovered. Anything else is refused,
+ * writing nothing.
+ */
+export async function settleStopAsAdministrator(
+  route: Pick<Route, 'status' | 'executionPhase'>,
+  stop: Pick<Stop, 'id' | 'routeId' | 'customerId' | 'notes' | 'actualArrivalTime' | 'actualDepartureTime'>,
+  settlement: AdministratorSettlement
+): Promise<AdministratorActionResult> {
+  const recovered =
+    settlement.action === 'complete' && stopProgress(stop).pickup.state === 'couldntCollect' && !stopPhaseOf(route);
+  const phase = recovered ? 'pickup' : stopPhaseOf(route);
+  if (!phase) return refused('Stops can only be settled while the route is on Placement or Pickup.');
+
+  let full: StopSettlement;
+  if (settlement.action === 'complete') {
+    full = { phase, action: 'complete' };
+  } else {
+    if (phase !== 'pickup') return refused("Only a pickup can be Couldn't Collect.");
+    const reason = settlement.reason.trim();
+    if (!reason) return refused('Say why the signs couldn’t be collected.');
+    full = { phase, action: 'couldntCollect', reason };
+  }
+
+  const patch = planStopSettlement(stop, full, new Date().toISOString());
+  return saveAudited(
+    () => updateStopExecution(stop.id, patch),
+    {
+      resourceType: 'stop',
+      resourceId: stop.id,
+      customerId: stop.customerId,
+      action: 'stop.settle',
+      details: {
+        routeId: stop.routeId,
+        phase,
+        action: settlement.action,
+        reason: full.action === 'couldntCollect' ? full.reason : null,
+      },
+    },
+    {
+      failed: 'Could not save that stop. Nothing was changed.',
+      unaudited: 'The stop was saved, but its audit entry could not be written.',
+    }
+  );
+}
+
+/**
+ * An administrator takes a Stop off its Route at the door during Placement,
+ * as the operator would, with a reason. Refused outside Placement -- during
+ * Load it's the operator's Load Change -- and for a Stop whose signs are up.
+ */
+export async function removeStopAsAdministrator(
+  route: LoadChangeRoute,
+  stop: Pick<Stop, 'id' | 'routeId' | 'customerId' | 'removed' | 'notes' | 'actualDepartureTime'>,
+  reason: string
+): Promise<AdministratorActionResult> {
+  const actor = await fetchUserId();
+  if (!actor) return refused('Could not tell who is signed in. Try again in a moment.');
+  const plan = planStopRemoval(route, stop, actor, new Date().toISOString(), reason);
+  if ('refused' in plan) return refused(plan.refused);
+  if (plan.window !== 'placement') return refused('Stops can only be removed by an administrator during Placement.');
+
+  return saveAudited(
+    () => updateStopExecution(stop.id, plan.patch),
+    {
+      resourceType: 'stop',
+      resourceId: stop.id,
+      customerId: stop.customerId,
+      action: 'stop.remove',
+      details: { routeId: stop.routeId, reason: plan.patch.removedReason ?? null },
+    },
+    {
+      failed: 'Could not remove that stop. Nothing was changed.',
+      unaudited: 'The stop was removed, but its audit entry could not be written.',
+    }
+  );
+}
+
+/**
+ * An administrator puts back any Removed Stop, at any point until the Route is
+ * finalised -- unlike the operator, who can only while its window is open.
+ */
+export async function restoreStopAsAdministrator(
+  route: LoadChangeRoute,
+  stop: Pick<Stop, 'id' | 'routeId' | 'customerId' | 'removed' | 'removedReason'>
+): Promise<AdministratorActionResult> {
+  const plan = planStopRestore(route, stop, { anyPhase: true });
+  if ('refused' in plan) return refused(plan.refused);
+
+  return saveAudited(
+    () => updateStopExecution(stop.id, plan.patch),
+    {
+      resourceType: 'stop',
+      resourceId: stop.id,
+      customerId: stop.customerId,
+      action: isRemovedAtDoor(stop) ? 'stop.restore' : 'stop.loadChange.restore',
+      details: { routeId: stop.routeId },
+    },
+    {
+      failed: 'Could not restore that stop. Nothing was changed.',
+      unaudited: 'The stop was restored, but its audit entry could not be written.',
+    }
+  );
+}
+
+/**
+ * An administrator finalises a Route that's waiting on Finalise (#408). It
+ * writes what the operator's Finalise writes, from the same plan, and then
+ * asks for the Route's Missing Signs Report, as the operator's outbox does.
+ */
+export async function finaliseRouteAsAdministrator(
+  route: SignRunTransitionRoute & Pick<Route, 'customerId'>,
+  input: { billedMinutes: Record<RouteExecutionPhase, number>; distanceKm: number }
+): Promise<AdministratorActionResult> {
+  const plan = planSignRunTransition(route, { type: 'finalise', ...input });
+  if ('refused' in plan) return refused(plan.refused);
+
+  const result = await saveAudited(
+    () => updateRoute(route.id, plan.patch),
+    {
+      resourceType: 'route',
+      resourceId: route.id,
+      customerId: route.customerId,
+      action: 'route.finalise',
+      details: { billedMinutes: input.billedMinutes, distanceKm: input.distanceKm },
+    },
+    {
+      failed: 'Could not finalise the route. Nothing was changed.',
+      unaudited: 'The route was finalised, but its audit entry could not be written.',
+    }
+  );
+  // Once Finalise has saved, its Missing Signs Report may be due (#468). Never awaited for its outcome.
+  if (result.ok || result.saved) void requestMissingSignsReport(route.id);
+  return result;
+}
+
+/** A Route with phases is corrected phase by phase; a total-only Route by its total. */
+export type BilledTimeCorrection =
+  | { billedMinutes: BilledPhaseMinutes; distanceKm: number }
+  | { totalMinutes: number; distanceKm: number };
+
+/**
+ * An administrator corrects a completed Route's Billed Time, keeping the rules
+ * Finalise keeps. Audited with the Billed Time before and after. An Invoice
+ * already raised for the Route is left as it is.
+ */
+export async function correctBilledTime(
+  route: BilledTimeRoute & Pick<Route, 'id' | 'customerId' | 'status'>,
+  correction: BilledTimeCorrection
+): Promise<AdministratorActionResult> {
+  if (route.status !== 'completed' && route.status !== 'archived') {
+    return refused('Billed Time can only be corrected once the route is completed.');
+  }
+
+  const patch =
+    'billedMinutes' in correction
+      ? billedTimePatch(correction.billedMinutes, correction.distanceKm)
+      : billedTotalPatch(correction.totalMinutes, correction.distanceKm);
+  if (patch.overrideDurationMinutes <= 0 || !isBillableTotal(patch.overrideDurationMinutes)) {
+    return refused('The total charged must land on a 15 min increment.');
+  }
+  if (patch.overrideDistanceKm < 0) return refused('Enter a distance of 0 km or more.');
+
+  return saveAudited(
+    () => updateRoute(route.id, patch),
+    {
+      resourceType: 'route',
+      resourceId: route.id,
+      customerId: route.customerId,
+      action: 'route.billedTime.correct',
+      details: { before: billedTime(route), after: billedTime({ ...route, ...patch }) },
+    },
+    {
+      failed: 'Could not save the Billed Time. Nothing was changed.',
+      unaudited: 'The Billed Time was saved, but its audit entry could not be written.',
+    }
+  );
+}
+
+/**
+ * An administrator changes a Route's Pickup Date: never before its Placement
+ * Date, and never cleared. Audited with the date before and after.
+ */
+export async function changePickupDate(
+  route: Pick<Route, 'id' | 'customerId' | 'scheduledDate' | 'pickupDate'>,
+  pickupDate: string
+): Promise<AdministratorActionResult> {
+  const problem = pickupDateProblem(route.scheduledDate ?? '', pickupDate);
+  if (problem) return refused(problem);
+
+  return saveAudited(
+    () => updateRoute(route.id, { pickupDate }),
+    {
+      resourceType: 'route',
+      resourceId: route.id,
+      customerId: route.customerId,
+      action: 'route.pickupDate.change',
+      details: { before: route.pickupDate ?? null, after: pickupDate },
+    },
+    {
+      failed: 'Could not save the pickup date. Nothing was changed.',
+      unaudited: 'The pickup date was saved, but its audit entry could not be written.',
+    }
+  );
+}

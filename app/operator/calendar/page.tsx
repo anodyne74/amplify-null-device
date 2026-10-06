@@ -8,9 +8,9 @@ import PageHeader from '@/app/operator/components/PageHeader';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Select } from '@/app/components/ui/forms/Select';
 import { ServiceCalendar } from '@/app/components/ServiceCalendar';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import type { Customer } from '@/amplify/types';
 import styles from './page.module.css';
+import { listAllCustomers } from '@/lib/customers';
 
 export default function OperatorCalendarPage() {
   const { user } = useAuthenticator();
@@ -21,9 +21,9 @@ export default function OperatorCalendarPage() {
   useEffect(() => {
     let cancelled = false;
 
-    void listAllCustomers({ limit: 200 }).then((result) => {
+    void listAllCustomers().catch(() => []).then((result) => {
       if (cancelled) return;
-      const list = (result.data as Customer[]) || [];
+      const list = result as Customer[];
       setCustomers(list);
       if (list.length > 0) setSelectedCustomerId(list[0].id);
       setLoading(false);
@@ -41,7 +41,7 @@ export default function OperatorCalendarPage() {
       <div>
         <PageHeader
           title="Service Calendar"
-          subtitle="Block out days Null Device has no drivers available"
+          subtitle="Block out days Null Device has no operators available"
           actions={
             <div className={styles.customerPicker}>
               <Field label="Customer" htmlFor="calendar-customer">

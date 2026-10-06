@@ -2,18 +2,21 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import CustomersAdminPage from '../page';
-import { createCustomer, deleteCustomer, listCustomers, updateCustomer } from '@/lib/queries';
 import { geocodeAddress } from '@/lib/googleMaps';
+import { createCustomer, listAllCustomerUsers, listAllCustomers, updateCustomer } from '@/lib/customers';
+import { listFeatureFlagSettings } from '@/lib/queries/FeatureFlagSettings';
 
-jest.mock('@/app/dashboard.module.css', () => ({}));
+const mockPush = jest.fn();
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
 
 jest.mock('@aws-amplify/ui-react', () => ({
   useAuthenticator: () => ({ user: { signInDetails: { loginId: 'admin@nulldevice.test' } } }),
 }));
 
-const mockShowToast = jest.fn();
 jest.mock('@/app/components/ToastProvider', () => ({
-  useToast: () => ({ showToast: mockShowToast }),
+  useToast: () => ({ showToast: jest.fn() }),
 }));
 
 jest.mock('@/app/components/OperatorRoute', () => ({
@@ -46,16 +49,25 @@ jest.mock('@/lib/googleMaps', () => ({
   geocodeAddress: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
+  listCustomerRoutes: jest.fn().mockResolvedValue([]),
+}));
+
+jest.mock('@/lib/customers', () => ({
   createCustomer: jest.fn(),
   createCustomerUser: jest.fn(),
-  deleteCustomer: jest.fn(),
-  listCustomerUsers: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
-  listCustomerRoutes: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
-  listCustomerInvoices: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
-  listCustomers: jest.fn(),
-  syncViewerSubsForCustomer: jest.fn(),
+  listAllCustomerUsers: jest.fn().mockResolvedValue({ data: [], errors: undefined }),
+  listCustomerUsers: jest.fn().mockResolvedValue([]),
+  listAllCustomers: jest.fn(),
   updateCustomer: jest.fn(),
+}));
+
+jest.mock('@/lib/invoices', () => ({
+  listCustomerInvoices: jest.fn().mockResolvedValue([]),
+}));
+
+jest.mock('@/lib/queries/FeatureFlagSettings', () => ({
+  listFeatureFlagSettings: jest.fn(),
 }));
 
 describe('Operator Customers Page', () => {
@@ -66,13 +78,14 @@ describe('Operator Customers Page', () => {
       longitude: -97,
       formattedAddress: '100 Main St, Fort Worth, TX',
     });
-    (createCustomer as jest.Mock).mockResolvedValue({ data: { id: 'c-new' }, errors: undefined });
-    (updateCustomer as jest.Mock).mockResolvedValue({ data: { id: 'c-1' }, errors: undefined });
-    (deleteCustomer as jest.Mock).mockResolvedValue({ data: { id: 'c-1' }, errors: undefined });
+    (createCustomer as jest.Mock).mockResolvedValue({ id: 'c-new' });
+    (updateCustomer as jest.Mock).mockResolvedValue({ id: 'c-1' });
+    (listAllCustomerUsers as jest.Mock).mockResolvedValue([]);
+    (listFeatureFlagSettings as jest.Mock).mockResolvedValue([]);
   });
 
   it('submits create customer with standing instructions and defaults', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listAllCustomers as jest.Mock).mockResolvedValue([]);
 
     render(<CustomersAdminPage />);
 
@@ -112,25 +125,22 @@ describe('Operator Customers Page', () => {
     });
   });
 
-  it('saves edited defaults from the customer edit panel', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        {
-          id: 'c-1',
-          name: 'Acme Corp',
-          email: 'acme@example.com',
-          billingRatePerHour: 95,
-          status: 'active',
-          addressLine1: '11 Old St',
-          standingInstructions: 'Legacy instructions',
-          defaultNumberOfSigns: 2,
-          defaultAgentName: 'Pat Doe',
-          defaultAgentInitials: 'PD',
-          agentOptions: ['Pat Doe', 'Jamie Lee'],
-        },
-      ],
-      errors: undefined,
-    });
+  it('saves edited defaults from the configure panel', async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      {
+        id: 'c-1',
+        name: 'Acme Corp',
+        email: 'acme@example.com',
+        billingRatePerHour: 95,
+        status: 'active',
+        addressLine1: '11 Old St',
+        standingInstructions: 'Legacy instructions',
+        defaultNumberOfSigns: 2,
+        defaultAgentName: 'Pat Doe',
+        defaultAgentInitials: 'PD',
+        agentOptions: ['Pat Doe', 'Jamie Lee'],
+      },
+    ]);
 
     render(<CustomersAdminPage />);
 
@@ -143,12 +153,11 @@ describe('Operator Customers Page', () => {
     const rowScope = within(customerRow as HTMLElement);
 
     expect(rowScope.getByText('Active')).toBeInTheDocument();
-    expect(rowScope.queryByRole('combobox', { name: /status for customer acme corp/i })).not.toBeInTheDocument();
 
-    fireEvent.click(rowScope.getByRole('button', { name: /edit customer acme corp/i }));
+    fireEvent.click(rowScope.getByRole('button', { name: /configure customer acme corp/i }));
 
-    const editPanelHeading = await screen.findByText(/edit customer/i);
-    const editPanel = editPanelHeading.closest('div');
+    const editPanelHeading = await screen.findByRole('heading', { name: /configure — acme corp/i });
+    const editPanel = editPanelHeading.closest('.nd-card');
     expect(editPanel).not.toBeNull();
     const scoped = within(editPanel as HTMLElement);
 
@@ -164,7 +173,7 @@ describe('Operator Customers Page', () => {
       target: { value: 'Updated standing instructions.' },
     });
 
-    fireEvent.click(scoped.getByRole('button', { name: /save customer/i }));
+    fireEvent.click(scoped.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
       expect(updateCustomer).toHaveBeenCalledWith(
@@ -177,30 +186,44 @@ describe('Operator Customers Page', () => {
       );
     });
 
-    // The edit panel stays open showing the success message until the user closes it.
+    // The configure panel stays open showing the success message until the user closes it.
     expect(await screen.findByText('Customer updated.')).toBeInTheDocument();
-    expect(screen.getByText(/edit customer/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /configure — acme corp/i })).toBeInTheDocument();
   });
 
-  it('does not re-geocode an unchanged address when saving other edits (#58)', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        {
-          id: 'c-1',
-          name: 'Acme Corp',
-          email: 'acme@example.com',
-          billingRatePerHour: 95,
-          status: 'active',
-          addressLine1: '11 Old St',
-          standingInstructions: 'Legacy instructions',
-          defaultNumberOfSigns: 2,
-          defaultAgentName: 'Pat Doe',
-          defaultAgentInitials: 'PD',
-          agentOptions: ['Pat Doe', 'Jamie Lee'],
-        },
-      ],
-      errors: undefined,
-    });
+  it('switches Missing Signs reports on for a customer (#468)', async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', billingRatePerHour: 95, status: 'active', addressLine1: '11 Old St' },
+    ]);
+
+    render(<CustomersAdminPage />);
+    const customerRow = (await screen.findByText('Acme Corp')).closest('tr') as HTMLElement;
+    fireEvent.click(within(customerRow).getByRole('button', { name: /configure customer acme corp/i }));
+    const panel = (await screen.findByRole('heading', { name: /configure — acme corp/i })).closest('.nd-card') as HTMLElement;
+    const scoped = within(panel);
+
+    const reports = scoped.getByRole('checkbox', { name: /^Email Missing Signs reports/ });
+    expect(reports).not.toBeChecked();
+    fireEvent.click(reports);
+    fireEvent.click(scoped.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() =>
+      expect(updateCustomer).toHaveBeenCalledWith('c-1', expect.objectContaining({ missingSignsReportEnabled: true }))
+    );
+  });
+
+  it('sets an agent as the default by clicking its tag', async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      {
+        id: 'c-1',
+        name: 'Acme Corp',
+        email: 'acme@example.com',
+        billingRatePerHour: 95,
+        status: 'active',
+        addressLine1: '11 Old St',
+        agentOptions: ['Pat Doe', 'Jamie Lee'],
+      },
+    ]);
 
     render(<CustomersAdminPage />);
 
@@ -208,16 +231,83 @@ describe('Operator Customers Page', () => {
       expect(screen.getByText('Acme Corp')).toBeInTheDocument();
     });
 
-    const customerRow = screen.getByText('Acme Corp').closest('tr');
-    fireEvent.click(within(customerRow as HTMLElement).getByRole('button', { name: /edit customer acme corp/i }));
+    fireEvent.click(screen.getByRole('button', { name: /configure customer acme corp/i }));
+    await screen.findByRole('heading', { name: /configure — acme corp/i });
 
-    const editPanelHeading = await screen.findByText(/edit customer/i);
-    const scoped = within(editPanelHeading.closest('div') as HTMLElement);
+    fireEvent.click(screen.getByText('Jamie Lee'));
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(updateCustomer).toHaveBeenCalledWith(
+        'c-1',
+        expect.objectContaining({ agentOptions: ['Jamie Lee', 'Pat Doe'] })
+      );
+    });
+  });
+
+  it('suspends and reactivates a customer account from the configure panel', async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      {
+        id: 'c-1',
+        name: 'Acme Corp',
+        email: 'acme@example.com',
+        billingRatePerHour: 95,
+        status: 'active',
+        addressLine1: '11 Old St',
+      },
+    ]);
+
+    render(<CustomersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /configure customer acme corp/i }));
+    await screen.findByRole('heading', { name: /configure — acme corp/i });
+
+    fireEvent.click(screen.getByRole('button', { name: /suspend account acme corp/i }));
+
+    await waitFor(() => {
+      expect(updateCustomer).toHaveBeenCalledWith('c-1', expect.objectContaining({ status: 'suspended' }));
+    });
+
+    expect(await screen.findByText('Customer suspended.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reactivate account acme corp/i })).toBeInTheDocument();
+  });
+
+  it('does not re-geocode an unchanged address when saving other edits (#58)', async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      {
+        id: 'c-1',
+        name: 'Acme Corp',
+        email: 'acme@example.com',
+        billingRatePerHour: 95,
+        status: 'active',
+        addressLine1: '11 Old St',
+        standingInstructions: 'Legacy instructions',
+        defaultNumberOfSigns: 2,
+        defaultAgentName: 'Pat Doe',
+        defaultAgentInitials: 'PD',
+        agentOptions: ['Pat Doe', 'Jamie Lee'],
+      },
+    ]);
+
+    render(<CustomersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /configure customer acme corp/i }));
+
+    const editPanelHeading = await screen.findByRole('heading', { name: /configure — acme corp/i });
+    const scoped = within(editPanelHeading.closest('.nd-card') as HTMLElement);
 
     // Only touch a non-address field — the address input is left exactly as loaded.
     fireEvent.change(scoped.getByPlaceholderText('Default number of signs'), { target: { value: '6' } });
 
-    fireEvent.click(scoped.getByRole('button', { name: /save customer/i }));
+    fireEvent.click(scoped.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
       expect(updateCustomer).toHaveBeenCalledWith(
@@ -231,19 +321,16 @@ describe('Operator Customers Page', () => {
     expect(await screen.findByText('Customer updated.')).toBeInTheDocument();
   });
 
-  it('deletes a customer after confirmation and refreshes the list', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        {
-          id: 'c-1',
-          name: 'Acme Corp',
-          email: 'acme@example.com',
-          billingRatePerHour: 95,
-          status: 'active',
-        },
-      ],
-      errors: undefined,
-    });
+  it('navigates to payment details for the selected customer', async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      {
+        id: 'c-1',
+        name: 'Acme Corp',
+        email: 'acme@example.com',
+        billingRatePerHour: 95,
+        status: 'active',
+      },
+    ]);
 
     render(<CustomersAdminPage />);
 
@@ -251,70 +338,34 @@ describe('Operator Customers Page', () => {
       expect(screen.getByText('Acme Corp')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /edit customer acme corp/i }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete customer Acme Corp' }));
+    fireEvent.click(screen.getByRole('button', { name: /payment details for acme corp/i }));
 
-    const dialog = screen.getByRole('alertdialog', { name: 'Delete customer?' });
-    expect(dialog).toHaveTextContent('Delete customer Acme Corp?');
-    expect(deleteCustomer).not.toHaveBeenCalled();
-
-    // Cancelling does not delete.
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-    expect(deleteCustomer).not.toHaveBeenCalled();
-
-    // Confirming deletes, refreshes the list, and shows a success toast.
-    fireEvent.click(screen.getByRole('button', { name: 'Delete customer Acme Corp' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Customer' }));
-
-    await waitFor(() => {
-      expect(deleteCustomer).toHaveBeenCalledWith('c-1');
-    });
-    await waitFor(() => {
-      expect(mockShowToast).toHaveBeenCalledWith('Customer Acme Corp deleted.', 'success');
-    });
-    expect(listCustomers).toHaveBeenCalledTimes(2);
+    expect(mockPush).toHaveBeenCalledWith('/administrator/payment-details?customerId=c-1');
   });
 
-  it('shows an error toast when customer deletion fails', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        {
-          id: 'c-1',
-          name: 'Acme Corp',
-          email: 'acme@example.com',
-          billingRatePerHour: 95,
-          status: 'active',
-        },
-      ],
-      errors: undefined,
-    });
-    (deleteCustomer as jest.Mock).mockResolvedValue({ data: null, errors: [new Error('denied')] });
+  it('shows a per-customer user count from listAllCustomerUsers', async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'c-1', name: 'Acme Corp', email: 'a@example.com', billingRatePerHour: 95, status: 'active' },
+    ]);
+    (listAllCustomerUsers as jest.Mock).mockResolvedValue([
+      { id: 'u-1', customerId: 'c-1' },
+      { id: 'u-2', customerId: 'c-1' },
+      { id: 'u-3', customerId: 'c-2' },
+    ]);
 
     render(<CustomersAdminPage />);
 
+    const customerRow = await screen.findByText('Acme Corp').then((el) => el.closest('tr') as HTMLElement);
     await waitFor(() => {
-      expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+      expect(within(customerRow).getByText('2')).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByRole('button', { name: /edit customer acme corp/i }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete customer Acme Corp' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Customer' }));
-
-    await waitFor(() => {
-      expect(mockShowToast).toHaveBeenCalledWith('Failed to delete customer Acme Corp.', 'error');
-    });
-    expect(listCustomers).toHaveBeenCalledTimes(1);
   });
 
-  it('sorts the customer list by name and shows the pagination summary', async () => {
-    (listCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'c-1', name: 'Zenith Co', email: 'z@example.com', billingRatePerHour: 95, status: 'active' },
-        { id: 'c-2', name: 'Acme Corp', email: 'a@example.com', billingRatePerHour: 95, status: 'inactive' },
-      ],
-      errors: undefined,
-    });
+  it('sorts the customer list by name', async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'c-1', name: 'Zenith Co', email: 'z@example.com', billingRatePerHour: 95, status: 'active' },
+      { id: 'c-2', name: 'Acme Corp', email: 'a@example.com', billingRatePerHour: 95, status: 'inactive' },
+    ]);
 
     render(<CustomersAdminPage />);
 
@@ -322,16 +373,12 @@ describe('Operator Customers Page', () => {
       expect(screen.getByText('Zenith Co')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Showing 1–2 of 2 customers')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Previous page of customers' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Next page of customers' })).toBeDisabled();
-
     const firstDataRow = () => screen.getAllByRole('row')[1];
 
     // Default order matches the fetched order.
     expect(firstDataRow()).toHaveTextContent('Zenith Co');
 
-    const sortByName = screen.getByRole('button', { name: 'Sort by Name' });
+    const sortByName = screen.getByRole('button', { name: 'Sort by Customer' });
     fireEvent.click(sortByName);
     expect(sortByName.closest('th')).toHaveAttribute('aria-sort', 'ascending');
     expect(firstDataRow()).toHaveTextContent('Acme Corp');
@@ -345,21 +392,32 @@ describe('Operator Customers Page', () => {
     expect(firstDataRow()).toHaveTextContent('Zenith Co'); // active < inactive
   });
 
+  it('uses the shared sortable header for every sortable column (#442)', async () => {
+    // The shared AdminSortableHeader carries the themed header treatment; a
+    // page-local copy drifts from it.
+    render(<CustomersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('table', { name: 'Customer list' })).toBeInTheDocument();
+    });
+
+    for (const label of ['Customer', 'Status']) {
+      expect(screen.getByRole('button', { name: `Sort by ${label}` })).toHaveClass('sortHeaderButton');
+    }
+  });
+
   it('offers a retry action when loading customers fails', async () => {
-    (listCustomers as jest.Mock)
-      .mockResolvedValueOnce({ data: null, errors: [new Error('network')] })
-      .mockResolvedValueOnce({
-        data: [
-          {
-            id: 'c-1',
-            name: 'Acme Corp',
-            email: 'acme@example.com',
-            billingRatePerHour: 95,
-            status: 'active',
-          },
-        ],
-        errors: undefined,
-      });
+    (listAllCustomers as jest.Mock)
+      .mockRejectedValueOnce(new Error('customer read failed'))
+      .mockResolvedValueOnce([
+        {
+          id: 'c-1',
+          name: 'Acme Corp',
+          email: 'acme@example.com',
+          billingRatePerHour: 95,
+          status: 'active',
+        },
+      ]);
 
     render(<CustomersAdminPage />);
 
@@ -373,5 +431,43 @@ describe('Operator Customers Page', () => {
       expect(screen.getByText('Acme Corp')).toBeInTheDocument();
     });
     expect(screen.queryByText('Failed to load customers.')).not.toBeInTheDocument();
+  });
+  describe('feature flags', () => {
+    async function openAcme() {
+      (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', status: 'active', addressLine1: '1 St' }]);
+      render(<CustomersAdminPage />);
+      fireEvent.click(await screen.findByRole('button', { name: /configure customer acme corp/i }));
+      await screen.findByRole('heading', { name: /configure — acme corp/i });
+    }
+
+    it('lists the flags on for the Customer and keeps "First user invited" in the checklist', async () => {
+      (listFeatureFlagSettings as jest.Mock).mockResolvedValue([
+        { id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['c-1'] },
+        { id: 'retired', state: 'everyone' },
+      ]);
+      await openAcme();
+
+      const list = await screen.findByRole('list', { name: 'Feature flags on' });
+      expect(within(list).getByText('Account Owner invites users')).toBeInTheDocument();
+      expect(within(list).queryByText('retired')).not.toBeInTheDocument();
+      expect(screen.getByText('First user invited')).toBeInTheDocument();
+    });
+
+    it('omits "First user invited" and says no flags are on when account-owner-invite is off', async () => {
+      (listFeatureFlagSettings as jest.Mock).mockResolvedValue([{ id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['c-2'] }]);
+      await openAcme();
+
+      expect(await screen.findByText(/this Customer sees no flagged features/)).toBeInTheDocument();
+      expect(screen.getByText('First route built')).toBeInTheDocument();
+      expect(screen.queryByText('First user invited')).not.toBeInTheDocument();
+    });
+
+    it('says so, and omits the user-invited item, when the flags cannot be read', async () => {
+      (listFeatureFlagSettings as jest.Mock).mockRejectedValue(new Error('read failed'));
+      await openAcme();
+
+      expect(await screen.findByText('Could not load feature flags.')).toBeInTheDocument();
+      expect(screen.queryByText('First user invited')).not.toBeInTheDocument();
+    });
   });
 });

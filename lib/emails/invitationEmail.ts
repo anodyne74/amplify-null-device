@@ -1,5 +1,6 @@
 import { SendTemplatedEmailCommand, SESClient } from '@aws-sdk/client-ses';
-import { SUPPORT_EMAIL } from '@/lib/publicAppConfig';
+import { APP_DOMAIN, SUPPORT_EMAIL } from '@/lib/publicAppConfig';
+import { customOutputs } from '@/lib/amplifyOutputsCustom';
 
 /**
  * Sends the branded portal-invitation email (the `NullDeviceInvitationTemplate`
@@ -23,12 +24,16 @@ function sanitizeNamePart(value: string, fallback: string) {
   return cleaned || fallback;
 }
 
+// process.env.AWS_BRANCH/AMPLIFY_BRANCH aren't set in the SSR runtime, so this
+// reconstruction is a last-resort fallback -- see lib/amplifyOutputsCustom.ts.
 const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || '', '');
-const defaultInvitationTemplateName = branchName
+const fallbackInvitationTemplateName = branchName
   ? `NullDeviceInvitationTemplate-${branchName}`
   : 'NullDeviceInvitationTemplate';
 const invitationTemplateName =
-  process.env.SES_INVITATION_TEMPLATE_NAME || defaultInvitationTemplateName;
+  process.env.SES_INVITATION_TEMPLATE_NAME ||
+  customOutputs.sesInvitationTemplateName ||
+  fallbackInvitationTemplateName;
 
 export interface InvitationEmailInput {
   /** Recipient / invitee email address (also rendered in the credentials panel). */
@@ -48,14 +53,26 @@ export interface InvitationEmailInput {
 
 /** Throws on SES failure -- callers decide whether to surface or swallow it. */
 export async function sendInvitationEmail(input: InvitationEmailInput): Promise<void> {
-  const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://nulldevice.dev').replace(/\/$/, '');
-  const senderEmail = process.env.SES_SENDER_EMAIL || 'no-reply.nulldevice.dev';
+  const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || `https://${APP_DOMAIN}`).replace(/\/$/, '');
+  const senderEmail = process.env.SES_SENDER_EMAIL || `no-reply@${APP_DOMAIN}`;
   const supportMailto = `mailto:${SUPPORT_EMAIL}`;
+
+  // inviterName falls back to inviterEmail when the inviter has no display
+  // name set (see createUser in app/api/admin/users/route.ts) -- in that case
+  // "{{inviterName}} ({{inviterEmail}})" would render the same address twice,
+  // so collapse it to a single mention.
+  const inviterName = input.inviterName.trim();
+  const inviterEmail = input.inviterEmail.trim();
+  const inviterDisplay =
+    inviterName && inviterName.toLowerCase() !== inviterEmail.toLowerCase()
+      ? `${inviterName} (${inviterEmail})`
+      : inviterEmail || inviterName;
 
   const templateData = {
     customerName: input.customerName,
-    inviterName: input.inviterName,
-    inviterEmail: input.inviterEmail,
+    inviterName,
+    inviterEmail,
+    inviterDisplay,
     inviteeName: input.inviteeName?.trim() || 'there',
     inviteeEmail: input.toEmail,
     temporaryPassword: input.temporaryPassword,
@@ -65,6 +82,7 @@ export async function sendInvitationEmail(input: InvitationEmailInput): Promise<
     // No deep-link reset route -- a stuck invitee reaches a human.
     resetPasswordUrl: supportMailto,
     supportUrl: supportMailto,
+    supportEmail: SUPPORT_EMAIL,
     unsubscribeUrl: `${appBaseUrl}/customer/settings`,
     logoUrl: `${appBaseUrl}/logo.svg`,
     companyAddress: process.env.SES_COMPANY_ADDRESS?.trim() || 'Melbourne, Australia',

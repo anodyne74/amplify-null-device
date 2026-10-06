@@ -8,7 +8,7 @@
  * "new route" import flow) at creation time.
  */
 import { listOperatorAvailabilityBlocks } from '@/lib/queries/ListOperatorAvailabilityBlocks';
-import { listCustomerClosureBlocks } from '@/lib/queries/ListCustomerClosureBlocks';
+import { listCustomerClosureBlocks } from '@/lib/customers';
 
 export interface RouteDateBlockResult {
   blocked: boolean;
@@ -17,17 +17,18 @@ export interface RouteDateBlockResult {
 }
 
 export async function checkRouteDateBlocked(customerId: string, date: string): Promise<RouteDateBlockResult> {
-  const [noDriversResult, closedResult] = await Promise.all([
-    listOperatorAvailabilityBlocks(customerId),
-    listCustomerClosureBlocks(customerId),
+  // Best-effort: unreadable blocks of either kind count as none.
+  const [noDriversBlocks, closedBlocks] = await Promise.all([
+    listOperatorAvailabilityBlocks(customerId).catch(() => []),
+    listCustomerClosureBlocks(customerId).catch(() => []),
   ]);
 
-  const noDriversBlock = (noDriversResult.data || []).find((block) => block.date === date);
+  const noDriversBlock = noDriversBlocks.find((block) => block.date === date);
   if (noDriversBlock) {
     return { blocked: true, type: 'no_drivers', reason: noDriversBlock.reason || undefined };
   }
 
-  const closedBlock = (closedResult.data || []).find((block) => block.date === date);
+  const closedBlock = closedBlocks.find((block) => block.date === date);
   if (closedBlock) {
     return { blocked: true, type: 'closed', reason: closedBlock.reason || undefined };
   }

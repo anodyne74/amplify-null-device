@@ -5,16 +5,22 @@ import Link from 'next/link';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import AsyncState from '@/app/components/AsyncState';
 import OperatorRoute from '@/app/components/OperatorRoute';
+import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { isAdmin } from '@/lib/amplify-config';
 import { useRoutesList, ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
+import { usePropertySearch } from '@/lib/usePropertySearch';
 import { formatRouteDate, formatRouteDuration } from '@/lib/routeListHelpers';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
+import { Badge } from '@/app/components/ui/core/Badge';
+import { routeFeedbackLabel } from '@/lib/routeFeedback';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Button } from '@/app/components/ui/core/Button';
+import { Tag } from '@/app/components/ui/core/Tag';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
+import { PropertySearchCard } from './PropertySearchCard';
 import type { Route } from '@/amplify/types';
 import styles from './page.module.css';
 
@@ -33,12 +39,15 @@ interface RoutesListSectionProps {
  */
 function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps) {
   const {
+    cancelDeleteRoute,
     customersById,
     deletingRouteId,
     error,
     filteredRoutes,
     handleDeleteRoute,
     loading,
+    requestDeleteRoute,
+    routePendingDelete,
     setStatusFilter,
     statusFilter,
   } = useRoutesList(canDeleteRoutes);
@@ -50,12 +59,19 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
 
   const hasRefinements = searchQuery.trim() !== '' || dateFrom !== '' || dateTo !== '';
 
-  // Client-side search (route code / route id / customer name) and inclusive
-  // createdAt date-range filter, composed with the status-filtered list.
+  const propertySearch = usePropertySearch(filteredRoutes, customersById);
+  const { filterActive: propertyFilterActive, shownRouteIds, focusedRouteId } = propertySearch;
+  const shownRouteIdSet = useMemo(() => new Set(shownRouteIds), [shownRouteIds]);
+
+  // Client-side search (route code / route id / customer name), inclusive
+  // createdAt date-range filter, and property-search route filter, all
+  // composed with the status-filtered list.
   const visibleRoutes = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
     return filteredRoutes.filter((route) => {
+      if (propertyFilterActive && !shownRouteIdSet.has(route.id)) return false;
+
       if (query) {
         const customerName = customersById[route.customerId] || '';
         const matchesQuery = [route.routeCode || '', route.id, customerName].some((value) =>
@@ -73,7 +89,10 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
 
       return true;
     });
-  }, [filteredRoutes, customersById, searchQuery, dateFrom, dateTo]);
+  }, [filteredRoutes, customersById, searchQuery, dateFrom, dateTo, propertyFilterActive, shownRouteIdSet]);
+
+  const focusedRoute = focusedRouteId ? filteredRoutes.find((route) => route.id === focusedRouteId) : undefined;
+  const focusedRouteLabel = focusedRoute ? focusedRoute.routeCode || focusedRoute.id.slice(0, 8) : null;
 
   function clearRefinements() {
     setSearchQuery('');
@@ -100,7 +119,20 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       header: 'Customer',
       render: (route) => customersById[route.customerId] || 'Unknown customer',
     },
-    { key: 'status', header: 'Status', render: (route) => <RouteStatusPill status={route.status} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (route) => (
+        <div className={styles.statusCell}>
+          <RouteStatusPill route={route} />
+          {route.customerFeedbackTone === 'issue' && (
+            <Badge tone="danger" dot>
+              Feedback: {routeFeedbackLabel('issue').toLowerCase()}
+            </Badge>
+          )}
+        </div>
+      ),
+    },
     { key: 'created', header: 'Created', render: (route) => formatRouteDate(route.createdAt) },
     {
       key: 'duration',
@@ -138,7 +170,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
                 size="sm"
                 variant="danger"
                 loading={deletingRouteId === route.id}
-                onClick={() => void handleDeleteRoute(route)}
+                onClick={() => requestDeleteRoute(route)}
                 aria-label={`Delete route ${routeLabel}`}
               >
                 {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
@@ -158,12 +190,27 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       loadingMessage="Loading routes..."
       emptyMessage="No routes found. Routes you create will appear here."
       emptyAction={(
-        <Link href="/administrator/routes/new" className={styles.emptyStateCta}>
+        <Link href="/administrator/routes/new" className="nd-btn nd-btn--primary nd-btn--md">
           Create your first route
         </Link>
       )}
       onRetry={onRetry}
     >
+      <PropertySearchCard search={propertySearch} />
+
+      {propertyFilterActive && (
+        <div className={styles.propertyFilterBar}>
+          <p className={styles.propertyFilterNote} role="status">
+            {focusedRouteLabel
+              ? `Showing ${focusedRouteLabel} only`
+              : `Showing ${visibleRoutes.length} of ${filteredRoutes.length} routes with a property match`}
+          </p>
+          <button type="button" className={styles.clearFiltersBtn} onClick={propertySearch.clear}>
+            Show all routes
+          </button>
+        </div>
+      )}
+
       <div className={styles.searchFilterRow}>
         <Field label="Search" htmlFor="routes-search" className={styles.searchField}>
           <Input
@@ -208,14 +255,9 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       <div className={styles.filterRow}>
         <span className={styles.filterLabel}>Status:</span>
         {ROUTE_STATUS_FILTERS.map((status) => (
-          <button
-            key={status}
-            type="button"
-            onClick={() => setStatusFilter(status)}
-            className={`${styles.filterBtn} ${statusFilter === status ? styles.filterBtnActive : ''}`}
-          >
+          <Tag key={status} selected={statusFilter === status} onClick={() => setStatusFilter(status)}>
             {formatStatusFilterLabel(status)}
-          </button>
+          </Tag>
         ))}
       </div>
 
@@ -228,6 +270,19 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
           </div>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={routePendingDelete !== null}
+        title="Delete route?"
+        message={`Delete route ${routePendingDelete?.routeCode || routePendingDelete?.id.slice(0, 8)}? This will also delete all stops on the route.`}
+        confirmLabel="Delete"
+        tone="danger"
+        busy={deletingRouteId === routePendingDelete?.id}
+        onConfirm={() => {
+          if (routePendingDelete) void handleDeleteRoute(routePendingDelete);
+        }}
+        onCancel={cancelDeleteRoute}
+      />
     </AsyncState>
   );
 }

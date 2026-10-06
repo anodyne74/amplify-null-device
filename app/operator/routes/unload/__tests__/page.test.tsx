@@ -2,23 +2,48 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import OperatorUnloadPage from '../page';
-import { getRouteWithStops, getCustomer, updateRouteExecution } from '@/lib/queries';
+import { queueSignRunTransition } from '@/lib/signRunTransitions';
+import { signRunOutbox } from '@/lib/signRunOutbox';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import type { Route, Stop } from '@/amplify/types';
+import { getRouteWithStops } from '@/lib/routes';
+import { getCustomer } from '@/lib/customers';
 
 const push = jest.fn();
 let searchParamId: string | null = 'route-1';
+
+// The live feed is inert here; these tests drive the screen through the fetch.
+jest.mock('@/lib/routeWithStopsFeed', () => ({
+  subscribeRouteWithStops: () => () => {},
+}));
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
   useSearchParams: () => ({ get: (key: string) => (key === 'id' ? searchParamId : null) }),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
-  getCustomer: jest.fn(),
-  updateRouteExecution: jest.fn(),
+  updateRoute: jest.fn(() => new Promise(() => {})),
+  updateStopExecution: jest.fn(() => new Promise(() => {})),
 }));
+
+jest.mock('@/lib/customers', () => ({
+  getCustomer: jest.fn(),
+}));
+
+// Sign Run writes go through the real outbox (#355). Their saves hang, so
+// every test here shows the screen moving on without waiting for one.
+jest.mock('@/lib/signRunTransitions', () => {
+  const actual = jest.requireActual('@/lib/signRunTransitions');
+  return {
+    ...actual,
+    queueSignRunTransition: jest.fn(actual.queueSignRunTransition),
+    queueStopSettlement: jest.fn(actual.queueStopSettlement),
+  };
+});
+jest.mock('aws-amplify/auth', () => ({ fetchAuthSession: jest.fn().mockResolvedValue({}) }));
+jest.mock('@/lib/apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
 
 jest.mock('@/lib/queries/OrganizationSettings', () => ({
   getOrganizationSettings: jest.fn(),
@@ -67,87 +92,105 @@ function baseStops(): Stop[] {
   ];
 }
 
+afterEach(async () => {
+  await signRunOutbox.discardAll();
+});
+
 describe('Operator Unload page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     searchParamId = 'route-1';
-    (getCustomer as jest.Mock).mockResolvedValue({ data: { name: 'Beltline Group' }, errors: undefined });
-    (getOrganizationSettings as jest.Mock).mockResolvedValue({
-      data: { address: '22 Dryburgh St, West Melbourne' },
-      errors: undefined,
-    });
-    (updateRouteExecution as jest.Mock).mockResolvedValue({ data: { id: 'route-1' }, errors: undefined });
+    (getCustomer as jest.Mock).mockResolvedValue({ name: 'Beltline Group' });
+    (getOrganizationSettings as jest.Mock).mockResolvedValue({ address: '22 Dryburgh St, West Melbourne' });
   });
 
   it('shows the reconciliation stats and against-the-load summary', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorUnloadPage />);
 
-    // s1 (9, done) + s2 (13, done) returned; s3 skipped; s4 never picked up.
-    expect(await screen.findByText('22 signs to return')).toBeInTheDocument();
+    // s1 (9, done) + s2 (13 - 2 missing, done) returned; s3 skipped; s4 never picked up.
+    expect(await screen.findByText('20 signs to return')).toBeInTheDocument();
     expect(screen.getByText('Beltline Group')).toBeInTheDocument();
     expect(screen.getByText('22 Dryburgh St, West Melbourne')).toBeInTheDocument();
-    expect(screen.getByText('22')).toBeInTheDocument();
+    expect(screen.getByText('20')).toBeInTheDocument();
     expect(screen.getByText('2 / 4')).toBeInTheDocument();
     expect(screen.getByText('1 stops')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
-    // 45 loaded · 22 returned · 2 missing · 21 still on site (45 - 22 - 2).
-    expect(screen.getByText('45 loaded · 22 returned · 2 reported missing · 21 still on site.')).toBeInTheDocument();
+    // 45 loaded · 20 returned · 2 missing · 23 still on site (45 - 20 - 2).
+    expect(screen.getByText('45 loaded · 20 returned · 2 reported missing · 23 still on site.')).toBeInTheDocument();
+  });
+
+  it('starts the unload through the confirm dialog, then shows the stamp and the confirm step', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+
+    render(<OperatorUnloadPage />);
+    await screen.findByText('20 signs to return');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start unload' }));
+
+    expect(screen.getByText(/starting unload at/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    await waitFor(() => {
+      expect(queueSignRunTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'route-1' }),
+        expect.objectContaining({ type: 'startUnload' })
+      );
+    });
+    expect(await screen.findByText(/^Unload started/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /confirm 20 signs returned/i })).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('cancelling the start dialog leaves the unload unstarted', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+
+    render(<OperatorUnloadPage />);
+    await screen.findByText('20 signs to return');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start unload' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(queueSignRunTransition).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Start unload' })).toBeInTheDocument();
   });
 
   it('confirms the unload and returns to Today', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: baseRoute({ unloadStartedAt: '2026-09-12T07:37:00.000Z' }),
+      stops: baseStops(),
+    });
 
     render(<OperatorUnloadPage />);
-    await screen.findByText('22 signs to return');
+    await screen.findByText('20 signs to return');
 
-    fireEvent.click(screen.getByRole('button', { name: /confirm 22 signs returned/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirm 20 signs returned/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
-      expect(updateRouteExecution).toHaveBeenCalledWith(
-        'route-1',
-        expect.objectContaining({ unloadConfirmedAt: expect.any(String), actualEndTime: expect.any(String) })
+      expect(queueSignRunTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'route-1' }),
+        expect.objectContaining({ type: 'confirmUnload' })
       );
     });
     expect(push).toHaveBeenCalledWith('/operator/dashboard');
-  });
-
-  it('does not overwrite an already-recorded actualEndTime', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({
-      route: baseRoute({ actualEndTime: '2026-08-31T09:00:00.000Z' }),
-      stops: baseStops(),
-      errors: [],
-    });
-
-    render(<OperatorUnloadPage />);
-    await screen.findByText('22 signs to return');
-
-    fireEvent.click(screen.getByRole('button', { name: /confirm 22 signs returned/i }));
-
-    await waitFor(() => {
-      expect(updateRouteExecution).toHaveBeenCalledWith(
-        'route-1',
-        expect.objectContaining({ actualEndTime: '2026-08-31T09:00:00.000Z' })
-      );
-    });
   });
 
   it('shows a guard message when the route is not on the Unload phase', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ executionPhase: 'pickup' }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorUnloadPage />);
 
     expect(await screen.findByText(/not currently on the unload phase/i)).toBeInTheDocument();
-    expect(updateRouteExecution).not.toHaveBeenCalled();
+    expect(queueSignRunTransition).not.toHaveBeenCalled();
   });
 
   it('shows a guard message when the route is not found', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: null, stops: [], errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue(null);
 
     render(<OperatorUnloadPage />);
 

@@ -4,8 +4,17 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    target-branch: "main"
+    target-branch: "development"
     open-pull-requests-limit: 5
+    # typescript-eslint 8.x doesn't accept TypeScript 7, which broke npm ci in #421.
+    # ESLint 10 rode in the same group; take both majors on deliberately, not weekly.
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@eslint/js"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-production-dependencies:
         dependency-type: "production"
@@ -16,7 +25,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    target-branch: "main"
+    target-branch: "development"
     open-pull-requests-limit: 5
     groups:
       github-actions-dependencies:

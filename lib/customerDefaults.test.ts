@@ -1,9 +1,11 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   generateAgentInitials,
   getAgentBadgeTone,
-  moveAgentOption,
   normalizeCustomerDefaults,
   parseAgentOptionsInput,
+  setDefaultAgentOption,
 } from './customerDefaults';
 
 describe('customerDefaults', () => {
@@ -32,7 +34,7 @@ describe('customerDefaults', () => {
   it('reordering agent options changes the derived default agent (#2)', () => {
     expect(
       normalizeCustomerDefaults({
-        agentOptions: moveAgentOption(['BO', 'DM'], 1, 'up'),
+        agentOptions: setDefaultAgentOption(['BO', 'DM'], 'DM'),
       })
     ).toEqual({
       defaultAgentInitials: 'DM',
@@ -53,11 +55,11 @@ describe('customerDefaults', () => {
     });
   });
 
-  it('moves an agent option earlier or later, clamped to the list bounds', () => {
-    expect(moveAgentOption(['BO', 'DM', 'KP'], 0, 'up')).toEqual(['BO', 'DM', 'KP']);
-    expect(moveAgentOption(['BO', 'DM', 'KP'], 2, 'down')).toEqual(['BO', 'DM', 'KP']);
-    expect(moveAgentOption(['BO', 'DM', 'KP'], 2, 'up')).toEqual(['BO', 'KP', 'DM']);
-    expect(moveAgentOption(['BO', 'DM', 'KP'], 0, 'down')).toEqual(['DM', 'BO', 'KP']);
+  it('sets an agent option as the default, moving it to the front of the list', () => {
+    expect(setDefaultAgentOption(['BO', 'DM', 'KP'], 'BO')).toEqual(['BO', 'DM', 'KP']);
+    expect(setDefaultAgentOption(['BO', 'DM', 'KP'], 'KP')).toEqual(['KP', 'BO', 'DM']);
+    expect(setDefaultAgentOption(['BO', 'DM', 'KP'], 'DM')).toEqual(['DM', 'BO', 'KP']);
+    expect(setDefaultAgentOption(['BO', 'DM', 'KP'], 'nope')).toEqual(['BO', 'DM', 'KP']);
   });
 
   it('parses agent options from mixed line and comma input', () => {
@@ -76,22 +78,57 @@ describe('customerDefaults', () => {
   it('uses fixed tones for BO, DM, and KP initials', () => {
     expect(getAgentBadgeTone('BO')).toEqual({
       backgroundColor: 'var(--nd-status-planned)',
-      color: 'var(--nd-text-inverse)',
+      color: 'var(--nd-color-text-on-warning)',
     });
     expect(getAgentBadgeTone('DM')).toEqual({
       backgroundColor: 'var(--nd-status-active)',
-      color: 'var(--nd-text-inverse)',
+      color: 'var(--nd-color-text-on-accent)',
     });
     expect(getAgentBadgeTone('KP')).toEqual({
       backgroundColor: 'var(--nd-operator-accent)',
-      color: 'var(--nd-text-inverse)',
+      color: 'var(--nd-color-text-on-accent)',
     });
   });
 
   it('returns a safe fallback tone when no name is provided', () => {
     expect(getAgentBadgeTone()).toEqual({
       backgroundColor: 'var(--nd-status-completed)',
-      color: 'var(--nd-bg-base)',
+      color: 'var(--nd-color-text-on-accent)',
     });
+  });
+
+  it('gives every tone a theme-invariant text colour chosen for its background (#331)', () => {
+    // The backgrounds don't change with the theme, so neither may the text; --nd-text-inverse flips.
+    const expectedText: Record<string, string> = {
+      'var(--nd-status-active)': 'var(--nd-color-text-on-accent)',
+      'var(--nd-operator-accent)': 'var(--nd-color-text-on-accent)',
+      'var(--nd-customer-accent)': 'var(--nd-color-text-on-accent)',
+      'var(--nd-status-planned)': 'var(--nd-color-text-on-warning)',
+      'var(--nd-status-completed)': 'var(--nd-color-text-on-accent)',
+      'var(--nd-status-danger)': 'var(--nd-color-text-on-danger)',
+    };
+    const names = ['', 'BO', 'DM', 'KP', ...Array.from({ length: 36 }, (_, i) => `Agent ${String.fromCharCode(65 + (i % 26))}${i}`)];
+    const tones = names.map((name) => getAgentBadgeTone(name));
+
+    // Every palette background is reached, so the whole palette is pinned.
+    expect([...new Set(tones.map((tone) => tone.backgroundColor))].sort()).toEqual(Object.keys(expectedText).sort());
+    for (const tone of tones) {
+      expect(tone.color).toBe(expectedText[tone.backgroundColor]);
+    }
+  });
+
+  it('only returns tokens defined in the global stylesheets (#320)', () => {
+    const css = ['app/globals.css', 'app/components/ui/tokens.css']
+      .map((file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8'))
+      .join('\n');
+    const names = ['', 'BO', 'DM', 'KP', ...Array.from({ length: 12 }, (_, i) => `Agent ${String.fromCharCode(65 + i)}`)];
+    const tokens = new Set(
+      names
+        .flatMap((name) => Object.values(getAgentBadgeTone(name || undefined)))
+        .flatMap((value) => [...value.matchAll(/var\((--[\w-]+)\)/g)].map((match) => match[1]))
+    );
+    for (const token of tokens) {
+      expect(css).toMatch(new RegExp(`${token}\\s*:`));
+    }
   });
 });

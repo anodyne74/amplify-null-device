@@ -1,26 +1,18 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { getRouteWithStops } from '@/lib/queries';
-import { getSignRunPhase } from '@/lib/signRunPhase';
-import type { Route } from '@/amplify/types';
+import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
+import { getSignRunPhase, getRoutePhaseKey } from '@/lib/signRunPhase';
+import { signsPlaced } from '@/lib/signRunTotals';
+import { useCurrentUserId } from '@/lib/use-user-groups';
 import PageHeader from '@/app/operator/components/PageHeader';
-import { RouteStatusPill } from '@/app/operator/components/RouteStatusPill';
 import { SignRunRouteCard } from '@/app/operator/components/SignRunRouteCard';
 import { Card } from '@/app/components/ui/core/Card';
 import { StatTile } from '@/app/components/ui/data/StatTile';
 import styles from './page.module.css';
-
-function formatDate(dateString?: string | null) {
-  if (!dateString) return '—';
-  return new Date(dateString).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
-}
+import { getRouteWithStops } from '@/lib/routes';
+import { activeStops } from '@/lib/loadChange';
+import { listAllCustomers } from '@/lib/customers';
 
 interface StopSummary {
   stopCount: number;
@@ -29,27 +21,25 @@ interface StopSummary {
 
 /**
  * Operator Dashboard ("Today" screen)
- * Phone-optimized route execution entry point for planned + active routes.
+ * Phone-optimized route execution entry point for planned + active routes,
+ * kept live via useLiveAllRoutes so status/assignment changes appear without
+ * a reload.
  */
 export default function OperatorDashboard() {
-  const [routes, setRoutes] = useState<Route[]>([]);
+  const currentUserId = useCurrentUserId();
+  const { routes, loading: routesLoading } = useLiveAllRoutes();
   const [customersById, setCustomersById] = useState<Record<string, string>>({});
+  const [customersLoading, setCustomersLoading] = useState(true);
   const [stopSummaryByRouteId, setStopSummaryByRouteId] = useState<Record<string, StopSummary>>({});
-  const [loading, setLoading] = useState(true);
+  const loading = routesLoading || customersLoading;
 
   useEffect(() => {
-    async function loadRoutes() {
-      setLoading(true);
-      const [routesResult, customersResult] = await Promise.all([
-        listAllRoutes({ limit: 100 }),
-        listAllCustomers({ limit: 200 }),
-      ]);
+    async function loadCustomers() {
+      setCustomersLoading(true);
+      const customers = await listAllCustomers().catch(() => null);
 
-      if (!routesResult.errors || routesResult.errors.length === 0) {
-        setRoutes((routesResult.data as Route[]) || []);
-      }
-      if (!customersResult.errors || customersResult.errors.length === 0) {
-        const mapped = (customersResult.data as Array<{ id: string; name: string }>).reduce(
+      if (customers) {
+        const mapped = customers.reduce(
           (acc, customer) => {
             acc[customer.id] = customer.name;
             return acc;
@@ -59,27 +49,31 @@ export default function OperatorDashboard() {
         setCustomersById(mapped);
       }
 
-      setLoading(false);
+      setCustomersLoading(false);
     }
-    void loadRoutes();
+    void loadCustomers();
   }, []);
 
+  // assignedOperatorSub is a display/notification tag, not an authorization scope
+  // (every operator keeps full Route access — see its schema comment), so routes
+  // never assigned to anyone still show up here rather than being orphaned.
+  const myRoutes = useMemo(
+    () => routes.filter((route) => !route.assignedOperatorSub || route.assignedOperatorSub === currentUserId),
+    [routes, currentUserId]
+  );
   const activeRoutes = useMemo(
     () =>
-      routes.filter(
-        (route) =>
-          route.status === 'in_progress' || route.status === 'signs_placed' || route.status === 'signs_picked_up'
-      ),
-    [routes]
+      myRoutes.filter((route) => {
+        const phaseKey = getRoutePhaseKey(route);
+        return phaseKey !== 'planned' && phaseKey !== 'completed';
+      }),
+    [myRoutes]
   );
   const plannedRoutes = useMemo(
-    () => routes.filter((route) => route.status === 'planned'),
-    [routes]
+    () => myRoutes.filter((route) => getRoutePhaseKey(route) === 'planned'),
+    [myRoutes]
   );
-  const priorityRoutes = useMemo(
-    () => [...activeRoutes, ...plannedRoutes].slice(0, 8),
-    [activeRoutes, plannedRoutes]
-  );
+  const priorityRoutes = useMemo(() => [...activeRoutes, ...plannedRoutes], [activeRoutes, plannedRoutes]);
 
   // Stop/sign counts for the "N stops · N signs" line and the header summary.
   // Bounded to the (at most 8) routes actually shown, in parallel.
@@ -93,16 +87,15 @@ export default function OperatorDashboard() {
     async function loadStopSummaries() {
       const entries = await Promise.all(
         priorityRoutes.map(async (route) => {
-          const { stops } = await getRouteWithStops(route.id);
-          const signsTotal = stops.reduce(
-            (sum, stop) => sum + (typeof stop.numberOfSigns === 'number' ? stop.numberOfSigns : 0),
-            0
-          );
-          return [route.id, { stopCount: stops.length, signsTotal }] as const;
+          // Best-effort: a route whose Stops can't be read gets no summary.
+          const routeWithStops = await getRouteWithStops(route.id).catch(() => null);
+          if (!routeWithStops) return null;
+          const stops = activeStops(routeWithStops.stops);
+          return [route.id, { stopCount: stops.length, signsTotal: signsPlaced(stops) }] as const;
         })
       );
       if (!cancelled) {
-        setStopSummaryByRouteId(Object.fromEntries(entries));
+        setStopSummaryByRouteId(Object.fromEntries(entries.filter((entry) => entry !== null)));
       }
     }
     void loadStopSummaries();
@@ -143,33 +136,20 @@ export default function OperatorDashboard() {
             {priorityRoutes.map((route) => {
               const stopSummary = stopSummaryByRouteId[route.id];
               const phaseInfo = getSignRunPhase(route, stopSummary?.stopCount ?? 0);
-
-              // Every phase ends back on Today with the card advanced to the next
-              // phase; tapping a card still opens routes/detail today. Once the
-              // Load/Placement/Pickup/Unload/Finalise pages exist (later PRs), this
-              // is the spot to route to the phase-specific screen instead.
-              if (phaseInfo) {
-                return (
-                  <SignRunRouteCard
-                    key={route.id}
-                    route={route}
-                    customerName={customersById[route.customerId]}
-                    phaseInfo={phaseInfo}
-                    stopCount={stopSummary?.stopCount ?? 0}
-                    signsTotal={stopSummary?.signsTotal ?? 0}
-                  />
-                );
-              }
+              // getSignRunPhase now covers every non-terminal route (see
+              // lib/signRunPhase.ts), so this is never null here — priorityRoutes
+              // already excludes completed/archived routes below.
+              if (!phaseInfo) return null;
 
               return (
-                <Link key={route.id} href={`/operator/routes/detail?id=${route.id}`} className={styles.trackerCard}>
-                  <div className={styles.trackerTopRow}>
-                    <strong>{route.routeCode || route.id.slice(0, 8)}</strong>
-                    <RouteStatusPill status={route.status} />
-                  </div>
-                  <div className={styles.trackerMeta}>Created: {formatDate(route.createdAt)}</div>
-                  <div className={styles.trackerAction}>Open Route</div>
-                </Link>
+                <SignRunRouteCard
+                  key={route.id}
+                  route={route}
+                  customerName={customersById[route.customerId]}
+                  phaseInfo={phaseInfo}
+                  stopCount={stopSummary?.stopCount ?? 0}
+                  signsTotal={stopSummary?.signsTotal ?? 0}
+                />
               );
             })}
           </div>

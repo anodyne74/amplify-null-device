@@ -1,0 +1,141 @@
+# Delivery Management
+
+Role-based delivery management system for sign-run operations: signs are placed on customer properties, then picked up and returned. Three portals (administrator, operator, customer) share this vocabulary.
+
+## Language
+
+**Operator**:
+A person who runs Routes in the field: loads signs, places and picks them up at Stops, and unloads. Each Route is assigned to at most one Operator.
+_Avoid_: Driver, staff (staff means operators and administrators together)
+
+**Notify Operator**:
+An administrator's deliberate action telling a Route's assigned Operator about the Route: an email, plus a text message when the Operator has a mobile number. It is never sent automatically on assignment, only ever reaches the currently assigned Operator, and each one is kept in the Route's audit trail with the channels that went out.
+_Avoid_: Alert, dispatch, job-assigned email
+
+**Route**:
+A single trip assigned to an operator, made up of Stops, progressing through the Sign Run phases in order.
+_Avoid_: Job, trip. "Visit" means one Route at one Property, not the Route itself.
+
+**Placement Date**:
+The day a Route is planned to run Load and Placement. One per Route, a date only, set by staff when the Route is scheduled. It is the plan, not when Placement actually started.
+_Avoid_: Scheduled date, run date
+
+**Pickup Date**:
+The day a Route's signs are planned to come down, usually the day after the Placement Date (placed Friday, picked up Saturday evening after open-home viewings). One per Route, a date only, set by staff from what the Customer asked for; Customers see it but never change it. It is the plan, not when Pickup actually started or finished.
+_Avoid_: Pickup due, scheduled pickup
+
+**Standing Pickup Day**:
+The weekday a Customer usually wants their signs picked up, set by the Customer. A new Route's Pickup Date starts on the first such day after its Placement Date (never the same day), and staff can change it; a Customer without one gets the day after placement. Changing it never moves the Pickup Date of a Route that already exists. Customer copy calls it the "sign collection day".
+_Avoid_: Default pickup date, preferred pickup
+
+**Route Request**:
+A Customer's email asking for one Route to be created and scheduled, usually with its Schedule attached. Each Route has at most one, and every Route Request is for exactly one Route. It is kept as received, with who sent it and when, as part of the Route's audit trail. Requests that don't arrive by email (e.g. by phone) are recorded by hand, and are marked as such.
+_Avoid_: Booking, order, job request
+
+**Schedule**:
+A file a Customer sends listing the Properties for a Route, usually a spreadsheet saved as PDF. It is kept exactly as received and never edited; the Route's Stops are what gets changed.
+_Avoid_: Property list, run sheet, job sheet
+
+**Route Amendment**:
+A later email from a Customer adding or removing Properties on a Route that has already been requested, sometimes with a revised Schedule, sometimes only a sentence in the email. A Route can have any number, kept in the order they were sent.
+_Avoid_: Change request, follow-up, variation
+
+**Load Change**:
+An Operator adding a Stop to, or removing a Stop from, their Route during Load (after Load starts, before it's confirmed), because the Customer told them on the day or because of what they find at the yard. A Stop removed this way is a Removed Stop. An added Stop is a delivery Stop at the end of the order. Until Load is confirmed the Operator can restore a Stop they removed, which is itself a Load Change; after that only an administrator can, until the Route is finalised. Every Load Change is in the Route's audit trail. It is not a Route Amendment, which is the Customer's email.
+_Avoid_: Last-minute change, on-the-day edit, amendment (when the Operator made it)
+
+**Removed Stop**:
+A Stop taken off its Route on the day: by a Load Change at the yard, or by the Operator at the door during Placement when its signs can't go up (gate locked, vendor refused, cancelled on the spot), with a reason. It is kept, marked removed with who, when and any reason, and counts toward nothing: it is never a Visit, its signs come back on the van, and the Customer sees it as removed on the day, never why. The Operator can restore a Stop removed during Placement until Placement is completed; an administrator can restore any Removed Stop until the Route is finalised (after that it stays removed, as Billed Time and the invoice are worked out from its Stops), and can remove one during Placement too. Operators can't remove a Stop during Pickup, because its signs are out there. Every removal and restore is in the Route's audit trail, and a Route with a Removed Stop or a Stop added at Load is marked as changed on the day for administrators.
+_Avoid_: Skipped, cancelled, deleted (a Removed Stop is kept)
+
+**Couldn't Collect**:
+A Stop whose signs the Operator couldn't take down during Pickup (gate locked, access blocked), with a reason. Its signs stay at the Property: they count as still on-site, never as collected or missing, and the Stop stays on the Route as a Visit that happened. The Operator can change it to collected while Pickup is still going; after that an administrator settles it collected once the signs are recovered. The Customer sees it as not yet collected.
+_Avoid_: Skipped, missed, failed pickup
+
+**Stop**:
+One visit to a Property on a Route, where signs are placed and later picked up.
+_Avoid_: Property (when you mean the single visit), location, visit
+
+**Property**:
+The real-world address a Stop visits; many Stops, across many Routes and Customers, can share one Property. Identified by street number, street, suburb and postcode, never by map coordinates or a geocoder's place identifier, so one address is always one Property even when its pin is wrong. Where the geocoder and the entered address disagree on suburb, the entered address wins.
+_Avoid_: Location, site, address (when you mean the place rather than the text)
+
+**Location Precision**:
+How well a Property's pin matches the real address: Precise (rooftop), Interpolated (estimated along the street, usually within a few houses), Approximate (e.g. the middle of the street, possibly far from the house), or Confirmed (set by hand, so it outranks the others and is never overwritten). Only Approximate needs fixing, along with a Stop that has no pin yet (see below); the Location review queue lists both. Confirmed belongs to the Property, not the Stop: a Stop is Confirmed only while its Property is, so a Stop moved to another address takes that address's pin; one still showing a pin Confirmed for its old address is listed for review too ("Confirmed pin from another address"). Precision affects maps, never Property identity or Property History. A Stop can also have no pin yet (its geocode failed, or it was imported from a schedule); it still belongs to its Property, it just isn't on the map.
+_Avoid_: Accuracy, geocode quality, verified/unverified
+
+**Property History**:
+The record of every Route that has visited a Property, grouped by Property and explorable by suburb, street or exact address.
+_Avoid_: Property search, address lookup
+
+**Visit**:
+One Route's Stop at a Property, as one row of Property History. Only visits on Routes that have happened (signs placed or later) count toward a Property's total, Couldn't Collect Stops included. Removed Stops aren't listed at all, and upcoming Routes appear separately as scheduled.
+_Avoid_: Job, service (as a noun)
+
+**Property History Report**:
+A frozen PDF snapshot of a filtered Property History view, generated for one Customer's scope (or across all Customers by an administrator), recording who generated it, when, and with which search and filters. It belongs to the Customer, not the person who generated it.
+_Avoid_: Export, audit PDF, property report
+
+**Retention**:
+A Property History Report's lifecycle: active for 30 days, then soft-deleted (hidden from the Customer, restorable by an administrator for a fresh 30 days), then hard-deleted at 60 days (PDF destroyed, record kept as a stub). A manual delete by an Account Owner is an early soft delete.
+_Avoid_: Expiry, archive (Route already uses "archived")
+
+**Sign Run**:
+The phase flow a Route moves through: Load (signs collected from the customer, onto the van) → Placement (signs deployed) → Pickup (signs retrieved) → Unload (signs returned to the customer) → Finalise. A Route's current phase is derived from which phase-completion timestamps are set, not from a separately stored "current phase" pointer.
+_Avoid_: Delivery run, job flow. Also avoid calling the Load phase "signs collected" — that phrase is reserved for the Signs Collected metric below, a different phase and a different count.
+
+**Sign Run Transition**:
+One operator action that moves a Route along its Sign Run — start or confirm Load, start or complete Placement, start or complete Pickup, start or confirm Unload, Finalise. Each is only allowed from its own phase; one attempted from any other phase is refused and nothing is written. A transition takes effect for the operator the moment they confirm it, at the time they confirmed; saving it follows, and the operator never waits on the network to carry on. A transition that can't be saved is reported to the operator and undone on their screen. The same holds for settling a Stop: done or removed during Placement, collected or Couldn't Collect during Pickup. Finalise is the one transition an administrator can also make, and an administrator can also settle a Stop the same ways, both from the Route's detail page: these are saved straight away rather than after confirming, and recorded in the audit log.
+_Avoid_: Status change, phase update
+
+**Stop Progress**:
+How far a Stop has got in each of Placement and Pickup, and when: in Placement awaiting or done (a Stop whose signs can't go up becomes a Removed Stop instead); in Pickup awaiting, done, or Couldn't Collect (with a reason). A Stop is finished when Pickup is done or Couldn't Collect; a Couldn't Collect Stop isn't counted as completed.
+_Avoid_: departed, completed (when you mean finished), skipped
+
+**Signs Placed**:
+The gross count of signs put out on a Route — `sum(Stop.numberOfSigns)`, no exclusions. Answers "how many signs are on this route," independent of what happens afterward.
+_Avoid_: Total signs, sign count
+
+**Signs Collected**:
+The net count of signs actually recovered during Pickup — summed only over Stops that were completed (not Couldn't Collect), each stop's contribution reduced by that stop's Missing Signs. A Route with Stops still in progress reports a partial, growing figure.
+_Avoid_: Total signs, returned signs
+
+**Missing Signs**:
+Signs logged as lost during the Pickup phase (`Stop.missingSignsCount`) — one tap logs one missing sign; a missing sign never counts as collected. Tracked as its own metric to identify locations with high loss rates (sign attrition), independent of reconciliation or billing. Administrators see them on each Stop and as a Route total; the Customer sees them on each Property and, once Pickup has started and any are missing, as a Route total. Each tap, and each undo, is in the Route's audit trail.
+_Avoid_: Lost signs, sign loss (except when specifically discussing the attrition-analysis use case)
+
+**Missing Signs Report**:
+One email after a Route is finalised, listing each Property on it where signs went missing and how many, with the total. Sent only when an administrator has switched reports on for the Customer (off by default), the Customer hasn't turned them off in their portal (their setting only shows once reports are switched on), and some signs are missing. It goes to whoever gets the Customer's invoices and its billing CC addresses, with admin@ copied, once per Route. Like all customer copy, it speaks of Properties and signs only.
+_Avoid_: Loss report, missing sign alert
+
+**Reconciliation**:
+The Unload/Finalise-time accounting of a Route's signs — how many were loaded onto the van, returned, still on-site (at Couldn't Collect Stops), or missing, plus how many Stops were completed vs. Couldn't Collect. Distinct from Signs Placed/Collected, which are simpler standalone counts usable anywhere in a Route's lifecycle.
+_Avoid_: Summary, totals
+
+**Billed Time**:
+What a Customer is charged for a Route: minutes for each Sign Run phase (Load and Unload at least 15, Placement and Pickup at least 5, the total landing on a 15-minute increment), plus the distance travelled. Set at Finalise, by the operator or an administrator, and correctable by an administrator once the Route is completed. Measured phase time and measured distance only seed it. Routes from before the Sign Run have a total only, with no per-phase split.
+_Avoid_: Duration (when you mean what's charged), invoice values, override
+
+**Route Feedback**:
+A Customer user's verdict on a completed Route: **All good**, or **Something was off** with a note saying what. Asked only once the Route is completed, and can be changed until the Route is invoiced (an Invoice exists for it). Administrators see it on the Route and in the Routes list, Something was off is emailed to admin@, and each one is in the Route's audit trail (without the note).
+_Avoid_: Rating, review, complaint
+
+**Customer User**:
+A person who signs in to the customer portal on one Customer's behalf, as either an Account Owner or a read-only user. Sees only that Customer's records, and is unaware of other Customers or of how Routes are carried out.
+_Avoid_: Team member, teammate, sub-user, customer admin
+
+**Account Owner**:
+A Customer User who can see the Customer's invoices and manage its Customer Users and Property History reports. The other Customer User role, read-only, sees Routes and Stops only.
+_Avoid_: Customer Admin, customer administrator
+
+**Route Defaults**:
+An Account Owner's preferences applied to every new Route for their Customer: instructions for the Operator, signs per Stop, the default agent, and the Standing Pickup Day. Staff can still change them on any single Route.
+_Avoid_: Standing orders, preferences
+
+**Customer Access Sync**:
+Rewriting who may read a Customer's records after its users change — every record the Customer owns carries the list of its users (and, on the Customer itself, the Account Owner), and all of them are restamped together whenever a user is added, removed or activated. Derived from the Customer's current users, never supplied by the caller; a sync that can't read the full user list changes nothing.
+_Avoid_: viewerSubs sync, backfill, profile access sync
+
+**Feature Flag**:
+A temporary switch that gradually rolls out one customer portal feature, Customer by Customer, until it's on for everyone and the switch is removed. Its state is **Off** (the default), **Selected Customers**, or **Everyone** (which includes Customers created later). Switching a flag Off pauses it without forgetting its Selected Customers. Only administrators change it, and all users of one Customer always see the same thing. While a flag is off for a Customer, that Customer's users can't use the feature at all and see no sign of it. Flags limit customer users only, never operators or administrators acting for a Customer.
+_Avoid_: Toggle, entitlement, plan feature (a flag is never a permanent difference between Customers)

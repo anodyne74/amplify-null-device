@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { Route } from '@/amplify/types';
 import type { CustomerOption, Invoice } from '@/app/administrator/invoices/types';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
-import { listCustomerUsers, listCustomers, listInvoices } from '@/lib/queries';
+import { listAllRoutes } from '@/lib/routes';
+import { listCustomerUsers, listAllCustomers } from '@/lib/customers';
+import { listInvoices } from '@/lib/invoices';
 
 type UseInvoicesDataStateParams = {
   customerId: string;
@@ -57,89 +58,16 @@ export function useInvoicesDataState({
     setLoading(true);
     setError(null);
 
-    const loadAllCustomers = async () => {
-      const allCustomers: Array<{
-        id: string;
-        name: string;
-        email?: string;
-        addressLine1?: string;
-        billingRatePerHour?: number;
-        gstExclusive?: boolean | null;
-        viewerSubs?: string[] | null;
-        driverSplitPercent?: number | null;
-        groupLineItemsByAgent?: boolean | null;
-      }> = [];
-      let nextToken: string | undefined;
-
-      do {
-        const result = await listCustomers({ limit: 100, nextToken });
-        if (result.errors && result.errors.length > 0) {
-          return { data: [], errors: result.errors, nextToken: undefined as string | undefined };
-        }
-
-        allCustomers.push(
-          ...((result.data as Array<{
-            id: string;
-            name: string;
-            email?: string;
-            addressLine1?: string;
-            billingRatePerHour?: number;
-            gstExclusive?: boolean | null;
-            viewerSubs?: string[] | null;
-            driverSplitPercent?: number | null;
-            groupLineItemsByAgent?: boolean | null;
-          }>) || [])
-        );
-        nextToken = result.nextToken ?? undefined;
-      } while (nextToken);
-
-      return { data: allCustomers, errors: undefined, nextToken: undefined as string | undefined };
-    };
-
-    const loadAllInvoices = async () => {
-      const allInvoices: Invoice[] = [];
-      let nextToken: string | undefined;
-
-      do {
-        const result = await listInvoices({ limit: 100, nextToken });
-        if (result.errors && result.errors.length > 0) {
-          return { data: [] as Invoice[], errors: result.errors };
-        }
-
-        allInvoices.push(...((result.data as Invoice[]) || []));
-        nextToken = result.nextToken ?? undefined;
-      } while (nextToken);
-
-      return { data: allInvoices, errors: undefined };
-    };
-
-    const loadAllRoutes = async () => {
-      const allRoutes: Route[] = [];
-      let nextToken: string | undefined;
-
-      do {
-        const result = await listAllRoutes({ limit: 200, nextToken });
-        if (result.errors && result.errors.length > 0) {
-          return { data: [] as Route[], errors: result.errors };
-        }
-
-        allRoutes.push(...((result.data as Route[]) || []));
-        nextToken = result.nextToken ?? undefined;
-      } while (nextToken);
-
-      return { data: allRoutes, errors: undefined };
-    };
-
     const [customersResult, invoicesResult, routesResult] = await Promise.all([
-      loadAllCustomers(),
-      loadAllInvoices(),
-      loadAllRoutes(),
+      listAllCustomers().catch(() => null),
+      listInvoices().catch((err: Error) => err),
+      listAllRoutes().catch(() => null),
     ]);
 
-    if (customersResult.errors && customersResult.errors.length > 0) {
+    if (!customersResult) {
       setError('Failed to load customers.');
     } else {
-      const mapped = ((customersResult.data as Array<{
+      const mapped = ((customersResult as Array<{
         id: string;
         name: string;
         email?: string;
@@ -149,6 +77,7 @@ export function useInvoicesDataState({
         viewerSubs?: string[] | null;
         driverSplitPercent?: number | null;
         groupLineItemsByAgent?: boolean | null;
+        paymentTermsDays?: number | null;
       }>) || []).map((customer) => ({
         id: customer.id,
         name: customer.name,
@@ -159,12 +88,13 @@ export function useInvoicesDataState({
         viewerSubs: customer.viewerSubs,
         driverSplitPercent: customer.driverSplitPercent,
         groupLineItemsByAgent: customer.groupLineItemsByAgent,
+        paymentTermsDays: customer.paymentTermsDays,
       }));
 
       const customersWithPrimary = await Promise.all(
         mapped.map(async (customer) => {
-          const usersResult = await listCustomerUsers(customer.id);
-          const customerUsers = (usersResult.data as Array<{ role?: string | null; email?: string | null }> | undefined) || [];
+          // Best-effort: without its Customer Users, the Customer's own email is used.
+          const customerUsers = await listCustomerUsers(customer.id).catch(() => []);
           const owner = customerUsers.find((row) => row.role === 'account_owner' && row.email);
           return {
             ...customer,
@@ -177,14 +107,12 @@ export function useInvoicesDataState({
       if (!customerId && customersWithPrimary.length > 0) setCustomerId(customersWithPrimary[0].id);
     }
 
-    if (!routesResult.errors || routesResult.errors.length === 0) {
-      setRoutes((routesResult.data as Route[]) || []);
-    }
+    if (routesResult) setRoutes(routesResult as unknown as Route[]);
 
-    if (invoicesResult.errors && invoicesResult.errors.length > 0) {
-      setError('Failed to load invoices.');
+    if (invoicesResult instanceof Error) {
+      setError(invoicesResult.message);
     } else {
-      setInvoices((invoicesResult.data as Invoice[]) ?? []);
+      setInvoices(invoicesResult as Invoice[]);
     }
 
     setLoading(false);

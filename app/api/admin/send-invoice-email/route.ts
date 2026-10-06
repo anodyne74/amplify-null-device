@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GetTemplateCommand, SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses';
-import { CognitoJwtVerifier } from 'aws-jwt-verify';
-import { generateClient } from 'aws-amplify/data';
 import { getUrl } from 'aws-amplify/storage';
-import type { Schema } from '@/amplify/data/resource';
-import outputs from '@/amplify_outputs.json';
-import { listCustomerUsers, getCustomer, updateInvoice } from '@/lib/queries';
+import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
+import { customOutputs } from '@/lib/amplifyOutputsCustom';
+import { APP_DOMAIN } from '@/lib/publicAppConfig';
+import { buildInvoiceFileName } from '@/lib/invoiceFileName';
+import { invoiceRecipientEmail } from '@/lib/server/invoiceRecipient';
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
 function sanitizeNamePart(value: string, fallback: string) {
@@ -17,48 +17,16 @@ function sanitizeNamePart(value: string, fallback: string) {
   return cleaned || fallback;
 }
 
+// process.env.AWS_BRANCH/AMPLIFY_BRANCH aren't set in the SSR runtime, so this
+// reconstruction is a last-resort fallback -- see lib/amplifyOutputsCustom.ts.
 const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || '', '');
-const defaultInvoiceTemplateName = branchName
+const fallbackInvoiceTemplateName = branchName
   ? `NullDeviceInvoiceTemplate-${branchName}`
   : 'NullDeviceInvoiceTemplate';
-const invoiceTemplateName = process.env.SES_INVOICE_TEMPLATE_NAME || defaultInvoiceTemplateName;
-const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
-const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
-
-let _client: ReturnType<typeof generateClient<Schema>> | null = null;
-function getDataClient() {
-  if (!_client) _client = generateClient<Schema>();
-  return _client;
-}
-
-type VerifiedClaims = {
-  sub?: string;
-  email?: string;
-  'cognito:groups'?: string[];
-};
-
-let _verifier: ReturnType<typeof CognitoJwtVerifier.create> | null | undefined;
-function getVerifier() {
-  if (_verifier === undefined) {
-    _verifier = userPoolId && userPoolClientId
-      ? CognitoJwtVerifier.create({
-          userPoolId,
-          tokenUse: 'id',
-          clientId: userPoolClientId,
-        })
-      : null;
-  }
-  return _verifier;
-}
-
-function getBearerToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
-  return authHeader.slice('Bearer '.length).trim();
-}
-
+const invoiceTemplateName =
+  process.env.SES_INVOICE_TEMPLATE_NAME ||
+  customOutputs.sesInvoiceTemplateName ||
+  fallbackInvoiceTemplateName;
 function renderEmailTemplate(
   template: string,
   values: Record<string, string>
@@ -72,9 +40,10 @@ function sanitizeMimeHeaderValue(value: string): string {
 
 function sanitizeAttachmentFileName(value: string, fallback: string): string {
   const cleaned = sanitizeMimeHeaderValue(value)
-    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .replace(/[^A-Za-z0-9 ._-]+/g, '_')
     .replace(/_+/g, '_')
-    .replace(/^[_\.\s-]+|[_\.\s-]+$/g, '');
+    .replace(/ +/g, ' ')
+    .replace(/^[_.\s-]+|[_.\s-]+$/g, '');
 
   return cleaned || fallback;
 }
@@ -108,24 +77,11 @@ async function getTemplateParts() {
 export async function POST(request: NextRequest) {
   try {
     // Verify authentication and admin status
-    const token = getBearerToken(request);
-    const verifier = getVerifier();
-    if (!token || !verifier) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await authorizeIamRequest(request, 'administrator');
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
-
-    let claims: VerifiedClaims;
-    try {
-      claims = (await verifier.verify(token)) as VerifiedClaims;
-    } catch (err) {
-      console.error('Token verification failed:', err);
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    const userGroups = claims['cognito:groups'] || [];
-    if (!userGroups.includes('administrator')) {
-      return NextResponse.json({ error: 'Forbidden: admin access required' }, { status: 403 });
-    }
+    const { client } = auth;
 
     // Parse request body
     const body = await request.json();
@@ -136,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Query invoice details
-    const { data: invoice, errors: invoiceErrors } = await getDataClient().models.Invoice.get({
+    const { data: invoice, errors: invoiceErrors } = await client.models.Invoice.get({
       id: invoiceId,
     });
 
@@ -149,9 +105,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invoice PDF not uploaded' }, { status: 400 });
     }
 
-    // Query customer details
-    const customerResult = await getCustomer(invoice.customerId);
+    // Query customer details. Must use the IAM-authenticated client here --
+    // this SSR request has no signed-in Amplify session, so the plain data
+    // client (lib/data-client.ts) throws NoValidAuthTokens (see
+    // lib/server/iamDataClient.ts for why).
+    const customerResult = await client.models.Customer.get({ id: invoice.customerId });
     if (customerResult.errors && customerResult.errors.length > 0) {
+      console.error('Errors fetching customer:', customerResult.errors);
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
@@ -160,15 +120,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
-    // Resolve recipient email: use provided, or find primary contact, or fallback to customer email
-    let toEmail = recipientEmail;
-    if (!toEmail) {
-      // Try to find primary contact (account_owner role)
-      const usersResult = await listCustomerUsers(invoice.customerId);
-      const customerUsers = (usersResult.data as Array<{ role?: string | null; email?: string | null }> | undefined) || [];
-      const owner = customerUsers.find((row) => row.role === 'account_owner' && row.email);
-      toEmail = owner?.email || customer.email;
-    }
+    // Resolve recipient email: use provided, else the Customer's invoice recipient.
+    const toEmail = recipientEmail || (await invoiceRecipientEmail(client, { id: invoice.customerId, email: customer.email }));
 
     if (!toEmail) {
       return NextResponse.json({ error: 'No recipient email available' }, { status: 400 });
@@ -191,7 +144,7 @@ export async function POST(request: NextRequest) {
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
     const logoUrl = configuredLogoUrl
       ? configuredLogoUrl
-      : `${(appBaseUrl || 'https://nulldevice.dev').replace(/\/$/, '')}/logo.svg`;
+      : `${(appBaseUrl || `https://${APP_DOMAIN}`).replace(/\/$/, '')}/logo.svg`;
     const templateValues = {
       invoiceNumber: invoice.invoiceNumber,
       customerName: customer.name || 'Customer',
@@ -213,11 +166,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch invoice PDF for attachment' }, { status: 500 });
     }
     const pdfBytes = new Uint8Array(await pdfResponse.arrayBuffer());
-    const pdfFileName = sanitizeAttachmentFileName(`invoice-${invoice.invoiceNumber || invoice.id}.pdf`, `invoice-${invoice.id}.pdf`);
+    const pdfFileName = sanitizeAttachmentFileName(
+      buildInvoiceFileName(customer.name, invoice.invoiceNumber, invoice.id),
+      `Invoice ${invoice.id}.pdf`
+    );
     const encodedPdf = wrapBase64(Buffer.from(pdfBytes).toString('base64'));
 
     // Send email via SES as a raw MIME message to include the PDF attachment.
-    const senderEmail = sanitizeMimeHeaderValue(process.env.SES_SENDER_EMAIL || 'no-reply.nulldevice.dev');
+    const senderEmail = sanitizeMimeHeaderValue(process.env.SES_SENDER_EMAIL || `no-reply@${APP_DOMAIN}`);
     const safeToEmail = sanitizeMimeHeaderValue(toEmail);
     const mixedBoundary = `mixed_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const altBoundary = `alt_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -280,7 +236,7 @@ export async function POST(request: NextRequest) {
     // Update invoice with emailSentAt timestamp
     try {
       const now = new Date().toISOString();
-      await updateInvoice(invoiceId, { emailSentAt: now });
+      await client.models.Invoice.update({ id: invoiceId, emailSentAt: now });
     } catch (err) {
       console.warn('Failed to update invoice emailSentAt:', err);
       // Don't fail the entire operation if timestamp update fails

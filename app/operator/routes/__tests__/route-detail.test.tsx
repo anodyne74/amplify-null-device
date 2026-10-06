@@ -1,15 +1,21 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
+import { act, render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import RouteDetailPage from '../detail/page';
-import * as getRouteDetailModule from '@/lib/queries/GetRouteDetail';
-import * as deleteStopModule from '@/lib/queries/DeleteStop';
-import { updateStopExecution, updateRouteExecution } from '@/lib/queries';
+import type { RouteWithStopsFeedHandlers } from '@/lib/routeWithStopsFeed';
+import { geocodeAddress } from '@/lib/googleMaps';
 import type { Route, Stop } from '@/amplify/types';
+import { deleteStop, saveStop } from '@/lib/routes';
+
+jest.mock('@/lib/googleMaps', () => ({
+  geocodeAddress: jest.fn(),
+}));
 
 // Mock Next.js navigation
+const mockPush = jest.fn();
+const mockReplace = jest.fn();
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: jest.fn() }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
   useSearchParams: () => ({ get: (key: string) => key === 'id' ? 'route-test-id-1234' : null }),
 }));
 
@@ -39,68 +45,33 @@ jest.mock('@/app/components/OperatorRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-// Mock toast hook (provider lives in the root layout, not in this tree)
-jest.mock('@/app/components/ToastProvider', () => ({
-  __esModule: true,
-  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useToast: () => ({ showToast: jest.fn() }),
+// Nothing is pushed live unless a test does so through mockFeed.
+const mockFeed: { handlers: RouteWithStopsFeedHandlers | null } = { handlers: null };
+jest.mock('@/lib/routeWithStopsFeed', () => ({
+  subscribeRouteWithStops: (_routeId: string, handlers: RouteWithStopsFeedHandlers) => {
+    mockFeed.handlers = handlers;
+    return () => {};
+  },
 }));
+
+// What getRouteWithStops resolves to; tests override route/stops per case.
+const mockFetched: { route: unknown; stops: unknown[] } = { route: null, stops: [] };
 
 // Mock query modules
-jest.mock('@/lib/queries/GetRouteDetail');
-jest.mock('@/lib/queries/DeleteStop');
-jest.mock('@/lib/queries', () => ({
-  getCustomer: jest.fn().mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined }),
-  getRouteWithStops: jest.fn().mockResolvedValue({
-    stops: [
-      {
-        id: 'stop-1',
-        routeId: 'route-test-id-1234',
-        sequence: 1,
-        address: '100 First St',
-        serviceType: 'delivery',
-      },
-      {
-        id: 'stop-2',
-        routeId: 'route-test-id-1234',
-        sequence: 2,
-        address: '200 Second Ave',
-        serviceType: 'pickup',
-      },
-    ],
-    errors: undefined,
-  }),
-  createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
-  deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-  updateStopExecution: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-  updateRouteExecution: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+jest.mock('@/lib/routes', () => ({
+  deleteStop: jest.fn(),
+  resequenceStops: jest.fn().mockResolvedValue(undefined),
+  createStop: jest.fn().mockResolvedValue({ id: 'new-stop' }),
+  deleteRoute: jest.fn().mockResolvedValue(undefined),
   updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-}));
-jest.mock('@/lib/queries/UpdateStop', () => ({
-  updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
+  getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched })),
+  saveStop: jest.fn().mockResolvedValue({ pinned: true }),
+  UNPINNED_STOP_NOTICE: 'Stop saved without a map pin.',
 }));
 
-// Mock generateClient from aws-amplify/data
-// Note: factory is hoisted, so we define mocks inside and expose via module variable
-let mockStopList: jest.Mock;
-let mockRouteUpdate: jest.Mock;
-let mockStopUpdate: jest.Mock;
-
-jest.mock('aws-amplify/data', () => {
-  const stopList = jest.fn();
-  const routeUpdate = jest.fn();
-  const stopUpdate = jest.fn();
-  return {
-    generateClient: jest.fn(() => ({
-      models: {
-        Stop: { list: stopList, update: stopUpdate },
-        Route: { update: routeUpdate },
-      },
-    })),
-    // expose for assignment below
-    __mocks: { stopList, routeUpdate, stopUpdate },
-  };
-});
+jest.mock('@/lib/customers', () => ({
+  getCustomer: jest.fn().mockResolvedValue({ id: 'cust-abcd-5678', name: 'Acme Corp' }),
+}));
 
 const mockRoute: Route = {
   id: 'route-test-id-1234',
@@ -117,47 +88,12 @@ const mockStops: Stop[] = [
     routeId: 'route-test-id-1234',
     sequence: 1,
     address: '100 First St',
-    serviceType: 'delivery',
   },
   {
     id: 'stop-2',
     routeId: 'route-test-id-1234',
     sequence: 2,
     address: '200 Second Ave',
-    serviceType: 'pickup',
-  },
-];
-
-const mockStopsWithUpcoming: Stop[] = [
-  {
-    id: 'stop-1',
-    routeId: 'route-test-id-1234',
-    sequence: 1,
-    address: '100 First St',
-    formattedAddress: '100 First St, Melbourne VIC',
-    serviceType: 'delivery',
-    latitude: -37.8136,
-    longitude: 144.9631,
-  },
-  {
-    id: 'stop-2',
-    routeId: 'route-test-id-1234',
-    sequence: 2,
-    address: '200 Second Ave',
-    formattedAddress: '200 Second Ave, Melbourne VIC',
-    serviceType: 'delivery',
-    latitude: -37.814,
-    longitude: 144.9731,
-  },
-  {
-    id: 'stop-3',
-    routeId: 'route-test-id-1234',
-    sequence: 3,
-    address: '300 Third Rd',
-    formattedAddress: '300 Third Rd, Melbourne VIC',
-    serviceType: 'delivery',
-    latitude: -37.815,
-    longitude: 144.9831,
   },
 ];
 
@@ -165,29 +101,16 @@ describe('Operator Route Detail Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Grab the mocks from inside the factory
-    const amplifyData = require('aws-amplify/data');
-    const { __mocks } = amplifyData;
-    mockStopList = __mocks.stopList;
-    mockRouteUpdate = __mocks.routeUpdate;
-    mockStopUpdate = __mocks.stopUpdate;
+    mockFetched.route = mockRoute;
+    mockFetched.stops = mockStops;
 
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: mockRoute,
-      errors: undefined,
-    });
+    (deleteStop as jest.Mock).mockResolvedValue(undefined);
 
-    mockStopList.mockResolvedValue({
-      data: mockStops,
-      errors: undefined,
-    });
-
-    mockRouteUpdate.mockResolvedValue({ errors: undefined });
-    mockStopUpdate.mockResolvedValue({ errors: undefined });
-
-    (deleteStopModule.deleteStop as jest.Mock).mockResolvedValue({
-      data: {},
-      errors: undefined,
+    (saveStop as jest.Mock).mockResolvedValue({ pinned: true });
+    (geocodeAddress as jest.Mock).mockResolvedValue({
+      latitude: 0,
+      longitude: 0,
+      formattedAddress: 'Unused',
     });
   });
 
@@ -210,20 +133,33 @@ describe('Operator Route Detail Page', () => {
     expect(editLink).toHaveAttribute('href', expect.stringContaining('/administrator/routes/edit?id=route-test-id-1234'));
   });
 
-  it('shows customer-posted special instructions read-only, newest first', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: {
-        ...mockRoute,
-        customerInstructions: JSON.stringify({
-          v: 1,
-          entries: [
-            { text: 'Extra signs at the front', agentLabel: "Betty O'Shea", createdAt: '2026-08-20T01:00:00.000Z' },
-            { text: 'Watch for the dog', agentLabel: 'David Mun', createdAt: '2026-08-21T01:00:00.000Z' },
-          ],
-        }),
-      },
-      errors: undefined,
+  it('reflects a route status change pushed over the live subscription, without a manual reload', async () => {
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/loading route/i)).not.toBeInTheDocument();
     });
+    expect(screen.getByText('planned')).toBeInTheDocument();
+
+    act(() => mockFeed.handlers?.onRoute({ ...mockRoute, status: 'signs_placed' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('signs placed')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('planned')).not.toBeInTheDocument();
+  });
+
+  it('shows customer-posted special instructions read-only, newest first', async () => {
+    mockFetched.route = {
+      ...mockRoute,
+      customerInstructions: JSON.stringify({
+        v: 1,
+        entries: [
+          { text: 'Extra signs at the front', agentLabel: "Betty O'Shea", createdAt: '2026-08-20T01:00:00.000Z' },
+          { text: 'Watch for the dog', agentLabel: 'David Mun', createdAt: '2026-08-21T01:00:00.000Z' },
+        ],
+      }),
+    };
 
     render(<RouteDetailPage />);
 
@@ -245,10 +181,7 @@ describe('Operator Route Detail Page', () => {
   });
 
   it('shows a legacy plain-text customerInstructions value without a count/agent label', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: { ...mockRoute, customerInstructions: 'Old freeform note' },
-      errors: undefined,
-    });
+    mockFetched.route = { ...mockRoute, customerInstructions: 'Old freeform note' };
 
     render(<RouteDetailPage />);
 
@@ -270,6 +203,19 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByText('200 Second Ave')).toBeInTheDocument();
   });
 
+  // Smoke test for the shared lib/stopStatusLabel wiring — full label-case
+  // coverage (skip reasons, legacy-import fallback, etc.) lives in
+  // lib/stopStatusLabel.test.ts so it isn't duplicated per portal.
+  it('shows "Load signs" for a planned route\'s stops', async () => {
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('100 First St')).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByText('Load signs').length).toBeGreaterThan(0);
+  });
+
   it('shows "Add Stop" button', async () => {
     render(<RouteDetailPage />);
 
@@ -278,6 +224,56 @@ describe('Operator Route Detail Page', () => {
     });
 
     expect(screen.getByRole('button', { name: /add stop/i })).toBeInTheDocument();
+  });
+
+  it('saves an edited stop from the stop as loaded, so an unchanged address keeps its pin (#149)', async () => {
+    const stopsWithCoords: Stop[] = [
+      {
+        ...mockStops[0],
+        formattedAddress: '100 First St, Melbourne VIC',
+        latitude: -37.8136,
+        longitude: 144.9631,
+      },
+      mockStops[1],
+    ];
+    mockFetched.stops = stopsWithCoords;
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /^edit$/i }).length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^edit$/i })[0]);
+
+    // Only touch a non-address field — the address input is left exactly as loaded.
+    const notesField = await screen.findByPlaceholderText(/optional notes/i);
+    fireEvent.change(notesField, { target: { value: 'Leave signs at the side gate' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+    // saveStop compares against the loaded Stop's address and pin (lib/stopLocation.test.ts).
+    await waitFor(() => {
+      expect(saveStop).toHaveBeenCalledWith(
+        { original: expect.objectContaining({ id: 'stop-1', latitude: -37.8136, longitude: 144.9631 }) },
+        expect.objectContaining({ address: '100 First St', notes: 'Leave signs at the side gate' })
+      );
+    });
+  });
+
+  it('says so when a saved stop has no map pin', async () => {
+    (saveStop as jest.Mock).mockResolvedValueOnce({ pinned: false });
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: /^edit$/i }).length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^edit$/i })[0]);
+    fireEvent.click(await screen.findByRole('button', { name: /save changes/i }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Stop saved without a map pin.');
   });
 
   it('calls deleteStop when inline delete is confirmed', async () => {
@@ -292,18 +288,20 @@ describe('Operator Route Detail Page', () => {
     fireEvent.click(screen.getByRole('button', { name: /confirm delete/i }));
 
     await waitFor(() => {
-      expect(deleteStopModule.deleteStop).toHaveBeenCalledWith('stop-1');
+      expect(deleteStop).toHaveBeenCalledWith('stop-1');
     });
   });
 
-  it('shows "Start Route" button for planned routes', async () => {
+  it('shows a read-only phase tracker for planned routes instead of transition buttons', async () => {
     render(<RouteDetailPage />);
 
     await waitFor(() => {
       expect(screen.queryByText(/loading route/i)).not.toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: /start route/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /route phase/i })).toBeInTheDocument();
+    expect(screen.getByText(/planned · phase 1 of 6/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /start route/i })).not.toBeInTheDocument();
   });
 
   it('shows breadcrumb navigation back to the routes list', async () => {
@@ -319,217 +317,69 @@ describe('Operator Route Detail Page', () => {
     expect(within(breadcrumbs).getByText(/route w19-26-001/i)).toHaveAttribute('aria-current', 'page');
   });
 
-  it('shows "Signs Placed" action label for active placement stops', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: {
-        ...mockRoute,
-        status: 'in_progress',
-        executionPhase: 'placement',
-        actualStartTime: '2024-03-01T10:00:00Z',
-        placementStartTime: '2024-03-01T10:00:00Z',
-      },
-      errors: undefined,
-    });
+  // Operator field mode is retired — in-progress routes are redirected to
+  // their dedicated Load/Placement/Pickup/Unload/Finalise screen instead of
+  // rendering an in-page execution UI (see app/operator/routes/{load,
+  // placement,pickup,unload,finalise}/page.tsx).
+  it('redirects an in-progress route to its active phase screen instead of rendering field mode', async () => {
+    mockFetched.route = {
+      ...mockRoute,
+      status: 'in_progress',
+      executionPhase: 'placement',
+      actualStartTime: '2024-03-01T10:00:00Z',
+      placementStartTime: '2024-03-01T10:00:00Z',
+    };
 
     render(<RouteDetailPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /signs placed/i })).toBeInTheDocument();
+      expect(mockReplace).toHaveBeenCalledWith('/operator/routes/placement?id=route-test-id-1234');
     });
+
+    expect(screen.queryByRole('region', { name: /operator field mode/i })).not.toBeInTheDocument();
   });
 
-  it('renders active route as dedicated field mode with next stop and all upcoming stops', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: {
-        ...mockRoute,
-        status: 'in_progress',
-        executionPhase: 'placement',
-        actualStartTime: '2024-03-01T10:00:00Z',
-        placementStartTime: '2024-03-01T10:00:00Z',
-      },
-      errors: undefined,
-    });
-    mockStopList.mockResolvedValue({
-      data: mockStopsWithUpcoming,
-      errors: undefined,
-    });
+  it('redirects a legacy signs_placed route to the pickup phase screen', async () => {
+    mockFetched.route = { ...mockRoute, status: 'signs_placed' };
 
     render(<RouteDetailPage />);
-
-    const fieldMode = await screen.findByRole('region', { name: /operator field mode/i });
-    expect(fieldMode).toBeInTheDocument();
-    expect(screen.getByText(/placement phase/i)).toBeInTheDocument();
-    expect(screen.getByText('Online')).toBeInTheDocument();
-    expect(screen.getByText('STOP 1 OF 3')).toBeInTheDocument();
-    expect(screen.getByText('100 First St')).toBeInTheDocument();
-    expect(screen.getByText('Then')).toBeInTheDocument();
-    expect(screen.getByText('200 Second Ave')).toBeInTheDocument();
-    expect(screen.getByText('300 Third Rd')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^start route$/i })).not.toBeInTheDocument();
-  });
-
-  it('completes an upcoming stop out of order via the tap-to-sheet dialog', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: {
-        ...mockRoute,
-        status: 'in_progress',
-        executionPhase: 'placement',
-        actualStartTime: '2024-03-01T10:00:00Z',
-        placementStartTime: '2024-03-01T10:00:00Z',
-      },
-      errors: undefined,
-    });
-    mockStopList.mockResolvedValue({ data: mockStopsWithUpcoming, errors: undefined });
-
-    render(<RouteDetailPage />);
-
-    fireEvent.click(await screen.findByText('200 Second Ave'));
-
-    expect(await screen.findByText('200 Second Ave, Melbourne VIC')).toBeInTheDocument();
-    const dialog = screen.getByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: /signs placed/i }));
 
     await waitFor(() => {
-      expect(updateStopExecution).toHaveBeenCalledWith(
-        'stop-2',
-        expect.objectContaining({ notes: expect.stringContaining('[PLACEMENT_DONE:') })
-      );
+      expect(screen.queryByText(/loading route/i)).not.toBeInTheDocument();
     });
+
+    // signs_placed is not in_progress, so this page renders normally (with
+    // the legacy status's read-only phase tracker) rather than redirecting —
+    // only in_progress routes have a live phase screen to redirect to.
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: /route phase/i })).toBeInTheDocument();
   });
 
-  it('records a reason when skipping a stop from the sheet', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: {
-        ...mockRoute,
-        status: 'in_progress',
-        executionPhase: 'placement',
-        actualStartTime: '2024-03-01T10:00:00Z',
-        placementStartTime: '2024-03-01T10:00:00Z',
+  it('shows "Signs Placed" as the original sign count with "Missing Signs" beside it — a stop placing 10 with 3 missing', async () => {
+    mockFetched.route = { ...mockRoute, status: 'completed' };
+    const stopsWithMissingSigns: Stop[] = [
+      {
+        id: 'stop-1',
+        routeId: 'route-test-id-1234',
+        sequence: 1,
+        address: '100 First St',
+        notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]',
+        numberOfSigns: 10,
+        missingSignsCount: 3,
       },
-      errors: undefined,
-    });
-    mockStopList.mockResolvedValue({ data: mockStopsWithUpcoming, errors: undefined });
+    ];
+    mockFetched.stops = stopsWithMissingSigns;
 
     render(<RouteDetailPage />);
-
-    fireEvent.click(await screen.findByText('200 Second Ave'));
-    await screen.findByText('200 Second Ave, Melbourne VIC');
-
-    fireEvent.click(screen.getByRole('button', { name: /^skip$/i }));
-
-    expect(await screen.findByText('Why is this stop skipped?')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Gate locked / no access' }));
 
     await waitFor(() => {
-      expect(updateStopExecution).toHaveBeenCalledWith(
-        'stop-2',
-        expect.objectContaining({ notes: expect.stringContaining('[PLACEMENT_SKIPPED:') })
-      );
-      expect(updateStopExecution).toHaveBeenCalledWith(
-        'stop-2',
-        expect.objectContaining({ notes: expect.stringContaining('|Gate locked / no access]') })
-      );
-    });
-  });
-
-  it('shows an Offline badge when the browser is offline', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: {
-        ...mockRoute,
-        status: 'in_progress',
-        executionPhase: 'placement',
-        actualStartTime: '2024-03-01T10:00:00Z',
-        placementStartTime: '2024-03-01T10:00:00Z',
-      },
-      errors: undefined,
-    });
-    mockStopList.mockResolvedValue({ data: mockStopsWithUpcoming, errors: undefined });
-    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true });
-
-    render(<RouteDetailPage />);
-
-    expect(await screen.findByText('Offline')).toBeInTheDocument();
-
-    Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true });
-  });
-
-  it('opens the sheet directly on the reason step from the next-stop Skip Stop button', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: {
-        ...mockRoute,
-        status: 'in_progress',
-        executionPhase: 'placement',
-        actualStartTime: '2024-03-01T10:00:00Z',
-        placementStartTime: '2024-03-01T10:00:00Z',
-      },
-      errors: undefined,
-    });
-    mockStopList.mockResolvedValue({ data: mockStopsWithUpcoming, errors: undefined });
-
-    render(<RouteDetailPage />);
-
-    fireEvent.click(await screen.findByRole('button', { name: /^skip stop$/i }));
-
-    expect(await screen.findByText('Why is this stop skipped?')).toBeInTheDocument();
-  });
-
-  const settledStops: Stop[] = [
-    {
-      id: 'stop-1',
-      routeId: 'route-test-id-1234',
-      sequence: 1,
-      address: '100 First St',
-      serviceType: 'delivery',
-      numberOfSigns: 4,
-      actualDepartureTime: '2024-03-01T11:00:00Z',
-      notes: '[PLACEMENT_DONE:2024-03-01T11:00:00.000Z]',
-    },
-    {
-      id: 'stop-2',
-      routeId: 'route-test-id-1234',
-      sequence: 2,
-      address: '200 Second Ave',
-      serviceType: 'delivery',
-      numberOfSigns: 3,
-      actualDepartureTime: '2024-03-01T11:05:00Z',
-      notes: '[PLACEMENT_SKIPPED:2024-03-01T11:05:00.000Z|Gate locked / no access]',
-    },
-  ];
-
-  it('shows a phase summary with skipped-stop reasons after ending the route, and returns to the route on Back', async () => {
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: {
-        ...mockRoute,
-        status: 'in_progress',
-        executionPhase: 'placement',
-        actualStartTime: '2024-03-01T10:00:00Z',
-        placementStartTime: '2024-03-01T10:00:00Z',
-      },
-      errors: undefined,
-    });
-    mockStopList.mockResolvedValue({ data: settledStops, errors: undefined });
-
-    render(<RouteDetailPage />);
-
-    const endRouteButton = await screen.findByRole('button', { name: /^end route$/i });
-    expect(endRouteButton).not.toBeDisabled();
-    fireEvent.click(endRouteButton);
-
-    await waitFor(() => {
-      expect(updateRouteExecution).toHaveBeenCalledWith(
-        'route-test-id-1234',
-        expect.objectContaining({ status: 'signs_placed' })
-      );
+      expect(screen.getByText('Signs Placed')).toBeInTheDocument();
     });
 
-    const summary = await screen.findByRole('region', { name: /phase summary/i });
-    expect(within(summary).getByText('1 of 2 stops done')).toBeInTheDocument();
-    expect(within(summary).getByText('Not done')).toBeInTheDocument();
-    expect(within(summary).getByText(/200 Second Ave/)).toBeInTheDocument();
-    expect(within(summary).getByText(/Gate locked \/ no access/)).toBeInTheDocument();
-
-    fireEvent.click(within(summary).getByRole('button', { name: /back to route/i }));
-
-    expect(screen.queryByRole('region', { name: /phase summary/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Signs Placed').parentElement).toHaveTextContent('10');
+    expect(screen.getByText('Missing Signs').parentElement).toHaveTextContent('3');
+    expect(screen.queryByText('Total Number of Signs')).not.toBeInTheDocument();
+    expect(screen.queryByText('Placement Distance')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pickup Distance')).not.toBeInTheDocument();
   });
 });

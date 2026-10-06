@@ -1,4 +1,4 @@
-import { getSignRunPhase } from './signRunPhase';
+import { getSignRunPhase, getRoutePhaseKey, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS } from './signRunPhase';
 import type { Route } from '@/amplify/types';
 
 function baseRoute(overrides: Partial<Route> = {}): Route {
@@ -6,15 +6,14 @@ function baseRoute(overrides: Partial<Route> = {}): Route {
     id: 'route-1',
     customerId: 'cust-1',
     status: 'planned',
-    drivingModeEnabled: true,
     ...overrides,
   } as Route;
 }
 
 describe('getSignRunPhase', () => {
-  it('returns null when drivingModeEnabled is not set', () => {
-    expect(getSignRunPhase(baseRoute({ drivingModeEnabled: false }), 5)).toBeNull();
-    expect(getSignRunPhase(baseRoute({ drivingModeEnabled: null }), 5)).toBeNull();
+  it('does not gate on drivingModeEnabled — every route flows through this model', () => {
+    expect(getSignRunPhase(baseRoute({ drivingModeEnabled: false, status: 'in_progress' }), 5)).not.toBeNull();
+    expect(getSignRunPhase(baseRoute({ drivingModeEnabled: null, status: 'in_progress' }), 5)).not.toBeNull();
   });
 
   it('returns null for completed or archived routes', () => {
@@ -25,40 +24,48 @@ describe('getSignRunPhase', () => {
   it('defaults to Load when executionPhase is unset', () => {
     const info = getSignRunPhase(baseRoute({ status: 'in_progress', executionPhase: null }), 5);
     expect(info?.phaseIdx).toBe(0);
+    expect(info?.phase).toBe('signs_loaded');
     expect(info?.phaseLabel).toBe('Load');
     expect(info?.actionLabel).toBe('Load signs');
     expect(info?.tint).toBe('indigo');
-    expect(info?.track).toEqual(['current', 'upcoming', 'upcoming', 'upcoming']);
+    expect(info?.track).toEqual(['current', 'upcoming', 'upcoming', 'upcoming', 'upcoming']);
+    expect(info?.overallTrack).toEqual(['done', 'current', 'upcoming', 'upcoming', 'upcoming', 'upcoming']);
     expect(info?.phaseKicker).toBe('PHASE 1 OF 4 · LOAD');
   });
 
   it('reads Placement as indigo, phase 2 of 4', () => {
     const info = getSignRunPhase(baseRoute({ status: 'in_progress', executionPhase: 'placement' }), 5);
     expect(info?.phaseIdx).toBe(1);
+    expect(info?.phase).toBe('signs_placed');
     expect(info?.phaseLabel).toBe('Placement');
     expect(info?.phaseNumberLabel).toBe('Phase 2 of 4');
     expect(info?.actionLabel).toBe('Place signs');
     expect(info?.tint).toBe('indigo');
-    expect(info?.track).toEqual(['done', 'current', 'upcoming', 'upcoming']);
+    expect(info?.track).toEqual(['done', 'current', 'upcoming', 'upcoming', 'upcoming']);
+    expect(info?.overallTrack).toEqual(['done', 'done', 'current', 'upcoming', 'upcoming', 'upcoming']);
     expect(info?.phaseKicker).toBe('PHASE 2 OF 4 · PLACEMENT');
   });
 
   it('reads Pickup as violet, phase 3 of 4', () => {
     const info = getSignRunPhase(baseRoute({ status: 'signs_placed', executionPhase: 'pickup' }), 5);
     expect(info?.phaseIdx).toBe(2);
+    expect(info?.phase).toBe('signs_picked_up');
     expect(info?.phaseLabel).toBe('Pickup');
     expect(info?.actionLabel).toBe('Pick up signs');
     expect(info?.tint).toBe('violet');
-    expect(info?.track).toEqual(['done', 'done', 'current', 'upcoming']);
+    expect(info?.track).toEqual(['done', 'done', 'current', 'upcoming', 'upcoming']);
+    expect(info?.overallTrack).toEqual(['done', 'done', 'done', 'current', 'upcoming', 'upcoming']);
   });
 
   it('reads Unload as violet, phase 4 of 4', () => {
     const info = getSignRunPhase(baseRoute({ status: 'signs_picked_up', executionPhase: 'unload' }), 5);
     expect(info?.phaseIdx).toBe(3);
+    expect(info?.phase).toBe('signs_returned');
     expect(info?.phaseLabel).toBe('Unload');
     expect(info?.actionLabel).toBe('Return signs');
     expect(info?.tint).toBe('violet');
-    expect(info?.track).toEqual(['done', 'done', 'done', 'current']);
+    expect(info?.track).toEqual(['done', 'done', 'done', 'current', 'upcoming']);
+    expect(info?.overallTrack).toEqual(['done', 'done', 'done', 'done', 'current', 'upcoming']);
   });
 
   it('surfaces ready-to-finalise once unload is confirmed but the route has not been finalised', () => {
@@ -67,11 +74,13 @@ describe('getSignRunPhase', () => {
       5
     );
     expect(info?.phaseIdx).toBe(4);
+    expect(info?.phase).toBe('completed');
     expect(info?.phaseLabel).toBe('Ready to finalise');
     expect(info?.phaseNumberLabel).toBe('All four phases done');
     expect(info?.actionLabel).toBe('Finalise');
     expect(info?.tint).toBe('violet');
-    expect(info?.track).toEqual(['done', 'done', 'done', 'done']);
+    expect(info?.track).toEqual(['done', 'done', 'done', 'done', 'current']);
+    expect(info?.overallTrack).toEqual(['done', 'done', 'done', 'done', 'done', 'current']);
     expect(info?.phaseKicker).toBe('FINALISE');
   });
 
@@ -95,6 +104,11 @@ describe('getSignRunPhase', () => {
     expect(info?.lockNote).toBeUndefined();
   });
 
+  it('shows only Planned as current in the overview tracker while the route has not started', () => {
+    const info = getSignRunPhase(baseRoute({ status: 'planned' }), 3);
+    expect(info?.overallTrack).toEqual(['current', 'upcoming', 'upcoming', 'upcoming', 'upcoming', 'upcoming']);
+  });
+
   describe('statusLabel', () => {
     it('shows "Today" for a route scheduled today', () => {
       const today = new Date().toISOString();
@@ -111,6 +125,84 @@ describe('getSignRunPhase', () => {
     it('falls back to the current phase label for an in-progress route', () => {
       const info = getSignRunPhase(baseRoute({ status: 'in_progress', executionPhase: 'pickup' }), 3);
       expect(info?.statusLabel).toBe('Pickup');
+    });
+  });
+});
+
+describe('getRoutePhaseKey', () => {
+  it('covers every route, including completed and archived — unlike getSignRunPhase', () => {
+    expect(getRoutePhaseKey(baseRoute({ status: 'completed' }))).toBe('completed');
+    expect(getRoutePhaseKey(baseRoute({ status: 'archived' }))).toBe('completed');
+  });
+
+  it('reads planned routes as planned, regardless of executionPhase', () => {
+    expect(getRoutePhaseKey(baseRoute({ status: 'planned' }))).toBe('planned');
+    expect(getRoutePhaseKey(baseRoute({ status: undefined }))).toBe('planned');
+  });
+
+  it('reads each in-progress sub-phase off executionPhase', () => {
+    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress', executionPhase: null }))).toBe('signs_loaded');
+    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress', executionPhase: 'placement' }))).toBe('signs_placed');
+    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress', executionPhase: 'pickup' }))).toBe('signs_picked_up');
+    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress', executionPhase: 'unload' }))).toBe('signs_returned');
+  });
+
+  it('reads legacy signs_placed/signs_picked_up statuses off executionPhase too', () => {
+    expect(getRoutePhaseKey(baseRoute({ status: 'signs_placed', executionPhase: 'pickup' }))).toBe('signs_picked_up');
+    expect(getRoutePhaseKey(baseRoute({ status: 'signs_picked_up', executionPhase: 'unload' }))).toBe('signs_returned');
+  });
+
+  it('falls back to the status itself for pre-executionPhase legacy data', () => {
+    // Oldest records predate the executionPhase field, so it's simply absent
+    // — the legacy status is then the only record of which phase last completed.
+    expect(getRoutePhaseKey(baseRoute({ status: 'in_progress' }))).toBe('signs_loaded');
+    expect(getRoutePhaseKey(baseRoute({ status: 'signs_placed' }))).toBe('signs_placed');
+    expect(getRoutePhaseKey(baseRoute({ status: 'signs_picked_up' }))).toBe('signs_picked_up');
+  });
+
+  it('reads ready-to-finalise (unload confirmed, not yet finalised) as completed', () => {
+    expect(
+      getRoutePhaseKey(
+        baseRoute({ status: 'in_progress', executionPhase: 'unload', unloadConfirmedAt: '2026-08-31T10:00:00.000Z' })
+      )
+    ).toBe('completed');
+  });
+
+  it('reads the last phase actually completed, not the phase executionPhase has already advanced to', () => {
+    // Completing Pickup stamps pickupEndTime and flips executionPhase to
+    // 'unload' in the same update, to unlock the Unload screen — the route
+    // hasn't started returning signs yet, so the badge should still read
+    // "Signs picked up" until unloadConfirmedAt is stamped.
+    expect(
+      getRoutePhaseKey(
+        baseRoute({ status: 'in_progress', executionPhase: 'unload', pickupEndTime: '2026-09-12T10:00:00.000Z' })
+      )
+    ).toBe('signs_picked_up');
+    expect(
+      getRoutePhaseKey(
+        baseRoute({ status: 'in_progress', executionPhase: 'pickup', placementEndTime: '2026-09-12T09:00:00.000Z' })
+      )
+    ).toBe('signs_placed');
+    expect(
+      getRoutePhaseKey(
+        baseRoute({ status: 'in_progress', executionPhase: 'placement', loadConfirmedAt: '2026-09-12T08:00:00.000Z' })
+      )
+    ).toBe('signs_loaded');
+  });
+});
+
+describe('ROUTE_PHASE_KEYS / ROUTE_PHASE_LABELS', () => {
+  it('lists all 6 phases in flow order, each with a label', () => {
+    expect(ROUTE_PHASE_KEYS).toEqual([
+      'planned',
+      'signs_loaded',
+      'signs_placed',
+      'signs_picked_up',
+      'signs_returned',
+      'completed',
+    ]);
+    ROUTE_PHASE_KEYS.forEach((key) => {
+      expect(typeof ROUTE_PHASE_LABELS[key]).toBe('string');
     });
   });
 });

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/administrator/components/PageHeader';
@@ -11,15 +12,14 @@ import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { Switch } from '@/app/components/ui/forms/Switch';
 import { StatTile } from '@/app/components/ui/data/StatTile';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listRateLines } from '@/lib/queries/ListRateLines';
 import { createRateLine } from '@/lib/queries/CreateRateLine';
 import { deleteRateLine } from '@/lib/queries/DeleteRateLine';
-import { getCustomer, updateCustomer } from '@/lib/queries';
 import { getOrganizationSettings, upsertOrganizationSettings } from '@/lib/queries/OrganizationSettings';
 import { computeDriverSplit, type DriverSplitResult } from '@/lib/driverSplit';
 import type { BillingCycle, Customer, RateLine, RateLineUnit } from '@/amplify/types';
 import styles from './page.module.css';
+import { listAllCustomers, getCustomer, updateCustomer } from '@/lib/customers';
 
 const CYCLE_OPTIONS: { value: BillingCycle; label: string }[] = [
   { value: 'weekly', label: 'Weekly' },
@@ -39,6 +39,8 @@ const UNIT_OPTIONS: { value: RateLineUnit; label: string }[] = [
   { value: 'per_sign', label: 'per sign' },
 ];
 
+const RATE_LINES_LOAD_ERROR = "Couldn't load rate lines. Reload to try again.";
+
 function formatUnit(unit?: RateLineUnit | null) {
   return UNIT_OPTIONS.find((option) => option.value === unit)?.label ?? 'per hour';
 }
@@ -54,12 +56,15 @@ function getCurrentMonthRange() {
   return { start: start.toISOString().slice(0, 10), end: now.toISOString().slice(0, 10) };
 }
 
-export default function AdministratorPaymentDetailsPage() {
+function PaymentDetailsContent() {
+  const searchParams = useSearchParams();
+  const requestedCustomerId = searchParams.get('customerId');
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [loadingCustomer, setLoadingCustomer] = useState(false);
+  const [customerLoadError, setCustomerLoadError] = useState<string | null>(null);
 
   const [payToCompanyName, setPayToCompanyName] = useState('');
   const [payToAbn, setPayToAbn] = useState('');
@@ -69,6 +74,8 @@ export default function AdministratorPaymentDetailsPage() {
   const [payToBsb, setPayToBsb] = useState('');
   const [payToAccountNumber, setPayToAccountNumber] = useState('');
   const [loadingPayTo, setLoadingPayTo] = useState(true);
+  // A failed load hides the form: saving it would write blanks over the real details.
+  const [payToLoadError, setPayToLoadError] = useState<string | null>(null);
   const [savingPayTo, setSavingPayTo] = useState(false);
   const [payToError, setPayToError] = useState<string | null>(null);
   const [payToSuccess, setPayToSuccess] = useState<string | null>(null);
@@ -95,6 +102,8 @@ export default function AdministratorPaymentDetailsPage() {
   const [rateLines, setRateLines] = useState<RateLine[]>([]);
   const [loadingRateLines, setLoadingRateLines] = useState(false);
   const [rateLineError, setRateLineError] = useState<string | null>(null);
+  // Unreadable rate lines aren't "no rate lines": adding or copying is held off until they load.
+  const [rateLinesLoadError, setRateLinesLoadError] = useState<string | null>(null);
   const [newLineLabel, setNewLineLabel] = useState('');
   const [newLineUnit, setNewLineUnit] = useState<RateLineUnit>('per_hour');
   const [newLineRate, setNewLineRate] = useState('');
@@ -116,17 +125,22 @@ export default function AdministratorPaymentDetailsPage() {
   useEffect(() => {
     let cancelled = false;
 
-    void listAllCustomers({ limit: 200 }).then((result) => {
+    void listAllCustomers().catch(() => []).then((result) => {
       if (cancelled) return;
-      const list = ((result.data as { id: string; name: string }[]) || []);
+      const list = result as { id: string; name: string }[];
       setCustomers(list);
-      if (list.length > 0) setSelectedCustomerId(list[0].id);
+      const requested = requestedCustomerId && list.some((c) => c.id === requestedCustomerId)
+        ? requestedCustomerId
+        : list[0]?.id;
+      if (requested) setSelectedCustomerId(requested);
       setLoadingCustomers(false);
     });
 
     return () => {
       cancelled = true;
     };
+    // Runs once on mount — requestedCustomerId is read from the URL at that point only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -143,18 +157,24 @@ export default function AdministratorPaymentDetailsPage() {
     // Org-wide, not customer-scoped -- loads once, independent of the customer picker above.
     let cancelled = false;
 
-    void getOrganizationSettings().then((result) => {
-      if (cancelled) return;
-      const settings = result.data;
-      setPayToCompanyName(settings?.companyName ?? '');
-      setPayToAbn(settings?.abn ?? '');
-      setPayToPhone(settings?.phone ?? '');
-      setPayToAddress(settings?.address ?? '');
-      setPayToAccountName(settings?.paymentAccountName ?? '');
-      setPayToBsb(settings?.bsb ?? '');
-      setPayToAccountNumber(settings?.accountNumber ?? '');
-      setLoadingPayTo(false);
-    });
+    void getOrganizationSettings().then(
+      (settings) => {
+        if (cancelled) return;
+        setPayToCompanyName(settings?.companyName ?? '');
+        setPayToAbn(settings?.abn ?? '');
+        setPayToPhone(settings?.phone ?? '');
+        setPayToAddress(settings?.address ?? '');
+        setPayToAccountName(settings?.paymentAccountName ?? '');
+        setPayToBsb(settings?.bsb ?? '');
+        setPayToAccountNumber(settings?.accountNumber ?? '');
+        setLoadingPayTo(false);
+      },
+      () => {
+        if (cancelled) return;
+        setPayToLoadError("Couldn't load the pay-to details. Reload to try again.");
+        setLoadingPayTo(false);
+      }
+    );
 
     return () => {
       cancelled = true;
@@ -168,8 +188,9 @@ export default function AdministratorPaymentDetailsPage() {
 
     void getCustomer(selectedCustomerId).then((result) => {
       if (cancelled) return;
-      const nextCustomer = result.data as Customer | null;
+      const nextCustomer = result as Customer | null;
       setCustomer(nextCustomer);
+      setCustomerLoadError(null);
       setBillingCycle((nextCustomer?.billingCycle as BillingCycle | null) ?? 'monthly');
       setPaymentTermsDays(
         typeof nextCustomer?.paymentTermsDays === 'number' ? String(nextCustomer.paymentTermsDays) : '14'
@@ -194,6 +215,13 @@ export default function AdministratorPaymentDetailsPage() {
       setDriverSplitError(null);
       setDriverSplitSuccess(null);
       setLoadingCustomer(false);
+    }, () => {
+      if (cancelled) return;
+      // No settings panels: saving them over a Customer we couldn't read would
+      // overwrite its real settings with the form defaults.
+      setCustomer(null);
+      setCustomerLoadError("Couldn't load this customer. Reload to try again.");
+      setLoadingCustomer(false);
     });
 
     return () => {
@@ -217,11 +245,17 @@ export default function AdministratorPaymentDetailsPage() {
       paySplitOnCompletedStopsOnly: customer.paySplitOnCompletedStopsOnly ?? false,
       periodStartDate: start,
       periodEndDate: end,
-    }).then((result) => {
-      if (cancelled) return;
-      setSplitPreview(result);
-      setLoadingSplitPreview(false);
-    });
+    })
+      .then((result) => {
+        if (cancelled) return;
+        setSplitPreview(result);
+        setLoadingSplitPreview(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSplitPreview(null);
+        setLoadingSplitPreview(false);
+      });
 
     return () => {
       cancelled = true;
@@ -229,8 +263,11 @@ export default function AdministratorPaymentDetailsPage() {
   }, [customer, selectedCustomerId]);
 
   const refetchRateLines = async () => {
-    const result = await listRateLines(selectedCustomerId);
-    setRateLines((result.data as RateLine[]) || []);
+    try {
+      setRateLines((await listRateLines(selectedCustomerId)) as unknown as RateLine[]);
+    } catch {
+      setRateLinesLoadError(RATE_LINES_LOAD_ERROR);
+    }
   };
 
   useEffect(() => {
@@ -241,12 +278,21 @@ export default function AdministratorPaymentDetailsPage() {
     let cancelled = false;
     setLoadingRateLines(true);
     setRateLineError(null);
+    setRateLinesLoadError(null);
 
-    void listRateLines(selectedCustomerId).then((result) => {
-      if (cancelled) return;
-      setRateLines((result.data as RateLine[]) || []);
-      setLoadingRateLines(false);
-    });
+    void listRateLines(selectedCustomerId).then(
+      (lines) => {
+        if (cancelled) return;
+        setRateLines(lines as unknown as RateLine[]);
+        setLoadingRateLines(false);
+      },
+      () => {
+        if (cancelled) return;
+        setRateLines([]);
+        setRateLinesLoadError(RATE_LINES_LOAD_ERROR);
+        setLoadingRateLines(false);
+      }
+    );
 
     return () => {
       cancelled = true;
@@ -258,15 +304,15 @@ export default function AdministratorPaymentDetailsPage() {
     setAddingLine(true);
     setRateLineError(null);
 
-    const result = await createRateLine({
+    const added = await createRateLine({
       customerId: selectedCustomerId,
       label: newLineLabel.trim(),
       unit: newLineUnit,
       ratePerUnit: Number(newLineRate),
       sortOrder: rateLines.length,
-    });
+    }).then(() => true, () => false);
 
-    if (result.errors && result.errors.length > 0) {
+    if (!added) {
       setRateLineError('Could not add rate line.');
       setAddingLine(false);
       return;
@@ -282,8 +328,8 @@ export default function AdministratorPaymentDetailsPage() {
     setRemovingLineId(id);
     setRateLineError(null);
 
-    const result = await deleteRateLine(id);
-    if (result.errors && result.errors.length > 0) {
+    const removed = await deleteRateLine(id).then(() => true, () => false);
+    if (!removed) {
       setRateLineError('Could not remove rate line.');
       setRemovingLineId(null);
       return;
@@ -298,8 +344,13 @@ export default function AdministratorPaymentDetailsPage() {
     setCopyingLines(true);
     setRateLineError(null);
 
-    const source = await listRateLines(copySourceId);
-    const sourceLines = (source.data as RateLine[]) || [];
+    const source = await listRateLines(copySourceId).catch(() => null);
+    if (!source) {
+      setRateLineError("Couldn't load that customer's rate lines.");
+      setCopyingLines(false);
+      return;
+    }
+    const sourceLines = source as unknown as RateLine[];
 
     if (sourceLines.length === 0) {
       setRateLineError('That customer has no rate lines to copy.');
@@ -307,7 +358,7 @@ export default function AdministratorPaymentDetailsPage() {
       return;
     }
 
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       sourceLines.map((line, index) =>
         createRateLine({
           customerId: selectedCustomerId,
@@ -319,7 +370,7 @@ export default function AdministratorPaymentDetailsPage() {
       )
     );
 
-    if (results.some((result) => result.errors && result.errors.length > 0)) {
+    if (results.some((result) => result.status === 'rejected')) {
       setRateLineError('Some rate lines could not be copied.');
     }
 
@@ -332,7 +383,7 @@ export default function AdministratorPaymentDetailsPage() {
     setPayToError(null);
     setPayToSuccess(null);
 
-    const result = await upsertOrganizationSettings({
+    const saved = await upsertOrganizationSettings({
       companyName: payToCompanyName.trim(),
       abn: payToAbn.trim(),
       phone: payToPhone.trim(),
@@ -340,9 +391,9 @@ export default function AdministratorPaymentDetailsPage() {
       paymentAccountName: payToAccountName.trim(),
       bsb: payToBsb.trim(),
       accountNumber: payToAccountNumber.trim(),
-    });
+    }).then(() => true, () => false);
 
-    if (result.errors && result.errors.length > 0) {
+    if (!saved) {
       setPayToError('Could not save pay-to details.');
       setSavingPayTo(false);
       return;
@@ -358,7 +409,7 @@ export default function AdministratorPaymentDetailsPage() {
     setTaxSuccess(null);
 
     const parsedTerms = Number(paymentTermsDays);
-    const result = await updateCustomer(selectedCustomerId, {
+    const saved = await updateCustomer(selectedCustomerId, {
       billingCycle,
       paymentTermsDays: Number.isFinite(parsedTerms) ? parsedTerms : undefined,
       gstAbn: gstAbn.trim(),
@@ -366,9 +417,9 @@ export default function AdministratorPaymentDetailsPage() {
       gstExclusive,
       groupLineItemsByAgent,
       autoSendInvoiceOnPeriodClose,
-    });
+    }).then(() => true, () => false);
 
-    if (result.errors && result.errors.length > 0) {
+    if (!saved) {
       setTaxError('Could not save billing cycle & tax settings.');
       setSavingTax(false);
       return;
@@ -383,21 +434,20 @@ export default function AdministratorPaymentDetailsPage() {
     setDirectDebitError(null);
     setDirectDebitSuccess(null);
 
-    const result = await updateCustomer(selectedCustomerId, {
+    const saved = await updateCustomer(selectedCustomerId, {
       directDebitAccountName: directDebitAccountName.trim(),
       directDebitBsb: directDebitBsb.trim(),
       directDebitAccountNumber: directDebitAccountNumber.trim(),
       directDebitAuthorizedAt: new Date().toISOString(),
-    });
+    }).then(() => true, () => false);
 
-    if (result.errors && result.errors.length > 0) {
+    if (!saved) {
       setDirectDebitError('Could not save direct debit details.');
       setSavingDirectDebit(false);
       return;
     }
 
-    const refreshed = await getCustomer(selectedCustomerId);
-    const nextCustomer = refreshed.data as Customer | null;
+    const nextCustomer = (await getCustomer(selectedCustomerId).catch(() => null)) as Customer | null;
     if (nextCustomer) setCustomer(nextCustomer);
 
     setDirectDebitSuccess('Direct debit details saved.');
@@ -410,24 +460,23 @@ export default function AdministratorPaymentDetailsPage() {
     setDriverSplitSuccess(null);
 
     const parsedPercent = Number(driverSplitPercent);
-    const result = await updateCustomer(selectedCustomerId, {
+    const saved = await updateCustomer(selectedCustomerId, {
       driverSplitPercent: Number.isFinite(parsedPercent) ? parsedPercent : 0,
       driverSplitBasis: 'percentage_of_line_rate',
       hideDriverSplitFromCustomer,
       paySplitOnCompletedStopsOnly,
-    });
+    }).then(() => true, () => false);
 
-    if (result.errors && result.errors.length > 0) {
-      setDriverSplitError('Could not save driver split settings.');
+    if (!saved) {
+      setDriverSplitError('Could not save operator split settings.');
       setSavingDriverSplit(false);
       return;
     }
 
-    const refreshed = await getCustomer(selectedCustomerId);
-    const nextCustomer = refreshed.data as Customer | null;
+    const nextCustomer = (await getCustomer(selectedCustomerId).catch(() => null)) as Customer | null;
     if (nextCustomer) setCustomer(nextCustomer);
 
-    setDriverSplitSuccess('Driver split settings saved.');
+    setDriverSplitSuccess('Operator split settings saved.');
     setSavingDriverSplit(false);
   };
 
@@ -436,28 +485,7 @@ export default function AdministratorPaymentDetailsPage() {
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
-        <PageHeader
-          title="Payment Details"
-          subtitle="Rate card, cycle, tax and direct debit"
-          actions={
-            <div className={styles.customerPicker}>
-              <Field label="Customer" htmlFor="payment-details-customer">
-                <Select
-                  id="payment-details-customer"
-                  value={selectedCustomerId}
-                  onChange={(e) => setSelectedCustomerId(e.target.value)}
-                  disabled={loadingCustomers || customers.length === 0}
-                >
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-          }
-        />
+        <PageHeader title="Payment Details" subtitle="Rate card, cycle, tax and direct debit" />
 
         <Card title="Pay to" subtitle="Null Device's own remittance details, printed on every customer invoice">
           <div className={styles.form}>
@@ -466,6 +494,8 @@ export default function AdministratorPaymentDetailsPage() {
 
             {loadingPayTo ? (
               <p className={styles.rateCardEmpty}>Loading pay-to details…</p>
+            ) : payToLoadError ? (
+              <p className="nd-badge nd-badge--danger">{payToLoadError}</p>
             ) : (
               <>
                 <div className={styles.grid}>
@@ -548,12 +578,38 @@ export default function AdministratorPaymentDetailsPage() {
           </div>
         </Card>
 
+        <Card>
+          <div className={styles.customerFilterRow}>
+            <div className={styles.customerPicker}>
+              <Field label="Customer" htmlFor="payment-details-customer">
+                <Select
+                  id="payment-details-customer"
+                  value={selectedCustomerId}
+                  onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  disabled={loadingCustomers || customers.length === 0}
+                >
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <span className={styles.customerFilterNote}>
+              Changes apply to routes invoiced after the current period closes.
+            </span>
+          </div>
+        </Card>
+
         {loadingCustomers ? (
           <LoadingSpinner message="Loading customers..." />
         ) : customers.length === 0 ? (
           <p className={styles.emptyState}>No customers found.</p>
         ) : loadingCustomer ? (
           <LoadingSpinner message="Loading payment details..." />
+        ) : customerLoadError ? (
+          <p className="nd-badge nd-badge--danger">{customerLoadError}</p>
         ) : (
           <div className={styles.layout}>
             <Card title="Rate card" subtitle={`${customer?.name ?? ''} · ex GST`} padded={false}>
@@ -561,6 +617,8 @@ export default function AdministratorPaymentDetailsPage() {
 
               {loadingRateLines ? (
                 <p className={styles.rateCardEmpty}>Loading rate lines…</p>
+              ) : rateLinesLoadError ? (
+                <p className={`nd-badge nd-badge--danger ${styles.rateCardBanner}`}>{rateLinesLoadError}</p>
               ) : rateLines.length === 0 ? (
                 <p className={styles.rateCardEmpty}>No rate lines yet — this customer uses the flat billing rate.</p>
               ) : (
@@ -626,7 +684,7 @@ export default function AdministratorPaymentDetailsPage() {
                   size="sm"
                   iconLeft="plus"
                   loading={addingLine}
-                  disabled={addingLine || !newLineLabel.trim() || !newLineRate.trim()}
+                  disabled={addingLine || Boolean(rateLinesLoadError) || !newLineLabel.trim() || !newLineRate.trim()}
                   onClick={() => void handleAddRateLine()}
                 >
                   Add rate line
@@ -654,7 +712,7 @@ export default function AdministratorPaymentDetailsPage() {
                   variant="ghost"
                   size="sm"
                   loading={copyingLines}
-                  disabled={copyingLines || !copySourceId}
+                  disabled={copyingLines || Boolean(rateLinesLoadError) || !copySourceId}
                   onClick={() => void handleCopyRateLines()}
                 >
                   Copy rate lines
@@ -782,7 +840,7 @@ export default function AdministratorPaymentDetailsPage() {
               </div>
             </Card>
 
-            <Card title="Driver split" subtitle="Share of this period's billed amount paid to the assigned operator">
+            <Card title="Operator split" subtitle="Share of this period's billed amount paid to the assigned operator">
               <div className={styles.form}>
                 {driverSplitError && <p className="nd-badge nd-badge--danger">{driverSplitError}</p>}
                 {driverSplitSuccess && <p className="nd-badge nd-badge--success">{driverSplitSuccess}</p>}
@@ -809,7 +867,7 @@ export default function AdministratorPaymentDetailsPage() {
                 <Switch
                   checked={hideDriverSplitFromCustomer}
                   onChange={(e) => setHideDriverSplitFromCustomer(e.target.checked)}
-                  label="Hide driver split from customer-facing documents"
+                  label="Hide operator split from customer-facing documents"
                   disabled={savingDriverSplit}
                 />
 
@@ -820,7 +878,7 @@ export default function AdministratorPaymentDetailsPage() {
                     disabled={savingDriverSplit}
                     onClick={() => void handleSaveDriverSplit()}
                   >
-                    {savingDriverSplit ? 'Saving…' : 'Save driver split'}
+                    {savingDriverSplit ? 'Saving…' : 'Save operator split'}
                   </Button>
                 </div>
 
@@ -829,7 +887,7 @@ export default function AdministratorPaymentDetailsPage() {
                 ) : splitPreview ? (
                   <div className={styles.splitStats}>
                     <StatTile
-                      label="Driver share (this period)"
+                      label="Operator share (this period)"
                       value={`$${splitPreview.totalDriverShare.toFixed(2)}`}
                       caption={`across ${splitPreview.totalStopCount} stop${splitPreview.totalStopCount === 1 ? '' : 's'}`}
                     />
@@ -851,5 +909,13 @@ export default function AdministratorPaymentDetailsPage() {
         )}
       </div>
     </OperatorRoute>
+  );
+}
+
+export default function AdministratorPaymentDetailsPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner message="Loading payment details..." />}>
+      <PaymentDetailsContent />
+    </Suspense>
   );
 }

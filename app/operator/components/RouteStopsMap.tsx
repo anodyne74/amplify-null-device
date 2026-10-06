@@ -3,13 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Circle as LeafletCircle, CircleMarker as LeafletCircleMarker, Map as LeafletMap } from 'leaflet';
 import type { Stop } from '@/amplify/types';
+import { locationPrecisionIndicator } from '@/lib/locationPrecision';
 import { getMapTheme, type MapTheme } from '@/lib/mapThemes';
+import { stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
+import { stopProgressTone, type StopProgressTone } from '@/lib/stopStatusLabel';
 import styles from './RouteStopsMap.module.css';
 
 interface RouteStopsMapProps {
   stops: Stop[];
   activeStopId?: string | null;
   upcomingStopIds?: string[];
+  /** The phase whose progress the markers show; without one, each Stop shows
+   *  its Pickup, every Stop's last phase (as on a finished or not-yet-started Route). */
+  phase?: ExecutionPhase;
   currentPosition?: { latitude: number; longitude: number } | null;
   mapTheme?: MapTheme;
   onStopSelect?: (stopId: string) => void;
@@ -100,14 +106,35 @@ function updateViewport(
   });
 }
 
+/** Each marker's colour shows how far its Stop has got in the phase shown. A
+ *  Couldn't Collect one is drawn by stopMarkerCouldntCollect, from the same phase's state. */
+const TONE_MARKER_CLASS: Record<StopProgressTone, string> = {
+  awaiting: styles.stopMarkerAwaiting,
+  placed: styles.stopMarkerPlaced,
+  pickedUp: styles.stopMarkerPickedUp,
+  couldntCollect: styles.stopMarkerCouldntCollect,
+};
+
 function hasCoordinates(stop: Stop): stop is StopWithCoords {
   return typeof stop.latitude === 'number' && typeof stop.longitude === 'number';
+}
+
+function progressState(stop: Stop, phase?: ExecutionPhase) {
+  return stopProgress(stop)[phase ?? 'pickup'].state;
+}
+
+/** The first Stop still awaiting the phase, or the first Stop when none is. */
+function firstPendingStop(stops: StopWithCoords[], phase?: ExecutionPhase) {
+  return (
+    stops.find((stop) => progressState(stop, phase) === 'pending') ?? stops[0]
+  );
 }
 
 export function RouteStopsMap({
   stops,
   activeStopId,
   upcomingStopIds = [],
+  phase,
   currentPosition,
   mapTheme = 'light',
   onStopSelect,
@@ -187,7 +214,7 @@ export function RouteStopsMap({
       deviceMarkerRef.current = null;
       lastRenderedPositionRef.current = null;
 
-      const activeStop = mappedStops.find((stop) => stop.id === activeStopId) ?? mappedStops.find((stop) => !stop.actualDepartureTime) ?? mappedStops[0];
+      const activeStop = mappedStops.find((stop) => stop.id === activeStopId) ?? firstPendingStop(mappedStops, phase);
       const upcomingStops = mappedStops.filter((stop) => upcomingStopIdSet.has(stop.id));
       const map = L.map(containerRef.current, { scrollWheelZoom: true });
       mapRef.current = map;
@@ -202,24 +229,37 @@ export function RouteStopsMap({
         maxZoom: 20,
       }).addTo(map);
 
+      // Themes without their own styled tile source (e.g. 'light'/'dark') derive
+      // their look from the OSM standard tiles via a CSS filter on the tile pane.
+      const tilePane = map.getPane('tilePane');
+      if (tilePane) {
+        tilePane.style.filter = selectedMapTheme.tileFilter || '';
+      }
+
+      if (mappedStops.length > 1) {
+        L.polyline(
+          mappedStops.map((stop) => [stop.latitude, stop.longitude] as [number, number]),
+          { color: 'var(--indigo-300)', weight: 3, opacity: 0.6 }
+        ).addTo(map);
+      }
+
       mappedStops.forEach((stop) => {
-        const isCompleted = Boolean(stop.actualDepartureTime);
+        const state = progressState(stop, phase);
         const isActive = stop.id === activeStop.id;
         const isUpcoming = upcomingStopIdSet.has(stop.id);
 
-        const serviceClass =
-          stop.serviceType === 'pickup'
-            ? styles.stopMarkerPickup
-            : stop.serviceType === 'inspection'
-            ? styles.stopMarkerInspection
-            : styles.stopMarkerDelivery;
+        const toneClass = TONE_MARKER_CLASS[stopProgressTone(stop, phase ?? 'pickup')];
+
+        const precisionIndicator = locationPrecisionIndicator(stop.locationPrecision);
 
         const markerClasses = [
           styles.stopMarker,
-          serviceClass,
+          toneClass,
+          precisionIndicator?.level === 'subtle' ? styles.stopMarkerInterpolated : '',
+          precisionIndicator?.level === 'clear' ? styles.stopMarkerApproximate : '',
           isActive ? styles.stopMarkerActive : '',
           isUpcoming ? styles.stopMarkerUpcoming : '',
-          isCompleted ? styles.stopMarkerCompleted : '',
+          state === 'couldntCollect' ? styles.stopMarkerCouldntCollect : state === 'done' ? styles.stopMarkerCompleted : '',
         ]
           .filter(Boolean)
           .join(' ');
@@ -234,7 +274,8 @@ export function RouteStopsMap({
           keyboard: true,
         }).addTo(map);
 
-        marker.bindTooltip(stop.formattedAddress || stop.address || 'Unknown address', {
+        const stopAddress = stop.formattedAddress || stop.address || 'Unknown address';
+        marker.bindTooltip(precisionIndicator ? `${stopAddress} · ${precisionIndicator.label}` : stopAddress, {
           direction: 'top',
           offset: [0, -14],
           opacity: 0.95,
@@ -302,7 +343,7 @@ export function RouteStopsMap({
       headingRef.current = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStopId, stops, mapTheme, upcomingStopKey, presentation]);
+  }, [activeStopId, stops, mapTheme, upcomingStopKey, phase, presentation]);
 
   useEffect(() => {
     if (!mapRef.current || !leafletRef.current) return;
@@ -392,11 +433,11 @@ export function RouteStopsMap({
   useEffect(() => {
     if (!mapRef.current || !leafletRef.current || mappedStops.length === 0) return;
 
-    const activeStop = mappedStops.find((stop) => stop.id === activeStopId) ?? mappedStops.find((stop) => !stop.actualDepartureTime) ?? mappedStops[0];
+    const activeStop = mappedStops.find((stop) => stop.id === activeStopId) ?? firstPendingStop(mappedStops, phase);
     const upcomingStops = mappedStops.filter((stop) => upcomingStopIdSet.has(stop.id));
     updateViewport(mapRef.current, activeStop, upcomingStops, displayPosition, leafletRef.current);
     mapRef.current.invalidateSize({ pan: false });
-  }, [activeStopId, mappedStops, upcomingStopIdSet, displayPosition]);
+  }, [activeStopId, mappedStops, upcomingStopIdSet, displayPosition, phase]);
 
   if (mapLoadFailed) {
     return (

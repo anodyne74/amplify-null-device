@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { callApi } from '@/lib/apiClient';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/administrator/components/PageHeader';
@@ -12,14 +13,13 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listOperatorPayouts } from '@/lib/queries/ListOperatorPayouts';
 import { createOperatorPayout } from '@/lib/queries/CreateOperatorPayout';
 import { updateOperatorPayout } from '@/lib/queries/UpdateOperatorPayout';
-import { getCustomer } from '@/lib/queries';
 import { computeDriverSplit, type DriverSplitResult } from '@/lib/driverSplit';
 import type { Customer, OperatorPayout, OperatorPayoutStatus } from '@/amplify/types';
 import styles from './page.module.css';
+import { listAllCustomers, getCustomer } from '@/lib/customers';
 
 type StatusFilter = 'all' | OperatorPayoutStatus;
 
@@ -38,9 +38,19 @@ function operatorLabel(operatorSub: string, operatorName?: string) {
   return operatorName || `Operator ${operatorSub.slice(0, 8)}`;
 }
 
+async function fetchDriverNamesBySub(): Promise<Map<string, string>> {
+  const payload = await callApi<{ users?: Array<{ sub?: string; name?: string }> }>('/api/admin/users', {
+    action: 'listUsersInGroup',
+    groupName: 'operator',
+  });
+  const users = payload.users || [];
+  return new Map(users.filter((u): u is { sub: string; name: string } => Boolean(u.sub && u.name)).map((u) => [u.sub, u.name]));
+}
+
 export default function AdministratorPayoutsPage() {
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
   const [payouts, setPayouts] = useState<OperatorPayout[]>([]);
+  const [driverNamesBySub, setDriverNamesBySub] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -56,22 +66,30 @@ export default function AdministratorPayoutsPage() {
   const [creatingPayouts, setCreatingPayouts] = useState(false);
 
   const fetchPayouts = async () => {
-    const result = await listOperatorPayouts();
-    setPayouts((result.data as OperatorPayout[]) || []);
+    try {
+      setPayouts((await listOperatorPayouts()) as unknown as OperatorPayout[]);
+    } catch {
+      setError('Could not load payouts.');
+    }
   };
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
 
-    Promise.all([listAllCustomers({ limit: 200 }), listOperatorPayouts()]).then(([customerResult, payoutResult]) => {
-      if (cancelled) return;
-      const customerList = (customerResult.data as { id: string; name: string }[]) || [];
-      setCustomers(customerList);
-      if (customerList.length > 0) setCreateCustomerId(customerList[0].id);
-      setPayouts((payoutResult.data as OperatorPayout[]) || []);
-      setLoading(false);
-    });
+    // Best-effort: without names, payouts fall back to operatorLabel()'s short sub.
+    Promise.all([listAllCustomers().catch(() => []), listOperatorPayouts().catch(() => null), fetchDriverNamesBySub().catch(() => new Map<string, string>())]).then(
+      ([customerResult, payoutResult, driverNames]) => {
+        if (cancelled) return;
+        const customerList = customerResult as { id: string; name: string }[];
+        setCustomers(customerList);
+        if (customerList.length > 0) setCreateCustomerId(customerList[0].id);
+        if (payoutResult) setPayouts(payoutResult as unknown as OperatorPayout[]);
+        else setError('Could not load payouts.');
+        setDriverNamesBySub(driverNames);
+        setLoading(false);
+      }
+    );
 
     return () => {
       cancelled = true;
@@ -88,22 +106,28 @@ export default function AdministratorPayoutsPage() {
     setPreviewError(null);
     setPreview(null);
 
-    const customerResult = await getCustomer(createCustomerId);
-    const customer = customerResult.data as Customer | null;
+    const customer = (await getCustomer(createCustomerId).catch(() => null)) as Customer | null;
     if (!customer) {
       setPreviewError('Could not load that customer.');
       setPreviewLoading(false);
       return;
     }
 
-    const result = await computeDriverSplit({
-      customerId: createCustomerId,
-      billingRatePerHour: customer.billingRatePerHour || 0,
-      driverSplitPercent: customer.driverSplitPercent || 0,
-      paySplitOnCompletedStopsOnly: customer.paySplitOnCompletedStopsOnly ?? false,
-      periodStartDate: periodStart,
-      periodEndDate: periodEnd,
-    });
+    let result: Awaited<ReturnType<typeof computeDriverSplit>>;
+    try {
+      result = await computeDriverSplit({
+        customerId: createCustomerId,
+        billingRatePerHour: customer.billingRatePerHour || 0,
+        driverSplitPercent: customer.driverSplitPercent || 0,
+        paySplitOnCompletedStopsOnly: customer.paySplitOnCompletedStopsOnly ?? false,
+        periodStartDate: periodStart,
+        periodEndDate: periodEnd,
+      });
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : 'Could not compute the operator split.');
+      setPreviewLoading(false);
+      return;
+    }
 
     if (result.byOperator.length === 0) {
       setPreviewError('No completed routes for that customer in this period.');
@@ -121,7 +145,7 @@ export default function AdministratorPayoutsPage() {
     setCreatingPayouts(true);
     setPreviewError(null);
 
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       payableOperators.map((o) =>
         createOperatorPayout({
           operatorSub: o.operatorSub,
@@ -134,7 +158,7 @@ export default function AdministratorPayoutsPage() {
       )
     );
 
-    if (results.some((r) => r.errors && r.errors.length > 0)) {
+    if (results.some((r) => r.status === 'rejected')) {
       setPreviewError('Some payouts could not be created.');
     }
 
@@ -145,12 +169,12 @@ export default function AdministratorPayoutsPage() {
 
   const handleMarkPaid = async (payoutId: string) => {
     setMarkingPaidId(payoutId);
-    const result = await updateOperatorPayout(payoutId, { status: 'paid', paidAt: new Date().toISOString() });
-    if (!result.errors || result.errors.length === 0) {
+    try {
+      await updateOperatorPayout(payoutId, { status: 'paid', paidAt: new Date().toISOString() });
       setPayouts((prev) =>
         prev.map((p) => (p.id === payoutId ? { ...p, status: 'paid', paidAt: new Date().toISOString() } : p))
       );
-    } else {
+    } catch {
       setError('Could not mark payout as paid.');
     }
     setMarkingPaidId(null);
@@ -158,7 +182,7 @@ export default function AdministratorPayoutsPage() {
 
   const columns: DataColumn<OperatorPayout>[] = [
     { key: 'customer', header: 'Customer', render: (row) => customerName(row.customerId) },
-    { key: 'operator', header: 'Operator', render: (row) => operatorLabel(row.operatorSub) },
+    { key: 'operator', header: 'Operator', render: (row) => operatorLabel(row.operatorSub, driverNamesBySub.get(row.operatorSub)) },
     {
       key: 'period',
       header: 'Period',
@@ -197,7 +221,7 @@ export default function AdministratorPayoutsPage() {
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
-        <PageHeader title="Payouts" subtitle="Driver-split payouts by customer and operator" />
+        <PageHeader title="Payouts" subtitle="Operator-split payouts by customer and operator" />
 
         {error && <div className={styles.errorBanner} role="alert" aria-live="assertive">{error}</div>}
 
@@ -260,7 +284,9 @@ export default function AdministratorPayoutsPage() {
               <div className={styles.previewTable}>
                 {preview.byOperator.map((o) => (
                   <div key={o.operatorSub} className={styles.previewRow}>
-                    <span className={styles.previewRowLabel}>{operatorLabel(o.operatorSub, o.operatorName)}</span>
+                    <span className={styles.previewRowLabel}>
+                      {operatorLabel(o.operatorSub, driverNamesBySub.get(o.operatorSub) || o.operatorName)}
+                    </span>
                     <span className={styles.previewRowMeta}>{o.stopCount} stops · {formatMoney(o.billedAmount)} billed</span>
                     <span className={styles.previewRowAmount}>{formatMoney(o.driverShare)}</span>
                   </div>

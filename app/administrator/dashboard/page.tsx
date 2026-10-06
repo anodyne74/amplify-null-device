@@ -1,11 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
-import { listAllStops } from '@/lib/queries/ListAllStops';
-import { listInvoices, listCustomerUsers } from '@/lib/queries';
 import type { Route } from '@/amplify/types';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PageHeader from '@/app/administrator/components/PageHeader';
@@ -30,6 +25,9 @@ import {
   type OverviewCustomerUser,
 } from '@/lib/adminDashboardOverview';
 import styles from './page.module.css';
+import { listAllRoutes, listAllStops } from '@/lib/routes';
+import { listAllCustomers, listCustomerUsers } from '@/lib/customers';
+import { listInvoices } from '@/lib/invoices';
 
 type Invoice = {
   id: string;
@@ -54,9 +52,10 @@ type StopSummary = {
 
 const ROUTE_STATUS_META: Record<OrderedRouteStatus, { label: string; tone: BadgeProps['tone'] }> = {
   planned: { label: 'Planned', tone: 'neutral' },
-  in_progress: { label: 'In progress', tone: 'info' },
+  signs_loaded: { label: 'Signs loaded', tone: 'info' },
   signs_placed: { label: 'Signs placed', tone: 'brand' },
   signs_picked_up: { label: 'Signs picked up', tone: 'warning' },
+  signs_returned: { label: 'Signs returned', tone: 'warning' },
   completed: { label: 'Completed', tone: 'success' },
 };
 
@@ -94,106 +93,29 @@ export default function AdminHomePage() {
     async function loadDashboard() {
       setLoading(true);
       try {
-        const fetchAllRoutes = async () => {
-          const allRoutes: Route[] = [];
-          let nextToken: string | undefined;
-
-          do {
-            const pageResult = await listAllRoutes({ limit: 500, nextToken });
-            if (pageResult.errors && pageResult.errors.length > 0) {
-              return { data: [] as Route[], errors: pageResult.errors };
-            }
-
-            allRoutes.push(...((pageResult.data as Route[]) || []));
-            nextToken = pageResult.nextToken ?? undefined;
-          } while (nextToken);
-
-          return { data: allRoutes, errors: undefined };
-        };
-
-        const fetchAllInvoices = async () => {
-          const allInvoices: Invoice[] = [];
-          let nextToken: string | undefined;
-
-          do {
-            const pageResult = await listInvoices({ limit: 500, nextToken });
-            if (pageResult.errors && pageResult.errors.length > 0) {
-              return { data: [] as Invoice[], errors: pageResult.errors };
-            }
-
-            allInvoices.push(...((pageResult.data as Invoice[]) || []));
-            nextToken = pageResult.nextToken ?? undefined;
-          } while (nextToken);
-
-          return { data: allInvoices, errors: undefined };
-        };
-
-        const fetchAllCustomers = async () => {
-          const client = generateClient<Schema>();
-          const allCustomers: CustomerSummary[] = [];
-          let nextToken: string | undefined;
-
-          do {
-            const pageResult = await client.models.Customer.list({ limit: 200, nextToken });
-            if (pageResult.errors && pageResult.errors.length > 0) {
-              return { data: [] as CustomerSummary[], errors: pageResult.errors };
-            }
-
-            allCustomers.push(...((pageResult.data as CustomerSummary[]) ?? []));
-            nextToken = pageResult.nextToken ?? undefined;
-          } while (nextToken);
-
-          return { data: allCustomers, errors: undefined };
-        };
-
-        const fetchAllStops = async () => {
-          const allStops: StopSummary[] = [];
-          let nextToken: string | undefined;
-
-          do {
-            const pageResult = await listAllStops({ limit: 500, nextToken });
-            if (pageResult.errors && pageResult.errors.length > 0) {
-              return { data: [] as StopSummary[], errors: pageResult.errors };
-            }
-
-            allStops.push(...((pageResult.data as StopSummary[]) || []));
-            nextToken = pageResult.nextToken ?? undefined;
-          } while (nextToken);
-
-          return { data: allStops, errors: undefined };
-        };
-
         const [routeResult, invoiceResult, customerResult, stopResult] = await Promise.all([
-          fetchAllRoutes(),
-          fetchAllInvoices(),
-          fetchAllCustomers(),
-          fetchAllStops(),
+          listAllRoutes().catch(() => null),
+          listInvoices().catch(() => null),
+          listAllCustomers().catch(() => null),
+          listAllStops().catch(() => null),
         ]);
 
-        if (!routeResult.errors || routeResult.errors.length === 0) {
-          setRoutes((routeResult.data as Route[]) || []);
-        }
-        if (!invoiceResult.errors || invoiceResult.errors.length === 0) {
-          setInvoices((invoiceResult.data as Invoice[]) || []);
-        }
-        if (!stopResult.errors || stopResult.errors.length === 0) {
-          setStops((stopResult.data as StopSummary[]) || []);
-        }
+        if (routeResult) setRoutes(routeResult as unknown as Route[]);
+        if (invoiceResult) setInvoices(invoiceResult as Invoice[]);
+        if (stopResult) setStops(stopResult as StopSummary[]);
 
         let loadedCustomers: CustomerSummary[] = [];
-        if (!customerResult.errors || customerResult.errors.length === 0) {
-          loadedCustomers = customerResult.data ?? [];
+        if (customerResult) {
+          loadedCustomers = customerResult as CustomerSummary[];
           setCustomers(loadedCustomers);
         }
 
         // Account-owner presence is only knowable per customer — fan out once customer ids are known.
         if (loadedCustomers.length > 0) {
-          const userResults = await Promise.all(loadedCustomers.map((customer) => listCustomerUsers(customer.id)));
-          const allUsers: OverviewCustomerUser[] = userResults.flatMap((result) =>
-            !result.errors || (result.errors as unknown[]).length === 0
-              ? ((result.data ?? []) as OverviewCustomerUser[])
-              : []
+          const userLists = await Promise.all(
+            loadedCustomers.map((customer) => listCustomerUsers(customer.id).catch(() => []))
           );
+          const allUsers = userLists.flat() as OverviewCustomerUser[];
           setCustomerUsers(allUsers);
         }
       } catch { /* dashboard stats are best-effort */ }

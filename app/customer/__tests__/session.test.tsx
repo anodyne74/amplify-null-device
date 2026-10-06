@@ -4,8 +4,8 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CustomerLayout from '../layout';
 import { useRouter } from 'next/navigation';
-import { useAuthenticator } from '@aws-amplify/ui-react';
-import { getCustomerPortalContext } from '@/lib/queries';
+import { signOut } from 'aws-amplify/auth';
+import { getCustomerPortalContext } from '@/lib/customers';
 
 // Mock the router
 jest.mock('next/navigation', () => ({
@@ -13,20 +13,19 @@ jest.mock('next/navigation', () => ({
   usePathname: jest.fn(() => '/customer/dashboard'),
 }));
 
-// Mock the authenticator
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: jest.fn(),
-  Authenticator: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+// Mock the authentication
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => 'test-user-id',
 }));
 
 jest.mock('aws-amplify/auth', () => ({
-  fetchAuthSession: jest.fn(async () => ({
-    tokens: {
-      idToken: {
-        toString: () => 'test-token',
-      },
-    },
-  })),
+  // useLogout() calls this directly rather than going through
+  // useAuthenticator() -- see app/auth/sessionManager.ts for why.
+  signOut: jest.fn(),
+}));
+
+jest.mock('@/lib/apiClient', () => ({
+  callApi: jest.fn(async () => ({})),
 }));
 
 // Mock the ProtectedRoute component
@@ -39,19 +38,13 @@ jest.mock('@/app/components/ProtectedRoute', () => {
 // Mock utilities
 jest.mock('@/lib/amplify-config', () => ({
   getUserEmail: jest.fn(() => 'test@example.com'),
-  getUserDisplayName: jest.fn(() => 'test@example.com'),
+  fetchUserDisplayName: jest.fn(() => Promise.resolve('test@example.com')),
   getUserGroups: jest.fn(() => ['customer']),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomerPortalContext: jest.fn(),
 }));
-
-jest.mock('@/app/components/ThemeModeSelect', () => {
-  return function MockThemeModeSelect() {
-    return null;
-  };
-});
 
 jest.mock('@/app/components/AmplifyThemeProvider', () => ({
   useThemeMode: () => ({ mode: 'system', resolvedMode: 'dark', setMode: jest.fn() }),
@@ -65,24 +58,11 @@ describe('Customer Session Management Integration', () => {
     jest.clearAllMocks();
 
     mockPush = jest.fn();
-    mockSignOut = jest.fn().mockResolvedValue(undefined);
+    mockSignOut = signOut as jest.Mock;
+    mockSignOut.mockResolvedValue(undefined);
 
     (useRouter as jest.Mock).mockReturnValue({
       push: mockPush,
-    });
-
-    (useAuthenticator as jest.Mock).mockReturnValue({
-      signOut: mockSignOut,
-      user: {
-        userId: 'test-user-id',
-        signInUserSession: {
-          idToken: {
-            payload: {
-              email: 'test@example.com',
-            },
-          },
-        },
-      },
     });
 
     (getCustomerPortalContext as jest.Mock).mockResolvedValue({
@@ -184,14 +164,16 @@ describe('Customer Session Management Integration', () => {
     expect(mockSignOut).not.toHaveBeenCalled();
   });
 
-  it('displays user email in sidebar', () => {
+  it('displays user email in sidebar', async () => {
     render(
       <CustomerLayout>
         <div>Test Content</div>
       </CustomerLayout>
     );
 
-    expect(screen.getByText(/test@example.com/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/test@example.com/)).toBeInTheDocument();
+    });
   });
 
   it('shows navigation links', () => {

@@ -4,9 +4,10 @@ import dynamic from 'next/dynamic';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { callApi } from '@/lib/apiClient';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
+import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { StopForm } from '@/app/operator/components/StopForm';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
@@ -15,14 +16,19 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
 import { geocodeAddress } from '@/lib/googleMaps';
-import { getRouteDetail } from '@/lib/queries/GetRouteDetail';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { createStop, getRouteWithStops, getUserSettings, updateRoute } from '@/lib/queries';
-import { deleteStop } from '@/lib/queries/DeleteStop';
-import { updateStop } from '@/lib/queries/UpdateStop';
+import type { StopFormValues } from '@/lib/use-route-detail-data';
+import { getUserSettings } from '@/lib/userSettings';
 import type { Route, Stop } from '@/amplify/types';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
+import { getRouteWithStops, updateRoute, deleteStop, saveStop, resequenceStops, UNPINNED_STOP_NOTICE, saveStopFailure } from '@/lib/routes';
+import { listAllCustomers } from '@/lib/customers';
+import { activeStops } from '@/lib/loadChange';
+import { notifyOperatorOutcome, type NotifyOperatorResult } from '@/lib/notifyOperatorOutcome';
+import { changePickupDate } from '@/lib/administratorRouteActions';
+import { pickupDateProblem } from '@/lib/pickupDate';
+import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
+import { useNoOperatorsWarning } from '@/lib/useNoOperatorsWarning';
 
 type CustomerOption = {
   id: string;
@@ -40,29 +46,6 @@ type OperatorOption = {
   name: string;
   email: string;
 };
-
-async function callAdminApi(body: Record<string, unknown>) {
-  const session = await fetchAuthSession();
-  const idToken = session.tokens?.idToken?.toString();
-  if (!idToken) {
-    throw new Error('No session token found. Please sign in again.');
-  }
-
-  const response = await fetch('/api/admin/users', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${idToken}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload?.error || 'Request failed.');
-  }
-  return payload;
-}
 
 const RouteStopsMap = dynamic(
   () => import('@/app/operator/components/RouteStopsMap').then((mod) => mod.RouteStopsMap),
@@ -91,10 +74,17 @@ function RouteEditContent() {
   const [dragOverStopId, setDragOverStopId] = useState<string | null>(null);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [stopError, setStopError] = useState<string | null>(null);
+  const [stopNotice, setStopNotice] = useState<string | null>(null);
+  const [stopPendingDelete, setStopPendingDelete] = useState<Stop | null>(null);
 
   const [routeCode, setRouteCode] = useState('');
   const [customerId, setCustomerId] = useState('');
   const [notes, setNotes] = useState('');
+  const [pickupDate, setPickupDate] = useState('');
+  // The Pickup Date as last saved, and the Placement Date it can't come before:
+  // a changed Pickup Date is saved through its own audited action.
+  const [savedPickupDate, setSavedPickupDate] = useState('');
+  const [placementDate, setPlacementDate] = useState('');
   const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapTheme, setMapTheme] = useState<MapTheme>('light');
 
@@ -104,15 +94,13 @@ function RouteEditContent() {
   const [savedAssignedOperatorEmail, setSavedAssignedOperatorEmail] = useState<string | null>(null);
   const [notifying, setNotifying] = useState(false);
   const [notifyError, setNotifyError] = useState<string | null>(null);
-  const [notifySuccess, setNotifySuccess] = useState<string | null>(null);
+  const [notifyOutcome, setNotifyOutcome] = useState<ReturnType<typeof notifyOperatorOutcome> | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
   const fetchStops = useCallback(async () => {
     if (!routeId) return;
-    const { stops: allStops, errors } = await getRouteWithStops(routeId);
-
-    if (!errors || errors.length === 0) {
-      setStops(allStops as Stop[]);
-    }
+    const routeWithStops = await getRouteWithStops(routeId).catch(() => null);
+    if (routeWithStops) setStops(activeStops(routeWithStops.stops) as unknown as Stop[]);
   }, [routeId]);
 
   const persistStopOrder = useCallback(async (orderedStops: Stop[]) => {
@@ -125,16 +113,9 @@ function RouteEditContent() {
     }));
     setStops(resequenced);
 
-    const updates = await Promise.all(
-      resequenced.map((stop) =>
-        updateStop({
-          id: stop.id,
-          sequence: stop.sequence,
-        })
-      )
-    );
-
-    if (updates.some((result) => result.errors && result.errors.length > 0)) {
+    try {
+      await resequenceStops(resequenced.map((stop) => stop.id));
+    } catch {
       setStopError('Failed to save stop order. Reloading latest order.');
       await fetchStops();
     }
@@ -154,35 +135,41 @@ function RouteEditContent() {
       setError(null);
 
       const [routeResult, customersResult, operatorsResult] = await Promise.all([
-        getRouteDetail(routeId),
-        listAllCustomers({ limit: 200 }),
-        callAdminApi({ action: 'listUsersInGroup', groupName: 'operator' }).catch(() => ({ users: [] })),
+        getRouteWithStops(routeId).catch(() => null),
+        listAllCustomers().catch(() => null),
+        callApi<{ users?: Array<{ sub?: string; name?: string; email?: string }> }>('/api/admin/users', {
+          action: 'listUsersInGroup',
+          groupName: 'operator',
+        }).catch(() => ({ users: [] })),
       ]);
 
-      if (routeResult.errors || !routeResult.data) {
+      if (!routeResult) {
         setError('Failed to load route.');
         setLoading(false);
         return;
       }
 
-      const route = routeResult.data as unknown as Route;
+      const route = routeResult.route as unknown as Route;
       setRouteCode(route.routeCode || route.id.slice(0, 8));
       setCustomerId(route.customerId);
       setNotes(route.notes || '');
+      setPickupDate(route.pickupDate || '');
+      setSavedPickupDate(route.pickupDate || '');
+      setPlacementDate(route.scheduledDate || '');
       setAssignedOperatorSub(route.assignedOperatorSub || '');
       setInitialAssignedOperatorSub(route.assignedOperatorSub || '');
       setSavedAssignedOperatorEmail(route.assignedOperatorEmail || null);
 
-      const operatorUsers = (operatorsResult.users as Array<{ sub?: string; name?: string; email?: string }> | undefined) || [];
+      const operatorUsers = operatorsResult.users || [];
       setOperators(
         operatorUsers
           .filter((u): u is { sub: string; name: string; email: string } => Boolean(u.sub && u.email))
           .map((u) => ({ sub: u.sub, name: u.name || u.email, email: u.email }))
       );
 
-      if (!customersResult.errors || customersResult.errors.length === 0) {
+      if (customersResult) {
         setCustomers(
-          (customersResult.data as CustomerOption[]).map((c) => ({
+          (customersResult as CustomerOption[]).map((c) => ({
             id: c.id,
             name: c.name,
             email: c.email,
@@ -195,13 +182,14 @@ function RouteEditContent() {
         );
       }
 
-      await fetchStops();
+      // A Stop a Load Change removed is restored from the Route's page, not planned here.
+      setStops(activeStops(routeResult.stops) as unknown as Stop[]);
 
       setLoading(false);
     }
 
     void load();
-  }, [routeId, fetchStops]);
+  }, [routeId]);
 
   useEffect(() => {
     const selected = customers.find((c) => c.id === customerId);
@@ -234,9 +222,9 @@ function RouteEditContent() {
     let cancelled = false;
 
     void getUserSettings(user.userId)
-      .then((result) => {
-        if (cancelled || !result.data?.mapTheme) return;
-        setMapTheme(result.data.mapTheme as MapTheme);
+      .then((settings) => {
+        if (cancelled || !settings?.mapTheme) return;
+        setMapTheme(settings.mapTheme as MapTheme);
       })
       .catch(() => {
         // Non-blocking: map defaults to light.
@@ -260,6 +248,8 @@ function RouteEditContent() {
     setSelectedStopId(stops[0].id);
   }, [selectedStopId, stops]);
 
+  const pickupDateChanged = pickupDate !== savedPickupDate;
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!routeId || !customerId) {
@@ -271,8 +261,16 @@ function RouteEditContent() {
       return;
     }
 
+    // Checked before anything is written, so a bad date never leaves the rest half-saved.
+    const pickupProblem = pickupDateChanged ? pickupDateProblem(placementDate, pickupDate) : null;
+    if (pickupProblem) {
+      setError(pickupProblem);
+      return;
+    }
+
     setSaving(true);
     setError(null);
+    setSaveSuccess(null);
 
     const selectedOperator = operators.find((op) => op.sub === assignedOperatorSub);
     const assignmentChanged = assignedOperatorSub !== initialAssignedOperatorSub;
@@ -290,42 +288,60 @@ function RouteEditContent() {
     });
 
     if (result.errors && result.errors.length > 0) {
-      setError('Failed to update route.');
       setSaving(false);
+      setError('Failed to update route.');
       return;
     }
 
-    router.push(`/administrator/routes/detail?id=${routeId}`);
+    let pickupSaveError: string | null = null;
+    if (pickupDateChanged) {
+      const pickupResult = await changePickupDate(
+        { id: routeId, customerId, scheduledDate: placementDate, pickupDate: savedPickupDate },
+        pickupDate
+      );
+      if (pickupResult.ok || pickupResult.saved) setSavedPickupDate(pickupDate);
+      if (!pickupResult.ok) {
+        pickupSaveError = pickupResult.saved
+          ? pickupResult.error
+          : `The rest of the route was saved, but not the pickup date: ${pickupResult.error}`;
+      }
+    }
+
+    setSaving(false);
+
+    // Reflect the assignment that was just persisted so "Notify Operator"
+    // becomes available immediately — previously this only ever reflected
+    // the route as it was when the page first loaded (#267), and the admin
+    // had to leave and re-open the edit screen to notify a newly-assigned
+    // operator.
+    setSavedAssignedOperatorEmail(selectedOperator?.email || null);
+    setInitialAssignedOperatorSub(selectedOperator?.sub || '');
+    if (pickupSaveError) setError(pickupSaveError);
+    else setSaveSuccess('Route saved.');
   };
+
+  // Warn only about a Pickup Date that differs from the one already saved.
+  const noOperatorsOnPickup = useNoOperatorsWarning(customerId, pickupDateChanged ? pickupDate : '', checkRouteDateBlocked);
+
+  // Notify Operator only works for an assignment that's been saved (#267), and a
+  // disabled button can't show a tooltip, so say why underneath it.
+  const assignmentSaved = Boolean(savedAssignedOperatorEmail);
+  let notifyHint: string | null = null;
+  if (!assignmentSaved) {
+    notifyHint = assignedOperatorSub
+      ? 'Save changes to enable Notify Operator.'
+      : 'Assign an operator and save changes to enable Notify Operator.';
+  }
 
   const handleNotifyOperator = async () => {
     if (!routeId) return;
     setNotifying(true);
     setNotifyError(null);
-    setNotifySuccess(null);
+    setNotifyOutcome(null);
 
     try {
-      const session = await fetchAuthSession();
-      const idToken = session.tokens?.idToken?.toString();
-      if (!idToken) {
-        throw new Error('No session token found. Please sign in again.');
-      }
-
-      const response = await fetch('/api/admin/send-job-assigned-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ routeId }),
-      });
-
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to notify operator.');
-      }
-
-      setNotifySuccess(`Notified ${payload.sentTo}.`);
+      const payload = await callApi<NotifyOperatorResult>('/api/admin/send-job-assigned-email', { routeId });
+      setNotifyOutcome(notifyOperatorOutcome(payload));
     } catch (err) {
       setNotifyError(err instanceof Error ? err.message : 'Failed to notify operator.');
     }
@@ -333,133 +349,60 @@ function RouteEditContent() {
     setNotifying(false);
   };
 
-  const handleAddStop = async (values: {
-    address: string;
-    serviceType: 'delivery' | 'pickup' | 'inspection';
-    numberOfSigns?: number;
-    agent?: string;
-    isAuction?: boolean;
-    notes?: string;
-    latitude?: number;
-    longitude?: number;
-    formattedAddress?: string;
-  }) => {
+  const handleAddStop = async (values: StopFormValues) => {
     if (!routeId || !customerId) return;
 
     setStopSaving(true);
     setStopError(null);
+    setStopNotice(null);
     try {
-      let lat = values.latitude;
-      let lng = values.longitude;
-      let formatted = values.formattedAddress ?? values.address;
-
-      if (lat === undefined || lng === undefined) {
-        const geocoded = await geocodeAddress(values.address);
-        lat = geocoded.latitude;
-        lng = geocoded.longitude;
-        formatted = geocoded.formattedAddress;
-      }
-
-      const result = await createStop({
-        routeId,
-        customerId,
-        sequence: stops.length + 1,
-        address: values.address,
-        formattedAddress: formatted,
-        latitude: lat,
-        longitude: lng,
-        serviceType: values.serviceType,
-        numberOfSigns: values.numberOfSigns,
-        agent: values.agent,
-        isAuction: values.isAuction,
-        notes: values.notes,
-      });
-
-      if (result.errors && result.errors.length > 0) {
-        setStopError('Failed to add stop.');
-      } else {
-        setShowAddStop(false);
-        await fetchStops();
-      }
-    } catch {
-      setStopError('Failed to add stop.');
+      const { pinned } = await saveStop({ routeId, customerId, sequence: stops.length + 1 }, values);
+      if (!pinned) setStopNotice(UNPINNED_STOP_NOTICE);
+      setShowAddStop(false);
+      await fetchStops();
+    } catch (error) {
+      setStopError(saveStopFailure(error, 'Failed to add stop.'));
     }
     setStopSaving(false);
   };
 
-  const handleEditStop = async (values: {
-    address: string;
-    serviceType: 'delivery' | 'pickup' | 'inspection';
-    numberOfSigns?: number;
-    agent?: string;
-    isAuction?: boolean;
-    notes?: string;
-    latitude?: number;
-    longitude?: number;
-    formattedAddress?: string;
-  }) => {
+  const handleEditStop = async (values: StopFormValues) => {
     if (!editingStopId) return;
 
     setStopSaving(true);
     setStopError(null);
+    setStopNotice(null);
+    const original = stops.find((s) => s.id === editingStopId) ?? { id: editingStopId };
     try {
-      let lat = values.latitude;
-      let lng = values.longitude;
-      let formatted = values.formattedAddress ?? values.address;
-
-      if (lat === undefined || lng === undefined) {
-        const geocoded = await geocodeAddress(values.address);
-        lat = geocoded.latitude;
-        lng = geocoded.longitude;
-        formatted = geocoded.formattedAddress;
-      }
-
-      const result = await updateStop({
-        id: editingStopId,
-        address: values.address,
-        formattedAddress: formatted,
-        latitude: lat,
-        longitude: lng,
-        serviceType: values.serviceType,
-        numberOfSigns: values.numberOfSigns,
-        agent: values.agent,
-        isAuction: values.isAuction,
-        notes: values.notes,
-      });
-
-      if (result.errors && result.errors.length > 0) {
-        setStopError('Failed to update stop.');
-      } else {
-        setEditingStopId(null);
-        await fetchStops();
-      }
-    } catch {
-      setStopError('Failed to update stop.');
+      const { pinned } = await saveStop({ original }, values);
+      if (!pinned) setStopNotice(UNPINNED_STOP_NOTICE);
+      setEditingStopId(null);
+      await fetchStops();
+    } catch (error) {
+      setStopError(saveStopFailure(error, 'Failed to update stop.'));
     }
     setStopSaving(false);
   };
 
   const handleDeleteStop = async (stopId: string) => {
     if (stopSaving) return;
-    const stop = stops.find((s) => s.id === stopId);
-    const confirmed = window.confirm(
-      `Delete stop${stop?.address ? ` at ${stop.address}` : ''}?`
-    );
-    if (!confirmed) return;
 
     setStopSaving(true);
     setStopError(null);
 
-    const result = await deleteStop(stopId);
-    if (result.errors && result.errors.length > 0) {
+    try {
+      await deleteStop(stopId);
+    } catch {
       setStopError('Failed to delete stop.');
       setStopSaving(false);
+      setStopPendingDelete(null);
       return;
     }
 
     const remaining = stops.filter((stop) => stop.id !== stopId);
     await persistStopOrder(remaining);
     setStopSaving(false);
+    setStopPendingDelete(null);
   };
 
   const handleDropStop = async (targetId: string) => {
@@ -543,6 +486,16 @@ function RouteEditContent() {
               </Select>
             </Field>
 
+            <Field label="Pickup Date" htmlFor="pickupDate" hint={noOperatorsOnPickup}>
+              <Input
+                id="pickupDate"
+                type="date"
+                value={pickupDate}
+                onChange={(e) => setPickupDate(e.target.value)}
+                disabled={saving}
+              />
+            </Field>
+
             <Field label="Notes" htmlFor="notes">
               <Input
                 id="notes"
@@ -581,20 +534,28 @@ function RouteEditContent() {
               onClick={() => router.push(`/administrator/routes/detail?id=${routeId}`)}
               disabled={saving}
             >
-              Cancel
+              Close
             </Button>
             <Button
               type="button"
               variant="secondary"
               onClick={() => { void handleNotifyOperator(); }}
               loading={notifying}
-              disabled={notifying || !savedAssignedOperatorEmail}
+              disabled={notifying || !assignmentSaved}
+              aria-describedby={notifyHint ? 'notify-operator-hint' : undefined}
             >
               {notifying ? 'Notifying...' : 'Notify Operator'}
             </Button>
           </div>
+          {notifyHint && (
+            <p id="notify-operator-hint" className={styles.actionsHint}>
+              {notifyHint}
+            </p>
+          )}
+          {saveSuccess && <p className={styles.successText}>{saveSuccess}</p>}
           {notifyError && <div className={styles.errorBanner}>{notifyError}</div>}
-          {notifySuccess && <p className={styles.successText}>{notifySuccess}</p>}
+          {notifyOutcome?.tone === 'success' && <p className={styles.successText}>{notifyOutcome.message}</p>}
+          {notifyOutcome?.tone === 'warning' && <div className={styles.noticeBanner}>{notifyOutcome.message}</div>}
         </form>
       </Card>
 
@@ -615,6 +576,7 @@ function RouteEditContent() {
         </div>
 
         {stopError && <div className={styles.errorBanner}>{stopError}</div>}
+        {stopNotice && <div className={styles.noticeBanner} role="status">{stopNotice}</div>}
         {reordering && <p className={styles.reorderingText}>Saving stop order...</p>}
         {!reordering && stops.length > 1 && (
           <p className={styles.dragHint}>Drag cards to reorder stops</p>
@@ -651,7 +613,6 @@ function RouteEditContent() {
                         <StopForm
                           initialValues={{
                             address: stop.address,
-                            serviceType: stop.serviceType as 'delivery' | 'pickup' | 'inspection' | undefined,
                             numberOfSigns: stop.numberOfSigns ?? undefined,
                             agent: stop.agent ?? undefined,
                             isAuction: Boolean(stop.isAuction),
@@ -697,7 +658,6 @@ function RouteEditContent() {
                       <div className={styles.stopSequence}>{stop.sequence ?? index + 1}</div>
                       <div className={styles.stopBody}>
                         <div className={styles.stopAddress}>{stop.formattedAddress || stop.address || 'Unknown address'}</div>
-                        <div className={styles.stopMeta}>{stop.serviceType || 'delivery'}</div>
                         {typeof stop.numberOfSigns === 'number' && (
                           <div className={styles.stopDetail}>Signs: {stop.numberOfSigns}</div>
                         )}
@@ -747,12 +707,10 @@ function RouteEditContent() {
                           type="button"
                           size="sm"
                           variant="danger"
-                          onClick={() => {
-                            void handleDeleteStop(stop.id);
-                          }}
+                          onClick={() => setStopPendingDelete(stop)}
                           disabled={stopSaving}
                         >
-                          {stopSaving ? 'Deleting...' : 'Delete'}
+                          Delete
                         </Button>
                       </div>
                     </div>
@@ -773,6 +731,21 @@ function RouteEditContent() {
           </aside>
         </div>
       </Card>
+
+      <ConfirmDialog
+        open={stopPendingDelete !== null}
+        title="Delete stop?"
+        message={`Delete stop${stopPendingDelete?.address ? ` at ${stopPendingDelete.address}` : ''}?`}
+        confirmLabel="Delete"
+        tone="danger"
+        busy={stopSaving}
+        onConfirm={() => {
+          if (stopPendingDelete) void handleDeleteStop(stopPendingDelete.id);
+        }}
+        onCancel={() => {
+          if (!stopSaving) setStopPendingDelete(null);
+        }}
+      />
     </div>
   );
 }

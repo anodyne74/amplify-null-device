@@ -24,16 +24,22 @@
   font-weight: var(--fw-bold);
 }
 
-.circleDelivery {
+.circleAwaiting {
   background: var(--indigo-600);
 }
 
-.circlePickup {
+.circlePlaced {
   background: var(--amber-600);
 }
 
-.circleInspection {
+.circlePickedUp {
   background: var(--neutral-600);
+}
+
+.circleMuted {
+  background: transparent;
+  border: 2px solid var(--border-default);
+  color: var(--text-subtle);
 }
 
 .body {

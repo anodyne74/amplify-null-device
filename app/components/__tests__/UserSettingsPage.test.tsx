@@ -2,16 +2,16 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
-const useAuthenticatorMock = jest.fn();
+const useCurrentUserIdMock = jest.fn();
 const setModeMock = jest.fn();
-const getUserDisplayNameMock = jest.fn();
+const fetchUserDisplayNameMock = jest.fn();
 const getUserSettingsMock = jest.fn();
 const upsertUserSettingsMock = jest.fn();
 const getCustomerPortalContextMock = jest.fn();
 const getCustomerMock = jest.fn();
 
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: () => useAuthenticatorMock(),
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => useCurrentUserIdMock(),
 }));
 
 jest.mock('@/app/components/AmplifyThemeProvider', () => ({
@@ -19,37 +19,36 @@ jest.mock('@/app/components/AmplifyThemeProvider', () => ({
 }));
 
 jest.mock('@/lib/amplify-config', () => ({
-  getUserDisplayName: (...args: unknown[]) => getUserDisplayNameMock(...args),
+  fetchUserDisplayName: (...args: unknown[]) => fetchUserDisplayNameMock(...args),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomer: (...args: unknown[]) => getCustomerMock(...args),
   getCustomerPortalContext: (...args: unknown[]) => getCustomerPortalContextMock(...args),
+}));
+
+jest.mock('@/lib/userSettings', () => ({
   getUserSettings: (...args: unknown[]) => getUserSettingsMock(...args),
   upsertUserSettings: (...args: unknown[]) => upsertUserSettingsMock(...args),
 }));
 
 import UserSettingsPage from '@/app/components/UserSettingsPage';
+import { DataError } from '@/lib/graphqlResult';
 
 describe('UserSettingsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useAuthenticatorMock.mockReturnValue({ user: { userId: 'user-1' } });
-    getUserDisplayNameMock.mockReturnValue('Fallback Name');
-    getUserSettingsMock.mockResolvedValue({ data: null, errors: undefined });
-    upsertUserSettingsMock.mockResolvedValue({ data: { id: 'settings-1' }, errors: undefined });
-    getCustomerPortalContextMock.mockResolvedValue({ role: 'read_only', customerId: 'customer-1', errors: undefined });
-    getCustomerMock.mockResolvedValue({ data: null, errors: undefined });
+    useCurrentUserIdMock.mockReturnValue('user-1');
+    fetchUserDisplayNameMock.mockResolvedValue('Fallback Name');
+    getUserSettingsMock.mockResolvedValue(null);
+    upsertUserSettingsMock.mockResolvedValue({ id: 'settings-1' });
   });
 
   it('loads and displays persisted settings for administrator', async () => {
     getUserSettingsMock.mockResolvedValue({
-      data: {
         name: 'Saved Name',
         defaultTheme: 'dark',
         mapTheme: 'satellite',
-      },
-      errors: undefined,
     });
 
     render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
@@ -59,20 +58,18 @@ describe('UserSettingsPage', () => {
     expect(screen.getByLabelText('Map Theme')).toHaveValue('satellite');
   });
 
-  it('applies the saved default theme on load, not just after saving (#80)', async () => {
-    getUserSettingsMock.mockResolvedValue({
-      data: { name: 'Saved Name', defaultTheme: 'light', mapTheme: 'light' },
-      errors: undefined,
-    });
+  it("leaves applying the saved default theme to the theme provider, so an in-session change isn't undone (#307)", async () => {
+    getUserSettingsMock.mockResolvedValue({ name: 'Saved Name', defaultTheme: 'dark', mapTheme: 'light' });
 
     render(<UserSettingsPage title="Settings" roleVariant="operator" />);
 
     await screen.findByDisplayValue('Saved Name');
-    expect(setModeMock).toHaveBeenCalledWith('light');
+    expect(screen.getByLabelText('Default Theme')).toBeChecked();
+    expect(setModeMock).not.toHaveBeenCalled();
   });
 
   it('does not force a theme mode when no settings have been saved yet', async () => {
-    getUserSettingsMock.mockResolvedValue({ data: null, errors: undefined });
+    getUserSettingsMock.mockResolvedValue(null);
 
     render(<UserSettingsPage title="Settings" roleVariant="operator" />);
 
@@ -105,39 +102,44 @@ describe('UserSettingsPage', () => {
 
     const toggle = screen.getByLabelText('Default Theme');
     expect(toggle).toHaveAttribute('role', 'switch');
-    expect(toggle).toBeChecked(); // defaults to dark
+    expect(toggle).not.toBeChecked(); // defaults to light (#307)
+    expect(screen.getByText('Light', { selector: 'span' })).toBeInTheDocument();
     expect(screen.queryByText('System')).not.toBeInTheDocument();
 
     fireEvent.click(toggle);
-    expect(toggle).not.toBeChecked();
+    expect(toggle).toBeChecked();
   });
 
-  it('shows customer settings only for account owners', async () => {
+  it('shows account owners only their user settings, with no Customer settings tab (#306)', async () => {
     getCustomerPortalContextMock.mockResolvedValue({ role: 'account_owner', customerId: 'customer-1', errors: undefined });
-    getCustomerMock.mockResolvedValue({
-      data: {
-        name: 'Acme Corp',
-        companyName: 'Acme Holdings',
-        email: 'accounts@acme.test',
-        addressLine1: '100 Main St',
-        standingInstructions: 'Place signs near the front gate.',
-      },
-      errors: undefined,
-    });
 
     render(<UserSettingsPage title="Settings" roleVariant="customer" />);
 
-    expect(await screen.findByRole('tab', { name: /customer settings/i })).toBeInTheDocument();
+    await screen.findByDisplayValue('Fallback Name');
 
-    fireEvent.click(screen.getByRole('tab', { name: /customer settings/i }));
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /customer settings/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Customer profile and preferences.')).toBeInTheDocument();
+    expect(getCustomerPortalContextMock).not.toHaveBeenCalled();
+    expect(getCustomerMock).not.toHaveBeenCalled();
+  });
 
-    expect(screen.getByText('Place signs near the front gate.')).toBeInTheDocument();
-    expect(screen.getByText('Acme Holdings')).toBeInTheDocument();
-    expect(screen.getByText('accounts@acme.test')).toBeInTheDocument();
+  it.each(['customer', 'operator'] as const)('saves settings for %s', async (roleVariant) => {
+    render(<UserSettingsPage title="Settings" roleVariant={roleVariant} />);
+
+    await screen.findByDisplayValue('Fallback Name');
+    fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }));
+
+    expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
+    expect(upsertUserSettingsMock).toHaveBeenCalledWith('user-1', {
+      name: 'Fallback Name',
+      defaultTheme: 'light',
+      mapTheme: 'light',
+    });
   });
 
   it('shows auth error when trying to save without a user', async () => {
-    useAuthenticatorMock.mockReturnValue({ user: null });
+    useCurrentUserIdMock.mockReturnValue(undefined);
 
     render(<UserSettingsPage title="Settings" roleVariant="customer" />);
 
@@ -147,17 +149,26 @@ describe('UserSettingsPage', () => {
     expect(upsertUserSettingsMock).not.toHaveBeenCalled();
   });
 
-  it('handles save success and save failure paths', async () => {
-    upsertUserSettingsMock
-      .mockResolvedValueOnce({ data: null, errors: [{ message: 'boom' }] })
-      .mockResolvedValueOnce({ data: { id: 'settings-1' }, errors: undefined });
+  it("won't save over settings it couldn't load", async () => {
+    getUserSettingsMock.mockRejectedValue(new DataError('Failed to load settings.'));
 
     render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
 
-    // Defaults to dark (checked); toggling it off selects light.
-    expect(screen.getByLabelText('Default Theme')).toBeChecked();
-    fireEvent.click(screen.getByLabelText('Default Theme'));
+    expect(await screen.findByText("Couldn't load your saved settings. Reload to try again.")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Settings' })).toBeDisabled();
+  });
+
+  it('handles save success and save failure paths', async () => {
+    upsertUserSettingsMock
+      .mockRejectedValueOnce(new DataError('Failed to save settings.'))
+      .mockResolvedValueOnce({ id: 'settings-1' });
+
+    render(<UserSettingsPage title="Settings" roleVariant="administrator" />);
+
+    // Defaults to light (unchecked); toggling it on selects dark.
     expect(screen.getByLabelText('Default Theme')).not.toBeChecked();
+    fireEvent.click(screen.getByLabelText('Default Theme'));
+    expect(screen.getByLabelText('Default Theme')).toBeChecked();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }));
     expect(await screen.findByText('Failed to save settings. Please try again.')).toBeInTheDocument();
@@ -166,7 +177,7 @@ describe('UserSettingsPage', () => {
     expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(setModeMock).toHaveBeenCalledWith('light');
+      expect(setModeMock).toHaveBeenCalledWith('dark');
     });
   });
 });

@@ -1,118 +1,85 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
-import { getRouteWithStops, getCustomer, updateRouteExecution } from '@/lib/queries';
+import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
-import { getSignRunPhase } from '@/lib/signRunPhase';
-import { isStopCompletedForPhase, isStopSkippedForPhase } from '@/lib/stopExecutionMarkers';
-import type { Route, Stop } from '@/amplify/types';
+import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
+import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
+import { queueSignRunTransition } from '@/lib/signRunTransitions';
+import { formatClockTime } from '@/lib/format';
+import { reconcileSignRun } from '@/lib/signRunReconciliation';
+import { activeStops } from '@/lib/loadChange';
+import type { Route } from '@/amplify/types';
+import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
+import { getCustomer } from '@/lib/customers';
 
-interface UnloadReconciliation {
-  returnedTotal: number;
-  doneCount: number;
-  skipCount: number;
-  missingTotal: number;
-  loadedTotal: number;
-  stillOnSite: number;
+interface UnloadScreenExtra {
+  customerName: string;
+  yardAddress: string | null;
 }
 
-/** Reconciles what came back against what went out — Pickup's PICKUP_DONE/
- * PICKUP_SKIPPED markers and missingSignsCount (lib/stopExecutionMarkers.ts,
- * set by app/operator/routes/pickup/page.tsx) against Load's loadedSignsCount. */
-function buildReconciliation(route: Route, stops: Stop[]): UnloadReconciliation {
-  let returnedTotal = 0;
-  let doneCount = 0;
-  let skipCount = 0;
-  let missingTotal = 0;
-
-  for (const stop of stops) {
-    const skipped = isStopSkippedForPhase(stop, 'pickup');
-    if (skipped) {
-      skipCount += 1;
-    } else if (isStopCompletedForPhase(stop, 'pickup')) {
-      doneCount += 1;
-      returnedTotal += stop.numberOfSigns ?? 0;
-    }
-    missingTotal += stop.missingSignsCount ?? 0;
-  }
-
-  const loadedTotal = route.loadedSignsCount ?? 0;
-  const stillOnSite = Math.max(0, loadedTotal - returnedTotal - missingTotal);
-
-  return { returnedTotal, doneCount, skipCount, missingTotal, loadedTotal, stillOnSite };
+async function fetchUnloadScreenExtra(route: Route): Promise<UnloadScreenExtra> {
+  const [customer, orgSettingsResult] = await Promise.all([
+    getCustomer(route.customerId).catch(() => null),
+    // The yard address is best-effort: unreadable settings show none.
+    getOrganizationSettings().catch(() => null),
+  ]);
+  return {
+    customerName: customer?.name ?? '',
+    yardAddress: orgSettingsResult?.address ?? null,
+  };
 }
 
 export default function OperatorUnloadPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const routeId = searchParams.get('id');
-
-  const [route, setRoute] = useState<Route | null>(null);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [customerName, setCustomerName] = useState('');
-  const [yardAddress, setYardAddress] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [confirming, setConfirming] = useState(false);
+  const {
+    routeId,
+    route,
+    stops: allStops,
+    loading,
+    phaseInfo,
+    isOnPhase: isUnloadScreen,
+    extra,
+  } = useSignRunPhaseScreen({ phaseIdx: 3, includeRemoved: true, fetchExtra: fetchUnloadScreenExtra });
+  // Reconciliation counts the signs of Stops removed at the door as returned; every other count leaves them out.
+  const stops = useMemo(() => activeStops(allStops), [allStops]);
+  const customerName = extra?.customerName ?? '';
+  const yardAddress = extra?.yardAddress ?? null;
   const [error, setError] = useState<string | null>(null);
+  const { dialog, openDialog, closeDialog, submitting } = useTimestampConfirmDialog<
+    'start' | 'confirm'
+  >();
 
-  useEffect(() => {
-    if (!routeId) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
+  const reconciliation = useMemo(() => (route ? reconcileSignRun(route, allStops) : null), [route, allStops]);
 
-    async function load() {
-      setLoading(true);
-      const [{ route: fetchedRoute, stops: fetchedStops }, orgSettingsResult] = await Promise.all([
-        getRouteWithStops(routeId as string),
-        getOrganizationSettings(),
-      ]);
-      if (cancelled) return;
-
-      setRoute(fetchedRoute as Route | null);
-      setStops(fetchedStops as Stop[]);
-      setYardAddress(orgSettingsResult.data?.address ?? null);
-
-      if (fetchedRoute) {
-        const customerResult = await getCustomer(fetchedRoute.customerId);
-        if (!cancelled) {
-          setCustomerName((customerResult.data as { name?: string } | null)?.name ?? '');
-        }
-      }
-      if (!cancelled) setLoading(false);
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [routeId]);
-
-  const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
-  const reconciliation = useMemo(() => (route ? buildReconciliation(route, stops) : null), [route, stops]);
-
-  const handleConfirm = async () => {
+  // Transitions show at once and save in the background (lib/signRunOutbox.ts).
+  const handleStartUnload = (iso: string) => {
     if (!route) return;
-    setConfirming(true);
     setError(null);
 
-    const now = new Date().toISOString();
-    const result = await updateRouteExecution(route.id, {
-      unloadConfirmedAt: now,
-      actualEndTime: route.actualEndTime ?? now,
-    });
+    const result = queueSignRunTransition(route, { type: 'startUnload', at: iso });
+    if ('error' in result) {
+      setError(result.error);
+      return;
+    }
 
-    if (result.errors && result.errors.length > 0) {
-      setError('Could not confirm the unload. Try again.');
-      setConfirming(false);
+    closeDialog();
+  };
+
+  const handleConfirmUnload = (iso: string) => {
+    if (!route) return;
+    setError(null);
+
+    const result = queueSignRunTransition(route, { type: 'confirmUnload', at: iso });
+    if ('error' in result) {
+      setError(result.error);
+      closeDialog();
       return;
     }
 
@@ -120,35 +87,21 @@ export default function OperatorUnloadPage() {
   };
 
   if (!routeId) {
-    return (
-      <div className={shellStyles.page}>
-        <p className={shellStyles.mutedText}>No route selected.</p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
-    );
+    return <NoRouteSelected />;
   }
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
-  const isUnloadScreen = route && phaseInfo && phaseInfo.phaseIdx === 3 && stops.length > 0;
-
-  if (!isUnloadScreen) {
+  if (!isUnloadScreen || !route || !phaseInfo) {
     return (
-      <div className={shellStyles.page}>
-        <Breadcrumbs items={[{ label: 'Today', href: '/operator/dashboard' }, { label: 'Unload' }]} />
-        <p className={shellStyles.mutedText}>
-          {route ? 'This route is not currently on the Unload phase.' : 'Route not found.'}
-        </p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
+      <PhaseNotReady
+        phaseLabel="Unload"
+        message={route ? 'This route is not currently on the Unload phase.' : 'Route not found.'}
+      />
     );
   }
 
-  const { returnedTotal, doneCount, skipCount, missingTotal, loadedTotal, stillOnSite } = reconciliation!;
+  const { returnedTotal, doneCount, couldntCollectCount, missingTotal, loadedTotal, stillOnSite } = reconciliation!;
 
   return (
     <div className={shellStyles.page}>
@@ -174,7 +127,7 @@ export default function OperatorUnloadPage() {
 
       <div className={shellStyles.statsGrid}>
         <div className={shellStyles.statCell}>
-          <span className={shellStyles.statLabel}>Signs collected</span>
+          <span className={shellStyles.statLabel}>Signs returned</span>
           <span className={shellStyles.statValue}>{returnedTotal}</span>
         </div>
         <div className={shellStyles.statCell}>
@@ -184,8 +137,8 @@ export default function OperatorUnloadPage() {
           </span>
         </div>
         <div className={shellStyles.statCell}>
-          <span className={shellStyles.statLabel}>Left on site</span>
-          <span className={shellStyles.statValue}>{skipCount ? `${skipCount} stops` : 'None'}</span>
+          <span className={shellStyles.statLabel}>Couldn&apos;t collect</span>
+          <span className={shellStyles.statValue}>{couldntCollectCount ? `${couldntCollectCount} stops` : 'None'}</span>
         </div>
         <div className={shellStyles.statCell}>
           <span className={shellStyles.statLabel}>Missing reported</span>
@@ -201,14 +154,51 @@ export default function OperatorUnloadPage() {
         </p>
       </div>
 
-      <button type="button" className={`${shellStyles.primaryButton} ${styles.primaryButton}`} onClick={() => void handleConfirm()} disabled={confirming}>
-        {confirming ? 'Confirming…' : `Confirm ${returnedTotal} signs returned`}
-      </button>
+      {route.unloadStartedAt && (
+        <div className={styles.stampLine}>Unload started {formatClockTime(route.unloadStartedAt)}</div>
+      )}
+
+      {!route.unloadStartedAt ? (
+        <button
+          type="button"
+          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          onClick={() => openDialog('start')}
+          disabled={submitting}
+        >
+          Start unload
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          onClick={() => openDialog('confirm')}
+          disabled={submitting}
+        >
+          {`Confirm ${returnedTotal} signs returned`}
+        </button>
+      )}
 
       <p className={shellStyles.footnote}>
-        Confirming returns you to the main screen with the route ready to finalise. Charged time is set on Finalise,
-        not here.
+        Unload only unlocks once every stop is settled. Start and complete both confirm in a dialog; charged time is
+        set on Finalise.
       </p>
+
+      <ConfirmDialog
+        open={dialog !== null}
+        time={dialog ? formatClockTime(dialog.time) : ''}
+        title={dialog?.kind === 'start' ? 'Start unload' : 'Complete unload'}
+        summary={
+          dialog?.kind === 'start'
+            ? `Starting unload at ${yardAddress ?? 'the yard'}.`
+            : `Signs returned to ${yardAddress ?? 'the yard'}.`
+        }
+        busy={submitting}
+        onCancel={closeDialog}
+        onOk={() => {
+          if (!dialog) return;
+          void (dialog.kind === 'start' ? handleStartUnload(dialog.time) : handleConfirmUnload(dialog.time));
+        }}
+      />
     </div>
   );
 }

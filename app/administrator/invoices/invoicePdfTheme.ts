@@ -1,3 +1,5 @@
+import { PDF_FONT } from '@/lib/pdf/fontFamilies';
+
 export type PdfRgb = [number, number, number];
 
 export const CUSTOMER_PORTAL_INVOICE_PDF_THEME = {
@@ -5,6 +7,7 @@ export const CUSTOMER_PORTAL_INVOICE_PDF_THEME = {
     header: [20, 27, 56] as PdfRgb, // navy #141B38 (neutral-950)
     headerText: [255, 255, 255] as PdfRgb,
     headerTextMuted: [176, 180, 199] as PdfRgb, // white at ~66% opacity over navy, pre-blended
+    strong: [20, 27, 56] as PdfRgb, // neutral-950 #141B38 — headings and emphasised values on white
     text: [43, 49, 80] as PdfRgb, // neutral-800 #2B3150
     bodyMuted: [90, 97, 128] as PdfRgb, // neutral-600 #5A6180 — table headers, GST/no-GST note
     labelMuted: [118, 125, 155] as PdfRgb, // neutral-500 #767D9B — uppercase field labels, footer
@@ -12,10 +15,14 @@ export const CUSTOMER_PORTAL_INVOICE_PDF_THEME = {
     border: [223, 226, 238] as PdfRgb, // neutral-200 #DFE2EE — panel borders, footer rule
     accent: [238, 240, 254] as PdfRgb, // indigo-50 #EEF0FE — total-due band
     brandText: [58, 64, 166] as PdfRgb, // indigo-700 #3A40A6 — brand accent labels, group headers
+    amber: [191, 132, 18] as PdfRgb, // amber-600 #BF8412 — Planned status dot
+    amberText: [140, 95, 8] as PdfRgb, // amber-800 #8C5F08 — Planned status label
   },
   fonts: {
-    regular: 'helvetica',
-    bold: 'helvetica',
+    // Families registered by registerBrandFonts (lib/pdf/brandFonts.ts).
+    display: PDF_FONT.display, // Comfortaa Bold — titles and section headings
+    body: PDF_FONT.body, // Manrope Regular/SemiBold/Bold — labels, names, table text
+    mono: PDF_FONT.mono, // JetBrains Mono Regular/Bold — figures and identifiers
     xlarge: 20, // header "Invoice" title
     large: 13, // section headings
     medium: 11, // payment details heading

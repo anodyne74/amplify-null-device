@@ -1,7 +1,10 @@
 /**
  * Create a rate card line for a customer
+ *
+ * Returns its data or throws a DataError (lib/graphqlResult.ts).
  */
 import { getDataClient } from '@/lib/data-client';
+import { resultData, withDataError } from '@/lib/graphqlResult';
 
 export async function createRateLine(input: {
   customerId: string;
@@ -10,16 +13,7 @@ export async function createRateLine(input: {
   ratePerUnit: number;
   sortOrder?: number;
 }) {
-  try {
-    const { data, errors } = await getDataClient().models.RateLine.create(input);
-
-    if (errors) {
-      console.error('Errors creating rate line:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error creating rate line:', error);
-    return { data: null, errors: [error as Error] };
-  }
+  return withDataError('Failed to add rate line.', async () =>
+    resultData(await getDataClient().models.RateLine.create(input))
+  );
 }

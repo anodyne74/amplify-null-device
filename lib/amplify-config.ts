@@ -117,6 +117,29 @@ export async function fetchUserGroups(): Promise<string[]> {
 }
 
 /**
+ * Fetch the current user's Cognito sub from the active session token.
+ *
+ * `useAuthenticator().user` is only populated by the Authenticator machine's
+ * own internal getCurrentUser/signIn actors -- it stays `undefined` forever
+ * after this app's custom sign-in form calls `signIn()` from 'aws-amplify/auth'
+ * directly (see app/page.tsx), since that bypasses those actors entirely. It
+ * only becomes correct again after a full page reload re-runs the machine's
+ * initial getCurrentUser check. fetchAuthSession() (same as fetchUserGroups()
+ * above) reflects the real session immediately, so use this (or the
+ * useCurrentUserId() hook) instead of useAuthenticator().user.userId anywhere
+ * a page needs the signed-in user's id.
+ */
+export async function fetchUserId(): Promise<string | undefined> {
+  try {
+    const session = await fetchAuthSession();
+    const sub = session.tokens?.idToken?.payload?.sub;
+    return typeof sub === 'string' ? sub : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Check if the current user is a customer (member of 'customer' group)
  * All authenticated users should be in at least the 'customer' group
  */
@@ -162,6 +185,11 @@ export function getUsername(user: any): string | undefined {
 
 /**
  * Get a display-friendly user name, preferring Cognito first name claim.
+ *
+ * @deprecated For Amplify v6, use fetchUserDisplayName() instead. The `user`
+ * object from useAuthenticator() no longer carries `attributes` or
+ * `signInUserSession` -- this always returns undefined against a real v6
+ * user, which is why admin-set display names never appeared after login.
  */
 export function getUserDisplayName(user: any): string | undefined {
   if (!user) return undefined;
@@ -176,6 +204,23 @@ export function getUserDisplayName(user: any): string | undefined {
   }
 
   return undefined;
+}
+
+/**
+ * Fetch a display-friendly user name from the active session token's Cognito
+ * claims (preferring `given_name`, falling back to `name`). This is the
+ * Amplify v6-compatible version -- see fetchUserGroups() for the same
+ * pattern applied to group membership.
+ */
+export async function fetchUserDisplayName(): Promise<string | undefined> {
+  try {
+    const session = await fetchAuthSession();
+    const payload = session.tokens?.idToken?.payload;
+    const displayName = payload?.given_name || payload?.name;
+    return typeof displayName === 'string' && displayName.trim() ? displayName.trim() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

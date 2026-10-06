@@ -2,6 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { StopForm } from '../StopForm';
+import { getAgentBadgeTone } from '@/lib/customerDefaults';
 
 const noop = jest.fn();
 
@@ -10,11 +11,11 @@ describe('StopForm', () => {
     jest.clearAllMocks();
   });
 
-  it('renders all fields (address, service type, notes, submit/cancel)', () => {
+  it('renders all fields (address, notes, submit/cancel), with no service type', () => {
     render(<StopForm onSubmit={noop} onCancel={noop} availableAgents={['Jamie Lee']} />);
 
     expect(screen.getByLabelText(/address/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/service type/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/service type/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/notes/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /jamie lee/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /add stop/i })).toBeInTheDocument();
@@ -49,20 +50,13 @@ describe('StopForm', () => {
     fireEvent.change(screen.getByLabelText(/address/i), {
       target: { value: '123 Main St' },
     });
-    fireEvent.change(screen.getByLabelText(/service type/i), {
-      target: { value: 'pickup' },
-    });
 
     fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          address: '123 Main St',
-          serviceType: 'pickup',
-        })
-      );
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ address: '123 Main St' }));
     });
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty('serviceType');
   });
 
   it('calls onCancel when cancel is clicked', () => {
@@ -78,7 +72,6 @@ describe('StopForm', () => {
       <StopForm
         initialValues={{
           address: '456 Elm Ave',
-          serviceType: 'inspection',
           notes: 'Pre-filled note',
         }}
         onSubmit={noop}
@@ -87,7 +80,6 @@ describe('StopForm', () => {
     );
 
     expect(screen.getByLabelText(/address/i)).toHaveValue('456 Elm Ave');
-    expect(screen.getByLabelText(/service type/i)).toHaveValue('inspection');
     expect(screen.getByLabelText(/notes/i)).toHaveValue('Pre-filled note');
   });
 
@@ -106,6 +98,73 @@ describe('StopForm', () => {
     expect(screen.getByText(/call before arriving/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/number of signs/i)).toHaveValue(3);
     expect(screen.getByRole('button', { name: /jamie lee/i })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it("fills in the Customer's defaults when they load after the form opens", () => {
+    const { rerender } = render(<StopForm onSubmit={noop} onCancel={noop} />);
+
+    rerender(
+      <StopForm
+        onSubmit={noop}
+        onCancel={noop}
+        defaultNumberOfSigns={3}
+        defaultAgentInitials="Jamie Lee"
+        availableAgents={['Jamie Lee', 'Pat Doe']}
+      />
+    );
+
+    expect(screen.getByLabelText(/number of signs/i)).toHaveValue(3);
+    expect(screen.getByRole('button', { name: /jamie lee/i })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('keeps a choice made before the defaults load', () => {
+    const { rerender } = render(<StopForm onSubmit={noop} onCancel={noop} availableAgents={['Jamie Lee', 'Pat Doe']} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Pat Doe' }));
+    fireEvent.change(screen.getByLabelText(/number of signs/i), { target: { value: '7' } });
+
+    rerender(
+      <StopForm
+        onSubmit={noop}
+        onCancel={noop}
+        defaultNumberOfSigns={3}
+        defaultAgentInitials="Jamie Lee"
+        availableAgents={['Jamie Lee', 'Pat Doe']}
+      />
+    );
+
+    expect(screen.getByLabelText(/number of signs/i)).toHaveValue(7);
+    expect(screen.getByRole('button', { name: 'Pat Doe' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Jamie Lee' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it("doesn't reapply the default agent after it is cleared", () => {
+    const props = { onSubmit: noop, onCancel: noop, availableAgents: ['Jamie Lee'] };
+    const { rerender } = render(<StopForm {...props} defaultAgentInitials="Jamie Lee" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Jamie Lee' }));
+
+    rerender(<StopForm {...props} defaultAgentInitials="Jamie Lee" />);
+
+    expect(screen.getByRole('button', { name: 'Jamie Lee' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('shows each agent with the same initials and colour as their badge elsewhere (#321)', () => {
+    render(<StopForm onSubmit={noop} onCancel={noop} availableAgents={['Mary Anne Smith', 'Pat Doe']} />);
+
+    const agent = screen.getByRole('button', { name: 'Mary Anne Smith' });
+    expect(agent).toHaveTextContent(/^MA$/);
+    const tone = getAgentBadgeTone('Mary Anne Smith');
+    expect(agent.style.getPropertyValue('--nd-agent-badge-bg')).toBe(tone.backgroundColor);
+    expect(agent.style.getPropertyValue('--nd-agent-badge-fg')).toBe(tone.color);
+  });
+
+  it('deselects an agent when it is clicked again', () => {
+    render(<StopForm onSubmit={noop} onCancel={noop} availableAgents={['Jamie Lee', 'Pat Doe']} />);
+
+    const agent = screen.getByRole('button', { name: 'Pat Doe' });
+    fireEvent.click(agent);
+    expect(agent).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(agent);
+    expect(agent).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('submits the selected agent badge', async () => {
@@ -146,7 +205,6 @@ describe('StopForm', () => {
         onCancel={noop}
         initialValues={{
           address: '123 Main St',
-          serviceType: 'delivery',
           agent: 'BO',
         }}
       />

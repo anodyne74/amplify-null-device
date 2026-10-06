@@ -85,7 +85,7 @@ export default function RoutesListContent({
                   <div className={classes.cellValueMonoNormal}>{customersById[route.customerId] || 'Unknown customer'}</div>
                 </div>
                 <div>
-                  <RouteStatusBadge status={route.status} classes={classes} />
+                  <RouteStatusBadge route={route} classes={classes} />
                 </div>
                 <div>
                   <div className={classes.cellLabel}>Created</div>

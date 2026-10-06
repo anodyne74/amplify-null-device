@@ -13,6 +13,7 @@ jest.mock('aws-amplify/data', () => ({
 }));
 
 import { computeDriverSplit } from './driverSplit';
+import { settleStopNotes } from './stopProgress';
 
 describe('computeDriverSplit', () => {
   beforeEach(() => {
@@ -21,7 +22,33 @@ describe('computeDriverSplit', () => {
     mockLineItemList.mockResolvedValue({ data: [] });
   });
 
-  it('falls back to actualDurationMinutes x billingRatePerHour when there are no line items', async () => {
+  it('falls back to Billed Time x billingRatePerHour, as invoice creation does', async () => {
+    mockRouteList.mockResolvedValue({
+      data: [
+        {
+          id: 'route-1',
+          customerId: 'cust-1',
+          status: 'completed',
+          assignedOperatorSub: 'op-1',
+          actualEndTime: '2026-08-10T12:00:00Z',
+          actualDurationMinutes: 95,
+          overrideDurationMinutes: 120,
+        },
+      ],
+    });
+
+    const result = await computeDriverSplit({
+      customerId: 'cust-1',
+      billingRatePerHour: 30,
+      driverSplitPercent: 50,
+      periodStartDate: '2026-08-01',
+      periodEndDate: '2026-08-31',
+    });
+
+    expect(result.byOperator[0].billedAmount).toBe(60);
+  });
+
+  it('falls back to the measured duration x billingRatePerHour for a Route from before the Sign Run', async () => {
     mockRouteList.mockResolvedValue({
       data: [
         {
@@ -141,6 +168,38 @@ describe('computeDriverSplit', () => {
     expect(result.byOperator).toEqual([]);
   });
 
+  it('counts a route once every stop is finished, skipped ones included, but not while one is only placed', async () => {
+    const routeOn = (id: string) => ({
+      id,
+      customerId: 'cust-1',
+      status: 'completed',
+      assignedOperatorSub: 'op-1',
+      actualEndTime: '2026-08-10T12:00:00Z',
+      actualDurationMinutes: 60,
+    });
+    const at = '2026-08-10T10:00:00Z';
+    const placed = settleStopNotes(null, 'placement', 'complete', at);
+    mockRouteList.mockResolvedValue({ data: [routeOn('route-1'), routeOn('route-2')] });
+    mockStopList.mockResolvedValue({
+      data: [
+        { id: 'stop-1', routeId: 'route-1', actualDepartureTime: at, notes: settleStopNotes(placed, 'pickup', 'complete', at) },
+        { id: 'stop-2', routeId: 'route-1', actualDepartureTime: at, notes: settleStopNotes(placed, 'pickup', 'skip', at, 'No access') },
+        { id: 'stop-3', routeId: 'route-2', actualDepartureTime: at, notes: placed },
+      ],
+    });
+
+    const result = await computeDriverSplit({
+      customerId: 'cust-1',
+      billingRatePerHour: 30,
+      driverSplitPercent: 50,
+      paySplitOnCompletedStopsOnly: true,
+      periodStartDate: '2026-08-01',
+      periodEndDate: '2026-08-31',
+    });
+
+    expect(result.byOperator).toEqual([expect.objectContaining({ operatorSub: 'op-1', stopCount: 2 })]);
+  });
+
   it('groups totals by assignedOperatorSub across multiple routes', async () => {
     mockRouteList.mockResolvedValue({
       data: [
@@ -180,5 +239,60 @@ describe('computeDriverSplit', () => {
     expect(result.totalBilled).toBe(90);
     expect(result.totalDriverShare).toBe(9);
     expect(result.retained).toBe(81);
+  });
+
+  it('reads routes and stops from every list page, not just the first', async () => {
+    // `limit` caps items scanned before the customerId filter, so matches can
+    // sit on later pages behind an empty first page.
+    mockRouteList
+      .mockResolvedValueOnce({ data: [], nextToken: 'routes-2' })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'route-1',
+            customerId: 'cust-1',
+            status: 'completed',
+            assignedOperatorSub: 'op-1',
+            actualEndTime: '2026-08-10T12:00:00Z',
+            actualDurationMinutes: 60,
+          },
+        ],
+        nextToken: null,
+      });
+    mockStopList
+      .mockResolvedValueOnce({
+        data: [{ id: 'stop-1', routeId: 'route-1', actualDepartureTime: '2026-08-10T10:00:00Z' }],
+        nextToken: 'stops-2',
+      })
+      .mockResolvedValueOnce({ data: [{ id: 'stop-2', routeId: 'route-1', actualDepartureTime: null }], nextToken: null });
+
+    const result = await computeDriverSplit({
+      customerId: 'cust-1',
+      billingRatePerHour: 30,
+      driverSplitPercent: 50,
+      paySplitOnCompletedStopsOnly: true,
+      periodStartDate: '2026-08-01',
+      periodEndDate: '2026-08-31',
+    });
+
+    // route-1 is found on page 2, and its incomplete stop (also on page 2)
+    // still excludes it from the split.
+    expect(mockRouteList).toHaveBeenCalledTimes(2);
+    expect(mockStopList).toHaveBeenCalledTimes(2);
+    expect(result.byOperator).toEqual([]);
+  });
+
+  it('throws rather than under-paying when a list returns errors', async () => {
+    mockRouteList.mockResolvedValue({ data: [], errors: [{ message: 'Unauthorized' }] });
+
+    await expect(
+      computeDriverSplit({
+        customerId: 'cust-1',
+        billingRatePerHour: 30,
+        driverSplitPercent: 50,
+        periodStartDate: '2026-08-01',
+        periodEndDate: '2026-08-31',
+      })
+    ).rejects.toThrow(/could not load every route/i);
   });
 });

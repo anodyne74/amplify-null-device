@@ -13,6 +13,13 @@
  * - Tracker files export the second sheet/tab, which contains the Jobs data.
  * - Route list files are exported using the first sheet/tab only.
  * - Invoice files are matched by filename, for example ND-INV-073.docx.
+ * - A single run can hit Apps Script's ~6 minute execution limit before every
+ *   source file is processed. exportLegacyImportAssets() checks the elapsed
+ *   time and stops cleanly before that happens (leaving a log line telling you
+ *   to re-run), and skips any output file that already exists, so re-running
+ *   it repeatedly resumes from where it left off instead of duplicating work.
+ *   If duplicates were already created by earlier re-runs, run
+ *   dedupeOutputFolder() once to clean them up before resuming.
  */
 
 const CONFIG = {
@@ -24,9 +31,14 @@ const CONFIG = {
   ROUTE_CODE_REGEX: /W\d{2}-\d{2}-\d{3}/i,
   INVOICE_NAME_REGEX: /ND-INV-\d{3}/i,
   DELETE_TEMP_CONVERSIONS: true,
+  // Stop starting new file exports once this much of the run has elapsed, well
+  // under Apps Script's hard execution cap, so the script always exits cleanly
+  // rather than being killed mid-file.
+  MAX_RUNTIME_MS: 4.5 * 60 * 1000,
 };
 
 function exportLegacyImportAssets() {
+  const startTime = Date.now();
   const sourceFolder = DriveApp.getFolderById(CONFIG.SOURCE_FOLDER_ID);
   const outputFolder = DriveApp.getFolderById(CONFIG.OUTPUT_FOLDER_ID);
 
@@ -35,16 +47,27 @@ function exportLegacyImportAssets() {
 
   let routeListsExported = 0;
   let invoicesExported = 0;
+  let skippedExisting = 0;
   const notes = [];
+  let stoppedEarly = false;
 
   for (const file of files) {
+    if (Date.now() - startTime > CONFIG.MAX_RUNTIME_MS) {
+      stoppedEarly = true;
+      break;
+    }
+
     const name = file.getName();
 
     if (CONFIG.TRACKER_NAME_REGEX.test(name)) {
-      try {
-        exportTrackerJobsAsCsv_(file, outputFolder, 'Tracker - Jobs.csv');
-      } catch (error) {
-        notes.push('Failed tracker export: ' + name + ' -> ' + error.message);
+      if (outputFileExists_(outputFolder, 'Tracker - Jobs.csv')) {
+        skippedExisting++;
+      } else {
+        try {
+          exportTrackerJobsAsCsv_(file, outputFolder, 'Tracker - Jobs.csv');
+        } catch (error) {
+          notes.push('Failed tracker export: ' + name + ' -> ' + error.message);
+        }
       }
     }
 
@@ -55,11 +78,15 @@ function exportLegacyImportAssets() {
       } else {
         const routeCode = routeCodeMatch[0].toUpperCase();
         const outputName = routeCode + ' - Route List - Route.csv';
-        try {
-          exportRouteListAsCsv_(file, outputFolder, outputName);
-          routeListsExported++;
-        } catch (error) {
-          notes.push('Failed route list export: ' + name + ' -> ' + error.message);
+        if (outputFileExists_(outputFolder, outputName)) {
+          skippedExisting++;
+        } else {
+          try {
+            exportRouteListAsCsv_(file, outputFolder, outputName);
+            routeListsExported++;
+          } catch (error) {
+            notes.push('Failed route list export: ' + name + ' -> ' + error.message);
+          }
         }
       }
     }
@@ -71,11 +98,15 @@ function exportLegacyImportAssets() {
       } else {
         const invoiceCode = invoiceCodeMatch[0].toUpperCase();
         const outputName = invoiceCode + '.pdf';
-        try {
-          exportInvoiceAsPdf_(file, outputFolder, outputName);
-          invoicesExported++;
-        } catch (error) {
-          notes.push('Failed invoice export: ' + name + ' -> ' + error.message);
+        if (outputFileExists_(outputFolder, outputName)) {
+          skippedExisting++;
+        } else {
+          try {
+            exportInvoiceAsPdf_(file, outputFolder, outputName);
+            invoicesExported++;
+          } catch (error) {
+            notes.push('Failed invoice export: ' + name + ' -> ' + error.message);
+          }
         }
       }
     }
@@ -83,7 +114,51 @@ function exportLegacyImportAssets() {
 
   Logger.log('Route lists exported: ' + routeListsExported);
   Logger.log('Invoices exported as PDF: ' + invoicesExported);
+  Logger.log('Skipped (already exported): ' + skippedExisting);
+  if (stoppedEarly) {
+    Logger.log('Stopped early to stay under the execution time limit — re-run this function to continue.');
+  } else {
+    Logger.log('Finished — all source files processed.');
+  }
   notes.forEach((note) => Logger.log(note));
+}
+
+/** True if outputFolder already contains a file named exactly outputName. */
+function outputFileExists_(outputFolder, outputName) {
+  return outputFolder.getFilesByName(outputName).hasNext();
+}
+
+/**
+ * One-off cleanup for duplicates created by earlier re-runs (before the
+ * idempotency check above existed). For each output filename with more than
+ * one file, keeps the oldest copy and trashes the rest. Safe to run multiple
+ * times.
+ */
+function dedupeOutputFolder() {
+  const outputFolder = DriveApp.getFolderById(CONFIG.OUTPUT_FOLDER_ID);
+  const byName = {};
+
+  const files = outputFolder.getFiles();
+  while (files.hasNext()) {
+    const file = files.next();
+    const name = file.getName();
+    if (!byName[name]) byName[name] = [];
+    byName[name].push(file);
+  }
+
+  let trashed = 0;
+  Object.keys(byName).forEach((name) => {
+    const copies = byName[name];
+    if (copies.length <= 1) return;
+
+    copies.sort((a, b) => a.getDateCreated().getTime() - b.getDateCreated().getTime());
+    for (let i = 1; i < copies.length; i++) {
+      copies[i].setTrashed(true);
+      trashed++;
+    }
+  });
+
+  Logger.log('Trashed ' + trashed + ' duplicate file(s).');
 }
 
 function collectFilesRecursive_(folder, out) {

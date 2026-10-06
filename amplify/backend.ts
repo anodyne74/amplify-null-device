@@ -3,14 +3,31 @@ import { Duration, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Bucket } from 'aws-cdk-lib/aws-s3';
 import { Role, ServicePrincipal, ManagedPolicy, PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
 import { Function as LambdaFunction, Runtime, Code } from 'aws-cdk-lib/aws-lambda';
-import { CfnTemplate, CfnReceiptRuleSet, CfnReceiptRule } from 'aws-cdk-lib/aws-ses';
+import { CfnTemplate, CfnReceiptRule } from 'aws-cdk-lib/aws-ses';
+import { AwsCustomResource, AwsCustomResourcePolicy, PhysicalResourceId } from 'aws-cdk-lib/custom-resources';
+import { CfnConfigurationSet } from 'aws-cdk-lib/aws-smsvoice';
+import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { auth } from './auth/resource';
 import { data } from './data/resource';
 import { storage } from './storage/resource';
 import { customerAccessActivation } from './functions/customer-access-activation/resource';
+import { operatorStatusActivation } from './functions/operator-status-activation/resource';
+import { reportPurge } from './functions/report-purge/resource';
+import { routeRequestCapture } from './functions/route-request-capture/resource';
 import { configureObservability } from './observability/resource';
+import { branchName, emailDomain } from './shared/branch';
+import { importSsrComputeRole } from './shared/ssrComputeRole';
+import { missingSignsReportTemplate } from './ses/missingSignsReportTemplate';
 
-const backend = defineBackend({ auth, data, storage, customerAccessActivation });
+const backend = defineBackend({
+	auth,
+	data,
+	storage,
+	customerAccessActivation,
+	operatorStatusActivation,
+	reportPurge,
+	routeRequestCapture,
+});
 
 // Advanced security (AUDIT mode) is required for AdminListUserAuthEvents, which
 // powers the admin Users page's "signed in past 7 days" stat. AUDIT only logs and
@@ -27,24 +44,75 @@ backend.auth.resources.cfnResources.cfnUserPool.userPoolAddOns = {
 	advancedSecurityMode: 'AUDIT',
 };
 
-function sanitizeNamePart(value: string, fallback: string) {
-	const cleaned = value
-		.toLowerCase()
-		.replace(/[^a-z0-9-]+/g, '-')
-		.replace(/-+/g, '-')
-		.replace(/^-+|-+$/g, '');
-	return cleaned || fallback;
-}
+// ── Grant the shared SSR compute role access to this branch's AppSync API ───
+// Several Next.js API routes (sync-profile-access, invite-user, and parts of
+// send-invoice-email/send-job-assigned-email) call
+// generateClient({ authMode: 'iam' }) to run with elevated data access from
+// inside SSR request handlers -- see the "getDataClient()" comment in each of
+// those routes for why. AWS_IAM is already enabled as an additional
+// authentication provider on this API (Amplify turns it on automatically for
+// the allow.resource() Lambda grants below), but nothing previously granted
+// the SSR compute role itself permission to call it -- every IAM-signed
+// GraphQL request from those routes was silently rejected. Since those
+// routes only destructure `data` (not `errors`) from the client response,
+// the rejection surfaced as misleading "not found" 404s (e.g.
+// sync-profile-access returning "No customer mapping found for this user"
+// for accounts that had a mapping all along) rather than an auth error.
+//
+// The SSR runtime's role isn't created by this stack, so it's imported by
+// name (see importSsrComputeRole). The grant below is scoped to this
+// branch's own AppSync API ARN, so it doesn't widen access for any other
+// Amplify app using the same shared role.
+const ssrComputeRole = importSsrComputeRole(Stack.of(backend.data.resources.graphqlApi), 'AmplifyHostingSSRComputeRole');
+backend.data.resources.graphqlApi.grantMutation(ssrComputeRole);
+backend.data.resources.graphqlApi.grantQuery(ssrComputeRole);
+
+// /api/admin/send-invoice-email sends a raw MIME message (the invoice PDF is
+// an attachment), and /api/customer/route-feedback sends a plain SendEmail
+// message; the role's hand-made SESSendTemplatedEmails policy covers neither
+// -- it allows SendTemplatedEmail only (which /api/missing-signs-report and
+// the invitation emails use). Scoped to this branch's sending domain and the
+// configuration set SES applies to it by default (SES checks both).
+const ssrSesArn = (resource: string) =>
+	`arn:aws:ses:${Stack.of(backend.data.resources.graphqlApi).region}:${Stack.of(backend.data.resources.graphqlApi).account}:${resource}`;
+ssrComputeRole.addToPrincipalPolicy(
+	new PolicyStatement({
+		sid: 'AllowSesSendEmailFromBranchDomain',
+		effect: Effect.ALLOW,
+		actions: ['ses:SendRawEmail', 'ses:SendEmail'],
+		resources: [ssrSesArn(`identity/${emailDomain}`), ssrSesArn('configuration-set/my-first-configuration-set')],
+	}),
+);
+
+// Property History Reports (#291, ADR 0003) are written and handed out only by
+// the /api/property-history/reports routes, so the SSR role is the one
+// principal with access to reports/ -- amplify/storage/resource.ts grants no
+// signed-in user anything there. Customers' invoice PDFs are likewise handed
+// out by /api/invoices/pdf (#356), so the SSR role also reads invoices/, and
+// Route Request files by /api/route-requests/file (#358), so it reads requests/.
+// Imported again in the storage stack so the policy lives beside the bucket
+// rather than tying the data stack to it. The import needs its own construct
+// ID: CDK names an imported role's inline policy after that ID, so reusing
+// 'AmplifyHostingSSRComputeRole' gave both stacks a policy of the same name on
+// the same role, and CloudFormation refused the second ("already managed by
+// another stack"). importSsrComputeRole adds the branch to the name.
+const ssrComputeRoleForStorage = importSsrComputeRole(
+	Stack.of(backend.storage.resources.bucket),
+	'AmplifyHostingSSRComputeRoleReports',
+);
+backend.storage.resources.bucket.grantReadWrite(ssrComputeRoleForStorage, 'reports/*');
+backend.storage.resources.bucket.grantRead(ssrComputeRoleForStorage, 'invoices/*');
+backend.storage.resources.bucket.grantRead(ssrComputeRoleForStorage, 'requests/*');
+
+// The daily report-purge job (#292) destroys PDFs past their purgeAfter date;
+// it needs delete on reports/ and nothing else in the bucket.
+const reportPurgeLambda = backend.reportPurge.resources.lambda as LambdaFunction;
+backend.storage.resources.bucket.grantDelete(reportPurgeLambda, 'reports/*');
+reportPurgeLambda.addEnvironment('REPORTS_BUCKET_NAME', backend.storage.resources.bucket.bucketName);
 
 function withMaxLength(value: string, max: number) {
 	return value.length <= max ? value : value.slice(0, max);
 }
-
-const branchName = sanitizeNamePart(process.env.AWS_BRANCH || process.env.AMPLIFY_BRANCH || 'dev', 'dev');
-// The app is deployed on two domains split by branch: nulldevice.com.au for
-// `main`/production, nulldevice.dev for everything else (`development` and
-// any preview branches).
-const emailDomain = branchName === 'main' ? 'nulldevice.com.au' : 'nulldevice.dev';
 
 // Cognito's own emails (forgot-password codes, sign-up verification codes,
 // admin-created-user temp passwords) default to its built-in "COGNITO_DEFAULT"
@@ -66,9 +134,12 @@ const invoiceTemplateName = withMaxLength(`NullDeviceInvoiceTemplate-${branchNam
 const jobAssignedTemplateName = withMaxLength(`NullDeviceJobAssignedTemplate-${branchName}`, 64);
 const welcomeTemplateName = withMaxLength(`NullDeviceWelcomeTemplate-${branchName}`, 64);
 const invitationTemplateName = withMaxLength(`NullDeviceInvitationTemplate-${branchName}`, 64);
+const staffInvitationTemplateName = withMaxLength(`NullDeviceStaffInvitationTemplate-${branchName}`, 64);
+const missingSignsReportTemplateName = withMaxLength(`NullDeviceMissingSignsReportTemplate-${branchName}`, 64);
 const inboundBucketName = withMaxLength(`ses-inbound-nulldevice-${branchName}`, 63);
 const forwarderFunctionName = withMaxLength(`ses-forwarder-nulldevice-${branchName}`, 64);
-const inboundRuleSetName = withMaxLength(`inbound-rule-set-nulldevice-${branchName}`, 64);
+// Not branch-scoped: every branch's rule lives in this one rule set (ADR 0009).
+const inboundRuleSetName = 'inbound-rule-set-nulldevice';
 const inboundRuleName = withMaxLength(`forward-specific-nulldevice-${branchName}`, 64);
 
 const sesStack = backend.createStack('ses-invoice-template');
@@ -155,6 +226,12 @@ View online: {{pdfUrl}}
 This is an automated message. Please do not reply.
 `.trim(),
 	},
+});
+
+// Sent by /api/missing-signs-report (#489). Its parts live in their own module
+// so lib/missingSignsReportTemplate.test.ts can render them.
+new CfnTemplate(sesStack, 'MissingSignsReportTemplate', {
+	template: { templateName: missingSignsReportTemplateName, ...missingSignsReportTemplate },
 });
 
 new CfnTemplate(sesStack, 'JobAssignedTemplate', {
@@ -319,8 +396,8 @@ new CfnTemplate(sesStack, 'InvitationTemplate', {
     <td width="560" style="width:560px;background-color:#141B38;background-image:linear-gradient(160deg,#141B38 0%,#2A2E76 100%);padding:13px 28px;" class="nd-pad">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
         <tr>
-          <td align="left" valign="middle" style="mso-line-height-rule:exactly;line-height:0;"><img src="{{logoUrl}}" alt="null device" width="190" height="85" style="display:block;width:190px;height:85px;max-width:190px;border:0;outline:none;text-decoration:none;"></td>
-          <td align="right" valign="middle" style="font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:12px;color:rgba(255,255,255,.66);mso-line-height-rule:exactly;line-height:85px;">Invitation</td>
+          <td align="left" valign="middle" style="mso-line-height-rule:exactly;line-height:0;"><img src="{{logoUrl}}" alt="null device" width="224" height="100" style="display:block;width:224px;height:100px;max-width:224px;border:0;outline:none;text-decoration:none;"></td>
+          <td align="right" valign="middle" style="font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;color:rgba(255,255,255,.66);mso-line-height-rule:exactly;line-height:100px;">Invitation</td>
         </tr>
       </table>
     </td>
@@ -331,7 +408,7 @@ new CfnTemplate(sesStack, 'InvitationTemplate', {
     <td class="nd-pad" width="560" style="width:560px;padding:32px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;">
       <div style="font-family:Comfortaa,'Trebuchet MS',Tahoma,Arial,sans-serif;font-weight:bold;font-size:25px;line-height:33px;mso-line-height-rule:exactly;letter-spacing:-0.02em;color:#141B38;">You've been invited</div>
       <p style="margin:14px 0 0;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#48526C;">
-        Hi {{inviteeName}} — {{inviterName}} ({{inviterEmail}}) has invited you to the <strong style="color:#141B38;">{{customerName}}</strong> portal on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+        Hi {{inviteeName}} — {{inviterDisplay}} has invited you to the <strong style="color:#141B38;">{{customerName}}</strong> portal on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
       </p>
     </td>
   </tr>
@@ -398,7 +475,7 @@ new CfnTemplate(sesStack, 'InvitationTemplate', {
           <td valign="top" style="padding:0 0 8px;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#48526C;">Review invoices, if your account owner grants access</td>
         </tr>
       </table>
-      <p style="margin:16px 0 0;font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;">Not expecting this? You can ignore this email, or reply to {{inviterEmail}}.</p>
+      <p style="margin:16px 0 0;font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;">Not expecting this? You can ignore this email, or contact us at <a href="{{supportUrl}}" style="color:#4B52C4;text-decoration:underline;">{{supportEmail}}</a>.</p>
     </td>
   </tr>
 
@@ -426,7 +503,7 @@ You've been invited to the {{customerName}} portal
 
 Hi {{inviteeName}},
 
-{{inviterName}} ({{inviterEmail}}) has invited you to the {{customerName}} portal on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+{{inviterDisplay}} has invited you to the {{customerName}} portal on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
 
 Email: {{inviteeEmail}}
 Temporary password: {{temporaryPassword}}
@@ -440,7 +517,160 @@ What you can do in the portal:
 - See delivery history and performance for your sites
 - Review invoices, if your account owner grants access
 
-Not expecting this? You can ignore this email, or reply to {{inviterEmail}}.
+Not expecting this? You can ignore this email, or contact us at {{supportEmail}}.
+
+Null Device - {{companyAddress}}
+`.trim(),
+	},
+});
+
+// Staff (operator/administrator) equivalent of InvitationTemplate above -- same
+// visual scaffold, but role-generic copy instead of customer-portal-flavored
+// copy, since drivers/admins have no "customerName" and don't see invoices.
+new CfnTemplate(sesStack, 'StaffInvitationTemplate', {
+	template: {
+		templateName: staffInvitationTemplateName,
+		subjectPart: "You're invited to the Null Device {{roleLabel}} portal",
+		htmlPart: `
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>You're invited to the Null Device {{roleLabel}} portal</title>
+<!-- Brand faces where the client supports them (Apple Mail, iOS, Samsung); everything else falls back to the email-safe stack in each inline style. -->
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@700&family=Manrope:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<!--[if mso]>
+<style>body,table,td,a,p,div{font-family:Arial,Helvetica,sans-serif !important}</style>
+<![endif]-->
+<style>
+  @media only screen and (max-width:600px){
+    .nd-pad{padding-left:20px !important;padding-right:20px !important}
+    .nd-cta a{display:block !important;text-align:center !important}
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#F6F7FB;">
+<span style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;max-height:0;max-width:0;overflow:hidden;mso-hide:all;">{{inviterName}} invited you to Null Device as a {{roleLabel}} — sign in with your temporary password.</span>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#F6F7FB;">
+<tr>
+<td align="center" style="padding:32px 16px;">
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="width:560px;max-width:560px;background-color:#FFFFFF;border:1px solid #E2E5EF;border-radius:16px;overflow:hidden;">
+
+  <!-- Header -->
+  <tr>
+    <td width="560" style="width:560px;background-color:#141B38;background-image:linear-gradient(160deg,#141B38 0%,#2A2E76 100%);padding:13px 28px;" class="nd-pad">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+        <tr>
+          <td align="left" valign="middle" style="mso-line-height-rule:exactly;line-height:0;"><img src="{{logoUrl}}" alt="null device" width="224" height="100" style="display:block;width:224px;height:100px;max-width:224px;border:0;outline:none;text-decoration:none;"></td>
+          <td align="right" valign="middle" style="font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;color:rgba(255,255,255,.66);mso-line-height-rule:exactly;line-height:100px;">Invitation</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Body -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:32px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;">
+      <div style="font-family:Comfortaa,'Trebuchet MS',Tahoma,Arial,sans-serif;font-weight:bold;font-size:25px;line-height:33px;mso-line-height-rule:exactly;letter-spacing:-0.02em;color:#141B38;">You've been invited</div>
+      <p style="margin:14px 0 0;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#48526C;">
+        Hi {{inviteeName}} — {{inviterDisplay}} has added you as a <strong style="color:#141B38;">{{roleLabel}}</strong> on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+      </p>
+    </td>
+  </tr>
+
+  <!-- Credentials panel -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:24px 28px 0;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#F6F7FB;border:1px solid #E2E5EF;border-radius:12px;">
+        <tr>
+          <td width="504" style="width:504px;padding:20px 24px;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;">
+            <div style="font-size:11px;line-height:16px;mso-line-height-rule:exactly;letter-spacing:0.08em;text-transform:uppercase;color:#818AA4;font-weight:bold;">Email</div>
+            <div style="font-family:'JetBrains Mono','Courier New',Courier,monospace;font-size:15px;line-height:22px;mso-line-height-rule:exactly;color:#141B38;padding-top:4px;">{{inviteeEmail}}</div>
+            <div style="font-size:11px;line-height:16px;mso-line-height-rule:exactly;letter-spacing:0.08em;text-transform:uppercase;color:#818AA4;font-weight:bold;padding-top:16px;">Temporary password</div>
+            <div style="font-family:'JetBrains Mono','Courier New',Courier,monospace;font-size:19px;line-height:26px;mso-line-height-rule:exactly;font-weight:bold;color:#141B38;padding-top:4px;">{{temporaryPassword}}</div>
+            <div style="font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;padding-top:12px;">Single use · expires in {{expiryDays}} days</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Primary CTA -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:24px 28px 0;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="nd-cta" bgcolor="#5D65E6" style="border-radius:999px;">
+            <a href="{{portalUrl}}" style="display:inline-block;padding:14px 30px;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;mso-line-height-rule:exactly;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:999px;">Sign in</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <!-- Secondary action -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:16px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;mso-line-height-rule:exactly;color:#818AA4;">
+      Password expired or didn't work? <a href="{{resetPasswordUrl}}" style="color:#4B52C4;text-decoration:underline;font-weight:bold;">Request a new password</a>
+    </td>
+  </tr>
+
+  <!-- Divider -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:28px 28px 0;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td height="1" style="height:1px;background-color:#E2E5EF;line-height:1px;font-size:0;">&nbsp;</td></tr></table>
+    </td>
+  </tr>
+
+  <!-- Reassurance -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:24px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#48526C;">
+      Once you're signed in, your {{roleLabel}} portal will have everything you need to get started.
+      <p style="margin:16px 0 0;font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;">Not expecting this? You can ignore this email, or contact us at <a href="{{supportUrl}}" style="color:#4B52C4;text-decoration:underline;">{{supportEmail}}</a>.</p>
+    </td>
+  </tr>
+
+  <tr><td height="32" style="height:32px;line-height:32px;font-size:0;">&nbsp;</td></tr>
+
+  <!-- Footer -->
+  <tr>
+    <td class="nd-pad" width="560" style="width:560px;padding:20px 28px;background-color:#F6F7FB;border-top:1px solid #E2E5EF;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:12px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;">
+      Null Device · {{companyAddress}}<br>
+      <a href="{{portalUrl}}" style="color:#4B52C4;text-decoration:none;">Open portal</a> · <a href="{{supportUrl}}" style="color:#4B52C4;text-decoration:none;">Support</a><br>
+      <span style="color:#9AA2B8;">You're receiving this because {{inviterName}} invited you to Null Device as a {{roleLabel}}.</span>
+    </td>
+  </tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+</body>
+</html>
+`.trim(),
+		textPart: `
+You're invited to the Null Device {{roleLabel}} portal
+
+Hi {{inviteeName}},
+
+{{inviterDisplay}} has added you as a {{roleLabel}} on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+
+Email: {{inviteeEmail}}
+Temporary password: {{temporaryPassword}}
+Single use - expires in {{expiryDays}} days.
+
+Sign in: {{portalUrl}}
+Password expired or didn't work? Request a new password: {{resetPasswordUrl}}
+
+Once you're signed in, your {{roleLabel}} portal will have everything you need to get started.
+
+Not expecting this? You can ignore this email, or contact us at {{supportEmail}}.
 
 Null Device - {{companyAddress}}
 `.trim(),
@@ -457,6 +687,16 @@ backend.customerAccessActivation.resources.lambda.addToRolePolicy(
 		resources: ['*'],
 	}),
 );
+
+// Unlike the Next.js app compute, this function doesn't automatically inherit
+// Amplify Console's app/branch-level environment variables -- without these,
+// its handler falls back to an unbranded template name (which doesn't match
+// the branch-suffixed template above, so the send silently fails) and a
+// hardcoded nulldevice.com.au sender/link domain regardless of branch.
+const customerAccessActivationLambda = backend.customerAccessActivation.resources.lambda as LambdaFunction;
+customerAccessActivationLambda.addEnvironment('SES_WELCOME_TEMPLATE_NAME', welcomeTemplateName);
+customerAccessActivationLambda.addEnvironment('SES_SENDER_EMAIL', `no-reply@${emailDomain}`);
+customerAccessActivationLambda.addEnvironment('NEXT_PUBLIC_APP_URL', `https://${emailDomain}`);
 
 // ── SES inbound email forwarder ──────────────────────────────────────────────
 const forwarderStack = backend.createStack('ses-email-forwarder');
@@ -570,24 +810,158 @@ forwarderFunction.addPermission('AllowSESInvoke', {
 	sourceAccount: forwarderStack.account,
 });
 
-const receiptRuleSet = new CfnReceiptRuleSet(forwarderStack, 'SesReceiptRuleSet', {
-	ruleSetName: inboundRuleSetName,
+// ── Route Request capture (#358, ADR 0008) ───────────────────────────────────
+// Mail to requests@ is stored and forwarded like the other addresses; the
+// receipt rule also invokes the capture function, as its own asynchronous
+// action, so a failed capture can't stop the forward or the reverse. The
+// function lives in the data stack and the receipt rule here references it,
+// so its read on the inbound bucket names the bucket literally -- granting
+// through inboundBucket would make the data stack depend on this one too, a
+// cycle.
+const routeRequestCaptureLambda = backend.routeRequestCapture.resources.lambda as LambdaFunction;
+routeRequestCaptureLambda.addToRolePolicy(
+	new PolicyStatement({
+		sid: 'AllowReadInboundMail',
+		effect: Effect.ALLOW,
+		actions: ['s3:GetObject'],
+		resources: [`arn:aws:s3:::${inboundBucketName}/*`],
+	}),
+);
+backend.storage.resources.bucket.grantPut(routeRequestCaptureLambda, 'requests/*');
+routeRequestCaptureLambda.addEnvironment('INBOUND_BUCKET_NAME', inboundBucketName);
+routeRequestCaptureLambda.addEnvironment('APP_BUCKET_NAME', backend.storage.resources.bucket.bucketName);
+routeRequestCaptureLambda.addEnvironment('EMAIL_DOMAIN', emailDomain);
+routeRequestCaptureLambda.addPermission('AllowSESInvoke', {
+	principal: new ServicePrincipal('ses.amazonaws.com'),
+	sourceAccount: forwarderStack.account,
 });
 
-new CfnReceiptRule(forwarderStack, 'SesReceiptRule', {
-	ruleSetName: receiptRuleSet.ref,
+// /api/route-requests/file hands administrators a Route Request's raw message.
+// Its own construct ID, for the reason given at ssrComputeRoleForStorage.
+inboundBucket.grantRead(
+	importSsrComputeRole(forwarderStack, 'AmplifyHostingSSRComputeRoleInboundMail'),
+);
+
+// SES only ever delivers through whichever ONE receipt rule set is "active"
+// for the account/region, and production and development share the account.
+// So no branch owns a rule set: each adds its own rule, for its own domain's
+// addresses, to one shared set that stays active (ADR 0009). Neither custom
+// resource undoes anything on delete -- another branch's rule may still be in
+// the set -- and the activation runs after this branch's rule exists, so the
+// rule set that used to be active (with the old rule in it) is only removed
+// once the shared one has taken over. scripts/ensure-ses-active-ruleset.js
+// re-asserts the activation on every build in case it was changed by hand.
+const sharedReceiptRuleSet = new AwsCustomResource(forwarderStack, 'SesSharedReceiptRuleSet', {
+	onCreate: {
+		service: 'SES',
+		action: 'CreateReceiptRuleSet',
+		parameters: { RuleSetName: inboundRuleSetName },
+		physicalResourceId: PhysicalResourceId.of(inboundRuleSetName),
+		// Whichever branch deploys first creates it; the rest find it there.
+		ignoreErrorCodesMatching: 'AlreadyExists',
+	},
+	policy: AwsCustomResourcePolicy.fromSdkCalls({ resources: AwsCustomResourcePolicy.ANY_RESOURCE }),
+	installLatestAwsSdk: false,
+});
+
+const receiptRule = new CfnReceiptRule(forwarderStack, 'SesSharedReceiptRule', {
+	ruleSetName: inboundRuleSetName,
 	rule: {
 		name: inboundRuleName,
 		enabled: true,
 		tlsPolicy: 'Optional',
-		recipients: ['admin@nulldevice.dev', 'billing@nulldevice.dev', 'support@nulldevice.dev'],
+		recipients: [`admin@${emailDomain}`, `billing@${emailDomain}`, `support@${emailDomain}`, `requests@${emailDomain}`],
 		scanEnabled: true,
 		actions: [
 			{ s3Action: { bucketName: inboundBucket.bucketName } },
 			{ lambdaAction: { functionArn: forwarderFunction.functionArn, invocationType: 'Event' } },
+			{ lambdaAction: { functionArn: routeRequestCaptureLambda.functionArn, invocationType: 'Event' } },
 		],
 	},
 });
 
+receiptRule.node.addDependency(sharedReceiptRuleSet);
+
+const activeReceiptRuleSet = new AwsCustomResource(forwarderStack, 'SesActivateSharedReceiptRuleSet', {
+	onUpdate: {
+		service: 'SES',
+		action: 'SetActiveReceiptRuleSet',
+		parameters: { RuleSetName: inboundRuleSetName },
+		physicalResourceId: PhysicalResourceId.of(`active-${inboundRuleSetName}`),
+	},
+	policy: AwsCustomResourcePolicy.fromSdkCalls({ resources: AwsCustomResourcePolicy.ANY_RESOURCE }),
+	installLatestAwsSdk: false,
+});
+activeReceiptRuleSet.node.addDependency(receiptRule);
+
+// ── Notify Operator texts (#423, ADR 0010) ──────────────────────────────────
+// /api/admin/send-job-assigned-email texts the Route's Operator through AWS End
+// User Messaging SMS, from the registered sender name below. Each branch gets
+// its own configuration set, so its delivery events land in its own log
+// group. The account's SMS sandbox, sender name and spend limit are shared by
+// every branch; only production texts any Operator (the route itself limits
+// other branches to SMS_TEST_NUMBERS).
+const smsSenderId = 'NullDevice';
+const smsStack = Stack.of(backend.data.resources.graphqlApi);
+const smsConfigurationSetName = withMaxLength(`nulldevice-sms-${branchName}`, 64);
+const smsEventsLogGroup = new LogGroup(smsStack, 'SmsEventsLogGroup', {
+	logGroupName: `/nulldevice/sms-events-${branchName}`,
+	retention: RetentionDays.SIX_MONTHS,
+	removalPolicy: RemovalPolicy.DESTROY,
+});
+const smsEventsRole = new Role(smsStack, 'SmsEventsRole', {
+	assumedBy: new ServicePrincipal('sms-voice.amazonaws.com'),
+});
+smsEventsLogGroup.grantWrite(smsEventsRole);
+const smsConfigurationSet = new CfnConfigurationSet(smsStack, 'SmsConfigurationSet', {
+	configurationSetName: smsConfigurationSetName,
+	defaultSenderId: smsSenderId,
+	eventDestinations: [
+		{
+			eventDestinationName: 'delivery-events',
+			enabled: true,
+			matchingEventTypes: ['ALL'],
+			cloudWatchLogsDestination: {
+				iamRoleArn: smsEventsRole.roleArn,
+				logGroupArn: smsEventsLogGroup.logGroupArn,
+			},
+		},
+	],
+});
+smsConfigurationSet.node.addDependency(smsEventsRole);
+const smsVoiceArn = (resource: string) => `arn:aws:sms-voice:${smsStack.region}:${smsStack.account}:${resource}`;
+ssrComputeRole.addToPrincipalPolicy(
+	new PolicyStatement({
+		sid: 'AllowSmsSendTextFromSenderName',
+		effect: Effect.ALLOW,
+		actions: ['sms-voice:SendTextMessage'],
+		resources: [
+			smsVoiceArn(`sender-id/${smsSenderId}/AU`),
+			smsVoiceArn(`configuration-set/${smsConfigurationSetName}`),
+		],
+	}),
+);
+
 // ── Observability: dashboard + alarms ────────────────────────────────────────
-configureObservability(backend, branchName);
+configureObservability(backend, branchName, emailDomain);
+
+// ── Runtime SES template names ───────────────────────────────────────────────
+// AWS_BRANCH/AMPLIFY_BRANCH are only set during this CDK synth/build step --
+// the deployed Next.js SSR runtime never sees them. lib/emails/*.ts and
+// app/api/admin/send-invoice-email/route.ts read these back out of
+// amplify_outputs.json instead of trying to reconstruct the branch suffix
+// themselves at runtime (see lib/amplifyOutputsCustom.ts).
+backend.addOutput({
+	custom: {
+		sesInvoiceTemplateName: invoiceTemplateName,
+		sesJobAssignedTemplateName: jobAssignedTemplateName,
+		sesInvitationTemplateName: invitationTemplateName,
+		sesStaffInvitationTemplateName: staffInvitationTemplateName,
+		sesMissingSignsReportTemplateName: missingSignsReportTemplateName,
+		sesInboundRuleSetName: inboundRuleSetName,
+		sesInboundBucketName: inboundBucketName,
+		smsConfigurationSetName,
+		smsSenderId,
+		branchName,
+	},
+});

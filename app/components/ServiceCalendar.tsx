@@ -11,12 +11,9 @@ import type { OperatorAvailabilityBlock, CustomerClosureBlock } from '@/amplify/
 import { listOperatorAvailabilityBlocks } from '@/lib/queries/ListOperatorAvailabilityBlocks';
 import { createOperatorAvailabilityBlock } from '@/lib/queries/CreateOperatorAvailabilityBlock';
 import { deleteOperatorAvailabilityBlock } from '@/lib/queries/DeleteOperatorAvailabilityBlock';
-import { listCustomerClosureBlocks } from '@/lib/queries/ListCustomerClosureBlocks';
-import { createCustomerClosureBlock } from '@/lib/queries/CreateCustomerClosureBlock';
-import { deleteCustomerClosureBlock } from '@/lib/queries/DeleteCustomerClosureBlock';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
 import styles from './ServiceCalendar.module.css';
+import { listCustomerRoutes } from '@/lib/routes';
+import { listCustomerClosureBlocks, createCustomerClosureBlock, deleteCustomerClosureBlock, listAllCustomers } from '@/lib/customers';
 
 export type ServiceCalendarRole = 'staff' | 'customer-admin' | 'customer-readonly';
 
@@ -85,19 +82,19 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     setLoading(true);
     setLoadError(null);
 
-    const [noDriversResult, closedResult, routesResult] = await Promise.all([
-      listOperatorAvailabilityBlocks(customerId),
-      listCustomerClosureBlocks(customerId),
-      listMyRoutes({ customerId, limit: 500 }),
+    const [noDriversBlocksResult, closedBlocks, routesResult] = await Promise.all([
+      listOperatorAvailabilityBlocks(customerId).catch(() => null),
+      listCustomerClosureBlocks(customerId).catch(() => null),
+      listCustomerRoutes(customerId).catch(() => null),
     ]);
 
-    if ((noDriversResult.errors && noDriversResult.errors.length > 0) || (closedResult.errors && closedResult.errors.length > 0)) {
+    if (!noDriversBlocksResult || !closedBlocks || !routesResult) {
       setLoadError('Could not load the service calendar.');
     }
 
-    setNoDriversBlocks(noDriversResult.data as OperatorAvailabilityBlock[]);
-    setClosedBlocks(closedResult.data as CustomerClosureBlock[]);
-    setRoutes(routesResult.data || []);
+    setNoDriversBlocks((noDriversBlocksResult ?? []) as unknown as OperatorAvailabilityBlock[]);
+    setClosedBlocks((closedBlocks ?? []) as unknown as CustomerClosureBlock[]);
+    setRoutes(routesResult ?? []);
     setLoading(false);
   }, [customerId]);
 
@@ -170,7 +167,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     const items: { key: string; label: string; badge: string }[] = [];
     for (const block of noDriversBlocks) {
       if (block.date && block.date >= todayKey) {
-        items.push({ key: block.date, label: block.reason || 'No drivers available', badge: 'No drivers' });
+        items.push({ key: block.date, label: block.reason || 'Null Device unavailable', badge: 'Unavailable' });
       }
     }
     for (const block of closedBlocks) {
@@ -199,8 +196,8 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     setActionError(null);
 
     if (selectedNoDriversBlock) {
-      const result = await deleteOperatorAvailabilityBlock(selectedNoDriversBlock.id);
-      if (result.errors && result.errors.length > 0) {
+      const deleted = await deleteOperatorAvailabilityBlock(selectedNoDriversBlock.id).then(() => true, () => false);
+      if (!deleted) {
         setActionError('Could not update the calendar.');
         setActionPending(false);
         return;
@@ -212,20 +209,25 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     }
 
     if (applyToAllCustomers) {
-      const customersResult = await listAllCustomers({ limit: 200 });
-      if (customersResult.errors && customersResult.errors.length > 0) {
+      const customers = await listAllCustomers().catch(() => null);
+      if (!customers) {
         setActionError('Could not load customers to apply the block to.');
         setActionPending(false);
         return;
       }
 
-      const activeCustomers = (customersResult.data || []).filter((c) => c.status === 'active');
+      const activeCustomers = customers.filter((c) => c.status === 'active');
       const failures: string[] = [];
 
       for (const activeCustomer of activeCustomers) {
-        const existing = await listOperatorAvailabilityBlocks(activeCustomer.id);
-        const alreadyBlocked = (existing.data as OperatorAvailabilityBlock[]).some((block) => block.date === selectedKey);
-        if (alreadyBlocked) continue;
+        // An unreadable calendar is a failure for that customer, not "not blocked yet":
+        // blocking it blind could add a second block for the day.
+        const existing = await listOperatorAvailabilityBlocks(activeCustomer.id).catch(() => null);
+        if (!existing) {
+          failures.push(activeCustomer.name);
+          continue;
+        }
+        if (existing.some((block) => block.date === selectedKey)) continue;
 
         const created = await createOperatorAvailabilityBlock({
           customerId: activeCustomer.id,
@@ -233,8 +235,8 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
           reason: reasonDraft.trim() || undefined,
           createdByOperatorId: currentUserSub,
           viewerSubs: activeCustomer.viewerSubs || [],
-        });
-        if (created.errors && created.errors.length > 0) failures.push(activeCustomer.name);
+        }).then(() => true, () => false);
+        if (!created) failures.push(activeCustomer.name);
       }
 
       if (failures.length > 0) {
@@ -247,15 +249,15 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
       return;
     }
 
-    const result = await createOperatorAvailabilityBlock({
+    const created = await createOperatorAvailabilityBlock({
       customerId,
       date: selectedKey,
       reason: reasonDraft.trim() || undefined,
       createdByOperatorId: currentUserSub,
       viewerSubs,
-    });
+    }).then(() => true, () => false);
 
-    if (result.errors && result.errors.length > 0) {
+    if (!created) {
       setActionError('Could not update the calendar.');
       setActionPending(false);
       return;
@@ -270,9 +272,11 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
     setActionPending(true);
     setActionError(null);
 
-    const result = selectedClosedBlock
-      ? await deleteCustomerClosureBlock(selectedClosedBlock.id)
-      : await createCustomerClosureBlock({
+    try {
+      if (selectedClosedBlock) {
+        await deleteCustomerClosureBlock(selectedClosedBlock.id);
+      } else {
+        await createCustomerClosureBlock({
           customerId,
           date: selectedKey,
           reason: reasonDraft.trim() || undefined,
@@ -280,8 +284,8 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
           accountOwnerSub: currentUserSub,
           viewerSubs,
         });
-
-    if (result.errors && result.errors.length > 0) {
+      }
+    } catch {
       setActionError('Could not update the calendar.');
       setActionPending(false);
       return;
@@ -353,7 +357,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
           <div className={styles.legend}>
             <span className={styles.legendItem}>
               <span className={`${styles.legendSwatch} ${styles.legendSwatchNoDrivers}`} />
-              No drivers — set by Null Device
+              Null Device unavailable — set by Null Device
             </span>
             <span className={styles.legendItem}>
               <span className={`${styles.legendSwatch} ${styles.legendSwatchClosed}`} />
@@ -375,7 +379,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
             ) : (
               <>
                 <div className={styles.statRow}>
-                  <span className={styles.statLabel}>Drivers available</span>
+                  <span className={styles.statLabel}>Null Device</span>
                   <span className={selectedNoDriversBlock ? styles.statBad : styles.statGood}>
                     {selectedNoDriversBlock ? 'Blocked' : 'Available'}
                   </span>
@@ -408,7 +412,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
                             id="cal-no-drivers-reason"
                             value={reasonDraft}
                             onChange={(e) => setReasonDraft(e.target.value)}
-                            placeholder="Driver vacation, public holiday, depot closed"
+                            placeholder="Public holiday, depot closed"
                             disabled={actionPending}
                           />
                         </Field>
@@ -484,7 +488,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
                 >
                   <span className={styles.upcomingDate}>{formatShortDate(item.key)}</span>
                   <span className={styles.upcomingLabel}>{item.label}</span>
-                  <span className={item.badge === 'No drivers' ? styles.badgeNoDrivers : styles.badgeClosed}>{item.badge}</span>
+                  <span className={item.badge === 'Unavailable' ? styles.badgeNoDrivers : styles.badgeClosed}>{item.badge}</span>
                 </button>
               ))}
             </div>

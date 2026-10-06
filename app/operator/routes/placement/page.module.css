@@ -5,6 +5,17 @@
  * no classes of its own beyond the primaryButton font-size below.
  */
 
+.startPanel {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--surface-brand-subtle);
+  color: var(--text-body);
+  font-family: var(--font-body);
+  font-weight: var(--fw-medium);
+  font-size: var(--text-sm);
+  line-height: var(--lh-relaxed);
+}
+
 /* Combined with signRunShell's .primaryButton at the JSX level — see that
  * file's header comment for why font-size is split out like this. */
 .primaryButton {

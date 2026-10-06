@@ -1,8 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { useRouteStopsPreview } from './useRouteStopsPreview';
-import { getRouteWithStops } from '@/lib/queries';
+import { getRouteWithStops } from '@/lib/routes';
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
 }));
 
@@ -21,7 +21,6 @@ describe('useRouteStopsPreview', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: { id: 'route-1' },
       stops: [{ address: '1 Test St', agent: 'BO', numberOfSigns: 3 }],
-      errors: undefined,
     });
 
     const { result } = renderHook(() => useRouteStopsPreview('route-1'));

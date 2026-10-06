@@ -1,22 +1,13 @@
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import UsersAdminPage from '@/app/administrator/users/page';
-import {
-  createCustomerUser,
-  deleteCustomerUser,
-  listAllCustomerUsers,
-  listCustomers,
-  syncViewerSubsForCustomer,
-} from '@/lib/queries';
+import { ApiError, callApi } from '@/lib/apiClient';
+import { createCustomerUser, deleteCustomerUser, updateCustomerUser, listAllCustomerUsers, listAllCustomers } from '@/lib/customers';
+import { DataError } from '@/lib/graphqlResult';
 
-jest.mock('aws-amplify/auth', () => ({
-  fetchAuthSession: jest.fn(async () => ({
-    tokens: {
-      idToken: {
-        toString: () => 'test-token',
-      },
-    },
-  })),
+jest.mock('@/lib/apiClient', () => ({
+  ...jest.requireActual('@/lib/apiClient'),
+  callApi: jest.fn(),
 }));
 
 jest.mock('@/app/components/OperatorRoute', () => ({
@@ -24,68 +15,49 @@ jest.mock('@/app/components/OperatorRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/app/administrator/users/components/UserSelectorControl', () => ({
-  __esModule: true,
-  default: () => <div>User Selector</div>,
-}));
-
-jest.mock('@/app/administrator/users/components/GroupMembershipSection', () => ({
-  __esModule: true,
-  default: () => <div>Group Membership</div>,
-}));
-
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   createCustomerUser: jest.fn(),
   deleteCustomerUser: jest.fn(),
+  updateCustomerUser: jest.fn(),
   listAllCustomerUsers: jest.fn(),
-  listCustomers: jest.fn(),
-  syncViewerSubsForCustomer: jest.fn(),
+  listAllCustomers: jest.fn(),
 }));
 
-const mockListCustomers = listCustomers as jest.MockedFunction<typeof listCustomers>;
+const mockListCustomers = listAllCustomers as jest.MockedFunction<typeof listAllCustomers>;
 const mockListAllCustomerUsers = listAllCustomerUsers as jest.MockedFunction<typeof listAllCustomerUsers>;
 const mockCreateCustomerUser = createCustomerUser as jest.MockedFunction<typeof createCustomerUser>;
+const mockUpdateCustomerUser = updateCustomerUser as jest.MockedFunction<typeof updateCustomerUser>;
 const mockDeleteCustomerUser = deleteCustomerUser as jest.MockedFunction<typeof deleteCustomerUser>;
-const mockSyncViewerSubsForCustomer = syncViewerSubsForCustomer as jest.MockedFunction<typeof syncViewerSubsForCustomer>;
+const mockCallApi = callApi as jest.Mock;
 
 describe('UsersAdminPage customer access actions', () => {
   beforeEach(() => {
-    mockListCustomers.mockResolvedValue({
-      data: [{ id: 'cust-1', name: 'Acme Customer' }],
-      nextToken: null,
-      errors: [],
-    } as any);
+    mockListCustomers.mockResolvedValue([{ id: 'cust-1', name: 'Acme Customer' }] as any);
 
-    mockListAllCustomerUsers.mockResolvedValue({
-      data: [
-        {
-          id: 'cu-1',
-          customerId: 'cust-1',
-          userSub: 'sub-1',
-          accountOwnerSub: 'sub-owner',
-          name: 'Read User',
-          email: 'read@example.com',
-          role: 'read_only',
-        },
-      ],
-      errors: [],
-    } as any);
+    mockListAllCustomerUsers.mockResolvedValue([
+      {
+        id: 'cu-1',
+        customerId: 'cust-1',
+        userSub: 'sub-1',
+        accountOwnerSub: 'sub-owner',
+        name: 'Read User',
+        email: 'read@example.com',
+        role: 'read_only',
+      },
+    ] as any);
 
-    mockCreateCustomerUser.mockResolvedValue({ data: { id: 'new-cu' }, errors: [] } as any);
-    mockDeleteCustomerUser.mockResolvedValue({ data: {}, errors: [] } as any);
-    mockSyncViewerSubsForCustomer.mockResolvedValue({ data: {}, errors: [] } as any);
+    mockCreateCustomerUser.mockResolvedValue({ id: 'new-cu' } as any);
+    mockUpdateCustomerUser.mockResolvedValue({} as any);
+    mockDeleteCustomerUser.mockResolvedValue({} as any);
 
-    global.fetch = jest.fn(async () => ({
-      ok: true,
-      json: async () => ({ users: [] }),
-    })) as jest.Mock;
+    mockCallApi.mockResolvedValue({ users: [] });
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('renders add as primary and remove as danger in customer access section', async () => {
+  it('renders the invite button as primary and revoke access as danger inside the edit dialog', async () => {
     render(<UsersAdminPage />);
 
     await waitFor(() => {
@@ -99,26 +71,25 @@ describe('UsersAdminPage customer access actions', () => {
       expect(screen.getByText('Read User')).toBeInTheDocument();
     });
 
-    expect(screen.queryByRole('button', { name: 'Remove Read User from customer access' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revoke Access' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /more customer access actions for read user/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change role for Read User' }));
 
-    const removeButton = screen.getByRole('button', { name: 'Remove Read User from customer access' });
-    expect(removeButton).toHaveClass('nd-btn--danger');
+    const revokeButton = screen.getByRole('button', { name: 'Revoke Access' });
+    expect(revokeButton).toHaveClass('nd-btn--danger');
   });
 
-  it('requires confirmation before removing a customer user', async () => {
+  it('requires confirmation before revoking a customer user from the table row', async () => {
     render(<UsersAdminPage />);
 
     await waitFor(() => {
       expect(screen.getByText('Read User')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /more customer access actions for read user/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Read User from customer access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke access for Read User' }));
 
-    const dialog = screen.getByRole('alertdialog', { name: 'Remove customer access?' });
-    expect(dialog).toHaveTextContent('Remove Read User from customer access?');
+    const dialog = screen.getByRole('alertdialog', { name: 'Revoke customer access?' });
+    expect(dialog).toHaveTextContent("Revoke Read User's customer access?");
     expect(mockDeleteCustomerUser).not.toHaveBeenCalled();
 
     // Cancelling closes the dialog without removing.
@@ -126,9 +97,9 @@ describe('UsersAdminPage customer access actions', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(mockDeleteCustomerUser).not.toHaveBeenCalled();
 
-    // Confirming performs the removal (row menu remains open after cancel).
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Read User from customer access' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Remove User' }));
+    // Confirming performs the removal.
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke access for Read User' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke Access' }));
 
     await waitFor(() => {
       expect(mockDeleteCustomerUser).toHaveBeenCalledWith('cu-1');
@@ -136,7 +107,110 @@ describe('UsersAdminPage customer access actions', () => {
     await waitFor(() => {
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     });
-    expect(mockSyncViewerSubsForCustomer).toHaveBeenCalledWith('cust-1', []);
+    // Access is revoked server-side, with the removed sub as a hint so an
+    // eventually-consistent read can't leave it behind.
+    expect(mockCallApi).toHaveBeenCalledWith('/api/admin/sync-customer-access', { customerId: 'cust-1', removed: 'sub-1' });
+  });
+
+  it('tells the admin when the user was removed but revoking their access failed', async () => {
+    mockCallApi.mockImplementation(async (path: string) => {
+      if (path === '/api/admin/sync-customer-access') throw new ApiError('Access sync finished with 2 error(s).', 500);
+      return { users: [] };
+    });
+
+    render(<UsersAdminPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Revoke access for Read User' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke Access' }));
+
+    expect(await screen.findByText(/revoking their access failed \(Access sync finished with 2 error\(s\)\.\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/access revoked from all/i)).not.toBeInTheDocument();
+  });
+
+  it('edits display name and role from the edit dialog', async () => {
+    render(<UsersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Read User')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change role for Read User' }));
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Display Name'), { target: { value: 'Renamed User' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => {
+      expect(mockUpdateCustomerUser).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'cu-1', name: 'Renamed User', role: 'read_only' })
+      );
+    });
+  });
+
+  it("tells the admin when a promotion saved but other users weren't moved to the new owner", async () => {
+    mockListAllCustomerUsers.mockResolvedValue([
+      { id: 'cu-1', customerId: 'cust-1', userSub: 'sub-1', accountOwnerSub: 'sub-owner', name: 'Read User', role: 'read_only' },
+      { id: 'cu-2', customerId: 'cust-1', userSub: 'sub-2', accountOwnerSub: 'sub-owner', name: 'Other User', role: 'read_only' },
+    ] as any);
+    mockUpdateCustomerUser.mockImplementation(async (input) => {
+      if (input.id === 'cu-2') throw new DataError('Failed to update customer user.');
+      return {} as any;
+    });
+
+    render(<UsersAdminPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Change role for Read User' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('radio', { name: /Primary contact/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
+
+    expect(await screen.findByText(/weren't moved to the new owner/)).toBeInTheDocument();
+    expect(mockUpdateCustomerUser).toHaveBeenCalledWith({ id: 'cu-2', accountOwnerSub: 'sub-1' });
+    expect(screen.queryByText('User updated.')).not.toBeInTheDocument();
+  });
+
+  it('sorts the customer user list from a column header (#441)', async () => {
+    mockListAllCustomerUsers.mockResolvedValue([
+      { id: 'cu-1', customerId: 'cust-1', userSub: 'sub-1', accountOwnerSub: 'sub-owner', name: 'Zara User', email: 'zara@example.com', role: 'read_only' },
+      { id: 'cu-2', customerId: 'cust-1', userSub: 'sub-2', accountOwnerSub: 'sub-owner', name: 'Adam User', email: 'adam@example.com', role: 'read_only' },
+    ] as any);
+
+    render(<UsersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Zara User')).toBeInTheDocument();
+    });
+
+    const table = screen.getByRole('table', { name: 'All customer users' });
+    const firstDataRow = () => within(table).getAllByRole('row')[1];
+    expect(firstDataRow()).toHaveTextContent('Zara User');
+
+    const sortByUser = within(table).getByRole('button', { name: 'Sort by User' });
+    fireEvent.click(sortByUser);
+    expect(sortByUser.closest('th')).toHaveAttribute('aria-sort', 'ascending');
+    expect(firstDataRow()).toHaveTextContent('Adam User');
+
+    fireEvent.click(sortByUser);
+    expect(sortByUser.closest('th')).toHaveAttribute('aria-sort', 'descending');
+    expect(firstDataRow()).toHaveTextContent('Zara User');
+
+    fireEvent.click(sortByUser);
+    expect(sortByUser.closest('th')).toHaveAttribute('aria-sort', 'none');
+  });
+
+  it('uses the shared sortable header for every sortable column (#441)', async () => {
+    // The shared AdminSortableHeader carries the themed header treatment; a
+    // page-local copy drifts from it.
+    render(<UsersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Read User')).toBeInTheDocument();
+    });
+
+    const table = screen.getByRole('table', { name: 'All customer users' });
+    for (const label of ['User', 'Customer', 'Role', 'Status']) {
+      expect(within(table).getByRole('button', { name: `Sort by ${label}` })).toHaveClass('sortHeaderButton');
+    }
   });
 
   it('shows summary stat tiles computed from the loaded data', async () => {
@@ -146,26 +220,20 @@ describe('UsersAdminPage customer access actions', () => {
       expect(screen.getByText('Read User')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Client users')).toBeInTheDocument();
+    expect(screen.getByText('Customer users')).toBeInTheDocument();
     expect(screen.getByText('Account owners')).toBeInTheDocument();
     expect(screen.getByText('Invites pending')).toBeInTheDocument();
-    expect(screen.getByText('Signed in (7d)')).toBeInTheDocument();
+    expect(screen.getByText('Signed in past 7d')).toBeInTheDocument();
   });
 
   it('creates a real Cognito login (instead of a pending placeholder) when the invited email has no existing account', async () => {
-    global.fetch = jest.fn(async (_url, init) => {
-      const body = JSON.parse((init as RequestInit).body as string) as { action: string };
-      if (body.action === 'getUserByEmail') {
-        return { ok: false, json: async () => ({ error: 'No user found.' }) };
-      }
+    mockCallApi.mockImplementation(async (_path: string, body: { action: string }) => {
+      if (body.action === 'getUserByEmail') throw new ApiError('No user found.', 404);
       if (body.action === 'createUser') {
-        return {
-          ok: true,
-          json: async () => ({ user: { sub: 'brand-new-sub', username: 'new@agency.com.au' }, created: true }),
-        };
+        return { user: { sub: 'brand-new-sub', username: 'new@agency.com.au' }, created: true, emailSent: true };
       }
-      return { ok: true, json: async () => ({}) };
-    }) as jest.Mock;
+      return {};
+    });
 
     render(<UsersAdminPage />);
 
@@ -184,16 +252,66 @@ describe('UsersAdminPage customer access actions', () => {
       );
     });
 
-    expect(screen.getByText(/branded invitation/i)).toBeInTheDocument();
-
-    const calls = (global.fetch as jest.Mock).mock.calls;
-    const createUserCall = calls.find(([, init]) => JSON.parse(init.body).action === 'createUser');
-    expect(createUserCall).toBeTruthy();
-    expect(JSON.parse(createUserCall![1].body)).toMatchObject({
-      action: 'createUser',
-      email: 'new@agency.com.au',
-      groupName: 'customer',
-      customerName: 'Acme Customer',
+    expect(await screen.findByText(/branded invitation/i)).toBeInTheDocument();
+    expect(mockCallApi).toHaveBeenCalledWith('/api/admin/sync-customer-access', {
+      customerId: 'cust-1',
+      added: 'brand-new-sub',
     });
+    expect(mockCallApi).toHaveBeenCalledWith(
+      '/api/admin/users',
+      expect.objectContaining({
+        action: 'createUser',
+        email: 'new@agency.com.au',
+        groupName: 'customer',
+        customerName: 'Acme Customer',
+      })
+    );
+  });
+
+  it('tells the admin when the login was created but the invitation email failed to send', async () => {
+    mockCallApi.mockImplementation(async (_path: string, body: { action: string }) => {
+      if (body.action === 'getUserByEmail') throw new ApiError('No user found.', 404);
+      if (body.action === 'createUser') {
+        return { user: { sub: 'brand-new-sub', username: 'new@agency.com.au' }, created: true, emailSent: false };
+      }
+      return {};
+    });
+
+    render(<UsersAdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Read User')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Email for new customer user'), {
+      target: { value: 'new@agency.com.au' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add customer user' }));
+
+    expect(await screen.findByText(/invitation email could not be sent/i)).toBeInTheDocument();
+  });
+
+  it('shows a Resend action for a pending invite and resends it', async () => {
+    mockCallApi.mockImplementation(async (_path: string, body: { action: string; groupName?: string }) => {
+      if (body.action === 'listUsersInGroup' && body.groupName === 'customer') {
+        return { users: [{ sub: 'sub-1', status: 'FORCE_CHANGE_PASSWORD' }] };
+      }
+      if (body.action === 'resendInvite') return { emailSent: true };
+      return {};
+    });
+
+    render(<UsersAdminPage />);
+
+    const resendButton = await screen.findByRole('button', { name: 'Resend invite to Read User' });
+    fireEvent.click(resendButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Invitation resent to read@example.com.')).toBeInTheDocument();
+    });
+
+    expect(mockCallApi).toHaveBeenCalledWith(
+      '/api/admin/users',
+      expect.objectContaining({ action: 'resendInvite', email: 'read@example.com', groupName: 'customer' })
+    );
   });
 });

@@ -1,5 +1,5 @@
 import type { ChangeEvent, MutableRefObject, RefObject } from 'react';
-import { fetchAuthSession } from 'aws-amplify/auth';
+import { ApiError, callApi } from '@/lib/apiClient';
 import { getUrl, uploadData } from 'aws-amplify/storage';
 import type { Route } from '@/amplify/types';
 import { buildInvoicePdfConfig } from '@/app/administrator/invoices/invoicePdfTheme';
@@ -8,8 +8,12 @@ import { DEFAULT_COMPANY_BILLING_DETAILS } from '@/lib/companyBilling';
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseInvoiceText } from '@/lib/parseInvoice';
 import { BILLING_EMAIL } from '@/lib/publicAppConfig';
-import { getInvoiceWithLineItems, getRouteWithStops, updateInvoice, updateInvoicePdfKey } from '@/lib/queries';
+import { buildInvoiceFileName } from '@/lib/invoiceFileName';
 import type { StopSummary } from '@/app/administrator/invoices/stopFormatting';
+import { getRouteWithStops } from '@/lib/routes';
+import { activeStops } from '@/lib/loadChange';
+import { billedTime } from '@/lib/billedTime';
+import { getInvoiceWithLineItems, updateInvoice, updateInvoicePdfKey } from '@/lib/invoices';
 
 type UseInvoiceDocumentActionsParams = {
   customers: CustomerOption[];
@@ -36,38 +40,6 @@ type UseInvoiceDocumentActionsParams = {
 
 function getInvoicePdfKey(invoice: Invoice) {
   return invoice.pdfS3Key ?? null;
-}
-
-async function fetchLogoDataUrl() {
-  try {
-    const response = await fetch('/logo.svg');
-    if (!response.ok) return null;
-
-    const svgText = await response.text();
-    const svgBase64 = btoa(unescape(encodeURIComponent(svgText)));
-    const svgDataUrl = `data:image/svg+xml;base64,${svgBase64}`;
-
-    return await new Promise<string | null>((resolve) => {
-      const image = new Image();
-      image.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = image.width;
-        canvas.height = image.height;
-        const context = canvas.getContext('2d');
-        if (!context) {
-          resolve(null);
-          return;
-        }
-
-        context.drawImage(image, 0, 0);
-        resolve(canvas.toDataURL('image/png'));
-      };
-      image.onerror = () => resolve(null);
-      image.src = svgDataUrl;
-    });
-  } catch {
-    return null;
-  }
 }
 
 export function useInvoiceDocumentActions({
@@ -121,44 +93,44 @@ export function useInvoiceDocumentActions({
         options: { contentType: 'application/pdf' },
       }).result;
 
-      const keyResult = await updateInvoicePdfKey(invoiceId, s3Key);
-      if (keyResult.errors && keyResult.errors.length > 0) {
+      try {
+        await updateInvoicePdfKey(invoiceId, s3Key);
+      } catch {
         setUploadError('Uploaded to S3 but failed to save key on invoice.');
+        return;
+      }
+      // Parse first, then write once: a failed write is a failed upload, never mistaken for a failed parse.
+      const uploadedAt = new Date().toISOString();
+      const updates: Parameters<typeof updateInvoice>[1] = { pdfS3Key: s3Key, importedAt: uploadedAt };
+      let parsed = true;
+      try {
+        const invoiceText = parseInvoiceText(await extractScheduleText(file));
+        const existingInvoice = invoices.find((invoice) => invoice.id === invoiceId);
+
+        const parsedRouteId = invoiceText.routeCode
+          ? routes.find(
+              (route) =>
+                route.routeCode?.toUpperCase() === invoiceText.routeCode &&
+                (!existingInvoice?.customerId || route.customerId === existingInvoice.customerId)
+            )?.id
+          : undefined;
+
+        if (invoiceText.invoiceNumber) updates.invoiceNumber = invoiceText.invoiceNumber;
+        if (invoiceText.invoiceDate) updates.invoiceDate = invoiceText.invoiceDate;
+        if (typeof invoiceText.totalAmount === 'number') updates.totalAmount = invoiceText.totalAmount;
+        if (parsedRouteId) updates.routeId = parsedRouteId;
+      } catch (parseError) {
+        console.warn('PDF uploaded but auto-parse failed:', parseError);
+        parsed = false;
+      }
+
+      await updateInvoice(invoiceId, updates);
+      updateInvoiceInState(invoiceId, updates as Partial<Invoice>);
+      if (parsed) {
+        setSuccessMessage('Invoice PDF uploaded and invoice metadata updated.');
       } else {
-        const uploadedAt = new Date().toISOString();
-        try {
-          const parsedText = await extractScheduleText(file);
-          const parsed = parseInvoiceText(parsedText);
-          const existingInvoice = invoices.find((invoice) => invoice.id === invoiceId);
-
-          const parsedRouteId = parsed.routeCode
-            ? routes.find(
-                (route) =>
-                  route.routeCode?.toUpperCase() === parsed.routeCode &&
-                  (!existingInvoice?.customerId || route.customerId === existingInvoice.customerId)
-              )?.id
-            : undefined;
-
-          const parsedUpdates: Parameters<typeof updateInvoice>[1] = {
-            pdfS3Key: s3Key,
-            importedAt: uploadedAt,
-          };
-
-          if (parsed.invoiceNumber) parsedUpdates.invoiceNumber = parsed.invoiceNumber;
-          if (parsed.invoiceDate) parsedUpdates.invoiceDate = parsed.invoiceDate;
-          if (typeof parsed.totalAmount === 'number') parsedUpdates.totalAmount = parsed.totalAmount;
-          if (parsedRouteId) parsedUpdates.routeId = parsedRouteId;
-
-          await updateInvoice(invoiceId, parsedUpdates);
-          updateInvoiceInState(invoiceId, parsedUpdates as Partial<Invoice>);
-          setSuccessMessage('Invoice PDF uploaded and invoice metadata updated.');
-        } catch (parseError) {
-          console.warn('PDF uploaded but auto-parse failed:', parseError);
-          await updateInvoice(invoiceId, { importedAt: uploadedAt });
-          updateInvoiceInState(invoiceId, { pdfS3Key: s3Key, importedAt: uploadedAt });
-          setUploadError('PDF uploaded, but automatic invoice parsing failed. You can still use the uploaded PDF.');
-          setSuccessMessage('Invoice PDF uploaded successfully.');
-        }
+        setUploadError('PDF uploaded, but automatic invoice parsing failed. You can still use the uploaded PDF.');
+        setSuccessMessage('Invoice PDF uploaded successfully.');
       }
     } catch (err) {
       console.error('Upload error:', err);
@@ -194,9 +166,10 @@ export function useInvoiceDocumentActions({
         return;
       }
 
+      const customer = customers.find((entry) => entry.id === invoice.customerId);
       const link = document.createElement('a');
       link.href = urlString;
-      link.download = `${invoice.invoiceNumber || invoice.id}.pdf`;
+      link.download = buildInvoiceFileName(customer?.name, invoice.invoiceNumber, invoice.id);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -223,19 +196,18 @@ export function useInvoiceDocumentActions({
       const customer = customers.find((entry) => entry.id === invoice.customerId);
       const linkedRoute = routes.find((route) => route.id === invoice.routeId);
       const detail = await getInvoiceWithLineItems(invoice.id);
-      const lineItems = (detail.lineItems as Array<{
+      const lineItems = (detail?.lineItems as Array<{
         description?: string | null;
         quantity?: number | null;
         ratePerUnit?: number | null;
         amount?: number | null;
       }>) ?? [];
       const routeStops = invoice.routeId
-        ? ((await getRouteWithStops(invoice.routeId)).stops as StopSummary[]) ?? []
+        ? (activeStops((await getRouteWithStops(invoice.routeId))?.stops ?? []) as StopSummary[])
         : [];
       const groupStopsByAgentForCustomer = Boolean(customer?.groupLineItemsByAgent);
       const { jsPDF } = await import('jspdf');
       const { drawInvoicePdfDocument } = await import('@/app/administrator/invoices/invoicePdfDocument');
-      const logoDataUrl = await fetchLogoDataUrl();
       const pdfCompanyName = billingCompanyName.trim() || DEFAULT_COMPANY_BILLING_DETAILS.companyName;
       const pdfCompanyAbn = billingAbn.trim() || DEFAULT_COMPANY_BILLING_DETAILS.abn;
       const pdfCompanyPhone = billingPhone.trim() || DEFAULT_COMPANY_BILLING_DETAILS.phone;
@@ -245,7 +217,7 @@ export function useInvoiceDocumentActions({
       const pdfPaymentAccountNumber = billingAccountNumber.trim() || DEFAULT_COMPANY_BILLING_DETAILS.accountNumber;
 
       const routeDurationHours = linkedRoute
-        ? Number((((linkedRoute.overrideDurationMinutes ?? linkedRoute.actualDurationMinutes ?? 0) / 60)).toFixed(2))
+        ? Number(((billedTime(linkedRoute).totalMinutes ?? 0) / 60).toFixed(2))
         : 0;
       const hourlyRate = Number((customer?.billingRatePerHour ?? 0).toFixed(2));
       const gstAmount = Number((invoice.gstAmount ?? 0).toFixed(2));
@@ -292,14 +264,13 @@ export function useInvoiceDocumentActions({
         invoiceRows.reduce((sum, row) => sum + row.total, 0).toFixed(2)
       );
 
-      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const doc = new jsPDF({ unit: 'pt', format: 'a4', compress: true, putOnlyUsedFonts: true });
       const config = buildInvoicePdfConfig();
 
       drawInvoicePdfDocument(doc, config, {
         invoiceNumber: invoice.invoiceNumber || invoice.id,
         invoiceDate: invoice.invoiceDate || new Date().toISOString().slice(0, 10),
         routeCode: linkedRoute?.routeCode || invoice.routeId || '—',
-        logoDataUrl,
         company: {
           name: pdfCompanyName,
           abn: pdfCompanyAbn,
@@ -332,13 +303,14 @@ export function useInvoiceDocumentActions({
         options: { contentType: 'application/pdf' },
       }).result;
 
-      const keyResult = await updateInvoicePdfKey(invoice.id, s3Key);
-      if (keyResult.errors && keyResult.errors.length > 0) {
+      try {
+        await updateInvoicePdfKey(invoice.id, s3Key);
+      } catch {
         setUploadError('Generated PDF uploaded but failed to save key on invoice.');
-      } else {
-        updateInvoiceInState(invoice.id, { pdfS3Key: s3Key, importedAt: null });
-        setSuccessMessage(`Invoice ${invoice.invoiceNumber} PDF generated successfully.`);
+        return;
       }
+      updateInvoiceInState(invoice.id, { pdfS3Key: s3Key, importedAt: null });
+      setSuccessMessage(`Invoice ${invoice.invoiceNumber} PDF generated successfully.`);
     } catch (err) {
       console.error('PDF generation failed:', err);
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -367,45 +339,21 @@ export function useInvoiceDocumentActions({
     setSuccessMessage(null);
 
     try {
-      const session = await fetchAuthSession();
-      const idToken = session.tokens?.idToken?.toString();
-
-      if (!idToken) {
-        setError('Authentication required. Please log in again.');
-        return;
-      }
-
-      const response = await fetch('/api/admin/send-invoice-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          invoiceId: invoice.id,
-          recipientEmail: primaryEmail,
-        }),
+      const result = await callApi<{ sentTo: string }>('/api/admin/send-invoice-email', {
+        invoiceId: invoice.id,
+        recipientEmail: primaryEmail,
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.error || `Failed to send email (status ${response.status})`;
-        setError(errorMessage);
-        return;
-      }
-
-      const result = await response.json();
       setError(null);
       setSuccessMessage(`Invoice ${invoice.invoiceNumber} emailed to ${result.sentTo}.`);
 
       const sentAt = new Date().toISOString();
       const nextStatus = String(invoice.status ?? '').trim().toLowerCase() === 'paid' ? 'paid' : 'sent';
-      const updateResult = await updateInvoice(invoice.id, {
-        status: nextStatus,
-        emailSentAt: sentAt,
-      });
-
-      if (updateResult.errors && updateResult.errors.length > 0) {
+      try {
+        await updateInvoice(invoice.id, {
+          status: nextStatus,
+          emailSentAt: sentAt,
+        });
+      } catch {
         setError('Invoice email sent, but status timestamp update failed. Refresh to confirm latest state.');
         return;
       }
@@ -415,6 +363,10 @@ export function useInvoiceDocumentActions({
         emailSentAt: sentAt,
       });
     } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+        return;
+      }
       console.error('Email invoice action failed:', err);
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(`Unable to send invoice email. ${message}`);

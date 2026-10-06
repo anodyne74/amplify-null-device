@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
 import type { Customer } from '@/amplify/types';
-import { getCustomer, getCustomerPortalContext, updateCustomer } from '@/lib/queries';
+import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
@@ -12,6 +11,7 @@ import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Switch } from '@/app/components/ui/forms/Switch';
 import styles from './page.module.css';
+import { getCustomer, updateCustomer } from '@/lib/customers';
 
 function parseCcEmails(value: string) {
   return value
@@ -20,18 +20,26 @@ function parseCcEmails(value: string) {
     .filter(Boolean);
 }
 
+async function fetchBillingDetailsData(context: CustomerPortalContext): Promise<Customer | null> {
+  try {
+    return (await getCustomer(context.customerId)) as Customer | null;
+  } catch {
+    throw new Error('Could not load billing details.');
+  }
+}
+
 export default function CustomerBillingDetailsPage() {
-  const { user } = useAuthenticator();
-  const [customerRole, setCustomerRole] = useState<'account_owner' | 'read_only'>('read_only');
-  const [customerId, setCustomerId] = useState<string | null>(null);
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const {
+    role: customerRole,
+    customerId,
+    data: customer,
+    loading,
+    error: loadError,
+  } = useCustomerPortalContext({ fetchData: fetchBillingDetailsData });
 
   const [billingEmail, setBillingEmail] = useState('');
   const [billingCcEmailsText, setBillingCcEmailsText] = useState('');
   const [attachAgentBreakdown, setAttachAgentBreakdown] = useState(true);
-  const [sendPaymentReminder, setSendPaymentReminder] = useState(false);
   const [companyName, setCompanyName] = useState('');
   const [gstAbn, setGstAbn] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
@@ -45,53 +53,14 @@ export default function CustomerBillingDetailsPage() {
   const [addressSuccess, setAddressSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user?.userId) return;
-    let cancelled = false;
-
-    void getCustomerPortalContext(user.userId)
-      .then(async (context) => {
-        if (cancelled) return;
-        setCustomerRole(context.role);
-        setCustomerId(context.customerId);
-
-        if (!context.customerId) {
-          setLoadError('Could not resolve your customer account.');
-          setLoading(false);
-          return;
-        }
-
-        const result = await getCustomer(context.customerId);
-        if (cancelled) return;
-
-        if (result.errors && result.errors.length > 0) {
-          const firstError = result.errors[0] as { message?: string } | undefined;
-          setLoadError(firstError?.message ?? 'Could not load billing details.');
-          setLoading(false);
-          return;
-        }
-
-        const nextCustomer = result.data as Customer | null;
-        setCustomer(nextCustomer);
-        setBillingEmail(nextCustomer?.email ?? '');
-        setBillingCcEmailsText((nextCustomer?.billingCcEmails ?? []).join(', '));
-        setAttachAgentBreakdown(nextCustomer?.attachAgentBreakdown ?? true);
-        setSendPaymentReminder(nextCustomer?.sendPaymentReminder ?? false);
-        setCompanyName(nextCustomer?.companyName ?? '');
-        setGstAbn(nextCustomer?.gstAbn ?? '');
-        setAddressLine1(nextCustomer?.addressLine1 ?? '');
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setLoadError('Could not load billing details.');
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.userId]);
+    if (!customer) return;
+    setBillingEmail(customer.email ?? '');
+    setBillingCcEmailsText((customer.billingCcEmails ?? []).join(', '));
+    setAttachAgentBreakdown(customer.attachAgentBreakdown ?? true);
+    setCompanyName(customer.companyName ?? '');
+    setGstAbn(customer.gstAbn ?? '');
+    setAddressLine1(customer.addressLine1 ?? '');
+  }, [customer]);
 
   const handleSaveEmail = async () => {
     if (!customerId) return;
@@ -99,16 +68,14 @@ export default function CustomerBillingDetailsPage() {
     setEmailError(null);
     setEmailSuccess(null);
 
-    const result = await updateCustomer(customerId, {
-      email: billingEmail.trim(),
-      billingCcEmails: parseCcEmails(billingCcEmailsText),
-      attachAgentBreakdown,
-      sendPaymentReminder,
-    });
-
-    if (result.errors && result.errors.length > 0) {
-      const firstError = result.errors[0] as { message?: string } | undefined;
-      setEmailError(firstError?.message ?? 'Could not save billing email.');
+    try {
+      await updateCustomer(customerId, {
+        email: billingEmail.trim(),
+        billingCcEmails: parseCcEmails(billingCcEmailsText),
+        attachAgentBreakdown,
+      });
+    } catch {
+      setEmailError('Could not save billing email.');
       setSavingEmail(false);
       return;
     }
@@ -123,15 +90,14 @@ export default function CustomerBillingDetailsPage() {
     setAddressError(null);
     setAddressSuccess(null);
 
-    const result = await updateCustomer(customerId, {
-      companyName: companyName.trim(),
-      gstAbn: gstAbn.trim(),
-      addressLine1: addressLine1.trim(),
-    });
-
-    if (result.errors && result.errors.length > 0) {
-      const firstError = result.errors[0] as { message?: string } | undefined;
-      setAddressError(firstError?.message ?? 'Could not save billing address.');
+    try {
+      await updateCustomer(customerId, {
+        companyName: companyName.trim(),
+        gstAbn: gstAbn.trim(),
+        addressLine1: addressLine1.trim(),
+      });
+    } catch {
+      setAddressError('Could not save billing address.');
       setSavingAddress(false);
       return;
     }
@@ -180,12 +146,6 @@ export default function CustomerBillingDetailsPage() {
                 checked={attachAgentBreakdown}
                 onChange={(e) => setAttachAgentBreakdown(e.target.checked)}
                 label="Attach the agent breakdown for on-charging"
-                disabled={savingEmail}
-              />
-              <Switch
-                checked={sendPaymentReminder}
-                onChange={(e) => setSendPaymentReminder(e.target.checked)}
-                label="Send a reminder three days before the due date"
                 disabled={savingEmail}
               />
               <div className={styles.actions}>

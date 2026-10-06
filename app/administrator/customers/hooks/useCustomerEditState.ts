@@ -3,8 +3,8 @@ import type { ResolvedAddress } from '@/app/operator/components/AddressAutocompl
 import type { Customer, CustomerStatus } from '@/app/administrator/customers/types';
 import {
   addAgentOption as addAgentOptionTo,
-  moveAgentOption as moveAgentOptionIn,
   removeAgentOption as removeAgentOptionFrom,
+  setDefaultAgentOption as setDefaultAgentOptionIn,
 } from '@/lib/customerDefaults';
 
 interface OpenEditPanelParams {
@@ -28,6 +28,7 @@ export function useCustomerEditState() {
   const [editDefaultNumberOfSigns, setEditDefaultNumberOfSigns] = useState('');
   const [editAgentOptions, setEditAgentOptions] = useState<string[]>([]);
   const [editRestrictInvitesToOwnDomain, setEditRestrictInvitesToOwnDomain] = useState(false);
+  const [editMissingSignsReportEnabled, setEditMissingSignsReportEnabled] = useState(false);
   const [editResolvedAddress, setEditResolvedAddress] = useState<ResolvedAddress | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -41,8 +42,8 @@ export function useCustomerEditState() {
     setEditAgentOptions((prev) => removeAgentOptionFrom(prev, value));
   };
 
-  const moveAgentOption = (index: number, direction: 'up' | 'down') => {
-    setEditAgentOptions((prev) => moveAgentOptionIn(prev, index, direction));
+  const setDefaultAgentOption = (value: string) => {
+    setEditAgentOptions((prev) => setDefaultAgentOptionIn(prev, value));
   };
 
   const resetEditFeedback = () => {
@@ -75,6 +76,7 @@ export function useCustomerEditState() {
     );
     setEditAgentOptions(agentOptions);
     setEditRestrictInvitesToOwnDomain(Boolean(customer.restrictInvitesToOwnDomain));
+    setEditMissingSignsReportEnabled(Boolean(customer.missingSignsReportEnabled));
   };
 
   return {
@@ -104,9 +106,11 @@ export function useCustomerEditState() {
     setEditAgentOptions,
     addAgentOption,
     removeAgentOption,
-    moveAgentOption,
+    setDefaultAgentOption,
     editRestrictInvitesToOwnDomain,
     setEditRestrictInvitesToOwnDomain,
+    editMissingSignsReportEnabled,
+    setEditMissingSignsReportEnabled,
     editResolvedAddress,
     setEditResolvedAddress,
     editSaving,

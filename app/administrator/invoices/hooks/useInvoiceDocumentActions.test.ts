@@ -1,10 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
 import { useInvoiceDocumentActions } from './useInvoiceDocumentActions';
-import { getInvoiceWithLineItems, getRouteWithStops, updateInvoicePdfKey } from '@/lib/queries';
 import { uploadData } from 'aws-amplify/storage';
 import { autoTable } from 'jspdf-autotable';
 import type { Invoice } from '@/app/administrator/invoices/types';
 import type { CustomerOption } from '@/app/administrator/invoices/types';
+import { getRouteWithStops } from '@/lib/routes';
+import { getInvoiceWithLineItems, updateInvoicePdfKey } from '@/lib/invoices';
 
 // GitHub issue #65: Generate PDF threw because `invoice.totalAmount.toFixed(2)`
 // was called unguarded — any invoice row with a null/undefined totalAmount
@@ -12,9 +13,12 @@ import type { CustomerOption } from '@/app/administrator/invoices/types';
 // generation instead of degrading gracefully like every other numeric field
 // in this function.
 
-jest.mock('@/lib/queries', () => ({
-  getInvoiceWithLineItems: jest.fn(),
+jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
+}));
+
+jest.mock('@/lib/invoices', () => ({
+  getInvoiceWithLineItems: jest.fn(),
   updateInvoice: jest.fn(),
   updateInvoicePdfKey: jest.fn(),
 }));
@@ -24,8 +28,9 @@ jest.mock('aws-amplify/storage', () => ({
   uploadData: jest.fn(),
 }));
 
-jest.mock('aws-amplify/auth', () => ({
-  fetchAuthSession: jest.fn().mockResolvedValue({ tokens: { idToken: { toString: () => 'token' } } }),
+jest.mock('@/lib/apiClient', () => ({
+  ...jest.requireActual('@/lib/apiClient'),
+  callApi: jest.fn(),
 }));
 
 jest.mock('@/lib/extractScheduleText', () => ({
@@ -37,6 +42,9 @@ jest.mock('@/lib/parseInvoice', () => ({
 }));
 
 const docStub = {
+  internal: { pageSize: { getWidth: () => 595.28 } },
+  addFileToVFS: jest.fn(),
+  addFont: jest.fn(),
   setFillColor: jest.fn(),
   rect: jest.fn(),
   addImage: jest.fn(),
@@ -107,9 +115,8 @@ function renderDocumentActions(
 describe('useInvoiceDocumentActions — handleGeneratePdf (#65)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    global.fetch = jest.fn().mockResolvedValue({ ok: false });
     (getInvoiceWithLineItems as jest.Mock).mockResolvedValue({ invoice: null, lineItems: [], errors: undefined });
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: null, stops: [], errors: undefined });
+    (getRouteWithStops as jest.Mock).mockResolvedValue(null);
     (uploadData as jest.Mock).mockReturnValue({ result: Promise.resolve({}) });
     (updateInvoicePdfKey as jest.Mock).mockResolvedValue({ data: { id: 'inv-1' }, errors: undefined });
   });
@@ -144,7 +151,6 @@ describe('useInvoiceDocumentActions — handleGeneratePdf (#65)', () => {
 describe('useInvoiceDocumentActions — stop table agent grouping', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    global.fetch = jest.fn().mockResolvedValue({ ok: false });
     (getInvoiceWithLineItems as jest.Mock).mockResolvedValue({ invoice: null, lineItems: [], errors: undefined });
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: null,
@@ -152,7 +158,6 @@ describe('useInvoiceDocumentActions — stop table agent grouping', () => {
         { address: '1 Test St, Epping NSW 2121', agent: "Betty O'Shea", numberOfSigns: 3 },
         { address: '2 Test St, Epping NSW 2121', agent: 'David Mun', numberOfSigns: 2 },
       ],
-      errors: undefined,
     });
     (uploadData as jest.Mock).mockReturnValue({ result: Promise.resolve({}) });
     (updateInvoicePdfKey as jest.Mock).mockResolvedValue({ data: { id: 'inv-1' }, errors: undefined });

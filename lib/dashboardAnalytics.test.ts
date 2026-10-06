@@ -2,6 +2,7 @@ import {
   getDeltaPercent,
   formatCurrency,
   formatDuration,
+  formatDurationCompact,
   formatPeriodDisplay,
   formatPeriodSummary,
 } from './dashboardAnalytics';
@@ -32,6 +33,13 @@ describe('dashboardAnalytics', () => {
     it('formats minutes as hh:mm:00', () => {
       expect(formatDuration(75)).toBe('1:15:00');
       expect(formatDuration(5)).toBe('0:05:00');
+    });
+  });
+
+  describe('formatDurationCompact', () => {
+    it('formats minutes as "Xh Ym"', () => {
+      expect(formatDurationCompact(75)).toBe('1h 15m');
+      expect(formatDurationCompact(5)).toBe('0h 5m');
     });
   });
 

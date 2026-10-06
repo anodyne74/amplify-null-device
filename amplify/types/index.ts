@@ -12,6 +12,7 @@
  */
 
 import type { Schema } from '../data/resource';
+import type { LocationPrecision } from '../../lib/locationPrecision';
 
 /**
  * Export the full schema for use with generateClient<Schema>()
@@ -56,6 +57,7 @@ export interface Customer {
   standingPickupDay?: StandingPickupDay | null;
   notifyOnLowSigns?: boolean | null;
   sendMissingSignsReport?: boolean | null;
+  missingSignsReportEnabled?: boolean | null;
   billingCcEmails?: string[] | null;
   attachAgentBreakdown?: boolean | null;
   sendPaymentReminder?: boolean | null;
@@ -111,6 +113,7 @@ export interface Route {
   status?: RouteStatus | null;
   executionPhase?: RouteExecutionPhase | null;
   scheduledDate?: string | null;
+  pickupDate?: string | null;
   estimatedDurationMinutes?: number | null;
   actualStartTime?: string | null;
   actualEndTime?: string | null;
@@ -131,9 +134,15 @@ export interface Route {
   customerInstructions?: string;
   customerFeedbackTone?: 'good' | 'issue' | null;
   customerFeedbackNote?: string;
+  customerFeedbackAt?: string | null;
+  customerFeedbackBy?: string | null;
+  customerFeedbackByName?: string | null;
+  missingSignsReportSentAt?: string | null;
   drivingModeEnabled?: boolean | null;
+  loadStartedAt?: string | null;
   loadConfirmedAt?: string | null;
   loadedSignsCount?: number | null;
+  unloadStartedAt?: string | null;
   unloadConfirmedAt?: string | null;
   billedLoadMinutes?: number | null;
   billedPlacementMinutes?: number | null;
@@ -160,7 +169,6 @@ export interface Stop {
   viewerSubs?: string[] | null;
   sequence?: number | null;
   address?: string;
-  serviceType?: ServiceType | null;
   estimatedArrivalTime?: string | null;
   actualArrivalTime?: string | null;
   actualDepartureTime?: string | null;
@@ -170,11 +178,29 @@ export interface Stop {
   latitude?: number | null;
   longitude?: number | null;
   formattedAddress?: string;
+  locationPrecision?: LocationPrecision | null;
+  geocodeLocationType?: string | null;
+  geocodeResultTypes?: string[] | null;
+  geocodePartialMatch?: boolean | null;
+  addressStreetNumber?: string | null;
+  addressStreet?: string | null;
+  addressSuburb?: string | null;
+  addressPostcode?: string | null;
+  propertyKey?: string | null;
   notes?: string;
   missingSignsCount?: number | null;
   missingSignsLastLoggedAt?: string | null;
   missingSignsLastLatitude?: number | null;
   missingSignsLastLongitude?: number | null;
+  placedLatitude?: number | null;
+  placedLongitude?: number | null;
+  placedAccuracyMeters?: number | null;
+  placedPositionAt?: string | null;
+  removed?: boolean | null;
+  removedAt?: string | null;
+  removedBy?: string | null;
+  removedReason?: string | null;
+  addedAtLoad?: string | null;
   createdAt?: string;
   updatedAt?: string;
   route?: Route;
@@ -246,18 +272,6 @@ export interface OperatorPayout {
   updatedAt?: string;
   customer?: Customer;
   route?: Route;
-}
-
-export interface VanSignCount {
-  id: string;
-  operatorSub: string;
-  countDate: string;
-  standardCount: number;
-  auctionCount: number;
-  frameCount: number;
-  countedAt?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 export interface PaymentRecord {
@@ -357,12 +371,11 @@ export type CustomerUserRole = 'account_owner' | 'read_only';
 export type OperatorRole = 'admin' | 'manager' | 'staff';
 export type RouteStatus = 'planned' | 'in_progress' | 'signs_placed' | 'signs_picked_up' | 'completed' | 'archived';
 export type RouteExecutionPhase = 'load' | 'placement' | 'pickup' | 'unload';
-export type ServiceType = 'delivery' | 'pickup' | 'inspection';
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | 'cancelled';
 export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'check' | 'cash' | 'other';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'cancelled';
 export type AuditEventType = 'login' | 'logout' | 'access_denied' | 'data_access' | 'data_modification' | 'data_deletion';
-export type AuditResourceType = 'customer' | 'route' | 'invoice' | 'payment' | 'operator';
+export type AuditResourceType = 'customer' | 'route' | 'stop' | 'invoice' | 'payment' | 'operator' | 'feature_flag' | 'property' | 'report';
 export type AuditStatus = 'success' | 'failure';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type MapTheme = 'light' | 'dark' | 'satellite' | 'streets';
@@ -448,7 +461,6 @@ export interface CreateStopInput {
   viewerSubs?: string[];
   sequence: number;
   address: string;
-  serviceType: ServiceType;
   estimatedArrivalTime?: string;
   numberOfSigns?: number;
   agent?: string;
@@ -463,7 +475,6 @@ export interface UpdateStopInput {
   id: string;
   sequence?: number;
   address?: string;
-  serviceType?: ServiceType;
   estimatedArrivalTime?: string;
   actualArrivalTime?: string;
   actualDepartureTime?: string;

@@ -1,19 +1,19 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { Route } from '@/amplify/types';
 import { useRoutesList } from '@/lib/useRoutesList';
-import { listAllRoutes } from '@/lib/queries/ListAllRoutes';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { deleteRoute } from '@/lib/queries';
+import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
+import { deleteRoute } from '@/lib/routes';
+import { listAllCustomers } from '@/lib/customers';
 
-jest.mock('@/lib/queries/ListAllRoutes', () => ({
-  listAllRoutes: jest.fn(),
+jest.mock('@/lib/useLiveRoutes', () => ({
+  useLiveAllRoutes: jest.fn(),
 }));
 
-jest.mock('@/lib/queries/ListAllCustomers', () => ({
+jest.mock('@/lib/customers', () => ({
   listAllCustomers: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
   deleteRoute: jest.fn(),
 }));
 
@@ -45,22 +45,18 @@ describe('useRoutesList', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    (listAllRoutes as jest.Mock).mockResolvedValue({
-      data: mockRoutes,
-      errors: undefined,
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({
+      routes: mockRoutes,
+      loading: false,
+      error: null,
     });
 
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'customer-1', name: 'Acme Corp' },
-        { id: 'customer-2', name: 'Globex Inc' },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'customer-1', name: 'Acme Corp' },
+      { id: 'customer-2', name: 'Globex Inc' },
+    ]);
 
-    (deleteRoute as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
-
-    jest.spyOn(window, 'confirm').mockReturnValue(true);
+    (deleteRoute as jest.Mock).mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -86,10 +82,11 @@ describe('useRoutesList', () => {
     });
   });
 
-  it('surfaces loading error when route fetch fails', async () => {
-    (listAllRoutes as jest.Mock).mockResolvedValue({
-      data: [],
-      errors: [{ message: 'network' }],
+  it('surfaces loading error when the live route feed fails', async () => {
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({
+      routes: [],
+      loading: false,
+      error: 'connection lost',
     });
 
     const { result } = renderHook(() => useRoutesList(true));
@@ -117,7 +114,30 @@ describe('useRoutesList', () => {
     expect(result.current.filteredRoutes.map((route) => route.id)).toEqual(['route-2', 'route-1']);
   });
 
-  it('deletes a route when confirmed and permitted', async () => {
+  it('reflects a live status change pushed over useLiveAllRoutes, without a manual reload', async () => {
+    const { result, rerender } = renderHook(() => useRoutesList(true));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    act(() => {
+      result.current.setStatusFilter('completed');
+    });
+    expect(result.current.filteredRoutes.map((route) => route.id)).toEqual(['route-2', 'route-1']);
+
+    // route-10 moves to 'completed' server-side.
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({
+      routes: mockRoutes.map((route) => (route.id === 'route-10' ? { ...route, status: 'completed' } : route)),
+      loading: false,
+      error: null,
+    });
+    rerender();
+
+    expect(result.current.filteredRoutes.map((route) => route.id)).toEqual(['route-10', 'route-2', 'route-1']);
+  });
+
+  it('deletes a route when permitted', async () => {
     const { result } = renderHook(() => useRoutesList(true));
 
     await waitFor(() => {
@@ -146,15 +166,11 @@ describe('useRoutesList', () => {
       await result.current.handleDeleteRoute(result.current.filteredRoutes[0]);
     });
 
-    expect(window.confirm).not.toHaveBeenCalled();
     expect(deleteRoute).not.toHaveBeenCalled();
   });
 
   it('surfaces delete error when delete call fails', async () => {
-    (deleteRoute as jest.Mock).mockResolvedValue({
-      data: null,
-      errors: [{ message: 'delete failed' }],
-    });
+    (deleteRoute as jest.Mock).mockRejectedValue(new Error('Failed to delete route.'));
 
     const { result } = renderHook(() => useRoutesList(true));
 
@@ -174,9 +190,24 @@ describe('useRoutesList', () => {
     expect(result.current.filteredRoutes.map((route) => route.id)).toEqual(initialIds);
   });
 
-  it('does not delete route when user cancels confirmation', async () => {
-    (window.confirm as jest.Mock).mockReturnValue(false);
+  it('tracks a route pending delete confirmation without deleting it', async () => {
+    const { result } = renderHook(() => useRoutesList(true));
 
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    const targetRoute = result.current.filteredRoutes[0];
+
+    act(() => {
+      result.current.requestDeleteRoute(targetRoute);
+    });
+
+    expect(result.current.routePendingDelete).toEqual(targetRoute);
+    expect(deleteRoute).not.toHaveBeenCalled();
+  });
+
+  it('clears the pending route when the delete is cancelled', async () => {
     const { result } = renderHook(() => useRoutesList(true));
 
     await waitFor(() => {
@@ -185,14 +216,30 @@ describe('useRoutesList', () => {
 
     const initialIds = result.current.filteredRoutes.map((route) => route.id);
 
-    await act(async () => {
-      await result.current.handleDeleteRoute(result.current.filteredRoutes[0]);
+    act(() => {
+      result.current.requestDeleteRoute(result.current.filteredRoutes[0]);
+    });
+    act(() => {
+      result.current.cancelDeleteRoute();
     });
 
-    expect(window.confirm).toHaveBeenCalled();
+    expect(result.current.routePendingDelete).toBeNull();
     expect(deleteRoute).not.toHaveBeenCalled();
     expect(result.current.error).toBeNull();
-    expect(result.current.deletingRouteId).toBeNull();
     expect(result.current.filteredRoutes.map((route) => route.id)).toEqual(initialIds);
+  });
+
+  it('does not request a pending delete when user cannot delete', async () => {
+    const { result } = renderHook(() => useRoutesList(false));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    act(() => {
+      result.current.requestDeleteRoute(result.current.filteredRoutes[0]);
+    });
+
+    expect(result.current.routePendingDelete).toBeNull();
   });
 });

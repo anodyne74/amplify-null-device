@@ -1,30 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Route } from '@/amplify/types';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import AdminRowMenu from '@/app/components/AdminRowMenu';
-import { useAdminTableSort, type SortDirection } from '@/app/components/AdminDataTable';
 import { ADMIN_PAGE_SIZE, getPageSlice } from '@/app/components/AdminPagination';
 import { useToast } from '@/app/components/ToastProvider';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
-import { Select } from '@/app/components/ui/forms/Select';
 import type { Invoice, InvoiceStatus } from '@/app/administrator/invoices/types';
 import styles from '../page.module.css';
-
-type InvoiceSortKey = 'invoiceNumber' | 'customer' | 'totalAmount' | 'status' | 'sent';
 
 interface InvoiceListTableProps {
   loading: boolean;
   invoices: Invoice[];
-  routes: Route[];
   uploadingId: string | null;
   pdfActionLoadingId: string | null;
   emailingInvoiceId: string | null;
   customerName: (id: string) => string;
   routeCode: (id?: string | null) => string;
   isInvoicePaid: (status?: Invoice['status'] | string | null) => boolean;
-  onRouteLink: (invoiceId: string, routeId: string) => void;
+  /** Payment terms (in days) for the customer on an invoice, for overdue derivation. Defaults to 14 when unset. */
+  paymentTermsDaysForCustomer: (customerId: string) => number | null | undefined;
   onGeneratePdf: (invoice: Invoice) => void;
   onPdfAction: (invoice: Invoice, action: 'view' | 'download') => void;
   onUploadClick: (invoiceId: string) => void;
@@ -36,18 +31,27 @@ interface InvoiceListTableProps {
    * success. When provided, a selection column and bulk action bar render.
    */
   onBulkMarkPaidInvoice?: (invoiceId: string) => Promise<boolean>;
+  /** An invoice linked to directly: the table opens on its page, scrolled to and marking its row. */
+  focusInvoiceId?: string | null;
 }
 
-function toTitleCase(value?: string | null) {
-  const normalized = String(value ?? '').trim().toLowerCase();
-  if (!normalized) return 'Draft';
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-}
+const DEFAULT_PAYMENT_TERMS_DAYS = 14;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-const STATUS_TONE: Record<string, BadgeProps['tone']> = {
+type DisplayStatus = 'draft' | 'sent' | 'overdue' | 'paid';
+
+const STATUS_TONE: Record<DisplayStatus, BadgeProps['tone']> = {
   paid: 'success',
   sent: 'info',
+  overdue: 'danger',
   draft: 'neutral',
+};
+
+const STATUS_LABEL: Record<DisplayStatus, string> = {
+  paid: 'Paid',
+  sent: 'Sent',
+  overdue: 'Overdue',
+  draft: 'Draft',
 };
 
 function inferInvoiceStatus(invoice: Invoice): InvoiceStatus {
@@ -55,6 +59,32 @@ function inferInvoiceStatus(invoice: Invoice): InvoiceStatus {
   if (normalized === 'paid') return 'paid';
   if (invoice.emailSentAt || normalized === 'sent') return 'sent';
   return 'draft';
+}
+
+/**
+ * "Overdue" isn't a persisted status (amplify/data/resource.ts's Invoice.status
+ * enum is draft/sent/paid only) -- it's derived here from the issue date plus
+ * the customer's payment terms, mirroring the design's deriveInvoice logic.
+ */
+function getDisplayStatus(
+  invoice: Invoice,
+  paymentTermsDays: number | null | undefined
+): { status: DisplayStatus; note?: string } {
+  const baseStatus = inferInvoiceStatus(invoice);
+  if (baseStatus === 'draft') return { status: 'draft', note: 'Not sent' };
+  if (baseStatus === 'paid') return { status: 'paid' };
+
+  const issueDate = invoice.invoiceDate ? new Date(invoice.invoiceDate) : null;
+  if (issueDate && !Number.isNaN(issueDate.getTime())) {
+    const dueDate = new Date(issueDate);
+    dueDate.setDate(dueDate.getDate() + (paymentTermsDays ?? DEFAULT_PAYMENT_TERMS_DAYS));
+    const daysOverdue = Math.floor((Date.now() - dueDate.getTime()) / MS_PER_DAY);
+    if (daysOverdue > 0) {
+      return { status: 'overdue', note: `${daysOverdue} day${daysOverdue === 1 ? '' : 's'} overdue` };
+    }
+  }
+
+  return { status: 'sent', note: `Sent ${formatLocalDateTime(invoice.emailSentAt)}` };
 }
 
 export function formatLocalDateTime(iso: string | null | undefined): string {
@@ -75,48 +105,19 @@ function pluralizeInvoices(count: number) {
 }
 
 type ConfirmAction =
-  | { type: 'regenerate' | 'markPaid' | 'delete'; invoice: Invoice }
+  | { type: 'markPaid' | 'delete'; invoice: Invoice }
   | { type: 'bulkMarkPaid'; invoiceIds: string[] };
-
-function SortableHeader({
-  label,
-  sortKey,
-  sortBy,
-  sortDirection,
-  onSort,
-}: {
-  label: string;
-  sortKey: InvoiceSortKey;
-  sortBy: InvoiceSortKey | null;
-  sortDirection: SortDirection;
-  onSort: (key: InvoiceSortKey) => void;
-}) {
-  const active = sortBy === sortKey;
-  const ariaSort = active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none';
-
-  return (
-    <th scope="col" aria-sort={ariaSort}>
-      <button type="button" className={styles.sortButton} onClick={() => onSort(sortKey)} aria-label={`Sort by ${label}`}>
-        <span>{label}</span>
-        <span className={styles.sortIndicator} aria-hidden="true">
-          {active ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
-        </span>
-      </button>
-    </th>
-  );
-}
 
 export default function InvoiceListTable({
   loading,
   invoices,
-  routes,
   uploadingId,
   pdfActionLoadingId,
   emailingInvoiceId,
   customerName,
   routeCode,
   isInvoicePaid,
-  onRouteLink,
+  paymentTermsDaysForCustomer,
   onGeneratePdf,
   onPdfAction,
   onUploadClick,
@@ -124,6 +125,7 @@ export default function InvoiceListTable({
   onDeleteInvoice,
   onEmailInvoiceToPrimary,
   onBulkMarkPaidInvoice,
+  focusInvoiceId,
 }: InvoiceListTableProps) {
   const { showToast } = useToast();
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
@@ -132,45 +134,25 @@ export default function InvoiceListTable({
 
   const bulkSelectionEnabled = typeof onBulkMarkPaidInvoice === 'function';
 
-  const { sortBy, sortDirection, toggleSort } = useAdminTableSort<InvoiceSortKey>();
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     setPage(1);
-  }, [sortBy, sortDirection, invoices.length]);
+  }, [invoices.length]);
 
-  const sortedInvoices = useMemo(() => {
-    if (!sortBy) return invoices;
-    const value = (invoice: Invoice): string | number => {
-      switch (sortBy) {
-        case 'invoiceNumber':
-          return invoice.invoiceNumber ?? '';
-        case 'customer':
-          return customerName(invoice.customerId);
-        case 'totalAmount':
-          return invoice.totalAmount ?? 0;
-        case 'status':
-          return inferInvoiceStatus(invoice);
-        case 'sent': {
-          const parsed = Date.parse(invoice.emailSentAt ?? '');
-          return Number.isFinite(parsed) ? parsed : 0;
-        }
-      }
-    };
-    const sorted = [...invoices].sort((a, b) => {
-      const left = value(a);
-      const right = value(b);
-      if (typeof left === 'number' && typeof right === 'number') return left - right;
-      return String(left).localeCompare(String(right), undefined, {
-        numeric: true,
-        sensitivity: 'base',
-      });
-    });
-    if (sortDirection === 'desc') sorted.reverse();
-    return sorted;
-  }, [invoices, customerName, sortBy, sortDirection]);
+  // A link to one invoice (e.g. from Property History) opens on its page, once.
+  const [focusedOnce, setFocusedOnce] = useState(false);
+  const focusIndex = focusInvoiceId ? invoices.findIndex((invoice) => invoice.id === focusInvoiceId) : -1;
+  useEffect(() => {
+    if (focusedOnce || focusIndex < 0) return;
+    setFocusedOnce(true);
+    setPage(Math.floor(focusIndex / ADMIN_PAGE_SIZE) + 1);
+  }, [focusedOnce, focusIndex]);
+  useEffect(() => {
+    if (focusedOnce && focusInvoiceId) document.getElementById(`invoice-${focusInvoiceId}`)?.scrollIntoView({ block: 'center' });
+  }, [focusedOnce, focusInvoiceId]);
 
-  const { currentPage, totalPages, pageRows: pageInvoices } = getPageSlice(sortedInvoices, page, ADMIN_PAGE_SIZE);
+  const { currentPage, totalPages, pageRows: pageInvoices } = getPageSlice(invoices, page, ADMIN_PAGE_SIZE);
 
   // Selection is only meaningful for invoices that can still be marked paid.
   const selectedEligible = useMemo(
@@ -236,9 +218,7 @@ export default function InvoiceListTable({
       void handleBulkMarkPaid(confirmAction.invoiceIds);
       return;
     }
-    if (confirmAction.type === 'regenerate') {
-      onGeneratePdf(confirmAction.invoice);
-    } else if (confirmAction.type === 'delete') {
+    if (confirmAction.type === 'delete') {
       onDeleteInvoice(confirmAction.invoice.id);
     } else {
       onMarkPaid(confirmAction.invoice.id);
@@ -263,22 +243,19 @@ export default function InvoiceListTable({
         confirmLabel: 'Mark Paid',
       };
     }
-    if (confirmAction.type === 'delete') {
-      return {
-        title: 'Delete invoice?',
-        message: `Permanently delete invoice ${confirmAction.invoice.invoiceNumber}? This cannot be undone.`,
-        confirmLabel: 'Delete',
-      };
-    }
     return {
-      title: 'Regenerate invoice PDF?',
-      message: `Regenerate invoice ${confirmAction.invoice.invoiceNumber}? This will replace the attached PDF.`,
-      confirmLabel: 'Regenerate',
+      title: 'Delete invoice?',
+      message: `Permanently delete invoice ${confirmAction.invoice.invoiceNumber}? This cannot be undone.`,
+      confirmLabel: 'Delete',
     };
   })();
 
   return (
-    <Card title="Invoice List" padded={loading || invoices.length === 0}>
+    <Card
+      title="Recent invoices"
+      subtitle="All customers · overdue is issue date plus that customer's payment terms"
+      padded={loading || invoices.length === 0}
+    >
       <ConfirmDialog
         open={confirmAction !== null}
         title={confirmDialogContent.title}
@@ -344,19 +321,23 @@ export default function InvoiceListTable({
                       />
                     </th>
                   )}
-                  <SortableHeader label="Invoice #" sortKey="invoiceNumber" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
-                  <SortableHeader label="Customer" sortKey="customer" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
+                  <th scope="col">Invoice #</th>
+                  <th scope="col">Customer</th>
                   <th scope="col">Route</th>
-                  <SortableHeader label="Total" sortKey="totalAmount" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
-                  <SortableHeader label="Status" sortKey="status" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
-                  <SortableHeader label="Sent" sortKey="sent" sortBy={sortBy} sortDirection={sortDirection} onSort={toggleSort} />
+                  <th scope="col">Total</th>
+                  <th scope="col">Status</th>
                   <th scope="col">PDF</th>
                   <th scope="col">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pageInvoices.map((invoice) => (
-                  <tr key={invoice.id}>
+                  <tr
+                    key={invoice.id}
+                    id={`invoice-${invoice.id}`}
+                    aria-current={invoice.id === focusInvoiceId ? 'true' : undefined}
+                    className={invoice.id === focusInvoiceId ? styles.focusedRow : undefined}
+                  >
                     {bulkSelectionEnabled && (
                       <td>
                         <input
@@ -376,149 +357,117 @@ export default function InvoiceListTable({
                       )}
                     </td>
                     <td>{customerName(invoice.customerId)}</td>
-                    <td>
-                      <Select
-                        value={invoice.routeId ?? ''}
-                        onChange={(event) => onRouteLink(invoice.id, event.target.value)}
-                        aria-label={`Linked route for invoice ${invoice.invoiceNumber}`}
-                        size="sm"
-                      >
-                        <option value="">— None —</option>
-                        {routes
-                          .filter((route) => route.customerId === invoice.customerId)
-                          .map((route) => (
-                            <option key={route.id} value={route.id}>
-                              {routeCode(route.id)}
-                            </option>
-                          ))}
-                      </Select>
-                    </td>
+                    <td>{routeCode(invoice.routeId)}</td>
                     <td className={styles.numericCell}>${invoice.totalAmount.toFixed(2)}</td>
                     <td>
-                      <Badge tone={STATUS_TONE[inferInvoiceStatus(invoice)]} dot>
-                        {toTitleCase(inferInvoiceStatus(invoice))}
-                      </Badge>
-                    </td>
-                    <td>
-                      {formatLocalDateTime(invoice.emailSentAt)}
+                      {(() => {
+                        const { status, note } = getDisplayStatus(
+                          invoice,
+                          paymentTermsDaysForCustomer(invoice.customerId)
+                        );
+                        return (
+                          <div className={styles.statusCell}>
+                            <Badge tone={STATUS_TONE[status]} dot>
+                              {STATUS_LABEL[status]}
+                            </Badge>
+                            {note && (
+                              <div className={status === 'overdue' ? styles.statusNoteDanger : styles.statusNote}>
+                                {note}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td>
                       <div className={styles.pdfCell}>
-                        {invoice.pdfS3Key ? (
-                          <div className={styles.pdfCellRow}>
-                            <Badge tone="success" size="sm">PDF Attached</Badge>
+                        <Badge tone={invoice.pdfS3Key ? 'success' : 'warning'} size="sm">
+                          {invoice.pdfS3Key ? 'PDF Attached' : 'PDF Missing'}
+                        </Badge>
+                        <AdminRowMenu ariaLabel={`More actions for invoice ${invoice.invoiceNumber}`}>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onPdfAction(invoice, 'view')}
+                            loading={pdfActionLoadingId === invoice.id}
+                            disabled={!invoice.pdfS3Key || uploadingId === invoice.id}
+                            aria-label={`View PDF for invoice ${invoice.invoiceNumber}`}
+                          >
+                            {pdfActionLoadingId === invoice.id ? 'Opening...' : 'View'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onUploadClick(invoice.id)}
+                            loading={uploadingId === invoice.id}
+                            disabled={pdfActionLoadingId === invoice.id}
+                            aria-label={`Upload PDF for invoice ${invoice.invoiceNumber}`}
+                          >
+                            {uploadingId === invoice.id ? 'Uploading...' : 'Upload'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onEmailInvoiceToPrimary(invoice)}
+                            loading={emailingInvoiceId === invoice.id}
+                            aria-label={`${invoice.emailSentAt ? 'Resend' : 'Email'} invoice ${invoice.invoiceNumber}`}
+                          >
+                            {emailingInvoiceId === invoice.id ? 'Preparing...' : invoice.emailSentAt ? 'Resend' : 'Email'}
+                          </Button>
+                          {!isInvoicePaid(inferInvoiceStatus(invoice)) && (
                             <Button
                               type="button"
-                              variant="ghost"
+                              variant="primary"
                               size="sm"
-                              onClick={() => onPdfAction(invoice, 'view')}
-                              loading={pdfActionLoadingId === invoice.id}
-                              disabled={uploadingId === invoice.id}
-                              aria-label={`View PDF for invoice ${invoice.invoiceNumber}`}
+                              onClick={() => setConfirmAction({ type: 'markPaid', invoice })}
+                              aria-label={`Mark invoice ${invoice.invoiceNumber} as paid`}
                             >
-                              {pdfActionLoadingId === invoice.id ? 'Opening...' : 'View'}
+                              Mark Paid
                             </Button>
-                            <AdminRowMenu ariaLabel={`More PDF actions for invoice ${invoice.invoiceNumber}`}>
-                              {!invoice.importedAt && (
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => setConfirmAction({ type: 'regenerate', invoice })}
-                                  loading={uploadingId === invoice.id}
-                                  disabled={pdfActionLoadingId === invoice.id}
-                                  aria-label={`Regenerate PDF for invoice ${invoice.invoiceNumber}`}
-                                >
-                                  {uploadingId === invoice.id ? 'Generating...' : 'Regenerate'}
-                                </Button>
-                              )}
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => onPdfAction(invoice, 'download')}
-                                loading={pdfActionLoadingId === invoice.id}
-                                disabled={uploadingId === invoice.id}
-                                aria-label={`Download PDF for invoice ${invoice.invoiceNumber}`}
-                              >
-                                {pdfActionLoadingId === invoice.id ? 'Preparing...' : 'Download'}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => onUploadClick(invoice.id)}
-                                disabled={uploadingId === invoice.id || pdfActionLoadingId === invoice.id}
-                                aria-label={`Replace PDF for invoice ${invoice.invoiceNumber}`}
-                              >
-                                Replace
-                              </Button>
-                            </AdminRowMenu>
-                          </div>
-                        ) : (
-                          <div className={styles.pdfCellRow}>
-                            <Badge tone="warning" size="sm">PDF Missing</Badge>
-                            {!invoice.importedAt && (
-                              <Button
-                                type="button"
-                                variant="primary"
-                                size="sm"
-                                onClick={() => onGeneratePdf(invoice)}
-                                loading={uploadingId === invoice.id}
-                                aria-label={`Generate PDF for invoice ${invoice.invoiceNumber}`}
-                              >
-                                {uploadingId === invoice.id ? 'Generating...' : 'Generate PDF'}
-                              </Button>
-                            )}
-                            <AdminRowMenu ariaLabel={`More PDF actions for invoice ${invoice.invoiceNumber}`}>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => onUploadClick(invoice.id)}
-                                loading={uploadingId === invoice.id}
-                                aria-label={`Upload PDF for invoice ${invoice.invoiceNumber}`}
-                              >
-                                {uploadingId === invoice.id ? 'Uploading...' : 'Upload PDF'}
-                              </Button>
-                            </AdminRowMenu>
-                          </div>
-                        )}
+                          )}
+                          {inferInvoiceStatus(invoice) === 'draft' && (
+                            <Button
+                              type="button"
+                              variant="danger"
+                              size="sm"
+                              onClick={() => setConfirmAction({ type: 'delete', invoice })}
+                              aria-label={`Delete invoice ${invoice.invoiceNumber}`}
+                            >
+                              Delete
+                            </Button>
+                          )}
+                        </AdminRowMenu>
                       </div>
                     </td>
-                    <td className={styles.actionsCellWrap}>
+                    <td>
                       <div className={styles.actionsCell}>
-                        {!isInvoicePaid(inferInvoiceStatus(invoice)) && (
+                        {invoice.pdfS3Key ? (
                           <Button
                             type="button"
                             variant="primary"
                             size="sm"
-                            onClick={() => setConfirmAction({ type: 'markPaid', invoice })}
-                            aria-label={`Mark invoice ${invoice.invoiceNumber} as paid`}
+                            onClick={() => onPdfAction(invoice, 'view')}
+                            loading={pdfActionLoadingId === invoice.id}
+                            aria-label={`View invoice ${invoice.invoiceNumber}`}
                           >
-                            Mark Paid
+                            {pdfActionLoadingId === invoice.id ? 'Opening...' : 'View'}
                           </Button>
-                        )}
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => onEmailInvoiceToPrimary(invoice)}
-                          loading={emailingInvoiceId === invoice.id}
-                          aria-label={`${invoice.emailSentAt ? 'Resend' : 'Email'} invoice ${invoice.invoiceNumber}`}
-                        >
-                          {emailingInvoiceId === invoice.id ? 'Preparing...' : invoice.emailSentAt ? 'Resend' : 'Email'}
-                        </Button>
-                        {inferInvoiceStatus(invoice) === 'draft' && (
-                          <Button
-                            type="button"
-                            variant="danger"
-                            size="sm"
-                            onClick={() => setConfirmAction({ type: 'delete', invoice })}
-                            aria-label={`Delete invoice ${invoice.invoiceNumber}`}
-                          >
-                            Delete
-                          </Button>
+                        ) : (
+                          !invoice.importedAt && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => onGeneratePdf(invoice)}
+                              loading={uploadingId === invoice.id}
+                              aria-label={`Continue invoice ${invoice.invoiceNumber}`}
+                            >
+                              {uploadingId === invoice.id ? 'Generating...' : 'Continue'}
+                            </Button>
+                          )
                         )}
                       </div>
                     </td>
@@ -529,7 +478,7 @@ export default function InvoiceListTable({
           </div>
           <nav className={styles.paginationBar} aria-label="invoices pagination">
             <p className={styles.paginationSummary} aria-live="polite">
-              {`Showing ${(currentPage - 1) * ADMIN_PAGE_SIZE + 1}–${Math.min(sortedInvoices.length, currentPage * ADMIN_PAGE_SIZE)} of ${sortedInvoices.length} invoices`}
+              {`Showing ${(currentPage - 1) * ADMIN_PAGE_SIZE + 1}–${Math.min(invoices.length, currentPage * ADMIN_PAGE_SIZE)} of ${invoices.length} invoices`}
             </p>
             <div className={styles.paginationControls}>
               <Button

@@ -2,10 +2,10 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import CustomerCalendarPage from '../page';
-import { getCustomer, getCustomerPortalContext } from '@/lib/queries';
+import { getCustomer, getCustomerPortalContext } from '@/lib/customers';
 
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: () => ({ user: { userId: 'reviewer-sub' } }),
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => 'reviewer-sub',
 }));
 
 jest.mock('@/app/components/ProtectedRoute', () => ({
@@ -13,7 +13,7 @@ jest.mock('@/app/components/ProtectedRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
   getCustomerPortalContext: jest.fn(),
 }));
@@ -27,10 +27,7 @@ jest.mock('@/app/components/ServiceCalendar', () => ({
 describe('Customer Calendar page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (getCustomer as jest.Mock).mockResolvedValue({
-      data: { id: 'cust-1', viewerSubs: ['owner-sub', 'reviewer-sub'] },
-      errors: undefined,
-    });
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', viewerSubs: ['owner-sub', 'reviewer-sub'] });
   });
 
   it('maps account_owner role to customer-admin', async () => {

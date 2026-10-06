@@ -9,6 +9,7 @@ export type CustomerOption = {
   viewerSubs?: string[] | null;
   driverSplitPercent?: number | null;
   groupLineItemsByAgent?: boolean | null;
+  paymentTermsDays?: number | null;
 };
 
 export type InvoiceStatus = 'draft' | 'sent' | 'paid';

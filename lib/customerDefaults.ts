@@ -40,9 +40,9 @@ export function getAgentBadgeTone(agentName?: string): AgentBadgeTone {
       ? compact
       : generateAgentInitials(agentName) ?? compact.slice(0, 2)) || 'AG';
   const fixedTones: Record<string, AgentBadgeTone> = {
-    BO: { backgroundColor: 'var(--nd-status-planned)', color: 'var(--nd-text-inverse)' },
-    DM: { backgroundColor: 'var(--nd-status-active)', color: 'var(--nd-text-inverse)' },
-    KP: { backgroundColor: 'var(--nd-operator-accent)', color: 'var(--nd-text-inverse)' },
+    BO: { backgroundColor: 'var(--nd-status-planned)', color: 'var(--nd-color-text-on-warning)' },
+    DM: { backgroundColor: 'var(--nd-status-active)', color: 'var(--nd-color-text-on-accent)' },
+    KP: { backgroundColor: 'var(--nd-operator-accent)', color: 'var(--nd-color-text-on-accent)' },
   };
 
   const fixedTone = fixedTones[initials];
@@ -51,12 +51,12 @@ export function getAgentBadgeTone(agentName?: string): AgentBadgeTone {
   }
 
   const tones: AgentBadgeTone[] = [
-    { backgroundColor: 'var(--nd-status-active)', color: 'var(--nd-text-inverse)' },
-    { backgroundColor: 'var(--nd-operator-accent)', color: 'var(--nd-text-inverse)' },
-    { backgroundColor: 'var(--nd-customer-accent)', color: 'var(--nd-bg-base)' },
-    { backgroundColor: 'var(--nd-status-planned)', color: 'var(--nd-text-inverse)' },
-    { backgroundColor: 'var(--nd-status-completed)', color: 'var(--nd-bg-base)' },
-    { backgroundColor: 'var(--nd-status-danger)', color: 'var(--nd-text-inverse)' },
+    { backgroundColor: 'var(--nd-status-active)', color: 'var(--nd-color-text-on-accent)' },
+    { backgroundColor: 'var(--nd-operator-accent)', color: 'var(--nd-color-text-on-accent)' },
+    { backgroundColor: 'var(--nd-customer-accent)', color: 'var(--nd-color-text-on-accent)' },
+    { backgroundColor: 'var(--nd-status-planned)', color: 'var(--nd-color-text-on-warning)' },
+    { backgroundColor: 'var(--nd-status-completed)', color: 'var(--nd-color-text-on-accent)' },
+    { backgroundColor: 'var(--nd-status-danger)', color: 'var(--nd-color-text-on-danger)' },
   ];
 
   const hash = initials
@@ -96,9 +96,9 @@ export function normalizeAgentOptions(agentOptions?: string[], defaultAgentName?
   // Legacy fallback: a customer created before the agent-list UI existed may only
   // have a defaultAgentName and no agentOptions at all — seed the list with it so
   // it isn't silently dropped. Once agentOptions exist, list order (set via
-  // AgentOptionsEditor's Up/Down reordering) is authoritative, so defaultAgentName
+  // AgentOptionsEditor's click-to-default tags) is authoritative, so defaultAgentName
   // is never injected into a non-empty list — that would fight the admin's
-  // explicit ordering and silently change their chosen default agent.
+  // explicit choice and silently change their chosen default agent.
   const normalizedDefaultAgent = defaultAgentName?.trim();
   if (normalizedDefaultAgent && normalizedOptions.length === 0) {
     normalizedOptions.push(normalizedDefaultAgent);
@@ -113,9 +113,8 @@ export function normalizeCustomerDefaults<T extends CustomerDefaultsInput>(input
   const agentOptions = normalizeAgentOptions(input.agentOptions, defaultAgentName);
 
   // The default agent is simply the first entry of the (admin-ordered) agent list —
-  // reordering via AgentOptionsEditor's Up/Down buttons is how admins change a
-  // customer's default agent. Falls back to a provided/legacy value only when
-  // there's no agent list at all.
+  // clicking a tag in AgentOptionsEditor is how admins change a customer's default
+  // agent. Falls back to a provided/legacy value only when there's no agent list at all.
   const providedInitials = input.defaultAgentInitials?.trim();
   const firstAgent = agentOptions?.[0];
   const defaultAgentInitials = firstAgent
@@ -150,17 +149,15 @@ export function removeAgentOption(options: string[], value: string): string[] {
   return options.filter((option) => option !== value);
 }
 
-/** Move an agent option earlier/later in the list — reordering is how admins
- * change which agent is the default (always index 0, see normalizeCustomerDefaults). */
-export function moveAgentOption(options: string[], index: number, direction: 'up' | 'down'): string[] {
-  const targetIndex = direction === 'up' ? index - 1 : index + 1;
-  if (index < 0 || index >= options.length || targetIndex < 0 || targetIndex >= options.length) {
-    return options;
-  }
+/** Make an existing agent option the default — moved to index 0 (see
+ * normalizeCustomerDefaults). Picking the current default is a no-op. */
+export function setDefaultAgentOption(options: string[], value: string): string[] {
+  const index = options.indexOf(value);
+  if (index <= 0) return options;
 
   const reordered = [...options];
   const [moved] = reordered.splice(index, 1);
-  reordered.splice(targetIndex, 0, moved);
+  reordered.unshift(moved);
   return reordered;
 }
 

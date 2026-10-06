@@ -1,4 +1,4 @@
-import { formatStopProperty, groupStopsByAgent } from './stopFormatting';
+import { formatStopProperty, groupStopsByAgent, groupStopsByAgentAlphabetically } from './stopFormatting';
 
 describe('formatStopProperty', () => {
   it('strips state/postcode and country, keeping street + suburb', () => {
@@ -40,5 +40,21 @@ describe('groupStopsByAgent', () => {
 
   it('returns an empty array for no stops', () => {
     expect(groupStopsByAgent([])).toEqual([]);
+  });
+});
+
+describe('groupStopsByAgentAlphabetically', () => {
+  it('sorts groups by agent ignoring case, with Unassigned last and stops in run order', () => {
+    const groups = groupStopsByAgentAlphabetically([
+      { agent: 'GZ', sequence: 1 },
+      { agent: null, sequence: 2 },
+      { agent: 'bo', sequence: 3 },
+      { agent: 'KP', sequence: 4 },
+      { agent: 'DM', sequence: 5 },
+      { agent: 'bo', sequence: 6 },
+    ]);
+
+    expect(groups.map((g) => g.agent)).toEqual(['bo', 'DM', 'GZ', 'KP', 'Unassigned']);
+    expect(groups[0].stops.map((s) => s.sequence)).toEqual([3, 6]);
   });
 });

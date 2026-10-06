@@ -1,5 +1,6 @@
 import InvoiceDetailContent from './_InvoiceDetailContent';
 
-export default function CustomerInvoiceDetailPage({ params }: { params: { id: string } }) {
-  return <InvoiceDetailContent params={params} />;
+export default async function CustomerInvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
+  return <InvoiceDetailContent params={resolvedParams} />;
 }

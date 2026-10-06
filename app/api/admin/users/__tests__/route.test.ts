@@ -10,11 +10,16 @@ jest.mock('next/server', () => ({
 const sendMock = jest.fn();
 const verifyMock = jest.fn();
 const sendInvitationEmailMock = jest.fn();
+const sendStaffInvitationEmailMock = jest.fn();
 
 import { POST, generateTemporaryPassword } from '@/app/api/admin/users/route';
 
 jest.mock('@/lib/emails/invitationEmail', () => ({
   sendInvitationEmail: (...args: unknown[]) => sendInvitationEmailMock(...args),
+}));
+
+jest.mock('@/lib/emails/staffInvitationEmail', () => ({
+  sendStaffInvitationEmail: (...args: unknown[]) => sendStaffInvitationEmailMock(...args),
 }));
 
 jest.mock('@aws-sdk/client-cognito-identity-provider', () => {
@@ -38,17 +43,24 @@ jest.mock('@aws-sdk/client-cognito-identity-provider', () => {
     })),
     ListUsersCommand: jest.fn((input) => ({ input })),
     ListUsersInGroupCommand: jest.fn((input) => ({ input })),
+    AdminGetUserCommand: jest.fn((input) => ({ input })),
     AdminListGroupsForUserCommand: jest.fn((input) => ({ input })),
     AdminListUserAuthEventsCommand: jest.fn((input) => ({ input })),
     AdminAddUserToGroupCommand: jest.fn((input) => ({ input })),
     AdminRemoveUserFromGroupCommand: jest.fn((input) => ({ input })),
     AdminCreateUserCommand: jest.fn((input) => ({ input })),
+    AdminSetUserPasswordCommand: jest.fn((input) => ({ input })),
     UsernameExistsException,
     UserPoolAddOnNotEnabledException,
   };
 });
 
 import { UsernameExistsException, UserPoolAddOnNotEnabledException } from '@aws-sdk/client-cognito-identity-provider';
+
+const recordServerAuditMock = jest.fn();
+jest.mock('@/lib/server/recordServerAudit', () => ({
+  recordServerAudit: (...args: unknown[]) => recordServerAuditMock(...args),
+}));
 
 jest.mock('aws-jwt-verify', () => ({
   CognitoJwtVerifier: {
@@ -65,6 +77,8 @@ describe('admin users API', () => {
     jest.clearAllMocks();
     global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) } as any);
     sendInvitationEmailMock.mockResolvedValue(undefined);
+    sendStaffInvitationEmailMock.mockResolvedValue(undefined);
+    recordServerAuditMock.mockResolvedValue({ ok: true });
   });
 
   afterAll(() => {
@@ -79,7 +93,53 @@ describe('admin users API', () => {
 
     const response = await POST(request);
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ error: 'Missing authorization token.' });
+    await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' });
+  });
+
+  it('returns 403 and audit-logs the denied attempt for a verified non-administrator caller', async () => {
+    verifyMock.mockResolvedValue({ sub: 'sub-op', 'cognito:groups': ['operator'] });
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) } as any);
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsers' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: 'Forbidden: admin access required' });
+
+    // A refused caller has no AppSync access of their own, so the server writes the entry.
+    expect(recordServerAuditMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: 'sub-op',
+        eventType: 'access_denied',
+        resource: { type: 'operator', id: 'sub-op' },
+        failure: 'Forbidden: admin access required',
+      })
+    );
+    const fetchedAudit = (global.fetch as jest.Mock).mock.calls.some(([, init]) =>
+      String(init?.body || '').includes('CreateAuditLog')
+    );
+    expect(fetchedAudit).toBe(false);
+  });
+
+  it('logs an audit entry that could not be written and still answers', async () => {
+    verifyMock.mockResolvedValue({ sub: 'sub-op', 'cognito:groups': ['operator'] });
+    recordServerAuditMock.mockResolvedValue({ ok: false, errors: [{ message: 'Unauthorized' }] });
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsers' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(403);
+    expect(consoleError).toHaveBeenCalledWith('Writing the admin_user_management_attempt audit entry failed:', [
+      { message: 'Unauthorized' },
+    ]);
+    consoleError.mockRestore();
   });
 
   it('blocks self removal of administrator group', async () => {
@@ -129,6 +189,143 @@ describe('admin users API', () => {
     expect(sendMock).toHaveBeenCalled();
   });
 
+  it('addUserToGroup for operator creates and activates the Operator directory record', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({}) // AdminAddUserToGroupCommand
+      .mockResolvedValueOnce({
+        Username: 'driver-dan',
+        UserAttributes: [
+          { Name: 'sub', Value: 'sub-driver-dan' },
+          { Name: 'email', Value: 'dan@nulldevice.dev' },
+          { Name: 'name', Value: 'Driver Dan' },
+        ],
+      }); // AdminGetUserCommand
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'addUserToGroup', username: 'driver-dan', groupName: 'operator' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const createCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('createOperator')
+    );
+    expect(createCall).toBeDefined();
+    expect(JSON.parse(createCall![1].body).variables.input).toEqual(
+      expect.objectContaining({ id: 'sub-driver-dan', name: 'Driver Dan', email: 'dan@nulldevice.dev' })
+    );
+
+    const activateCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('updateOperator')
+    );
+    expect(activateCall).toBeDefined();
+    expect(JSON.parse(activateCall![1].body).variables.input).toEqual({ id: 'sub-driver-dan', status: 'active' });
+  });
+
+  it('addUserToGroup for administrator creates the Administrator directory record', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({}) // AdminAddUserToGroupCommand
+      .mockResolvedValueOnce({
+        Username: 'new-admin-user',
+        UserAttributes: [
+          { Name: 'sub', Value: 'sub-new-admin' },
+          { Name: 'email', Value: 'newadmin@nulldevice.dev' },
+          { Name: 'name', Value: 'New Admin' },
+        ],
+      }); // AdminGetUserCommand
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'addUserToGroup', username: 'new-admin-user', groupName: 'administrator' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const createCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('createAdministrator')
+    );
+    expect(createCall).toBeDefined();
+    expect(JSON.parse(createCall![1].body).variables.input).toEqual(
+      expect.objectContaining({ id: 'sub-new-admin', name: 'New Admin', email: 'newadmin@nulldevice.dev' })
+    );
+  });
+
+  it('removeUserFromGroup for operator deactivates the Operator directory record', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({}) // AdminRemoveUserFromGroupCommand
+      .mockResolvedValueOnce({
+        Username: 'driver-dan',
+        UserAttributes: [{ Name: 'sub', Value: 'sub-driver-dan' }],
+      }); // AdminGetUserCommand
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'removeUserFromGroup', username: 'driver-dan', groupName: 'operator' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const deactivateCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('updateOperator')
+    );
+    expect(deactivateCall).toBeDefined();
+    expect(JSON.parse(deactivateCall![1].body).variables.input).toEqual({
+      id: 'sub-driver-dan',
+      status: 'inactive',
+    });
+  });
+
+  it('removeUserFromGroup for administrator deletes the Administrator directory record', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({}) // AdminRemoveUserFromGroupCommand
+      .mockResolvedValueOnce({
+        Username: 'old-admin',
+        UserAttributes: [{ Name: 'sub', Value: 'sub-old-admin' }],
+      }); // AdminGetUserCommand
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'removeUserFromGroup', username: 'old-admin', groupName: 'administrator' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const deleteCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('deleteAdministrator')
+    );
+    expect(deleteCall).toBeDefined();
+    expect(JSON.parse(deleteCall![1].body).variables.input).toEqual({ id: 'sub-old-admin' });
+  });
+
   it('lists users in a group for operator assignment', async () => {
     verifyMock.mockResolvedValue({
       sub: 'sub-123',
@@ -171,6 +368,96 @@ describe('admin users API', () => {
     expect(syncBody.variables.input).toEqual(
       expect.objectContaining({ id: 'sub-operator-1', name: 'Jane', email: 'jane@nulldevice.dev' })
     );
+  });
+
+  it('flips a confirmed operator stuck on onboarding to active', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock.mockResolvedValue({
+      Users: [
+        {
+          Username: 'operator-1',
+          UserStatus: 'CONFIRMED',
+          Attributes: [
+            { Name: 'email', Value: 'jane@nulldevice.dev' },
+            { Name: 'sub', Value: 'sub-operator-1' },
+            { Name: 'name', Value: 'Jane' },
+          ],
+        },
+      ],
+    });
+
+    (global.fetch as jest.Mock).mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body || '{}'));
+      if (body.query?.includes('getOperator')) {
+        return { ok: true, json: async () => ({ data: { getOperator: { status: 'onboarding' } } }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsersInGroup', groupName: 'operator' }),
+    } as any;
+
+    await POST(request);
+
+    const activationCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) => {
+      const body = JSON.parse(String(init?.body || '{}'));
+      return body.query?.includes('updateOperator') && body.variables?.input?.status === 'active';
+    });
+    expect(activationCall).toBeDefined();
+    expect(JSON.parse(activationCall![1].body).variables.input).toEqual({
+      id: 'sub-operator-1',
+      status: 'active',
+    });
+  });
+
+  it('does not reactivate an operator who was deliberately deactivated', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock.mockResolvedValue({
+      Users: [
+        {
+          Username: 'operator-1',
+          UserStatus: 'CONFIRMED',
+          Attributes: [
+            { Name: 'email', Value: 'jane@nulldevice.dev' },
+            { Name: 'sub', Value: 'sub-operator-1' },
+            { Name: 'name', Value: 'Jane' },
+          ],
+        },
+      ],
+    });
+
+    (global.fetch as jest.Mock).mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body || '{}'));
+      if (body.query?.includes('getOperator')) {
+        return { ok: true, json: async () => ({ data: { getOperator: { status: 'inactive' } } }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsersInGroup', groupName: 'operator' }),
+    } as any;
+
+    await POST(request);
+
+    const activationCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) => {
+      const body = JSON.parse(String(init?.body || '{}'));
+      return body.query?.includes('updateOperator') && body.variables?.input?.status === 'active';
+    });
+    expect(activationCall).toBeUndefined();
   });
 
   it('does not sync the Operator directory when listing a different group', async () => {
@@ -221,6 +508,91 @@ describe('admin users API', () => {
     const response = await POST(request);
     expect(response.status).toBe(400);
     expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it('listUsers only syncs the Administrator directory for actual administrator-group members', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        Users: [
+          {
+            Username: 'admin-1',
+            Attributes: [
+              { Name: 'sub', Value: 'sub-admin-1' },
+              { Name: 'email', Value: 'admin1@nulldevice.dev' },
+              { Name: 'name', Value: 'Admin One' },
+            ],
+          },
+          {
+            Username: 'operator-1',
+            Attributes: [
+              { Name: 'sub', Value: 'sub-operator-1' },
+              { Name: 'email', Value: 'operator1@nulldevice.dev' },
+              { Name: 'name', Value: 'Operator One' },
+            ],
+          },
+        ],
+      }) // ListUsersCommand
+      .mockResolvedValueOnce({
+        Users: [{ Username: 'admin-1', Attributes: [{ Name: 'sub', Value: 'sub-admin-1' }] }],
+      }); // ListUsersInGroupCommand('administrator') for scoping
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsers' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const syncCalls = (global.fetch as jest.Mock).mock.calls.filter(([, init]) =>
+      String(init?.body || '').includes('createAdministrator')
+    );
+    expect(syncCalls).toHaveLength(1);
+    expect(JSON.parse(syncCalls[0][1].body).variables.input).toEqual(
+      expect.objectContaining({ id: 'sub-admin-1' })
+    );
+  });
+
+  it('getUserByEmail only syncs the Administrator directory when the match is actually an administrator', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        Users: [
+          {
+            Username: 'customer-1',
+            Attributes: [
+              { Name: 'email', Value: 'owner@harcourts.example' },
+              { Name: 'sub', Value: 'sub-customer-1' },
+              { Name: 'name', Value: 'Betty' },
+            ],
+          },
+        ],
+      }) // findUserByEmail's ListUsersCommand
+      .mockResolvedValueOnce({ Groups: [{ GroupName: 'customer' }] }); // AdminListGroupsForUserCommand
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'getUserByEmail', email: 'owner@harcourts.example' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const syncCall = (global.fetch as jest.Mock).mock.calls.find(([, init]) =>
+      String(init?.body || '').includes('createAdministrator')
+    );
+    expect(syncCall).toBeUndefined();
   });
 
   it('resolves user by email for customer access assignment', async () => {
@@ -319,9 +691,11 @@ describe('admin users API', () => {
     );
   });
 
-  it('createUser does not suppress the Cognito email or send a branded invite for non-customer groups', async () => {
+  it('createUser suppresses the Cognito email and sends the branded staff invite for an operator invite', async () => {
     verifyMock.mockResolvedValue({
       sub: 'sub-123',
+      email: 'admin@nulldevice.dev',
+      name: 'Admin Person',
       'cognito:username': 'admin-user',
       'cognito:groups': ['administrator'],
     });
@@ -337,15 +711,73 @@ describe('admin users API', () => {
       json: async () => ({
         action: 'createUser',
         email: 'ops@nulldevice.dev',
+        name: 'Driver Dan',
         groupName: 'operator',
       }),
     } as any;
 
     const response = await POST(request);
     expect(response.status).toBe(200);
-    expect(sendMock.mock.calls[0][0].input.MessageAction).toBeUndefined();
-    expect(sendMock.mock.calls[0][0].input.TemporaryPassword).toBeUndefined();
+    await expect(response.json()).resolves.toEqual({
+      user: { sub: 'sub-ops', username: 'ops@nulldevice.dev' },
+      created: true,
+      emailSent: true,
+    });
+
+    const createUserInput = sendMock.mock.calls[0][0].input;
+    expect(createUserInput.MessageAction).toBe('SUPPRESS');
+    expect(typeof createUserInput.TemporaryPassword).toBe('string');
+
     expect(sendInvitationEmailMock).not.toHaveBeenCalled();
+    expect(sendStaffInvitationEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toEmail: 'ops@nulldevice.dev',
+        inviteeName: 'Driver Dan',
+        roleLabel: 'Operator',
+        inviterName: 'Admin Person',
+        inviterEmail: 'admin@nulldevice.dev',
+        temporaryPassword: createUserInput.TemporaryPassword,
+      })
+    );
+  });
+
+  it('createUser suppresses the Cognito email and sends the branded staff invite for an administrator invite', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      email: 'admin@nulldevice.dev',
+      name: 'Admin Person',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        User: { Username: 'new-admin@nulldevice.dev', Attributes: [{ Name: 'sub', Value: 'sub-new-admin' }] },
+      })
+      .mockResolvedValueOnce({});
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'createUser',
+        email: 'new-admin@nulldevice.dev',
+        groupName: 'administrator',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+
+    const createUserInput = sendMock.mock.calls[0][0].input;
+    expect(createUserInput.MessageAction).toBe('SUPPRESS');
+
+    expect(sendStaffInvitationEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toEmail: 'new-admin@nulldevice.dev',
+        roleLabel: 'Administrator',
+        temporaryPassword: createUserInput.TemporaryPassword,
+      })
+    );
   });
 
   it('createUser adds an already-existing Cognito user to the group instead of erroring', async () => {
@@ -405,6 +837,185 @@ describe('admin users API', () => {
     const response = await POST(request);
     expect(response.status).toBe(400);
     expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it('lists users in a group across multiple Cognito pages', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        Users: [
+          { Username: 'customer-1', Attributes: [{ Name: 'sub', Value: 'sub-customer-1' }] },
+        ],
+        NextToken: 'page-2',
+      })
+      .mockResolvedValueOnce({
+        Users: [
+          { Username: 'customer-2', Attributes: [{ Name: 'sub', Value: 'sub-customer-2' }] },
+        ],
+        NextToken: undefined,
+      });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({ action: 'listUsersInGroup', groupName: 'customer' }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.users).toEqual([
+      expect.objectContaining({ username: 'customer-1', sub: 'sub-customer-1' }),
+      expect.objectContaining({ username: 'customer-2', sub: 'sub-customer-2' }),
+    ]);
+    expect(sendMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('resendInvite issues a fresh temporary password and re-sends the branded customer invitation', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      email: 'admin@nulldevice.dev',
+      name: 'Admin Person',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        Users: [
+          {
+            Username: 'pending-user',
+            UserStatus: 'FORCE_CHANGE_PASSWORD',
+            Attributes: [{ Name: 'email', Value: 'pending@agency.com.au' }],
+          },
+        ],
+      }) // findUserByEmail's ListUsersCommand
+      .mockResolvedValueOnce({}); // AdminSetUserPasswordCommand
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'resendInvite',
+        email: 'pending@agency.com.au',
+        groupName: 'customer',
+        name: 'Pending Person',
+        customerName: 'Agency Co',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ emailSent: true });
+
+    const setPasswordInput = sendMock.mock.calls[1][0].input;
+    expect(setPasswordInput).toEqual(
+      expect.objectContaining({ Username: 'pending-user', Permanent: false })
+    );
+    expect(typeof setPasswordInput.Password).toBe('string');
+
+    expect(sendInvitationEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toEmail: 'pending@agency.com.au',
+        inviteeName: 'Pending Person',
+        customerName: 'Agency Co',
+        temporaryPassword: setPasswordInput.Password,
+      })
+    );
+  });
+
+  it('resendInvite sends the branded staff invitation for a non-customer group', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock
+      .mockResolvedValueOnce({
+        Users: [
+          {
+            Username: 'pending-ops',
+            UserStatus: 'FORCE_CHANGE_PASSWORD',
+            Attributes: [{ Name: 'email', Value: 'ops@nulldevice.dev' }],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({});
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'resendInvite',
+        email: 'ops@nulldevice.dev',
+        groupName: 'operator',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(sendInvitationEmailMock).not.toHaveBeenCalled();
+    expect(sendStaffInvitationEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ toEmail: 'ops@nulldevice.dev', roleLabel: 'Operator' })
+    );
+  });
+
+  it('rejects resendInvite for a user who has already signed in', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock.mockResolvedValueOnce({
+      Users: [
+        {
+          Username: 'active-user',
+          UserStatus: 'CONFIRMED',
+          Attributes: [{ Name: 'email', Value: 'active@agency.com.au' }],
+        },
+      ],
+    });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'resendInvite',
+        email: 'active@agency.com.au',
+        groupName: 'customer',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: 'This user has already signed in and can no longer be re-invited.',
+    });
+  });
+
+  it('rejects resendInvite when no matching user exists', async () => {
+    verifyMock.mockResolvedValue({
+      sub: 'sub-123',
+      'cognito:username': 'admin-user',
+      'cognito:groups': ['administrator'],
+    });
+
+    sendMock.mockResolvedValueOnce({ Users: [] });
+
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({
+        action: 'resendInvite',
+        email: 'nobody@agency.com.au',
+        groupName: 'customer',
+      }),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(404);
   });
 
   it('computes user activity stats: pending invites and signed-in-within-7-days count', async () => {

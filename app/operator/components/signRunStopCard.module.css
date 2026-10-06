@@ -220,13 +220,52 @@
   color: var(--text-body);
 }
 
+/* Pinned to the bottom of the viewport so the problem and Complete buttons are always reachable
+ * without scrolling — this is a phone-in-hand flow at a property, not a desk
+ * screen. .actionBarSpacer reserves the same height in normal flow, rendered
+ * immediately before .actionBar in Placement/Pickup's JSX, so the fixed bar
+ * doesn't cover the last stop card or "Then" list item. Height there must be
+ * kept in sync with the min-height/padding below. */
 .actionBar {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
   gap: var(--space-3);
+  padding: var(--space-4) var(--gutter-page-sm);
+  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface-page);
+  border-top: var(--border-hairline) solid var(--border-subtle);
+  box-shadow: var(--shadow-lg);
 }
 
-.skipButton {
+.actionBarSpacer {
+  height: calc(58px + var(--space-4) * 2 + env(safe-area-inset-bottom, 0px));
+}
+
+/* Desktop/tablet: the sidebar is in normal flow (not an off-canvas overlay)
+ * at this breakpoint -- see OperatorShell.module.css -- so the fixed bar
+ * needs to start past it instead of running full width underneath it. */
+@media (min-width: 769px) {
+  .actionBar {
+    left: var(--sidebar-w);
+    padding-left: var(--gutter-page);
+    padding-right: var(--gutter-page);
+  }
+}
+
+/* .primaryAction is combined with shellStyles.primaryButton at the JSX level
+ * (see signRunShell.module.css's header comment on that split) to give the
+ * Complete button its 2:1 share of .actionBar's flex row, matching .problemButton's
+ * flex: 1 below. */
+.primaryAction {
+  flex: 2;
+}
+
+.problemButton {
+  flex: 1;
   min-height: 58px;
   border-radius: var(--radius-md);
   border: var(--border-hairline) solid var(--border-default);
@@ -239,11 +278,11 @@
   transition: var(--transition-control);
 }
 
-.skipButton:hover:not(:disabled) {
+.problemButton:hover:not(:disabled) {
   background: var(--surface-hover);
 }
 
-.skipButton:disabled {
+.problemButton:disabled {
   cursor: not-allowed;
   opacity: 0.7;
 }

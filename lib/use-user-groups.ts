@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { fetchUserGroups } from './amplify-config';
+import { fetchUserGroups, fetchUserId } from './amplify-config';
 
 export interface UserGroupState {
   groups: string[];
@@ -49,4 +49,30 @@ export function useUserGroups(): UserGroupState {
     isOperator: groups.includes('operator'),
     isCustomer: groups.includes('customer'),
   };
+}
+
+/**
+ * Amplify v6-compatible way to read the current user's id (Cognito sub).
+ *
+ * Do not use `useAuthenticator().user?.userId` for this -- that field is only
+ * populated by the Authenticator machine's own internal actors, so it stays
+ * `undefined` for the entire session after this app's custom sign-in form
+ * (app/page.tsx) calls `signIn()` directly, until a full page reload. See
+ * fetchUserId() in lib/amplify-config.ts for details. This hook uses the same
+ * authStatus-gated fetchAuthSession() approach as useUserGroups() above,
+ * which is unaffected by that issue.
+ */
+export function useCurrentUserId(): string | undefined {
+  const { authStatus } = useAuthenticator((ctx) => [ctx.authStatus]);
+  const [userId, setUserId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (authStatus === 'authenticated') {
+      fetchUserId().then(setUserId);
+    } else if (authStatus === 'unauthenticated') {
+      setUserId(undefined);
+    }
+  }, [authStatus]);
+
+  return userId;
 }

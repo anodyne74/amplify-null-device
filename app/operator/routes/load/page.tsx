@@ -1,17 +1,44 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
-import { getRouteWithStops, getCustomer, updateRouteExecution } from '@/lib/queries';
+import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { getOrganizationSettings } from '@/lib/queries/OrganizationSettings';
-import { getSignRunPhase } from '@/lib/signRunPhase';
+import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
+import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
+import { queueStopChange, queueSignRunTransition } from '@/lib/signRunTransitions';
+import { activeStops, type LoadStopInput } from '@/lib/loadChange';
+import { useCurrentUserId } from '@/lib/use-user-groups';
+import { formatClockTime } from '@/lib/format';
+import { groupByAgent, signsPlaced, timedSigns } from '@/lib/signRunTotals';
 import type { Route, Stop } from '@/amplify/types';
+import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
 import styles from './page.module.css';
+import { getCustomer } from '@/lib/customers';
+import { TimedSignsChecklist } from './TimedSignsChecklist';
+
+interface LoadScreenExtra {
+  customerName: string;
+  customerAgents: Array<string | null>;
+  yardAddress: string | null;
+}
+
+async function fetchLoadScreenExtra(route: Route): Promise<LoadScreenExtra> {
+  const [customer, orgSettingsResult] = await Promise.all([
+    getCustomer(route.customerId).catch(() => null),
+    // The yard address is best-effort: unreadable settings show none.
+    getOrganizationSettings().catch(() => null),
+  ]);
+  return {
+    customerName: customer?.name ?? '',
+    customerAgents: customer?.agentOptions ?? [],
+    yardAddress: orgSettingsResult?.address ?? null,
+  };
+}
 
 interface AgentBreakdownRow {
   name: string;
@@ -21,77 +48,44 @@ interface AgentBreakdownRow {
 
 /** Distinct stop.agent values, first-appearance (sequence) order — stops.list
  * from getRouteWithStops is already sorted by sequence. No-agent stops are
- * pooled under "Unassigned", shown only if any exist. */
+ * pooled under "Unassigned", shown only if any exist. Timed vs blank follows
+ * timedSigns(). */
 function buildBreakdown(stops: Stop[]): AgentBreakdownRow[] {
-  const rows: AgentBreakdownRow[] = [];
-  const indexByName = new Map<string, number>();
+  const stopsWithSigns = stops.filter((stop) => (stop.numberOfSigns ?? 0) > 0);
 
-  for (const stop of stops) {
-    const name = stop.agent?.trim() || 'Unassigned';
-    const signs = stop.numberOfSigns ?? 0;
-    if (signs === 0) continue;
-
-    let idx = indexByName.get(name);
-    if (idx === undefined) {
-      idx = rows.length;
-      indexByName.set(name, idx);
-      rows.push({ name, timed: 0, blank: 0 });
+  return groupByAgent(stopsWithSigns).map((group) => {
+    const row: AgentBreakdownRow = { name: group.agent, timed: 0, blank: 0 };
+    for (const stop of group.stops) {
+      const timed = timedSigns(stop);
+      row.timed += timed;
+      row.blank += (stop.numberOfSigns ?? 0) - timed;
     }
-    if (stop.isAuction) rows[idx].timed += signs;
-    else rows[idx].blank += signs;
-  }
-
-  return rows;
+    return row;
+  });
 }
 
 export default function OperatorLoadPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const routeId = searchParams.get('id');
-
-  const [route, setRoute] = useState<Route | null>(null);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [customerName, setCustomerName] = useState('');
-  const [yardAddress, setYardAddress] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [confirming, setConfirming] = useState(false);
+  const {
+    routeId,
+    route,
+    stops: allStops,
+    loading,
+    phaseInfo,
+    isOnPhase: isValidLoadScreen,
+    extra,
+  } = useSignRunPhaseScreen({ phaseIdx: 0, requireStops: false, includeRemoved: true, fetchExtra: fetchLoadScreenExtra });
+  // Removed properties stay in the checklist to be restored, and count toward nothing.
+  const stops = useMemo(() => activeStops(allStops), [allStops]);
+  const userId = useCurrentUserId();
+  const customerName = extra?.customerName ?? '';
+  const yardAddress = extra?.yardAddress ?? null;
+  const customerAgents = extra?.customerAgents ?? [];
   const [error, setError] = useState<string | null>(null);
+  const { dialog, openDialog, closeDialog, submitting } = useTimestampConfirmDialog<
+    'start' | 'confirm'
+  >();
 
-  useEffect(() => {
-    if (!routeId) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-      const [{ route: fetchedRoute, stops: fetchedStops }, orgSettingsResult] = await Promise.all([
-        getRouteWithStops(routeId as string),
-        getOrganizationSettings(),
-      ]);
-      if (cancelled) return;
-
-      setRoute(fetchedRoute as Route | null);
-      setStops(fetchedStops as Stop[]);
-      setYardAddress(orgSettingsResult.data?.address ?? null);
-
-      if (fetchedRoute) {
-        const customerResult = await getCustomer(fetchedRoute.customerId);
-        if (!cancelled) {
-          setCustomerName((customerResult.data as { name?: string } | null)?.name ?? '');
-        }
-      }
-      if (!cancelled) setLoading(false);
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [routeId]);
-
-  const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
   const breakdown = useMemo(() => buildBreakdown(stops), [stops]);
   const totals = useMemo(
     () =>
@@ -101,61 +95,71 @@ export default function OperatorLoadPage() {
       ),
     [breakdown]
   );
-  const totalSigns = totals.timed + totals.blank;
+  const totalSigns = signsPlaced(stops);
 
-  const handleConfirm = async () => {
+  // Transitions show at once and save in the background (lib/signRunOutbox.ts).
+  const handleStartLoad = (iso: string) => {
     if (!route) return;
-    setConfirming(true);
     setError(null);
 
-    const now = new Date().toISOString();
-    const result = await updateRouteExecution(route.id, {
-      loadConfirmedAt: now,
-      loadedSignsCount: totalSigns,
-      executionPhase: 'placement',
-      status: route.status === 'planned' ? 'in_progress' : route.status ?? 'in_progress',
-      actualStartTime: route.actualStartTime ?? now,
-    });
+    const result = queueSignRunTransition(route, { type: 'startLoad', at: iso });
+    if ('error' in result) {
+      setError(result.error);
+      return;
+    }
 
-    if (result.errors && result.errors.length > 0) {
-      setError('Could not confirm the load. Try again.');
-      setConfirming(false);
+    closeDialog();
+  };
+
+  // Load Changes, like transitions, show at once and save in the background.
+  const changeLoad = (change: Parameters<typeof queueStopChange>[1]): string | null => {
+    if (!route) return null;
+    const result = queueStopChange(route, change);
+    return 'error' in result ? result.error : null;
+  };
+
+  const findStop = (stopId: string) => allStops.find((stop) => stop.id === stopId);
+
+  const handleRemoveStop = (stopId: string) => {
+    const stop = findStop(stopId);
+    if (!stop) return null;
+    if (!userId) return 'Could not tell who is signed in. Try again in a moment.';
+    return changeLoad({ type: 'remove', stop, by: userId });
+  };
+
+  const handleRestoreStop = (stopId: string) => {
+    const stop = findStop(stopId);
+    return stop ? changeLoad({ type: 'restore', stop }) : null;
+  };
+
+  const handleAddStop = (input: LoadStopInput) => changeLoad({ type: 'add', stops: allStops, input });
+
+  const handleConfirmLoad = (iso: string) => {
+    if (!route) return;
+    setError(null);
+
+    const result = queueSignRunTransition(route, { type: 'confirmLoad', at: iso, loadedSignsCount: totalSigns });
+    if ('error' in result) {
+      setError(result.error);
+      closeDialog();
       return;
     }
 
     router.push('/operator/dashboard');
   };
 
-  const handleRecount = () => {
-    router.push('/operator/van-count');
-  };
-
   if (!routeId) {
-    return (
-      <div className={shellStyles.page}>
-        <p className={shellStyles.mutedText}>No route selected.</p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
-    );
+    return <NoRouteSelected />;
   }
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
-  const isValidLoadScreen = route && phaseInfo && phaseInfo.phaseIdx === 0;
-
-  if (!isValidLoadScreen) {
+  if (!isValidLoadScreen || !route || !phaseInfo) {
     return (
-      <div className={shellStyles.page}>
-        <Breadcrumbs items={[{ label: 'Today', href: '/operator/dashboard' }, { label: 'Load' }]} />
-        <p className={shellStyles.mutedText}>
-          {route ? 'This route is not currently on the Load phase.' : 'Route not found.'}
-        </p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
+      <PhaseNotReady
+        phaseLabel="Load"
+        message={route ? 'This route is not currently on the Load phase.' : 'Route not found.'}
+      />
     );
   }
 
@@ -202,23 +206,71 @@ export default function OperatorLoadPage() {
         </div>
       </div>
 
-      {!route.loadConfirmedAt && (
+      {!route.loadStartedAt && (
+        <div className={styles.startPanel}>Tap start once you&apos;re at the yard to begin loading.</div>
+      )}
+
+      {route.loadStartedAt && (
+        <TimedSignsChecklist
+          stops={allStops}
+          customerAgents={customerAgents}
+          onRemove={handleRemoveStop}
+          onRestore={handleRestoreStop}
+          onAdd={handleAddStop}
+        />
+      )}
+
+      {route.loadStartedAt && (
+        <div className={styles.stampLine}>Load started {formatClockTime(route.loadStartedAt)}</div>
+      )}
+
+      {route.loadStartedAt && !route.loadConfirmedAt && (
         <div className={styles.warningPanel}>
           Load not confirmed — stops still open, but the yard time may not bill.
         </div>
       )}
 
-      <button type="button" className={`${shellStyles.primaryButton} ${styles.primaryButton}`} onClick={() => void handleConfirm()} disabled={confirming}>
-        {confirming ? 'Confirming…' : `Confirm ${totalSigns} signs loaded`}
-      </button>
-      <button type="button" className={shellStyles.secondaryButton} onClick={handleRecount} disabled={confirming}>
-        Count differs — recount
-      </button>
+      {!route.loadStartedAt ? (
+        <button
+          type="button"
+          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          onClick={() => openDialog('start')}
+          disabled={submitting}
+        >
+          Start load
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          onClick={() => openDialog('confirm')}
+          disabled={submitting}
+        >
+          {`Confirm ${totalSigns} signs loaded`}
+        </button>
+      )}
 
       <p className={shellStyles.footnote}>
-        Confirming returns you to the main screen with the route on phase 2. Charged time is set on Finalise, not
-        here.
+        Start and complete both confirm in a dialog showing the time. Completing returns you to the main screen with
+        the route on phase 2; charged time is set on Finalise.
       </p>
+
+      <ConfirmDialog
+        open={dialog !== null}
+        time={dialog ? formatClockTime(dialog.time) : ''}
+        title={dialog?.kind === 'start' ? 'Start load' : 'Complete load'}
+        summary={
+          dialog?.kind === 'start'
+            ? `Starting load of ${totalSigns} signs at ${yardAddress ?? 'the yard'}.`
+            : `${totalSigns} signs loaded at ${yardAddress ?? 'the yard'}.`
+        }
+        busy={submitting}
+        onCancel={closeDialog}
+        onOk={() => {
+          if (!dialog) return;
+          void (dialog.kind === 'start' ? handleStartLoad(dialog.time) : handleConfirmLoad(dialog.time));
+        }}
+      />
     </div>
   );
 }

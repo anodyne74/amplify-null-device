@@ -2,18 +2,18 @@ import { render, screen } from '@testing-library/react';
 import { RouteStatusPill } from '../RouteListItem';
 
 describe('RouteStatusPill', () => {
-  it('renders the raw status label for an active-bucket status', () => {
-    render(<RouteStatusPill status="signs_placed" />);
+  it('renders the phase label for an active-bucket status', () => {
+    render(<RouteStatusPill route={{ status: 'signs_placed', executionPhase: 'placement' }} />);
     expect(screen.getByText(/signs placed/i)).toBeInTheDocument();
   });
 
   it('renders planned status', () => {
-    render(<RouteStatusPill status="planned" />);
+    render(<RouteStatusPill route={{ status: 'planned' }} />);
     expect(screen.getByText(/planned/i)).toBeInTheDocument();
   });
 
   it('handles a missing status gracefully', () => {
-    const { container } = render(<RouteStatusPill status={null} />);
+    const { container } = render(<RouteStatusPill route={{ status: null }} />);
     expect(container).toBeInTheDocument();
   });
 });

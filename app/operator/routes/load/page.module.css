@@ -3,7 +3,13 @@
  * Only Load-specific classes remain here.
  */
 
+/* Stays in view while the timed signs checklist scrolls beneath it; the page-
+ * coloured shadow above covers the gap at the top of the scroll area. */
 .breakdownCard {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: 0 -12px 0 var(--surface-page), var(--shadow-sm);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -67,6 +73,24 @@
   font-weight: var(--fw-bold);
   font-size: var(--text-md);
   color: var(--text-muted);
+}
+
+.startPanel {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--surface-brand-subtle);
+  color: var(--text-body);
+  font-family: var(--font-body);
+  font-weight: var(--fw-medium);
+  font-size: var(--text-sm);
+  line-height: var(--lh-relaxed);
+}
+
+.stampLine {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
 }
 
 .warningPanel {

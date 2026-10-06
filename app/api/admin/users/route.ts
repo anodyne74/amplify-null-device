@@ -4,22 +4,26 @@ import {
   AdminAddUserToGroupCommand,
   AdminCreateUserCommand,
   type AdminCreateUserCommandInput,
+  AdminGetUserCommand,
   AdminListGroupsForUserCommand,
   AdminListUserAuthEventsCommand,
   AdminRemoveUserFromGroupCommand,
+  AdminSetUserPasswordCommand,
   CognitoIdentityProviderClient,
   ListUsersCommand,
   ListUsersInGroupCommand,
   UsernameExistsException,
   UserPoolAddOnNotEnabledException,
 } from '@aws-sdk/client-cognito-identity-provider';
-import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import outputs from '@/amplify_outputs.json';
+import type { AuditEntry } from '@/lib/auditLog';
 import { sendInvitationEmail } from '@/lib/emails/invitationEmail';
+import { sendStaffInvitationEmail } from '@/lib/emails/staffInvitationEmail';
+import { recordServerAudit } from '@/lib/server/recordServerAudit';
+import { verifyIamCaller, type VerifiedClaims } from '@/lib/server/verifyIamCaller';
 
 const cognitoClient = new CognitoIdentityProviderClient({});
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
-const userPoolClientId = process.env.AMPLIFY_COGNITO_CLIENT_ID || outputs.auth?.user_pool_client_id;
 const graphqlEndpoint = process.env.AMPLIFY_DATA_URL || outputs.data?.url;
 const ALLOWED_GROUPS = ['customer', 'operator', 'administrator'] as const;
 
@@ -31,6 +35,7 @@ type AdminUserAction =
   | 'removeUserFromGroup'
   | 'getUserByEmail'
   | 'createUser'
+  | 'resendInvite'
   | 'getUserActivityStats';
 
 type AdminUserRequest = {
@@ -125,6 +130,33 @@ async function findUserByEmail(poolId: string, email: string): Promise<CognitoLi
   } while (!matched && paginationToken);
 
   return matched;
+}
+
+/** The full set of Cognito sub/username identifiers currently in the `administrator`
+ * group -- used to scope syncAdministratorRecords so it never writes a directory row
+ * for a customer or operator who merely showed up in a full-pool or by-email lookup. */
+async function fetchAdministratorGroupIds(poolId: string): Promise<Set<string>> {
+  const ids = new Set<string>();
+  let paginationToken: string | undefined;
+
+  do {
+    const response = await cognitoClient.send(
+      new ListUsersInGroupCommand({
+        UserPoolId: poolId,
+        GroupName: 'administrator',
+        Limit: 60,
+        NextToken: paginationToken,
+      })
+    );
+    for (const user of response.Users || []) {
+      const sub = getAttributeValue(user.Attributes, 'sub');
+      if (sub) ids.add(sub);
+      if (user.Username) ids.add(user.Username);
+    }
+    paginationToken = response.NextToken;
+  } while (paginationToken);
+
+  return ids;
 }
 
 /** Paginates ListUsers to completion -- the individual admin actions cap at one
@@ -297,81 +329,24 @@ export async function createOrGetCognitoUser({
   return { sub, username, created, temporaryPassword };
 }
 
-type VerifiedClaims = {
-  sub?: string;
-  email?: string;
-  name?: string;
-  username?: string;
-  'cognito:username'?: string;
-  'cognito:groups'?: string[];
-};
-
-let _verifier: ReturnType<typeof CognitoJwtVerifier.create> | null | undefined;
-function getVerifier() {
-  if (_verifier === undefined) {
-    _verifier = userPoolId && userPoolClientId
-      ? CognitoJwtVerifier.create({
-          userPoolId,
-          tokenUse: 'id',
-          clientId: userPoolClientId,
-        })
-      : null;
-  }
-  return _verifier;
-}
-
-function getBearerToken(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
-  return authHeader.slice('Bearer '.length).trim();
-}
-
-async function writeAuditLog(authToken: string, input: {
-  operatorId?: string;
-  eventType: 'login' | 'logout' | 'access_denied' | 'data_access' | 'data_modification' | 'data_deletion';
-  resourceType: 'customer' | 'route' | 'invoice' | 'payment' | 'operator';
-  resourceId: string;
-  action: string;
-  status: 'success' | 'failure';
-  reason?: string;
-  ipAddress?: string;
-  userAgent?: string;
-}) {
-  if (!graphqlEndpoint) {
-    return;
-  }
-
-  const mutation = `
-    mutation CreateAuditLog($input: CreateAuditLogInput!) {
-      createAuditLog(input: $input) {
-        id
-      }
-    }
-  `;
-
-  try {
-    await fetch(graphqlEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: authToken,
-      },
-      body: JSON.stringify({
-        query: mutation,
-        variables: {
-          input: {
-            ...input,
-            timestamp: new Date().toISOString(),
-          },
-        },
-      }),
-      cache: 'no-store',
-    });
-  } catch {
-    // Intentionally non-blocking.
-  }
+/**
+ * Records a user-management action. User changes are Cognito admin calls that
+ * can't be undone, so a missing entry is logged and the request carries on.
+ */
+async function audit(
+  request: NextRequest,
+  actor: string | undefined,
+  entry: Pick<AuditEntry, 'eventType' | 'action' | 'failure'> & { resourceId: string }
+) {
+  const { resourceId, ...rest } = entry;
+  const result = await recordServerAudit({
+    ...rest,
+    actor,
+    resource: { type: 'operator', id: resourceId },
+    ipAddress: request.headers.get('x-forwarded-for') || undefined,
+    userAgent: request.headers.get('user-agent') || undefined,
+  });
+  if (!result.ok) console.error(`Writing the ${entry.action} audit entry failed:`, result.errors);
 }
 
 async function syncAdministratorRecords(authToken: string, users: ListedUser[]) {
@@ -488,49 +463,147 @@ async function syncOperatorRecords(authToken: string, users: ListedUser[]) {
   );
 }
 
-async function verifyToken(token: string): Promise<VerifiedClaims | null> {
-  const verifier = getVerifier();
-  if (!verifier) {
-    return null;
-  }
-
-  try {
-    return (await verifier.verify(token)) as VerifiedClaims;
-  } catch {
-    return null;
-  }
+/** Fetches a single user by username/sub and maps it the same way listUsers/
+ * listUsersInGroup do, for use where only a username is known (addUserToGroup). */
+async function fetchListedUser(poolId: string, username: string): Promise<ListedUser> {
+  const response = await cognitoClient.send(
+    new AdminGetUserCommand({ UserPoolId: poolId, Username: username })
+  );
+  return mapListedUser({
+    Username: response.Username,
+    Enabled: response.Enabled,
+    UserStatus: response.UserStatus,
+    UserCreateDate: response.UserCreateDate,
+    UserLastModifiedDate: response.UserLastModifiedDate,
+    Attributes: response.UserAttributes,
+  });
 }
 
-async function ensureAdmin(request: NextRequest): Promise<{ claims: VerifiedClaims; token: string } | { response: NextResponse }> {
-  const token = getBearerToken(request);
-  if (!token) {
-    return { response: NextResponse.json({ error: 'Missing authorization token.' }, { status: 401 }) };
+/** Sets an existing Operator directory record's status. No-op if the record doesn't
+ * exist (e.g. the user was never actually synced, or was removed already). */
+async function setOperatorStatus(authToken: string, operatorId: string, status: 'active' | 'inactive') {
+  if (!graphqlEndpoint) return;
+
+  const mutation = `
+    mutation UpdateOperator($input: UpdateOperatorInput!) {
+      updateOperator(input: $input) {
+        id
+      }
+    }
+  `;
+
+  await fetch(graphqlEndpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: authToken,
+    },
+    body: JSON.stringify({ query: mutation, variables: { input: { id: operatorId, status } } }),
+    cache: 'no-store',
+  });
+}
+
+/** Reads an Operator directory record's current status, for the reconciliation
+ * check below -- setOperatorStatus itself is a blind write, which would be
+ * unsafe to call unconditionally here (see reconcileOperatorActivation). */
+async function getOperatorStatus(authToken: string, operatorId: string): Promise<string | undefined> {
+  if (!graphqlEndpoint) return undefined;
+
+  const query = `
+    query GetOperator($id: ID!) {
+      getOperator(id: $id) {
+        status
+      }
+    }
+  `;
+
+  const response = await fetch(graphqlEndpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: authToken,
+    },
+    body: JSON.stringify({ query, variables: { id: operatorId } }),
+    cache: 'no-store',
+  });
+
+  const payload = await response.json().catch(() => null);
+  return payload?.data?.getOperator?.status;
+}
+
+/**
+ * Self-heals an Operator directory row stuck on 'onboarding' when Cognito shows
+ * the account has already been confirmed (i.e. signed in at least once).
+ *
+ * The normal path off 'onboarding' is operator-status-activation's
+ * postAuthentication trigger (amplify/functions/operator-status-activation),
+ * which only ever fires once per fresh sign-in. An account whose first sign-in
+ * happened before that trigger existed -- or hit any other transient gap --
+ * never gets a second chance, since a long-lived refreshed session doesn't
+ * re-fire it. Running this reconciliation every time the Drivers screen loads
+ * the operator group catches that instead of leaving it stuck indefinitely.
+ *
+ * Deliberately narrow: only ever moves 'onboarding' -> 'active', never touches
+ * an 'inactive' row. The Drivers screen's Deactivate action sets status
+ * 'inactive' without removing operator group membership, so a deactivated
+ * driver is still a CONFIRMED Cognito group member and would otherwise match
+ * here too.
+ */
+async function reconcileOperatorActivation(authToken: string, users: ListedUser[]) {
+  if (!graphqlEndpoint) return;
+
+  await Promise.allSettled(
+    users
+      .filter((user) => user.id && user.status === 'CONFIRMED')
+      .map(async (user) => {
+        const status = await getOperatorStatus(authToken, user.id as string);
+        if (status === 'onboarding') {
+          await setOperatorStatus(authToken, user.id as string, 'active');
+        }
+      })
+  );
+}
+
+/** Deletes an Administrator directory record. Administrator has no status field, so
+ * removing the Cognito group membership removes the directory row outright rather
+ * than leaving a stale one an admin-management screen would otherwise still list. */
+async function deleteAdministratorRecord(authToken: string, administratorId: string) {
+  if (!graphqlEndpoint) return;
+
+  const mutation = `
+    mutation DeleteAdministrator($input: DeleteAdministratorInput!) {
+      deleteAdministrator(input: $input) {
+        id
+      }
+    }
+  `;
+
+  await fetch(graphqlEndpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: authToken,
+    },
+    body: JSON.stringify({ query: mutation, variables: { input: { id: administratorId } } }),
+    cache: 'no-store',
+  });
+}
+
+async function ensureAdmin(request: NextRequest): Promise<{ claims: VerifiedClaims & { sub: string }; token: string } | { response: NextResponse }> {
+  const auth = await verifyIamCaller(request, 'administrator');
+  if (!auth.ok) {
+    if (auth.status === 403) {
+      await audit(request, auth.claims.sub, {
+        eventType: 'access_denied',
+        resourceId: auth.claims.sub || 'unknown',
+        action: 'admin_user_management_attempt',
+        failure: auth.error,
+      });
+    }
+    return { response: NextResponse.json({ error: auth.error }, { status: auth.status }) };
   }
 
-  const claims = await verifyToken(token);
-  if (!claims) {
-    return { response: NextResponse.json({ error: 'Invalid authorization token.' }, { status: 401 }) };
-  }
-
-  const groups = Array.isArray(claims['cognito:groups']) ? claims['cognito:groups'] : [];
-  if (!groups.includes('administrator')) {
-    const forwardedFor = request.headers.get('x-forwarded-for') || undefined;
-    const userAgent = request.headers.get('user-agent') || undefined;
-    await writeAuditLog(token, {
-      operatorId: claims.sub,
-      eventType: 'access_denied',
-      resourceType: 'operator',
-      resourceId: claims.sub || 'unknown',
-      action: 'admin_user_management_attempt',
-      status: 'failure',
-      reason: 'Administrator role required.',
-      ipAddress: forwardedFor,
-      userAgent,
-    });
-    return { response: NextResponse.json({ error: 'Administrator role required.' }, { status: 403 }) };
-  }
-
-  return { claims, token };
+  return { claims: auth.claims, token: auth.token };
 }
 
 export async function POST(request: NextRequest) {
@@ -563,17 +636,16 @@ export async function POST(request: NextRequest) {
       );
 
       const users = (response.Users || []).map((user) => mapListedUser(user));
-      await syncAdministratorRecords(authResult.token, users);
+      const administratorIds = await fetchAdministratorGroupIds(userPoolId);
+      await syncAdministratorRecords(
+        authResult.token,
+        users.filter((user) => user.id && administratorIds.has(user.id))
+      );
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_access',
-        resourceType: 'operator',
         resourceId: authResult.claims.sub || 'unknown',
         action: 'list_users',
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ users });
@@ -588,28 +660,31 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid groupName.' }, { status: 400 });
       }
 
-      const response = await cognitoClient.send(
-        new ListUsersInGroupCommand({
-          UserPoolId: userPoolId,
-          GroupName: body.groupName,
-          Limit: 60,
-        })
-      );
+      const rawUsers: CognitoListedUser[] = [];
+      let groupPaginationToken: string | undefined;
+      do {
+        const response = await cognitoClient.send(
+          new ListUsersInGroupCommand({
+            UserPoolId: userPoolId,
+            GroupName: body.groupName,
+            Limit: 60,
+            NextToken: groupPaginationToken,
+          })
+        );
+        rawUsers.push(...(response.Users || []));
+        groupPaginationToken = response.NextToken;
+      } while (groupPaginationToken);
 
-      const users = (response.Users || []).map((user) => mapListedUser(user));
+      const users = rawUsers.map((user) => mapListedUser(user));
       if (body.groupName === 'operator') {
         await syncOperatorRecords(authResult.token, users);
+        await reconcileOperatorActivation(authResult.token, users);
       }
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_access',
-        resourceType: 'operator',
         resourceId: authResult.claims.sub || 'unknown',
         action: `list_users_in_group:${body.groupName}`,
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ users });
@@ -629,15 +704,10 @@ export async function POST(request: NextRequest) {
 
       const groups = (response.Groups || []).map((group) => group.GroupName).filter(Boolean);
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_access',
-        resourceType: 'operator',
         resourceId: body.username,
         action: 'list_groups_for_user',
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ groups });
@@ -656,20 +726,91 @@ export async function POST(request: NextRequest) {
       }
 
       const user = mapListedUser(matched);
-      await syncAdministratorRecords(authResult.token, [user]);
+      if (matched.Username) {
+        const groupsResponse = await cognitoClient.send(
+          new AdminListGroupsForUserCommand({ UserPoolId: userPoolId, Username: matched.Username })
+        );
+        const isAdministrator = (groupsResponse.Groups || []).some((group) => group.GroupName === 'administrator');
+        if (isAdministrator) {
+          await syncAdministratorRecords(authResult.token, [user]);
+        }
+      }
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_access',
-        resourceType: 'operator',
         resourceId: matched.Username || email,
         action: 'get_user_by_email',
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ user });
+    }
+
+    if (body.action === 'resendInvite') {
+      if (!body.email || !body.groupName) {
+        return NextResponse.json({ error: 'email and groupName are required.' }, { status: 400 });
+      }
+
+      const email = body.email.trim().toLowerCase();
+      const matched = await findUserByEmail(userPoolId, email);
+      if (!matched?.Username) {
+        return NextResponse.json({ error: `No user found for email ${email}.` }, { status: 404 });
+      }
+
+      if (matched.UserStatus !== 'FORCE_CHANGE_PASSWORD') {
+        return NextResponse.json(
+          { error: 'This user has already signed in and can no longer be re-invited.' },
+          { status: 400 }
+        );
+      }
+
+      // Re-invite by issuing a fresh temporary password: the user stays in
+      // FORCE_CHANGE_PASSWORD (same as a brand-new invite) rather than being
+      // moved to RESET_REQUIRED, which is what AdminResetUserPasswordCommand
+      // would do and would route them through "forgot password" instead of
+      // the temp-password sign-in flow the branded email describes.
+      const temporaryPassword = generateTemporaryPassword();
+      await cognitoClient.send(
+        new AdminSetUserPasswordCommand({
+          UserPoolId: userPoolId,
+          Username: matched.Username,
+          Password: temporaryPassword,
+          Permanent: false,
+        })
+      );
+
+      let emailSent = false;
+      try {
+        if (body.groupName === 'customer') {
+          await sendInvitationEmail({
+            toEmail: email,
+            inviteeName: body.name,
+            customerName: body.customerName?.trim() || 'Null Device',
+            inviterName: authResult.claims.name || authResult.claims.email || 'Null Device',
+            inviterEmail: authResult.claims.email || '',
+            temporaryPassword,
+          });
+        } else {
+          await sendStaffInvitationEmail({
+            toEmail: email,
+            inviteeName: body.name,
+            roleLabel: body.groupName === 'administrator' ? 'Administrator' : 'Operator',
+            inviterName: authResult.claims.name || authResult.claims.email || 'Null Device',
+            inviterEmail: authResult.claims.email || '',
+            temporaryPassword,
+          });
+        }
+        emailSent = true;
+      } catch (err) {
+        console.error('Failed to send branded re-invitation email:', err);
+      }
+
+      await audit(request, authResult.claims.sub, {
+        eventType: 'data_modification',
+        resourceId: matched.Username,
+        action: `resend_invite:${body.groupName}`,
+      });
+
+      return NextResponse.json({ emailSent });
     }
 
     if (body.action === 'createUser') {
@@ -681,28 +822,40 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid groupName.' }, { status: 400 });
       }
 
-      // Customer invites get the branded invitation email (Cognito's built-in one
-      // suppressed); operator/administrator invites keep Cognito's default email.
-      const isCustomerInvite = body.groupName === 'customer';
+      // Every admin-created account gets a branded SES email instead of Cognito's
+      // default built-in invite email: customer invites use the customer-portal-
+      // flavored template, operator/administrator invites use the generic staff
+      // onboarding template.
       const { sub, username, created, temporaryPassword } = await createOrGetCognitoUser({
         poolId: userPoolId,
         email: body.email,
         name: body.name,
         groupName: body.groupName,
-        sendInvitationEmail: isCustomerInvite,
+        sendInvitationEmail: true,
       });
 
       let emailSent = false;
-      if (isCustomerInvite && created && temporaryPassword) {
+      if (created && temporaryPassword) {
         try {
-          await sendInvitationEmail({
-            toEmail: body.email.trim().toLowerCase(),
-            inviteeName: body.name,
-            customerName: body.customerName?.trim() || 'your team',
-            inviterName: authResult.claims.name || authResult.claims.email || 'Null Device',
-            inviterEmail: authResult.claims.email || '',
-            temporaryPassword,
-          });
+          if (body.groupName === 'customer') {
+            await sendInvitationEmail({
+              toEmail: body.email.trim().toLowerCase(),
+              inviteeName: body.name,
+              customerName: body.customerName?.trim() || 'Null Device',
+              inviterName: authResult.claims.name || authResult.claims.email || 'Null Device',
+              inviterEmail: authResult.claims.email || '',
+              temporaryPassword,
+            });
+          } else {
+            await sendStaffInvitationEmail({
+              toEmail: body.email.trim().toLowerCase(),
+              inviteeName: body.name,
+              roleLabel: body.groupName === 'administrator' ? 'Administrator' : 'Operator',
+              inviterName: authResult.claims.name || authResult.claims.email || 'Null Device',
+              inviterEmail: authResult.claims.email || '',
+              temporaryPassword,
+            });
+          }
           emailSent = true;
         } catch (err) {
           // Non-blocking: the login exists; an admin can re-send from the console.
@@ -710,15 +863,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_modification',
-        resourceType: 'operator',
         resourceId: username,
         action: created ? `create_user:${body.groupName}` : `create_user_existing:${body.groupName}`,
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ user: { sub, username }, created, emailSent });
@@ -747,15 +895,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_access',
-        resourceType: 'operator',
         resourceId: authResult.claims.sub || 'unknown',
         action: 'get_user_activity_stats',
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({
@@ -783,15 +926,25 @@ export async function POST(request: NextRequest) {
         })
       );
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      // Keep the directory tables in step with group membership -- the customer
+      // group's own invite flow already creates its CustomerUser row synchronously;
+      // operator/administrator need the equivalent here since this is the only
+      // path (besides invite-time createUser, which already syncs) that grants
+      // those roles.
+      if (body.groupName === 'operator' || body.groupName === 'administrator') {
+        const user = await fetchListedUser(userPoolId, body.username);
+        if (body.groupName === 'operator') {
+          await syncOperatorRecords(authResult.token, [user]);
+          if (user.id) await setOperatorStatus(authResult.token, user.id, 'active');
+        } else {
+          await syncAdministratorRecords(authResult.token, [user]);
+        }
+      }
+
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_modification',
-        resourceType: 'operator',
         resourceId: body.username,
         action: `add_user_to_group:${body.groupName}`,
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ success: true });
@@ -802,7 +955,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'username and groupName are required.' }, { status: 400 });
       }
 
-      const actorUsername = authResult.claims['cognito:username'] || authResult.claims.username;
+      const actorUsername = authResult.claims['cognito:username'];
       if (body.groupName === 'administrator' && actorUsername && actorUsername === body.username) {
         return NextResponse.json(
           { error: 'Removing your own administrator role is not allowed.' },
@@ -822,15 +975,23 @@ export async function POST(request: NextRequest) {
         })
       );
 
-      await writeAuditLog(authResult.token, {
-        operatorId: authResult.claims.sub,
+      // Mirror the group removal onto the directory tables so they don't keep a
+      // stale row for someone who no longer has the role's access.
+      if (body.groupName === 'operator' || body.groupName === 'administrator') {
+        const user = await fetchListedUser(userPoolId, body.username);
+        if (user.id) {
+          if (body.groupName === 'operator') {
+            await setOperatorStatus(authResult.token, user.id, 'inactive');
+          } else {
+            await deleteAdministratorRecord(authResult.token, user.id);
+          }
+        }
+      }
+
+      await audit(request, authResult.claims.sub, {
         eventType: 'data_modification',
-        resourceType: 'operator',
         resourceId: body.username,
         action: `remove_user_from_group:${body.groupName}`,
-        status: 'success',
-        ipAddress: request.headers.get('x-forwarded-for') || undefined,
-        userAgent: request.headers.get('user-agent') || undefined,
       });
 
       return NextResponse.json({ success: true });
@@ -840,16 +1001,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown server error.';
 
-    await writeAuditLog(authResult.token, {
-      operatorId: authResult.claims.sub,
+    await audit(request, authResult.claims.sub, {
       eventType: 'data_modification',
-      resourceType: 'operator',
       resourceId: body.username || authResult.claims.sub || 'unknown',
       action: `failed_admin_user_action:${body.action}`,
-      status: 'failure',
-      reason: message,
-      ipAddress: request.headers.get('x-forwarded-for') || undefined,
-      userAgent: request.headers.get('user-agent') || undefined,
+      failure: message,
     });
 
     return NextResponse.json({ error: message }, { status: 500 });

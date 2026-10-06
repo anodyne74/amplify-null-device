@@ -2,11 +2,15 @@
  * Driver split computation — the share of a customer's billed amount owed to the
  * operator(s) assigned on their routes for a given period.
  *
- * Billed amount per route falls back to route.actualDurationMinutes × billingRatePerHour
+ * Billed amount per route falls back to the Route's Billed Time × billingRatePerHour
  * for customers with no RateLine-driven LineItems, mirroring the same backward-compatible
  * flat-rate fallback used by invoice creation.
  */
 import { getDataClient } from '@/lib/data-client';
+import { listAll } from '@/lib/listAll';
+import { billedTime } from '@/lib/billedTime';
+import { isStopFinished } from '@/lib/stopProgress';
+import { activeStops } from '@/lib/loadChange';
 
 export interface OperatorSplitSummary {
   operatorSub: string;
@@ -49,22 +53,21 @@ export async function computeDriverSplit(params: ComputeDriverSplitParams): Prom
 
   const client = getDataClient();
 
-  const { data: completedRoutes } = await client.models.Route.list({
+  const { data: completedRoutes, errors: routeErrors } = await listAll(client, 'Route', {
     filter: { customerId: { eq: customerId }, status: { eq: 'completed' } },
-    limit: 200,
   });
 
   let routes = (completedRoutes || []).filter((route) =>
     inPeriod(route.actualEndTime || route.updatedAt || route.createdAt, periodStartDate, periodEndDate)
   );
 
-  const { data: customerStops } = await client.models.Stop.list({
+  const { data: customerStops, errors: stopErrors } = await listAll(client, 'Stop', {
     filter: { customerId: { eq: customerId } },
-    limit: 1000,
   });
 
   const stopsByRoute = new Map<string, typeof customerStops>();
-  for (const stop of customerStops || []) {
+  // A Stop a Load Change removed counts toward nothing.
+  for (const stop of activeStops(customerStops || [])) {
     if (!stop.routeId) continue;
     const list = stopsByRoute.get(stop.routeId) || [];
     list.push(stop);
@@ -74,14 +77,20 @@ export async function computeDriverSplit(params: ComputeDriverSplitParams): Prom
   if (paySplitOnCompletedStopsOnly) {
     routes = routes.filter((route) => {
       const routeStops = stopsByRoute.get(route.id) || [];
-      return routeStops.length > 0 && routeStops.every((stop) => !!stop.actualDepartureTime);
+      return routeStops.length > 0 && routeStops.every(isStopFinished);
     });
   }
 
-  const { data: customerLineItems } = await client.models.LineItem.list({
+  const { data: customerLineItems, errors: lineItemErrors } = await listAll(client, 'LineItem', {
     filter: { customerId: { eq: customerId } },
-    limit: 1000,
   });
+
+  // Payouts are created from this result, so a partial read must fail loudly
+  // rather than under-pay.
+  const listErrors = [...routeErrors, ...stopErrors, ...lineItemErrors];
+  if (listErrors.length > 0) {
+    throw new Error(`Could not load every route, stop and line item for this customer (${listErrors.length} errors).`);
+  }
 
   const lineItemTotalByRoute = new Map<string, number>();
   for (const item of customerLineItems || []) {
@@ -95,7 +104,7 @@ export async function computeDriverSplit(params: ComputeDriverSplitParams): Prom
     const operatorSub = route.assignedOperatorSub || 'unassigned';
     const lineItemTotal = lineItemTotalByRoute.get(route.id);
     const billedAmount =
-      lineItemTotal !== undefined ? lineItemTotal : ((route.actualDurationMinutes || 0) / 60) * billingRatePerHour;
+      lineItemTotal !== undefined ? lineItemTotal : ((billedTime(route).totalMinutes ?? 0) / 60) * billingRatePerHour;
     const stopCount = (stopsByRoute.get(route.id) || []).length;
 
     const existing = byOperatorMap.get(operatorSub) || { operatorName: route.assignedOperatorName || undefined, billedAmount: 0, stopCount: 0 };

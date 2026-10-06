@@ -53,7 +53,7 @@ a.mainContentWrap:hover {
 
 .phasePillViolet {
   color: var(--violet-300);
-  background: rgba(177, 129, 232, 0.18);
+  background: var(--surface-violet-subtle);
 }
 
 .statusLabel {

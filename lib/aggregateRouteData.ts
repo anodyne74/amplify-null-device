@@ -1,9 +1,13 @@
+import { billedTime } from '@/lib/billedTime';
+
 export type AnalyticsPeriod = 'day' | 'week' | 'month' | 'quarter' | 'year';
 
 interface RouteAnalyticsRecord {
   actualDurationMinutes?: number | null;
+  overrideDurationMinutes?: number | null;
   signsPlacedDistanceKm?: number | null;
   signsPickedUpDistanceKm?: number | null;
+  overrideDistanceKm?: number | null;
   stops?: number | unknown[] | null;
   signsPlaced?: number | null;
   signsPickedUp?: number | null;
@@ -70,9 +74,13 @@ export function aggregateRouteData(
           ? route.stops.length
           : 0;
 
+    const billed = billedTime(route);
+    const durationMinutes = billed.totalMinutes ?? 0;
+    const distanceKm = billed.distanceKm ?? 0;
+
     group.routesCompleted += 1;
-    group.totalDurationMinutes += route.actualDurationMinutes || 0;
-    group.totalDistanceKm += (route.signsPlacedDistanceKm || 0) + (route.signsPickedUpDistanceKm || 0);
+    group.totalDurationMinutes += durationMinutes;
+    group.totalDistanceKm += distanceKm;
     group.totalStops += stopCount;
     group.totalSignsPlaced += route.signsPlaced || 0;
     group.totalSignsPickedUp += route.signsPickedUp || 0;

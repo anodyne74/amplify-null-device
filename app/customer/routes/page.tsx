@@ -1,24 +1,25 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
-import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
-import { getCustomerPortalContext } from '@/lib/queries';
+import { useCustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { useLiveRoutes } from '@/lib/useLiveRoutes';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import PageHeader from '@/app/customer/components/PageHeader';
 import { RouteStatusPill } from '@/app/customer/components/RouteListItem';
 import RouteCard from '@/app/customer/components/RouteCard';
+import CustomerPagination from '@/app/customer/components/CustomerPagination';
 import { Card } from '@/app/components/ui/core/Card';
 import { Tag } from '@/app/components/ui/core/Tag';
-import { Select } from '@/app/components/ui/forms/Select';
 import { Input } from '@/app/components/ui/forms/Input';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import type { Route } from '@/amplify/types';
-import { compareRouteIdDesc, compareRouteStatusAsc, formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
-import { formatRouteDate } from '@/lib/routeDetailHelpers';
-import { getRouteStatusPresentation } from '@/lib/routeStatusHelpers';
+import { compareRouteIdDesc, formatEstimatedDurationMinutes } from '@/lib/routeListHelpers';
+import { billedTime } from '@/lib/billedTime';
+import { formatRouteDate, getRouteDate } from '@/lib/routeDetailHelpers';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
+import { getPageSlice } from '@/lib/pagination';
+import { getRoutePhaseKey, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS, type RoutePhaseKey } from '@/lib/signRunPhase';
 import styles from './page.module.css';
 
 // Below this width the DataTable's 5 columns don't fit sensibly (mirrors the
@@ -26,86 +27,38 @@ import styles from './page.module.css';
 // mobile layout switch) — show a stacked RouteCard list instead.
 const NARROW_LIST_BREAKPOINT_PX = 900;
 
-type ChipFilter = 'all' | 'planned' | 'active' | 'completed' | 'archived';
+type ChipFilter = RoutePhaseKey | 'all';
 
+// archived is intentionally absent — it's a legacy, soft-deprecated status
+// that now displays (and filters) identically to completed.
 const STATUS_CHIPS: { id: ChipFilter; label: string }[] = [
   { id: 'all', label: 'All' },
-  { id: 'planned', label: 'Planned' },
-  { id: 'active', label: 'Active' },
-  { id: 'completed', label: 'Completed' },
-  { id: 'archived', label: 'Archived' },
+  ...ROUTE_PHASE_KEYS.map((key) => ({ id: key, label: ROUTE_PHASE_LABELS[key] })),
 ];
 
 /**
  * Customer Routes List Page
- * Displays all routes for the current customer with filtering and sorting
+ * Displays all routes for the current customer with filtering and sorting,
+ * kept live via useLiveRoutes so status changes appear without a reload.
  */
 export default function CustomerRoutesPage() {
-  const { user } = useAuthenticator();
-  const userId = user?.userId;
+  const { customerId, loading: contextLoading, error: contextError } = useCustomerPortalContext();
+  const { routes, loading: routesLoading, error: routesError } = useLiveRoutes(customerId);
+  const loading = contextLoading || routesLoading;
+  const error = contextError || routesError;
 
-  const [routes, setRoutes] = useState<Route[]>([]);
   const [filteredRoutes, setFilteredRoutes] = useState<Route[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ChipFilter>('all');
-  const [sortBy, setSortBy] = useState<'routeId' | 'status'>('routeId');
   const [searchText, setSearchText] = useState('');
+  const [page, setPage] = useState(1);
   const isNarrow = useIsNarrowViewport(NARROW_LIST_BREAKPOINT_PX);
-
-  useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-
-    async function fetchRoutes() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const context = await getCustomerPortalContext(userId);
-
-        if (!context.customerId) {
-          if (!cancelled) {
-            setError('Could not resolve your customer account');
-            setRoutes([]);
-          }
-          return;
-        }
-
-        const result = await listMyRoutes({ customerId: context.customerId, limit: 50 });
-
-        if (cancelled) return;
-
-        if (result.errors) {
-          setError('Failed to load routes');
-        } else if (result.data) {
-          setRoutes(result.data as unknown as Route[]);
-        }
-      } catch {
-        if (!cancelled) {
-          setError('Failed to load routes');
-          setRoutes([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    fetchRoutes();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
 
   // Apply filtering and sorting
   useEffect(() => {
     let filtered = [...routes];
 
     if (statusFilter !== 'all') {
-      filtered = filtered.filter((route) => getRouteStatusPresentation(route.status).badgeKey === statusFilter);
+      filtered = filtered.filter((route) => getRoutePhaseKey(route) === statusFilter);
     }
 
     const trimmedSearch = searchText.trim().toLowerCase();
@@ -115,14 +68,22 @@ export default function CustomerRoutesPage() {
       );
     }
 
-    if (sortBy === 'routeId') {
-      filtered.sort(compareRouteIdDesc);
-    } else {
-      filtered.sort(compareRouteStatusAsc);
-    }
+    filtered.sort(compareRouteIdDesc);
 
     setFilteredRoutes(filtered);
-  }, [routes, statusFilter, sortBy, searchText]);
+  }, [routes, statusFilter, searchText]);
+
+  // Only a filter or search change starts again from page 1; live updates to
+  // `routes` keep the page, which getPageSlice clamps if it no longer exists.
+  const handleStatusChange = (status: ChipFilter) => {
+    setStatusFilter(status);
+    setPage(1);
+  };
+  const handleSearchChange = (value: string) => {
+    setSearchText(value);
+    setPage(1);
+  };
+  const { currentPage, pageRows } = getPageSlice(filteredRoutes, page);
 
   if (loading) {
     return <LoadingSpinner message="Loading routes..." />;
@@ -138,13 +99,18 @@ export default function CustomerRoutesPage() {
         </span>
       ),
     },
-    { key: 'status', header: 'Status', render: (route) => <RouteStatusPill status={route.status} /> },
-    { key: 'created', header: 'Created', render: (route) => formatRouteDate(route.createdAt) },
+    { key: 'status', header: 'Status', render: (route) => <RouteStatusPill route={route} /> },
+    { key: 'date', header: 'Date', render: (route) => formatRouteDate(getRouteDate(route)) },
     {
       key: 'duration',
       header: 'Duration',
       align: 'right',
-      render: (route) => formatEstimatedDurationMinutes(route.estimatedDurationMinutes as number | undefined),
+      // Total time is only meaningful once the route has actually finished —
+      // it's calculated from the operator's finalisation, not an estimate.
+      render: (route) =>
+        getRoutePhaseKey(route) === 'completed'
+          ? formatEstimatedDurationMinutes(billedTime(route).totalMinutes)
+          : 'N/A',
     },
     {
       key: 'action',
@@ -170,7 +136,7 @@ export default function CustomerRoutesPage() {
         <div className={styles.filtersRow}>
           <div className={styles.chips}>
             {STATUS_CHIPS.map((chip) => (
-              <Tag key={chip.id} selected={statusFilter === chip.id} onClick={() => setStatusFilter(chip.id)}>
+              <Tag key={chip.id} selected={statusFilter === chip.id} onClick={() => handleStatusChange(chip.id)}>
                 {chip.label}
               </Tag>
             ))}
@@ -181,17 +147,8 @@ export default function CustomerRoutesPage() {
               aria-label="Search route code"
               iconLeft="search"
               value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search route code"
-            />
-            <Select
-              aria-label="Sort by"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'routeId' | 'status')}
-              options={[
-                { value: 'routeId', label: 'Route ID (Desc)' },
-                { value: 'status', label: 'Status' },
-              ]}
             />
           </div>
         </div>
@@ -199,7 +156,7 @@ export default function CustomerRoutesPage() {
         {isNarrow ? (
           filteredRoutes.length > 0 ? (
             <div className={styles.cardList}>
-              {filteredRoutes.map((route) => (
+              {pageRows.map((route) => (
                 <RouteCard key={route.id} route={route} />
               ))}
             </div>
@@ -210,13 +167,19 @@ export default function CustomerRoutesPage() {
           )
         ) : (
           <Card padded={false}>
-            <DataTable columns={columns} rows={filteredRoutes} wrapped={false} empty="No routes found." />
+            <DataTable columns={columns} rows={pageRows} wrapped={false} empty="No routes found." />
           </Card>
         )}
 
+        <CustomerPagination
+          page={currentPage}
+          totalItems={filteredRoutes.length}
+          onPageChange={setPage}
+          itemsLabel="routes"
+        />
+
         <div className={styles.summary}>
-          <p>Showing {filteredRoutes.length} routes</p>
-          <p className={styles.summarySubtext}>Click on any route to view details and stops</p>
+          <p className={styles.summaryHint}>Click on any route to view details and stops</p>
         </div>
       </div>
     </ProtectedRoute>

@@ -1,5 +1,8 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
 import { customerAccessActivation } from '../functions/customer-access-activation/resource';
+import { operatorStatusActivation } from '../functions/operator-status-activation/resource';
+import { reportPurge } from '../functions/report-purge/resource';
+import { routeRequestCapture } from '../functions/route-request-capture/resource';
 
 /**
  * Delivery Management System Data Model
@@ -17,11 +20,15 @@ import { customerAccessActivation } from '../functions/customer-access-activatio
  * - Administrator: Administrator profile details synced from Cognito
  * - UserSettings: Per-user UI preferences
  * - OrganizationSettings: Null Device's own invoice remittance details (single row)
+ * - FeatureFlagSetting: stored state of each Feature Flag (administrator-only)
+ * - PropertyLocation: an administrator's review decisions for one Property (Confirmed pin, dismissed suburb flag)
+ * - PropertyHistoryReport: a frozen Property History PDF's record (read through the reports API)
+ * - RouteRequestRecord: a Route Request or Amendment, captured from requests@ or recorded by hand (ADR 0008)
+ * - RouteRequestSlot: held by a Route while it has a Route Request
  * - OperatorAvailabilityBlock: Days Null Device has no drivers available for a customer
  * - CustomerClosureBlock: Days a customer's agency is closed
  * - RateLine: Named, priced lines on a customer's rate card
  * - OperatorPayout: Driver-split payouts owed to operators for a customer's billing period
- * - VanSignCount: An operator's daily count of signs on their van
  *
  * Authorization Rules:
  * - Customers can only access their own data (routes, invoices, payments)
@@ -29,7 +36,19 @@ import { customerAccessActivation } from '../functions/customer-access-activatio
  * - All access attempts are logged for audit trail
  */
 
-const schema = a.schema({
+// Route fields customers may read but never write directly (pickupDate, Route
+// Feedback): the same rules as the Route model, without the customer's coarse
+// `update` (kept for customerInstructions). Read rules stay identical to the
+// model's, so subscriptions don't redact these fields (#443).
+// The library exports no type for a field rule's `allow`, so it's taken from a.string().
+type FieldAuthAllow = Parameters<Parameters<ReturnType<typeof a.string>['authorization']>[0]>[0];
+const customerReadOnlyRouteField = (allow: FieldAuthAllow) => [
+  allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
+  allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+  allow.groups(['operator']).to(['read', 'update']),
+];
+
+export const schema = a.schema({
   /**
    * Customer - Represents a business customer using the delivery service
    * Authorization: account_owner CustomerUser (via accountOwnerSub) can read/update their own
@@ -68,9 +87,28 @@ const schema = a.schema({
       autoSendInvoiceOnPeriodClose: a.boolean(),
       gstExclusive: a.boolean(), // Rates are ex GST — 10% is added at invoice time (see Invoice.gstAmount)
       // Standing orders — the customer's own default placement preferences (account_owner-editable)
-      standingPickupDay: a.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+      // Standing Pickup Day (CONTEXT.md): a lowercase weekday (StandingPickupDay), or
+      // unset. A string, not an enum, because enums can't carry field rules: clearing it
+      // ("No preference") sets it to null, which needs delete, so the account owner gets
+      // delete on this field only. Deleting the Customer still needs delete on every
+      // field. Read rules match the model's so subscriptions don't redact it.
+      standingPickupDay: a.string().authorization((allow) => [
+        allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read', 'update', 'delete']),
+        allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
+        allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+        allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
+      ]),
       notifyOnLowSigns: a.boolean(),
       sendMissingSignsReport: a.boolean(),
+      // Missing Signs Report (CONTEXT.md): off until an administrator switches it on;
+      // only then does the Customer's own sendMissingSignsReport preference count.
+      // Customers and operators can read it but not change it (#468).
+      missingSignsReportEnabled: a.boolean().authorization((allow) => [
+        allow.ownerDefinedIn('accountOwnerSub').identityClaim('sub').to(['read']),
+        allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
+        allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+        allow.groups(['operator']).to(['read']),
+      ]),
       // Billing details — self-service, account_owner-editable
       billingCcEmails: a.string().array(),
       attachAgentBreakdown: a.boolean(),
@@ -135,6 +173,9 @@ const schema = a.schema({
       phone: a.string(),
       vehicleAndRego: a.string(),
       homeBase: a.string(),
+      // Starts 'onboarding' on creation; flipped to 'active' by
+      // operator-status-activation's postAuthentication trigger on first sign-in,
+      // and to 'inactive' by removeUserFromGroup when the operator group is removed.
       status: a.enum(['active', 'onboarding', 'inactive']),
       // Pay split — editable on the Drivers screen. NOTE: not yet read by
       // lib/driverSplit.ts's computeDriverSplit() or
@@ -156,6 +197,10 @@ const schema = a.schema({
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
+  // Route Feedback's choice: a named enum (the GraphQL name the inline one had),
+  // as only a ref takes field-level auth.
+  RouteCustomerFeedbackTone: a.enum(['good', 'issue']),
+
   /**
    * Route - Represents a delivery route assigned to a customer
    * Time tracking: estimatedDurationMinutes (entered by operator) vs actualDurationMinutes (recorded at completion)
@@ -175,6 +220,10 @@ const schema = a.schema({
       // side has blocked. Optional so historical routes (created before this
       // field existed) remain valid.
       scheduledDate: a.date(),
+      // Pickup Date (CONTEXT.md): the day the signs are planned to come down. Staff
+      // set it; customers only read it. The Route's model-level grant lets customer
+      // users update (for customerInstructions), so this field narrows it.
+      pickupDate: a.date().authorization(customerReadOnlyRouteField),
       estimatedDurationMinutes: a.integer(),
       actualStartTime: a.datetime(),
       actualEndTime: a.datetime(),
@@ -193,16 +242,33 @@ const schema = a.schema({
       overrideAmount: a.float(),
       notes: a.string(),
       customerInstructions: a.string(), // Customer-authored, distinct from the operator's own `notes`
-      customerFeedbackTone: a.enum(['good', 'issue']), // Customer-authored, asked once the route is completed
-      customerFeedbackNote: a.string(),
+      // Route Feedback (CONTEXT.md): saved only by app/api/customer/route-feedback
+      // (IAM, so these rules don't bind it), which enforces the invoiced lock,
+      // audits and emails admin@. Customers can read the fields but not write them
+      // directly (#478); the read rules match the model's, so subscriptions keep
+      // them (see pickupDate). The name is kept as sent so it reads the same later.
+      customerFeedbackTone: a.ref('RouteCustomerFeedbackTone').authorization(customerReadOnlyRouteField),
+      customerFeedbackNote: a.string().authorization(customerReadOnlyRouteField),
+      customerFeedbackAt: a.datetime().authorization(customerReadOnlyRouteField),
+      customerFeedbackBy: a.string().authorization(customerReadOnlyRouteField),
+      customerFeedbackByName: a.string().authorization(customerReadOnlyRouteField),
+      // When this Route's Missing Signs Report was emailed, so it's sent once
+      // (app/api/missing-signs-report, IAM).
+      missingSignsReportSentAt: a.datetime().authorization(customerReadOnlyRouteField),
       drivingModeEnabled: a.boolean(), // Renders the operator app's simplified in-vehicle driving mode for this route
       // Sign-run flow (drivingModeEnabled routes only) — the Load/Unload confirmations
       // and the four Finalise-screen adjuster rows. Finalise sums the billed*Minutes
       // fields into overrideDurationMinutes, and its distance adjuster writes
       // overrideDistanceKm above, so invoicing/payouts read those existing fields
       // unchanged and need no awareness of the sign-run flow.
+      // Stamped when the driver taps "Start load"/"Start unload" and confirms the dialog —
+      // paired with loadConfirmedAt/unloadConfirmedAt to measure billed time (see
+      // lib/signRunBilling.ts measuredPhaseMinutes). Placement/pickup don't need an
+      // equivalent field: placementStartTime/pickupStartTime below already serve that role.
+      loadStartedAt: a.datetime(),
       loadConfirmedAt: a.datetime(),
       loadedSignsCount: a.integer(), // Confirmed at Load — may differ from the sum of Stop.numberOfSigns after a recount
+      unloadStartedAt: a.datetime(),
       unloadConfirmedAt: a.datetime(),
       billedLoadMinutes: a.integer(),
       billedPlacementMinutes: a.integer(),
@@ -228,10 +294,11 @@ const schema = a.schema({
       payouts: a.hasMany('OperatorPayout', 'routeId'),
     })
     .authorization((allow) => [
-      // 'update' scoped in practice to customerInstructions by the client (lib/queries.ts
-      // updateRouteCustomerInstructions) — Amplify Gen 2 has no field-level authorization,
-      // so this is a coarse grant like the rest of this schema. Covers both account_owner
-      // and read_only CustomerUser sub-roles (not distinguishable at this layer).
+      // 'update' scoped in practice to customerInstructions by the client (lib/routes.ts
+      // updateRouteCustomerInstructions) — a coarse grant like the rest of this schema,
+      // narrowed on pickupDate and the customerFeedback* fields, which customers can
+      // read but not write (customerReadOnlyRouteField). Covers both account_owner and
+      // read_only CustomerUser sub-roles (not distinguishable at this layer).
       allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read', 'update']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
       allow.groups(['operator']).to(['read', 'update']),
@@ -248,16 +315,31 @@ const schema = a.schema({
       viewerSubs: a.string().array(), // Cognito subs of all customer users — grants read access
       sequence: a.integer().required(), // Order of stops in route
       address: a.string().required(),
-      serviceType: a.enum(['delivery', 'pickup', 'inspection']),
       estimatedArrivalTime: a.datetime(),
       actualArrivalTime: a.datetime(),
-      actualDepartureTime: a.datetime(),
+      actualDepartureTime: a.datetime(), // When the Stop was last settled done or skipped, a time only; whether it was is its Stop Progress (lib/stopProgress.ts)
       numberOfSigns: a.integer(),
       agent: a.string(),
       isAuction: a.boolean(),
       latitude: a.float(),
       longitude: a.float(),
       formattedAddress: a.string(),
+      // Location Precision (CONTEXT.md, lib/locationPrecision.ts) — classified from the
+      // geocode signals below; 'confirmed' is copied from the Stop's Property (PropertyLocation),
+      // the only source of Confirmed, and never overwritten by a geocode while that Property is Confirmed.
+      // The address components identify the Property (ADR 0004), never the coordinates.
+      locationPrecision: a.enum(['precise', 'interpolated', 'approximate', 'confirmed']),
+      geocodeLocationType: a.string(),
+      geocodeResultTypes: a.string().array(),
+      geocodePartialMatch: a.boolean(),
+      addressStreetNumber: a.string(),
+      addressStreet: a.string(),
+      addressSuburb: a.string(),
+      addressPostcode: a.string(),
+      // Property key (lib/propertyKey.ts, ADR 0004) — suburb|postcode|street|number, so every
+      // Stop at one address shares it. Indexed per Customer below: a beginsWith query on it
+      // answers suburb, street and exact-address searches for Property History.
+      propertyKey: a.string(),
       notes: a.string(),
       // Sign-run flow (drivingModeEnabled routes only) — one tap logs one missing sign
       // during the pickup phase; missing signs never count as collected. The last-logged
@@ -267,16 +349,41 @@ const schema = a.schema({
       missingSignsLastLoggedAt: a.datetime(),
       missingSignsLastLatitude: a.float(),
       missingSignsLastLongitude: a.float(),
+      // Location Precision (#285) — the operator device's GPS fix when the Stop was marked
+      // placed: evidence of where the house really is, offered as the suggested pin in the
+      // admin review queue. Never moves the Stop's own pin (latitude/longitude).
+      placedLatitude: a.float(),
+      placedLongitude: a.float(),
+      placedAccuracyMeters: a.float(),
+      placedPositionAt: a.datetime(),
+      // Removed Stop (CONTEXT.md, lib/loadChange.ts) — a Stop taken off its Route during Load
+      // or at the door during Placement is kept, marked removed, and counts toward nothing.
+      // Restoring sets removed back to false rather than clearing anything: setting a field to
+      // null needs delete permission, which operators don't have. removedAt/removedBy/
+      // removedReason are the last removal, kept on restore; only a removal at the door has a reason.
+      removed: a.boolean(),
+      removedAt: a.datetime(),
+      removedBy: a.string(),
+      removedReason: a.string(),
+      // When an Operator added the Stop with a Load Change; unset for every other Stop.
+      addedAtLoad: a.datetime(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       // Relationships
       route: a.belongsTo('Route', 'routeId'),
       customer: a.belongsTo('Customer', 'customerId'),
     })
+    .secondaryIndexes((index) => [
+      index('customerId').sortKeys(['propertyKey']).queryField('listStopsByCustomerAndPropertyKey'),
+      // A Property spans Customers, so confirming its location (#286) reaches every Stop through this one.
+      index('propertyKey').queryField('listStopsByPropertyKey'),
+    ])
     .authorization((allow) => [
       allow.ownersDefinedIn('viewerSubs').identityClaim('sub').to(['read']),
       allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
-      allow.groups(['operator']).to(['read', 'update']),
+      // create: a Load Change adds a Stop. Only during Load, on the Operator's own Route —
+      // enforced in the app (lib/loadChange.ts), as broad as the update operators already have.
+      allow.groups(['operator']).to(['read', 'create', 'update']),
     ]),
 
   /**
@@ -396,27 +503,6 @@ const schema = a.schema({
     ]),
 
   /**
-   * VanSignCount - An operator's count of signs physically on their van, taken once per
-   * day before leaving the yard. operatorSub is a genuine Cognito sub (same pattern as
-   * OperatorPayout above), so each operator only ever reads/writes their own count.
-   */
-  VanSignCount: a
-    .model({
-      operatorSub: a.string().required(),
-      countDate: a.date().required(),
-      standardCount: a.integer().required(),
-      auctionCount: a.integer().required(),
-      frameCount: a.integer().required(),
-      countedAt: a.datetime(),
-      createdAt: a.datetime(),
-      updatedAt: a.datetime(),
-    })
-    .authorization((allow) => [
-      allow.ownerDefinedIn('operatorSub').identityClaim('sub').to(['read', 'create', 'update']),
-      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
-    ]),
-
-  /**
    * PaymentRecord - Tracks payment history for invoices
    * Used for reconciliation and payment status tracking
    */
@@ -456,11 +542,12 @@ const schema = a.schema({
       customerId: a.id(), // Optional: associated customer
       operatorId: a.id(), // Optional: user who performed action
       eventType: a.enum(['login', 'logout', 'access_denied', 'data_access', 'data_modification', 'data_deletion']),
-      resourceType: a.enum(['customer', 'route', 'invoice', 'payment', 'operator']),
+      resourceType: a.enum(['customer', 'route', 'stop', 'invoice', 'payment', 'operator', 'feature_flag', 'property', 'report']),
       resourceId: a.id(),
       action: a.string().required(),
       status: a.enum(['success', 'failure']),
       reason: a.string(), // Why access was denied (if applicable)
+      details: a.json(), // Optional structured detail, e.g. a feature flag change's old/new state and affected Customers
       ipAddress: a.string(),
       userAgent: a.string(),
       timestamp: a.datetime().required(),
@@ -481,8 +568,8 @@ const schema = a.schema({
    * all CustomerUser records for their customer via ownerDefinedIn('accountOwnerSub').
    * viewerSubs — same convention as Customer/Route/Stop/etc. — grants every
    * customer user (owner + read_only) read access to the whole team directory,
-   * synced by customer-access-activation's handler and lib/queries.ts's
-   * syncViewerSubsForCustomer whenever CustomerUser membership changes.
+   * synced by lib/customerAccess.ts's syncCustomerAccess whenever CustomerUser
+   * membership changes.
    * Only administrators may create, update, or delete CustomerUser records.
    */
   CustomerUser: a
@@ -589,6 +676,8 @@ const schema = a.schema({
       name: a.string(),
       defaultTheme: a.enum(['system', 'light', 'dark']),
       mapTheme: a.enum(['light', 'dark', 'satellite', 'streets']),
+      // When a Customer User dismissed the Dashboard welcome card (#486); unset until then.
+      welcomeDismissedAt: a.datetime(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })
@@ -623,8 +712,171 @@ const schema = a.schema({
       // this row's `address` as the yard address (no dedicated yard field exists).
       allow.groups(['operator']).to(['read']),
     ]),
+
+  /**
+   * FeatureFlagSetting - the stored state of one Feature Flag (CONTEXT.md, ADR 0005).
+   * The id is the flag name from lib/featureFlags.ts's registry; a registered flag
+   * with no row is Off. selectedCustomerIds is kept while the flag is Off so
+   * switching back to Selected restores it. Administrator-only: customers get just
+   * their on-flag names from /api/customer/feature-flags, and every change goes
+   * through /api/admin/feature-flags so it is audited.
+   */
+  FeatureFlagSetting: a
+    .model({
+      state: a.enum(['off', 'selected', 'everyone']),
+      selectedCustomerIds: a.id().array(),
+      everyoneSince: a.datetime(), // Set when the state moves to Everyone, cleared when it leaves
+      updatedBy: a.string(), // Cognito sub of the administrator who last changed it
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [
+      allow.groups(['administrator']).to(['read']),
+    ]),
+
+  /**
+   * PropertyLocation - an administrator's decisions from the Location review queue
+   * (#286) for one Property, keyed by its Property key (lib/propertyKey.ts). A
+   * Confirmed pin is copied onto every Stop at the Property and used for new ones
+   * instead of the geocode; a dismissed suburb mismatch stays dismissed however
+   * often the address is re-geocoded. Operators read it because their Stop edits
+   * pick up a Confirmed pin too.
+   */
+  PropertyLocation: a
+    .model({
+      propertyKey: a.string().required(),
+      latitude: a.float(),
+      longitude: a.float(),
+      confirmedAt: a.datetime(),
+      confirmedBy: a.string(), // Cognito sub of the administrator who confirmed the pin
+      suburbMismatchDismissedAt: a.datetime(),
+      suburbMismatchDismissedBy: a.string(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .identifier(['propertyKey'])
+    .authorization((allow) => [
+      allow.groups(['administrator']).to(['read', 'create', 'update', 'delete']),
+      allow.groups(['operator']).to(['read']),
+    ]),
+
+  /**
+   * PropertyHistoryReport - the record of one Property History Report (#291;
+   * ADRs 0002, 0003): a frozen PDF, stored at s3Key under the locked-down
+   * reports/ path, with what it covers and who generated it. customerId is
+   * empty for a report across all Customers. audience says whose field set it
+   * holds: 'customer' reports are shared by that Customer's Account Owners,
+   * 'administrator' ones are for administrators only (lib/propertyHistoryReport.ts
+   * canSeeReport). Written and read only by the /api/property-history/reports
+   * routes on the IAM client, which enforce that; customers get no direct access.
+   * Retention (#292, lib/reportRetention.ts): active until activeUntil,
+   * soft-deleted until purgeAfter; the daily report-purge function then
+   * destroys the PDF and stamps purgedAt, leaving the record as a stub.
+   */
+  PropertyHistoryReport: a
+    .model({
+      referenceNumber: a.string().required(),
+      audience: a.enum(['customer', 'administrator']),
+      customerId: a.id(),
+      customerName: a.string(), // As at generation; empty for all Customers
+      generatedBySub: a.string().required(),
+      generatedByName: a.string(),
+      generatedAt: a.datetime().required(),
+      search: a.json().required(),
+      filters: a.json(),
+      searchLabel: a.string(),
+      filterLabels: a.string().array(),
+      propertyCount: a.integer(),
+      visitCount: a.integer(),
+      s3Key: a.string().required(),
+      activeUntil: a.datetime(),
+      purgeAfter: a.datetime(),
+      purgedAt: a.datetime(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .secondaryIndexes((index) => [
+      index('customerId').sortKeys(['generatedAt']).queryField('listPropertyHistoryReportsByCustomer'),
+    ])
+    .authorization((allow) => [allow.groups(['administrator']).to(['read'])]),
+
+  /** One file from a Route Request email, copied to the app bucket's requests/ path. */
+  RouteRequestAttachment: a.customType({
+    key: a.string().required(),
+    filename: a.string().required(),
+    contentType: a.string(),
+    size: a.integer(),
+    inline: a.boolean(), // An inline part (a signature logo, say) rather than an attached file
+  }),
+
+  /**
+   * RouteRequestRecord - a Route Request or Route Amendment as received (ADR
+   * 0008): an email sent to requests@ (#358), captured by the
+   * route-request-capture function with SES's message ID as its id and raw
+   * message key, or one an administrator recorded by hand (#359). Unlinked
+   * until an administrator links it to a Route, as its Route Request or as an
+   * Amendment, or dismisses it with a reason; never deleted, and unlinked again
+   * if its Route is deleted. Administrators only: customers have no access, and
+   * its files are handed out by /api/route-requests/file.
+   *
+   * Administrators are granted delete only because AppSync refuses an update
+   * that sets a field to null without it ("Unauthorized on [unlinkedNote]",
+   * #401), and linking and unlinking clear fields. Nothing deletes a record.
+   */
+  RouteRequestRecord: a
+    .model({
+      source: a.enum(['email', 'manual']),
+      fromName: a.string(),
+      fromAddress: a.string(), // Email only
+      sentAt: a.datetime().required(), // The Date header, else when SES received it; for a manual one, when it was requested
+      receivedAt: a.datetime().required(), // When SES received it, or when it was recorded by hand
+      subject: a.string(),
+      bodyText: a.string(),
+      spfVerdict: a.string(),
+      dkimVerdict: a.string(),
+      dmarcVerdict: a.string(),
+      rawMessageKey: a.string(), // Email only
+      attachments: a.ref('RouteRequestAttachment').array(),
+      loggedByStaff: a.boolean(), // Sent from our own domain, so the real requester is entered by hand
+      suggestedCustomerId: a.id(),
+      // The requester entered by hand, for a manual record or a Logged-by-staff email.
+      // A manual record with no requester was uploaded by an administrator.
+      requesterName: a.string(),
+      requesterEmail: a.string(),
+      note: a.string(),
+      enteredBySub: a.string(), // The administrator who recorded it or entered its requester
+      status: a.enum(['unlinked', 'linked', 'dismissed']),
+      routeId: a.id(),
+      role: a.enum(['request', 'amendment']),
+      linkedAt: a.datetime(),
+      linkedBySub: a.string(),
+      unlinkedNote: a.string(), // e.g. why it came back to the inbox
+      dismissedReason: a.string(),
+      dismissedAt: a.datetime(),
+      dismissedBySub: a.string(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .secondaryIndexes((index) => [index('routeId').sortKeys(['sentAt']).queryField('listRouteRequestRecordsByRoute')])
+    .authorization((allow) => [allow.groups(['administrator']).to(['read', 'create', 'update', 'delete'])]),
+
+  /**
+   * RouteRequestSlot - held by a Route while it has a Route Request; the id is
+   * the Route's id. Creating one fails if it already exists, so a Route never
+   * gets a second Route Request, even when two administrators link at once.
+   */
+  RouteRequestSlot: a
+    .model({
+      recordId: a.id().required(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [allow.groups(['administrator']).to(['read', 'create', 'delete'])]),
 }).authorization((allow) => [
   allow.resource(customerAccessActivation).to(['query', 'mutate']),
+  allow.resource(operatorStatusActivation).to(['query', 'mutate']),
+  allow.resource(reportPurge).to(['query', 'mutate']),
+  allow.resource(routeRequestCapture).to(['query', 'mutate']),
 ]);
 
 export type Schema = ClientSchema<typeof schema>;

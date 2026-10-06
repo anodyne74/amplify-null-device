@@ -6,6 +6,11 @@
  * "Xh Ym" formats used by the customer invoice/route detail components.
  */
 
+/** Capitalises the first letter of each word ("cliff road" -> "Cliff Road"). */
+export function titleCase(text: string): string {
+  return text.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+}
+
 /**
  * Format an invoice amount as en-US USD currency.
  * Missing values render as "$0.00".
@@ -27,4 +32,37 @@ export function formatDurationHoursMinutes(minutes?: number | null): string {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
   return `${hours}h ${mins}m`;
+}
+
+/**
+ * Format a timestamp as "Today HH:MM", "Yesterday", or "D MMM" for compact
+ * "last seen"-style table columns. Missing values render as "—".
+ */
+export function formatRelativeDay(isoTimestamp?: string | null): string {
+  if (!isoTimestamp) return '—';
+  const date = new Date(isoTimestamp);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  const now = new Date();
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dayDiff = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+
+  if (dayDiff === 0) {
+    return `Today ${new Intl.DateTimeFormat('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false }).format(date)}`;
+  }
+  if (dayDiff === 1) return 'Yesterday';
+  return new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short' }).format(date);
+}
+
+/** "Xh Ym" above an hour, otherwise "Ym". */
+export function formatDuration(totalMinutes: number): string {
+  return totalMinutes >= 60
+    ? `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`
+    : `${totalMinutes}m`;
+}
+
+/** "HH:MM" in en-AU 24-hour time — the stamp shown on the Sign Run Start/Complete
+ * confirm dialog and the "Load/Unload started" line once a phase has started. */
+export function formatClockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
 }

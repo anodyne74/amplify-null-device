@@ -2,27 +2,70 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import OperatorPickupPage from '../page';
-import { getRouteWithStops, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
+import { queueSignRunTransition } from '@/lib/signRunTransitions';
+import { signRunOutbox } from '@/lib/signRunOutbox';
 import type { Route, Stop } from '@/amplify/types';
+import { getRouteWithStops, updateStopExecution } from '@/lib/routes';
+import { getCustomer } from '@/lib/customers';
 
 const push = jest.fn();
 let searchParamId: string | null = 'route-1';
+
+// The live feed is inert here; these tests drive the screen through the fetch.
+jest.mock('@/lib/routeWithStopsFeed', () => ({
+  subscribeRouteWithStops: () => () => {},
+}));
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
   useSearchParams: () => ({ get: (key: string) => (key === 'id' ? searchParamId : null) }),
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/routes', () => ({
   getRouteWithStops: jest.fn(),
-  getCustomer: jest.fn(),
-  updateRouteExecution: jest.fn(),
+  updateRoute: jest.fn(() => new Promise(() => {})),
   updateStopExecution: jest.fn(),
 }));
 
+const mockRecordStopAudit = jest.fn();
+jest.mock('@/lib/signRunOutbox', () => ({
+  ...jest.requireActual('@/lib/signRunOutbox'),
+  recordStopAudit: (...args: unknown[]) => mockRecordStopAudit(...args),
+}));
+
+jest.mock('@/lib/customers', () => ({
+  getCustomer: jest.fn(),
+}));
+
+// Sign Run writes go through the real outbox (#355). Their saves hang, so
+// every test here shows the screen moving on without waiting for one.
+jest.mock('@/lib/signRunTransitions', () => {
+  const actual = jest.requireActual('@/lib/signRunTransitions');
+  return {
+    ...actual,
+    queueSignRunTransition: jest.fn(actual.queueSignRunTransition),
+    queueStopSettlement: jest.fn(actual.queueStopSettlement),
+  };
+});
+jest.mock('aws-amplify/auth', () => ({ fetchAuthSession: jest.fn().mockResolvedValue({}) }));
+jest.mock('@/lib/apiClient', () => ({ callApi: jest.fn().mockResolvedValue({}) }));
+
 jest.mock('@/app/operator/components/RouteStopsMap', () => ({
-  RouteStopsMap: ({ stops, activeStopId }: { stops: Stop[]; activeStopId?: string | null }) => (
-    <div data-testid="pickup-map" data-stop-count={stops.length} data-active-stop={activeStopId ?? ''} />
+  RouteStopsMap: ({
+    stops,
+    activeStopId,
+    phase,
+  }: {
+    stops: Stop[];
+    activeStopId?: string | null;
+    phase?: string;
+  }) => (
+    <div
+      data-testid="pickup-map"
+      data-stop-count={stops.length}
+      data-active-stop={activeStopId ?? ''}
+      data-phase={phase ?? ''}
+    />
   ),
 }));
 
@@ -70,17 +113,24 @@ function baseStops(): Stop[] {
   ];
 }
 
+afterEach(async () => {
+  await signRunOutbox.discardAll();
+});
+
 describe('Operator Pickup page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     searchParamId = 'route-1';
-    (getCustomer as jest.Mock).mockResolvedValue({ data: { name: 'Beltline Group' }, errors: undefined });
-    (updateRouteExecution as jest.Mock).mockResolvedValue({ data: { id: 'route-1' }, errors: undefined });
-    (updateStopExecution as jest.Mock).mockResolvedValue({ data: { id: 's1' }, errors: undefined });
+    (getCustomer as jest.Mock).mockResolvedValue({ name: 'Beltline Group' });
+    mockRecordStopAudit.mockResolvedValue(undefined);
+    // Stop settlements (they carry notes) hang; other stop writes save.
+    (updateStopExecution as jest.Mock).mockImplementation((id: string, fields: object) =>
+      'notes' in fields ? new Promise(() => {}) : Promise.resolve({ data: { id }, errors: undefined })
+    );
   });
 
   it('shows the current stop on the glass card and the remaining stop in the THEN list', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPickupPage />);
 
@@ -92,35 +142,60 @@ describe('Operator Pickup page', () => {
     expect(screen.getByTestId('pickup-map')).toHaveAttribute('data-active-stop', 's1');
   });
 
-  it('does not re-set pickupStartTime when it is already recorded', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
-
-    render(<OperatorPickupPage />);
-    await screen.findByText('PICKUP · STOP 1 OF 2');
-
-    expect(updateRouteExecution).not.toHaveBeenCalledWith('route-1', expect.objectContaining({ pickupStartTime: expect.anything() }));
-  });
-
-  it('lazily records pickupStartTime on mount when unset', async () => {
+  it('shows a gated start panel until the driver starts pickup', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ pickupStartTime: null }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorPickupPage />);
-    await screen.findByText('PICKUP · STOP 1 OF 2');
+
+    expect(await screen.findByText('2 stops to pick up')).toBeInTheDocument();
+    expect(screen.getByText(/tap start once you're on the road/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('pickup-map')).not.toBeInTheDocument();
+    expect(queueSignRunTransition).not.toHaveBeenCalled();
+  });
+
+  it('starts pickup through the confirm dialog', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: baseRoute({ pickupStartTime: null }),
+      stops: baseStops(),
+    });
+
+    render(<OperatorPickupPage />);
+    await screen.findByText('2 stops to pick up');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start pickup' }));
+    expect(screen.getByText(/starting pickup for 2 stops/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
 
     await waitFor(() => {
-      expect(updateRouteExecution).toHaveBeenCalledWith(
-        'route-1',
-        expect.objectContaining({ pickupStartTime: expect.any(String) })
+      expect(queueSignRunTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'route-1' }),
+        expect.objectContaining({ type: 'startPickup' })
       );
     });
+    expect(await screen.findByText('PICKUP · STOP 1 OF 2')).toBeInTheDocument();
+  });
+
+  it('cancelling the start dialog leaves pickup unstarted', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: baseRoute({ pickupStartTime: null }),
+      stops: baseStops(),
+    });
+
+    render(<OperatorPickupPage />);
+    await screen.findByText('2 stops to pick up');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start pickup' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(queueSignRunTransition).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Start pickup' })).toBeInTheDocument();
   });
 
   it('completes the current stop with one tap and advances to the next', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPickupPage />);
     await screen.findByText('PICKUP · STOP 1 OF 2');
@@ -136,14 +211,14 @@ describe('Operator Pickup page', () => {
     expect(await screen.findByText('PICKUP · STOP 2 OF 2')).toBeInTheDocument();
   });
 
-  it('skips the current stop via the reason sheet', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+  it("marks the current stop Couldn't collect with a reason, and lets it be collected before Pickup ends", async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPickupPage />);
     await screen.findByText('PICKUP · STOP 1 OF 2');
 
-    fireEvent.click(screen.getByRole('button', { name: /^skip$/i }));
-    expect(await screen.findByText('Why is this stop skipped?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: "Couldn't collect" }));
+    expect(await screen.findByText("Why couldn't the signs be collected?")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /gate locked/i }));
 
@@ -153,11 +228,30 @@ describe('Operator Pickup page', () => {
         expect.objectContaining({ notes: expect.stringContaining('[PICKUP_SKIPPED:') })
       );
     });
+    // Still on the Route, so still counted: the next stop is 2 of 2.
     expect(await screen.findByText('PICKUP · STOP 2 OF 2')).toBeInTheDocument();
+    const couldnt = screen.getByRole('region', { name: "Couldn't collect" });
+    expect(couldnt).toHaveTextContent('Gate locked / no access');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collected' }));
+
+    await waitFor(() => expect(screen.queryByRole('region', { name: "Couldn't collect" })).not.toBeInTheDocument());
+    expect(screen.getByText('PICKUP · STOP 2 OF 2')).toBeInTheDocument();
+  });
+
+  it("shows pickup progress on the map, so stops that couldn't be collected are marked", async () => {
+    const stops = baseStops();
+    stops[0] = { ...stops[0], notes: '[PICKUP_SKIPPED:2026-08-31T09:05:00.000Z|Gate locked]' } as Stop;
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops });
+
+    render(<OperatorPickupPage />);
+    await screen.findByText('PICKUP · STOP 2 OF 2');
+
+    expect(screen.getByTestId('pickup-map')).toHaveAttribute('data-phase', 'pickup');
   });
 
   it('opens the out-of-order sheet from the THEN list', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
     render(<OperatorPickupPage />);
     await screen.findByText('14 Second Ave');
@@ -168,11 +262,10 @@ describe('Operator Pickup page', () => {
     expect(screen.getByRole('button', { name: 'Signs Picked Up' })).toBeInTheDocument();
   });
 
-  it('advances the phase to unload and returns to Today after the last stop', async () => {
+  it('shows a confirm-to-finish state after the last stop, without advancing the phase yet', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute(),
       stops: [baseStops()[0]],
-      errors: [],
     });
 
     render(<OperatorPickupPage />);
@@ -180,10 +273,34 @@ describe('Operator Pickup page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /signs picked up/i }));
 
+    expect(await screen.findByText('All stops done')).toBeInTheDocument();
+    expect(screen.getByText('Route complete')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /complete pickup/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^skip$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /sign missing/i })).not.toBeInTheDocument();
+    expect(queueSignRunTransition).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: 'completePickup' }));
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('advances the phase to unload and returns to Today once the driver confirms', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: baseRoute(),
+      stops: [baseStops()[0]],
+    });
+
+    render(<OperatorPickupPage />);
+    await screen.findByText('PICKUP · STOP 1 OF 1');
+
+    fireEvent.click(screen.getByRole('button', { name: /signs picked up/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /complete pickup/i }));
+
+    expect(screen.getByText(/this closes pickup for w25-08-114/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
     await waitFor(() => {
-      expect(updateRouteExecution).toHaveBeenCalledWith(
-        'route-1',
-        expect.objectContaining({ executionPhase: 'unload', pickupEndTime: expect.any(String) })
+      expect(queueSignRunTransition).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'route-1' }),
+        expect.objectContaining({ type: 'completePickup' })
       );
     });
     expect(push).toHaveBeenCalledWith('/operator/dashboard');
@@ -193,7 +310,6 @@ describe('Operator Pickup page', () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ executionPhase: 'placement' }),
       stops: baseStops(),
-      errors: [],
     });
 
     render(<OperatorPickupPage />);
@@ -202,7 +318,7 @@ describe('Operator Pickup page', () => {
   });
 
   it('shows a guard message when the route is not found', async () => {
-    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: null, stops: [], errors: [] });
+    (getRouteWithStops as jest.Mock).mockResolvedValue(null);
 
     render(<OperatorPickupPage />);
 
@@ -217,7 +333,7 @@ describe('Operator Pickup page', () => {
 
   describe('missing-signs logging', () => {
     it('logs a missing sign, persisting the count/timestamp/coordinates and showing the count line', async () => {
-      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops(), errors: [] });
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
       render(<OperatorPickupPage />);
       await screen.findByText('PICKUP · STOP 1 OF 2');
@@ -237,6 +353,22 @@ describe('Operator Pickup page', () => {
       });
       expect(await screen.findByText('1 of 9 missing here')).toBeInTheDocument();
       expect(screen.getByText('1 missing')).toBeInTheDocument();
+      // #468: every tap is in the audit trail, after the count is saved.
+      expect(mockRecordStopAudit).toHaveBeenCalledWith(
+        expect.objectContaining({ resourceId: 's1', action: 'stop.missingSign.log', details: expect.objectContaining({ missingSignsCount: 1 }) })
+      );
+    });
+
+    it("doesn't audit a missing sign that wasn't saved (#468)", async () => {
+      (updateStopExecution as jest.Mock).mockResolvedValueOnce({ data: null, errors: [{ message: 'nope' }] });
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+
+      render(<OperatorPickupPage />);
+      await screen.findByText('PICKUP · STOP 1 OF 2');
+      fireEvent.click(screen.getByRole('button', { name: /sign missing/i }));
+
+      expect(await screen.findByText(/could not log that missing sign/i)).toBeInTheDocument();
+      expect(mockRecordStopAudit).not.toHaveBeenCalled();
     });
 
     it('undoes a logged missing sign, clearing the count line once it reaches zero', async () => {
@@ -248,7 +380,7 @@ describe('Operator Pickup page', () => {
         missingSignsLastLatitude: -37.7679,
         missingSignsLastLongitude: 144.9985,
       };
-      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops, errors: [] });
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops });
 
       render(<OperatorPickupPage />);
       expect(await screen.findByText('1 of 9 missing here')).toBeInTheDocument();
@@ -269,6 +401,9 @@ describe('Operator Pickup page', () => {
       await waitFor(() => {
         expect(screen.queryByText(/missing here/)).not.toBeInTheDocument();
       });
+      expect(mockRecordStopAudit).toHaveBeenCalledWith(
+        expect.objectContaining({ resourceId: 's1', action: 'stop.missingSign.undo', details: expect.objectContaining({ missingSignsCount: 0 }) })
+      );
     });
   });
 });

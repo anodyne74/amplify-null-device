@@ -1,0 +1,148 @@
+.note {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.emptyState {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.searchPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.searchPanel[hidden] {
+  display: none;
+}
+
+.searchBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.typeahead {
+  position: relative;
+}
+
+.suggestions {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  right: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.suggestion {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-body);
+  cursor: pointer;
+}
+
+.suggestion:hover,
+.suggestion[aria-selected='true'] {
+  background: var(--surface-hover);
+}
+
+.suggestionLevel {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.streetGroup,
+.propertyGroup {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.streetGroup > .groups {
+  margin-top: var(--space-3);
+}
+
+.groupSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+
+.groupTitle {
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.subheading {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.tableWrap {
+  margin-top: var(--space-3);
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table th {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.routeProperties {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.reportActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  white-space: nowrap;
+}

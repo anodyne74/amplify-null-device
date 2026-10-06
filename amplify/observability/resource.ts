@@ -1,4 +1,4 @@
-import { Duration } from 'aws-cdk-lib';
+import { Duration, type Stack } from 'aws-cdk-lib';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { EmailSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 import {
@@ -12,6 +12,7 @@ import {
   MathExpression,
   Metric,
   TreatMissingData,
+  Unit,
 } from 'aws-cdk-lib/aws-cloudwatch';
 import { SnsAction } from 'aws-cdk-lib/aws-cloudwatch-actions';
 import { FilterPattern, LogGroup, MetricFilter, RetentionDays } from 'aws-cdk-lib/aws-logs';
@@ -44,7 +45,7 @@ const DYNAMO_TABLES_TO_WATCH = ['Route', 'Stop', 'Invoice', 'CustomerUser', 'Aud
  * deferred to a later phase (route/stop business metrics, an AuditLog-based
  * anomaly signal, WAF, anomaly-detection bands, severity tiers).
  */
-export function configureObservability(backend: ObservabilityBackend, branchName: string) {
+export function configureObservability(backend: ObservabilityBackend, branchName: string, emailDomain: string) {
   const stack = backend.createStack('observability');
 
   // ── Alerting topic ──────────────────────────────────────────────────────
@@ -127,7 +128,13 @@ export function configureObservability(backend: ObservabilityBackend, branchName
   let loginFailuresMetric: Metric | undefined;
   let loginAttemptsMetric: Metric | undefined;
   let invitationsSentMetric: Metric | undefined;
+  let invitesResentMetric: Metric | undefined;
+  let forgotPasswordRequestedMetric: Metric | undefined;
+  let forgotPasswordConfirmedMetric: Metric | undefined;
   let roleChangesMetric: Metric | undefined;
+  let sesTemplatedEmailsMetric: Metric | undefined;
+  let sesRawEmailsMetric: Metric | undefined;
+  let sesEmailsLogWidget: LogQueryWidget | undefined;
 
   if (cloudTrailLogGroupName) {
     const cloudTrailLogGroup = LogGroup.fromLogGroupName(stack, 'CloudTrailLogGroup', cloudTrailLogGroupName);
@@ -182,6 +189,50 @@ export function configureObservability(backend: ObservabilityBackend, branchName
       defaultValue: 0,
     }).metric({ statistic: 'Sum', period: Duration.minutes(5) });
 
+    // Resend-invite (app/api/admin/users/route.ts) never calls AdminCreateUser
+    // again -- it issues a fresh temp password via AdminSetUserPassword on the
+    // existing FORCE_CHANGE_PASSWORD user, which is otherwise unused anywhere
+    // else in the app, so this event name is an unambiguous "resend" signal.
+    invitesResentMetric = new MetricFilter(stack, 'InvitesResentFilter', {
+      logGroup: cloudTrailLogGroup,
+      filterPattern: FilterPattern.all(
+        FilterPattern.stringValue('$.eventName', '=', 'AdminSetUserPassword'),
+        isThisPool,
+      ),
+      metricNamespace: 'NullDeviceOps',
+      metricName: 'InvitesResent',
+      metricValue: '1',
+      defaultValue: 0,
+    }).metric({ statistic: 'Sum', period: Duration.minutes(5) });
+
+    // ForgotPassword/ConfirmForgotPassword are unauthenticated, client-facing
+    // Cognito IDP calls Amplify Auth issues directly from the sign-in page's
+    // forgot-password flow -- like InitiateAuth/RespondToAuthChallenge above,
+    // they carry clientId (not userPoolId), so they're scoped the same way.
+    forgotPasswordRequestedMetric = new MetricFilter(stack, 'ForgotPasswordRequestedFilter', {
+      logGroup: cloudTrailLogGroup,
+      filterPattern: FilterPattern.all(
+        FilterPattern.stringValue('$.eventName', '=', 'ForgotPassword'),
+        isThisPoolsClient,
+      ),
+      metricNamespace: 'NullDeviceOps',
+      metricName: 'ForgotPasswordRequested',
+      metricValue: '1',
+      defaultValue: 0,
+    }).metric({ statistic: 'Sum', period: Duration.minutes(5) });
+
+    forgotPasswordConfirmedMetric = new MetricFilter(stack, 'ForgotPasswordConfirmedFilter', {
+      logGroup: cloudTrailLogGroup,
+      filterPattern: FilterPattern.all(
+        FilterPattern.stringValue('$.eventName', '=', 'ConfirmForgotPassword'),
+        isThisPoolsClient,
+      ),
+      metricNamespace: 'NullDeviceOps',
+      metricName: 'ForgotPasswordConfirmed',
+      metricValue: '1',
+      defaultValue: 0,
+    }).metric({ statistic: 'Sum', period: Duration.minutes(5) });
+
     roleChangesMetric = new MetricFilter(stack, 'RoleChangesFilter', {
       logGroup: cloudTrailLogGroup,
       filterPattern: FilterPattern.all(
@@ -205,9 +256,65 @@ export function configureObservability(backend: ObservabilityBackend, branchName
       comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
       treatMissingData: TreatMissingData.NOT_BREACHING,
     }).addAlarmAction(alertAction);
+
+    // SES's classic send APIs (SendTemplatedEmail for invitations/resends/job-assigned,
+    // SendRawEmail for invoices, which need a PDF attachment) are still logged in
+    // CloudTrail under the "email.amazonaws.com" event source -- a historical naming
+    // quirk that predates "ses.amazonaws.com". Every branch's app code sends from
+    // `no-reply@<that branch's domain>` (see emailDomain in backend.ts), which is the
+    // only per-branch signal available on these events, so use it the same way
+    // isThisPool/isThisPoolsClient scope the Cognito filters above -- imperfectly: two
+    // non-main branches sharing nulldevice.dev would still mix here.
+    const isThisBranchSender = FilterPattern.stringValue('$.requestParameters.source', '=', `*@${emailDomain}`);
+
+    sesTemplatedEmailsMetric = new MetricFilter(stack, 'SesTemplatedEmailsFilter', {
+      logGroup: cloudTrailLogGroup,
+      filterPattern: FilterPattern.all(
+        FilterPattern.stringValue('$.eventSource', '=', 'email.amazonaws.com'),
+        FilterPattern.stringValue('$.eventName', '=', 'SendTemplatedEmail'),
+        isThisBranchSender,
+      ),
+      metricNamespace: 'NullDeviceOps',
+      metricName: 'SesTemplatedEmailsSent',
+      metricValue: '1',
+      defaultValue: 0,
+    }).metric({ statistic: 'Sum', period: Duration.minutes(5) });
+
+    sesRawEmailsMetric = new MetricFilter(stack, 'SesRawEmailsFilter', {
+      logGroup: cloudTrailLogGroup,
+      filterPattern: FilterPattern.all(
+        FilterPattern.stringValue('$.eventSource', '=', 'email.amazonaws.com'),
+        FilterPattern.stringValue('$.eventName', '=', 'SendRawEmail'),
+        isThisBranchSender,
+      ),
+      metricNamespace: 'NullDeviceOps',
+      metricName: 'SesRawEmailsSent',
+      metricValue: '1',
+      defaultValue: 0,
+    }).metric({ statistic: 'Sum', period: Duration.minutes(5) });
+
+    // Per-send detail (template name, recipient) isn't in a metric -- CloudWatch
+    // metrics are just counters -- so surface it as a log table instead.
+    // SendRawEmail's MIME body isn't logged (too large/sensitive for CloudTrail), so
+    // it has no "template" field; coalesce() falls back to its plain "destinations"
+    // list where SendTemplatedEmail instead nests recipients under "destination".
+    sesEmailsLogWidget = new LogQueryWidget({
+      title: 'Recent SES sends (template, recipient)',
+      logGroupNames: [cloudTrailLogGroup.logGroupName],
+      view: LogQueryVisualizationType.TABLE,
+      queryLines: [
+        'fields @timestamp, eventName, requestParameters.source as sentFrom, ' +
+          'coalesce(requestParameters.destination.toAddresses.0, requestParameters.destinations.0) as sentTo, ' +
+          'requestParameters.template as template',
+        `filter eventSource = "email.amazonaws.com" and requestParameters.source like "@${emailDomain}"`,
+        'sort @timestamp desc',
+        'limit 20',
+      ],
+      width: 24,
+    });
   } else {
     console.warn(
-      'configureObservability: CLOUDTRAIL_LOG_GROUP_NAME is not set -- skipping login/invitation/role-change metric filters.',
+      'configureObservability: CLOUDTRAIL_LOG_GROUP_NAME is not set -- skipping login/invitation/role-change/forgot-password/SES metric filters.',
     );
   }
 
@@ -235,8 +342,21 @@ export function configureObservability(backend: ObservabilityBackend, branchName
 
   dashboardWidgets.push([
     new GraphWidget({
-      title: 'Account activity (CloudTrail)',
-      left: [invitationsSentMetric, roleChangesMetric].filter((m): m is Metric => Boolean(m)),
+      title: 'Invites sent / resent (CloudTrail)',
+      left: [invitationsSentMetric, invitesResentMetric].filter((m): m is Metric => Boolean(m)),
+      width: 12,
+    }),
+    new GraphWidget({
+      title: 'Forgot password requested / confirmed (CloudTrail)',
+      left: [forgotPasswordRequestedMetric, forgotPasswordConfirmedMetric].filter((m): m is Metric => Boolean(m)),
+      width: 12,
+    }),
+  ]);
+
+  dashboardWidgets.push([
+    new GraphWidget({
+      title: 'Role changes (CloudTrail)',
+      left: [roleChangesMetric].filter((m): m is Metric => Boolean(m)),
       width: 12,
     }),
     new GraphWidget({
@@ -246,6 +366,38 @@ export function configureObservability(backend: ObservabilityBackend, branchName
       width: 12,
     }),
   ]);
+
+  // ── Email (SES) ──────────────────────────────────────────────────────
+  // Send/Bounce/Complaint/Delivery/Reject are published account+region-wide
+  // regardless of configuration set, so unlike the CloudTrail-derived metrics
+  // above, this pair isn't scoped to this branch at all -- every branch in
+  // this account/region shares one number here. See sesTemplatedEmailsMetric
+  // / sesRawEmailsMetric above for the (best-effort) per-branch breakdown.
+  const sesAccountMetric = (metricName: string) =>
+    new Metric({
+      namespace: 'AWS/SES',
+      metricName,
+      statistic: 'Sum',
+      period: Duration.minutes(5),
+    });
+
+  dashboardWidgets.push([
+    new GraphWidget({
+      title: 'SES emails sent, by type (CloudTrail, this branch)',
+      left: [sesTemplatedEmailsMetric, sesRawEmailsMetric].filter((m): m is Metric => Boolean(m)),
+      width: 12,
+    }),
+    new GraphWidget({
+      title: 'SES delivery health (account-wide, all branches)',
+      left: [sesAccountMetric('Send'), sesAccountMetric('Delivery')],
+      right: [sesAccountMetric('Bounce'), sesAccountMetric('Complaint'), sesAccountMetric('Reject')],
+      width: 12,
+    }),
+  ]);
+
+  if (sesEmailsLogWidget) {
+    dashboardWidgets.push([sesEmailsLogWidget]);
+  }
 
   // ── API / network ─────────────────────────────────────────────────────
   const appSyncMetric = (metricName: string, statistic = 'Sum') =>
@@ -305,6 +457,8 @@ export function configureObservability(backend: ObservabilityBackend, branchName
         width: 12,
       }),
     ]);
+
+    dashboardWidgets.push(...signRunTimingWidgets(stack, appId, branchName));
   }
 
   // ── Operational health ────────────────────────────────────────────────
@@ -399,4 +553,104 @@ export function configureObservability(backend: ObservabilityBackend, branchName
     dashboardName: `NullDeviceOps-${branchName}`,
     widgets: dashboardWidgets,
   });
+}
+
+/**
+ * How long operators wait on each Sign Run write (#353, #266), from the one
+ * JSON line app/api/sign-run-timing/route.ts logs per write.
+ *
+ * MetricFilter, not EMF: the SSR compute log group is written by Amplify
+ * Hosting, not by a Lambda in this account, so CloudWatch doesn't extract EMF
+ * from it. Every branch's SSR logs share that one log group, and a filter
+ * can't see the log stream (`<branch>/...`), so each line carries its branch;
+ * the filters match on it and keep it as a dimension so branches never mix.
+ */
+function signRunTimingWidgets(stack: Stack, appId: string, branchName: string): IWidget[][] {
+  const ssrLogGroup = LogGroup.fromLogGroupName(stack, 'SsrComputeLogGroup', `/aws/amplify/${appId}`);
+  const isThisBranchsTiming = [
+    FilterPattern.stringValue('$.event', '=', 'sign-run-timing'),
+    FilterPattern.stringValue('$.branch', '=', branchName),
+  ];
+  const byKind = { branch: '$.branch', kind: '$.kind' };
+
+  // Dimensioned filters can't have a default value, so these only publish on a write.
+  new MetricFilter(stack, 'SignRunConfirmToSavedFilter', {
+    logGroup: ssrLogGroup,
+    filterPattern: FilterPattern.all(...isThisBranchsTiming, FilterPattern.stringValue('$.outcome', '=', 'saved')),
+    metricNamespace: 'NullDeviceOps',
+    metricName: 'SignRunConfirmToSavedMs',
+    metricValue: '$.confirmToSavedMs',
+    dimensions: byKind,
+    unit: Unit.MILLISECONDS,
+  });
+
+  // A discarded write (#355) never reached its token check, so its 0 isn't a timing.
+  new MetricFilter(stack, 'SignRunAuthCheckFilter', {
+    logGroup: ssrLogGroup,
+    filterPattern: FilterPattern.all(
+      ...isThisBranchsTiming,
+      FilterPattern.stringValue('$.outcome', '!=', 'discarded')
+    ),
+    metricNamespace: 'NullDeviceOps',
+    metricName: 'SignRunAuthCheckMs',
+    metricValue: '$.authCheckMs',
+    dimensions: byKind,
+    unit: Unit.MILLISECONDS,
+  });
+
+  const failuresMetric = new MetricFilter(stack, 'SignRunWriteFailuresFilter', {
+    logGroup: ssrLogGroup,
+    filterPattern: FilterPattern.all(...isThisBranchsTiming, FilterPattern.stringValue('$.outcome', '=', 'failed')),
+    metricNamespace: 'NullDeviceOps',
+    metricName: 'SignRunWriteFailures',
+    metricValue: '1',
+    dimensions: { branch: '$.branch' },
+  }).metric({ statistic: 'Sum', period: Duration.minutes(5), dimensionsMap: { branch: branchName } });
+
+  // One line per kind, whichever kinds have been written.
+  const byKindGraph = (metricName: string, statistic: string, title: string) =>
+    new GraphWidget({
+      title,
+      left: [
+        new MathExpression({
+          expression: `SEARCH('{NullDeviceOps,branch,kind} MetricName="${metricName}" branch="${branchName}"', '${statistic}', 300)`,
+          usingMetrics: {},
+          label: '',
+          period: Duration.minutes(5),
+        }),
+      ],
+      leftYAxis: { label: 'ms', showUnits: false },
+      width: 8,
+    });
+
+  return [
+    [
+      byKindGraph('SignRunConfirmToSavedMs', 'p50', 'Sign Run confirm → saved, p50 by kind'),
+      byKindGraph('SignRunConfirmToSavedMs', 'p90', 'Sign Run confirm → saved, p90 by kind'),
+      byKindGraph('SignRunConfirmToSavedMs', 'Maximum', 'Sign Run confirm → saved, max by kind'),
+    ],
+    [
+      byKindGraph('SignRunAuthCheckMs', 'p90', 'Sign Run token check, p90 by kind'),
+      byKindGraph('SignRunAuthCheckMs', 'Maximum', 'Sign Run token check, max by kind'),
+      new GraphWidget({
+        title: 'Sign Run write failures',
+        left: [failuresMetric],
+        width: 8,
+      }),
+    ],
+    [
+      new LogQueryWidget({
+        title: 'Slowest Sign Run writes (last records)',
+        logGroupNames: [ssrLogGroup.logGroupName],
+        view: LogQueryVisualizationType.TABLE,
+        queryLines: [
+          'fields @timestamp, kind, routeId, confirmToSavedMs, authCheckMs, mutationMs, outcome, callerSub',
+          `filter event = "sign-run-timing" and branch = "${branchName}"`,
+          'sort confirmToSavedMs desc',
+          'limit 20',
+        ],
+        width: 24,
+      }),
+    ],
+  ];
 }

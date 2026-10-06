@@ -16,7 +16,10 @@ npm run typecheck         # tsc --noEmit
 npm run lint              # ESLint
 npm run test              # Jest watch mode
 npm run test:ci           # Jest CI mode with coverage (used in GitHub Actions)
+npm run synth:auth -- <Model>  # generated AppSync auth per role, offline
 ```
+
+A dev server is usually already running on :3000 (Next allows one per directory): curl it rather than starting another. Its log is `.next/dev/logs/next-development.log`.
 
 To run a single test file:
 ```bash
@@ -34,8 +37,8 @@ All backend infrastructure is TypeScript in `amplify/` (Amplify Gen 2 / CDK). **
 | Auth | AWS Cognito — email login, 3 groups: `customer`, `operator`, `administrator` |
 | API | AWS AppSync (GraphQL, Amplify Data) |
 | Database | Amazon DynamoDB — 9 models |
-| Storage | Amazon S3 — `/invoices/*` and `/schedules/*` paths |
-| Email | AWS SES — templated invoice emails, inbound email forwarding Lambda |
+| Storage | Amazon S3 — `/invoices/*`, `/schedules/*` (staff), `/reports/*` (API routes only), `/requests/*` (administrators write; read through an API route) |
+| Email | AWS SES — templated invoice emails, inbound email forwarding Lambda, Route Request capture Lambda (`requests@`) |
 | Hosting | AWS Amplify + CloudFront |
 
 Backend resources are **branch-scoped** — each branch gets isolated AWS resources with branch-suffixed names.
@@ -58,6 +61,8 @@ Authorization is enforced at the AppSync model level in `amplify/data/resource.t
 - **operator** — full CRUD on all models; read/create AuditLog
 - **administrator** — full access including user management and system settings
 
+After changing an `.authorization()` rule, run `npm run synth:auth -- <Model>` and check who may set, null, delete and read before asking for a deploy.
+
 Cognito groups are created post-deployment via `scripts/ensure-cognito-groups.js`. Group membership is read from the ID token (`cognito:groups`). After adding a user to a group, they must log out and back in for the token to refresh.
 
 ### Role Helpers and Auth Patterns
@@ -76,11 +81,14 @@ Use the `useUserGroups()` hook (`lib/use-user-groups.ts`) to fetch and cache gro
 
 - `amplify/backend.ts` — root backend: SES invoice template, inbound email forwarder Lambda
 - `amplify/data/resource.ts` — all 9 DynamoDB models and their AppSync authorization rules
-- `lib/queries.ts` + `lib/queries/` — AppSync GraphQL queries (modular)
+- `lib/routes.ts`, `lib/customers.ts`, `lib/invoices.ts`, `lib/userSettings.ts` — browser data access, one module per aggregate; `lib/queries/` — remaining single-function modules (rate lines, operator payouts and availability, organization settings)
 - `lib/amplify-config.ts` — Amplify initialization, auth helpers
+- `lib/billedTime.ts` — Billed Time (see `CONTEXT.md`): how it's seeded, adjusted, stored on a Route and read back; every screen that shows what's charged reads it through `billedTime()`
+- `lib/stopProgress.ts` — Stop Progress (see `CONTEXT.md`): whether a Stop is done or skipped in Placement and Pickup, finished or completed; every screen reads it through `stopProgress()`, never `actualDepartureTime`
+- `lib/auditLog.ts` — `recordAudit()`: every audit log entry is written through it (server routes with no client of their own use `lib/server/recordServerAudit.ts`); what to do when an entry can't be written stays with each caller
 - `app/auth/session.ts` + `sessionManager.ts` — session management
-- `app/components/PortalLayout.*` — shared sidebar + navigation layout used by all portals
-- `app/api/` — Next.js API routes: `send-invoice-email/`, `static-route-map/`, `users/`
+- `app/components/PortalShell.*` — shared sidebar + navigation shell used by all portals (`variant` picks staff or customer chrome); `lib/usePortalUser.ts` — the signed-in user's id, display name and logout
+- `app/api/` — Next.js API routes: `send-invoice-email/`, `users/`
 
 ### Testing
 
@@ -98,6 +106,20 @@ jest.mock('@aws-amplify/ui-react');
 **`validate:amplify-outputs` fails in CI** — Cognito environment variables (`AMPLIFY_COGNITO_USER_POOL_ID`, `AMPLIFY_COGNITO_CLIENT_ID`, `AMPLIFY_IDENTITY_POOL_ID`, `AWS_REGION`) are not set in Amplify Console.
 
 **"Cannot find module amplify_outputs.json"** — Run `npm run generate:config`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in this repo's GitHub Issues (`anodyne74/amplify-null-device`), via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default canonical label strings (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`); `bug`/`enhancement` already existed under their canonical names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

@@ -1,29 +1,15 @@
 /**
  * List operator payouts (admin — cross-customer, cross-operator)
+ *
+ * Returns its data or throws a DataError (lib/graphqlResult.ts).
  */
 import { getDataClient } from '@/lib/data-client';
+import { resultData, withDataError } from '@/lib/graphqlResult';
+import { listAll } from '@/lib/listAll';
 
-export interface ListOperatorPayoutsParams {
-  limit?: number;
-  nextToken?: string;
-}
-
-export async function listOperatorPayouts(params?: ListOperatorPayoutsParams) {
-  try {
-    const { data, errors, nextToken } = await getDataClient().models.OperatorPayout.list({
-      limit: params?.limit || 200,
-      nextToken: params?.nextToken,
-    });
-
-    if (errors) {
-      console.error('Errors fetching operator payouts:', errors);
-      return { data: [], errors, nextToken: undefined };
-    }
-
-    const sorted = [...(data || [])].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-    return { data: sorted, errors: undefined, nextToken };
-  } catch (error) {
-    console.error('Error listing operator payouts:', error);
-    return { data: [], errors: [error as Error], nextToken: undefined };
-  }
+export async function listOperatorPayouts() {
+  return withDataError('Failed to load payouts.', async () => {
+    const payouts = resultData(await listAll(getDataClient(), 'OperatorPayout')) ?? [];
+    return [...payouts].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  });
 }

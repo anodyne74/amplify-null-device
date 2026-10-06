@@ -1,22 +1,18 @@
+import { getRoutePhaseKey, ROUTE_PHASE_LABELS, type RoutePhaseInput, type RoutePhaseKey } from '@/lib/signRunPhase';
+
 export type RouteStatusPresentation = {
-  badgeKey: 'planned' | 'active' | 'completed' | 'archived';
+  badgeKey: RoutePhaseKey;
   label: string;
 };
 
-export function getRouteStatusPresentation(status?: string | null): RouteStatusPresentation {
-  const normalized = (status ?? 'planned') as string;
-
-  if (normalized === 'in_progress' || normalized === 'signs_placed' || normalized === 'signs_picked_up') {
-    return { badgeKey: 'active', label: normalized.replace(/_/g, ' ') };
-  }
-
-  if (normalized === 'completed') {
-    return { badgeKey: 'completed', label: 'completed' };
-  }
-
-  if (normalized === 'archived') {
-    return { badgeKey: 'archived', label: 'archived' };
-  }
-
-  return { badgeKey: 'planned', label: normalized || 'unknown' };
+/**
+ * Badge presentation (which of the 6 phases, plus a display label) for a
+ * route — thin wrapper around getRoutePhaseKey/ROUTE_PHASE_LABELS, the
+ * single source of truth for phase display (see lib/signRunPhase.ts).
+ * Archived routes present identically to completed ones (soft-deprecated
+ * status, folded into the same badge).
+ */
+export function getRouteStatusPresentation(route: RoutePhaseInput): RouteStatusPresentation {
+  const badgeKey = getRoutePhaseKey(route);
+  return { badgeKey, label: ROUTE_PHASE_LABELS[badgeKey].toLowerCase() };
 }

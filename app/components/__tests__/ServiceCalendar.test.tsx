@@ -5,11 +5,8 @@ import { ServiceCalendar } from '../ServiceCalendar';
 import { listOperatorAvailabilityBlocks } from '@/lib/queries/ListOperatorAvailabilityBlocks';
 import { createOperatorAvailabilityBlock } from '@/lib/queries/CreateOperatorAvailabilityBlock';
 import { deleteOperatorAvailabilityBlock } from '@/lib/queries/DeleteOperatorAvailabilityBlock';
-import { listCustomerClosureBlocks } from '@/lib/queries/ListCustomerClosureBlocks';
-import { createCustomerClosureBlock } from '@/lib/queries/CreateCustomerClosureBlock';
-import { deleteCustomerClosureBlock } from '@/lib/queries/DeleteCustomerClosureBlock';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
-import { listMyRoutes } from '@/lib/queries/ListMyRoutes';
+import { listCustomerRoutes } from '@/lib/routes';
+import { listCustomerClosureBlocks, createCustomerClosureBlock, deleteCustomerClosureBlock, listAllCustomers } from '@/lib/customers';
 
 jest.mock('@/lib/queries/ListOperatorAvailabilityBlocks', () => ({
   listOperatorAvailabilityBlocks: jest.fn(),
@@ -20,20 +17,15 @@ jest.mock('@/lib/queries/CreateOperatorAvailabilityBlock', () => ({
 jest.mock('@/lib/queries/DeleteOperatorAvailabilityBlock', () => ({
   deleteOperatorAvailabilityBlock: jest.fn(),
 }));
-jest.mock('@/lib/queries/ListCustomerClosureBlocks', () => ({
+jest.mock('@/lib/customers', () => ({
   listCustomerClosureBlocks: jest.fn(),
-}));
-jest.mock('@/lib/queries/CreateCustomerClosureBlock', () => ({
   createCustomerClosureBlock: jest.fn(),
-}));
-jest.mock('@/lib/queries/DeleteCustomerClosureBlock', () => ({
   deleteCustomerClosureBlock: jest.fn(),
-}));
-jest.mock('@/lib/queries/ListAllCustomers', () => ({
   listAllCustomers: jest.fn(),
 }));
-jest.mock('@/lib/queries/ListMyRoutes', () => ({
-  listMyRoutes: jest.fn(),
+
+jest.mock('@/lib/routes', () => ({
+  listCustomerRoutes: jest.fn(),
 }));
 
 function todayKey() {
@@ -44,14 +36,14 @@ function todayKey() {
 describe('ServiceCalendar', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
-    (listCustomerClosureBlocks as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
-    (createOperatorAvailabilityBlock as jest.Mock).mockResolvedValue({ data: { id: 'block-1' }, errors: undefined });
-    (deleteOperatorAvailabilityBlock as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
-    (createCustomerClosureBlock as jest.Mock).mockResolvedValue({ data: { id: 'block-2' }, errors: undefined });
-    (deleteCustomerClosureBlock as jest.Mock).mockResolvedValue({ data: {}, errors: undefined });
-    (listAllCustomers as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
-    (listMyRoutes as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue([]);
+    (listCustomerClosureBlocks as jest.Mock).mockResolvedValue([]);
+    (createOperatorAvailabilityBlock as jest.Mock).mockResolvedValue({ id: 'block-1' });
+    (deleteOperatorAvailabilityBlock as jest.Mock).mockResolvedValue({});
+    (createCustomerClosureBlock as jest.Mock).mockResolvedValue({ id: 'block-2' });
+    (deleteCustomerClosureBlock as jest.Mock).mockResolvedValue({});
+    (listAllCustomers as jest.Mock).mockResolvedValue([]);
+    (listCustomerRoutes as jest.Mock).mockResolvedValue([]);
   });
 
   it('renders the month grid with weekday headers', async () => {
@@ -91,10 +83,7 @@ describe('ServiceCalendar', () => {
   });
 
   it('lets staff remove an existing block', async () => {
-    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue({
-      data: [{ id: 'existing-block', customerId: 'cust-1', date: todayKey(), reason: 'Driver vacation' }],
-      errors: undefined,
-    });
+    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue([{ id: 'existing-block', customerId: 'cust-1', date: todayKey(), reason: 'Driver vacation' }]);
 
     render(
       <ServiceCalendar customerId="cust-1" role="staff" currentUserSub="sub-1" viewerSubs={['sub-1']} />
@@ -155,17 +144,14 @@ describe('ServiceCalendar', () => {
     future.setDate(future.getDate() + 3);
     const futureKey = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, '0')}-${String(future.getDate()).padStart(2, '0')}`;
 
-    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue({
-      data: [{ id: 'b1', customerId: 'cust-1', date: futureKey, reason: 'Public holiday' }],
-      errors: undefined,
-    });
+    (listOperatorAvailabilityBlocks as jest.Mock).mockResolvedValue([{ id: 'b1', customerId: 'cust-1', date: futureKey, reason: 'Public holiday' }]);
 
     render(
       <ServiceCalendar customerId="cust-1" role="customer-readonly" currentUserSub="reviewer-sub" viewerSubs={['reviewer-sub']} />
     );
 
     expect(await screen.findByText('Public holiday')).toBeInTheDocument();
-    expect(screen.getByText('No drivers')).toBeInTheDocument();
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
   });
 
   it('shows a deliveries count for the selected day, derived from route timestamps', async () => {
@@ -173,14 +159,11 @@ describe('ServiceCalendar', () => {
     // Midday local time, well clear of the UTC day boundary in either direction.
     const middayLocalIso = new Date(year, month - 1, day, 12, 0, 0).toISOString();
 
-    (listMyRoutes as jest.Mock).mockResolvedValue({
-      data: [
-        { actualEndTime: middayLocalIso },
-        { actualStartTime: middayLocalIso },
-        { createdAt: '2020-01-01T00:00:00Z' },
-      ],
-      errors: undefined,
-    });
+    (listCustomerRoutes as jest.Mock).mockResolvedValue([
+      { actualEndTime: middayLocalIso },
+      { actualStartTime: middayLocalIso },
+      { createdAt: '2020-01-01T00:00:00Z' },
+    ]);
 
     render(
       <ServiceCalendar customerId="cust-1" role="customer-readonly" currentUserSub="reviewer-sub" viewerSubs={['reviewer-sub']} />
@@ -194,14 +177,11 @@ describe('ServiceCalendar', () => {
   it('prefers scheduledDate over the timestamp fallback chain when counting deliveries', async () => {
     const today = todayKey();
 
-    (listMyRoutes as jest.Mock).mockResolvedValue({
-      data: [
-        { scheduledDate: today },
-        { scheduledDate: today },
-        { actualEndTime: '2020-01-01T00:00:00Z' }, // no scheduledDate — falls back, lands on a different day
-      ],
-      errors: undefined,
-    });
+    (listCustomerRoutes as jest.Mock).mockResolvedValue([
+      { scheduledDate: today },
+      { scheduledDate: today },
+      { actualEndTime: '2020-01-01T00:00:00Z' }, // no scheduledDate — falls back, lands on a different day
+    ]);
 
     render(
       <ServiceCalendar customerId="cust-1" role="customer-readonly" currentUserSub="reviewer-sub" viewerSubs={['reviewer-sub']} />
@@ -213,14 +193,11 @@ describe('ServiceCalendar', () => {
   });
 
   it('lets staff apply a block to every active customer', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-1', name: 'Harcourts Epping', status: 'active', viewerSubs: ['sub-1'] },
-        { id: 'cust-2', name: 'Ray White Eastwood', status: 'active', viewerSubs: ['sub-2'] },
-        { id: 'cust-3', name: 'Retired Agency', status: 'inactive', viewerSubs: ['sub-3'] },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping', status: 'active', viewerSubs: ['sub-1'] },
+      { id: 'cust-2', name: 'Ray White Eastwood', status: 'active', viewerSubs: ['sub-2'] },
+      { id: 'cust-3', name: 'Retired Agency', status: 'inactive', viewerSubs: ['sub-3'] },
+    ]);
 
     render(
       <ServiceCalendar customerId="cust-1" role="staff" currentUserSub="sub-1" viewerSubs={['sub-1']} />
@@ -248,21 +225,15 @@ describe('ServiceCalendar', () => {
   });
 
   it('skips customers that already have a block for that day when applying to everyone', async () => {
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-1', name: 'Harcourts Epping', status: 'active', viewerSubs: ['sub-1'] },
-        { id: 'cust-2', name: 'Ray White Eastwood', status: 'active', viewerSubs: ['sub-2'] },
-      ],
-      errors: undefined,
-    });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping', status: 'active', viewerSubs: ['sub-1'] },
+      { id: 'cust-2', name: 'Ray White Eastwood', status: 'active', viewerSubs: ['sub-2'] },
+    ]);
     (listOperatorAvailabilityBlocks as jest.Mock).mockImplementation((customerId: string) => {
       if (customerId === 'cust-2') {
-        return Promise.resolve({
-          data: [{ id: 'existing', customerId: 'cust-2', date: todayKey() }],
-          errors: undefined,
-        });
+        return Promise.resolve([{ id: 'existing', customerId: 'cust-2', date: todayKey() }]);
       }
-      return Promise.resolve({ data: [], errors: undefined });
+      return Promise.resolve([]);
     });
 
     render(
@@ -282,6 +253,33 @@ describe('ServiceCalendar', () => {
       );
     });
 
+    expect(createOperatorAvailabilityBlock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ customerId: 'cust-2' })
+    );
+  });
+
+  it("reports a customer whose blocks can't be read when applying to everyone, and doesn't block them", async () => {
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping', status: 'active', viewerSubs: ['sub-1'] },
+      { id: 'cust-2', name: 'Ray White Eastwood', status: 'active', viewerSubs: ['sub-2'] },
+    ]);
+    (listOperatorAvailabilityBlocks as jest.Mock).mockImplementation((customerId: string) =>
+      customerId === 'cust-2' ? Promise.reject(new Error('read failed')) : Promise.resolve([])
+    );
+
+    render(
+      <ServiceCalendar customerId="cust-1" role="staff" currentUserSub="sub-1" viewerSubs={['sub-1']} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /block this day/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByLabelText('Apply to every customer'));
+    fireEvent.click(screen.getByRole('button', { name: /block this day for every customer/i }));
+
+    expect(await screen.findByText("Could not block this day for: Ray White Eastwood.")).toBeInTheDocument();
+    expect(createOperatorAvailabilityBlock).toHaveBeenCalledWith(expect.objectContaining({ customerId: 'cust-1' }));
     expect(createOperatorAvailabilityBlock).not.toHaveBeenCalledWith(
       expect.objectContaining({ customerId: 'cust-2' })
     );

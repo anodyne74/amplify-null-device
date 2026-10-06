@@ -1,30 +1,36 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { Card } from '@/app/components/ui/core/Card';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
-import { getRouteWithStops, getCustomer, updateRouteExecution, updateStopExecution } from '@/lib/queries';
-import { getSignRunPhase } from '@/lib/signRunPhase';
+import { SetAsideStops } from '@/app/operator/components/SetAsideStops';
+import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
+import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
+import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
+import { queueSignRunTransition, queueStopSettlement } from '@/lib/signRunTransitions';
+import { formatClockTime } from '@/lib/format';
 import { getAgentBadgeInitials } from '@/lib/customerDefaults';
 import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } from '@/lib/routeDetailHelpers';
-import {
-  getDisplayNotes,
-  isStopCompletedForPhase,
-  PICKUP_DONE_MARKER,
-  PICKUP_SKIPPED_MARKER,
-  removeMarker,
-  upsertMarker,
-} from '@/lib/stopExecutionMarkers';
+import { displayNotes, stopProgress } from '@/lib/stopProgress';
 import type { Route, Stop } from '@/amplify/types';
+import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
 import stopCardStyles from '../../components/signRunStopCard.module.css';
 import styles from './page.module.css';
+import { updateStopExecution } from '@/lib/routes';
+import { missingSignAudit } from '@/lib/missingSignAudit';
+import { recordStopAudit } from '@/lib/signRunOutbox';
+import { getCustomer } from '@/lib/customers';
+
+async function fetchCustomerName(route: Route) {
+  const customer = await getCustomer(route.customerId).catch(() => null);
+  return customer?.name ?? '';
+}
 
 const RouteStopsMap = dynamic(
   () => import('@/app/operator/components/RouteStopsMap').then((mod) => mod.RouteStopsMap),
@@ -63,63 +69,46 @@ function getLegLine(stops: Stop[], current: Stop): string | null {
 
 export default function OperatorPickupPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const routeId = searchParams.get('id');
-
-  const [route, setRoute] = useState<Route | null>(null);
-  const [stops, setStops] = useState<Stop[]>([]);
-  const [customerName, setCustomerName] = useState('');
-  const [loading, setLoading] = useState(true);
+  const {
+    routeId,
+    route,
+    stops,
+    patchStop,
+    extra: customerName,
+    loading,
+    phaseInfo,
+    isOnPhase: isPickupScreen,
+  } = useSignRunPhaseScreen({ phaseIdx: 2, fetchExtra: fetchCustomerName });
   const [error, setError] = useState<string | null>(null);
-  const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [missingLogging, setMissingLogging] = useState<Record<string, boolean>>({});
   const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
   const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
-  const [completingPhase, setCompletingPhase] = useState(false);
+  const { dialog, openDialog, closeDialog, submitting } = useTimestampConfirmDialog<
+    'start' | 'complete'
+  >();
 
-  useEffect(() => {
-    if (!routeId) {
-      setLoading(false);
+  // Sign Run writes show at once and save in the background (lib/signRunOutbox.ts).
+  const handleStartPickup = (iso: string) => {
+    if (!route) return;
+    setError(null);
+
+    const result = queueSignRunTransition(route, { type: 'startPickup', at: iso });
+    if ('error' in result) {
+      setError(result.error);
       return;
     }
-    let cancelled = false;
 
-    async function load() {
-      setLoading(true);
-      const { route: fetchedRoute, stops: fetchedStops } = await getRouteWithStops(routeId as string);
-      if (cancelled) return;
+    closeDialog();
+  };
 
-      setRoute(fetchedRoute as Route | null);
-      setStops(fetchedStops as Stop[]);
-
-      if (fetchedRoute) {
-        const customerResult = await getCustomer(fetchedRoute.customerId);
-        if (!cancelled) {
-          setCustomerName((customerResult.data as { name?: string } | null)?.name ?? '');
-        }
-      }
-      if (!cancelled) setLoading(false);
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [routeId]);
-
-  const phaseInfo = useMemo(() => (route ? getSignRunPhase(route, stops.length) : null), [route, stops.length]);
-  const isPickupScreen = route && phaseInfo && phaseInfo.phaseIdx === 2 && stops.length > 0;
-
-  // There's no separate "start driving" button in this flow — opening this screen is
-  // the accurate "start" moment, so record it lazily the first time we land here.
-  useEffect(() => {
-    if (!route || route.pickupStartTime || !isPickupScreen) return;
-    void updateRouteExecution(route.id, { pickupStartTime: new Date().toISOString() });
-  }, [route, isPickupScreen]);
-
-  const openStops = useMemo(() => stops.filter((stop) => !isStopCompletedForPhase(stop, 'pickup')), [stops]);
+  const openStops = useMemo(() => stops.filter((stop) => stopProgress(stop).pickup.state === 'pending'), [stops]);
   const currentStop = openStops[0] ?? null;
   const upcomingStops = openStops.slice(1);
+  // Couldn't Collect Stops stay listed, so one can still be collected before Pickup is completed.
+  const couldntCollectStops = useMemo(
+    () => stops.filter((stop) => stopProgress(stop).pickup.state === 'couldntCollect'),
+    [stops]
+  );
   const actionSheetStop = stops.find((stop) => stop.id === actionSheetStopId) ?? null;
 
   const openStopSheet = (stopId: string, step: 'action' | 'reason' = 'action') => {
@@ -128,54 +117,19 @@ export default function OperatorPickupPage() {
   };
   const closeStopSheet = () => setActionSheetStopId(null);
 
-  const settleStop = useCallback(
-    async (stopId: string, marker: string, otherMarker: string, reason?: string) => {
-      setStopExecuting((prev) => ({ ...prev, [stopId]: true }));
-      let succeeded = false;
-      try {
-        const now = new Date().toISOString();
-        const existingStop = stops.find((stop) => stop.id === stopId);
-        const withMarker = upsertMarker(existingStop?.notes, marker, now, reason);
-        const nextNotes = removeMarker(withMarker, otherMarker);
-        const { errors } = await updateStopExecution(stopId, {
-          actualArrivalTime: existingStop?.actualArrivalTime ?? now,
-          actualDepartureTime: now,
-          notes: nextNotes,
-        });
-
-        if (!errors || errors.length === 0) {
-          setStops((prev) =>
-            prev.map((stop) =>
-              stop.id === stopId
-                ? {
-                    ...stop,
-                    actualArrivalTime: existingStop?.actualArrivalTime ?? now,
-                    actualDepartureTime: now,
-                    notes: nextNotes,
-                  }
-                : stop
-            )
-          );
-          succeeded = true;
-        } else {
-          setError('Could not save that stop. Try again.');
-        }
-      } catch {
-        setError('Could not save that stop. Try again.');
-      }
-      setStopExecuting((prev) => ({ ...prev, [stopId]: false }));
-      return succeeded;
+  const handleStopCompleted = useCallback(
+    (stopId: string) => {
+      const stop = stops.find((s) => s.id === stopId);
+      if (stop) queueStopSettlement(stop, { phase: 'pickup', action: 'complete' });
     },
     [stops]
   );
-
-  const handleStopCompleted = useCallback(
-    (stopId: string) => settleStop(stopId, PICKUP_DONE_MARKER, PICKUP_SKIPPED_MARKER),
-    [settleStop]
-  );
-  const handleSkipStop = useCallback(
-    (stopId: string, reason: string) => settleStop(stopId, PICKUP_SKIPPED_MARKER, PICKUP_DONE_MARKER, reason),
-    [settleStop]
+  const handleCouldntCollect = useCallback(
+    (stopId: string, reason: string) => {
+      const stop = stops.find((s) => s.id === stopId);
+      if (stop) queueStopSettlement(stop, { phase: 'pickup', action: 'couldntCollect', reason });
+    },
+    [stops]
   );
 
   // Logs one missing sign at the current stop, capped at that stop's sign count, and
@@ -199,7 +153,9 @@ export default function OperatorPickupPage() {
       try {
         const { errors } = await updateStopExecution(stopId, nextFields);
         if (!errors || errors.length === 0) {
-          setStops((prev) => prev.map((s) => (s.id === stopId ? { ...s, ...nextFields } : s)));
+          patchStop(stopId, nextFields);
+          // In the audit trail once saved (#468); a failed entry never undoes the tap.
+          void recordStopAudit(missingSignAudit(stop, 'log', nextCount));
         } else {
           setError('Could not log that missing sign. Try again.');
         }
@@ -208,7 +164,7 @@ export default function OperatorPickupPage() {
       }
       setMissingLogging((prev) => ({ ...prev, [stopId]: false }));
     },
-    [stops]
+    [stops, patchStop]
   );
 
   // Undo does not re-stamp time/location — it only walks the count back down,
@@ -229,19 +185,13 @@ export default function OperatorPickupPage() {
       try {
         const { errors } = await updateStopExecution(stopId, nextFields);
         if (!errors || errors.length === 0) {
-          setStops((prev) =>
-            prev.map((s) =>
-              s.id === stopId
-                ? {
-                    ...s,
-                    missingSignsCount: nextCount,
-                    missingSignsLastLoggedAt: nextFields.missingSignsLastLoggedAt ?? null,
-                    missingSignsLastLatitude: nextFields.missingSignsLastLatitude ?? null,
-                    missingSignsLastLongitude: nextFields.missingSignsLastLongitude ?? null,
-                  }
-                : s
-            )
-          );
+          patchStop(stopId, {
+            missingSignsCount: nextCount,
+            missingSignsLastLoggedAt: nextFields.missingSignsLastLoggedAt ?? null,
+            missingSignsLastLatitude: nextFields.missingSignsLastLatitude ?? null,
+            missingSignsLastLongitude: nextFields.missingSignsLastLongitude ?? null,
+          });
+          void recordStopAudit(missingSignAudit(stop, 'undo', nextCount));
         } else {
           setError('Could not update that missing sign. Try again.');
         }
@@ -250,58 +200,104 @@ export default function OperatorPickupPage() {
       }
       setMissingLogging((prev) => ({ ...prev, [stopId]: false }));
     },
-    [stops]
+    [stops, patchStop]
   );
 
-  // Completing the last open stop closes the phase and returns to Today — also covers
-  // reloading the screen after the last stop was actioned but the phase transition
-  // round-trip hadn't landed yet.
-  useEffect(() => {
-    if (!route || !isPickupScreen || completingPhase || openStops.length > 0) return;
-
-    setCompletingPhase(true);
-    void updateRouteExecution(route.id, {
-      executionPhase: 'unload',
-      pickupEndTime: new Date().toISOString(),
-    }).then(() => {
-      router.push('/operator/dashboard');
-    });
-  }, [route, isPickupScreen, completingPhase, openStops.length, router]);
+  // Settling the last stop doesn't close the phase on its own — the design leaves the
+  // driver on this screen with a "confirm to finish" state (see the glass card and
+  // primary button below) and only closes pickup out, advancing the route to unload,
+  // once they explicitly tap through.
+  const handleCompletePhase = useCallback(
+    (iso: string) => {
+      if (!route) return;
+      setError(null);
+      const result = queueSignRunTransition(route, { type: 'completePickup', at: iso });
+      if (!('error' in result)) {
+        router.push('/operator/dashboard');
+        return;
+      }
+      setError(result.error);
+      closeDialog();
+    },
+    [route, router, closeDialog]
+  );
 
   if (!routeId) {
-    return (
-      <div className={shellStyles.page}>
-        <p className={shellStyles.mutedText}>No route selected.</p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
-    );
+    return <NoRouteSelected />;
   }
 
   if (loading) return <LoadingSpinner message="Loading route..." />;
 
-  if (!isPickupScreen) {
+  if (!isPickupScreen || !route || !phaseInfo) {
     return (
-      <div className={shellStyles.page}>
-        <Breadcrumbs items={[{ label: 'Today', href: '/operator/dashboard' }, { label: 'Pickup' }]} />
-        <p className={shellStyles.mutedText}>
-          {!route
+      <PhaseNotReady
+        phaseLabel="Pickup"
+        message={
+          !route
             ? 'Route not found.'
             : stops.length === 0
             ? 'This route has no stops yet.'
-            : 'This route is not currently on the Pickup phase.'}
-        </p>
-        <Link href="/operator/dashboard" className={shellStyles.backLink}>
-          Back to Today
-        </Link>
-      </div>
+            : 'This route is not currently on the Pickup phase.'
+        }
+      />
     );
   }
 
   const total = stops.length;
+
+  if (!route.pickupStartTime) {
+    return (
+      <div className={shellStyles.page}>
+        <Breadcrumbs
+          items={[
+            { label: 'Today', href: '/operator/dashboard' },
+            { label: `${route.routeCode || route.id.slice(0, 8)} · Pickup` },
+          ]}
+        />
+
+        {error && <div className={shellStyles.errorBanner}>{error}</div>}
+
+        <div className={shellStyles.kickerRow}>
+          <span className={shellStyles.kicker}>{phaseInfo.phaseKicker}</span>
+          {customerName && <span className={shellStyles.customer}>{customerName}</span>}
+        </div>
+        <h2 className={shellStyles.title}>{total} stops to pick up</h2>
+
+        <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+
+        <div className={styles.startPanel}>Tap start once you&apos;re on the road to begin pickup.</div>
+
+        <button
+          type="button"
+          className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
+          onClick={() => openDialog('start')}
+          disabled={submitting}
+        >
+          Start pickup
+        </button>
+
+        <ConfirmDialog
+          open={dialog !== null}
+          time={dialog ? formatClockTime(dialog.time) : ''}
+          title="Start pickup"
+          summary={`Starting pickup for ${total} stops at ${customerName || 'this route'}.`}
+          busy={submitting}
+          onCancel={closeDialog}
+          onOk={() => {
+            if (!dialog) return;
+            handleStartPickup(dialog.time);
+          }}
+        />
+      </div>
+    );
+  }
+
   const settledCount = total - openStops.length;
   const missingCount = currentStop?.missingSignsCount ?? 0;
+  // Caps at `total` once every stop is settled — otherwise the counter overshoots to
+  // "17 of 16" on the confirm-to-finish state below.
+  const stopNumber = Math.min(total, settledCount + 1);
+  const legLine = currentStop ? getLegLine(stops, currentStop) : 'Route complete';
 
   return (
     <div className={shellStyles.page}>
@@ -321,25 +317,24 @@ export default function OperatorPickupPage() {
 
       <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
 
-      {currentStop ? (
-        <>
-          <Card padded={false}>
-            <div className={stopCardStyles.mapShell}>
-              <RouteStopsMap
-                stops={stops}
-                activeStopId={currentStop.id}
-                upcomingStopIds={upcomingStops.map((stop) => stop.id)}
-                presentation="field"
-              />
-              <div className={stopCardStyles.glassCard}>
-                <div className={stopCardStyles.glassTopRow}>
-                  <span className={stopCardStyles.glassCounter}>
-                    PICKUP · STOP {settledCount + 1} OF {total}
-                  </span>
-                  {getLegLine(stops, currentStop) && (
-                    <span className={stopCardStyles.glassLeg}>{getLegLine(stops, currentStop)}</span>
-                  )}
-                </div>
+      <Card padded={false}>
+        <div className={stopCardStyles.mapShell}>
+          <RouteStopsMap
+            stops={stops}
+            activeStopId={currentStop?.id}
+            upcomingStopIds={upcomingStops.map((stop) => stop.id)}
+            phase="pickup"
+            presentation="field"
+          />
+          <div className={stopCardStyles.glassCard}>
+            <div className={stopCardStyles.glassTopRow}>
+              <span className={stopCardStyles.glassCounter}>
+                PICKUP · STOP {stopNumber} OF {total}
+              </span>
+              {legLine && <span className={stopCardStyles.glassLeg}>{legLine}</span>}
+            </div>
+            {currentStop ? (
+              <>
                 <div className={stopCardStyles.glassStreet}>
                   {getPrimaryAddressLine(currentStop.formattedAddress || currentStop.address)}
                 </div>
@@ -354,123 +349,159 @@ export default function OperatorPickupPage() {
                   {currentStop.isAuction && <span className={stopCardStyles.chipAuction}>Auction</span>}
                   {missingCount > 0 && <span className={styles.chipMissing}>{missingCount} missing</span>}
                 </div>
-                {getDisplayNotes(currentStop.notes) && (
-                  <div className={stopCardStyles.glassNote}>{getDisplayNotes(currentStop.notes)}</div>
+                {displayNotes(currentStop.notes) && (
+                  <div className={stopCardStyles.glassNote}>{displayNotes(currentStop.notes)}</div>
                 )}
-              </div>
-            </div>
-          </Card>
-
-          <div>
-            <div className={stopCardStyles.thenHeader}>
-              <span className={stopCardStyles.thenLabel}>Then</span>
-              <span className={stopCardStyles.thenHint}>Tap a stop to action out of order</span>
-            </div>
-            {upcomingStops.length > 0 ? (
-              <ol className={stopCardStyles.thenList}>
-                {upcomingStops.map((stop) => (
-                  <li key={stop.id}>
-                    <button type="button" className={stopCardStyles.thenItem} onClick={() => openStopSheet(stop.id)}>
-                      <span className={stopCardStyles.thenSequence}>{stop.sequence ?? '-'}</span>
-                      <span className={stopCardStyles.thenBody}>
-                        <span className={stopCardStyles.thenAddress}>
-                          {getPrimaryAddressLine(stop.formattedAddress || stop.address)}
-                        </span>
-                        <span className={stopCardStyles.thenMeta}>
-                          {stop.numberOfSigns ?? '-'} signs ·{' '}
-                          {getSecondaryAddressLine(stop.formattedAddress || stop.address)}
-                        </span>
-                      </span>
-                      <span className={stopCardStyles.thenAgent}>
-                        {getAgentBadgeInitials(stop.agent?.trim() || 'Unassigned')}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ol>
+              </>
             ) : (
-              <p className={shellStyles.mutedText}>No further stops in this phase.</p>
-            )}
-          </div>
-
-          <div className={styles.missingStrip}>
-            <button
-              type="button"
-              className={styles.missingButton}
-              onClick={() => { void handleMarkMissing(currentStop.id); }}
-              disabled={!!missingLogging[currentStop.id]}
-            >
-              Sign missing
-            </button>
-            {missingCount > 0 && (
               <>
-                <div className={styles.missingInfo}>
-                  <div className={styles.missingCountLine}>
-                    {missingCount} of {currentStop.numberOfSigns ?? '-'} missing here
-                  </div>
-                  {currentStop.missingSignsLastLatitude != null && currentStop.missingSignsLastLongitude != null && (
-                    <div className={styles.missingWhere}>
-                      {currentStop.missingSignsLastLatitude.toFixed(4)},{' '}
-                      {currentStop.missingSignsLastLongitude.toFixed(4)}
-                      {currentStop.missingSignsLastLoggedAt &&
-                        ` · ${new Date(currentStop.missingSignsLastLoggedAt).toLocaleTimeString('en-AU', {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        })}`}
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className={styles.undoButton}
-                  onClick={() => { void handleUndoMissing(currentStop.id); }}
-                  disabled={!!missingLogging[currentStop.id]}
-                >
-                  Undo
-                </button>
+                <div className={stopCardStyles.glassStreet}>All stops done</div>
+                <div className={stopCardStyles.glassSuburb}>Confirm to send your times and return to Today.</div>
               </>
             )}
           </div>
+        </div>
+      </Card>
 
-          <div className={stopCardStyles.actionBar}>
-            <button
-              type="button"
-              className={stopCardStyles.skipButton}
-              onClick={() => openStopSheet(currentStop.id, 'reason')}
-              disabled={!!stopExecuting[currentStop.id]}
-            >
-              Skip
-            </button>
-            <button
-              type="button"
-              className={`${shellStyles.primaryButton} ${styles.primaryButton}`}
-              onClick={() => { void handleStopCompleted(currentStop.id); }}
-              disabled={!!stopExecuting[currentStop.id]}
-            >
-              {stopExecuting[currentStop.id] ? 'Saving…' : 'Signs picked up'}
-            </button>
-          </div>
-        </>
-      ) : (
-        <p className={shellStyles.mutedText}>All stops actioned. Wrapping up pickup…</p>
+      <div>
+        <div className={stopCardStyles.thenHeader}>
+          <span className={stopCardStyles.thenLabel}>Then</span>
+          <span className={stopCardStyles.thenHint}>Tap a stop to action out of order</span>
+        </div>
+        {upcomingStops.length > 0 ? (
+          <ol className={stopCardStyles.thenList}>
+            {upcomingStops.map((stop) => (
+              <li key={stop.id}>
+                <button type="button" className={stopCardStyles.thenItem} onClick={() => openStopSheet(stop.id)}>
+                  <span className={stopCardStyles.thenSequence}>{stop.sequence ?? '-'}</span>
+                  <span className={stopCardStyles.thenBody}>
+                    <span className={stopCardStyles.thenAddress}>
+                      {getPrimaryAddressLine(stop.formattedAddress || stop.address)}
+                    </span>
+                    <span className={stopCardStyles.thenMeta}>
+                      {stop.numberOfSigns ?? '-'} signs ·{' '}
+                      {getSecondaryAddressLine(stop.formattedAddress || stop.address)}
+                    </span>
+                  </span>
+                  <span className={stopCardStyles.thenAgent}>
+                    {getAgentBadgeInitials(stop.agent?.trim() || 'Unassigned')}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className={shellStyles.mutedText}>No further stops in this phase.</p>
+        )}
+      </div>
+
+      <div>
+        <SetAsideStops
+          title="Couldn't collect"
+          stops={couldntCollectStops.map((stop) => ({
+            id: stop.id,
+            address: stop.formattedAddress || stop.address || '',
+            reason: stopProgress(stop).pickup.reason,
+          }))}
+          actionLabel="Collected"
+          onAction={handleStopCompleted}
+        />
+      </div>
+
+      {currentStop && (
+        <div className={styles.missingStrip}>
+          <button
+            type="button"
+            className={styles.missingButton}
+            onClick={() => { void handleMarkMissing(currentStop.id); }}
+            disabled={!!missingLogging[currentStop.id]}
+          >
+            Sign missing
+          </button>
+          {missingCount > 0 && (
+            <>
+              <div className={styles.missingInfo}>
+                <div className={styles.missingCountLine}>
+                  {missingCount} of {currentStop.numberOfSigns ?? '-'} missing here
+                </div>
+                {currentStop.missingSignsLastLatitude != null && currentStop.missingSignsLastLongitude != null && (
+                  <div className={styles.missingWhere}>
+                    {currentStop.missingSignsLastLatitude.toFixed(4)},{' '}
+                    {currentStop.missingSignsLastLongitude.toFixed(4)}
+                    {currentStop.missingSignsLastLoggedAt &&
+                      ` · ${new Date(currentStop.missingSignsLastLoggedAt).toLocaleTimeString('en-AU', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}`}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                className={styles.undoButton}
+                onClick={() => { void handleUndoMissing(currentStop.id); }}
+                disabled={!!missingLogging[currentStop.id]}
+              >
+                Undo
+              </button>
+            </>
+          )}
+        </div>
       )}
+
+      <div className={stopCardStyles.actionBarSpacer} aria-hidden="true" />
+      <div className={stopCardStyles.actionBar}>
+        {currentStop && (
+          <button
+            type="button"
+            className={stopCardStyles.problemButton}
+            onClick={() => openStopSheet(currentStop.id, 'reason')}
+          >
+            Couldn&apos;t collect
+          </button>
+        )}
+        <button
+          type="button"
+          className={`${shellStyles.primaryButton} ${styles.primaryButton} ${stopCardStyles.primaryAction}`}
+          onClick={() => {
+            if (currentStop) {
+              handleStopCompleted(currentStop.id);
+            } else {
+              openDialog('complete');
+            }
+          }}
+          disabled={!currentStop && submitting}
+        >
+          {currentStop ? 'Signs picked up' : 'Complete pickup'}
+        </button>
+      </div>
+
+      <ConfirmDialog
+        open={dialog !== null}
+        time={dialog ? formatClockTime(dialog.time) : ''}
+        title="Complete pickup"
+        summary={`This closes pickup for ${route.routeCode} and returns you to Today.`}
+        busy={submitting}
+        onCancel={closeDialog}
+        onOk={() => {
+          if (!dialog) return;
+          handleCompletePhase(dialog.time);
+        }}
+      />
 
       <StopCompletionDialog
         stop={actionSheetStop}
         phase="pickup"
-        busy={!!actionSheetStop && !!stopExecuting[actionSheetStop.id]}
         initialStep={actionSheetStep}
         onComplete={() => {
           if (!actionSheetStop) return;
-          void handleStopCompleted(actionSheetStop.id).then((ok) => {
-            if (ok) closeStopSheet();
-          });
+          handleStopCompleted(actionSheetStop.id);
+          closeStopSheet();
         }}
-        onSkip={(reason) => {
+        onProblem={(reason) => {
           if (!actionSheetStop) return;
-          void handleSkipStop(actionSheetStop.id, reason).then((ok) => {
-            if (ok) closeStopSheet();
-          });
+          handleCouldntCollect(actionSheetStop.id, reason);
+          closeStopSheet();
         }}
         onClose={closeStopSheet}
       />

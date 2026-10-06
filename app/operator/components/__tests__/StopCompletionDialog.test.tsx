@@ -19,9 +19,8 @@ describe('StopCompletionDialog', () => {
       <StopCompletionDialog
         stop={null}
         phase="placement"
-        busy={false}
         onComplete={jest.fn()}
-        onSkip={jest.fn()}
+        onProblem={jest.fn()}
         onClose={jest.fn()}
       />
     );
@@ -36,9 +35,8 @@ describe('StopCompletionDialog', () => {
       <StopCompletionDialog
         stop={stop}
         phase="placement"
-        busy={false}
         onComplete={onComplete}
-        onSkip={jest.fn()}
+        onProblem={jest.fn()}
         onClose={jest.fn()}
       />
     );
@@ -55,9 +53,8 @@ describe('StopCompletionDialog', () => {
       <StopCompletionDialog
         stop={stop}
         phase="pickup"
-        busy={false}
         onComplete={jest.fn()}
-        onSkip={jest.fn()}
+        onProblem={jest.fn()}
         onClose={jest.fn()}
       />
     );
@@ -65,25 +62,36 @@ describe('StopCompletionDialog', () => {
     expect(screen.getByRole('button', { name: 'Signs Picked Up' })).toBeInTheDocument();
   });
 
-  it('moves to the reason step when Skip is pressed and calls onSkip with the chosen reason', () => {
-    const onSkip = jest.fn();
+  it("moves to the reason step when Can't place is pressed and calls onProblem with the chosen reason", () => {
+    const onProblem = jest.fn();
 
     render(
       <StopCompletionDialog
         stop={stop}
         phase="placement"
-        busy={false}
         onComplete={jest.fn()}
-        onSkip={onSkip}
+        onProblem={onProblem}
         onClose={jest.fn()}
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Skip' }));
+    fireEvent.click(screen.getByRole('button', { name: "Can't place" }));
 
-    expect(screen.getByText('Why is this stop skipped?')).toBeInTheDocument();
+    expect(screen.getByText("Why can't the signs go up?")).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Property not ready' }));
-    expect(onSkip).toHaveBeenCalledWith('Property not ready');
+    expect(onProblem).toHaveBeenCalledWith('Property not ready');
+  });
+
+  it("offers Couldn't collect, with Pickup's own reasons, during the pickup phase", () => {
+    const onProblem = jest.fn();
+    render(<StopCompletionDialog stop={stop} phase="pickup" onComplete={jest.fn()} onProblem={onProblem} onClose={jest.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: "Couldn't collect" }));
+
+    expect(screen.getByText("Why couldn't the signs be collected?")).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Property not ready' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Access blocked' }));
+    expect(onProblem).toHaveBeenCalledWith('Access blocked');
   });
 
   it('opens directly on the reason step when initialStep is "reason"', () => {
@@ -91,15 +99,14 @@ describe('StopCompletionDialog', () => {
       <StopCompletionDialog
         stop={stop}
         phase="placement"
-        busy={false}
         initialStep="reason"
         onComplete={jest.fn()}
-        onSkip={jest.fn()}
+        onProblem={jest.fn()}
         onClose={jest.fn()}
       />
     );
 
-    expect(screen.getByText('Why is this stop skipped?')).toBeInTheDocument();
+    expect(screen.getByText("Why can't the signs go up?")).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Signs Placed' })).not.toBeInTheDocument();
   });
 
@@ -108,24 +115,22 @@ describe('StopCompletionDialog', () => {
       <StopCompletionDialog
         stop={stop}
         phase="placement"
-        busy={false}
         initialStep="reason"
         onComplete={jest.fn()}
-        onSkip={jest.fn()}
+        onProblem={jest.fn()}
         onClose={jest.fn()}
       />
     );
-    expect(screen.getByText('Why is this stop skipped?')).toBeInTheDocument();
+    expect(screen.getByText("Why can't the signs go up?")).toBeInTheDocument();
 
     const otherStop: Stop = { ...stop, id: 'stop-2', address: '200 Second Ave', formattedAddress: undefined };
     rerender(
       <StopCompletionDialog
         stop={otherStop}
         phase="placement"
-        busy={false}
         initialStep="action"
         onComplete={jest.fn()}
-        onSkip={jest.fn()}
+        onProblem={jest.fn()}
         onClose={jest.fn()}
       />
     );

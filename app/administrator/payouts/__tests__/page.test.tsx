@@ -2,20 +2,25 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import AdministratorPayoutsPage from '../page';
-import { listAllCustomers } from '@/lib/queries/ListAllCustomers';
 import { listOperatorPayouts } from '@/lib/queries/ListOperatorPayouts';
 import { createOperatorPayout } from '@/lib/queries/CreateOperatorPayout';
 import { updateOperatorPayout } from '@/lib/queries/UpdateOperatorPayout';
-import { getCustomer } from '@/lib/queries';
 import { computeDriverSplit } from '@/lib/driverSplit';
+import { callApi } from '@/lib/apiClient';
+import { listAllCustomers, getCustomer } from '@/lib/customers';
 
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/lib/queries/ListAllCustomers', () => ({
+jest.mock('@/lib/apiClient', () => ({
+  callApi: jest.fn(),
+}));
+
+jest.mock('@/lib/customers', () => ({
   listAllCustomers: jest.fn(),
+  getCustomer: jest.fn(),
 }));
 
 jest.mock('@/lib/queries/ListOperatorPayouts', () => ({
@@ -30,10 +35,6 @@ jest.mock('@/lib/queries/UpdateOperatorPayout', () => ({
   updateOperatorPayout: jest.fn(),
 }));
 
-jest.mock('@/lib/queries', () => ({
-  getCustomer: jest.fn(),
-}));
-
 jest.mock('@/lib/driverSplit', () => ({
   computeDriverSplit: jest.fn(),
 }));
@@ -41,42 +42,33 @@ jest.mock('@/lib/driverSplit', () => ({
 describe('Administrator Payouts page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (listAllCustomers as jest.Mock).mockResolvedValue({
-      data: [
-        { id: 'cust-1', name: 'Harcourts Epping' },
-        { id: 'cust-2', name: 'Ray White Eastwood' },
-      ],
-      errors: undefined,
-    });
-    (listOperatorPayouts as jest.Mock).mockResolvedValue({
-      data: [
-        {
-          id: 'payout-1',
-          operatorSub: 'op-1',
-          customerId: 'cust-1',
-          periodStartDate: '2026-08-01',
-          periodEndDate: '2026-08-20',
-          amount: 120,
-          status: 'pending',
-        },
-        {
-          id: 'payout-2',
-          operatorSub: 'op-2',
-          customerId: 'cust-1',
-          periodStartDate: '2026-07-01',
-          periodEndDate: '2026-07-31',
-          amount: 80,
-          status: 'paid',
-        },
-      ],
-      errors: undefined,
-    });
-    (getCustomer as jest.Mock).mockResolvedValue({
-      data: { id: 'cust-1', billingRatePerHour: 30, driverSplitPercent: 40, paySplitOnCompletedStopsOnly: false },
-      errors: undefined,
-    });
-    (createOperatorPayout as jest.Mock).mockResolvedValue({ data: { id: 'payout-new' }, errors: undefined });
-    (updateOperatorPayout as jest.Mock).mockResolvedValue({ data: { id: 'payout-1' }, errors: undefined });
+    (listAllCustomers as jest.Mock).mockResolvedValue([
+      { id: 'cust-1', name: 'Harcourts Epping' },
+      { id: 'cust-2', name: 'Ray White Eastwood' },
+    ]);
+    (listOperatorPayouts as jest.Mock).mockResolvedValue([
+      {
+        id: 'payout-1',
+        operatorSub: 'op-1',
+        customerId: 'cust-1',
+        periodStartDate: '2026-08-01',
+        periodEndDate: '2026-08-20',
+        amount: 120,
+        status: 'pending',
+      },
+      {
+        id: 'payout-2',
+        operatorSub: 'op-2',
+        customerId: 'cust-1',
+        periodStartDate: '2026-07-01',
+        periodEndDate: '2026-07-31',
+        amount: 80,
+        status: 'paid',
+      },
+    ]);
+    (getCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1', billingRatePerHour: 30, driverSplitPercent: 40, paySplitOnCompletedStopsOnly: false });
+    (createOperatorPayout as jest.Mock).mockResolvedValue({ id: 'payout-new' });
+    (updateOperatorPayout as jest.Mock).mockResolvedValue({ id: 'payout-1' });
     (computeDriverSplit as jest.Mock).mockResolvedValue({
       periodStartDate: '2026-08-01',
       periodEndDate: '2026-08-20',
@@ -86,6 +78,7 @@ describe('Administrator Payouts page', () => {
       retained: 180,
       byOperator: [{ operatorSub: 'op-1', billedAmount: 300, stopCount: 10, driverShare: 120 }],
     });
+    (callApi as jest.Mock).mockResolvedValue({ users: [{ sub: 'op-1', name: 'Aishling' }] });
   });
 
   it('lists existing payouts for both customers', async () => {
@@ -157,11 +150,28 @@ describe('Administrator Payouts page', () => {
     });
   });
 
+  it('shows the driver display name instead of a raw operator id', async () => {
+    render(<AdministratorPayoutsPage />);
+
+    expect(await screen.findByText('$120.00')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Operator' })).toBeInTheDocument();
+    expect(screen.getByText('Aishling')).toBeInTheDocument();
+    expect(screen.getByText('Operator op-2')).toBeInTheDocument();
+  });
+
   it('shows an empty state when there are no payouts', async () => {
-    (listOperatorPayouts as jest.Mock).mockResolvedValue({ data: [], errors: undefined });
+    (listOperatorPayouts as jest.Mock).mockResolvedValue([]);
 
     render(<AdministratorPayoutsPage />);
 
     expect(await screen.findByText(/no payouts yet/i)).toBeInTheDocument();
+  });
+
+  it('shows an error when payouts cannot be loaded', async () => {
+    (listOperatorPayouts as jest.Mock).mockRejectedValue(new Error('read failed'));
+
+    render(<AdministratorPayoutsPage />);
+
+    expect(await screen.findByText('Could not load payouts.')).toBeInTheDocument();
   });
 });

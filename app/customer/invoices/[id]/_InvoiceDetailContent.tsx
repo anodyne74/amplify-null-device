@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useRouter } from 'next/navigation';
-import { getInvoiceDetail, type InvoiceDetail } from '@/lib/queries/GetInvoiceDetail';
-import { getCustomerPortalContext } from '@/lib/queries';
+import { useCustomerPortalContext, type CustomerPortalContext } from '@/lib/useCustomerPortalContext';
+import { buildInvoiceFileName } from '@/lib/invoiceFileName';
 import InvoiceLineItems from '@/app/customer/components/InvoiceLineItems';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
@@ -12,7 +11,12 @@ import { useToast } from '@/app/components/ToastProvider';
 import { InvoiceStatusPill } from '@/app/customer/components/InvoiceListItem';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
+import HelpLink from '@/app/customer/components/HelpLink';
 import styles from './_InvoiceDetailContent.module.css';
+import { getInvoiceDetail, openInvoicePdf, type InvoiceDetail } from '@/lib/invoices';
+import { getInvoiceRouteLabel } from '@/lib/customerInvoiceList';
+import { listCustomerRouteRequests } from '@/lib/customerRouteRequests';
+import { customerRouteRequestSummary } from '@/lib/customerRouteRequestView';
 
 interface InvoiceDetailContentProps {
   params: {
@@ -20,90 +24,83 @@ interface InvoiceDetailContentProps {
   };
 }
 
+// Read-only customer users aren't authorized to read invoices at the
+// AppSync layer, so skip the fetch entirely rather than let it error.
+async function fetchInvoice(context: CustomerPortalContext, invoiceId: string): Promise<InvoiceDetail | null> {
+  if (context.role === 'read_only') {
+    return null;
+  }
+
+  const detail = await getInvoiceDetail({
+    invoiceId,
+    customerId: context.customerId,
+    userSub: context.userId,
+  });
+  if (!detail) throw new Error('Invoice not found');
+  return detail;
+}
+
+const formatDate = (dateString?: string | null) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+};
+
+/** "Requested by <name> on <date>, N amendments", linking to the Route's Requests section (#360). */
+function RouteRequestSummary({ routeId }: { routeId: string }) {
+  const [summary, setSummary] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    listCustomerRouteRequests(routeId)
+      .then((entries) => {
+        if (!cancelled) setSummary(customerRouteRequestSummary(entries, formatDate) ?? 'No request on file');
+      })
+      .catch((err) => {
+        // The summary is a pointer to the Route, not part of the invoice; leave it out.
+        console.error("Error loading the Route's requests:", err);
+        if (!cancelled) setSummary(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [routeId]);
+
+  if (!summary) return null;
+  return (
+    <div>
+      <p className={styles.infoLabel}>Request</p>
+      <a href={`/customer/routes/${routeId}#requests`} className={styles.routeLink}>
+        {summary} →
+      </a>
+    </div>
+  );
+}
+
 /**
  * Invoice Detail Page
  * Displays invoice with line items and download option
  */
 export default function InvoiceDetailContent({ params }: InvoiceDetailContentProps) {
-  const { user } = useAuthenticator();
   const router = useRouter();
   const { showToast } = useToast();
-  const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [readOnly, setReadOnly] = useState(false);
+  const {
+    role,
+    data: invoice,
+    loading,
+    error,
+  } = useCustomerPortalContext({
+    fetchData: (context) => fetchInvoice(context, params.id),
+    fetchDataDeps: [params.id],
+  });
+  const readOnly = role === 'read_only';
   const [pdfActionLoading, setPdfActionLoading] = useState(false);
-
-  useEffect(() => {
-    if (!user?.userId) return;
-    let cancelled = false;
-
-    const fetchInvoice = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const context = await getCustomerPortalContext(user.userId);
-
-        if (context.role === 'read_only') {
-          if (!cancelled) {
-            setReadOnly(true);
-          }
-          return;
-        }
-
-        if (!context.customerId) {
-          if (!cancelled) {
-            setError('Could not resolve your customer account');
-          }
-          return;
-        }
-
-        const result = await getInvoiceDetail({
-          invoiceId: params.id,
-          customerId: context.customerId,
-          userSub: user.userId,
-        });
-
-        if (cancelled) return;
-
-        if (result.errors && result.errors.length > 0) {
-          setError('Failed to load invoice');
-          console.error('Error fetching invoice:', result.errors);
-        } else if (!result.data) {
-          setError('Invoice not found');
-        } else {
-          setInvoice(result.data);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError('Failed to load invoice');
-          console.error('Error fetching invoice:', err);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchInvoice();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.userId, params.id]);
 
   const handlePdfAction = async (action: 'view' | 'download') => {
     if (!invoice?.pdfS3Key) return;
     setPdfActionLoading(true);
     try {
-      const { getUrl } = await import('aws-amplify/storage');
-      const { url } = await getUrl({
-        path: invoice.pdfS3Key,
-        options: { validateObjectExistence: false },
-      });
-      const urlString = url.toString();
+      const urlString = await openInvoicePdf(invoice.id);
 
       if (action === 'view') {
         window.open(urlString, '_blank', 'noopener,noreferrer');
@@ -112,7 +109,7 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
 
       const link = document.createElement('a');
       link.href = urlString;
-      link.download = `${invoice.invoiceNumber || invoice.id}.pdf`;
+      link.download = buildInvoiceFileName(invoice.customerName, invoice.invoiceNumber, invoice.id);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -122,12 +119,6 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
     } finally {
       setPdfActionLoading(false);
     }
-  };
-
-  const formatDate = (dateString?: string | null) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   };
 
   if (loading) {
@@ -182,7 +173,10 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
         ]}
       />
 
-      <h1 className={styles.pageTitle}>Invoice {invoice.invoiceNumber || invoice.id}</h1>
+      <div className={styles.titleRow}>
+        <h1 className={styles.pageTitle}>Invoice {invoice.invoiceNumber || invoice.id}</h1>
+        <HelpLink />
+      </div>
 
       <div className={styles.layout}>
         <Card padded={false}>
@@ -214,10 +208,12 @@ export default function InvoiceDetailContent({ params }: InvoiceDetailContentPro
                 <div>
                   <p className={styles.infoLabel}>Route</p>
                   <a href={`/customer/routes/${invoice.routeId}`} className={styles.routeLink}>
-                    View Route →
+                    {getInvoiceRouteLabel(invoice)} →
                   </a>
                 </div>
               )}
+
+              {invoice.routeId && <RouteRequestSummary routeId={invoice.routeId} />}
             </div>
           </div>
 

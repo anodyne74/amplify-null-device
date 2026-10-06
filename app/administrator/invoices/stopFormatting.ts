@@ -1,3 +1,5 @@
+import { groupByAgent, signsPlaced } from '@/lib/signRunTotals';
+
 export interface StopSummary {
   address?: string | null;
   formattedAddress?: string | null;
@@ -44,24 +46,20 @@ export function formatStopProperty(stop: StopSummary): string {
  * so sign counts always reconcile with the flat total.
  */
 export function groupStopsByAgent(stops: StopSummary[]): AgentStopGroup[] {
-  const order: string[] = [];
-  const byAgent = new Map<string, StopSummary[]>();
+  return groupByAgent(stops).map((group) => ({
+    ...group,
+    signCount: signsPlaced(group.stops),
+  }));
+}
 
-  for (const stop of stops) {
-    const agent = stop.agent?.trim() || 'Unassigned';
-    if (!byAgent.has(agent)) {
-      byAgent.set(agent, []);
-      order.push(agent);
-    }
-    byAgent.get(agent)!.push(stop);
-  }
-
-  return order.map((agent) => {
-    const agentStops = byAgent.get(agent)!;
-    return {
-      agent,
-      stops: agentStops,
-      signCount: agentStops.reduce((sum, stop) => sum + (stop.numberOfSigns ?? 0), 0),
-    };
-  });
+/**
+ * The invoice PDF's agent groups (#390): alphabetical by agent, ignoring case,
+ * with "Unassigned" last. Each group keeps its Stops in run order. The Load
+ * screen and the on-screen preview keep first-appearance order.
+ */
+export function groupStopsByAgentAlphabetically(stops: StopSummary[]): AgentStopGroup[] {
+  const unassignedLast = (group: AgentStopGroup) => (group.agent === 'Unassigned' ? 1 : 0);
+  return groupStopsByAgent(stops).sort(
+    (a, b) => unassignedLast(a) - unassignedLast(b) || a.agent.localeCompare(b.agent, 'en', { sensitivity: 'base' })
+  );
 }

@@ -12,6 +12,10 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Gen 2 outputs schema version, as `ampx` writes it. Amplify.configure ignores
+// an outputs file without one, leaving auth and data unconfigured (#397).
+const AMPLIFY_OUTPUTS_VERSION = '1.4';
+
 const readPath = (obj, paths) => {
   for (const entry of paths) {
     const value = entry.split('.').reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj);
@@ -135,8 +139,14 @@ const generateAmplifyOutputs = () => {
       models: {},
     };
 
+  const version =
+    readPath(backendOutputs, ['version']) ||
+    (allowExistingOutputsFallback ? readPath(existingOutputs, ['version']) : undefined) ||
+    AMPLIFY_OUTPUTS_VERSION;
+
   // If we have real values, use them; otherwise use placeholders
   const outputs = {
+    version,
     auth: {
       user_pool_id: userPoolId || 'PLACEHOLDER_USER_POOL_ID',
       aws_region: region,

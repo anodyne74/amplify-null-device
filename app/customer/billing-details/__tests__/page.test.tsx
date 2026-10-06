@@ -2,15 +2,13 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import CustomerBillingDetailsPage from '../page';
-import { getCustomer, getCustomerPortalContext, updateCustomer } from '@/lib/queries';
+import { getCustomer, getCustomerPortalContext, updateCustomer } from '@/lib/customers';
 
-jest.mock('@aws-amplify/ui-react', () => ({
-  useAuthenticator: () => ({
-    user: { userId: 'user-sub-1' },
-  }),
+jest.mock('@/lib/use-user-groups', () => ({
+  useCurrentUserId: () => 'user-sub-1',
 }));
 
-jest.mock('@/lib/queries', () => ({
+jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn(),
   getCustomerPortalContext: jest.fn(),
   updateCustomer: jest.fn(),
@@ -41,22 +39,18 @@ describe('Customer Billing Details page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (getCustomer as jest.Mock).mockResolvedValue({
-      data: {
-        id: 'cust-1',
-        email: 'accounts@harcourtsepping.com.au',
-        billingCcEmails: ['prue@harcourtsepping.com.au'],
-        attachAgentBreakdown: true,
-        sendPaymentReminder: false,
-        companyName: 'Harcourts Epping Pty Ltd',
-        gstAbn: '48 221 604 992',
-        addressLine1: 'Suite 3, 52 Beecroft Rd',
-        billingRatePerHour: 65,
-        gstRegistered: true,
-        directDebitAccountName: 'Harcourts Epping Pty Ltd',
-      },
-      errors: undefined,
+      id: 'cust-1',
+      email: 'accounts@harcourtsepping.com.au',
+      billingCcEmails: ['prue@harcourtsepping.com.au'],
+      attachAgentBreakdown: true,
+      companyName: 'Harcourts Epping Pty Ltd',
+      gstAbn: '48 221 604 992',
+      addressLine1: 'Suite 3, 52 Beecroft Rd',
+      billingRatePerHour: 65,
+      gstRegistered: true,
+      directDebitAccountName: 'Harcourts Epping Pty Ltd',
     });
-    (updateCustomer as jest.Mock).mockResolvedValue({ data: { id: 'cust-1' }, errors: undefined });
+    (updateCustomer as jest.Mock).mockResolvedValue({ id: 'cust-1' });
   });
 
   it('allows the account owner to save the billing email', async () => {
@@ -78,7 +72,6 @@ describe('Customer Billing Details page', () => {
         email: 'billing@harcourtsepping.com.au',
         billingCcEmails: ['prue@harcourtsepping.com.au'],
         attachAgentBreakdown: true,
-        sendPaymentReminder: false,
       });
     });
 

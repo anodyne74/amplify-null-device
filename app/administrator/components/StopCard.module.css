@@ -11,16 +11,20 @@
   border-bottom: none;
 }
 
-.cardDelivery {
+.cardAwaiting {
   border-left-color: var(--indigo-400);
 }
 
-.cardPickup {
+.cardPlaced {
   border-left-color: var(--amber-400);
 }
 
-.cardInspection {
-  border-left-color: var(--violet-500);
+.cardPickedUp {
+  border-left-color: var(--neutral-400);
+}
+
+.cardCouldntCollect {
+  border-left-color: var(--border-default);
 }
 
 .cardTop {
@@ -53,16 +57,22 @@
   font-weight: var(--fw-bold);
 }
 
-.circleDelivery {
+.circleAwaiting {
   background: var(--indigo-400);
 }
 
-.circlePickup {
+.circlePlaced {
   background: var(--amber-400);
 }
 
-.circleInspection {
-  background: var(--violet-500);
+.circlePickedUp {
+  background: var(--neutral-400);
+}
+
+.circleCouldntCollect {
+  background: transparent;
+  border: 2px solid var(--border-default);
+  color: var(--text-subtle);
 }
 
 .body {
@@ -94,26 +104,25 @@
   text-transform: uppercase;
 }
 
-.agentBadge {
-  flex: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  border: var(--border-hairline) solid var(--border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: var(--fw-bold);
-  background: var(--nd-agent-badge-bg, var(--surface-hover));
-  color: var(--nd-agent-badge-fg, var(--text-body));
-}
-
 .actions {
   flex: none;
   display: flex;
   gap: var(--space-3);
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.missingBadge {
+  display: inline-block;
+  margin-top: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-fg);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+}
+
+.auctionBadge + .missingBadge {
+  margin-left: var(--space-2);
 }

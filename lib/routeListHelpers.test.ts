@@ -1,7 +1,6 @@
 import type { Route } from '@/amplify/types';
 import {
   compareRouteIdDesc,
-  compareRouteStatusAsc,
   formatEstimatedDurationMinutes,
   formatRouteDuration,
 } from '@/lib/routeListHelpers';
@@ -22,23 +21,60 @@ describe('routeListHelpers', () => {
       expect(formatRouteDuration(makeRoute({ actualDurationMinutes: 75 }))).toBe('75 min');
     });
 
-    it('shows in-progress elapsed text when actively running', () => {
-      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2024-01-01T01:10:00Z').getTime());
+    it('prefers the operator-confirmed override duration over actual duration', () => {
+      expect(
+        formatRouteDuration(makeRoute({ actualDurationMinutes: 75, overrideDurationMinutes: 90 }))
+      ).toBe('90 min');
+    });
+
+    it("labels an in-progress route's finished phase time as in progress", () => {
+      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2024-01-01T14:00:00Z').getTime());
 
       expect(
         formatRouteDuration(
           makeRoute({
             status: 'in_progress',
-            actualStartTime: '2024-01-01T01:00:00Z',
+            executionPhase: 'pickup',
+            actualStartTime: '2024-01-01T09:00:00Z',
+            loadStartedAt: '2024-01-01T09:00:00Z',
+            loadConfirmedAt: '2024-01-01T09:20:00Z',
+            placementStartTime: '2024-01-01T09:30:00Z',
+            placementEndTime: '2024-01-01T10:15:00Z',
+            pickupStartTime: '2024-01-01T13:00:00Z',
           })
         )
-      ).toBe('10 min (in progress)');
+      ).toBe('65 min (in progress)');
 
       nowSpy.mockRestore();
     });
 
     it('returns fallback marker when duration cannot be derived', () => {
       expect(formatRouteDuration(makeRoute({ status: 'planned', actualDurationMinutes: undefined }))).toBe('—');
+    });
+
+    it('shows the fallback marker while the first phase of a route is under way', () => {
+      expect(
+        formatRouteDuration(
+          makeRoute({
+            status: 'planned',
+            executionPhase: 'load',
+            actualStartTime: '2024-01-01T09:00:00Z',
+            loadStartedAt: '2024-01-01T09:00:00Z',
+          })
+        )
+      ).toBe('—');
+    });
+
+    it('shows a legacy completed route its start-to-end time, unlabelled', () => {
+      expect(
+        formatRouteDuration(
+          makeRoute({
+            status: 'completed',
+            actualStartTime: '2024-01-01T01:00:00Z',
+            actualEndTime: '2024-01-01T02:30:00Z',
+          })
+        )
+      ).toBe('90 min');
     });
   });
 
@@ -66,31 +102,30 @@ describe('routeListHelpers', () => {
 
       expect(routes.map((route) => route.id)).toEqual(['route-10', 'route-2', 'route-1']);
     });
-  });
 
-  describe('compareRouteStatusAsc', () => {
-    it('sorts routes by configured status order', () => {
+    it('sorts route codes by year and week, not by week alone', () => {
+      // A plain (even numeric-aware) string compare would put W48-23-001 after
+      // W02-24-001, since 48 > 2 — this asserts year is compared first.
       const routes = [
-        makeRoute({ id: 'r-completed', status: 'completed' }),
-        makeRoute({ id: 'r-planned', status: 'planned' }),
-        makeRoute({ id: 'r-signs-placed', status: 'signs_placed' }),
+        makeRoute({ id: 'a', routeCode: 'W48-23-001' }),
+        makeRoute({ id: 'b', routeCode: 'W02-24-001' }),
+        makeRoute({ id: 'c', routeCode: 'W37-26-001' }),
       ];
 
-      routes.sort(compareRouteStatusAsc);
+      routes.sort(compareRouteIdDesc);
 
-      expect(routes.map((route) => route.id)).toEqual(['r-planned', 'r-signs-placed', 'r-completed']);
+      expect(routes.map((route) => route.routeCode)).toEqual(['W37-26-001', 'W02-24-001', 'W48-23-001']);
     });
 
-    it('uses descending route id as tie-breaker for same status', () => {
+    it('breaks ties within the same week by sequence number', () => {
       const routes = [
-        makeRoute({ id: 'route-1', status: 'planned' }),
-        makeRoute({ id: 'route-10', status: 'planned' }),
-        makeRoute({ id: 'route-2', status: 'planned' }),
+        makeRoute({ id: 'a', routeCode: 'W36-26-001' }),
+        makeRoute({ id: 'b', routeCode: 'W36-26-002' }),
       ];
 
-      routes.sort(compareRouteStatusAsc);
+      routes.sort(compareRouteIdDesc);
 
-      expect(routes.map((route) => route.id)).toEqual(['route-10', 'route-2', 'route-1']);
+      expect(routes.map((route) => route.routeCode)).toEqual(['W36-26-002', 'W36-26-001']);
     });
   });
 });

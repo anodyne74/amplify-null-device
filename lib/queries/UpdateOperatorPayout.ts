@@ -1,7 +1,10 @@
 /**
  * Update an operator payout — used to mark a payout as paid
+ *
+ * Returns its data or throws a DataError (lib/graphqlResult.ts).
  */
 import { getDataClient } from '@/lib/data-client';
+import { resultData, withDataError } from '@/lib/graphqlResult';
 
 export async function updateOperatorPayout(
   id: string,
@@ -11,16 +14,7 @@ export async function updateOperatorPayout(
     notes: string;
   }>
 ) {
-  try {
-    const { data, errors } = await getDataClient().models.OperatorPayout.update({ id, ...updates });
-
-    if (errors) {
-      console.error('Errors updating operator payout:', errors);
-    }
-
-    return { data, errors };
-  } catch (error) {
-    console.error('Error updating operator payout:', error);
-    return { data: null, errors: [error as Error] };
-  }
+  return withDataError('Failed to update payout.', async () =>
+    resultData(await getDataClient().models.OperatorPayout.update({ id, ...updates }))
+  );
 }

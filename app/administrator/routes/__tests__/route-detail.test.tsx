@@ -2,9 +2,9 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import RouteDetailPage from '../detail/page';
-import * as getRouteDetailModule from '@/lib/queries/GetRouteDetail';
-import * as deleteStopModule from '@/lib/queries/DeleteStop';
+import type { RouteWithStopsFeedHandlers } from '@/lib/routeWithStopsFeed';
 import type { Route, Stop } from '@/amplify/types';
+import { deleteStop } from '@/lib/routes';
 
 const mockOperatorRoute = jest.fn(({ children }: { children: React.ReactNode; requireAdmin?: boolean }) => <>{children}</>);
 
@@ -35,63 +35,45 @@ jest.mock('@/lib/amplify-config', () => ({
 }));
 
 // Mock OperatorRoute to render children
+jest.mock('@/app/administrator/components/RouteRequestsCard', () => ({
+  RouteRequestsCard: () => <div>Requests</div>,
+}));
+
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
   default: (props: { children: React.ReactNode; requireAdmin?: boolean }) => mockOperatorRoute(props),
 }));
 
 // Mock query modules
-jest.mock('@/lib/queries/GetRouteDetail');
-jest.mock('@/lib/queries/DeleteStop');
-jest.mock('@/lib/queries', () => ({
-  getCustomer: jest.fn().mockResolvedValue({ data: { id: 'cust-abcd-5678', name: 'Acme Corp' }, errors: undefined }),
-  getRouteWithStops: jest.fn().mockResolvedValue({
-    stops: [
-      {
-        id: 'stop-1',
-        routeId: 'route-test-id-1234',
-        sequence: 1,
-        address: '100 First St',
-        serviceType: 'delivery',
-      },
-      {
-        id: 'stop-2',
-        routeId: 'route-test-id-1234',
-        sequence: 2,
-        address: '200 Second Ave',
-        serviceType: 'pickup',
-      },
-    ],
-    errors: undefined,
-  }),
+// Nothing is pushed live unless a test does so through mockFeed.
+const mockFeed: { handlers: RouteWithStopsFeedHandlers | null } = { handlers: null };
+jest.mock('@/lib/routeWithStopsFeed', () => ({
+  subscribeRouteWithStops: (_routeId: string, handlers: RouteWithStopsFeedHandlers) => {
+    mockFeed.handlers = handlers;
+    return () => {};
+  },
+}));
+
+// What getRouteWithStops resolves to; tests override route/stops per case.
+const mockFetched: { route: unknown; stops: unknown[] } = { route: null, stops: [] };
+jest.mock('@/lib/routes', () => ({
+  deleteStop: jest.fn(),
+  resequenceStops: jest.fn().mockResolvedValue(undefined),
+  getRouteWithStops: jest.fn(() => Promise.resolve({ ...mockFetched })),
   createStop: jest.fn().mockResolvedValue({ data: { id: 'new-stop' }, errors: undefined }),
   deleteRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
-}));
-jest.mock('@/lib/queries/UpdateStop', () => ({
+  updateRoute: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
   updateStop: jest.fn().mockResolvedValue({ data: {}, errors: undefined }),
 }));
 
-// Mock generateClient from aws-amplify/data
-// Note: factory is hoisted, so we define mocks inside and expose via module variable
-let mockStopList: jest.Mock;
-let mockRouteUpdate: jest.Mock;
-let mockStopUpdate: jest.Mock;
+const mockListRouteInvoices = jest.fn();
+jest.mock('@/lib/invoices', () => ({
+  listRouteInvoices: (...args: unknown[]) => mockListRouteInvoices(...args),
+}));
 
-jest.mock('aws-amplify/data', () => {
-  const stopList = jest.fn();
-  const routeUpdate = jest.fn();
-  const stopUpdate = jest.fn();
-  return {
-    generateClient: jest.fn(() => ({
-      models: {
-        Stop: { list: stopList, update: stopUpdate },
-        Route: { update: routeUpdate },
-      },
-    })),
-    // expose for assignment below
-    __mocks: { stopList, routeUpdate, stopUpdate },
-  };
-});
+jest.mock('@/lib/customers', () => ({
+  getCustomer: jest.fn().mockResolvedValue({ id: 'cust-abcd-5678', name: 'Acme Corp', billingRatePerHour: 30 }),
+}));
 
 const mockRoute: Route = {
   id: 'route-test-id-1234',
@@ -108,14 +90,41 @@ const mockStops: Stop[] = [
     routeId: 'route-test-id-1234',
     sequence: 1,
     address: '100 First St',
-    serviceType: 'delivery',
   },
   {
     id: 'stop-2',
     routeId: 'route-test-id-1234',
     sequence: 2,
     address: '200 Second Ave',
-    serviceType: 'pickup',
+  },
+];
+
+// A legacy-imported completed route: import-prep.js stamps every phase
+// timestamp with the same single known date (no granular start/end was
+// recorded).
+const mockLegacyCompletedRoute: Route = {
+  id: 'route-test-id-1234',
+  routeCode: 'W14-25-001',
+  customerId: 'cust-abcd-5678',
+  status: 'completed',
+  createdAt: '2024-03-01T10:00:00Z',
+  actualDurationMinutes: 165,
+  actualStartTime: '2025-04-15T00:00:00.000Z',
+  actualEndTime: '2025-04-15T00:00:00.000Z',
+  placementStartTime: '2025-04-15T00:00:00.000Z',
+  placementEndTime: '2025-04-15T00:00:00.000Z',
+  pickupStartTime: '2025-04-15T00:00:00.000Z',
+  pickupEndTime: '2025-04-15T00:00:00.000Z',
+};
+
+const mockLegacyCompletedStops: Stop[] = [
+  {
+    id: 'stop-1',
+    routeId: 'route-test-id-1234',
+    sequence: 1,
+    address: '100 First St',
+    actualDepartureTime: '2025-04-15T00:00:00.000Z',
+    numberOfSigns: 4,
   },
 ];
 
@@ -123,30 +132,12 @@ describe('Operator Route Detail Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Grab the mocks from inside the factory
-    const amplifyData = require('aws-amplify/data');
-    const { __mocks } = amplifyData;
-    mockStopList = __mocks.stopList;
-    mockRouteUpdate = __mocks.routeUpdate;
-    mockStopUpdate = __mocks.stopUpdate;
+    mockFetched.route = mockRoute;
 
-    (getRouteDetailModule.getRouteDetail as jest.Mock).mockResolvedValue({
-      data: mockRoute,
-      errors: undefined,
-    });
+    mockFetched.stops = mockStops;
 
-    mockStopList.mockResolvedValue({
-      data: mockStops,
-      errors: undefined,
-    });
-
-    mockRouteUpdate.mockResolvedValue({ errors: undefined });
-    mockStopUpdate.mockResolvedValue({ errors: undefined });
-
-    (deleteStopModule.deleteStop as jest.Mock).mockResolvedValue({
-      data: {},
-      errors: undefined,
-    });
+    (deleteStop as jest.Mock).mockResolvedValue(undefined);
+    mockListRouteInvoices.mockResolvedValue([]);
   });
 
   it('renders route information after loading', async () => {
@@ -186,6 +177,9 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByText('200 Second Ave')).toBeInTheDocument();
   });
 
+  // Smoke test for the shared lib/stopStatusLabel wiring — full label-case
+  // coverage (skip reasons, legacy-import fallback, etc.) lives in
+  // lib/stopStatusLabel.test.ts so it isn't duplicated per portal.
   it('shows "Load signs" instead of "Awaiting placement" for a planned route (#5)', async () => {
     render(<RouteDetailPage />);
 
@@ -195,6 +189,14 @@ describe('Operator Route Detail Page', () => {
 
     expect(screen.getAllByText('Load signs').length).toBeGreaterThan(0);
     expect(screen.queryByText('Awaiting placement')).not.toBeInTheDocument();
+  });
+
+  it('offers to settle every stop during Placement', async () => {
+    mockFetched.route = { ...mockRoute, status: 'in_progress', executionPhase: 'placement' };
+
+    render(<RouteDetailPage />);
+
+    expect(await screen.findAllByRole('button', { name: 'Signs Placed' })).toHaveLength(2);
   });
 
   it('shows "Add Stop" button', async () => {
@@ -207,8 +209,7 @@ describe('Operator Route Detail Page', () => {
     expect(screen.getByRole('button', { name: /add stop/i })).toBeInTheDocument();
   });
 
-  it('calls deleteStop in one click after the browser confirm is accepted', async () => {
-    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true);
+  it('calls deleteStop after confirming in the dialog', async () => {
     render(<RouteDetailPage />);
 
     await waitFor(() => {
@@ -218,16 +219,20 @@ describe('Operator Route Detail Page', () => {
     const stopDeleteButtons = screen.getAllByRole('button', { name: /^delete$/i });
     fireEvent.click(stopDeleteButtons[0]);
 
-    expect(confirmSpy).toHaveBeenCalled();
-    await waitFor(() => {
-      expect(deleteStopModule.deleteStop).toHaveBeenCalledWith('stop-1');
-    });
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete stop?' });
+    expect(deleteStop).not.toHaveBeenCalled();
 
-    confirmSpy.mockRestore();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => {
+      expect(deleteStop).toHaveBeenCalledWith('stop-1');
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    });
   });
 
-  it('does not call deleteStop when the browser confirm is dismissed', async () => {
-    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false);
+  it('does not call deleteStop when the confirmation dialog is cancelled', async () => {
     render(<RouteDetailPage />);
 
     await waitFor(() => {
@@ -237,20 +242,23 @@ describe('Operator Route Detail Page', () => {
     const stopDeleteButtons = screen.getAllByRole('button', { name: /^delete$/i });
     fireEvent.click(stopDeleteButtons[0]);
 
-    expect(confirmSpy).toHaveBeenCalled();
-    expect(deleteStopModule.deleteStop).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete stop?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
-    confirmSpy.mockRestore();
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(deleteStop).not.toHaveBeenCalled();
   });
 
-  it('shows "Start Route" button for planned routes', async () => {
+  it('shows a read-only phase tracker for planned routes instead of transition buttons', async () => {
     render(<RouteDetailPage />);
 
     await waitFor(() => {
       expect(screen.queryByText(/loading route/i)).not.toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: /start route/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /route phase/i })).toBeInTheDocument();
+    expect(screen.getByText(/planned · phase 1 of 6/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /start route/i })).not.toBeInTheDocument();
   });
 
   it('shows breadcrumb navigation back to the routes list', async () => {
@@ -264,5 +272,212 @@ describe('Operator Route Detail Page', () => {
     const routesLink = within(breadcrumbs).getByRole('link', { name: 'Routes' });
     expect(routesLink).toHaveAttribute('href', '/administrator/routes');
     expect(within(breadcrumbs).getByText(/route w19-26-001/i)).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('shows a legacy-imported completed route\'s stops as done, not "Awaiting placement"', async () => {
+    mockFetched.route = mockLegacyCompletedRoute;
+    mockFetched.stops = mockLegacyCompletedStops;
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('100 First St')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Awaiting placement')).not.toBeInTheDocument();
+  });
+
+  it('derives Time Taken/Amount from actualDurationMinutes, not the 15+15min load/unload floor', async () => {
+    mockFetched.route = mockLegacyCompletedRoute;
+    mockFetched.stops = mockLegacyCompletedStops;
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /route summary/i })).toBeInTheDocument();
+    });
+
+    // 165 real minutes, not the 15+15=30min floor that identical phase start/end timestamps used to collapse to.
+    expect(screen.getAllByText('2h 45m').length).toBeGreaterThan(0);
+    expect(screen.queryByText('30 min')).not.toBeInTheDocument();
+    // The Customer's $30/hr * 165min => $82.50, not the $15 the 30min floor produced.
+    expect(screen.getByText('$82.50')).toBeInTheDocument();
+  });
+
+  it('excludes missing signs from "Total Number of Signs" — a stop returning 10 with 3 missing counts as 7', async () => {
+    mockFetched.route = mockLegacyCompletedRoute;
+    const stopsWithMissingSigns: Stop[] = [
+      {
+        id: 'stop-1',
+        routeId: 'route-test-id-1234',
+        sequence: 1,
+        address: '100 First St',
+        notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]',
+        numberOfSigns: 10,
+        missingSignsCount: 3,
+      },
+    ];
+    mockFetched.stops = stopsWithMissingSigns;
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Total Number of Signs')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('7')).toBeInTheDocument();
+  });
+
+  it('lets an administrator correct the Billed Time of a completed Route, warning when it was invoiced', async () => {
+    mockFetched.route = mockLegacyCompletedRoute;
+    mockFetched.stops = mockLegacyCompletedStops;
+    mockListRouteInvoices.mockResolvedValue([{ id: 'inv-1', invoiceNumber: 'ND-INV-128' }]);
+
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /correct billed time/i })).toBeInTheDocument();
+    });
+    // A Route from before the Sign Run is corrected by its total.
+    expect(screen.getByLabelText('Total charged (minutes)')).toHaveValue('165');
+    expect(await screen.findByText(/Already invoiced on ND-INV-128/)).toBeInTheDocument();
+    expect(mockListRouteInvoices).toHaveBeenCalledWith('route-test-id-1234');
+  });
+
+  it('offers no Billed Time correction before a Route is completed', async () => {
+    render(<RouteDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('100 First St')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('heading', { name: /correct billed time/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the Pickup Date read-only; it is changed on Edit Route (#463)', async () => {
+    mockFetched.route = { ...mockRoute, scheduledDate: '2026-10-06', pickupDate: '2026-10-10' };
+
+    render(<RouteDetailPage />);
+
+    expect(await screen.findByText('Oct 10, 2026')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Pickup date')).not.toBeInTheDocument();
+  });
+
+  it('shows "—" for a Route with no Pickup Date (#463)', async () => {
+    render(<RouteDetailPage />);
+
+    const label = await screen.findByText('Pickup Date');
+    expect(label.parentElement).toHaveTextContent('Pickup Date—');
+  });
+
+  it('marks a Route changed on the day with a chip that matches the status chip (#463)', async () => {
+    mockFetched.stops = [
+      ...mockStops,
+      { id: 'stop-3', routeId: 'route-test-id-1234', sequence: 3, address: '300 Third Rd', removed: true, removedAt: '2026-10-04T13:24:16.967Z' },
+    ];
+
+    render(<RouteDetailPage />);
+
+    const chip = await screen.findByText('changed on the day');
+    expect(chip.closest('.nd-badge')?.querySelector('.nd-badge__dot')).not.toBeNull();
+  });
+
+  describe('Restore on a Removed Stop (#465)', () => {
+    const removedStop = {
+      id: 'stop-3',
+      routeId: 'route-test-id-1234',
+      sequence: 3,
+      address: '300 Third Rd',
+      removed: true,
+      removedAt: '2026-10-04T13:24:16.967Z',
+    };
+
+    it('is offered before the Route is finalised', async () => {
+      mockFetched.route = { ...mockRoute, status: 'in_progress', executionPhase: 'unload', loadConfirmedAt: '2026-10-04T13:24:27.986Z' };
+      mockFetched.stops = [...mockStops, removedStop];
+
+      render(<RouteDetailPage />);
+
+      expect(await screen.findByText('300 Third Rd')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Restore' })).toBeInTheDocument();
+    });
+
+    it('is not offered once the Route is finalised, though the Stop still shows as removed', async () => {
+      mockFetched.route = mockLegacyCompletedRoute;
+      mockFetched.stops = [...mockLegacyCompletedStops, removedStop];
+
+      render(<RouteDetailPage />);
+
+      expect(await screen.findByText('300 Third Rd')).toBeInTheDocument();
+      expect(screen.getByText(/Removed at Load/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Restore' })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Customer feedback (#467)', () => {
+    it('shows what the customer said, who and when', async () => {
+      mockFetched.route = {
+        ...mockLegacyCompletedRoute,
+        customerFeedbackTone: 'issue',
+        customerFeedbackNote: 'Two signs faced the wrong way.',
+        customerFeedbackByName: 'Ann Agent',
+        customerFeedbackAt: '2026-10-05T01:00:00.000Z',
+      };
+      mockFetched.stops = mockLegacyCompletedStops;
+
+      render(<RouteDetailPage />);
+
+      const section = await screen.findByRole('region', { name: 'Customer feedback' });
+      expect(section).toHaveTextContent('Something was off');
+      expect(section).toHaveTextContent('Two signs faced the wrong way.');
+      expect(section).toHaveTextContent(/Ann Agent/);
+    });
+
+    it('says when none has been given on a completed Route', async () => {
+      mockFetched.route = mockLegacyCompletedRoute;
+      mockFetched.stops = mockLegacyCompletedStops;
+
+      render(<RouteDetailPage />);
+
+      expect(await screen.findByRole('region', { name: 'Customer feedback' })).toHaveTextContent('No feedback yet.');
+    });
+
+    it('is not shown before the Route is completed', async () => {
+      render(<RouteDetailPage />);
+
+      await screen.findByText('100 First St');
+      expect(screen.queryByRole('region', { name: 'Customer feedback' })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Missing Signs (#468)', () => {
+    const stopsWithMissing: Stop[] = [
+      { id: 'stop-1', routeId: 'route-test-id-1234', sequence: 1, address: '100 First St', notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]', numberOfSigns: 4, missingSignsCount: 1 },
+      { id: 'stop-2', routeId: 'route-test-id-1234', sequence: 2, address: '200 Second Ave', notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]', numberOfSigns: 5, missingSignsCount: 2 },
+      { id: 'stop-3', routeId: 'route-test-id-1234', sequence: 3, address: '300 Third Rd', notes: '[PICKUP_DONE:2025-04-15T00:00:00.000Z]', numberOfSigns: 3 },
+      // Couldn't Collect, yet one sign was already found missing there.
+      { id: 'stop-4', routeId: 'route-test-id-1234', sequence: 4, address: '400 Fourth St', notes: '[PICKUP_SKIPPED:2025-04-15T00:00:00.000Z:Gate locked]', numberOfSigns: 2, missingSignsCount: 1 },
+    ];
+
+    it('shows how many signs went missing at each Stop', async () => {
+      mockFetched.route = mockLegacyCompletedRoute;
+      mockFetched.stops = stopsWithMissing;
+
+      render(<RouteDetailPage />);
+
+      expect(await screen.findByText('2 missing')).toBeInTheDocument();
+      // 100 First St, and the Couldn't Collect Stop at 400 Fourth St.
+      expect(screen.getAllByText('1 missing')).toHaveLength(2);
+      expect(screen.getAllByText(/^\d+ missing$/)).toHaveLength(3);
+    });
+
+    it('totals them in the Route Summary', async () => {
+      mockFetched.route = mockLegacyCompletedRoute;
+      mockFetched.stops = stopsWithMissing;
+
+      render(<RouteDetailPage />);
+
+      const label = await screen.findByText('Signs Missing');
+      expect(label.parentElement).toHaveTextContent('Signs Missing4');
+    });
   });
 });

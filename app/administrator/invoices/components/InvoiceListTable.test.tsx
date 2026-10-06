@@ -1,7 +1,6 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentProps } from 'react';
-import type { Route } from '@/amplify/types';
 import type { Invoice } from '@/app/administrator/invoices/types';
 import InvoiceListTable from '@/app/administrator/invoices/components/InvoiceListTable';
 import ToastProvider from '@/app/components/ToastProvider';
@@ -20,25 +19,16 @@ function createInvoice(overrides: Partial<Invoice> = {}): Invoice {
 }
 
 function renderTable(invoices: Invoice[], overrides: Partial<ComponentProps<typeof InvoiceListTable>> = {}) {
-  const routes: Route[] = [
-    {
-      id: 'route-1',
-      customerId: 'cust-1',
-      routeCode: 'R-101',
-    },
-  ];
-
   const props: ComponentProps<typeof InvoiceListTable> = {
     loading: false,
     invoices,
-    routes,
     uploadingId: null,
     pdfActionLoadingId: null,
     emailingInvoiceId: null,
     customerName: () => 'Acme Customer',
     routeCode: () => 'R-101',
     isInvoicePaid: (status) => status === 'paid',
-    onRouteLink: jest.fn(),
+    paymentTermsDaysForCustomer: () => 14,
     onGeneratePdf: jest.fn(),
     onPdfAction: jest.fn(),
     onUploadClick: jest.fn(),
@@ -57,16 +47,27 @@ function renderTable(invoices: Invoice[], overrides: Partial<ComponentProps<type
   );
 }
 
+function openRowMenu(invoiceNumber: string) {
+  fireEvent.click(screen.getByRole('button', { name: `More actions for invoice ${invoiceNumber}` }));
+}
+
 describe('InvoiceListTable', () => {
-  it('applies expected variants to visible actions when PDF is attached', () => {
+  it('shows a single primary View button plus a consolidated actions menu when PDF is attached', () => {
     renderTable([createInvoice()]);
 
+    expect(screen.getByRole('button', { name: 'View invoice INV-001' })).toHaveClass('nd-btn--primary');
+    expect(screen.queryByRole('button', { name: 'Mark invoice INV-001 as paid' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Email invoice INV-001' })).not.toBeInTheDocument();
+
+    openRowMenu('INV-001');
+
     expect(screen.getByRole('button', { name: 'View PDF for invoice INV-001' })).toHaveClass('nd-btn--ghost');
+    expect(screen.getByRole('button', { name: 'Upload PDF for invoice INV-001' })).toHaveClass('nd-btn--ghost');
+    expect(screen.getByRole('button', { name: 'Email invoice INV-001' })).toHaveClass('nd-btn--ghost');
     expect(screen.getByRole('button', { name: 'Mark invoice INV-001 as paid' })).toHaveClass('nd-btn--primary');
-    expect(screen.getByRole('button', { name: 'Email invoice INV-001' })).toHaveClass('nd-btn--secondary');
   });
 
-  it('shows generate action as primary and hides mark-paid when invoice is already paid', () => {
+  it('shows Continue as the primary action (secondary variant) and hides mark-paid when invoice is already paid', () => {
     renderTable([
       createInvoice({
         id: 'inv-2',
@@ -76,7 +77,9 @@ describe('InvoiceListTable', () => {
       }),
     ]);
 
-    expect(screen.getByRole('button', { name: 'Generate PDF for invoice INV-002' })).toHaveClass('nd-btn--primary');
+    expect(screen.getByRole('button', { name: 'Continue invoice INV-002' })).toHaveClass('nd-btn--secondary');
+
+    openRowMenu('INV-002');
     expect(screen.queryByRole('button', { name: 'Mark invoice INV-002 as paid' })).not.toBeInTheDocument();
   });
 
@@ -94,46 +97,22 @@ describe('InvoiceListTable', () => {
     expect(sentStatusChips.some((node) => node.className.includes('nd-badge--info'))).toBe(true);
   });
 
-  it('does not render generate or regenerate actions for imported invoices', () => {
+  it('renders no primary action for imported invoices with no PDF, and still allows uploading one', () => {
     renderTable([
       createInvoice({
         id: 'inv-5',
         invoiceNumber: 'INV-005',
         importedAt: '2026-06-03T10:00:00.000Z',
+        pdfS3Key: null,
       }),
     ]);
 
-    expect(screen.queryByRole('button', { name: 'Generate PDF for invoice INV-005' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue invoice INV-005' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'View invoice INV-005' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /more pdf actions for invoice inv-005/i }));
-    expect(screen.queryByRole('button', { name: 'Regenerate PDF for invoice INV-005' })).not.toBeInTheDocument();
-  });
-
-  it('requires confirmation before regenerating an attached invoice PDF', () => {
-    const onGeneratePdf = jest.fn();
-
-    renderTable([createInvoice()], { onGeneratePdf });
-
-    expect(screen.queryByRole('button', { name: 'Regenerate PDF for invoice INV-001' })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /more pdf actions for invoice inv-001/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Regenerate PDF for invoice INV-001' }));
-
-    const dialog = screen.getByRole('alertdialog', { name: 'Regenerate invoice PDF?' });
-    expect(dialog).toHaveTextContent('Regenerate invoice INV-001? This will replace the attached PDF.');
-    expect(onGeneratePdf).not.toHaveBeenCalled();
-
-    // Cancelling does not regenerate.
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-    expect(onGeneratePdf).not.toHaveBeenCalled();
-
-    // Confirming regenerates (row menu remains open after cancel).
-    fireEvent.click(screen.getByRole('button', { name: 'Regenerate PDF for invoice INV-001' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }));
-
-    expect(onGeneratePdf).toHaveBeenCalledWith(expect.objectContaining({ id: 'inv-1' }));
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    openRowMenu('INV-005');
+    expect(screen.getByRole('button', { name: 'Upload PDF for invoice INV-005' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'View PDF for invoice INV-005' })).toBeDisabled();
   });
 
   it('requires confirmation before marking an invoice as paid', () => {
@@ -141,13 +120,14 @@ describe('InvoiceListTable', () => {
 
     renderTable([createInvoice()], { onMarkPaid });
 
+    openRowMenu('INV-001');
     fireEvent.click(screen.getByRole('button', { name: 'Mark invoice INV-001 as paid' }));
 
     const dialog = screen.getByRole('alertdialog', { name: 'Mark invoice as paid?' });
     expect(dialog).toHaveTextContent('Mark invoice INV-001 as paid?');
     expect(onMarkPaid).not.toHaveBeenCalled();
 
-    // Cancelling does not mark paid.
+    // Cancelling does not mark paid. The row menu (independent state) stays open.
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onMarkPaid).not.toHaveBeenCalled();
 
@@ -157,37 +137,6 @@ describe('InvoiceListTable', () => {
 
     expect(onMarkPaid).toHaveBeenCalledWith('inv-1');
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-  });
-
-  it('sorts rows when a sortable header is clicked and reflects aria-sort', () => {
-    renderTable([
-      createInvoice({ id: 'inv-2', invoiceNumber: 'INV-002' }),
-      createInvoice({ id: 'inv-1', invoiceNumber: 'INV-001' }),
-    ]);
-
-    const header = screen.getByRole('button', { name: 'Sort by Invoice #' });
-    expect(header.closest('th')).toHaveAttribute('aria-sort', 'none');
-
-    // Default order matches the incoming invoice order.
-    let rows = screen.getAllByRole('row').slice(1);
-    expect(rows[0]).toHaveTextContent('INV-002');
-
-    fireEvent.click(header);
-    expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending');
-    rows = screen.getAllByRole('row').slice(1);
-    expect(rows[0]).toHaveTextContent('INV-001');
-    expect(rows[1]).toHaveTextContent('INV-002');
-
-    fireEvent.click(header);
-    expect(header.closest('th')).toHaveAttribute('aria-sort', 'descending');
-    rows = screen.getAllByRole('row').slice(1);
-    expect(rows[0]).toHaveTextContent('INV-002');
-
-    // Third click returns to the default order.
-    fireEvent.click(header);
-    expect(header.closest('th')).toHaveAttribute('aria-sort', 'none');
-    rows = screen.getAllByRole('row').slice(1);
-    expect(rows[0]).toHaveTextContent('INV-002');
   });
 
   it('paginates invoices 25 per page with boundary-aware controls', () => {
@@ -214,6 +163,22 @@ describe('InvoiceListTable', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Previous page of invoices' }));
     expect(screen.getByText('Showing 1–25 of 26 invoices')).toBeInTheDocument();
+  });
+
+  it('opens on the page holding a linked invoice, and marks its row', () => {
+    const invoices = Array.from({ length: 30 }, (_, i) =>
+      createInvoice({ id: `inv-${i + 1}`, invoiceNumber: `INV-${String(i + 1).padStart(3, '0')}` })
+    );
+    const scrollIntoView = jest.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    renderTable(invoices, { focusInvoiceId: 'inv-28' });
+
+    const row = screen.getByText('INV-028').closest('tr');
+    expect(row).toHaveAttribute('id', 'invoice-inv-28');
+    expect(row).toHaveAttribute('aria-current', 'true');
+    expect(screen.queryByText('INV-001')).not.toBeInTheDocument();
+    expect(scrollIntoView).toHaveBeenCalled();
   });
 
   it('supports select-all, indeterminate state, and bulk mark-paid through confirmation', async () => {
@@ -313,10 +278,16 @@ describe('InvoiceListTable', () => {
       { onDeleteInvoice }
     );
 
+    openRowMenu('INV-001');
     expect(screen.getByRole('button', { name: 'Delete invoice INV-001' })).toBeInTheDocument();
+
+    openRowMenu('INV-002');
     expect(screen.queryByRole('button', { name: 'Delete invoice INV-002' })).not.toBeInTheDocument();
+
+    openRowMenu('INV-003');
     expect(screen.queryByRole('button', { name: 'Delete invoice INV-003' })).not.toBeInTheDocument();
 
+    // INV-001's menu is still open (row menus close only on outside-click, not on other rows opening).
     fireEvent.click(screen.getByRole('button', { name: 'Delete invoice INV-001' }));
 
     const dialog = screen.getByRole('alertdialog', { name: 'Delete invoice?' });
@@ -333,16 +304,18 @@ describe('InvoiceListTable', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 
-  it('keeps replacement and download PDF actions inside an accessible row menu', () => {
+  it('consolidates PDF view/upload/email/mark-paid/delete into a single accessible row menu', () => {
     renderTable([createInvoice()]);
 
+    expect(screen.queryByRole('button', { name: 'View PDF for invoice INV-001' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Upload PDF for invoice INV-001' })).not.toBeInTheDocument();
+
+    openRowMenu('INV-001');
+
     expect(screen.getByRole('button', { name: 'View PDF for invoice INV-001' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Download PDF for invoice INV-001' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Replace PDF for invoice INV-001' })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /more pdf actions for invoice inv-001/i }));
-
-    expect(screen.getByRole('button', { name: 'Download PDF for invoice INV-001' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Replace PDF for invoice INV-001' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Upload PDF for invoice INV-001' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Email invoice INV-001' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mark invoice INV-001 as paid' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete invoice INV-001' })).toBeInTheDocument();
   });
 });

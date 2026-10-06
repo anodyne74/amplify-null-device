@@ -308,10 +308,8 @@ function parseLegacyDate(raw) {
   const text = String(raw).trim();
   if (!text) return null;
 
-  const direct = new Date(text);
-  if (!Number.isNaN(direct.getTime())) {
-    return direct.toISOString().slice(0, 10);
-  }
+  const iso = text.match(/^\d{4}-\d{2}-\d{2}/);
+  if (iso) return iso[0];
 
   const monthName = text.match(/^(\d{1,2})[\s-]([A-Za-z]{3})[\s-](\d{4})$/);
   if (monthName) {
@@ -334,6 +332,13 @@ function parseLegacyDate(raw) {
     }
   }
 
+
+  // Anything else Date can read is taken as written on the calendar: its local
+  // date, not toISOString's UTC one, which east of UTC is the day before.
+  const direct = new Date(text);
+  if (!Number.isNaN(direct.getTime())) {
+    return `${direct.getFullYear()}-${String(direct.getMonth() + 1).padStart(2, '0')}-${String(direct.getDate()).padStart(2, '0')}`;
+  }
   return null;
 }
 
@@ -576,6 +581,22 @@ export function deriveInvoiceStatus(sentDate, paidDate) {
   return 'draft';
 }
 
+/**
+ * Legacy Route codes name the ISO week they ran in (W30-26-001 is week 30 of
+ * 2026), and signs went out on that week's Friday: the Tracker has no run date,
+ * but every invoice was sent the Sunday after.
+ */
+export function placementDateFromRouteCode(routeCode) {
+  const [, week, year] = routeCode.match(/^W(\d{2})-(\d{2})-/i).map(Number);
+  const jan4 = new Date(Date.UTC(2000 + year, 0, 4));
+  const weekOneMonday = Date.UTC(2000 + year, 0, 4 - ((jan4.getUTCDay() + 6) % 7));
+  return new Date(weekOneMonday + ((week - 1) * 7 + 4) * 86400000).toISOString().slice(0, 10);
+}
+
+function addDays(date, days) {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+}
+
 function toIsoDateTime(dateValue) {
   if (!dateValue) return null;
   const parsed = new Date(dateValue);
@@ -605,10 +626,12 @@ function buildBundle({
     const invoicePdfPath = trackerRecord.invoiceNumber
       ? (invoicePdfs.get(normalizeToken(trackerRecord.invoiceNumber)) || null)
       : null;
-    const completedAt =
-      toIsoDateTime(trackerRecord.lifecycle.paidDate) ||
-      toIsoDateTime(trackerRecord.lifecycle.sentDate) ||
-      new Date().toISOString();
+    // Placed on the week's Friday and picked up the next day, as the business ran
+    // then; a Standing Pickup Day never moves an existing Route (CONTEXT.md).
+    const scheduledDate = placementDateFromRouteCode(trackerRecord.routeCode);
+    const pickupDate = addDays(scheduledDate, 1);
+    const placedAt = `${scheduledDate}T00:00:00.000Z`;
+    const completedAt = `${pickupDate}T00:00:00.000Z`;
 
     const recordWarnings = [];
     const operatorKey = trackerRecord.operatorName ? trackerRecord.operatorName.toLowerCase() : '';
@@ -647,6 +670,9 @@ function buildBundle({
       route: {
         routeCode: trackerRecord.routeCode,
         status: args.routeStatus,
+        scheduledDate,
+        pickupDate,
+        placedAt,
         completedAt,
         overrideSigns: trackerRecord.summary.signs,
         overrideStops: trackerRecord.summary.stops,
@@ -660,7 +686,7 @@ function buildBundle({
         assignedOperatorName: resolvedOperator?.name || undefined,
         assignedOperatorSub: resolvedOperator?.sub || undefined,
         assignedOperatorEmail: resolvedOperator?.email || undefined,
-        assignedAt: resolvedOperator?.name ? completedAt : undefined,
+        assignedAt: resolvedOperator?.name ? placedAt : undefined,
       },
       invoice: {
         invoiceNumber: trackerRecord.invoiceNumber,
@@ -941,10 +967,12 @@ async function applyBundle(bundle, args) {
         // driving-mode sign-run flow — explicit false documents that rather than
         // relying on the field being left undefined.
         drivingModeEnabled: false,
-        actualStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
+        scheduledDate: record.route.scheduledDate,
+        pickupDate: record.route.pickupDate,
+        actualStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.placedAt : undefined,
         actualEndTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
-        placementStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
-        placementEndTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
+        placementStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.placedAt : undefined,
+        placementEndTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.placedAt : undefined,
         pickupStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
         pickupEndTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
         overrideSigns: record.route.overrideSigns ?? undefined,

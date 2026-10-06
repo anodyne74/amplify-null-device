@@ -764,6 +764,17 @@ function buildBundle({
 // of these models have a secondary index for the fields we filter on, so a small limit (e.g.
 // 1) almost always misses real matches once the table has more rows than the limit, silently
 // causing "not found" and duplicate creates. Paginate through every page instead.
+/**
+ * A model call's data, or a throw with what AppSync said: create and update
+ * resolve with { data: null, errors } when rejected (e.g. a role that may not
+ * create), and the record's catch reports it rather than counting a success.
+ */
+async function written(call, what) {
+  const { data, errors } = await call;
+  if (errors?.length) throw new Error(`${what}: ${errors.map((e) => e.message).join('; ')}`);
+  return data;
+}
+
 async function listAllMatching(listFn, input, authMode) {
   const items = [];
   let nextToken;
@@ -988,12 +999,10 @@ async function applyBundle(bundle, args) {
       };
 
       if (route?.id) {
-        const routeUpdate = await client.models.Route.update({ id: route.id, ...routePayload }, { authMode });
-        route = routeUpdate.data || route;
+        route = (await written(client.models.Route.update({ id: route.id, ...routePayload }, { authMode }), `update Route ${record.route.routeCode}`)) || route;
         summary.routesUpdated += 1;
       } else {
-        const routeCreate = await client.models.Route.create(routePayload, { authMode });
-        route = routeCreate.data || null;
+        route = await written(client.models.Route.create(routePayload, { authMode }), `create Route ${record.route.routeCode}`);
         summary.routesCreated += 1;
       }
 
@@ -1032,10 +1041,10 @@ async function applyBundle(bundle, args) {
         };
 
         if (existingStop?.id) {
-          await client.models.Stop.update({ id: existingStop.id, ...stopPayload }, { authMode });
+          await written(client.models.Stop.update({ id: existingStop.id, ...stopPayload }, { authMode }), `update Stop ${stopKey}`);
           summary.stopsUpdated += 1;
         } else {
-          await client.models.Stop.create(stopPayload, { authMode });
+          await written(client.models.Stop.create(stopPayload, { authMode }), `create Stop ${stopKey}`);
           summary.stopsCreated += 1;
         }
       }
@@ -1057,10 +1066,10 @@ async function applyBundle(bundle, args) {
         };
 
         if (existingPayouts[0]?.id) {
-          await client.models.OperatorPayout.update({ id: existingPayouts[0].id, ...payoutPayload }, { authMode });
+          await written(client.models.OperatorPayout.update({ id: existingPayouts[0].id, ...payoutPayload }, { authMode }), 'update OperatorPayout');
           summary.payoutsUpdated += 1;
         } else {
-          await client.models.OperatorPayout.create(payoutPayload, { authMode });
+          await written(client.models.OperatorPayout.create(payoutPayload, { authMode }), 'create OperatorPayout');
           summary.payoutsCreated += 1;
         }
       }
@@ -1105,12 +1114,10 @@ async function applyBundle(bundle, args) {
       };
 
       if (invoice?.id) {
-        const invoiceUpdate = await client.models.Invoice.update({ id: invoice.id, ...invoicePayload }, { authMode });
-        invoice = invoiceUpdate.data || invoice;
+        invoice = (await written(client.models.Invoice.update({ id: invoice.id, ...invoicePayload }, { authMode }), `update Invoice ${record.invoice.invoiceNumber}`)) || invoice;
         summary.invoicesUpdated += 1;
       } else {
-        const invoiceCreate = await client.models.Invoice.create(invoicePayload, { authMode });
-        invoice = invoiceCreate.data || null;
+        invoice = await written(client.models.Invoice.create(invoicePayload, { authMode }), `create Invoice ${record.invoice.invoiceNumber}`);
         summary.invoicesCreated += 1;
       }
 
@@ -1173,18 +1180,21 @@ async function applyBundle(bundle, args) {
       );
 
       if (!hasLegacyLineItem && record.lineItem.amount !== null && record.lineItem.ratePerUnit !== null) {
-        await client.models.LineItem.create(
-          {
-            invoiceId: invoice.id,
-            routeId: route.id,
-            customerId: record.customerId,
-            viewerSubs: customerContext.viewerSubs,
-            description: record.lineItem.description,
-            quantity: record.lineItem.quantity,
-            ratePerUnit: record.lineItem.ratePerUnit,
-            amount: record.lineItem.amount,
-          },
-          { authMode }
+        await written(
+          client.models.LineItem.create(
+            {
+              invoiceId: invoice.id,
+              routeId: route.id,
+              customerId: record.customerId,
+              viewerSubs: customerContext.viewerSubs,
+              description: record.lineItem.description,
+              quantity: record.lineItem.quantity,
+              ratePerUnit: record.lineItem.ratePerUnit,
+              amount: record.lineItem.amount,
+            },
+            { authMode }
+          ),
+          'create LineItem'
         );
         summary.lineItemsCreated += 1;
       }

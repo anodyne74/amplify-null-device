@@ -190,4 +190,85 @@ describe('import-prep', () => {
       ])
     );
   });
+
+  it("dates a legacy Route from its code: placed on that week's Friday, picked up the next day", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-import-test-'));
+    const routeListsDir = path.join(tempDir, 'route-lists');
+    fs.mkdirSync(routeListsDir);
+    const trackerPath = path.join(tempDir, 'Tracker - Jobs.csv');
+    const outputPath = path.join(tempDir, 'bundle.json');
+
+    fs.writeFileSync(
+      trackerPath,
+      [
+        'RouteID,Job,Signs,Stops,Kilometers,Invoice,Hours,Rate,Amount,Sent,Paid',
+        // ISO week 30 of 2026 runs Mon 20 Jul to Sun 26 Jul; invoiced that Sunday, paid on Tuesday.
+        'W30-26-001,Sample route,12,2,18.5,INV-001,1:30,$30.00,$45.00,26-Jul-2026,28-Jul-2026',
+        // ISO week 1 of 2026 starts Mon 29 Dec 2025, so its Friday is 2 Jan.
+        'W01-26-001,Sample route,6,1,5,INV-002,1:00,$30.00,$30.00,4-Jan-2026,6-Jan-2026',
+      ].join('\n')
+    );
+
+    execFileSync(
+      'node',
+      [
+        path.join(process.cwd(), 'scripts/import-prep.js'),
+        '--tracker', trackerPath,
+        '--route-lists-dir', routeListsDir,
+        '--customer-id', 'cust-1',
+        '--mode', 'dry-run',
+        '--output', outputPath,
+        '--default-operator-name', 'Adam',
+        '--default-operator-sub', 'adam-sub-123',
+        '--default-operator-email', 'adam@example.com',
+      ],
+      { stdio: 'pipe' }
+    );
+
+    const bundle = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+
+    expect(bundle.records[0].route).toMatchObject({
+      scheduledDate: '2026-07-24',
+      pickupDate: '2026-07-25',
+      placedAt: '2026-07-24T00:00:00.000Z',
+      completedAt: '2026-07-25T00:00:00.000Z',
+      assignedOperatorName: 'Adam',
+      assignedAt: '2026-07-24T00:00:00.000Z',
+    });
+    expect(bundle.records[1].route).toMatchObject({ scheduledDate: '2026-01-02', pickupDate: '2026-01-03' });
+  });
+
+  it("reads a Tracker date as the day written, whatever the machine's time zone", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-import-test-'));
+    const routeListsDir = path.join(tempDir, 'route-lists');
+    fs.mkdirSync(routeListsDir);
+    const trackerPath = path.join(tempDir, 'Tracker - Jobs.csv');
+    const outputPath = path.join(tempDir, 'bundle.json');
+
+    fs.writeFileSync(
+      trackerPath,
+      [
+        'RouteID,Job,Signs,Stops,Kilometers,Invoice,Hours,Rate,Amount,Sent,Paid',
+        'W24-26-001,Sample route,12,2,18.5,INV-001,1:30,$30.00,$45.00,14-Jun-2026,16-Jun-2026',
+      ].join('\n')
+    );
+
+    execFileSync(
+      'node',
+      [
+        path.join(process.cwd(), 'scripts/import-prep.js'),
+        '--tracker', trackerPath,
+        '--route-lists-dir', routeListsDir,
+        '--customer-id', 'cust-1',
+        '--mode', 'dry-run',
+        '--output', outputPath,
+      ],
+      // Sydney is ahead of UTC, so reading the date as local midnight lands on the 13th.
+      { stdio: 'pipe', env: { ...process.env, TZ: 'Australia/Sydney' } }
+    );
+
+    const bundle = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+
+    expect(bundle.records[0].invoice).toMatchObject({ invoiceDate: '2026-06-14', sentDate: '2026-06-14' });
+  });
 });

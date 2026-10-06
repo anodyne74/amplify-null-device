@@ -98,6 +98,9 @@ function RouteDetailContent() {
 
   const { routeDurationMinutes, kilometersTravelled, totalStops, totalSigns } = computeRouteSummaryStats(route, stops);
   const billed = billedTime(route ?? {});
+  // The distance recorded for the Route (Billed Time) wins over the straight
+  // lines between its Stops' pins, as on the operator's Route detail.
+  const effectiveKilometersTravelled = billed.distanceKm ?? kilometersTravelled;
   const invoiceCounts: InvoiceCountValues = {
     signs: route?.overrideSigns ?? totalSigns,
     stops: route?.overrideStops ?? totalStops,
@@ -290,7 +293,7 @@ function RouteDetailContent() {
               </div>
               <div className="nd-stat">
                 <span className="nd-stat__label">{route.status === 'planned' ? 'Estimated Kilometers' : 'Kilometers'}</span>
-                <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${kilometersTravelled.toFixed(2)} km`}</span>
+                <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</span>
               </div>
               <div className="nd-stat">
                 <span className="nd-stat__label">Assigned Operator</span>
@@ -351,7 +354,7 @@ function RouteDetailContent() {
                 <div className={styles.factsGrid}>
                   <div className="nd-stat">
                     <span className="nd-stat__label">{billed.distanceKm === null ? 'Kilometers Travelled' : 'Billed Distance'}</span>
-                    <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${(billed.distanceKm ?? kilometersTravelled).toFixed(2)} km`}</span>
+                    <span className="nd-stat__value" style={{ fontSize: 16, fontFamily: 'var(--font-mono)' }}>{`${effectiveKilometersTravelled.toFixed(2)} km`}</span>
                   </div>
                   <div className="nd-stat">
                     <span className="nd-stat__label">{billed.totalMinutes === null ? 'Time Taken' : 'Billed Time'}</span>

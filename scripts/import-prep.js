@@ -308,10 +308,8 @@ function parseLegacyDate(raw) {
   const text = String(raw).trim();
   if (!text) return null;
 
-  const direct = new Date(text);
-  if (!Number.isNaN(direct.getTime())) {
-    return direct.toISOString().slice(0, 10);
-  }
+  const iso = text.match(/^\d{4}-\d{2}-\d{2}/);
+  if (iso) return iso[0];
 
   const monthName = text.match(/^(\d{1,2})[\s-]([A-Za-z]{3})[\s-](\d{4})$/);
   if (monthName) {
@@ -334,6 +332,13 @@ function parseLegacyDate(raw) {
     }
   }
 
+
+  // Anything else Date can read is taken as written on the calendar: its local
+  // date, not toISOString's UTC one, which east of UTC is the day before.
+  const direct = new Date(text);
+  if (!Number.isNaN(direct.getTime())) {
+    return `${direct.getFullYear()}-${String(direct.getMonth() + 1).padStart(2, '0')}-${String(direct.getDate()).padStart(2, '0')}`;
+  }
   return null;
 }
 
@@ -576,6 +581,22 @@ export function deriveInvoiceStatus(sentDate, paidDate) {
   return 'draft';
 }
 
+/**
+ * Legacy Route codes name the ISO week they ran in (W30-26-001 is week 30 of
+ * 2026), and signs went out on that week's Friday: the Tracker has no run date,
+ * but every invoice was sent the Sunday after.
+ */
+export function placementDateFromRouteCode(routeCode) {
+  const [, week, year] = routeCode.match(/^W(\d{2})-(\d{2})-/i).map(Number);
+  const jan4 = new Date(Date.UTC(2000 + year, 0, 4));
+  const weekOneMonday = Date.UTC(2000 + year, 0, 4 - ((jan4.getUTCDay() + 6) % 7));
+  return new Date(weekOneMonday + ((week - 1) * 7 + 4) * 86400000).toISOString().slice(0, 10);
+}
+
+function addDays(date, days) {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+}
+
 function toIsoDateTime(dateValue) {
   if (!dateValue) return null;
   const parsed = new Date(dateValue);
@@ -605,10 +626,12 @@ function buildBundle({
     const invoicePdfPath = trackerRecord.invoiceNumber
       ? (invoicePdfs.get(normalizeToken(trackerRecord.invoiceNumber)) || null)
       : null;
-    const completedAt =
-      toIsoDateTime(trackerRecord.lifecycle.paidDate) ||
-      toIsoDateTime(trackerRecord.lifecycle.sentDate) ||
-      new Date().toISOString();
+    // Placed on the week's Friday and picked up the next day, as the business ran
+    // then; a Standing Pickup Day never moves an existing Route (CONTEXT.md).
+    const scheduledDate = placementDateFromRouteCode(trackerRecord.routeCode);
+    const pickupDate = addDays(scheduledDate, 1);
+    const placedAt = `${scheduledDate}T00:00:00.000Z`;
+    const completedAt = `${pickupDate}T00:00:00.000Z`;
 
     const recordWarnings = [];
     const operatorKey = trackerRecord.operatorName ? trackerRecord.operatorName.toLowerCase() : '';
@@ -647,6 +670,9 @@ function buildBundle({
       route: {
         routeCode: trackerRecord.routeCode,
         status: args.routeStatus,
+        scheduledDate,
+        pickupDate,
+        placedAt,
         completedAt,
         overrideSigns: trackerRecord.summary.signs,
         overrideStops: trackerRecord.summary.stops,
@@ -660,7 +686,7 @@ function buildBundle({
         assignedOperatorName: resolvedOperator?.name || undefined,
         assignedOperatorSub: resolvedOperator?.sub || undefined,
         assignedOperatorEmail: resolvedOperator?.email || undefined,
-        assignedAt: resolvedOperator?.name ? completedAt : undefined,
+        assignedAt: resolvedOperator?.name ? placedAt : undefined,
       },
       invoice: {
         invoiceNumber: trackerRecord.invoiceNumber,
@@ -738,6 +764,17 @@ function buildBundle({
 // of these models have a secondary index for the fields we filter on, so a small limit (e.g.
 // 1) almost always misses real matches once the table has more rows than the limit, silently
 // causing "not found" and duplicate creates. Paginate through every page instead.
+/**
+ * A model call's data, or a throw with what AppSync said: create and update
+ * resolve with { data: null, errors } when rejected (e.g. a role that may not
+ * create), and the record's catch reports it rather than counting a success.
+ */
+async function written(call, what) {
+  const { data, errors } = await call;
+  if (errors?.length) throw new Error(`${what}: ${errors.map((e) => e.message).join('; ')}`);
+  return data;
+}
+
 async function listAllMatching(listFn, input, authMode) {
   const items = [];
   let nextToken;
@@ -941,10 +978,12 @@ async function applyBundle(bundle, args) {
         // driving-mode sign-run flow — explicit false documents that rather than
         // relying on the field being left undefined.
         drivingModeEnabled: false,
-        actualStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
+        scheduledDate: record.route.scheduledDate,
+        pickupDate: record.route.pickupDate,
+        actualStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.placedAt : undefined,
         actualEndTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
-        placementStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
-        placementEndTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
+        placementStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.placedAt : undefined,
+        placementEndTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.placedAt : undefined,
         pickupStartTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
         pickupEndTime: record.route.status === 'completed' || record.route.status === 'archived' ? record.route.completedAt : undefined,
         overrideSigns: record.route.overrideSigns ?? undefined,
@@ -960,12 +999,10 @@ async function applyBundle(bundle, args) {
       };
 
       if (route?.id) {
-        const routeUpdate = await client.models.Route.update({ id: route.id, ...routePayload }, { authMode });
-        route = routeUpdate.data || route;
+        route = (await written(client.models.Route.update({ id: route.id, ...routePayload }, { authMode }), `update Route ${record.route.routeCode}`)) || route;
         summary.routesUpdated += 1;
       } else {
-        const routeCreate = await client.models.Route.create(routePayload, { authMode });
-        route = routeCreate.data || null;
+        route = await written(client.models.Route.create(routePayload, { authMode }), `create Route ${record.route.routeCode}`);
         summary.routesCreated += 1;
       }
 
@@ -1004,10 +1041,10 @@ async function applyBundle(bundle, args) {
         };
 
         if (existingStop?.id) {
-          await client.models.Stop.update({ id: existingStop.id, ...stopPayload }, { authMode });
+          await written(client.models.Stop.update({ id: existingStop.id, ...stopPayload }, { authMode }), `update Stop ${stopKey}`);
           summary.stopsUpdated += 1;
         } else {
-          await client.models.Stop.create(stopPayload, { authMode });
+          await written(client.models.Stop.create(stopPayload, { authMode }), `create Stop ${stopKey}`);
           summary.stopsCreated += 1;
         }
       }
@@ -1029,10 +1066,10 @@ async function applyBundle(bundle, args) {
         };
 
         if (existingPayouts[0]?.id) {
-          await client.models.OperatorPayout.update({ id: existingPayouts[0].id, ...payoutPayload }, { authMode });
+          await written(client.models.OperatorPayout.update({ id: existingPayouts[0].id, ...payoutPayload }, { authMode }), 'update OperatorPayout');
           summary.payoutsUpdated += 1;
         } else {
-          await client.models.OperatorPayout.create(payoutPayload, { authMode });
+          await written(client.models.OperatorPayout.create(payoutPayload, { authMode }), 'create OperatorPayout');
           summary.payoutsCreated += 1;
         }
       }
@@ -1077,12 +1114,10 @@ async function applyBundle(bundle, args) {
       };
 
       if (invoice?.id) {
-        const invoiceUpdate = await client.models.Invoice.update({ id: invoice.id, ...invoicePayload }, { authMode });
-        invoice = invoiceUpdate.data || invoice;
+        invoice = (await written(client.models.Invoice.update({ id: invoice.id, ...invoicePayload }, { authMode }), `update Invoice ${record.invoice.invoiceNumber}`)) || invoice;
         summary.invoicesUpdated += 1;
       } else {
-        const invoiceCreate = await client.models.Invoice.create(invoicePayload, { authMode });
-        invoice = invoiceCreate.data || null;
+        invoice = await written(client.models.Invoice.create(invoicePayload, { authMode }), `create Invoice ${record.invoice.invoiceNumber}`);
         summary.invoicesCreated += 1;
       }
 
@@ -1145,18 +1180,21 @@ async function applyBundle(bundle, args) {
       );
 
       if (!hasLegacyLineItem && record.lineItem.amount !== null && record.lineItem.ratePerUnit !== null) {
-        await client.models.LineItem.create(
-          {
-            invoiceId: invoice.id,
-            routeId: route.id,
-            customerId: record.customerId,
-            viewerSubs: customerContext.viewerSubs,
-            description: record.lineItem.description,
-            quantity: record.lineItem.quantity,
-            ratePerUnit: record.lineItem.ratePerUnit,
-            amount: record.lineItem.amount,
-          },
-          { authMode }
+        await written(
+          client.models.LineItem.create(
+            {
+              invoiceId: invoice.id,
+              routeId: route.id,
+              customerId: record.customerId,
+              viewerSubs: customerContext.viewerSubs,
+              description: record.lineItem.description,
+              quantity: record.lineItem.quantity,
+              ratePerUnit: record.lineItem.ratePerUnit,
+              amount: record.lineItem.amount,
+            },
+            { authMode }
+          ),
+          'create LineItem'
         );
         summary.lineItemsCreated += 1;
       }

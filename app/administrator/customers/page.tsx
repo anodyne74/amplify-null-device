@@ -12,6 +12,7 @@ import { Button } from '@/app/components/ui/core/Button';
 import CustomerCreateForm from '@/app/administrator/customers/components/CustomerCreateForm';
 import CustomerEditPanel from '@/app/administrator/customers/components/CustomerEditPanel';
 import CustomerTableRow from '@/app/administrator/customers/components/CustomerTableRow';
+import type { CustomerUsersListRow } from '@/app/administrator/customers/components/CustomerUsersList';
 import { useCustomerEditState } from '@/app/administrator/customers/hooks/useCustomerEditState';
 import type { Customer, CustomerStatus, CustomerUser } from '@/app/administrator/customers/types';
 import {
@@ -21,6 +22,8 @@ import {
   setDefaultAgentOption as setDefaultAgentOptionIn,
 } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
+import { callApi } from '@/lib/apiClient';
+import { customerInviteStatus, type CustomerInviteStatus } from '@/lib/customerInvite';
 import { buildOnboardingChecklist, type ChecklistItem } from '@/lib/customerOnboardingChecklist';
 import styles from './page.module.css';
 import { listCustomerRoutes } from '@/lib/routes';
@@ -53,6 +56,9 @@ export default function CustomersAdminPage() {
   const { user } = useAuthenticator();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>([]);
+  // Invite status by sub for every user in the `customer` group; null until
+  // loaded, or when it couldn't be read (their status then shows as unknown).
+  const [inviteStatusBySub, setInviteStatusBySub] = useState<Map<string, CustomerInviteStatus> | null>(null);
   const [checklists, setChecklists] = useState<Record<string, ChecklistItem[]>>({});
   const [checklistLoading, setChecklistLoading] = useState<Record<string, boolean>>({});
   // null: the flag settings couldn't be read, so the panel says so rather than showing none on.
@@ -171,10 +177,25 @@ export default function CustomersAdminPage() {
     if (users) setCustomerUsers(users as CustomerUser[]);
   }, []);
 
+  const fetchCognitoStatuses = useCallback(async () => {
+    // Best-effort: without them no Customer User can have their invite resent here.
+    const payload = await callApi<{ users?: Array<{ sub?: string; status?: string }> }>('/api/admin/users', {
+      action: 'listUsersInGroup',
+      groupName: 'customer',
+    }).catch(() => null);
+    if (!payload) return;
+    const statuses = new Map<string, CustomerInviteStatus>();
+    for (const user of payload.users ?? []) {
+      if (user.sub) statuses.set(user.sub, customerInviteStatus(user.status));
+    }
+    setInviteStatusBySub(statuses);
+  }, []);
+
   useEffect(() => {
     void fetchCustomers();
     void fetchCustomerUsers();
-  }, [fetchCustomers, fetchCustomerUsers]);
+    void fetchCognitoStatuses();
+  }, [fetchCustomers, fetchCustomerUsers, fetchCognitoStatuses]);
 
   // "Onboarding checklist" — computed client-side from records already scoped to this
   // customer, fetched on demand when the edit panel opens. No new model, no new writes.
@@ -402,6 +423,21 @@ export default function CustomersAdminPage() {
 
   const selectedCustomer = customers.find((customer) => customer.id === expandedEditPanel) ?? null;
 
+  const selectedCustomerUsers: CustomerUsersListRow[] = useMemo(
+    () =>
+      customerUsers
+        .filter((customerUser) => customerUser.customerId === expandedEditPanel)
+        .map((customerUser) => ({
+          id: customerUser.id,
+          name: customerUser.name ?? customerUser.email ?? 'Unnamed user',
+          email: customerUser.email ?? '',
+          role: customerUser.role ?? 'read_only',
+          // No Cognito record reads as Active, as on the Users screen.
+          status: inviteStatusBySub ? inviteStatusBySub.get(customerUser.userSub) ?? 'Active' : null,
+        })),
+    [customerUsers, expandedEditPanel, inviteStatusBySub]
+  );
+
   return (
     <OperatorRoute requireAdmin>
       <div className={styles.page}>
@@ -522,6 +558,7 @@ export default function CustomersAdminPage() {
             editSaving={editSaving}
             editError={editError}
             editSuccess={editSuccess}
+            customerUsers={selectedCustomerUsers}
             checklist={checklists[selectedCustomer.id]}
             checklistLoading={checklistLoading[selectedCustomer.id]}
             onFeatureFlags={onFeatureFlags[selectedCustomer.id]}

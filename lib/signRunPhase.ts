@@ -178,7 +178,7 @@ export function getSignRunPhase(route: RoutePhaseInput, stopCount: number): Sign
     track,
     overallTrack,
     isLocked,
-    lockNote: isLocked ? 'Not released yet — planner is still adding stops' : undefined,
+    lockNote: isLocked ? 'Not released yet: planner is still adding stops' : undefined,
   };
 }
 

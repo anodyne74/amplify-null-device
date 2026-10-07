@@ -9,7 +9,8 @@ import { getDateGroup } from './aggregateRouteData';
 import { getDeltaPercent } from './dashboardAnalytics';
 import { getRouteDate } from './routeDetailHelpers';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS, type RoutePhaseInput, type RoutePhaseKey } from './signRunPhase';
-import { signsPlaced } from './signRunTotals';
+import { signsPlaced, groupByAgent } from './signRunTotals';
+import { activeStops } from './loadChange';
 
 export interface OverviewRoute {
   id: string;
@@ -35,6 +36,7 @@ export interface OverviewStop {
   routeId?: string | null;
   numberOfSigns?: number | null;
   agent?: string | null;
+  removed?: boolean | null;
   address?: string | null;
   formattedAddress?: string | null;
   actualArrivalTime?: string | null;
@@ -45,6 +47,7 @@ export interface OverviewStop {
 export interface OverviewInvoice {
   id: string;
   totalAmount?: number | null;
+  routeId?: string | null;
   status?: string | null;
   invoiceDate?: string | null;
   createdAt?: string | null;
@@ -258,27 +261,59 @@ export interface AgentActivityRow {
   agent: string;
   stops: number;
   signs: number;
+  /** Invoiced amount shared out by Stops, AUD ex GST (the basis of summarizeSpendByWeek). */
+  spend: number;
 }
 
-/** Stops/signs grouped by the agent named on each stop, most active first. */
-export function summarizeAgentActivity(stops: OverviewStop[]): AgentActivityRow[] {
-  const stopsByAgent = new Map<string, OverviewStop[]>();
+/**
+ * Share `cents` between `weights` in proportion, largest remainder first, so the
+ * shares always add up to `cents` exactly.
+ */
+function shareCents(cents: number, weights: number[]): number[] {
+  const total = weights.reduce((sum, w) => sum + w, 0);
+  const exact = weights.map((w) => (cents * w) / total);
+  const shares = exact.map(Math.floor);
+  let leftover = cents - shares.reduce((sum, s) => sum + s, 0);
+  exact
+    .map((value, index) => ({ index, remainder: value - Math.floor(value) }))
+    .sort((a, b) => b.remainder - a.remainder || a.index - b.index)
+    .forEach(({ index }) => {
+      if (leftover-- > 0) shares[index] += 1;
+    });
+  return shares;
+}
 
-  stops.forEach((stop) => {
-    const agent = stop.agent?.trim() || 'Unassigned';
-    const agentStops = stopsByAgent.get(agent) ?? [];
-    agentStops.push(stop);
-    stopsByAgent.set(agent, agentStops);
+/**
+ * Stops, signs and invoiced spend per agent named on each Stop, highest spend first.
+ * An invoiced Route's amount is shared between its agents in proportion to their Stops;
+ * Removed Stops count toward nothing, and Stops with no agent go under "Unassigned".
+ * Routes not yet invoiced add no spend, but their Stops and signs still count.
+ */
+export function summarizeAgentActivity(stops: OverviewStop[], invoices: OverviewInvoice[] = []): AgentActivityRow[] {
+  const groups = groupByAgent(activeStops(stops));
+  const spendCents = new Map<string, number>();
+
+  invoices.forEach((invoice) => {
+    if (!invoice.routeId) return;
+    const routeStops = activeStops(stops.filter((stop) => stop.routeId === invoice.routeId));
+    if (routeStops.length === 0) return;
+    const byAgent = groupByAgent(routeStops);
+    const shares = shareCents(
+      Math.round((invoice.totalAmount ?? 0) * 100),
+      byAgent.map((group) => group.stops.length)
+    );
+    byAgent.forEach(({ agent }, i) => spendCents.set(agent, (spendCents.get(agent) ?? 0) + shares[i]));
   });
 
-  return Array.from(stopsByAgent.entries())
-    .map(([agent, agentStops]) => ({
+  return groups
+    .map(({ agent, stops: agentStops }) => ({
       id: agent,
       agent,
       stops: agentStops.length,
       signs: signsPlaced(agentStops),
+      spend: (spendCents.get(agent) ?? 0) / 100,
     }))
-    .sort((a, b) => b.stops - a.stops);
+    .sort((a, b) => b.spend - a.spend || b.stops - a.stops);
 }
 
 export interface LatestInvoiceSummary {

@@ -105,7 +105,7 @@ Signs logged as lost during the Pickup phase (`Stop.missingSignsCount`) — one 
 _Avoid_: Lost signs, sign loss (except when specifically discussing the attrition-analysis use case)
 
 **Missing Signs Report**:
-One email after a Route is finalised, listing each Property on it where signs went missing and how many, with the total. Sent only when an administrator has switched reports on for the Customer (off by default), the Customer hasn't turned them off in their portal (their setting only shows once reports are switched on), and some signs are missing. It goes to whoever gets the Customer's invoices and its billing CC addresses, with admin@ copied, once per Route. Like all customer copy, it speaks of Properties and signs only.
+One email after a Route is finalised, listing each Property on it where signs went missing and how many, with the total. Sent only when an administrator has switched reports on for the Customer (off by default), the Customer hasn't turned them off in their portal (their setting only shows once reports are switched on), and some signs are missing. It goes to the Customer's Invoice Recipients, with admin@ copied (to admin@ alone if the Customer has no address), once per Route. Like all customer copy, it speaks of Properties and signs only.
 _Avoid_: Loss report, missing sign alert
 
 **Reconciliation**:
@@ -115,6 +115,10 @@ _Avoid_: Summary, totals
 **Billed Time**:
 What a Customer is charged for a Route: minutes for each Sign Run phase (Load and Unload at least 15, Placement and Pickup at least 5, the total landing on a 15-minute increment), plus the distance travelled. Set at Finalise, by the operator or an administrator, and correctable by an administrator once the Route is completed. Measured phase time and measured distance only seed it. Routes from before the Sign Run have a total only, with no per-phase split.
 _Avoid_: Duration (when you mean what's charged), invoice values, override
+
+**Invoice Recipients**:
+Who a Customer's invoices are emailed to: To its Billing email, with its billing CC addresses copied. Account Owners get them only if their address is one of these. Each address appears once, whatever its case. The Customer edits both under Billing Details; administrators see the Billing email on the Customer. Worked out on the server when the email is sent, never chosen by the screen.
+_Avoid_: Primary email, account owner email, invoice contact
 
 **Route Feedback**:
 A Customer user's verdict on a completed Route: **All good**, or **Something was off** with a note saying what. Asked only once the Route is completed, and can be changed until the Route is invoiced (an Invoice exists for it). Administrators see it on the Route and in the Routes list, Something was off is emailed to admin@, and each one is in the Route's audit trail (without the note).
@@ -127,6 +131,10 @@ _Avoid_: Team member, teammate, sub-user, customer admin
 **Account Owner**:
 A Customer User who can see the Customer's invoices and manage its Customer Users and Property History reports. The other Customer User role, read-only, sees Routes and Stops only.
 _Avoid_: Customer Admin, customer administrator
+
+**Trading Name**:
+The name a Customer trades under (`companyName`), printed under Bill To on its invoices; a Customer with none is billed under its name. Administrators set it on the Customer; the Customer can change it under Billing Details.
+_Avoid_: Company Name
 
 **Route Defaults**:
 An Account Owner's preferences applied to every new Route for their Customer: instructions for the Operator, signs per Stop, the default agent, and the Standing Pickup Day. Staff can still change them on any single Route.

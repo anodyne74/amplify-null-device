@@ -44,7 +44,7 @@ export default function UninvoicedRoutesTable({ loading, routes, customerName }:
   return (
     <Card
       title="Completed routes not yet invoiced"
-      subtitle="Select a route to bill — one route per invoice"
+      subtitle="Select a route to bill (one route per invoice)"
       padded={loading || routes.length === 0}
     >
       {loading || routes.length === 0 ? (

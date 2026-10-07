@@ -174,14 +174,19 @@ describe('send invoice email API', () => {
     await expect(response.json()).resolves.toEqual({ error: 'Invoice PDF not uploaded' });
   });
 
-  it('returns 400 when no recipient email can be resolved', async () => {
-    customerGetMock.mockResolvedValue({ data: { id: 'cust-1', name: 'Acme', email: null }, errors: undefined });
-    customerUserListMock.mockResolvedValue({ data: [], errors: undefined });
+  it('returns 400 and sends nothing when the Customer has no Billing email', async () => {
+    customerGetMock.mockResolvedValue({
+      data: { id: 'cust-1', name: 'Acme', email: null, billingCcEmails: ['accounts@acme.test'] },
+      errors: undefined,
+    });
 
     const response = await POST(makeRequest({ token: 'admin-token' }));
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'No recipient email available' });
+    await expect(response.json()).resolves.toEqual({
+      error: "This Customer has no Billing email. Add one to the Customer before emailing the invoice.",
+    });
+    expect(sesSendMock).not.toHaveBeenCalled();
   });
 
   it('returns 404 when customer lookup errors (e.g. no Amplify session in SSR)', async () => {
@@ -193,6 +198,11 @@ describe('send invoice email API', () => {
     await expect(response.json()).resolves.toEqual({ error: 'Customer not found' });
   });
 
+  function sentMessage() {
+    const { input } = sesSendMock.mock.calls[1][0];
+    return { destinations: input.Destinations, raw: Buffer.from(input.RawMessage.Data).toString('utf8') };
+  }
+
   it('sends invoice email successfully', async () => {
     const response = await POST(makeRequest({ token: 'admin-token' }));
 
@@ -201,9 +211,47 @@ describe('send invoice email API', () => {
       success: true,
       messageId: 'ses-message-id-1',
       sentTo: 'billing@acme.test',
+      cc: [],
       invoiceNumber: 'INV-001',
     });
     expect(sesSendMock).toHaveBeenCalledTimes(2);
     expect(invoiceUpdateMock).toHaveBeenCalled();
+    const { destinations, raw } = sentMessage();
+    expect(destinations).toEqual(['billing@acme.test']);
+    expect(raw).toContain('\r\nTo: billing@acme.test\r\n');
+    expect(raw).not.toContain('\r\nCc:');
+  });
+
+  it('sends To the Billing email and copies the billing CCs (#504)', async () => {
+    customerGetMock.mockResolvedValue({
+      data: {
+        id: 'cust-1',
+        name: 'Acme',
+        email: 'billing@acme.test',
+        billingCcEmails: ['accounts@acme.test', 'BILLING@acme.test', 'pat@acme.test', 'accounts@ACME.test'],
+      },
+      errors: undefined,
+    });
+
+    const response = await POST(makeRequest({ token: 'admin-token' }));
+
+    await expect(response.json()).resolves.toMatchObject({
+      sentTo: 'billing@acme.test',
+      cc: ['accounts@acme.test', 'pat@acme.test'],
+    });
+    const { destinations, raw } = sentMessage();
+    expect(destinations).toEqual(['billing@acme.test', 'accounts@acme.test', 'pat@acme.test']);
+    expect(raw).toContain('\r\nTo: billing@acme.test\r\nCc: accounts@acme.test, pat@acme.test\r\n');
+  });
+
+  it("doesn't look up Account Owners or let the caller choose the recipient (#504)", async () => {
+    const response = await POST(
+      makeRequest({ token: 'admin-token', body: { invoiceId: 'inv-1', recipientEmail: 'attacker@evil.test' } })
+    );
+
+    await expect(response.json()).resolves.toMatchObject({ sentTo: 'billing@acme.test' });
+    expect(sentMessage().destinations).toEqual(['billing@acme.test']);
+    expect(sentMessage().raw).not.toContain('attacker@evil.test');
+    expect(customerUserListMock).not.toHaveBeenCalled();
   });
 });

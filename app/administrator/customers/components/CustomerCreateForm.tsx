@@ -71,12 +71,12 @@ export default function CustomerCreateForm({
               required
             />
           </Field>
-          <Field label="Company Name" htmlFor="create-customer-company-name">
+          <Field label="Trading Name" htmlFor="create-customer-company-name">
             <Input
               id="create-customer-company-name"
               value={companyName}
               onChange={(event) => onCompanyNameChange(event.target.value)}
-              placeholder="Company Name"
+              placeholder="Trading Name"
             />
           </Field>
           <Field label="Email" htmlFor="create-customer-email">

@@ -12,6 +12,7 @@ import { computeDriverSplitPreview } from '@/app/administrator/invoices/driverSp
 import { billedTime } from '@/lib/billedTime';
 import { formatDuration } from '@/lib/format';
 import { formatAbn } from '@/lib/companyBilling';
+import { billToName } from '@/lib/billToName';
 import { signsPlaced } from '@/lib/signRunTotals';
 import styles from './InvoicePreview.module.css';
 
@@ -143,7 +144,7 @@ export default function InvoicePreview({
         </div>
         <div className={styles.invoiceMeta}>
           <Badge tone="info">Draft</Badge>
-          <div className={styles.invoiceNumber}>{invoiceNumber || '— pending —'}</div>
+          <div className={styles.invoiceNumber}>{invoiceNumber || 'Pending'}</div>
           <div className={styles.metaLine}>Issued {new Date().toISOString().slice(0, 10)}</div>
           <div className={styles.metaLine}>Terms 14 days · direct deposit</div>
         </div>
@@ -152,12 +153,12 @@ export default function InvoicePreview({
       <div className={styles.threeColumns}>
         <div>
           <div className={styles.columnLabel}>Billed to</div>
-          <div className={styles.columnHeading}>{customer.name}</div>
+          <div className={styles.columnHeading}>{billToName(customer, customer.id)}</div>
           <div className={styles.columnDetail}>{customer.addressLine1 || '—'}</div>
         </div>
         <div>
           <div className={styles.columnLabel}>For work completed</div>
-          <div className={styles.columnHeading}>{route?.routeCode ?? (route ? route.id.slice(0, 8) : '— select a route —')}</div>
+          <div className={styles.columnHeading}>{route?.routeCode ?? (route ? route.id.slice(0, 8) : 'Select a route')}</div>
           <div className={styles.columnDetail}>
             {stopsLoading ? 'Loading stops…' : `${stops.length} stop${stops.length === 1 ? '' : 's'} · ${totalSigns} signs`}
           </div>
@@ -250,7 +251,7 @@ export default function InvoicePreview({
       <div className={styles.internalPanel}>
         <div className={styles.columnLabel}>Internal · operator split (not shown to the customer)</div>
         {routeNotFinalized && (
-          <div className={styles.metaLine}>Route not yet finalised — figures may change.</div>
+          <div className={styles.metaLine}>Route not yet finalised, so figures may change.</div>
         )}
         <div className={styles.statRow}>
           <StatTile label="Duration" value={formatDuration(routeMinutes)} />
@@ -272,7 +273,7 @@ export default function InvoicePreview({
           onChange={(event) => onToggleGroupByAgent(event.target.checked)}
         />
         <div className={styles.metaLine}>
-          Updates this customer&apos;s Payment Details setting — every PDF or email generated for{' '}
+          Updates this customer&apos;s Payment Details setting. Every PDF or email generated for{' '}
           {customer.name}, past and future, will use this.
         </div>
         <Switch label="Attach run sheets for each route" defaultChecked />

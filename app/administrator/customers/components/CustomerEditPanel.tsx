@@ -5,6 +5,7 @@ import { Select } from '@/app/components/ui/forms/Select';
 import { Checkbox } from '@/app/components/ui/forms/Checkbox';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import AgentOptionsEditor from '@/app/administrator/customers/components/AgentOptionsEditor';
+import CustomerUsersList, { type CustomerUsersListRow } from '@/app/administrator/customers/components/CustomerUsersList';
 import type { Customer, CustomerStatus } from '@/app/administrator/customers/types';
 import type { ChecklistItem } from '@/lib/customerOnboardingChecklist';
 import { FEATURE_FLAGS, type FeatureFlagName } from '@/lib/featureFlags';
@@ -31,6 +32,7 @@ interface CustomerEditPanelProps {
   editSaving: boolean;
   editError: string | null;
   editSuccess: string | null;
+  customerUsers: CustomerUsersListRow[];
   checklist?: ChecklistItem[];
   checklistLoading?: boolean;
   /** The Feature Flags on for this Customer; null when they couldn't be read. Loads alongside the checklist. */
@@ -73,6 +75,7 @@ export default function CustomerEditPanel({
   editSaving,
   editError,
   editSuccess,
+  customerUsers,
   checklist,
   checklistLoading,
   onFeatureFlags,
@@ -100,7 +103,7 @@ export default function CustomerEditPanel({
 
   return (
     <Card
-      title={`Configure — ${customer.name}`}
+      title={`Configure: ${customer.name}`}
       subtitle="Account setup"
       footer={
         customer.standingInstructionsUpdatedAt ? (
@@ -255,6 +258,10 @@ export default function CustomerEditPanel({
 
           <hr className={styles.detailDivider} />
 
+          <CustomerUsersList key={customer.id} customerName={customer.name} users={customerUsers} />
+
+          <hr className={styles.detailDivider} />
+
           <h4 className={styles.subPanelHeading}>Onboarding checklist</h4>
           {checklistLoading ? (
             <p className={styles.mutedText}>Loading...</p>
@@ -283,7 +290,7 @@ export default function CustomerEditPanel({
           ) : onFeatureFlags === null ? (
             <p className={styles.mutedText}>Could not load feature flags.</p>
           ) : !onFeatureFlags?.length ? (
-            <p className={styles.mutedText}>None — this Customer sees no flagged features.</p>
+            <p className={styles.mutedText}>None. This Customer sees no flagged features.</p>
           ) : (
             <ul className={styles.checklist} aria-label="Feature flags on">
               {onFeatureFlags.map((name) => (

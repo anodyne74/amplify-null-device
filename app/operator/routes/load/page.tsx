@@ -226,7 +226,7 @@ export default function OperatorLoadPage() {
 
       {route.loadStartedAt && !route.loadConfirmedAt && (
         <div className={styles.warningPanel}>
-          Load not confirmed — stops still open, but the yard time may not bill.
+          Load not confirmed: stops still open, but the yard time may not bill.
         </div>
       )}
 

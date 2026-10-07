@@ -22,7 +22,7 @@ interface RouteFeedbackCardProps {
 
 function describe(feedback: RouteFeedbackValue) {
   const label = `You said: ${routeFeedbackLabel(feedback.tone)}`;
-  return feedback.tone === 'issue' ? `${label} — “${feedback.note}”` : label;
+  return feedback.tone === 'issue' ? `${label}: “${feedback.note}”` : label;
 }
 
 /**
@@ -80,7 +80,7 @@ export default function RouteFeedbackCard({ routeId, feedback, onSaved }: RouteF
     <Card title="How did this route go?" subtitle="Only asked once the route is complete">
       <div className={styles.form}>
         {current && <p className={styles.current}>{describe(current)}</p>}
-        {sent && <p className="nd-badge nd-badge--success">Thanks — your feedback was sent.</p>}
+        {sent && <p className="nd-badge nd-badge--success">Thanks, your feedback was sent.</p>}
         {error && <p className="nd-badge nd-badge--danger">{error}</p>}
 
         {locked ? (

@@ -67,6 +67,13 @@ describe('InvoicePreview', () => {
     expect(screen.getByText(/^ABN 48 221 604 992 · 02 5555 5555/)).toBeInTheDocument();
   });
 
+  it("shows the Customer's Trading Name under Billed to (#503)", () => {
+    const props = baseProps();
+    render(<InvoicePreview {...props} customer={{ ...props.customer, companyName: 'Harcourts Epping Pty Ltd' }} />);
+    expect(screen.getByText('Harcourts Epping Pty Ltd')).toBeInTheDocument();
+    expect(screen.queryByText('Harcourts Epping')).not.toBeInTheDocument();
+  });
+
   it('leaves the ABN out of the letterhead when there is none', () => {
     render(<InvoicePreview {...baseProps()} billingAbn="" />);
     expect(screen.getByText(/^02 5555 5555/)).toBeInTheDocument();
@@ -82,14 +89,14 @@ describe('InvoicePreview', () => {
     expect(screen.getByText('We retain')).toBeInTheDocument();
     // retained = 240 - 68.40 = 171.60
     expect(screen.getByText('$171.60')).toBeInTheDocument();
-    expect(screen.queryByText('Route not yet finalised — figures may change.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Route not yet finalised, so figures may change.')).not.toBeInTheDocument();
   });
 
   it('flags a not-yet-completed route as unfinalised', () => {
     const props = baseProps();
     render(<InvoicePreview {...props} route={{ ...props.route, status: 'in_progress' } as unknown as Route} />);
 
-    expect(screen.getByText('Route not yet finalised — figures may change.')).toBeInTheDocument();
+    expect(screen.getByText('Route not yet finalised, so figures may change.')).toBeInTheDocument();
   });
 
   it('shows a grouped-by-agent breakdown when the customer setting is on', () => {

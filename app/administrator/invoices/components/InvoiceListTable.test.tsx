@@ -34,7 +34,7 @@ function renderTable(invoices: Invoice[], overrides: Partial<ComponentProps<type
     onUploadClick: jest.fn(),
     onMarkPaid: jest.fn(),
     onDeleteInvoice: jest.fn(),
-    onEmailInvoiceToPrimary: jest.fn(),
+    onEmailInvoice: jest.fn(),
     ...overrides,
   };
 

@@ -95,7 +95,7 @@ describe('getSignRunPhase', () => {
   it('locks a planned route with no stops yet, with a note', () => {
     const info = getSignRunPhase(baseRoute({ status: 'planned' }), 0);
     expect(info?.isLocked).toBe(true);
-    expect(info?.lockNote).toBe('Not released yet — planner is still adding stops');
+    expect(info?.lockNote).toBe('Not released yet: planner is still adding stops');
   });
 
   it('does not lock a planned route once it has stops', () => {

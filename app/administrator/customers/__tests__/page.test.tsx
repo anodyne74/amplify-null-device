@@ -5,6 +5,7 @@ import CustomersAdminPage from '../page';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { createCustomer, listAllCustomerUsers, listAllCustomers, updateCustomer } from '@/lib/customers';
 import { listFeatureFlagSettings } from '@/lib/queries/FeatureFlagSettings';
+import { callApi } from '@/lib/apiClient';
 
 const mockPush = jest.fn();
 jest.mock('next/navigation', () => ({
@@ -62,6 +63,10 @@ jest.mock('@/lib/customers', () => ({
   updateCustomer: jest.fn(),
 }));
 
+jest.mock('@/lib/apiClient', () => ({
+  callApi: jest.fn(),
+}));
+
 jest.mock('@/lib/invoices', () => ({
   listCustomerInvoices: jest.fn().mockResolvedValue([]),
 }));
@@ -82,6 +87,7 @@ describe('Operator Customers Page', () => {
     (updateCustomer as jest.Mock).mockResolvedValue({ id: 'c-1' });
     (listAllCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listFeatureFlagSettings as jest.Mock).mockResolvedValue([]);
+    (callApi as jest.Mock).mockResolvedValue({ users: [] });
   });
 
   it('submits create customer with standing instructions and defaults', async () => {
@@ -156,7 +162,7 @@ describe('Operator Customers Page', () => {
 
     fireEvent.click(rowScope.getByRole('button', { name: /configure customer acme corp/i }));
 
-    const editPanelHeading = await screen.findByRole('heading', { name: /configure — acme corp/i });
+    const editPanelHeading = await screen.findByRole('heading', { name: /configure: acme corp/i });
     const editPanel = editPanelHeading.closest('.nd-card');
     expect(editPanel).not.toBeNull();
     const scoped = within(editPanel as HTMLElement);
@@ -188,7 +194,7 @@ describe('Operator Customers Page', () => {
 
     // The configure panel stays open showing the success message until the user closes it.
     expect(await screen.findByText('Customer updated.')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /configure — acme corp/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /configure: acme corp/i })).toBeInTheDocument();
   });
 
   it('switches Missing Signs reports on for a customer (#468)', async () => {
@@ -199,7 +205,7 @@ describe('Operator Customers Page', () => {
     render(<CustomersAdminPage />);
     const customerRow = (await screen.findByText('Acme Corp')).closest('tr') as HTMLElement;
     fireEvent.click(within(customerRow).getByRole('button', { name: /configure customer acme corp/i }));
-    const panel = (await screen.findByRole('heading', { name: /configure — acme corp/i })).closest('.nd-card') as HTMLElement;
+    const panel = (await screen.findByRole('heading', { name: /configure: acme corp/i })).closest('.nd-card') as HTMLElement;
     const scoped = within(panel);
 
     const reports = scoped.getByRole('checkbox', { name: /^Email Missing Signs reports/ });
@@ -232,7 +238,7 @@ describe('Operator Customers Page', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /configure customer acme corp/i }));
-    await screen.findByRole('heading', { name: /configure — acme corp/i });
+    await screen.findByRole('heading', { name: /configure: acme corp/i });
 
     fireEvent.click(screen.getByText('Jamie Lee'));
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
@@ -264,7 +270,7 @@ describe('Operator Customers Page', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /configure customer acme corp/i }));
-    await screen.findByRole('heading', { name: /configure — acme corp/i });
+    await screen.findByRole('heading', { name: /configure: acme corp/i });
 
     fireEvent.click(screen.getByRole('button', { name: /suspend account acme corp/i }));
 
@@ -301,7 +307,7 @@ describe('Operator Customers Page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /configure customer acme corp/i }));
 
-    const editPanelHeading = await screen.findByRole('heading', { name: /configure — acme corp/i });
+    const editPanelHeading = await screen.findByRole('heading', { name: /configure: acme corp/i });
     const scoped = within(editPanelHeading.closest('.nd-card') as HTMLElement);
 
     // Only touch a non-address field — the address input is left exactly as loaded.
@@ -432,12 +438,53 @@ describe('Operator Customers Page', () => {
     });
     expect(screen.queryByText('Failed to load customers.')).not.toBeInTheDocument();
   });
+  describe('Customer Users (#502)', () => {
+    async function openAcme() {
+      (listAllCustomers as jest.Mock).mockResolvedValue([
+        { id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', status: 'active', addressLine1: '1 St' },
+      ]);
+      (listAllCustomerUsers as jest.Mock).mockResolvedValue([
+        { id: 'u-1', customerId: 'c-1', userSub: 'sub-1', name: 'Pat Owner', email: 'pat@acme.test', role: 'account_owner' },
+        { id: 'u-2', customerId: 'c-1', userSub: 'sub-2', name: 'Kim Lee', email: 'kim@acme.test', role: 'read_only' },
+        { id: 'u-3', customerId: 'c-2', userSub: 'sub-3', name: 'Other Person', email: 'o@other.test', role: 'read_only' },
+      ]);
+      render(<CustomersAdminPage />);
+      fireEvent.click(await screen.findByRole('button', { name: /configure customer acme corp/i }));
+      return screen.findByRole('table', { name: 'Customer Users' });
+    }
+
+    it("lists only this Customer's users, with Resend invite for those who haven't signed in", async () => {
+      (callApi as jest.Mock).mockResolvedValue({
+        users: [
+          { sub: 'sub-1', status: 'CONFIRMED' },
+          { sub: 'sub-2', status: 'FORCE_CHANGE_PASSWORD' },
+        ],
+      });
+      const table = await openAcme();
+
+      expect(callApi).toHaveBeenCalledWith('/api/admin/users', { action: 'listUsersInGroup', groupName: 'customer' });
+      expect(within(table).getByText('Pat Owner')).toBeInTheDocument();
+      expect(within(table).getByText('Kim Lee')).toBeInTheDocument();
+      expect(within(table).queryByText('Other Person')).not.toBeInTheDocument();
+      expect(await within(table).findByRole('button', { name: 'Resend invite to Kim Lee' })).toBeInTheDocument();
+      expect(within(table).queryByRole('button', { name: 'Resend invite to Pat Owner' })).not.toBeInTheDocument();
+    });
+
+    it('shows statuses as unknown, with no Resend invite, when they cannot be read', async () => {
+      (callApi as jest.Mock).mockRejectedValue(new Error('denied'));
+      const table = await openAcme();
+
+      expect(within(table).getAllByText('unknown')).toHaveLength(2);
+      expect(within(table).queryByRole('button', { name: /Resend invite/ })).not.toBeInTheDocument();
+    });
+  });
+
   describe('feature flags', () => {
     async function openAcme() {
       (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', status: 'active', addressLine1: '1 St' }]);
       render(<CustomersAdminPage />);
       fireEvent.click(await screen.findByRole('button', { name: /configure customer acme corp/i }));
-      await screen.findByRole('heading', { name: /configure — acme corp/i });
+      await screen.findByRole('heading', { name: /configure: acme corp/i });
     }
 
     it('lists the flags on for the Customer and keeps "First user invited" in the checklist', async () => {
@@ -457,7 +504,7 @@ describe('Operator Customers Page', () => {
       (listFeatureFlagSettings as jest.Mock).mockResolvedValue([{ id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['c-2'] }]);
       await openAcme();
 
-      expect(await screen.findByText(/this Customer sees no flagged features/)).toBeInTheDocument();
+      expect(await screen.findByText(/This Customer sees no flagged features/)).toBeInTheDocument();
       expect(screen.getByText('First route built')).toBeInTheDocument();
       expect(screen.queryByText('First user invited')).not.toBeInTheDocument();
     });

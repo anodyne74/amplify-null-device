@@ -97,7 +97,7 @@ export default function InvoiceCreateForm({
               onChange={(event) => onRouteChange(event.target.value)}
               required
             >
-              <option value="">— Select a route —</option>
+              <option value="">Select a route</option>
               {customerRoutes.map((route) => (
                 <option key={route.id} value={route.id}>
                   {route.routeCode ?? route.id.slice(0, 8)}
@@ -162,7 +162,7 @@ export default function InvoiceCreateForm({
                         }
                       }}
                     >
-                      <option value="">— Choose an item —</option>
+                      <option value="">Choose an item</option>
                       {hiddenRateLines.map((line) => (
                         <option key={line.id} value={line.id}>
                           {line.label}

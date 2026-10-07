@@ -221,9 +221,9 @@ export default function AdministratorDriversPage() {
       setInviteSuccess(
         result.created
           ? result.emailSent
-            ? 'Invited — they’ll get an email with a temporary password.'
+            ? 'Invited. They’ll get an email with a temporary password.'
             : 'Login created, but the invitation email could not be sent. Ask them to use "Forgot password" to get access.'
-          : 'Already had a login — added them to the operator group.'
+          : 'Already had a login. Added them to the operator group.'
       );
       setInviteEmail('');
       setInviteName('');
@@ -517,7 +517,7 @@ export default function AdministratorDriversPage() {
                 <div className={styles.form}>
                   <span className={styles.sectionHeading}>Pay split</span>
                   <div className={styles.callout}>
-                    Not yet applied to payouts — payout calculations still use the customer&apos;s rate-card split for
+                    Not yet applied to payouts. Payout calculations still use the customer&apos;s rate-card split for
                     every operator on that customer&apos;s routes. Captured here ahead of per-operator overrides.
                   </div>
                   <div className={styles.formGrid}>

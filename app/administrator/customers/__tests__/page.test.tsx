@@ -162,7 +162,7 @@ describe('Operator Customers Page', () => {
 
     fireEvent.click(rowScope.getByRole('button', { name: /configure customer acme corp/i }));
 
-    const editPanelHeading = await screen.findByRole('heading', { name: /configure — acme corp/i });
+    const editPanelHeading = await screen.findByRole('heading', { name: /configure: acme corp/i });
     const editPanel = editPanelHeading.closest('.nd-card');
     expect(editPanel).not.toBeNull();
     const scoped = within(editPanel as HTMLElement);
@@ -194,7 +194,7 @@ describe('Operator Customers Page', () => {
 
     // The configure panel stays open showing the success message until the user closes it.
     expect(await screen.findByText('Customer updated.')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /configure — acme corp/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /configure: acme corp/i })).toBeInTheDocument();
   });
 
   it('switches Missing Signs reports on for a customer (#468)', async () => {
@@ -205,7 +205,7 @@ describe('Operator Customers Page', () => {
     render(<CustomersAdminPage />);
     const customerRow = (await screen.findByText('Acme Corp')).closest('tr') as HTMLElement;
     fireEvent.click(within(customerRow).getByRole('button', { name: /configure customer acme corp/i }));
-    const panel = (await screen.findByRole('heading', { name: /configure — acme corp/i })).closest('.nd-card') as HTMLElement;
+    const panel = (await screen.findByRole('heading', { name: /configure: acme corp/i })).closest('.nd-card') as HTMLElement;
     const scoped = within(panel);
 
     const reports = scoped.getByRole('checkbox', { name: /^Email Missing Signs reports/ });
@@ -238,7 +238,7 @@ describe('Operator Customers Page', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /configure customer acme corp/i }));
-    await screen.findByRole('heading', { name: /configure — acme corp/i });
+    await screen.findByRole('heading', { name: /configure: acme corp/i });
 
     fireEvent.click(screen.getByText('Jamie Lee'));
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
@@ -270,7 +270,7 @@ describe('Operator Customers Page', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: /configure customer acme corp/i }));
-    await screen.findByRole('heading', { name: /configure — acme corp/i });
+    await screen.findByRole('heading', { name: /configure: acme corp/i });
 
     fireEvent.click(screen.getByRole('button', { name: /suspend account acme corp/i }));
 
@@ -307,7 +307,7 @@ describe('Operator Customers Page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /configure customer acme corp/i }));
 
-    const editPanelHeading = await screen.findByRole('heading', { name: /configure — acme corp/i });
+    const editPanelHeading = await screen.findByRole('heading', { name: /configure: acme corp/i });
     const scoped = within(editPanelHeading.closest('.nd-card') as HTMLElement);
 
     // Only touch a non-address field — the address input is left exactly as loaded.
@@ -484,7 +484,7 @@ describe('Operator Customers Page', () => {
       (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', status: 'active', addressLine1: '1 St' }]);
       render(<CustomersAdminPage />);
       fireEvent.click(await screen.findByRole('button', { name: /configure customer acme corp/i }));
-      await screen.findByRole('heading', { name: /configure — acme corp/i });
+      await screen.findByRole('heading', { name: /configure: acme corp/i });
     }
 
     it('lists the flags on for the Customer and keeps "First user invited" in the checklist', async () => {
@@ -504,7 +504,7 @@ describe('Operator Customers Page', () => {
       (listFeatureFlagSettings as jest.Mock).mockResolvedValue([{ id: 'account-owner-invite', state: 'selected', selectedCustomerIds: ['c-2'] }]);
       await openAcme();
 
-      expect(await screen.findByText(/this Customer sees no flagged features/)).toBeInTheDocument();
+      expect(await screen.findByText(/This Customer sees no flagged features/)).toBeInTheDocument();
       expect(screen.getByText('First route built')).toBeInTheDocument();
       expect(screen.queryByText('First user invited')).not.toBeInTheDocument();
     });

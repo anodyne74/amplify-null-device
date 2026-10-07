@@ -241,7 +241,7 @@ export function TimedSignsChecklist({ stops, customerAgents, onRemove, onRestore
             className={isAuction ? styles.agentPicked : styles.agent}
             onClick={() => setIsAuction((current) => !current)}
           >
-            Auction — every sign timed
+            Auction: every sign timed
           </button>
           {addError && (
             <div className={styles.error} role="alert">

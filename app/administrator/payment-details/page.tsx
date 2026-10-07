@@ -539,7 +539,7 @@ function PaymentDetailsContent() {
                 <Field
                   label="Pay-To Account Name"
                   htmlFor="pd-payto-account-name"
-                  hint="Shown in the &quot;Pay to&quot; section of customer invoices — this is Null Device's own account, not the customer's."
+                  hint="Shown in the &quot;Pay to&quot; section of customer invoices. This is Null Device's own account, not the customer's."
                 >
                   <Input
                     id="pd-payto-account-name"
@@ -620,7 +620,7 @@ function PaymentDetailsContent() {
               ) : rateLinesLoadError ? (
                 <p className={`nd-badge nd-badge--danger ${styles.rateCardBanner}`}>{rateLinesLoadError}</p>
               ) : rateLines.length === 0 ? (
-                <p className={styles.rateCardEmpty}>No rate lines yet — this customer uses the flat billing rate.</p>
+                <p className={styles.rateCardEmpty}>No rate lines yet. This customer uses the flat billing rate.</p>
               ) : (
                 <div className={styles.rateCardTable}>
                   {rateLines.map((line) => (
@@ -770,7 +770,7 @@ function PaymentDetailsContent() {
                 <Switch
                   checked={gstExclusive}
                   onChange={(e) => setGstExclusive(e.target.checked)}
-                  label="Rates are ex GST — add 10% on invoice"
+                  label="Rates are ex GST (add 10% on invoice)"
                   disabled={savingTax}
                 />
                 <Switch

@@ -37,7 +37,7 @@ export default function AgentOptionsEditor({
   return (
     <div className={styles.fieldsGridFull}>
       <p className={styles.mutedText}>
-        Agents on this account — shown as codes on the operator&apos;s run sheet. Click an agent to make it the
+        Agents on this account: shown as codes on the operator&apos;s run sheet. Click an agent to make it the
         default for new stops.
       </p>
       {agentOptions.length > 0 && (

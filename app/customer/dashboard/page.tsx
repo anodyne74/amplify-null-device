@@ -297,7 +297,7 @@ export default function CustomerDashboard() {
                     </div>
                   ))}
                 </div>
-                <p className={styles.chartNote}>Costs sit with your account owner — invoices aren&apos;t shown here.</p>
+                <p className={styles.chartNote}>Costs sit with your account owner, so invoices aren&apos;t shown here.</p>
               </>
             )}
           </Card>

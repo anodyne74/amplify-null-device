@@ -259,7 +259,7 @@ new CfnTemplate(sesStack, 'JobAssignedTemplate', {
 						<tr>
 							<td style="padding:28px;">
 								<div style="font-family:'Comfortaa','Trebuchet MS',sans-serif;font-weight:700;font-size:22px;color:#141B38;">Route {{routeCode}} is yours</div>
-								<p style="margin:12px 0 0 0;color:#5A6180;font-size:15px;line-height:1.6;">Hi {{operatorName}}, you've been assigned to route {{routeCode}} for {{customerName}} — {{stopCount}} stops.</p>
+								<p style="margin:12px 0 0 0;color:#5A6180;font-size:15px;line-height:1.6;">Hi {{operatorName}}, you've been assigned to route {{routeCode}} for {{customerName}} ({{stopCount}} stops).</p>
 
 								<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#EEF0FE;border-radius:12px;margin-top:20px;">
 									<tr>
@@ -288,7 +288,7 @@ new CfnTemplate(sesStack, 'JobAssignedTemplate', {
 		textPart: `
 Route {{routeCode}} is yours
 
-Hi {{operatorName}}, you've been assigned to route {{routeCode}} for {{customerName}} — {{stopCount}} stops.
+Hi {{operatorName}}, you've been assigned to route {{routeCode}} for {{customerName}} ({{stopCount}} stops).
 
 View route: {{routeUrl}}
 
@@ -327,7 +327,7 @@ new CfnTemplate(sesStack, 'WelcomeTemplate', {
 						<tr>
 							<td style="padding:28px 28px 8px 28px;">
 								<div style="font-family:'Comfortaa','Trebuchet MS',sans-serif;font-weight:700;font-size:22px;color:#141B38;">Your portal is live</div>
-								<p style="margin:12px 0 0 0;color:#5A6180;font-size:15px;line-height:1.6;">Welcome, {{customerName}}. Track your routes, sign placements and pickups, and invoices in one place — no more waiting on email updates.</p>
+								<p style="margin:12px 0 0 0;color:#5A6180;font-size:15px;line-height:1.6;">Welcome, {{customerName}}. Track your routes, sign placements and pickups, and invoices in one place, with no more waiting on email updates.</p>
 							</td>
 						</tr>
 						<tr>
@@ -383,7 +383,7 @@ new CfnTemplate(sesStack, 'InvitationTemplate', {
 </style>
 </head>
 <body style="margin:0;padding:0;background-color:#F6F7FB;">
-<span style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;max-height:0;max-width:0;overflow:hidden;mso-hide:all;">{{inviterName}} invited you to the {{customerName}} portal — sign in with your temporary password.</span>
+<span style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;max-height:0;max-width:0;overflow:hidden;mso-hide:all;">{{inviterName}} invited you to the {{customerName}} portal. Sign in with your temporary password.</span>
 
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#F6F7FB;">
 <tr>
@@ -408,7 +408,7 @@ new CfnTemplate(sesStack, 'InvitationTemplate', {
     <td class="nd-pad" width="560" style="width:560px;padding:32px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;">
       <div style="font-family:Comfortaa,'Trebuchet MS',Tahoma,Arial,sans-serif;font-weight:bold;font-size:25px;line-height:33px;mso-line-height-rule:exactly;letter-spacing:-0.02em;color:#141B38;">You've been invited</div>
       <p style="margin:14px 0 0;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#48526C;">
-        Hi {{inviteeName}} — {{inviterDisplay}} has invited you to the <strong style="color:#141B38;">{{customerName}}</strong> portal on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+        Hi {{inviteeName}}, {{inviterDisplay}} has invited you to the <strong style="color:#141B38;">{{customerName}}</strong> portal on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
       </p>
     </td>
   </tr>
@@ -553,7 +553,7 @@ new CfnTemplate(sesStack, 'StaffInvitationTemplate', {
 </style>
 </head>
 <body style="margin:0;padding:0;background-color:#F6F7FB;">
-<span style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;max-height:0;max-width:0;overflow:hidden;mso-hide:all;">{{inviterName}} invited you to Null Device as a {{roleLabel}} — sign in with your temporary password.</span>
+<span style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;max-height:0;max-width:0;overflow:hidden;mso-hide:all;">{{inviterName}} invited you to Null Device as a {{roleLabel}}. Sign in with your temporary password.</span>
 
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#F6F7FB;">
 <tr>
@@ -578,7 +578,7 @@ new CfnTemplate(sesStack, 'StaffInvitationTemplate', {
     <td class="nd-pad" width="560" style="width:560px;padding:32px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;">
       <div style="font-family:Comfortaa,'Trebuchet MS',Tahoma,Arial,sans-serif;font-weight:bold;font-size:25px;line-height:33px;mso-line-height-rule:exactly;letter-spacing:-0.02em;color:#141B38;">You've been invited</div>
       <p style="margin:14px 0 0;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#48526C;">
-        Hi {{inviteeName}} — {{inviterDisplay}} has added you as a <strong style="color:#141B38;">{{roleLabel}}</strong> on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+        Hi {{inviteeName}}, {{inviterDisplay}} has added you as a <strong style="color:#141B38;">{{roleLabel}}</strong> on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
       </p>
     </td>
   </tr>

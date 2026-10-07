@@ -43,7 +43,7 @@ describe('RouteFeedbackCard (#467)', () => {
     await waitFor(() =>
       expect(mockCallApi).toHaveBeenCalledWith('/api/customer/route-feedback', { routeId: 'route-1', tone: 'good', note: '' })
     );
-    expect(await screen.findByText('Thanks — your feedback was sent.')).toBeInTheDocument();
+    expect(await screen.findByText('Thanks, your feedback was sent.')).toBeInTheDocument();
     expect(onSaved).toHaveBeenCalledWith({ tone: 'good', note: '' });
     expect(screen.getByText('You said: All good')).toBeInTheDocument();
   });
@@ -66,7 +66,7 @@ describe('RouteFeedbackCard (#467)', () => {
         note: 'Two signs faced the wrong way.',
       })
     );
-    expect(await screen.findByText('You said: Something was off — “Two signs faced the wrong way.”')).toBeInTheDocument();
+    expect(await screen.findByText('You said: Something was off: “Two signs faced the wrong way.”')).toBeInTheDocument();
   });
 
   it('shows earlier feedback and lets the customer change it', async () => {
@@ -81,7 +81,7 @@ describe('RouteFeedbackCard (#467)', () => {
     render(<RouteFeedbackCard routeId="route-1" feedback={{ tone: 'issue', note: 'Missing sign' }} onSaved={jest.fn()} />);
 
     expect(await screen.findByText('This route has been invoiced, so its feedback can no longer be changed.')).toBeInTheDocument();
-    expect(screen.getByText('You said: Something was off — “Missing sign”')).toBeInTheDocument();
+    expect(screen.getByText('You said: Something was off: “Missing sign”')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'All good' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Something was off' })).not.toBeInTheDocument();
   });

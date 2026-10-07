@@ -103,7 +103,7 @@ export default function CustomerEditPanel({
 
   return (
     <Card
-      title={`Configure — ${customer.name}`}
+      title={`Configure: ${customer.name}`}
       subtitle="Account setup"
       footer={
         customer.standingInstructionsUpdatedAt ? (
@@ -290,7 +290,7 @@ export default function CustomerEditPanel({
           ) : onFeatureFlags === null ? (
             <p className={styles.mutedText}>Could not load feature flags.</p>
           ) : !onFeatureFlags?.length ? (
-            <p className={styles.mutedText}>None — this Customer sees no flagged features.</p>
+            <p className={styles.mutedText}>None. This Customer sees no flagged features.</p>
           ) : (
             <ul className={styles.checklist} aria-label="Feature flags on">
               {onFeatureFlags.map((name) => (

@@ -332,7 +332,7 @@ function PropertyTypeahead({
         aria-autocomplete="list"
         aria-activedescendant={expanded ? `ph-suggestion-${active}` : undefined}
         iconLeft="search"
-        placeholder="Epping — or Cliff Rd — or 14 Cliff Rd, Epping"
+        placeholder="Epping, Cliff Rd or 14 Cliff Rd, Epping"
         value={query}
         onChange={(event) => {
           onQueryChange(event.target.value);

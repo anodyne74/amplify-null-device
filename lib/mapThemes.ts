@@ -51,7 +51,7 @@ export const MAP_THEMES: MapThemeDefinition[] = [
     key: 'toner',
     label: 'Toner (Stamen)',
     tileUrl: 'https://stamen-tiles.a.ssl.fastly.net/toner/{z}/{x}/{y}.png',
-    attribution: 'Map tiles by Stamen Design, CC BY 3.0 — Map data &copy; OpenStreetMap contributors',
+    attribution: 'Map tiles by Stamen Design, CC BY 3.0. Map data &copy; OpenStreetMap contributors',
   },
   {
     key: 'osmfr',

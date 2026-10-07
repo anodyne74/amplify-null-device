@@ -92,7 +92,7 @@ export default function CustomerUsersPage() {
       });
       setInviteSuccess(
         payload?.emailSent
-          ? `Invited ${email.trim()} — they'll receive an email with a temporary password.`
+          ? `Invited ${email.trim()}. They'll receive an email with a temporary password.`
           : `Added ${email.trim()} as a user, but the invitation email could not be sent. Ask them to use "Forgot password" to get access, or contact support.`
       );
       setEmail('');

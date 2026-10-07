@@ -326,8 +326,8 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
           title="Special instructions"
           subtitle={
             instructionsLocked
-              ? 'Locked — sign placement has already begun for this route'
-              : 'For this route only — the operator sees them before they leave the depot'
+              ? 'Locked: sign placement has already begun for this route'
+              : 'For this route only: the operator sees them before they leave the depot'
           }
           action={
             <IconButton
@@ -369,7 +369,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
 
               {instructionsLocked ? (
                 <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-                  Instructions can no longer be added or changed — sign placement has begun.
+                  Instructions can no longer be added or changed, as sign placement has begun.
                 </p>
               ) : (
                 <>
@@ -388,7 +388,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
                     aria-label="Add an instruction for this route"
                     value={instructionsDraft}
                     onChange={(e) => setInstructionsDraft(e.target.value)}
-                    placeholder="Anything specific for this run — access, extra signs, a street to avoid"
+                    placeholder="Anything specific for this run: access, extra signs, a street to avoid"
                     disabled={savingInstructions}
                   />
 

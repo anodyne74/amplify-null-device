@@ -89,14 +89,14 @@ describe('InvoicePreview', () => {
     expect(screen.getByText('We retain')).toBeInTheDocument();
     // retained = 240 - 68.40 = 171.60
     expect(screen.getByText('$171.60')).toBeInTheDocument();
-    expect(screen.queryByText('Route not yet finalised — figures may change.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Route not yet finalised, so figures may change.')).not.toBeInTheDocument();
   });
 
   it('flags a not-yet-completed route as unfinalised', () => {
     const props = baseProps();
     render(<InvoicePreview {...props} route={{ ...props.route, status: 'in_progress' } as unknown as Route} />);
 
-    expect(screen.getByText('Route not yet finalised — figures may change.')).toBeInTheDocument();
+    expect(screen.getByText('Route not yet finalised, so figures may change.')).toBeInTheDocument();
   });
 
   it('shows a grouped-by-agent breakdown when the customer setting is on', () => {

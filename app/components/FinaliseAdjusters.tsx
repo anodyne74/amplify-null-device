@@ -28,7 +28,7 @@ export function FinaliseAdjusters({ adjusters }: { adjusters: Adjusters }) {
         <div className={styles.adjustRow}>
           <div>
             <span className={styles.adjustLabel}>Distance</span>
-            <span className={styles.adjustMeasured}>Not tracked — enter manually</span>
+            <span className={styles.adjustMeasured}>Not tracked, enter manually</span>
           </div>
           <button type="button" className={styles.stepperButtonMinus} onClick={() => bumpKm(-0.5)} aria-label="Decrease distance">
             −
@@ -101,7 +101,7 @@ export function FinaliseAdjusters({ adjusters }: { adjusters: Adjusters }) {
           <span className={styles.billCueText}>
             {billAligned
               ? 'Lands on a 15 min increment'
-              : `${formatDuration(billTotal)} is not a 15 min increment — the office can't invoice it`}
+              : `${formatDuration(billTotal)} is not a 15 min increment, so the office can't invoice it`}
           </span>
         </div>
         {!billAligned && (

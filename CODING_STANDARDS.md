@@ -8,6 +8,7 @@ Applies to every string a Customer User can read: portal screens, help pages (`c
 
 - **Use glossary names.** Every noun naming a domain thing matches `CONTEXT.md`; a word on any _Avoid_ list is a violation (e.g. "Preferences" on the Route Defaults page, #481; "jobs" on sign-in, #347). Plain marketing phrasing that names no domain thing is fine.
 - **Speak only to Customer Users.** Customer copy describes what the Customer sees and does. It names no operators, drivers, staff, administrators or other Customers, and says nothing about how Routes are operated (#347, #481).
+- **No em-dashes in copy.** Screens, PDFs, SMS and emails (templates included) use a full stop, comma, colon or parentheses instead. A string that is exactly `'—'` is the empty-value placeholder and stays. Comments are exempt. `__tests__/noEmDashes.test.ts` fails on any other (#505).
 
 ## Data schema and authorization (`amplify/data/resource.ts`)
 

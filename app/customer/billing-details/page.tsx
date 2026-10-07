@@ -205,7 +205,7 @@ export default function CustomerBillingDetailsPage() {
               </div>
             </Card>
 
-            <Card title="How you pay" subtitle="Set up by Null Device — ask us to change it">
+            <Card title="How you pay" subtitle="Set up by Null Device. Ask us to change it">
               <div className={styles.payRows}>
                 <div className={styles.payRow}>
                   <span className={styles.payLabel}>Rate</span>

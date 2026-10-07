@@ -802,7 +802,7 @@ function NewRoutePageContent() {
 
                   <Field
                     label="Upload Schedule File"
-                    hint={fromRecord ? 'PDF, CSV, TXT — to parse; the email keeps its own files' : 'PDF, CSV, TXT — kept with the Route Request'}
+                    hint={fromRecord ? 'PDF, CSV, TXT, to parse. The email keeps its own files' : 'PDF, CSV, TXT, kept with the Route Request'}
                   >
                     <div className={styles.fileRow}>
                       <input
@@ -872,7 +872,7 @@ function NewRoutePageContent() {
                 {importDraftStops && importDraftStops.length > 0 && (
                   <div>
                     <p className={styles.previewHeader}>
-                      <strong>{importDraftStops.length} stops ready</strong> — review before creating route
+                      <strong>{importDraftStops.length} stops ready</strong>. Review before creating route
                     </p>
                     <DataTable<RouteDraftStop & { id: number; seq: number }>
                       columns={previewColumns}

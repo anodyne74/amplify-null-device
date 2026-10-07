@@ -38,7 +38,7 @@ export function PropertySearchCard({ search }: PropertySearchCardProps) {
             <Input
               aria-label="Property address, street, or suburb"
               iconLeft="search"
-              placeholder="14 Cliff Rd, Epping — or Ryedale Rd — or Eastwood"
+              placeholder="14 Cliff Rd, Epping, Ryedale Rd or Eastwood"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -56,7 +56,7 @@ export function PropertySearchCard({ search }: PropertySearchCardProps) {
         {isIdle && (
           <div className={styles.propertyNote}>
             <span>
-              Type at least two characters. {totalPropertiesCount} properties across {totalRoutesCount} routes — try
+              Type at least two characters. {totalPropertiesCount} properties across {totalRoutesCount} routes. Try
               &ldquo;Cliff Rd&rdquo;, &ldquo;Ryedale&rdquo; or &ldquo;Eastwood&rdquo;.
             </span>
           </div>
@@ -76,7 +76,7 @@ export function PropertySearchCard({ search }: PropertySearchCardProps) {
             <div className={styles.propertyResultsHeader}>
               <span>
                 {matches.length} {matches.length === 1 ? 'property' : 'properties'} on {matchedRouteCount}{' '}
-                {matchedRouteCount === 1 ? 'route' : 'routes'} — tap a route to isolate it below
+                {matchedRouteCount === 1 ? 'route' : 'routes'}. Tap a route to isolate it below
               </span>
               <button type="button" className={styles.clearFiltersBtn} onClick={search.clear}>
                 Clear search

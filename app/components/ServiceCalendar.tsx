@@ -357,11 +357,11 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
           <div className={styles.legend}>
             <span className={styles.legendItem}>
               <span className={`${styles.legendSwatch} ${styles.legendSwatchNoDrivers}`} />
-              Null Device unavailable — set by Null Device
+              Null Device unavailable, set by Null Device
             </span>
             <span className={styles.legendItem}>
               <span className={`${styles.legendSwatch} ${styles.legendSwatchClosed}`} />
-              Agency closed — set by the customer
+              Agency closed, set by the customer
             </span>
             <span className={styles.legendItem}>
               <span className={`${styles.legendSwatch} ${styles.legendSwatchWeekend}`} />
@@ -439,7 +439,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
                 {canWriteClosed && (
                   <div className={styles.editSection}>
                     {!selectedClosedBlock && (
-                      <Field label="Reason" htmlFor="cal-closed-reason" hint="Optional — helps us plan the run either side">
+                      <Field label="Reason" htmlFor="cal-closed-reason" hint="Optional, helps us plan the run either side">
                         <Input
                           id="cal-closed-reason"
                           value={reasonDraft}
@@ -466,7 +466,7 @@ export function ServiceCalendar({ customerId, role, currentUserSub, viewerSubs }
 
                 {role === 'customer-readonly' && (
                   <p className={styles.mutedText}>
-                    Your account owner marks office closures. If you need a day added, ask them — or add it as a route instruction.
+                    Your account owner marks office closures. If you need a day added, ask them, or add it as a route instruction.
                   </p>
                 )}
               </>

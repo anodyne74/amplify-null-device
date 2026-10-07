@@ -8,16 +8,15 @@ screens: /customer/invoices, /customer/billing-details
 
 ## Billed Time
 
-Billed Time is what you're charged for a Route. It's the time spent on each part of the Route (loading your signs, putting them up, taking them down and returning them), plus the distance travelled.
+Billed Time is what you're charged for a Route. It's the time spent on each part of the Route (loading your signs, putting them up, taking them down and returning them).
 
-- Loading and returning are each at least 15 minutes. Putting signs up and taking them down are each at least 5 minutes.
 - The total is rounded to a 15-minute step.
 
 It's set when the Route is complete, and it shows as **Duration** on the Route.
 
 ## Invoices
 
-**Invoices** lists your invoices. Filter them by date, then open one to see its itemised charges. We also email a PDF the morning after each billing period closes.
+**Invoices** lists your invoices. Filter them by date, then open one to see its itemised charges. We also email a PDF the morning after the Route is completed.
 
 ## Billing Details
 

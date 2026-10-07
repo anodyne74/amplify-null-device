@@ -5,6 +5,7 @@ import CustomersAdminPage from '../page';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { createCustomer, listAllCustomerUsers, listAllCustomers, updateCustomer } from '@/lib/customers';
 import { listFeatureFlagSettings } from '@/lib/queries/FeatureFlagSettings';
+import { callApi } from '@/lib/apiClient';
 
 const mockPush = jest.fn();
 jest.mock('next/navigation', () => ({
@@ -62,6 +63,10 @@ jest.mock('@/lib/customers', () => ({
   updateCustomer: jest.fn(),
 }));
 
+jest.mock('@/lib/apiClient', () => ({
+  callApi: jest.fn(),
+}));
+
 jest.mock('@/lib/invoices', () => ({
   listCustomerInvoices: jest.fn().mockResolvedValue([]),
 }));
@@ -82,6 +87,7 @@ describe('Operator Customers Page', () => {
     (updateCustomer as jest.Mock).mockResolvedValue({ id: 'c-1' });
     (listAllCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listFeatureFlagSettings as jest.Mock).mockResolvedValue([]);
+    (callApi as jest.Mock).mockResolvedValue({ users: [] });
   });
 
   it('submits create customer with standing instructions and defaults', async () => {
@@ -432,6 +438,47 @@ describe('Operator Customers Page', () => {
     });
     expect(screen.queryByText('Failed to load customers.')).not.toBeInTheDocument();
   });
+  describe('Customer Users (#502)', () => {
+    async function openAcme() {
+      (listAllCustomers as jest.Mock).mockResolvedValue([
+        { id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', status: 'active', addressLine1: '1 St' },
+      ]);
+      (listAllCustomerUsers as jest.Mock).mockResolvedValue([
+        { id: 'u-1', customerId: 'c-1', userSub: 'sub-1', name: 'Pat Owner', email: 'pat@acme.test', role: 'account_owner' },
+        { id: 'u-2', customerId: 'c-1', userSub: 'sub-2', name: 'Kim Lee', email: 'kim@acme.test', role: 'read_only' },
+        { id: 'u-3', customerId: 'c-2', userSub: 'sub-3', name: 'Other Person', email: 'o@other.test', role: 'read_only' },
+      ]);
+      render(<CustomersAdminPage />);
+      fireEvent.click(await screen.findByRole('button', { name: /configure customer acme corp/i }));
+      return screen.findByRole('table', { name: 'Customer Users' });
+    }
+
+    it("lists only this Customer's users, with Resend invite for those who haven't signed in", async () => {
+      (callApi as jest.Mock).mockResolvedValue({
+        users: [
+          { sub: 'sub-1', status: 'CONFIRMED' },
+          { sub: 'sub-2', status: 'FORCE_CHANGE_PASSWORD' },
+        ],
+      });
+      const table = await openAcme();
+
+      expect(callApi).toHaveBeenCalledWith('/api/admin/users', { action: 'listUsersInGroup', groupName: 'customer' });
+      expect(within(table).getByText('Pat Owner')).toBeInTheDocument();
+      expect(within(table).getByText('Kim Lee')).toBeInTheDocument();
+      expect(within(table).queryByText('Other Person')).not.toBeInTheDocument();
+      expect(await within(table).findByRole('button', { name: 'Resend invite to Kim Lee' })).toBeInTheDocument();
+      expect(within(table).queryByRole('button', { name: 'Resend invite to Pat Owner' })).not.toBeInTheDocument();
+    });
+
+    it('shows statuses as unknown, with no Resend invite, when they cannot be read', async () => {
+      (callApi as jest.Mock).mockRejectedValue(new Error('denied'));
+      const table = await openAcme();
+
+      expect(within(table).getAllByText('unknown')).toHaveLength(2);
+      expect(within(table).queryByRole('button', { name: /Resend invite/ })).not.toBeInTheDocument();
+    });
+  });
+
   describe('feature flags', () => {
     async function openAcme() {
       (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'c-1', name: 'Acme Corp', email: 'acme@example.com', status: 'active', addressLine1: '1 St' }]);

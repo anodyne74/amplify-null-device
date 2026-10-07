@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { callApi } from '@/lib/apiClient';
+import { customerInviteStatus, resendCustomerInvite } from '@/lib/customerInvite';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import PageHeader from '@/app/administrator/components/PageHeader';
@@ -137,13 +138,11 @@ export default function UsersAdminPage() {
     () =>
       allCustomerUsers.map((user) => {
         const cognitoUser = cognitoUserBySub.get(user.userSub);
-        const status: CustomerUserRowData['status'] =
-          cognitoUser?.status === 'FORCE_CHANGE_PASSWORD' ? 'Invite sent' : 'Active';
         return {
           ...user,
           role: user.role ?? 'read_only',
           customerName: customerNameById.get(user.customerId) ?? 'Unknown customer',
-          status,
+          status: customerInviteStatus(cognitoUser?.status),
           lastSeen: cognitoUser?.updatedAt,
           name: user.name ?? user.email ?? 'Unnamed user',
           email: user.email ?? '',
@@ -496,22 +495,9 @@ export default function UsersAdminPage() {
     setResendingId(row.id);
     setAccessError(null);
     setAccessSuccess(null);
-    try {
-      const payload = await callApi('/api/admin/users', {
-        action: 'resendInvite',
-        email: row.email,
-        groupName: 'customer',
-        name: row.name,
-        customerName: row.customerName,
-      });
-      setAccessSuccess(
-        payload.emailSent
-          ? `Invitation resent to ${row.email}.`
-          : `Invitation reset for ${row.email}, but the email could not be sent. Ask them to use "Forgot password".`
-      );
-    } catch (e) {
-      setAccessError(e instanceof Error ? e.message : 'Failed to resend invite.');
-    }
+    const outcome = await resendCustomerInvite(row, row.customerName);
+    if (outcome.ok) setAccessSuccess(outcome.message);
+    else setAccessError(outcome.message);
     setResendingId(null);
   };
 

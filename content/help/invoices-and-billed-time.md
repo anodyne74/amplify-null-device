@@ -16,7 +16,7 @@ It's set when the Route is complete, and it shows as **Duration** on the Route.
 
 ## Invoices
 
-**Invoices** lists your invoices. Filter them by date, then open one to see its itemised charges. We also email a PDF the morning after route is completed.
+**Invoices** lists your invoices. Filter them by date, then open one to see its itemised charges. We also email a PDF the morning after the Route is completed.
 
 ## Billing Details
 

@@ -1,5 +1,5 @@
 import { Avatar } from '@/app/components/ui/core/Avatar';
-import { Badge } from '@/app/components/ui/core/Badge';
+import { CustomerUserRoleBadge, CustomerUserStatusBadge } from '@/app/administrator/components/CustomerUserBadges';
 import { Button } from '@/app/components/ui/core/Button';
 import { formatRelativeDay } from '@/lib/format';
 import type { CustomerInviteStatus } from '@/lib/customerInvite';
@@ -47,12 +47,10 @@ export default function CustomerUserTableRow({
       </td>
       <td>{row.customerName}</td>
       <td>
-        <Badge tone={row.role === 'account_owner' ? 'success' : 'info'}>
-          {row.role === 'account_owner' ? 'account owner' : 'read only'}
-        </Badge>
+        <CustomerUserRoleBadge role={row.role} />
       </td>
       <td>
-        <Badge tone={isActive ? 'neutral' : 'warning'}>{row.status.toLowerCase()}</Badge>
+        <CustomerUserStatusBadge status={row.status} />
       </td>
       <td className={styles.mono}>{formatRelativeDay(row.lastSeen)}</td>
       <td className={styles.manageCell}>

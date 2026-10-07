@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
-import { resendCustomerInvite, type CustomerInviteStatus } from '@/lib/customerInvite';
+import { CustomerUserRoleBadge, CustomerUserStatusBadge } from '@/app/administrator/components/CustomerUserBadges';
+import { resendCustomerInvite, type CustomerInviteStatus, type ResendInviteOutcome } from '@/lib/customerInvite';
 import styles from '../page.module.css';
 
 export interface CustomerUsersListRow {
@@ -22,7 +22,7 @@ interface CustomerUsersListProps {
 // this list only resends invites (#502).
 export default function CustomerUsersList({ customerName, users }: CustomerUsersListProps) {
   const [resendingId, setResendingId] = useState<string | null>(null);
-  const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null);
+  const [outcome, setOutcome] = useState<ResendInviteOutcome | null>(null);
 
   const handleResend = async (row: CustomerUsersListRow) => {
     setResendingId(row.id);
@@ -63,14 +63,10 @@ export default function CustomerUsersList({ customerName, users }: CustomerUsers
                       <div className={styles.mutedText}>{row.email}</div>
                     </td>
                     <td>
-                      <Badge tone={row.role === 'account_owner' ? 'success' : 'info'}>
-                        {row.role === 'account_owner' ? 'account owner' : 'read only'}
-                      </Badge>
+                      <CustomerUserRoleBadge role={row.role} />
                     </td>
                     <td>
-                      <Badge tone={row.status === 'Invite sent' ? 'warning' : 'neutral'}>
-                        {row.status?.toLowerCase() ?? 'unknown'}
-                      </Badge>
+                      <CustomerUserStatusBadge status={row.status} />
                     </td>
                     <td className={styles.manageCell}>
                       {row.status === 'Invite sent' && (

@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import CustomerUsersList, { type CustomerUsersListRow } from '../components/CustomerUsersList';
-import { resendCustomerInvite } from '@/lib/customerInvite';
+import { resendCustomerInvite, type ResendInviteOutcome } from '@/lib/customerInvite';
 
 jest.mock('@/lib/customerInvite', () => ({
   resendCustomerInvite: jest.fn(),
@@ -88,7 +88,7 @@ describe('CustomerUsersList', () => {
   });
 
   it('disables the action while the resend is pending', async () => {
-    let finish: (value: { ok: boolean; message: string }) => void = () => {};
+    let finish: (value: ResendInviteOutcome) => void = () => {};
     mockResend.mockReturnValue(new Promise((resolve) => (finish = resolve)));
     renderList();
 

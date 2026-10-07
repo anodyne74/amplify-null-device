@@ -23,7 +23,7 @@ import {
 } from '@/lib/customerDefaults';
 import { geocodeAddress } from '@/lib/googleMaps';
 import { callApi } from '@/lib/apiClient';
-import { customerInviteStatus } from '@/lib/customerInvite';
+import { customerInviteStatus, type CustomerInviteStatus } from '@/lib/customerInvite';
 import { buildOnboardingChecklist, type ChecklistItem } from '@/lib/customerOnboardingChecklist';
 import styles from './page.module.css';
 import { listCustomerRoutes } from '@/lib/routes';
@@ -56,9 +56,9 @@ export default function CustomersAdminPage() {
   const { user } = useAuthenticator();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerUsers, setCustomerUsers] = useState<CustomerUser[]>([]);
-  // Cognito status by sub for every user in the `customer` group; null until
+  // Invite status by sub for every user in the `customer` group; null until
   // loaded, or when it couldn't be read (their status then shows as unknown).
-  const [cognitoStatusBySub, setCognitoStatusBySub] = useState<Map<string, string | undefined> | null>(null);
+  const [inviteStatusBySub, setInviteStatusBySub] = useState<Map<string, CustomerInviteStatus> | null>(null);
   const [checklists, setChecklists] = useState<Record<string, ChecklistItem[]>>({});
   const [checklistLoading, setChecklistLoading] = useState<Record<string, boolean>>({});
   // null: the flag settings couldn't be read, so the panel says so rather than showing none on.
@@ -183,7 +183,12 @@ export default function CustomersAdminPage() {
       action: 'listUsersInGroup',
       groupName: 'customer',
     }).catch(() => null);
-    if (payload) setCognitoStatusBySub(new Map((payload.users ?? []).map((user) => [user.sub ?? '', user.status])));
+    if (!payload) return;
+    const statuses = new Map<string, CustomerInviteStatus>();
+    for (const user of payload.users ?? []) {
+      if (user.sub) statuses.set(user.sub, customerInviteStatus(user.status));
+    }
+    setInviteStatusBySub(statuses);
   }, []);
 
   useEffect(() => {
@@ -427,9 +432,10 @@ export default function CustomersAdminPage() {
           name: customerUser.name ?? customerUser.email ?? 'Unnamed user',
           email: customerUser.email ?? '',
           role: customerUser.role ?? 'read_only',
-          status: cognitoStatusBySub ? customerInviteStatus(cognitoStatusBySub.get(customerUser.userSub)) : null,
+          // No Cognito record reads as Active, as on the Users screen.
+          status: inviteStatusBySub ? inviteStatusBySub.get(customerUser.userSub) ?? 'Active' : null,
         })),
-    [customerUsers, expandedEditPanel, cognitoStatusBySub]
+    [customerUsers, expandedEditPanel, inviteStatusBySub]
   );
 
   return (

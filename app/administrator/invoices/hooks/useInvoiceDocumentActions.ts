@@ -9,6 +9,7 @@ import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseInvoiceText } from '@/lib/parseInvoice';
 import { BILLING_EMAIL } from '@/lib/publicAppConfig';
 import { buildInvoiceFileName } from '@/lib/invoiceFileName';
+import { billToName } from '@/lib/billToName';
 import type { StopSummary } from '@/app/administrator/invoices/stopFormatting';
 import { getRouteWithStops } from '@/lib/routes';
 import { activeStops } from '@/lib/loadChange';
@@ -279,7 +280,7 @@ export function useInvoiceDocumentActions({
           email: BILLING_EMAIL,
         },
         customer: {
-          name: customer?.name || invoice.customerId,
+          name: billToName(customer, invoice.customerId),
           address: customer?.addressLine1 || '—',
         },
         lines: invoiceRows,

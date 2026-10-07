@@ -128,6 +128,10 @@ _Avoid_: Team member, teammate, sub-user, customer admin
 A Customer User who can see the Customer's invoices and manage its Customer Users and Property History reports. The other Customer User role, read-only, sees Routes and Stops only.
 _Avoid_: Customer Admin, customer administrator
 
+**Trading Name**:
+The name a Customer trades under (`companyName`), printed under Bill To on its invoices; a Customer with none is billed under its name. Administrators set it on the Customer; the Customer can change it under Billing Details.
+_Avoid_: Company Name
+
 **Route Defaults**:
 An Account Owner's preferences applied to every new Route for their Customer: instructions for the Operator, signs per Stop, the default agent, and the Standing Pickup Day. Staff can still change them on any single Route.
 _Avoid_: Standing orders, preferences

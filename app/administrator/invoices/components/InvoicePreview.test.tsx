@@ -67,6 +67,13 @@ describe('InvoicePreview', () => {
     expect(screen.getByText(/^ABN 48 221 604 992 · 02 5555 5555/)).toBeInTheDocument();
   });
 
+  it("shows the Customer's Trading Name under Billed to (#503)", () => {
+    const props = baseProps();
+    render(<InvoicePreview {...props} customer={{ ...props.customer, companyName: 'Harcourts Epping Pty Ltd' }} />);
+    expect(screen.getByText('Harcourts Epping Pty Ltd')).toBeInTheDocument();
+    expect(screen.queryByText('Harcourts Epping')).not.toBeInTheDocument();
+  });
+
   it('leaves the ABN out of the letterhead when there is none', () => {
     render(<InvoicePreview {...baseProps()} billingAbn="" />);
     expect(screen.getByText(/^02 5555 5555/)).toBeInTheDocument();

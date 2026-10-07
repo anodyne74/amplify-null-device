@@ -12,6 +12,7 @@ import { computeDriverSplitPreview } from '@/app/administrator/invoices/driverSp
 import { billedTime } from '@/lib/billedTime';
 import { formatDuration } from '@/lib/format';
 import { formatAbn } from '@/lib/companyBilling';
+import { billToName } from '@/lib/billToName';
 import { signsPlaced } from '@/lib/signRunTotals';
 import styles from './InvoicePreview.module.css';
 
@@ -152,7 +153,7 @@ export default function InvoicePreview({
       <div className={styles.threeColumns}>
         <div>
           <div className={styles.columnLabel}>Billed to</div>
-          <div className={styles.columnHeading}>{customer.name}</div>
+          <div className={styles.columnHeading}>{billToName(customer, customer.id)}</div>
           <div className={styles.columnDetail}>{customer.addressLine1 || '—'}</div>
         </div>
         <div>

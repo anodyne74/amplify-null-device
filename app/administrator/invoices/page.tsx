@@ -204,7 +204,7 @@ export default function InvoicesAdminPage() {
           }}
           onBulkMarkPaidInvoice={markInvoicePaid}
           focusInvoiceId={focusInvoiceId}
-          onEmailInvoiceToPrimary={(invoice) => {
+          onEmailInvoice={(invoice) => {
             void handleEmailInvoice(invoice);
           }}
         />

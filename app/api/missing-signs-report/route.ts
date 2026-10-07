@@ -66,10 +66,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ outcome: 'skipped', reason: decision.reason });
     }
 
-    const customerRecipients = invoiceRecipients(customer);
-    const recipients = missingSignsReportRecipients({ invoiceRecipients: customerRecipients, adminEmail: ADMIN_EMAIL });
+    const recipients = missingSignsReportRecipients({ invoiceRecipients: invoiceRecipients(customer), adminEmail: ADMIN_EMAIL });
     const recipientCount = recipients.to.length + recipients.cc.length;
-    if (!customerRecipients.to && customerRecipients.cc.length === 0) console.warn(`Route ${route.id}: the Customer has no email, so its Missing Signs Report goes to admin@ only.`);
+    if (recipients.cc.length === 0) console.warn(`Route ${route.id}: the Customer has no email, so its Missing Signs Report goes to admin@ only.`);
 
     const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || `https://${APP_DOMAIN}`).replace(/\/$/, '');
     const email = missingSignsReportEmail({

@@ -43,4 +43,13 @@ describe('invoiceRecipients (#504)', () => {
   it.each([null, undefined, '  '])('has no To when the Billing email is %p, keeping the CCs', (email) => {
     expect(invoiceRecipients({ email, billingCcEmails: ['pat@acme.test'] })).toEqual({ to: null, cc: ['pat@acme.test'] });
   });
+
+  it("leaves out CCs that don't look like an address", () => {
+    expect(
+      invoiceRecipients({
+        email: 'billing@acme.test',
+        billingCcEmails: ['pat@acme', 'not an email', 'a@b.test, c@d.test', 'Pat <pat@acme.test>', 'ok@acme.test'],
+      })
+    ).toEqual({ to: 'billing@acme.test', cc: ['ok@acme.test'] });
+  });
 });

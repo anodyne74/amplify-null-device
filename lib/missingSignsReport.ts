@@ -9,6 +9,7 @@ import type { Route, Stop } from '@/amplify/types';
 import { activeStops } from './loadChange';
 import { missingSigns } from './signRunTotals';
 import { formatRouteDate } from './routeDetailHelpers';
+import type { InvoiceRecipients } from './invoiceRecipients';
 
 export interface MissingSignsProperty {
   address: string;
@@ -53,7 +54,7 @@ export function missingSignsReportRecipients({
   invoiceRecipients,
   adminEmail,
 }: {
-  invoiceRecipients: { to: string | null; cc: string[] };
+  invoiceRecipients: InvoiceRecipients;
   adminEmail: string;
 }): { to: string[]; cc: string[] } {
   const customerCc = invoiceRecipients.to ? invoiceRecipients.cc : [];

@@ -25,7 +25,7 @@ interface InvoiceListTableProps {
   onUploadClick: (invoiceId: string) => void;
   onMarkPaid: (invoiceId: string) => void;
   onDeleteInvoice: (invoiceId: string) => void;
-  onEmailInvoiceToPrimary: (invoice: Invoice) => void;
+  onEmailInvoice: (invoice: Invoice) => void;
   /**
    * Per-invoice mark-paid mutation used by the bulk action; resolves true on
    * success. When provided, a selection column and bulk action bar render.
@@ -123,7 +123,7 @@ export default function InvoiceListTable({
   onUploadClick,
   onMarkPaid,
   onDeleteInvoice,
-  onEmailInvoiceToPrimary,
+  onEmailInvoice,
   onBulkMarkPaidInvoice,
   focusInvoiceId,
 }: InvoiceListTableProps) {
@@ -411,7 +411,7 @@ export default function InvoiceListTable({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => onEmailInvoiceToPrimary(invoice)}
+                            onClick={() => onEmailInvoice(invoice)}
                             loading={emailingInvoiceId === invoice.id}
                             aria-label={`${invoice.emailSentAt ? 'Resend' : 'Email'} invoice ${invoice.invoiceNumber}`}
                           >

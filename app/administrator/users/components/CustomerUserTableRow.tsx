@@ -2,9 +2,10 @@ import { Avatar } from '@/app/components/ui/core/Avatar';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
 import { formatRelativeDay } from '@/lib/format';
+import type { CustomerInviteStatus } from '@/lib/customerInvite';
 import styles from '../page.module.css';
 
-export type CustomerUserRowStatus = 'Active' | 'Invite sent';
+export type CustomerUserRowStatus = CustomerInviteStatus;
 
 export interface CustomerUserRowData {
   id: string;

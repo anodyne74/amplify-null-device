@@ -5,6 +5,7 @@ import { Select } from '@/app/components/ui/forms/Select';
 import { Checkbox } from '@/app/components/ui/forms/Checkbox';
 import { AddressAutocompleteInput, type ResolvedAddress } from '@/app/operator/components/AddressAutocompleteInput';
 import AgentOptionsEditor from '@/app/administrator/customers/components/AgentOptionsEditor';
+import CustomerUsersList, { type CustomerUsersListRow } from '@/app/administrator/customers/components/CustomerUsersList';
 import type { Customer, CustomerStatus } from '@/app/administrator/customers/types';
 import type { ChecklistItem } from '@/lib/customerOnboardingChecklist';
 import { FEATURE_FLAGS, type FeatureFlagName } from '@/lib/featureFlags';
@@ -31,6 +32,7 @@ interface CustomerEditPanelProps {
   editSaving: boolean;
   editError: string | null;
   editSuccess: string | null;
+  customerUsers: CustomerUsersListRow[];
   checklist?: ChecklistItem[];
   checklistLoading?: boolean;
   /** The Feature Flags on for this Customer; null when they couldn't be read. Loads alongside the checklist. */
@@ -73,6 +75,7 @@ export default function CustomerEditPanel({
   editSaving,
   editError,
   editSuccess,
+  customerUsers,
   checklist,
   checklistLoading,
   onFeatureFlags,
@@ -252,6 +255,10 @@ export default function CustomerEditPanel({
               disabled={editSaving}
             />
           </div>
+
+          <hr className={styles.detailDivider} />
+
+          <CustomerUsersList key={customer.id} customerName={customer.name} users={customerUsers} />
 
           <hr className={styles.detailDivider} />
 

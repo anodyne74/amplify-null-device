@@ -118,7 +118,7 @@ export default function CustomerDashboard() {
   const stopsThisWeek = useMemo(() => summarizeStopsThisWeek(stops), [stops]);
   const weekListings = useMemo(() => summarizeThisWeekListings(stops, routes), [stops, routes]);
   const stopsByWeek = useMemo(() => summarizeStopsByWeek(stops), [stops]);
-  const agentActivity = useMemo(() => summarizeAgentActivity(stops), [stops]);
+  const agentActivity = useMemo(() => summarizeAgentActivity(stops, invoices), [stops, invoices]);
   const latestInvoice = useMemo(() => summarizeLatestInvoice(invoices), [invoices]);
 
   const stopCountsByRouteId = useMemo(() => {
@@ -189,6 +189,7 @@ export default function CustomerDashboard() {
     { key: 'agent', header: 'Agent' },
     { key: 'stops', header: 'Stops', numeric: true },
     { key: 'signs', header: 'Signs', numeric: true },
+    { key: 'spend', header: 'Spend', numeric: true, render: (row) => formatCurrency(row.spend) },
   ];
 
   return (
@@ -358,7 +359,7 @@ export default function CustomerDashboard() {
       </div>
 
       {isAccountOwner ? (
-        <Card title="Spend by agent" subtitle="Stops and signs on-charged, by agent" padded={false}>
+        <Card title="Spend by agent" subtitle="Invoiced spend shared by Stops, ex GST" padded={false}>
           <div className="nd-table-scroll">
             <DataTable wrapped={false} columns={agentColumns} rows={agentActivity} empty="No agent activity yet." />
           </div>

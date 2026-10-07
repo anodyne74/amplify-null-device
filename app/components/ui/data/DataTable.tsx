@@ -33,7 +33,7 @@ export function DataTable<T extends { id?: string | number } = any>({
       <thead>
         <tr>
           {columns.map((c) => (
-            <th key={c.key} style={{ textAlign: c.align || 'left', width: c.width }}>
+            <th key={c.key} style={{ textAlign: c.align || (c.numeric ? 'right' : 'left'), width: c.width }}>
               {c.header}
             </th>
           ))}

@@ -3,7 +3,6 @@ export type CustomerOption = {
   name: string;
   companyName?: string | null;
   email?: string;
-  primaryEmail?: string;
   addressLine1?: string;
   billingRatePerHour?: number;
   gstExclusive?: boolean | null;

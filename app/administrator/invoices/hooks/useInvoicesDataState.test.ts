@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { useInvoicesDataState } from '@/app/administrator/invoices/hooks/useInvoicesDataState';
 import { listAllRoutes } from '@/lib/routes';
-import { listCustomerUsers, listAllCustomers } from '@/lib/customers';
+import { listAllCustomers } from '@/lib/customers';
 import { listInvoices } from '@/lib/invoices';
 
 jest.mock('@/lib/routes', () => ({
@@ -11,7 +11,6 @@ jest.mock('@/lib/routes', () => ({
 }));
 
 jest.mock('@/lib/customers', () => ({
-  listCustomerUsers: jest.fn(),
   listAllCustomers: jest.fn(),
 }));
 
@@ -24,15 +23,11 @@ describe('useInvoicesDataState', () => {
     jest.clearAllMocks();
   });
 
-  it('loads customers/invoices/routes, enriches primary email, and sorts invoices', async () => {
+  it('loads customers/invoices/routes and sorts invoices', async () => {
     (listAllCustomers as jest.Mock).mockResolvedValue([
       { id: 'customer-1', name: 'Acme', email: 'fallback@acme.test', billingRatePerHour: 120 },
       { id: 'customer-2', name: 'Globex', email: 'ops@globex.test', billingRatePerHour: 95 },
     ]);
-
-    (listCustomerUsers as jest.Mock)
-      .mockResolvedValueOnce([{ role: 'account_owner', email: 'owner@acme.test' }])
-      .mockResolvedValueOnce([]);
 
     (listInvoices as jest.Mock).mockResolvedValue([
         {
@@ -80,8 +75,8 @@ describe('useInvoicesDataState', () => {
     expect(result.current.error).toBeNull();
     expect(result.current.customerId).toBe('customer-1');
     expect(result.current.customers).toEqual([
-      expect.objectContaining({ id: 'customer-1', primaryEmail: 'owner@acme.test' }),
-      expect.objectContaining({ id: 'customer-2', primaryEmail: 'ops@globex.test' }),
+      expect.objectContaining({ id: 'customer-1', email: 'fallback@acme.test' }),
+      expect.objectContaining({ id: 'customer-2', email: 'ops@globex.test' }),
     ]);
     expect(result.current.routes).toHaveLength(1);
     expect(result.current.invoices).toHaveLength(2);
@@ -92,7 +87,6 @@ describe('useInvoicesDataState', () => {
 
   it('sets invoice load error when invoice query returns errors', async () => {
     (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'customer-1', name: 'Acme', email: 'fallback@acme.test' }]);
-    (listCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listAllRoutes as jest.Mock).mockResolvedValue([]);
     (listInvoices as jest.Mock).mockRejectedValue(new DataError('Failed to load invoices.'));
 
@@ -123,7 +117,6 @@ describe('useInvoicesDataState', () => {
 
   it('removes an invoice from state via removeInvoiceFromState (#63)', async () => {
     (listAllCustomers as jest.Mock).mockResolvedValue([]);
-    (listCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listAllRoutes as jest.Mock).mockResolvedValue([]);
     (listInvoices as jest.Mock).mockResolvedValue([
         { id: 'invoice-1', invoiceNumber: 'INV-100', customerId: 'customer-1', totalAmount: 100 },
@@ -157,7 +150,6 @@ describe('useInvoicesDataState', () => {
       { id: 'customer-1', name: 'Acme', groupLineItemsByAgent: false },
       { id: 'customer-2', name: 'Beta', groupLineItemsByAgent: false },
     ]);
-    (listCustomerUsers as jest.Mock).mockResolvedValue([]);
     (listAllRoutes as jest.Mock).mockResolvedValue([]);
     (listInvoices as jest.Mock).mockResolvedValue([]);
 

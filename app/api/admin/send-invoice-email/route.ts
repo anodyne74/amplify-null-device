@@ -5,7 +5,7 @@ import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
 import { APP_DOMAIN } from '@/lib/publicAppConfig';
 import { buildInvoiceFileName } from '@/lib/invoiceFileName';
-import { invoiceRecipientEmail } from '@/lib/server/invoiceRecipient';
+import { invoiceRecipients } from '@/lib/invoiceRecipients';
 
 const sesClient = new SESClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
 function sanitizeNamePart(value: string, fallback: string) {
@@ -85,7 +85,8 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { invoiceId, recipientEmail } = body;
+    // Recipients are resolved here from the Customer, never taken from the caller.
+    const { invoiceId } = body;
 
     if (!invoiceId) {
       return NextResponse.json({ error: 'invoiceId is required' }, { status: 400 });
@@ -120,11 +121,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
-    // Resolve recipient email: use provided, else the Customer's invoice recipient.
-    const toEmail = recipientEmail || (await invoiceRecipientEmail(client, { id: invoice.customerId, email: customer.email }));
-
+    // To the Billing email, with the billing CCs copied (lib/invoiceRecipients.ts).
+    const recipients = invoiceRecipients(customer);
+    const toEmail = recipients.to;
     if (!toEmail) {
-      return NextResponse.json({ error: 'No recipient email available' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'This Customer has no Billing email. Add one to the Customer before emailing the invoice.' },
+        { status: 400 }
+      );
     }
 
     // Generate signed PDF URL (7-day expiration)
@@ -175,6 +179,7 @@ export async function POST(request: NextRequest) {
     // Send email via SES as a raw MIME message to include the PDF attachment.
     const senderEmail = sanitizeMimeHeaderValue(process.env.SES_SENDER_EMAIL || `no-reply@${APP_DOMAIN}`);
     const safeToEmail = sanitizeMimeHeaderValue(toEmail);
+    const safeCcEmails = recipients.cc.map(sanitizeMimeHeaderValue);
     const mixedBoundary = `mixed_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const altBoundary = `alt_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const safeSubject = sanitizeMimeHeaderValue(subject);
@@ -182,6 +187,7 @@ export async function POST(request: NextRequest) {
     const rawMessage = [
       `From: ${senderEmail}`,
       `To: ${safeToEmail}`,
+      ...(safeCcEmails.length > 0 ? [`Cc: ${safeCcEmails.join(', ')}`] : []),
       `Subject: ${safeSubject}`,
       'MIME-Version: 1.0',
       `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
@@ -219,14 +225,14 @@ export async function POST(request: NextRequest) {
         Data: new TextEncoder().encode(rawMessage),
       },
       Source: senderEmail,
-      Destinations: [safeToEmail],
+      Destinations: [safeToEmail, ...safeCcEmails],
     });
 
     let messageId: string;
     try {
       const result = await sesClient.send(command);
       messageId = result.MessageId || '';
-      console.log(`Email sent to ${toEmail}, MessageId: ${messageId}`);
+      console.log(`Email sent to ${toEmail} (cc ${recipients.cc.length}), MessageId: ${messageId}`);
     } catch (err) {
       console.error('SES send failed:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -246,6 +252,7 @@ export async function POST(request: NextRequest) {
       success: true,
       messageId,
       sentTo: toEmail,
+      cc: recipients.cc,
       invoiceNumber: invoice.invoiceNumber,
     });
   } catch (err) {

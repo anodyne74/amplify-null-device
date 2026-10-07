@@ -5,7 +5,8 @@ import { autoTable } from 'jspdf-autotable';
 import type { Invoice } from '@/app/administrator/invoices/types';
 import type { CustomerOption } from '@/app/administrator/invoices/types';
 import { getRouteWithStops } from '@/lib/routes';
-import { getInvoiceWithLineItems, updateInvoicePdfKey } from '@/lib/invoices';
+import { getInvoiceWithLineItems, updateInvoice, updateInvoicePdfKey } from '@/lib/invoices';
+import { callApi } from '@/lib/apiClient';
 
 // GitHub issue #65: Generate PDF threw because `invoice.totalAmount.toFixed(2)`
 // was called unguarded — any invoice row with a null/undefined totalAmount
@@ -84,7 +85,7 @@ function createInvoice(overrides: Partial<Invoice> = {}): Invoice {
 }
 
 function renderDocumentActions(
-  overrides: { setUploadError?: jest.Mock; customers?: CustomerOption[] } = {}
+  overrides: { setUploadError?: jest.Mock; setSuccessMessage?: jest.Mock; customers?: CustomerOption[] } = {}
 ) {
   return renderHook(() =>
     useInvoiceDocumentActions({
@@ -96,7 +97,7 @@ function renderDocumentActions(
       setPendingUploadInvoiceId: jest.fn(),
       setUploadingId: jest.fn(),
       setUploadError: overrides.setUploadError ?? jest.fn(),
-      setSuccessMessage: jest.fn(),
+      setSuccessMessage: overrides.setSuccessMessage ?? jest.fn(),
       setPdfActionLoadingId: jest.fn(),
       setEmailingInvoiceId: jest.fn(),
       setError: jest.fn(),
@@ -244,5 +245,39 @@ describe('useInvoiceDocumentActions — stop table agent grouping', () => {
     expect(body[4]).toEqual(['2 Test St, Epping', '2']);
     expect(body[5][0]).toMatchObject({ content: 'David Mun subtotal' });
     expect(body[5][1]).toMatchObject({ content: '2' });
+  });
+});
+
+describe('useInvoiceDocumentActions — handleEmailInvoice (#504)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (updateInvoice as jest.Mock).mockResolvedValue({ id: 'inv-1' });
+  });
+
+  it('lets the server choose the recipients and names them all in the success message', async () => {
+    (callApi as jest.Mock).mockResolvedValue({ sentTo: 'billing@acme.test', cc: ['accounts@acme.test', 'pat@acme.test'] });
+    const setSuccessMessage = jest.fn();
+    const { result } = renderDocumentActions({ setSuccessMessage });
+
+    await act(async () => {
+      await result.current.handleEmailInvoice(createInvoice({ pdfS3Key: 'invoices/inv-1.pdf' }));
+    });
+
+    expect(callApi).toHaveBeenCalledWith('/api/admin/send-invoice-email', { invoiceId: 'inv-1' });
+    expect(setSuccessMessage).toHaveBeenLastCalledWith(
+      'Invoice INV-001 emailed to billing@acme.test (cc accounts@acme.test, pat@acme.test).'
+    );
+  });
+
+  it('names only the To address when there are no CCs', async () => {
+    (callApi as jest.Mock).mockResolvedValue({ sentTo: 'billing@acme.test', cc: [] });
+    const setSuccessMessage = jest.fn();
+    const { result } = renderDocumentActions({ setSuccessMessage });
+
+    await act(async () => {
+      await result.current.handleEmailInvoice(createInvoice({ pdfS3Key: 'invoices/inv-1.pdf' }));
+    });
+
+    expect(setSuccessMessage).toHaveBeenLastCalledWith('Invoice INV-001 emailed to billing@acme.test.');
   });
 });

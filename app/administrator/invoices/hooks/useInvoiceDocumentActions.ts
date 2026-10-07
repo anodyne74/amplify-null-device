@@ -321,15 +321,8 @@ export function useInvoiceDocumentActions({
     }
   };
 
-  const handleEmailInvoiceToPrimary = async (invoice: Invoice) => {
-    const customer = customers.find((entry) => entry.id === invoice.customerId);
-    const primaryEmail = customer?.primaryEmail;
-
-    if (!primaryEmail) {
-      setError('Primary customer email is not available for this invoice.');
-      return;
-    }
-
+  // The server decides who it goes to: the Billing email, with the billing CCs copied (#504).
+  const handleEmailInvoice = async (invoice: Invoice) => {
     if (!invoice.pdfS3Key) {
       setError('Upload an invoice PDF before emailing the customer.');
       return;
@@ -340,12 +333,12 @@ export function useInvoiceDocumentActions({
     setSuccessMessage(null);
 
     try {
-      const result = await callApi<{ sentTo: string }>('/api/admin/send-invoice-email', {
+      const result = await callApi<{ sentTo: string; cc?: string[] }>('/api/admin/send-invoice-email', {
         invoiceId: invoice.id,
-        recipientEmail: primaryEmail,
       });
       setError(null);
-      setSuccessMessage(`Invoice ${invoice.invoiceNumber} emailed to ${result.sentTo}.`);
+      const cc = result.cc?.length ? ` (cc ${result.cc.join(', ')})` : '';
+      setSuccessMessage(`Invoice ${invoice.invoiceNumber} emailed to ${result.sentTo}${cc}.`);
 
       const sentAt = new Date().toISOString();
       const nextStatus = String(invoice.status ?? '').trim().toLowerCase() === 'paid' ? 'paid' : 'sent';
@@ -381,6 +374,6 @@ export function useInvoiceDocumentActions({
     handleFileChange,
     handlePdfAction,
     handleGeneratePdf,
-    handleEmailInvoiceToPrimary,
+    handleEmailInvoice,
   };
 }

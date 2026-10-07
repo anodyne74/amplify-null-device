@@ -37,19 +37,30 @@ describe('missingSignsReportDecision (#468)', () => {
   });
 });
 
-describe('missingSignsReportRecipients (#468)', () => {
-  it('sends to the invoice recipient and billing CCs, copying admin, without repeats', () => {
+describe('missingSignsReportRecipients (#468, #504)', () => {
+  const adminEmail = 'admin@nulldevice.dev';
+
+  it('sends To the Billing email, copying the billing CCs and admin', () => {
     expect(
-      missingSignsReportRecipients({
-        invoiceRecipient: 'Owner@Agency.test',
-        billingCcEmails: ['accounts@agency.test', 'owner@agency.test', ' ', 'admin@nulldevice.dev'],
-        adminEmail: 'admin@nulldevice.dev',
-      })
-    ).toEqual({ to: ['Owner@Agency.test', 'accounts@agency.test'], cc: ['admin@nulldevice.dev'] });
+      missingSignsReportRecipients({ invoiceRecipients: { to: 'office@agency.test', cc: ['accounts@agency.test'] }, adminEmail })
+    ).toEqual({ to: ['office@agency.test'], cc: ['accounts@agency.test', 'admin@nulldevice.dev'] });
+  });
+
+  it('copies admin once when the Customer already lists it, whatever its case', () => {
+    expect(
+      missingSignsReportRecipients({ invoiceRecipients: { to: 'office@agency.test', cc: ['Admin@NullDevice.dev'] }, adminEmail })
+    ).toEqual({ to: ['office@agency.test'], cc: ['Admin@NullDevice.dev'] });
+  });
+
+  it('goes To the billing CCs, copying admin, when there is no Billing email', () => {
+    expect(missingSignsReportRecipients({ invoiceRecipients: { to: null, cc: ['accounts@agency.test'] }, adminEmail })).toEqual({
+      to: ['accounts@agency.test'],
+      cc: ['admin@nulldevice.dev'],
+    });
   });
 
   it('falls back to admin alone when the Customer has no address', () => {
-    expect(missingSignsReportRecipients({ invoiceRecipient: null, billingCcEmails: null, adminEmail: 'admin@nulldevice.dev' })).toEqual({
+    expect(missingSignsReportRecipients({ invoiceRecipients: { to: null, cc: [] }, adminEmail })).toEqual({
       to: ['admin@nulldevice.dev'],
       cc: [],
     });

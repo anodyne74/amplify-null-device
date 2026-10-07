@@ -44,28 +44,23 @@ export function missingSignsReportDecision({
 }
 
 /**
- * Who gets it: the invoice recipient and the Customer's billing CCs, with
- * admin@ copied. Each address once, whatever its case. With no Customer
- * address it goes to admin@ alone.
+ * Who gets it: the Customer's invoice recipients (lib/invoiceRecipients.ts)
+ * with admin@ copied, each address once whatever its case. With no Billing
+ * email the billing CCs are addressed instead; with no Customer address at
+ * all it goes to admin@ alone.
  */
 export function missingSignsReportRecipients({
-  invoiceRecipient,
-  billingCcEmails,
+  invoiceRecipients,
   adminEmail,
 }: {
-  invoiceRecipient: string | null | undefined;
-  billingCcEmails: ReadonlyArray<string | null> | null | undefined;
+  invoiceRecipients: { to: string | null; cc: string[] };
   adminEmail: string;
 }): { to: string[]; cc: string[] } {
-  const seen = new Set<string>([adminEmail.toLowerCase()]);
-  const to: string[] = [];
-  for (const raw of [invoiceRecipient, ...(billingCcEmails ?? [])]) {
-    const address = raw?.trim();
-    if (!address || seen.has(address.toLowerCase())) continue;
-    seen.add(address.toLowerCase());
-    to.push(address);
-  }
-  return to.length > 0 ? { to, cc: [adminEmail] } : { to: [adminEmail], cc: [] };
+  const customerCc = invoiceRecipients.to ? invoiceRecipients.cc : [];
+  const to = invoiceRecipients.to ? [invoiceRecipients.to] : invoiceRecipients.cc;
+  if (to.length === 0) return { to: [adminEmail], cc: [] };
+  const all = [...to, ...customerCc].map((address) => address.toLowerCase());
+  return { to, cc: all.includes(adminEmail.toLowerCase()) ? customerCc : [...customerCc, adminEmail] };
 }
 
 const signs = (count: number) => `${count} ${count === 1 ? 'sign' : 'signs'}`;

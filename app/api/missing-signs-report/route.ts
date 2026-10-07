@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SendTemplatedEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import { authorizeIamRequest } from '@/lib/server/authorizeIamRequest';
-import { invoiceRecipientEmail } from '@/lib/server/invoiceRecipient';
 import { listAll } from '@/lib/listAll';
 import { recordAudit } from '@/lib/auditLog';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
 import { sesTemplateName } from '@/lib/server/sesTemplateName';
+import { invoiceRecipients } from '@/lib/invoiceRecipients';
 import { missingSignsReportDecision, missingSignsReportEmail, missingSignsReportRecipients } from '@/lib/missingSignsReport';
 import { ADMIN_EMAIL, APP_DOMAIN } from '@/lib/publicAppConfig';
 import type { Route, Stop } from '@/amplify/types';
@@ -18,7 +18,7 @@ const templateName = sesTemplateName('NullDeviceMissingSignsReportTemplate', {
 
 /**
  * Sends a finalised Route's Missing Signs Report (CONTEXT.md), if it should go
- * (lib/missingSignsReport.ts), to the invoice recipient and billing CCs with
+ * (lib/missingSignsReport.ts), To the Billing email with the billing CCs and
  * admin@ copied. Asked for after Finalise saves, by the Operator's outbox or
  * the administrator's Finalise, so it may be asked twice: once sent, the Route
  * is stamped and a later request does nothing. Best-effort -- Finalise never
@@ -66,13 +66,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ outcome: 'skipped', reason: decision.reason });
     }
 
-    const recipients = missingSignsReportRecipients({
-      invoiceRecipient: await invoiceRecipientEmail(client, customer),
-      billingCcEmails: customer.billingCcEmails,
-      adminEmail: ADMIN_EMAIL,
-    });
+    const customerRecipients = invoiceRecipients(customer);
+    const recipients = missingSignsReportRecipients({ invoiceRecipients: customerRecipients, adminEmail: ADMIN_EMAIL });
     const recipientCount = recipients.to.length + recipients.cc.length;
-    if (recipients.cc.length === 0) console.warn(`Route ${route.id}: the Customer has no email, so its Missing Signs Report goes to admin@ only.`);
+    if (!customerRecipients.to && customerRecipients.cc.length === 0) console.warn(`Route ${route.id}: the Customer has no email, so its Missing Signs Report goes to admin@ only.`);
 
     const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || `https://${APP_DOMAIN}`).replace(/\/$/, '');
     const email = missingSignsReportEmail({

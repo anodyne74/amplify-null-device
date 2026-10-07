@@ -77,7 +77,7 @@ export default function InvoicesAdminPage() {
     handleFileChange,
     handlePdfAction,
     handleGeneratePdf,
-    handleEmailInvoiceToPrimary,
+    handleEmailInvoice,
   } = useInvoiceDocumentActions({
     customers,
     routes,
@@ -205,7 +205,7 @@ export default function InvoicesAdminPage() {
           onBulkMarkPaidInvoice={markInvoicePaid}
           focusInvoiceId={focusInvoiceId}
           onEmailInvoiceToPrimary={(invoice) => {
-            void handleEmailInvoiceToPrimary(invoice);
+            void handleEmailInvoice(invoice);
           }}
         />
       </div>

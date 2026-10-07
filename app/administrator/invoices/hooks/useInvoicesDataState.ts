@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import type { Route } from '@/amplify/types';
 import type { CustomerOption, Invoice } from '@/app/administrator/invoices/types';
 import { listAllRoutes } from '@/lib/routes';
-import { listCustomerUsers, listAllCustomers } from '@/lib/customers';
+import { listAllCustomers } from '@/lib/customers';
 import { listInvoices } from '@/lib/invoices';
 
 type UseInvoicesDataStateParams = {
@@ -93,20 +93,8 @@ export function useInvoicesDataState({
         paymentTermsDays: customer.paymentTermsDays,
       }));
 
-      const customersWithPrimary = await Promise.all(
-        mapped.map(async (customer) => {
-          // Best-effort: without its Customer Users, the Customer's own email is used.
-          const customerUsers = await listCustomerUsers(customer.id).catch(() => []);
-          const owner = customerUsers.find((row) => row.role === 'account_owner' && row.email);
-          return {
-            ...customer,
-            primaryEmail: owner?.email ?? customer.email,
-          };
-        })
-      );
-
-      setCustomers(customersWithPrimary);
-      if (!customerId && customersWithPrimary.length > 0) setCustomerId(customersWithPrimary[0].id);
+      setCustomers(mapped);
+      if (!customerId && mapped.length > 0) setCustomerId(mapped[0].id);
     }
 
     if (routesResult) setRoutes(routesResult as unknown as Route[]);

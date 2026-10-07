@@ -86,13 +86,14 @@ describe('missing-signs-report API (#468)', () => {
     sesSendMock.mockResolvedValue({ MessageId: 'm-1' });
   });
 
-  it('emails the invoice recipient and billing CCs, copying admin, then stamps the Route and audits it', async () => {
+  it('emails the Billing email, copying the billing CCs and admin, then stamps the Route and audits it (#504)', async () => {
     const res = await POST(makeRequest({ routeId: 'route-1' }));
 
     expect(await res.json()).toEqual({ outcome: 'sent' });
     const sent = sesSendMock.mock.calls[0][0].input;
-    expect(sent.Destination.ToAddresses).toEqual(['owner@agency.test', 'accounts@agency.test']);
-    expect(sent.Destination.CcAddresses).toEqual([expect.stringMatching(/^admin@/)]);
+    // The Account Owner (owner@) isn't the Billing email or a CC, so isn't sent it.
+    expect(sent.Destination.ToAddresses).toEqual(['office@agency.test']);
+    expect(sent.Destination.CcAddresses).toEqual(['accounts@agency.test', expect.stringMatching(/^admin@/)]);
     expect(sent.Template).toBe('NullDeviceMissingSignsReportTemplate-development');
     expect(JSON.parse(sent.TemplateData)).toEqual({
       customerName: 'Harcourts Epping',
@@ -109,6 +110,19 @@ describe('missing-signs-report API (#468)', () => {
       { action: 'route.missingSignsReport.send', status: 'success', details: { outcome: 'sent', recipients: 3 } },
     ]);
     expect(JSON.stringify(audits())).not.toContain('@');
+  });
+
+  it('goes to admin alone when the Customer has no address (#504)', async () => {
+    customerGetMock.mockResolvedValue({
+      data: { id: 'cust-1', name: 'Harcourts Epping', email: null, billingCcEmails: [], missingSignsReportEnabled: true },
+    });
+
+    const res = await POST(makeRequest({ routeId: 'route-1' }));
+
+    expect(await res.json()).toEqual({ outcome: 'sent' });
+    const sent = sesSendMock.mock.calls[0][0].input;
+    expect(sent.Destination.ToAddresses).toEqual([expect.stringMatching(/^admin@/)]);
+    expect(sent.Destination.CcAddresses).toEqual([]);
   });
 
   it.each([

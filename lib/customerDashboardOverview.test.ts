@@ -136,21 +136,98 @@ describe('customerDashboardOverview', () => {
   });
 
   describe('summarizeAgentActivity', () => {
-    it('groups stops and signs by agent, most active first', () => {
-      const stops = [
-        { id: 's1', agent: 'Jamie Lee', numberOfSigns: 3 },
-        { id: 's2', agent: 'Jamie Lee', numberOfSigns: 2 },
-        { id: 's3', agent: 'Pat Doe', numberOfSigns: 4 },
-        { id: 's4', agent: null, numberOfSigns: 1 },
-      ];
+    const stop = (id: string, routeId: string, agent: string | null, numberOfSigns = 1, removed = false) => ({
+      id,
+      routeId,
+      agent,
+      numberOfSigns,
+      removed,
+    });
 
-      const result = summarizeAgentActivity(stops);
+    it('gives a Route\'s whole invoiced amount to its only agent', () => {
+      const result = summarizeAgentActivity(
+        [stop('s1', 'r1', 'Jamie Lee', 3), stop('s2', 'r1', 'Jamie Lee', 2)],
+        [{ id: 'i1', routeId: 'r1', totalAmount: 120 }]
+      );
+
+      expect(result).toEqual([{ id: 'Jamie Lee', agent: 'Jamie Lee', stops: 2, signs: 5, spend: 120 }]);
+    });
+
+    it('shares a Route\'s amount by Stops, not signs, highest spend first', () => {
+      const result = summarizeAgentActivity(
+        [stop('s1', 'r1', 'Jamie Lee', 1), stop('s2', 'r1', 'Pat Doe', 9), stop('s3', 'r1', 'Pat Doe', 9), stop('s4', 'r1', 'Pat Doe', 9)],
+        [{ id: 'i1', routeId: 'r1', totalAmount: 100 }]
+      );
+
+      expect(result.map((r) => [r.agent, r.spend])).toEqual([
+        ['Pat Doe', 75],
+        ['Jamie Lee', 25],
+      ]);
+    });
+
+    it('sums each agent\'s shares across Routes', () => {
+      const result = summarizeAgentActivity(
+        [stop('s1', 'r1', 'Jamie Lee'), stop('s2', 'r1', 'Pat Doe'), stop('s3', 'r2', 'Jamie Lee')],
+        [
+          { id: 'i1', routeId: 'r1', totalAmount: 100 },
+          { id: 'i2', routeId: 'r2', totalAmount: 40 },
+        ]
+      );
+
+      expect(result.map((r) => [r.agent, r.spend])).toEqual([
+        ['Jamie Lee', 90],
+        ['Pat Doe', 50],
+      ]);
+    });
+
+    it('puts Stops with no agent under Unassigned', () => {
+      const result = summarizeAgentActivity(
+        [stop('s1', 'r1', 'Jamie Lee'), stop('s2', 'r1', null), stop('s3', 'r1', '  ')],
+        [{ id: 'i1', routeId: 'r1', totalAmount: 90 }]
+      );
+
+      expect(result.map((r) => [r.agent, r.stops, r.spend])).toEqual([
+        ['Unassigned', 2, 60],
+        ['Jamie Lee', 1, 30],
+      ]);
+    });
+
+    it('counts Removed Stops toward nothing', () => {
+      const result = summarizeAgentActivity(
+        [stop('s1', 'r1', 'Jamie Lee', 2), stop('s2', 'r1', 'Pat Doe', 5, true)],
+        [{ id: 'i1', routeId: 'r1', totalAmount: 80 }]
+      );
+
+      expect(result).toEqual([{ id: 'Jamie Lee', agent: 'Jamie Lee', stops: 1, signs: 2, spend: 80 }]);
+    });
+
+    it('adds no spend for a Route that is not invoiced, but still counts its Stops and signs', () => {
+      const result = summarizeAgentActivity(
+        [stop('s1', 'r1', 'Jamie Lee', 4), stop('s2', 'r2', 'Pat Doe', 1)],
+        [{ id: 'i1', routeId: 'r1', totalAmount: 50 }]
+      );
 
       expect(result).toEqual([
-        { id: 'Jamie Lee', agent: 'Jamie Lee', stops: 2, signs: 5 },
-        { id: 'Pat Doe', agent: 'Pat Doe', stops: 1, signs: 4 },
-        { id: 'Unassigned', agent: 'Unassigned', stops: 1, signs: 1 },
+        { id: 'Jamie Lee', agent: 'Jamie Lee', stops: 1, signs: 4, spend: 50 },
+        { id: 'Pat Doe', agent: 'Pat Doe', stops: 1, signs: 1, spend: 0 },
       ]);
+    });
+
+    it('ignores an invoice that is not linked to a Route', () => {
+      const result = summarizeAgentActivity([stop('s1', 'r1', 'Jamie Lee')], [{ id: 'i1', routeId: null, totalAmount: 50 }]);
+
+      expect(result[0].spend).toBe(0);
+    });
+
+    it('rounds so a Route\'s shares add up to its invoiced amount', () => {
+      const result = summarizeAgentActivity(
+        [stop('s1', 'r1', 'A'), stop('s2', 'r1', 'B'), stop('s3', 'r1', 'C')],
+        [{ id: 'i1', routeId: 'r1', totalAmount: 100 }]
+      );
+
+      const cents = result.map((r) => Math.round(r.spend * 100));
+      expect(cents.reduce((a, b) => a + b, 0)).toBe(10000);
+      expect(cents.slice().sort()).toEqual([3333, 3333, 3334]);
     });
   });
 

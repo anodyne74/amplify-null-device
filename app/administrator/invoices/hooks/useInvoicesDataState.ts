@@ -70,6 +70,7 @@ export function useInvoicesDataState({
       const mapped = ((customersResult as Array<{
         id: string;
         name: string;
+        companyName?: string | null;
         email?: string;
         addressLine1?: string;
         billingRatePerHour?: number;
@@ -81,6 +82,7 @@ export function useInvoicesDataState({
       }>) || []).map((customer) => ({
         id: customer.id,
         name: customer.name,
+        companyName: customer.companyName,
         email: customer.email,
         addressLine1: customer.addressLine1,
         billingRatePerHour: customer.billingRatePerHour,

@@ -148,6 +148,45 @@ describe('useInvoiceDocumentActions — handleGeneratePdf (#65)', () => {
   });
 });
 
+describe('useInvoiceDocumentActions — Bill To (#503)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (getInvoiceWithLineItems as jest.Mock).mockResolvedValue({ invoice: null, lineItems: [], errors: undefined });
+    (getRouteWithStops as jest.Mock).mockResolvedValue(null);
+    (uploadData as jest.Mock).mockReturnValue({ result: Promise.resolve({}) });
+    (updateInvoicePdfKey as jest.Mock).mockResolvedValue({ data: { id: 'inv-1' }, errors: undefined });
+  });
+
+  function printed() {
+    return (docStub.text as jest.Mock).mock.calls.map(([value]) => value);
+  }
+
+  it("prints the Customer's Trading Name under BILL TO", async () => {
+    const { result } = renderDocumentActions({
+      customers: [{ id: 'cust-1', name: 'Pat Owner', companyName: 'Acme Realty Pty Ltd' } as never],
+    });
+
+    await act(async () => {
+      await result.current.handleGeneratePdf(createInvoice());
+    });
+
+    expect(printed()).toContain('Acme Realty Pty Ltd');
+    expect(printed()).not.toContain('Pat Owner');
+  });
+
+  it('prints the name when there is no Trading Name', async () => {
+    const { result } = renderDocumentActions({
+      customers: [{ id: 'cust-1', name: 'Pat Owner', companyName: '  ' } as never],
+    });
+
+    await act(async () => {
+      await result.current.handleGeneratePdf(createInvoice());
+    });
+
+    expect(printed()).toContain('Pat Owner');
+  });
+});
+
 describe('useInvoiceDocumentActions — stop table agent grouping', () => {
   beforeEach(() => {
     jest.clearAllMocks();

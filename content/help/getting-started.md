@@ -5,7 +5,7 @@ order: 1
 screens: /customer/dashboard
 ---
 
-Null Device puts your signs up at the Properties you choose, then takes them down again. This portal shows each Route as it happens.
+We put your signs up at the Properties you choose, then take them down again. This portal shows each Route as it happens.
 
 ## How it works
 

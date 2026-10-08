@@ -1,4 +1,4 @@
-import { readRoadLegs, type EstimatePoint, type RoadLeg } from '@/lib/routeEstimate';
+import { chunkPoints, readRoadLegs, type EstimatePoint, type RoadLeg } from '@/lib/routeEstimate';
 
 const COMPUTE_ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 const TIMEOUT_MS = 15000;
@@ -10,7 +10,7 @@ const waypoint = ({ latitude, longitude }: EstimatePoint) => ({ location: { latL
 
 /**
  * Road distance for each Leg of a drive through `points` (first to last, in
- * order), from the Google Routes API. Traffic-unaware: the estimate is a
+ * order), from the Google Routes API, joined across requests for a long Route. Traffic-unaware: the estimate is a
  * distance, not a prediction. Uses GOOGLE_ROUTES_API_KEY, a key restricted to
  * the Routes API alone -- the browser Maps key is referrer-restricted and the
  * Routes API rejects it. Throws with a message fit to show an administrator.
@@ -19,6 +19,14 @@ export async function computeRoadLegs(points: EstimatePoint[]): Promise<RoadLeg[
   const apiKey = process.env.GOOGLE_ROUTES_API_KEY;
   if (!apiKey) throw new Error(ROUTES_KEY_MISSING);
 
+  // A long Route is split into requests the API will take (at most 25 points
+  // between origin and destination) and sent together, so it still finishes
+  // inside the server's time limit. Any one failing fails the whole drive.
+  const chunks = await Promise.all(chunkPoints(points).map((chunk) => requestLegs(chunk, apiKey)));
+  return chunks.flat();
+}
+
+async function requestLegs(points: EstimatePoint[], apiKey: string): Promise<RoadLeg[]> {
   const response = await fetch(COMPUTE_ROUTES_URL, {
     method: 'POST',
     headers: {

@@ -22,7 +22,8 @@
  * thousands of records, so a sync can't count on finishing in one request.
  * Records that already carry the current viewers are skipped, so each run only
  * writes what's still stale and an interrupted sync resumes where it stopped
- * on the next portal visit (#309).
+ * on the next portal visit (#309). Stops, the bulk of the writes, go last so a
+ * sync cut off part-way has still given customers their invoices.
  *
  * Needs a data client that can update every model below, including
  * CustomerClosureBlock (customer-written only), so in practice an IAM client:
@@ -125,6 +126,7 @@ export async function syncCustomerAccess(
 
   await update('Customer', { id: customerId, viewerSubs, ...(accountOwnerSub ? { accountOwnerSub } : {}) });
 
+  let routeIds = new Set<string>();
   for (const model of CUSTOMER_SCOPED_MODELS) {
     // CustomerUser rows were already read above — re-listing could disagree.
     const rows =
@@ -136,19 +138,20 @@ export async function syncCustomerAccess(
           });
 
     await stamp(model, rows);
-
-    // Stop.customerId is optional on older records, so stops are found
-    // through their route. One walk of the Stop table, matched to this
-    // customer's routes, rather than a filtered table scan per route.
-    if (model === 'Route') {
-      const routeIds = new Set(rows.map((row) => row.id));
-      const { data: stops, errors: stopListErrors } = await listAll(client, 'Stop', {
-        selectionSet: ['id', 'routeId', 'viewerSubs'],
-      });
-      collectListErrors('Stop', stopListErrors);
-      await stamp('Stop', stops.filter((stop) => routeIds.has(stop.routeId)));
-    }
+    if (model === 'Route') routeIds = new Set(rows.map((row) => row.id));
   }
+
+  // Stops come last: there are far more of them than anything else (thousands
+  // for a large customer), so stamping them first used up the whole request
+  // and invoices were never reached (#309). Stop.customerId is optional on
+  // older records, so stops are found through their route. One walk of the
+  // Stop table, matched to this customer's routes, rather than a filtered
+  // table scan per route.
+  const { data: stops, errors: stopListErrors } = await listAll(client, 'Stop', {
+    selectionSet: ['id', 'routeId', 'viewerSubs'],
+  });
+  collectListErrors('Stop', stopListErrors);
+  await stamp('Stop', stops.filter((stop) => routeIds.has(stop.routeId)));
 
   if (errors.length > 0) {
     console.error(`syncCustomerAccess(${customerId}) completed with ${errors.length} error(s):`, errors);

@@ -243,4 +243,23 @@ describe('syncCustomerAccess', () => {
     expect(tables.Stop[2].viewerSubs).toEqual(['sub-owner', 'sub-read']);
     expect(result.updated).toMatchObject({ Route: 1, Stop: 2 });
   });
+
+  it('stamps Stops after every other model, so a request cut off mid-sync has already covered invoices (#309)', async () => {
+    const { client, models } = fakeClient(customerTables());
+
+    await syncCustomerAccess(client, 'c1');
+
+    const firstCall = (model: string) => models[model].update.mock.invocationCallOrder[0];
+    for (const model of ['Route', 'Invoice', 'LineItem']) {
+      if (models[model]?.update.mock.calls.length) {
+        expect(firstCall(model)).toBeLessThan(firstCall('Stop'));
+      }
+    }
+    const lastNonStop = Math.max(
+      ...Object.keys(models)
+        .filter((model) => model !== 'Stop')
+        .flatMap((model) => models[model].update.mock.invocationCallOrder ?? [])
+    );
+    expect(lastNonStop).toBeLessThan(firstCall('Stop'));
+  });
 });

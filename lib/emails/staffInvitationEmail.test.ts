@@ -64,7 +64,7 @@ describe('sendStaffInvitationEmail', () => {
         roleLabel: 'Operator',
         inviteeEmail: 'jamie@nulldevice.com.au',
         inviteeName: 'Jamie Driver',
-        temporaryPassword: 'Temp-Pass-9xKq',
+        inviteUrl: 'https://portal.example.com/#invite&email=jamie%40nulldevice.com.au&code=Temp-Pass-9xKq',
         expiryDays: '7',
         portalUrl: 'https://portal.example.com/',
         logoUrl: 'https://portal.example.com/logo.svg',

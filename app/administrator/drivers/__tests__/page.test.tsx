@@ -290,7 +290,7 @@ describe('Administrator Operators page', () => {
       });
     });
 
-    expect(await screen.findByText(/they’ll get an email with a temporary password/i)).toBeInTheDocument();
+    expect(await screen.findByText(/they’ll get an email with a link to set their password/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email for new operator/i)).toHaveValue('');
   });
 

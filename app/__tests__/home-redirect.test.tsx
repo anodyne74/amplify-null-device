@@ -342,6 +342,20 @@ describe('Home Redirect', () => {
     });
 
     describe('temporary password (admin-created account)', () => {
+      it('signs in from an invitation link and clears the password from the address bar', async () => {
+        (signIn as jest.Mock).mockResolvedValue({
+          isSignedIn: false,
+          nextStep: { signInStep: 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED' },
+        });
+        window.history.replaceState(null, '', '/#invite&email=priya%40rangeproperty.com.au&code=%2Bb%5EnU3y9');
+
+        render(<Home />);
+
+        expect(await screen.findByText(/set a new password/i)).toBeInTheDocument();
+        expect(signIn).toHaveBeenCalledWith({ username: 'priya@rangeproperty.com.au', password: '+b^nU3y9' });
+        expect(window.location.hash).toBe('');
+      });
+
       it('shows a set-new-password form when Cognito challenges for a new password', async () => {
         (signIn as jest.Mock).mockResolvedValue({
           isSignedIn: false,

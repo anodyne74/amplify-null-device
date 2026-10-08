@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
       originLatitude: plan.points[0].latitude,
       originLongitude: plan.points[0].longitude,
       stopIds: plan.stopIds,
+      stopPins: plan.stopPins,
       leftOutNoPin: plan.leftOut.noPin,
       leftOutRemoved: plan.leftOut.removed,
       totalMeters,

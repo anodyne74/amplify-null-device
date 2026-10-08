@@ -11,7 +11,7 @@ export interface EstimatePoint {
 
 export interface EstimateStop {
   id: string;
-  sequence: number;
+  sequence?: number | null;
   latitude?: number | null;
   longitude?: number | null;
   removed?: boolean | null;
@@ -25,6 +25,7 @@ export type RouteEstimatePlan =
       /** Home base, each used Stop in sequence order, then home base again. */
       points: EstimatePoint[];
       stopIds: string[];
+      stopPins: StoredStopPin[];
       leftOut: { noPin: number; removed: number };
     }
   | { ok: false; reason: string };
@@ -54,7 +55,7 @@ export function planRouteEstimate(
     };
   }
 
-  const ordered = [...stops].sort((a, b) => a.sequence - b.sequence);
+  const ordered = [...stops].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
   const removed = ordered.filter((stop) => stop.removed).length;
   const live = ordered.filter((stop) => !stop.removed);
   const pinned = live.filter(hasPin);
@@ -67,6 +68,7 @@ export function planRouteEstimate(
     ok: true,
     points: [home, ...pinned.map(({ latitude, longitude }) => ({ latitude, longitude })), home],
     stopIds: pinned.map((stop) => stop.id),
+    stopPins: pinned.map(({ id, latitude, longitude }) => ({ stopId: id, latitude, longitude })),
     leftOut: { noPin: live.length - pinned.length, removed },
   };
 }
@@ -86,4 +88,48 @@ export function readRoadLegs(response: RoutesApiResponse, expectedLegs: number):
     if (typeof leg.distanceMeters !== 'number') throw new Error('Google returned a leg with no distance.');
     return { distanceMeters: leg.distanceMeters, path: leg.polyline?.encodedPolyline ?? '' };
   });
+}
+
+export interface StoredStopPin {
+  stopId: string;
+  latitude: number;
+  longitude: number;
+}
+
+/**
+ * Whether a stored estimate no longer matches its Route: a Stop added, removed,
+ * reordered or newly pinned, a pin moved, or a different Operator. Compares the
+ * stored inputs with what the Route would be planned from now. An estimate stored
+ * without its pins can't be compared, so it reads as out of date.
+ */
+export function estimateStaleness(
+  estimate: { operatorSub: string; stopIds: (string | null | undefined)[]; stopPins?: (StoredStopPin | null | undefined)[] | null },
+  route: { assignedOperatorSub?: string | null },
+  stops: EstimateStop[]
+): boolean {
+  if (!estimate.stopPins) return true;
+  if (route.assignedOperatorSub !== estimate.operatorSub) return true;
+
+  const now = [...stops]
+    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+    .filter((stop) => !stop.removed)
+    .filter(hasPin);
+  if (now.length !== estimate.stopIds.length) return true;
+
+  const stored = new Map(estimate.stopPins.filter((pin): pin is StoredStopPin => pin != null).map((pin) => [pin.stopId, pin]));
+  return now.some((stop, index) => {
+    const pin = stored.get(stop.id);
+    return stop.id !== estimate.stopIds[index] || !pin || pin.latitude !== stop.latitude || pin.longitude !== stop.longitude;
+  });
+}
+
+export type LeftOutReason = 'removed' | 'noPin';
+
+/** The Stops an estimate calculated now would leave out, and why. */
+export function leftOutStops(stops: EstimateStop[]): { stop: EstimateStop; reason: LeftOutReason }[] {
+  return [...stops]
+    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+    .flatMap((stop): { stop: EstimateStop; reason: LeftOutReason }[] =>
+      stop.removed ? [{ stop, reason: 'removed' }] : hasPin(stop) ? [] : [{ stop, reason: 'noPin' }]
+    );
 }

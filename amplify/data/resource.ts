@@ -877,6 +877,13 @@ export const schema = a.schema({
     })
     .authorization((allow) => [allow.groups(['administrator']).to(['read', 'create', 'delete'])]),
 
+  /** Where a Stop's pin was when a Route Estimate was calculated, to tell later whether it has moved. */
+  RouteEstimateStopPin: a.customType({
+    stopId: a.id().required(),
+    latitude: a.float().required(),
+    longitude: a.float().required(),
+  }),
+
   /** One drive of a Route Estimate: its distance and the encoded polyline of its path. */
   RouteEstimateLeg: a.customType({
     order: a.integer().required(),
@@ -900,6 +907,7 @@ export const schema = a.schema({
       originLatitude: a.float().required(),
       originLongitude: a.float().required(),
       stopIds: a.id().array().required(), // The Stops used, in order
+      stopPins: a.ref('RouteEstimateStopPin').array(), // Their pins at the time; absent on an estimate stored before these
       leftOutNoPin: a.integer().required(),
       leftOutRemoved: a.integer().required(),
       totalMeters: a.float().required(),

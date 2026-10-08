@@ -1,8 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
+import { Badge } from '@/app/components/ui/core/Badge';
+import { estimateStaleness, leftOutStops, type EstimateStop } from '@/lib/routeEstimate';
 import {
   calculateRouteEstimate,
   formatKm,
@@ -10,11 +13,7 @@ import {
   type StoredRouteEstimate,
 } from '@/lib/routeEstimates';
 
-interface StopLabel {
-  id: string;
-  formattedAddress?: string | null;
-  address?: string | null;
-}
+type StopLabel = EstimateStop;
 
 const HOME = 'Home base';
 
@@ -25,10 +24,12 @@ const HOME = 'Home base';
  */
 export function RouteEstimateCard({
   routeId,
+  assignedOperatorSub,
   stops,
   onEstimateChange,
 }: {
   routeId: string;
+  assignedOperatorSub?: string | null;
   stops: StopLabel[];
   /** Called with the stored estimate once loaded, and with each new one, so the map can draw it. */
   onEstimateChange?: (estimate: StoredRouteEstimate | null) => void;
@@ -70,12 +71,9 @@ export function RouteEstimateCard({
     return stop?.formattedAddress || stop?.address || 'Stop';
   };
 
-  const leftOut = estimate
-    ? [
-        estimate.leftOutNoPin > 0 && `${estimate.leftOutNoPin} Stop${estimate.leftOutNoPin === 1 ? '' : 's'} with no pin`,
-        estimate.leftOutRemoved > 0 && `${estimate.leftOutRemoved} Removed Stop${estimate.leftOutRemoved === 1 ? '' : 's'}`,
-      ].filter(Boolean)
-    : [];
+  const outOfDate = estimate ? estimateStaleness(estimate, { assignedOperatorSub }, stops) : false;
+  const leftOut = estimate ? leftOutStops(stops) : [];
+  const partial = (estimate?.leftOutNoPin ?? 0) > 0;
 
   return (
     <Card
@@ -89,10 +87,36 @@ export function RouteEstimateCard({
           {estimate ? (
             <div>
               <p>
-                <strong>{formatKm(estimate.totalMeters)}</strong> in total · calculated{' '}
+                <strong>{formatKm(estimate.totalMeters)}</strong> in total
+                {partial && <Badge tone="warning" size="sm">partial</Badge>} · calculated{' '}
                 {new Date(estimate.calculatedAt).toLocaleString()}
+                {outOfDate && <Badge tone="warning" size="sm">out of date</Badge>}
               </p>
-              {leftOut.length > 0 && <p role="note">Left out: {leftOut.join(', ')}.</p>}
+              {outOfDate && (
+                <p role="note">
+                  The Stops, their order, a pin or the Operator have changed since this was calculated. Recalculate to
+                  update it.
+                </p>
+              )}
+              {leftOut.length > 0 && (
+                <div>
+                  <p>Left out of the estimate:</p>
+                  <ul aria-label="Left out Stops">
+                    {leftOut.map(({ stop, reason }) => (
+                      <li key={stop.id}>
+                        {stop.formattedAddress || stop.address || 'Stop'} —{' '}
+                        {reason === 'removed' ? (
+                          'removed'
+                        ) : (
+                          <>
+                            no pin · <Link href="/administrator/locations">Review in Location review</Link>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <ol>
                 {estimate.legs
                   .filter((leg): leg is NonNullable<typeof leg> => leg != null)

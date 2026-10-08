@@ -1,4 +1,4 @@
-import { planRouteEstimate, readRoadLegs } from './routeEstimate';
+import { estimateStaleness, leftOutStops, planRouteEstimate, readRoadLegs } from './routeEstimate';
 
 const home = { latitude: -33.8, longitude: 151.1 };
 const stop = (id: string, sequence: number, extra: Record<string, unknown> = {}) => ({
@@ -69,5 +69,62 @@ describe('readRoadLegs', () => {
 
   it('throws when a Leg has no distance', () => {
     expect(() => readRoadLegs({ routes: [{ legs: [{}] }] }, 1)).toThrow(/distance/i);
+  });
+});
+
+describe('estimateStaleness', () => {
+  const pin = (stopId: string, latitude: number, longitude = 151.2) => ({ stopId, latitude, longitude });
+  const estimate = { operatorSub: 'op-1', stopIds: ['a', 'b'], stopPins: [pin('a', -33.7), pin('b', -33.6)] };
+  const stops = [stop('a', 1, { latitude: -33.7 }), stop('b', 2, { latitude: -33.6 })];
+  const route = { assignedOperatorSub: 'op-1' };
+
+  it('is current when nothing has changed', () => {
+    expect(estimateStaleness(estimate, route, stops)).toBe(false);
+  });
+
+  it('is out of date when a Stop is added', () => {
+    expect(estimateStaleness(estimate, route, [...stops, stop('c', 3)])).toBe(true);
+  });
+
+  it('is out of date when a Stop is removed, or set aside', () => {
+    expect(estimateStaleness(estimate, route, [stops[0]])).toBe(true);
+    expect(estimateStaleness(estimate, route, [stops[0], { ...stops[1], removed: true }])).toBe(true);
+  });
+
+  it('is out of date when the Stops are reordered', () => {
+    expect(estimateStaleness(estimate, route, [{ ...stops[0], sequence: 2 }, { ...stops[1], sequence: 1 }])).toBe(true);
+  });
+
+  it('is out of date when a pin moves', () => {
+    expect(estimateStaleness(estimate, route, [stops[0], { ...stops[1], latitude: -30 }])).toBe(true);
+  });
+
+  it('is out of date when a missing pin is filled in', () => {
+    const partial = { operatorSub: 'op-1', stopIds: ['a'], stopPins: [pin('a', -33.7)] };
+    const withNoPin = [stops[0], stop('b', 2, { latitude: null, longitude: null })];
+    expect(estimateStaleness(partial, route, withNoPin)).toBe(false);
+    expect(estimateStaleness(partial, route, stops)).toBe(true);
+  });
+
+  it('is out of date when the Operator is reassigned', () => {
+    expect(estimateStaleness(estimate, { assignedOperatorSub: 'op-2' }, stops)).toBe(true);
+  });
+
+  it('is out of date when it was stored without its pins', () => {
+    expect(estimateStaleness({ ...estimate, stopPins: null }, route, stops)).toBe(true);
+  });
+});
+
+describe('leftOutStops', () => {
+  it('lists Removed and no-pin Stops with the reason, in sequence order', () => {
+    const result = leftOutStops([
+      stop('c', 3, { latitude: null, longitude: null }),
+      stop('a', 1),
+      stop('b', 2, { removed: true }),
+    ]);
+    expect(result.map((entry) => [entry.stop.id, entry.reason])).toEqual([
+      ['b', 'removed'],
+      ['c', 'noPin'],
+    ]);
   });
 });

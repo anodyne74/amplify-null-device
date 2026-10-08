@@ -631,6 +631,7 @@ export interface RouteEstimate {
   originLatitude: number;
   originLongitude: number;
   stopIds: string[];
+  stopPins?: { stopId: string; latitude: number; longitude: number }[] | null;
   leftOutNoPin: number;
   leftOutRemoved: number;
   totalMeters: number;

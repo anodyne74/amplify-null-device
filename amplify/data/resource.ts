@@ -173,6 +173,9 @@ export const schema = a.schema({
       phone: a.string(),
       vehicleAndRego: a.string(),
       homeBase: a.string(),
+      // Pin for homeBase, set when the Drivers screen saves it: the start point of a Route Estimate.
+      homeBaseLatitude: a.float(),
+      homeBaseLongitude: a.float(),
       // Starts 'onboarding' on creation; flipped to 'active' by
       // operator-status-activation's postAuthentication trigger on first sign-in,
       // and to 'inactive' by removeUserFromGroup when the operator group is removed.

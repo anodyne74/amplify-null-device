@@ -18,6 +18,8 @@ import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { listOperators } from '@/lib/queries/ListOperators';
 import { updateOperator } from '@/lib/queries/UpdateOperator';
 import { mobileForDisplay, mobileToStore } from '@/lib/operatorMobile';
+import { resolveHomeBasePin, type HomeBasePin } from '@/lib/operatorHomeBase';
+import { geocodeAddress } from '@/lib/googleMaps';
 import { getDateGroup } from '@/lib/aggregateRouteData';
 import { formatDurationCompact } from '@/lib/dashboardAnalytics';
 import { summarizeRoutesStopsThisMonth, summarizeAverageRouteDuration } from '@/lib/adminDashboardOverview';
@@ -49,6 +51,9 @@ type Driver = {
   phone: string;
   vehicleAndRego: string;
   homeBase: string;
+  /** The home base text as last saved; the pin is only re-made when the text moves off it. */
+  savedHomeBase: string;
+  homeBasePin: HomeBasePin | null;
   status: OperatorStatus;
   driverSplitPercent: number | '';
   payCycle: BillingCycle;
@@ -66,6 +71,11 @@ function toDriver(cognitoUser: CognitoOperator, record?: Operator): Driver {
     phone: mobileForDisplay(record?.phone),
     vehicleAndRego: record?.vehicleAndRego || '',
     homeBase: record?.homeBase || '',
+    savedHomeBase: record?.homeBase || '',
+    homeBasePin:
+      record?.homeBaseLatitude != null && record?.homeBaseLongitude != null
+        ? { latitude: record.homeBaseLatitude, longitude: record.homeBaseLongitude }
+        : null,
     status: record?.status || 'onboarding',
     driverSplitPercent: record?.driverSplitPercent ?? '',
     payCycle: record?.payCycle || 'fortnightly',
@@ -94,6 +104,7 @@ export default function AdministratorDriversPage() {
   const [selectedId, setSelectedId] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveWarning, setSaveWarning] = useState<string | null>(null);
   const [assignCustomerId, setAssignCustomerId] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
@@ -147,12 +158,14 @@ export default function AdministratorDriversPage() {
     setDrivers((prev) => prev.map((d) => (d.id === selected.id ? { ...d, ...patch } : d)));
   };
 
-  const persist = async (id: string, updates: Partial<Driver>, appliedFields: Parameters<typeof updateOperator>[1]) => {
+  const persist = async (id: string, updates: Partial<Driver>, appliedFields: Parameters<typeof updateOperator>[1], warning?: string) => {
     setSaving(true);
     setSaveError(null);
+    setSaveWarning(null);
     try {
       await updateOperator(id, appliedFields);
       setDrivers((prev) => prev.map((d) => (d.id === id ? { ...d, ...updates } : d)));
+      if (warning) setSaveWarning(warning);
     } catch {
       setSaveError('Could not save that change.');
     }
@@ -166,17 +179,29 @@ export default function AdministratorDriversPage() {
       setSaveError(mobile.error);
       return;
     }
+    setSaving(true);
+    const home = await resolveHomeBasePin(
+      { text: selected.homeBase, saved: { text: selected.savedHomeBase, pin: selected.homeBasePin } },
+      geocodeAddress
+    );
     await persist(
       selected.id,
-      { phone: mobileForDisplay(mobile.phone) },
+      {
+        phone: mobileForDisplay(mobile.phone),
+        savedHomeBase: selected.homeBase,
+        homeBasePin: home.pin,
+      },
       {
         phone: mobile.phone,
         vehicleAndRego: selected.vehicleAndRego || undefined,
         homeBase: selected.homeBase || undefined,
+        homeBaseLatitude: home.pin ? home.pin.latitude : null,
+        homeBaseLongitude: home.pin ? home.pin.longitude : null,
         driverSplitPercent: selected.driverSplitPercent === '' ? undefined : Number(selected.driverSplitPercent),
         payCycle: selected.payCycle,
         paySplitOnCompletedStopsOnly: selected.paySplitOnCompletedStopsOnly,
-      }
+      },
+      home.warning
     );
   };
 
@@ -305,6 +330,11 @@ export default function AdministratorDriversPage() {
           {statusLabel(row.status)}
         </Badge>
       ),
+    },
+    {
+      key: 'startPoint',
+      header: 'Start point',
+      render: (row) => (row.homeBasePin ? 'Set' : 'Not set'),
     },
     { key: 'vehicle', header: 'Vehicle', render: (row) => row.vehicleAndRego || '—' },
     {
@@ -446,6 +476,11 @@ export default function AdministratorDriversPage() {
             <div className={styles.detailLayout}>
               <div className={styles.form}>
                 {saveError && <p className="nd-badge nd-badge--danger">{saveError}</p>}
+                {saveWarning && (
+                  <p className="nd-badge nd-badge--warning" role="status">
+                    {saveWarning}
+                  </p>
+                )}
                 <div className={styles.formRow}>
                   <Badge tone={statusTone(selected.status)} dot>
                     {statusLabel(selected.status)}

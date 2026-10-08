@@ -23,7 +23,16 @@ const HOME = 'Home base';
  * Leg by Leg, from home base through the Stops and back. Shown from the stored
  * record; Calculate estimate makes a new one. Informational: never Billed Time.
  */
-export function RouteEstimateCard({ routeId, stops }: { routeId: string; stops: StopLabel[] }) {
+export function RouteEstimateCard({
+  routeId,
+  stops,
+  onEstimateChange,
+}: {
+  routeId: string;
+  stops: StopLabel[];
+  /** Called with the stored estimate once loaded, and with each new one, so the map can draw it. */
+  onEstimateChange?: (estimate: StoredRouteEstimate | null) => void;
+}) {
   const [estimate, setEstimate] = useState<StoredRouteEstimate | null>(null);
   const [loading, setLoading] = useState(true);
   const [calculating, setCalculating] = useState(false);
@@ -34,22 +43,26 @@ export function RouteEstimateCard({ routeId, stops }: { routeId: string; stops: 
     void getRouteEstimate(routeId).then((result) => {
       if (cancelled) return;
       setEstimate(result.data);
+      onEstimateChange?.(result.data);
       setError(result.error ?? null);
       setLoading(false);
     });
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeId]);
 
   const calculate = useCallback(async () => {
     setCalculating(true);
     setError(null);
     const result = await calculateRouteEstimate(routeId);
-    if (result.ok) setEstimate(result.estimate);
-    else setError(result.error);
+    if (result.ok) {
+      setEstimate(result.estimate);
+      onEstimateChange?.(result.estimate);
+    } else setError(result.error);
     setCalculating(false);
-  }, [routeId]);
+  }, [routeId, onEstimateChange]);
 
   const labelOf = (stopId?: string | null) => {
     if (!stopId) return HOME;

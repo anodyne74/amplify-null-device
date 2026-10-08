@@ -360,7 +360,7 @@ export default function UsersAdminPage() {
         setAccessSuccess(
           invited
             ? emailSent
-              ? 'Account created. We emailed them a branded invitation with a temporary password. Access is synced.'
+              ? 'Account created. We emailed them an invitation with a link to set their password. Access is synced.'
               : 'Account created, but the invitation email could not be sent. Ask the user to use "Forgot password" to get access.'
             : 'User assigned to customer and access synced to all routes and stops.'
         );

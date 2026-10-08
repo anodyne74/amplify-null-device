@@ -19,7 +19,7 @@ screens: /customer/users
 1. Enter their email and, if you like, a display name.
 2. Select **Send invite**.
 
-They'll get an email with a temporary password and set their own when they first sign in. New users are read only. To make someone an Account Owner, email [{{supportEmail}}](mailto:{{supportEmail}}).
+They'll get an email with a link to set their own password and sign in. New users are read only. To make someone an Account Owner, email [{{supportEmail}}](mailto:{{supportEmail}}).
 :::else
 ## Add a user
 

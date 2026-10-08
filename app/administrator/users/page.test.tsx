@@ -252,7 +252,7 @@ describe('UsersAdminPage customer access actions', () => {
       );
     });
 
-    expect(await screen.findByText(/branded invitation/i)).toBeInTheDocument();
+    expect(await screen.findByText(/an invitation with a link to set their password/i)).toBeInTheDocument();
     expect(mockCallApi).toHaveBeenCalledWith('/api/admin/sync-customer-access', {
       customerId: 'cust-1',
       added: 'brand-new-sub',

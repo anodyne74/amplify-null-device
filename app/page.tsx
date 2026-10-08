@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator, Authenticator } from '@aws-amplify/ui-react';
@@ -8,6 +8,7 @@ import { signIn, confirmSignIn } from 'aws-amplify/auth';
 import { useUserGroups } from '@/lib/use-user-groups';
 import { buildPortalOptions } from '@/lib/portalRouting';
 import { getLandingRedirect } from '@/lib/auth-routing';
+import { parseInviteFragment } from '@/lib/inviteLink';
 import { SUPPORT_EMAIL } from '@/lib/publicAppConfig';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { Icon } from '@/app/components/ui/core/Icon';
@@ -83,13 +84,12 @@ export default function Home() {
     }
   }, [authStatus, loading, groups, router]);
 
-  const handleSignIn = async (event: FormEvent) => {
-    event.preventDefault();
+  const signInWith = async (username: string, secret: string) => {
     setSubmitting(true);
     setSignInError(null);
 
     try {
-      const { isSignedIn, nextStep } = await signIn({ username: email.trim(), password });
+      const { isSignedIn, nextStep } = await signIn({ username, password: secret });
       // Admin-created accounts sign in with a temporary password, which
       // Cognito never treats as complete — it comes back as this challenge
       // instead of throwing, so without this check the form just sits there
@@ -103,6 +103,25 @@ export default function Home() {
     }
     setSubmitting(false);
   };
+
+  const handleSignIn = (event: FormEvent) => {
+    event.preventDefault();
+    return signInWith(email.trim(), password);
+  };
+
+  // The link in an invitation email carries the temporary password in the URL
+  // fragment (lib/inviteLink.ts). Take it out of the address bar straight away,
+  // then sign in with it, which lands on the new-password step above.
+  const inviteHandled = useRef(false);
+  useEffect(() => {
+    if (authStatus !== 'unauthenticated' || inviteHandled.current) return;
+    inviteHandled.current = true;
+    const invite = parseInviteFragment(window.location.hash);
+    if (!invite) return;
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    setEmail(invite.email);
+    void signInWith(invite.email, invite.temporaryPassword);
+  }, [authStatus]);
 
   const handleNewPassword = async (event: FormEvent) => {
     event.preventDefault();

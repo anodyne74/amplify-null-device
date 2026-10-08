@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useMemo, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAuthenticator } from '@aws-amplify/ui-react';
@@ -20,6 +20,8 @@ import { Button } from '@/app/components/ui/core/Button';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
+import { routeEstimateOverlay } from '@/lib/routeEstimateOverlay';
+import type { StoredRouteEstimate } from '@/lib/routeEstimates';
 import { useRouteDetailData } from '@/lib/use-route-detail-data';
 import { useRouteOverride } from '@/lib/useRouteOverride';
 import {
@@ -95,6 +97,8 @@ function RouteDetailContent() {
   const [dragOverStopId, setDragOverStopId] = useState<string | null>(null);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [stopErrors, setStopErrors] = useState<Record<string, string | null>>({});
+  const [routeEstimate, setRouteEstimate] = useState<StoredRouteEstimate | null>(null);
+  const estimateOverlay = useMemo(() => routeEstimateOverlay(routeEstimate), [routeEstimate]);
   const [mapTheme, setMapTheme] = useState<MapTheme>('light');
 
   const { routeDurationMinutes, kilometersTravelled, totalStops, totalSigns } = computeRouteSummaryStats(route, stops);
@@ -447,11 +451,12 @@ function RouteDetailContent() {
                   activeStopId={topVisibleStopId}
                   phase={routeDone ? undefined : currentExecutionPhase}
                   mapTheme={mapTheme}
+                  estimateOverlay={estimateOverlay}
                 />
               </div>
             </Card>
 
-            <RouteEstimateCard routeId={route.id} stops={stops} />
+            <RouteEstimateCard routeId={route.id} stops={stops} onEstimateChange={setRouteEstimate} />
 
             {canManagePlanning && !planningLocked && (
               <div className={styles.reorderHint}>Drag and drop stop cards to change sequence.</div>

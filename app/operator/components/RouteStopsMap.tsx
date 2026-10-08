@@ -7,6 +7,7 @@ import { locationPrecisionIndicator } from '@/lib/locationPrecision';
 import { getMapTheme, type MapTheme } from '@/lib/mapThemes';
 import { stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
 import { stopProgressTone, type StopProgressTone } from '@/lib/stopStatusLabel';
+import type { RouteEstimateOverlay } from '@/lib/routeEstimateOverlay';
 import styles from './RouteStopsMap.module.css';
 
 interface RouteStopsMapProps {
@@ -20,6 +21,8 @@ interface RouteStopsMapProps {
   mapTheme?: MapTheme;
   onStopSelect?: (stopId: string) => void;
   presentation?: 'standard' | 'field';
+  /** A stored Route Estimate to draw (staff screens only): its Legs and the home base. */
+  estimateOverlay?: RouteEstimateOverlay | null;
 }
 
 type StopWithCoords = Stop & { latitude: number; longitude: number };
@@ -139,6 +142,7 @@ export function RouteStopsMap({
   mapTheme = 'light',
   onStopSelect,
   presentation = 'standard',
+  estimateOverlay = null,
 }: RouteStopsMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -243,6 +247,23 @@ export function RouteStopsMap({
         ).addTo(map);
       }
 
+      if (estimateOverlay) {
+        estimateOverlay.legs.forEach((path) => {
+          L.polyline(path, { color: 'var(--indigo-600)', weight: 4, opacity: 0.85 }).addTo(map);
+        });
+        L.marker([estimateOverlay.home.latitude, estimateOverlay.home.longitude], {
+          icon: L.divIcon({
+            className: styles.stopMarkerIcon,
+            html: `<span class="${styles.homeMarker}" aria-label="Home base">H</span>`,
+            iconSize: [30, 30],
+            iconAnchor: [15, 15],
+          }),
+          keyboard: false,
+        })
+          .addTo(map)
+          .bindTooltip('Home base', { direction: 'top', offset: [0, -12], opacity: 0.95 });
+      }
+
       mappedStops.forEach((stop) => {
         const state = progressState(stop, phase);
         const isActive = stop.id === activeStop.id;
@@ -343,7 +364,7 @@ export function RouteStopsMap({
       headingRef.current = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStopId, stops, mapTheme, upcomingStopKey, phase, presentation]);
+  }, [activeStopId, stops, mapTheme, upcomingStopKey, phase, presentation, estimateOverlay]);
 
   useEffect(() => {
     if (!mapRef.current || !leafletRef.current) return;

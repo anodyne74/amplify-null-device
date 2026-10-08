@@ -56,6 +56,20 @@ describe('RouteEstimateCard', () => {
     expect(screen.getByRole('button', { name: /recalculate estimate/i })).toBeInTheDocument();
   });
 
+  it('hands the stored and each newly calculated estimate to the map', async () => {
+    const onEstimateChange = jest.fn();
+    (getRouteEstimate as jest.Mock).mockResolvedValue({ data: estimate(10000) });
+    (calculateRouteEstimate as jest.Mock).mockResolvedValue({ ok: true, estimate: estimate(12000) });
+
+    render(<RouteEstimateCard routeId="r1" stops={stops} onEstimateChange={onEstimateChange} />);
+    await screen.findByText('10.0 km');
+    expect(onEstimateChange).toHaveBeenLastCalledWith(expect.objectContaining({ totalMeters: 10000 }));
+
+    fireEvent.click(screen.getByRole('button', { name: /recalculate estimate/i }));
+    await screen.findByText('12.0 km');
+    expect(onEstimateChange).toHaveBeenLastCalledWith(expect.objectContaining({ totalMeters: 12000 }));
+  });
+
   it('keeps the previous estimate and offers a retry when a calculation fails', async () => {
     (getRouteEstimate as jest.Mock).mockResolvedValue({ data: estimate(10000) });
     (calculateRouteEstimate as jest.Mock)

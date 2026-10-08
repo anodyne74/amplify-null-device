@@ -94,6 +94,8 @@ export interface Operator {
   phone?: string | null;
   vehicleAndRego?: string | null;
   homeBase?: string | null;
+  homeBaseLatitude?: number | null;
+  homeBaseLongitude?: number | null;
   status?: OperatorStatus | null;
   driverSplitPercent?: number | null;
   payCycle?: BillingCycle | null;

@@ -30,6 +30,11 @@ jest.mock('@/lib/customers', () => ({
   listAllCustomers: jest.fn(),
 }));
 
+const mockGeocodeAddress = jest.fn();
+jest.mock('@/lib/googleMaps', () => ({
+  geocodeAddress: (...args: unknown[]) => mockGeocodeAddress(...args),
+}));
+
 jest.mock('@/lib/routes', () => ({
   listAllRoutes: jest.fn(),
   listAllStops: jest.fn(),
@@ -155,6 +160,57 @@ describe('Administrator Operators page', () => {
       await waitFor(() => expect(screen.getByLabelText('Mobile')).toHaveValue('0412 345 678'));
     }
   );
+
+  describe('home base pin', () => {
+    const saveWithHomeBase = async (text: string) => {
+      render(<AdministratorDriversPage />);
+      await screen.findByText('Van 1 · ABC123');
+      fireEvent.click(screen.getByRole('button', { name: 'Configure Jane Driver' }));
+      fireEvent.change(screen.getByLabelText(/home base/i), { target: { value: text } });
+      fireEvent.click(screen.getByRole('button', { name: /save operator/i }));
+    };
+
+    it('stores a pin for a changed home base and shows the start point as set', async () => {
+      mockGeocodeAddress.mockResolvedValue({ latitude: -33.8, longitude: 151.1 });
+
+      await saveWithHomeBase('Epping NSW');
+
+      await waitFor(() =>
+        expect(updateOperator).toHaveBeenCalledWith(
+          'sub-1',
+          expect.objectContaining({ homeBase: 'Epping NSW', homeBaseLatitude: -33.8, homeBaseLongitude: 151.1 })
+        )
+      );
+      expect(mockGeocodeAddress).toHaveBeenCalledWith('Epping NSW');
+      expect(await screen.findAllByText('Set')).not.toHaveLength(0);
+    });
+
+    it('saves anyway with a warning and no pin when the geocode fails', async () => {
+      mockGeocodeAddress.mockRejectedValue(new Error('ZERO_RESULTS'));
+
+      await saveWithHomeBase('Nowhere');
+
+      await waitFor(() =>
+        expect(updateOperator).toHaveBeenCalledWith(
+          'sub-1',
+          expect.objectContaining({ homeBase: 'Nowhere', homeBaseLatitude: null, homeBaseLongitude: null })
+        )
+      );
+      expect(await screen.findByRole('status')).toHaveTextContent(/couldn't find that home base/i);
+    });
+
+    it('clears the pin when the home base is cleared', async () => {
+      await saveWithHomeBase('');
+
+      await waitFor(() =>
+        expect(updateOperator).toHaveBeenCalledWith(
+          'sub-1',
+          expect.objectContaining({ homeBaseLatitude: null, homeBaseLongitude: null })
+        )
+      );
+      expect(mockGeocodeAddress).not.toHaveBeenCalled();
+    });
+  });
 
   it('shows a stored mobile in local form', async () => {
     render(<AdministratorDriversPage />);

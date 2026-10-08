@@ -133,3 +133,18 @@ export function leftOutStops(stops: EstimateStop[]): { stop: EstimateStop; reaso
       stop.removed ? [{ stop, reason: 'removed' }] : hasPin(stop) ? [] : [{ stop, reason: 'noPin' }]
     );
 }
+
+/** The Routes API takes an origin, a destination and at most 25 points between. */
+const MAX_LEGS_PER_REQUEST = 26;
+
+/**
+ * Splits a drive into requests the Routes API will take. Each request starts
+ * where the one before ended, so every Leg falls in exactly one request.
+ */
+export function chunkPoints<T>(points: T[], maxLegs = MAX_LEGS_PER_REQUEST): T[][] {
+  const chunks: T[][] = [];
+  for (let start = 0; start < points.length - 1; start += maxLegs) {
+    chunks.push(points.slice(start, start + maxLegs + 1));
+  }
+  return chunks;
+}

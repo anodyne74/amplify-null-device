@@ -1,4 +1,4 @@
-import { estimateStaleness, leftOutStops, planRouteEstimate, readRoadLegs } from './routeEstimate';
+import { chunkPoints, estimateStaleness, leftOutStops, planRouteEstimate, readRoadLegs } from './routeEstimate';
 
 const home = { latitude: -33.8, longitude: 151.1 };
 const stop = (id: string, sequence: number, extra: Record<string, unknown> = {}) => ({
@@ -126,5 +126,29 @@ describe('leftOutStops', () => {
       ['b', 'removed'],
       ['c', 'noPin'],
     ]);
+  });
+});
+
+describe('chunkPoints', () => {
+  const pts = (n: number) => Array.from({ length: n }, (_, i) => ({ latitude: i, longitude: 0 }));
+
+  it('keeps a short drive in one request', () => {
+    expect(chunkPoints(pts(27))).toHaveLength(1);
+  });
+
+  it('splits a longer drive into requests of at most 25 intermediate points, sharing each boundary point', () => {
+    const chunks = chunkPoints(pts(60));
+
+    chunks.forEach((chunk) => expect(chunk.length - 2).toBeLessThanOrEqual(25));
+    chunks.slice(1).forEach((chunk, i) => expect(chunk[0]).toBe(chunks[i][chunks[i].length - 1]));
+    expect(chunks[0][0]).toEqual({ latitude: 0, longitude: 0 });
+    expect(chunks[chunks.length - 1].at(-1)).toEqual({ latitude: 59, longitude: 0 });
+  });
+
+  it('covers every consecutive pair exactly once, so no Leg is dropped or doubled', () => {
+    const chunks = chunkPoints(pts(80));
+    const legs = chunks.flatMap((chunk) => chunk.slice(1).map((point, i) => [chunk[i].latitude, point.latitude]));
+
+    expect(legs).toEqual(Array.from({ length: 79 }, (_, i) => [i, i + 1]));
   });
 });

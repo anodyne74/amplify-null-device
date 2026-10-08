@@ -56,6 +56,14 @@ _Avoid_: Skipped, missed, failed pickup
 One visit to a Property on a Route, where signs are placed and later picked up.
 _Avoid_: Property (when you mean the single visit), location, visit
 
+**Route Estimate**:
+An administrator's calculation of how far a Route's Operator will drive: road distance from the Operator's home base through the Route's Stops in their current order, and back, for one pass only. It is kept until an administrator recalculates it, and shows as out of date once the Route's Stops or assigned Operator have changed. Stops with no pin, and Removed Stops, are left out, and the estimate says so. Staff only, and informational: it never changes Billed Time.
+_Avoid_: Route optimisation (it does not reorder Stops), quote
+
+**Leg**:
+The drive between two consecutive points of a Route Estimate: home base to the first Stop, one Stop to the next, or the last Stop back to home base.
+_Avoid_: Segment, route (for one piece of it)
+
 **Property**:
 The real-world address a Stop visits; many Stops, across many Routes and Customers, can share one Property. Identified by street number, street, suburb and postcode, never by map coordinates or a geocoder's place identifier, so one address is always one Property even when its pin is wrong. Where the geocoder and the entered address disagree on suburb, the entered address wins.
 _Avoid_: Location, site, address (when you mean the place rather than the text)

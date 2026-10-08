@@ -12,6 +12,7 @@ import { queueSignRunTransition } from '@/lib/signRunTransitions';
 import { sumBilledMinutes } from '@/lib/billedTime';
 import { formatDuration } from '@/lib/format';
 import { useFinaliseAdjusters } from '@/lib/useFinaliseAdjusters';
+import { useStoredRouteEstimate } from '@/lib/useStoredRouteEstimate';
 import { FinaliseAdjusters } from '@/app/components/FinaliseAdjusters';
 import { NoRouteSelected, PhaseNotReady } from '../PhaseNotReady';
 import shellStyles from '../signRunShell.module.css';
@@ -32,6 +33,7 @@ export default function OperatorFinalisePage() {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const adjusters = useFinaliseAdjusters(route);
+  const routeEstimate = useStoredRouteEstimate(routeId ?? undefined);
   const { measured, billedMinutes, distanceKm, billTotal, canConfirm } = adjusters;
 
   const summary = useMemo(() => (route ? reconcileSignRun(route, allStops) : null), [route, allStops]);
@@ -124,7 +126,7 @@ export default function OperatorFinalisePage() {
         </div>
       </div>
 
-      <FinaliseAdjusters adjusters={adjusters} />
+      <FinaliseAdjusters adjusters={adjusters} estimateMeters={routeEstimate?.totalMeters} />
 
       <button
         type="button"

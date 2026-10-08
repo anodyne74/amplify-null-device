@@ -122,6 +122,28 @@ describe('RouteEstimateCard', () => {
     expect(screen.queryByText('out of date')).not.toBeInTheDocument();
   });
 
+  describe('read only (Operators)', () => {
+    it('shows the stored estimate and its out-of-date state, with no way to calculate', async () => {
+      (getRouteEstimate as jest.Mock).mockResolvedValue({ data: estimate(10000) });
+
+      render(<RouteEstimateCard routeId="r1" assignedOperatorSub="op-2" stops={stops} readOnly />);
+
+      expect(await screen.findByText('10.0 km')).toBeInTheDocument();
+      expect(screen.getByText('out of date')).toBeInTheDocument();
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+      expect(calculateRouteEstimate).not.toHaveBeenCalled();
+    });
+
+    it('says so when there is no estimate, without offering to calculate one', async () => {
+      (getRouteEstimate as jest.Mock).mockResolvedValue({ data: null });
+
+      render(<RouteEstimateCard routeId="r1" stops={stops} readOnly />);
+
+      expect(await screen.findByText(/no estimate has been calculated/i)).toBeInTheDocument();
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    });
+  });
+
   it('keeps the previous estimate and offers a retry when a calculation fails', async () => {
     (getRouteEstimate as jest.Mock).mockResolvedValue({ data: estimate(10000) });
     (calculateRouteEstimate as jest.Mock)

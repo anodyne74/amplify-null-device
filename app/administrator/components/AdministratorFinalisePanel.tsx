@@ -6,6 +6,7 @@ import { Button } from '@/app/components/ui/core/Button';
 import { FinaliseAdjusters } from '@/app/components/FinaliseAdjusters';
 import { finaliseRouteAsAdministrator } from '@/lib/administratorRouteActions';
 import { formatDuration } from '@/lib/format';
+import { useStoredRouteEstimate } from '@/lib/useStoredRouteEstimate';
 import { useFinaliseAdjusters } from '@/lib/useFinaliseAdjusters';
 import styles from './AdministratorFinalisePanel.module.css';
 
@@ -16,6 +17,7 @@ import styles from './AdministratorFinalisePanel.module.css';
  */
 export function AdministratorFinalisePanel({ route, onFinalised }: { route: Route; onFinalised: () => Promise<void> | void }) {
   const adjusters = useFinaliseAdjusters(route);
+  const routeEstimate = useStoredRouteEstimate(route.id);
   const { billedMinutes, distanceKm, billTotal, canConfirm } = adjusters;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export function AdministratorFinalisePanel({ route, onFinalised }: { route: Rout
           {error}
         </div>
       )}
-      <FinaliseAdjusters adjusters={adjusters} />
+      <FinaliseAdjusters adjusters={adjusters} estimateMeters={routeEstimate?.totalMeters} />
       <Button type="button" onClick={() => void handleFinalise()} disabled={!canConfirm} loading={saving}>
         {saving ? 'Finalising…' : `Finalise route · ${formatDuration(billTotal)}`}
       </Button>

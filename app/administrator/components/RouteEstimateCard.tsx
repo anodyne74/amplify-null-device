@@ -27,12 +27,15 @@ export function RouteEstimateCard({
   assignedOperatorSub,
   stops,
   onEstimateChange,
+  readOnly = false,
 }: {
   routeId: string;
   assignedOperatorSub?: string | null;
   stops: StopLabel[];
   /** Called with the stored estimate once loaded, and with each new one, so the map can draw it. */
   onEstimateChange?: (estimate: StoredRouteEstimate | null) => void;
+  /** Operators see the stored estimate but cannot calculate or recalculate it. */
+  readOnly?: boolean;
 }) {
   const [estimate, setEstimate] = useState<StoredRouteEstimate | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,8 +97,8 @@ export function RouteEstimateCard({
               </p>
               {outOfDate && (
                 <p role="note">
-                  The Stops, their order, a pin or the Operator have changed since this was calculated. Recalculate to
-                  update it.
+                  The Stops, their order, a pin or the Operator have changed since this was calculated.
+                  {readOnly ? '' : ' Recalculate to update it.'}
                 </p>
               )}
               {leftOut.length > 0 && (
@@ -129,16 +132,18 @@ export function RouteEstimateCard({
               </ol>
             </div>
           ) : (
-            <p>No estimate yet.</p>
+            <p>{readOnly ? 'No estimate has been calculated for this Route.' : 'No estimate yet.'}</p>
           )}
           {error && (
             <p className="nd-badge nd-badge--danger" role="alert">
               {error}
             </p>
           )}
-          <Button type="button" loading={calculating} disabled={calculating} onClick={() => void calculate()}>
-            {error ? 'Try again' : estimate ? 'Recalculate estimate' : 'Calculate estimate'}
-          </Button>
+          {!readOnly && (
+            <Button type="button" loading={calculating} disabled={calculating} onClick={() => void calculate()}>
+              {error ? 'Try again' : estimate ? 'Recalculate estimate' : 'Calculate estimate'}
+            </Button>
+          )}
         </>
       )}
     </Card>

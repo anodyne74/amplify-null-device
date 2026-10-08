@@ -3,6 +3,7 @@
 import type { RouteExecutionPhase } from '@/amplify/types';
 import { MIN_BILLED_MINUTES } from '@/lib/billedTime';
 import { formatDuration } from '@/lib/format';
+import { formatKm } from '@/lib/routeEstimates';
 import type { FinaliseAdjusters as Adjusters } from '@/lib/useFinaliseAdjusters';
 import styles from './FinaliseAdjusters.module.css';
 
@@ -18,7 +19,14 @@ const PHASE_ROWS: Array<{ key: RouteExecutionPhase; label: string }> = [
  * the operator Finalise screen and the administrator Finalise panel (#408).
  * State lives in useFinaliseAdjusters; each screen confirms in its own way.
  */
-export function FinaliseAdjusters({ adjusters }: { adjusters: Adjusters }) {
+export function FinaliseAdjusters({
+  adjusters,
+  estimateMeters,
+}: {
+  adjusters: Adjusters;
+  /** The Route's stored Route Estimate, shown beside the distance as a sanity check; never fills it in. */
+  estimateMeters?: number | null;
+}) {
   const { measured, billedMinutes, bumpBilled, distanceInput, setDistanceInput, distanceError, bumpKm, billTotal, billAligned, nextQuarterHour, roundUp } =
     adjusters;
 
@@ -28,7 +36,10 @@ export function FinaliseAdjusters({ adjusters }: { adjusters: Adjusters }) {
         <div className={styles.adjustRow}>
           <div>
             <span className={styles.adjustLabel}>Distance</span>
-            <span className={styles.adjustMeasured}>Not tracked, enter manually</span>
+            <span className={styles.adjustMeasured}>
+              Not tracked, enter manually
+              {estimateMeters != null && ` · Route Estimate ${formatKm(estimateMeters)}`}
+            </span>
           </div>
           <button type="button" className={styles.stepperButtonMinus} onClick={() => bumpKm(-0.5)} aria-label="Decrease distance">
             −

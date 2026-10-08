@@ -13,6 +13,7 @@ import StopCard from '@/app/operator/components/StopCard';
 import { RouteStatusPill } from '@/app/operator/components/RouteStatusPill';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
+import { RouteEstimateCard } from '@/app/administrator/components/RouteEstimateCard';
 import { useRouteDetailData } from '@/lib/use-route-detail-data';
 import { billedTime } from '@/lib/billedTime';
 import {
@@ -337,6 +338,10 @@ function RouteDetailContent() {
                 />
               </div>
             </Card>
+
+            {route && (
+              <RouteEstimateCard routeId={route.id} assignedOperatorSub={route.assignedOperatorSub} stops={stops} readOnly />
+            )}
 
             {canManagePlanning && !planningLocked && (
               <div className={styles.reorderHint}>Drag and drop stop cards to change sequence.</div>

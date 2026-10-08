@@ -456,7 +456,7 @@ function RouteDetailContent() {
               </div>
             </Card>
 
-            <RouteEstimateCard routeId={route.id} stops={stops} onEstimateChange={setRouteEstimate} />
+            <RouteEstimateCard routeId={route.id} assignedOperatorSub={route.assignedOperatorSub} stops={stops} onEstimateChange={setRouteEstimate} />
 
             {canManagePlanning && !planningLocked && (
               <div className={styles.reorderHint}>Drag and drop stop cards to change sequence.</div>

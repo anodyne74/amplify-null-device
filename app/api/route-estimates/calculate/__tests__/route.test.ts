@@ -73,6 +73,10 @@ describe('POST /api/route-estimates/calculate', () => {
     expect(response.status).toBe(200);
     const stored = tables.RouteEstimate[0];
     expect(stored).toMatchObject({ id: 'r1', totalMeters: 6000, stopIds: ['s1', 's2'], calculatedBySub: 'admin-1' });
+    expect(stored.stopPins).toEqual([
+      { stopId: 's1', latitude: -33.7, longitude: 151.2 },
+      { stopId: 's2', latitude: -33.6, longitude: 151.3 },
+    ]);
     expect((stored.legs as Row[]).map((leg) => [leg.fromStopId, leg.toStopId])).toEqual([
       [null, 's1'],
       ['s1', 's2'],

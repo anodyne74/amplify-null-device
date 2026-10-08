@@ -11,6 +11,7 @@ import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { StopForm } from '@/app/operator/components/StopForm';
 import StopCard from '@/app/administrator/components/StopCard';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
+import { RouteEstimateCard } from '@/app/administrator/components/RouteEstimateCard';
 import { RouteRequestsCard } from '@/app/administrator/components/RouteRequestsCard';
 import { AdministratorFinalisePanel } from '@/app/administrator/components/AdministratorFinalisePanel';
 import { BilledTimeCorrectionPanel } from '@/app/administrator/components/BilledTimeCorrectionPanel';
@@ -449,6 +450,8 @@ function RouteDetailContent() {
                 />
               </div>
             </Card>
+
+            <RouteEstimateCard routeId={route.id} stops={stops} />
 
             {canManagePlanning && !planningLocked && (
               <div className={styles.reorderHint}>Drag and drop stop cards to change sequence.</div>

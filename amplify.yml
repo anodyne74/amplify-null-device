@@ -24,6 +24,9 @@ frontend:
         # (Notify Operator, ADR 0010). Kept out of amplify_outputs.json, which
         # browsers download.
         - '[ -z "$SMS_TEST_NUMBERS" ] || echo "SMS_TEST_NUMBERS=$SMS_TEST_NUMBERS" >> .env.production'
+        # GOOGLE_ROUTES_API_KEY: server-only key restricted to the Routes API,
+        # for Route Estimates (scripts/setup-routes-api-key.sh).
+        - '[ -z "$GOOGLE_ROUTES_API_KEY" ] || echo "GOOGLE_ROUTES_API_KEY=$GOOGLE_ROUTES_API_KEY" >> .env.production'
         # Build frontend (quality checks already passed in GitHub Actions)
         - npm run build
   artifacts:

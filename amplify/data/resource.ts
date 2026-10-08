@@ -24,6 +24,7 @@ import { routeRequestCapture } from '../functions/route-request-capture/resource
  * - PropertyLocation: an administrator's review decisions for one Property (Confirmed pin, dismissed suburb flag)
  * - PropertyHistoryReport: a frozen Property History PDF's record (read through the reports API)
  * - RouteRequestRecord: a Route Request or Amendment, captured from requests@ or recorded by hand (ADR 0008)
+ * - RouteEstimate: a Route's Route Estimate, staff read only (ADR 0011)
  * - RouteRequestSlot: held by a Route while it has a Route Request
  * - OperatorAvailabilityBlock: Days Null Device has no drivers available for a customer
  * - CustomerClosureBlock: Days a customer's agency is closed
@@ -545,7 +546,7 @@ export const schema = a.schema({
       customerId: a.id(), // Optional: associated customer
       operatorId: a.id(), // Optional: user who performed action
       eventType: a.enum(['login', 'logout', 'access_denied', 'data_access', 'data_modification', 'data_deletion']),
-      resourceType: a.enum(['customer', 'route', 'stop', 'invoice', 'payment', 'operator', 'feature_flag', 'property', 'report']),
+      resourceType: a.enum(['customer', 'route', 'stop', 'invoice', 'payment', 'operator', 'feature_flag', 'property', 'report', 'route_estimate']),
       resourceId: a.id(),
       action: a.string().required(),
       status: a.enum(['success', 'failure']),
@@ -875,6 +876,40 @@ export const schema = a.schema({
       updatedAt: a.datetime(),
     })
     .authorization((allow) => [allow.groups(['administrator']).to(['read', 'create', 'delete'])]),
+
+  /** One drive of a Route Estimate: its distance and the encoded polyline of its path. */
+  RouteEstimateLeg: a.customType({
+    order: a.integer().required(),
+    fromStopId: a.id(), // Empty when the Leg starts at the Operator's home base
+    toStopId: a.id(), // Empty when the Leg ends at the Operator's home base
+    distanceMeters: a.float().required(),
+    path: a.string(),
+  }),
+
+  /**
+   * RouteEstimate - a Route's Route Estimate (ADR 0011): the road distance from
+   * the Operator's home base through the Route's pinned Stops and back. One per
+   * Route; its id is the Route's id. Its own record, not fields on Route, because
+   * the first and last Legs reveal where the Operator lives and Customers can
+   * read Route. Staff read it; it is written only by /api/route-estimates
+   * (IAM), which replaces it on each calculation and never sets a field to null.
+   */
+  RouteEstimate: a
+    .model({
+      operatorSub: a.string().required(),
+      originLatitude: a.float().required(),
+      originLongitude: a.float().required(),
+      stopIds: a.id().array().required(), // The Stops used, in order
+      leftOutNoPin: a.integer().required(),
+      leftOutRemoved: a.integer().required(),
+      totalMeters: a.float().required(),
+      legs: a.ref('RouteEstimateLeg').array().required(),
+      calculatedAt: a.datetime().required(),
+      calculatedBySub: a.string().required(),
+      createdAt: a.datetime(),
+      updatedAt: a.datetime(),
+    })
+    .authorization((allow) => [allow.groups(['administrator', 'operator']).to(['read'])]),
 }).authorization((allow) => [
   allow.resource(customerAccessActivation).to(['query', 'mutate']),
   allow.resource(operatorStatusActivation).to(['query', 'mutate']),

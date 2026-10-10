@@ -3,6 +3,7 @@
  * passes through, and reading Google's answer back into Legs. Pure, so the
  * rules are testable without the Routes API or the data client.
  */
+import { activeStops, isStopRemoved } from './loadChange';
 
 export interface EstimatePoint {
   latitude: number;
@@ -56,8 +57,8 @@ export function planRouteEstimate(
   }
 
   const ordered = [...stops].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
-  const removed = ordered.filter((stop) => stop.removed).length;
-  const live = ordered.filter((stop) => !stop.removed);
+  const live = activeStops(ordered);
+  const removed = ordered.length - live.length;
   const pinned = live.filter(hasPin);
   if (pinned.length === 0) {
     return { ok: false, reason: 'No Stop on this Route has a pin yet, so there is nothing to drive between.' };
@@ -110,10 +111,7 @@ export function estimateStaleness(
   if (!estimate.stopPins) return true;
   if (route.assignedOperatorSub !== estimate.operatorSub) return true;
 
-  const now = [...stops]
-    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
-    .filter((stop) => !stop.removed)
-    .filter(hasPin);
+  const now = activeStops([...stops].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))).filter(hasPin);
   if (now.length !== estimate.stopIds.length) return true;
 
   const stored = new Map(estimate.stopPins.filter((pin): pin is StoredStopPin => pin != null).map((pin) => [pin.stopId, pin]));
@@ -130,7 +128,7 @@ export function leftOutStops(stops: EstimateStop[]): { stop: EstimateStop; reaso
   return [...stops]
     .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
     .flatMap((stop): { stop: EstimateStop; reason: LeftOutReason }[] =>
-      stop.removed ? [{ stop, reason: 'removed' }] : hasPin(stop) ? [] : [{ stop, reason: 'noPin' }]
+      isStopRemoved(stop) ? [{ stop, reason: 'removed' }] : hasPin(stop) ? [] : [{ stop, reason: 'noPin' }]
     );
 }
 

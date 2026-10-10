@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react';
+import { estimateStaleness, type EstimateStop } from '@/lib/routeEstimate';
 import { getRouteEstimate, type StoredRouteEstimate } from '@/lib/routeEstimates';
 
 /**
  * A Route's stored Route Estimate, read once for screens that only show it
- * (Finalise). Null while loading, when there is none, and when it can't be
- * read: the estimate is a sanity check and never blocks the screen.
+ * (Finalise), and whether it is out of date against the Route's Stops and
+ * Operator as they are now. The estimate is null while loading, when there is
+ * none, and when it can't be read: it is a sanity check and never blocks the
+ * screen.
  */
-export function useStoredRouteEstimate(routeId: string | undefined): StoredRouteEstimate | null {
+export function useStoredRouteEstimate(
+  route: { id: string; assignedOperatorSub?: string | null } | null | undefined,
+  stops: EstimateStop[]
+): { estimate: StoredRouteEstimate | null; outOfDate: boolean } {
+  const routeId = route?.id;
   const [estimate, setEstimate] = useState<StoredRouteEstimate | null>(null);
 
   useEffect(() => {
@@ -20,5 +27,6 @@ export function useStoredRouteEstimate(routeId: string | undefined): StoredRoute
     };
   }, [routeId]);
 
-  return estimate;
+  const outOfDate = Boolean(estimate && route && estimateStaleness(estimate, route, stops));
+  return { estimate, outOfDate };
 }

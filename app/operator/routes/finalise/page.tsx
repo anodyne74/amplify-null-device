@@ -33,7 +33,7 @@ export default function OperatorFinalisePage() {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const adjusters = useFinaliseAdjusters(route);
-  const routeEstimate = useStoredRouteEstimate(routeId ?? undefined);
+  const { estimate: routeEstimate, outOfDate: estimateOutOfDate } = useStoredRouteEstimate(route, allStops);
   const { measured, billedMinutes, distanceKm, billTotal, canConfirm } = adjusters;
 
   const summary = useMemo(() => (route ? reconcileSignRun(route, allStops) : null), [route, allStops]);
@@ -126,7 +126,7 @@ export default function OperatorFinalisePage() {
         </div>
       </div>
 
-      <FinaliseAdjusters adjusters={adjusters} estimateMeters={routeEstimate?.totalMeters} />
+      <FinaliseAdjusters adjusters={adjusters} estimateMeters={routeEstimate?.totalMeters} estimateOutOfDate={estimateOutOfDate} />
 
       <button
         type="button"

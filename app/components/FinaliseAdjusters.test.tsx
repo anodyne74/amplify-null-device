@@ -27,6 +27,12 @@ describe('FinaliseAdjusters distance row', () => {
     expect(screen.getByLabelText('Distance (km)')).toHaveValue('12.0');
   });
 
+  it('says when the Route Estimate is out of date', () => {
+    render(<FinaliseAdjusters adjusters={adjusters} estimateMeters={13400} estimateOutOfDate />);
+
+    expect(screen.getByText(/Route Estimate 13\.4 km \(out of date\)/)).toBeInTheDocument();
+  });
+
   it('shows nothing about an estimate when there is none', () => {
     render(<FinaliseAdjusters adjusters={adjusters} />);
 

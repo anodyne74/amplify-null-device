@@ -4,8 +4,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Route } from '@/amplify/types';
 import { AdministratorFinalisePanel } from '../AdministratorFinalisePanel';
 import { finaliseRouteAsAdministrator } from '@/lib/administratorRouteActions';
+import { getRouteEstimate } from '@/lib/routeEstimates';
 
 jest.mock('@/lib/administratorRouteActions', () => ({ finaliseRouteAsAdministrator: jest.fn() }));
+jest.mock('@/lib/routeEstimates', () => ({ getRouteEstimate: jest.fn().mockResolvedValue({ data: null }), formatKm: (m: number) => `${(m / 1000).toFixed(1)} km` }));
 
 const finalise = finaliseRouteAsAdministrator as jest.Mock;
 
@@ -27,7 +29,7 @@ const ROUTE = {
 
 function renderPanel() {
   const onFinalised = jest.fn();
-  render(<AdministratorFinalisePanel route={ROUTE} onFinalised={onFinalised} />);
+  render(<AdministratorFinalisePanel route={ROUTE} stops={[]} onFinalised={onFinalised} />);
   fireEvent.click(screen.getByRole('button', { name: /round up to 1h 15m/i }));
   fireEvent.change(screen.getByLabelText('Distance (km)'), { target: { value: '37.5' } });
   return { onFinalised };
@@ -69,7 +71,7 @@ describe('AdministratorFinalisePanel', () => {
   });
 
   it('blocks finalising until the total lands on 15 minutes and the distance is valid', () => {
-    render(<AdministratorFinalisePanel route={ROUTE} onFinalised={jest.fn()} />);
+    render(<AdministratorFinalisePanel route={ROUTE} stops={[]} onFinalised={jest.fn()} />);
     expect(screen.getByRole('button', { name: /finalise route/i })).toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: /round up to 1h 15m/i }));
@@ -78,5 +80,43 @@ describe('AdministratorFinalisePanel', () => {
     fireEvent.change(screen.getByLabelText('Distance (km)'), { target: { value: '' } });
     expect(screen.getByRole('button', { name: /finalise route/i })).toBeDisabled();
     expect(finalise).not.toHaveBeenCalled();
+  });
+
+  describe('Route Estimate', () => {
+    const estimate = {
+      id: 'route-1',
+      operatorSub: 'op-1',
+      totalMeters: 13400,
+      stopIds: ['s1', 's2'],
+      stopPins: [
+        { stopId: 's1', latitude: -37.8, longitude: 144.9 },
+        { stopId: 's2', latitude: -37.9, longitude: 145.0 },
+      ],
+    };
+    const route = { ...ROUTE, assignedOperatorSub: 'op-1' } as Route;
+    const stops = [
+      { id: 's1', sequence: 1, latitude: -37.8, longitude: 144.9 },
+      { id: 's2', sequence: 2, latitude: -37.9, longitude: 145.0 },
+    ];
+
+    it('shows the estimate as it is while the Stops are as calculated', async () => {
+      (getRouteEstimate as jest.Mock).mockResolvedValue({ data: estimate });
+      render(<AdministratorFinalisePanel route={route} stops={stops as never} onFinalised={jest.fn()} />);
+
+      expect(await screen.findByText(/Route Estimate 13\.4 km$/)).toBeInTheDocument();
+    });
+
+    it('says it is out of date once a Stop was removed on the day', async () => {
+      (getRouteEstimate as jest.Mock).mockResolvedValue({ data: estimate });
+      render(
+        <AdministratorFinalisePanel
+          route={route}
+          stops={[stops[0], { ...stops[1], removed: true }] as never}
+          onFinalised={jest.fn()}
+        />
+      );
+
+      expect(await screen.findByText(/Route Estimate 13\.4 km \(out of date\)/)).toBeInTheDocument();
+    });
   });
 });

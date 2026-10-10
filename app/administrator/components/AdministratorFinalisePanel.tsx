@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Route } from '@/amplify/types';
+import type { Route, Stop } from '@/amplify/types';
 import { Button } from '@/app/components/ui/core/Button';
 import { FinaliseAdjusters } from '@/app/components/FinaliseAdjusters';
 import { finaliseRouteAsAdministrator } from '@/lib/administratorRouteActions';
@@ -15,9 +15,17 @@ import styles from './AdministratorFinalisePanel.module.css';
  * with the operator Finalise screen's adjusters. The caller shows it only on
  * that phase; a refused or failed save keeps the panel and what was entered.
  */
-export function AdministratorFinalisePanel({ route, onFinalised }: { route: Route; onFinalised: () => Promise<void> | void }) {
+export function AdministratorFinalisePanel({
+  route,
+  stops,
+  onFinalised,
+}: {
+  route: Route;
+  stops: Stop[];
+  onFinalised: () => Promise<void> | void;
+}) {
   const adjusters = useFinaliseAdjusters(route);
-  const routeEstimate = useStoredRouteEstimate(route.id);
+  const { estimate: routeEstimate, outOfDate: estimateOutOfDate } = useStoredRouteEstimate(route, stops);
   const { billedMinutes, distanceKm, billTotal, canConfirm } = adjusters;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +51,7 @@ export function AdministratorFinalisePanel({ route, onFinalised }: { route: Rout
           {error}
         </div>
       )}
-      <FinaliseAdjusters adjusters={adjusters} estimateMeters={routeEstimate?.totalMeters} />
+      <FinaliseAdjusters adjusters={adjusters} estimateMeters={routeEstimate?.totalMeters} estimateOutOfDate={estimateOutOfDate} />
       <Button type="button" onClick={() => void handleFinalise()} disabled={!canConfirm} loading={saving}>
         {saving ? 'Finalising…' : `Finalise route · ${formatDuration(billTotal)}`}
       </Button>

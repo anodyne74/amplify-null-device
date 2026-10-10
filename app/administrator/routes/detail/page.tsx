@@ -348,7 +348,7 @@ function RouteDetailContent() {
             {awaitingFinalise && (
               <div className={styles.summaryPanel}>
                 <h3 className={styles.summaryHeading}>Finalise Route</h3>
-                <AdministratorFinalisePanel key={route.id} route={route} onFinalised={refetch} />
+                <AdministratorFinalisePanel key={route.id} route={route} stops={stops} onFinalised={refetch} />
               </div>
             )}
 

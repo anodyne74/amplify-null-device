@@ -22,10 +22,13 @@ const PHASE_ROWS: Array<{ key: RouteExecutionPhase; label: string }> = [
 export function FinaliseAdjusters({
   adjusters,
   estimateMeters,
+  estimateOutOfDate = false,
 }: {
   adjusters: Adjusters;
   /** The Route's stored Route Estimate, shown beside the distance as a sanity check; never fills it in. */
   estimateMeters?: number | null;
+  /** The Route's Stops or Operator have changed since the estimate was calculated. */
+  estimateOutOfDate?: boolean;
 }) {
   const { measured, billedMinutes, bumpBilled, distanceInput, setDistanceInput, distanceError, bumpKm, billTotal, billAligned, nextQuarterHour, roundUp } =
     adjusters;
@@ -38,7 +41,7 @@ export function FinaliseAdjusters({
             <span className={styles.adjustLabel}>Distance</span>
             <span className={styles.adjustMeasured}>
               Not tracked, enter manually
-              {estimateMeters != null && ` · Route Estimate ${formatKm(estimateMeters)}`}
+              {estimateMeters != null && ` · Route Estimate ${formatKm(estimateMeters)}${estimateOutOfDate ? ' (out of date)' : ''}`}
             </span>
           </div>
           <button type="button" className={styles.stepperButtonMinus} onClick={() => bumpKm(-0.5)} aria-label="Decrease distance">

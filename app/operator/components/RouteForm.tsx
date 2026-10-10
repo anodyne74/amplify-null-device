@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/app/components/ToastProvider';
 import { StopForm } from '@/app/operator/components/StopForm';
-import { geocodeAddress } from '@/lib/googleMaps';
+import { useCustomerAddressOrigin } from '@/lib/useCustomerAddressOrigin';
 import type { StopLocationFields } from '@/lib/locationPrecision';
 import { lacksProperty, locateNewStop } from '@/lib/stopLocation';
 import { STOP_NEEDS_SUBURB } from '@/lib/routes';
@@ -124,7 +124,9 @@ export function RouteForm({
   const [copyingStops, setCopyingStops] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const customerAddressOrigin = useCustomerAddressOrigin(
+    customers.find((customer) => customer.id === customerId)?.addressLine1
+  );
   const { showToast } = useToast();
 
   // The parent owns the create mutation and reports failures through the
@@ -147,31 +149,6 @@ export function RouteForm({
     setSelectedCopySourceId('');
     setCopyError(null);
   }, [customerId]);
-
-  useEffect(() => {
-    const selected = customers.find((c) => c.id === customerId);
-    if (!selected?.addressLine1) {
-      setCustomerAddressOrigin(null);
-      return;
-    }
-
-    let cancelled = false;
-    void geocodeAddress(selected.addressLine1)
-      .then((resolved) => {
-        if (!cancelled) {
-          setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCustomerAddressOrigin(null);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [customerId, customers]);
 
   useEffect(() => {
     if (!onCheckDateBlock || !customerId || !scheduledDate) {

@@ -67,6 +67,11 @@ export type RoutePhaseInput = Pick<
   | 'scheduledDate'
 >;
 
+/** Whether a Route is completed. Archived is a legacy status that reads as completed. */
+export function isRouteCompleted(status?: string | null): boolean {
+  return status === 'completed' || status === 'archived';
+}
+
 export interface SignRunPhaseInfo {
   /** 0-3 = Load/Placement/Pickup/Unload in progress, 4 = ready to finalise. */
   phaseIdx: 0 | 1 | 2 | 3 | 4;
@@ -130,7 +135,7 @@ function dayLabel(scheduledDate?: string | null): string {
  * directly from route.status instead of calling this function.
  */
 export function getSignRunPhase(route: RoutePhaseInput, stopCount: number): SignRunPhaseInfo | null {
-  if (route.status === 'completed' || route.status === 'archived') return null;
+  if (isRouteCompleted(route.status)) return null;
 
   // Unload confirmed but Finalise hasn't run yet — completed routes were already
   // excluded above, so any remaining route with this set is still mid-flow.
@@ -199,7 +204,7 @@ export function getSignRunPhase(route: RoutePhaseInput, stopCount: number): Sign
  * the Route status enum).
  */
 export function getRoutePhaseKey(route: RoutePhaseInput): RoutePhaseKey {
-  if (route.status === 'completed' || route.status === 'archived') return 'completed';
+  if (isRouteCompleted(route.status)) return 'completed';
   if (!route.status || route.status === 'planned') return 'planned';
 
   if (route.unloadConfirmedAt) return 'completed';

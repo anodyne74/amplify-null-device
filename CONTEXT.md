@@ -89,8 +89,12 @@ A Property History Report's lifecycle: active for 30 days, then soft-deleted (hi
 _Avoid_: Expiry, archive (Route already uses "archived")
 
 **Sign Run**:
-The phase flow a Route moves through: Load (signs collected from the customer, onto the van) → Placement (signs deployed) → Pickup (signs retrieved) → Unload (signs returned to the customer) → Finalise. A Route's current phase is derived from which phase-completion timestamps are set, not from a separately stored "current phase" pointer.
+The phase flow a Route moves through: Load (signs collected from the customer, onto the van) → Placement (signs deployed) → Pickup (signs retrieved) → Unload (signs returned to the customer) → Finalise. A Route's completed phases are derived from which phase-completion timestamps are set. The **Working Phase** is the one phase the Operator is on now: it is stored, and moves on the moment the previous phase is confirmed, so between phases it runs one ahead of the last completed phase.
 _Avoid_: Delivery run, job flow. Also avoid calling the Load phase "signs collected" — that phrase is reserved for the Signs Collected metric below, a different phase and a different count.
+
+**Working Phase**:
+The Sign Run phase an Operator is currently carrying out, which unlocks the next Operator screen as soon as the previous phase is confirmed. Staff phase badges and filters show the last completed phase instead; the Customer follows Placement until Pickup starts, then Pickup.
+_Avoid_: Current phase (ambiguous between this and the last completed phase)
 
 **Sign Run Transition**:
 One operator action that moves a Route along its Sign Run — start or confirm Load, start or complete Placement, start or complete Pickup, start or confirm Unload, Finalise. Each is only allowed from its own phase; one attempted from any other phase is refused and nothing is written. A transition takes effect for the operator the moment they confirm it, at the time they confirmed; saving it follows, and the operator never waits on the network to carry on. A transition that can't be saved is reported to the operator and undone on their screen. The same holds for settling a Stop: done or removed during Placement, collected or Couldn't Collect during Pickup. Finalise is the one transition an administrator can also make, and an administrator can also settle a Stop the same ways, both from the Route's detail page: these are saved straight away rather than after confirming, and recorded in the audit log.

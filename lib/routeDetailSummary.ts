@@ -11,7 +11,7 @@
  * on top of the raw stats returned here.
  */
 import type { Route, Stop } from '@/amplify/types';
-import { getSignRunPhase, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS, type RoutePhaseInput, type SignRunTrackState } from './signRunPhase';
+import { getSignRunPhase, isRouteCompleted, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS, type RoutePhaseInput, type SignRunTrackState } from './signRunPhase';
 import { calculateRouteDistanceKm, getRouteDurationMinutes } from './routeDetailHelpers';
 import { signsCollected } from './signRunTotals';
 import { isStopCompleted } from './stopProgress';
@@ -36,7 +36,7 @@ export interface PhaseOverview {
  */
 export function getPhaseOverview(route: RoutePhaseInput | null, stops: Stop[]): PhaseOverview | null {
   if (!route) return null;
-  if (route.status === 'completed' || route.status === 'archived') {
+  if (isRouteCompleted(route.status)) {
     return { track: ['done', 'done', 'done', 'done', 'done', 'done'], caption: ROUTE_PHASE_LABELS.completed, phaseIdx: null };
   }
   const info = getSignRunPhase(route, activeStops(stops).length);
@@ -68,7 +68,7 @@ export function computeRouteSummaryStats(route: Route | null, allStops: Stop[]):
   const stops = activeStops(allStops);
   const completedStops = stops.filter((stop) => isStopCompleted(stop));
   const summaryStops =
-    route?.status === 'completed' || route?.status === 'archived'
+    isRouteCompleted(route?.status)
       ? completedStops.length > 0
         ? completedStops
         : stops

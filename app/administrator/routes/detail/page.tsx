@@ -33,7 +33,7 @@ import {
 import { getUserSettings } from '@/lib/userSettings';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { computeRouteSummaryStats, getPhaseOverview } from '@/lib/routeDetailSummary';
-import { getSignRunPhase } from '@/lib/signRunPhase';
+import { getSignRunPhase, isRouteCompleted } from '@/lib/signRunPhase';
 import {
   removeStopAsAdministrator,
   restoreStopAsAdministrator,
@@ -196,7 +196,7 @@ function RouteDetailContent() {
 
   const planningLocked = route?.status !== 'planned';
   const currentExecutionPhase: ExecutionPhase = route?.executionPhase === 'pickup' ? 'pickup' : 'placement';
-  const routeDone = route?.status === 'completed' || route?.status === 'archived';
+  const routeDone = isRouteCompleted(route?.status);
   const stopPhase = route ? stopPhaseOf(route) : null;
   const visibleStops = (() => {
     if (stopPhase === 'placement') {
@@ -313,7 +313,7 @@ function RouteDetailContent() {
               </div>
             )}
 
-            {(route.status === 'completed' || route.status === 'archived') && (
+            {isRouteCompleted(route.status) && (
               <section className={styles.summaryPanel} aria-labelledby="customer-feedback-heading">
                 <h3 id="customer-feedback-heading" className={styles.summaryHeading}>Customer feedback</h3>
                 {route.customerFeedbackTone ? (
@@ -389,7 +389,7 @@ function RouteDetailContent() {
                   </div>
                 </div>
 
-                {canManagePlanning && (route.status === 'completed' || route.status === 'archived') && (
+                {canManagePlanning && isRouteCompleted(route.status) && (
                   <div className={styles.billingSection}>
                     <h4 className={styles.billingHeading}>Correct Billed Time</h4>
                     <BilledTimeCorrectionPanel key={route.id} route={route} onSaved={refetch} />

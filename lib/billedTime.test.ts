@@ -1,6 +1,7 @@
 import {
   MIN_BILLED_MINUTES,
   adjustBilledMinutes,
+  billedAmount,
   billedTime,
   billedTimePatch,
   billedTotalPatch,
@@ -64,6 +65,23 @@ describe('billedTime', () => {
 
   it('is null throughout while nothing has been billed or measured', () => {
     expect(billedTime({})).toEqual({ phases: null, totalMinutes: null, distanceKm: null });
+  });
+});
+
+describe('billedAmount', () => {
+  it('is the Billed Time in hours at the rate', () => {
+    expect(billedAmount({ ...BILLED }, 60)).toBe(100);
+    expect(billedAmount({ overrideDurationMinutes: 90 }, 80)).toBe(120);
+  });
+
+  it('is null without a Billed Time or without a rate', () => {
+    expect(billedAmount({}, 100)).toBeNull();
+    expect(billedAmount({ ...BILLED }, null)).toBeNull();
+    expect(billedAmount({ ...BILLED }, undefined)).toBeNull();
+  });
+
+  it('is zero at a rate of zero', () => {
+    expect(billedAmount({ ...BILLED }, 0)).toBe(0);
   });
 });
 

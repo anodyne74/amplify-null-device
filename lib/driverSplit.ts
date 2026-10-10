@@ -8,7 +8,7 @@
  */
 import { getDataClient } from '@/lib/data-client';
 import { listAll } from '@/lib/listAll';
-import { billedTime } from '@/lib/billedTime';
+import { billedAmount } from '@/lib/billedTime';
 import { isStopFinished } from '@/lib/stopProgress';
 import { activeStops } from '@/lib/loadChange';
 
@@ -103,12 +103,12 @@ export async function computeDriverSplit(params: ComputeDriverSplitParams): Prom
   for (const route of routes) {
     const operatorSub = route.assignedOperatorSub || 'unassigned';
     const lineItemTotal = lineItemTotalByRoute.get(route.id);
-    const billedAmount =
-      lineItemTotal !== undefined ? lineItemTotal : ((billedTime(route).totalMinutes ?? 0) / 60) * billingRatePerHour;
+    const routeAmount =
+      lineItemTotal !== undefined ? lineItemTotal : (billedAmount(route, billingRatePerHour) ?? 0);
     const stopCount = (stopsByRoute.get(route.id) || []).length;
 
     const existing = byOperatorMap.get(operatorSub) || { operatorName: route.assignedOperatorName || undefined, billedAmount: 0, stopCount: 0 };
-    existing.billedAmount += billedAmount;
+    existing.billedAmount += routeAmount;
     existing.stopCount += stopCount;
     if (!existing.operatorName && route.assignedOperatorName) existing.operatorName = route.assignedOperatorName;
     byOperatorMap.set(operatorSub, existing);

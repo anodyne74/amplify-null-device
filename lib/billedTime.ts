@@ -90,6 +90,12 @@ export function billedTime(route: BilledTimeRoute): BilledTime {
   return { phases, totalMinutes, distanceKm };
 }
 
+/** What a Route's Billed Time comes to at an hourly rate; null when either is unknown. */
+export function billedAmount(route: BilledTimeRoute, ratePerHour: number | null | undefined): number | null {
+  const { totalMinutes } = billedTime(route);
+  return totalMinutes !== null && isNumber(ratePerHour) ? (totalMinutes / 60) * ratePerHour : null;
+}
+
 /** The Route fields that store a per-phase Billed Time. */
 export function billedTimePatch(phases: BilledPhaseMinutes, distanceKm: number) {
   return {

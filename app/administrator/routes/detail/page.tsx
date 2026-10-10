@@ -45,7 +45,7 @@ import { canRestoreRemovedStops, isRemovedAtDoor } from '@/lib/loadChange';
 import { routeFeedbackLabel } from '@/lib/routeFeedback';
 import { STOP_PROBLEM_REASONS } from '@/app/operator/components/StopCompletionDialog';
 import { stopPhaseOf } from '@/lib/signRunTransitions';
-import { billedTime } from '@/lib/billedTime';
+import { billedAmount, billedTime } from '@/lib/billedTime';
 import { isStopCompleted, stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
 import { getStopStatusLabel, labelledPhase, stopProgressTone } from '@/lib/stopStatusLabel';
 import { missingSigns } from '@/lib/signRunTotals';
@@ -110,8 +110,7 @@ function RouteDetailContent() {
     signs: route?.overrideSigns ?? totalSigns,
     stops: route?.overrideStops ?? totalStops,
   };
-  const amount =
-    billed.totalMinutes !== null && customerRatePerHour !== null ? (billed.totalMinutes / 60) * customerRatePerHour : null;
+  const amount = billedAmount(route ?? {}, customerRatePerHour);
 
   const {
     values: invoiceCountOverrides,

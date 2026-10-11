@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
-import { callApi } from '@/lib/apiClient';
+import { repairCustomerAccess } from '@/lib/repairCustomerAccess';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import PortalShell, { type PortalNavItem } from '@/app/components/PortalShell';
 import { usePortalUser } from '@/lib/usePortalUser';
@@ -58,7 +58,7 @@ function CustomerLayoutContent({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!userId) return;
 
-    callApi('/api/customer/sync-profile-access', {}).catch(() => {
+    repairCustomerAccess().catch(() => {
         // Non-blocking: existing accounts self-heal on a later visit if this fails.
       });
   }, [userId]);

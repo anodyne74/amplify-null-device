@@ -143,6 +143,65 @@ describe('UsersAdminPage customer access actions', () => {
     expect(syncCalls).toBe(3);
   });
 
+  it('re-syncs the selected customer until complete, showing how many records are done', async () => {
+    const syncs = [
+      { success: true, complete: false, updated: { Route: 4, Stop: 6 } },
+      { success: true, complete: false, updated: { Stop: 5 } },
+      { success: true, complete: true, updated: { Stop: 2 } },
+    ];
+    mockCallApi.mockImplementation(async (path: string) =>
+      path === '/api/admin/sync-customer-access' ? syncs.shift() : { users: [] }
+    );
+
+    render(<UsersAdminPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Re-sync access' }));
+
+    expect(await screen.findByText(/access re-synced for this customer/i)).toBeInTheDocument();
+    expect(mockCallApi).toHaveBeenCalledWith('/api/admin/sync-customer-access', { customerId: 'cust-1' });
+    expect(mockCallApi.mock.calls.filter(([path]) => path === '/api/admin/sync-customer-access')).toHaveLength(3);
+    expect(screen.getByText(/17 records/)).toBeInTheDocument();
+  });
+
+  it('reports a re-sync that ran out of calls as unfinished, not as an error', async () => {
+    mockCallApi.mockImplementation(async (path: string) =>
+      path === '/api/admin/sync-customer-access' ? { success: true, complete: false, updated: { Stop: 1 } } : { users: [] }
+    );
+
+    render(<UsersAdminPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Re-sync access' }));
+
+    expect(await screen.findByText(/isn't finished/i)).toBeInTheDocument();
+    expect(screen.queryByText(/failed/i)).not.toBeInTheDocument();
+  });
+
+  it('reports a re-sync with write errors as failed', async () => {
+    mockCallApi.mockImplementation(async (path: string) => {
+      if (path === '/api/admin/sync-customer-access') throw new ApiError('Access sync finished with 2 error(s).', 500);
+      return { users: [] };
+    });
+
+    render(<UsersAdminPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Re-sync access' }));
+
+    expect(await screen.findByText(/re-sync failed \(Access sync finished with 2 error\(s\)\.\)/i)).toBeInTheDocument();
+  });
+
+  it('tells the admin to re-sync when a revoke ran out of calls', async () => {
+    mockCallApi.mockImplementation(async (path: string) =>
+      path === '/api/admin/sync-customer-access' ? { success: true, complete: false, updated: {} } : { users: [] }
+    );
+
+    render(<UsersAdminPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Revoke access for Read User' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke Access' }));
+
+    expect(await screen.findByText(/revoking their access isn't finished.*Re-sync access/i)).toBeInTheDocument();
+  });
+
   it('edits display name and role from the edit dialog', async () => {
     render(<UsersAdminPage />);
 

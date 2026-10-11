@@ -352,7 +352,7 @@ function RouteDetailContent() {
               </div>
             )}
 
-            {(route.status === 'signs_picked_up' || route.status === 'completed' || route.status === 'archived') && (
+            {(route.status === 'signs_picked_up' || isRouteCompleted(route.status)) && (
               <div className={styles.summaryPanel}>
                 <h3 className={styles.summaryHeading}>Route Summary</h3>
                 <div className={styles.factsGrid}>

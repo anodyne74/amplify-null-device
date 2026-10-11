@@ -2,7 +2,6 @@ import { activeStops } from '@/lib/loadChange';
 import { estimateStaleness, type EstimateStop } from '@/lib/routeEstimate';
 import { formatKm } from '@/lib/routeEstimates';
 
-
 /**
  * The Stops a Route Sheet lists (CONTEXT.md): every one not removed, in their
  * current order, each with the row number printed beside it. Numbered from 1

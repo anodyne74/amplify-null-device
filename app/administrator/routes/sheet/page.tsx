@@ -152,7 +152,7 @@ function RouteSheetContent() {
         <p>
           <strong>Signs Placed:</strong> {signsPlaced(stops)}
         </p>
-        <p className={styles.distance}>
+        <p>
           <strong>Distance:</strong> {distance ?? <span className={styles.blank} aria-label="Distance blank" />}
         </p>
       </footer>

@@ -120,6 +120,7 @@ describe('syncCustomerAccess', () => {
         CustomerUser: 3,
       },
       errors: [],
+      complete: true,
     });
   });
 
@@ -242,5 +243,46 @@ describe('syncCustomerAccess', () => {
     expect(updatedIds('Stop').sort()).toEqual(['s2', 's3']);
     expect(tables.Stop[2].viewerSubs).toEqual(['sub-owner', 'sub-read']);
     expect(result.updated).toMatchObject({ Route: 1, Stop: 2 });
+  });
+
+  it('stops writing once its time budget is spent and reports incomplete, then a second call finishes', async () => {
+    const tables = customerTables();
+    const { client } = fakeClient(tables);
+    const now = jest.spyOn(Date, 'now');
+    now.mockReturnValue(0);
+    // The clock jumps past the 1000ms budget after the first write.
+    (client.models as any).Customer.update.mockImplementationOnce(async (input: any) => {
+      now.mockReturnValue(5000);
+      return { data: input };
+    });
+
+    const first = await syncCustomerAccess(client, 'c1', { budgetMs: 1000 });
+    expect(first.complete).toBe(false);
+    expect(tables.Stop.every((stop) => stop.viewerSubs === undefined)).toBe(true);
+
+    now.mockReturnValue(0);
+    const second = await syncCustomerAccess(client, 'c1', { budgetMs: 1000 });
+    now.mockRestore();
+    expect(second.complete).toBe(true);
+    expect(tables.Stop[0].viewerSubs).toEqual(['sub-owner', 'sub-read']);
+  });
+
+  it('stamps Stops after every other model, so a request cut off mid-sync has already covered invoices (#309)', async () => {
+    const { client, models } = fakeClient(customerTables());
+
+    await syncCustomerAccess(client, 'c1');
+
+    const firstCall = (model: string) => models[model].update.mock.invocationCallOrder[0];
+    for (const model of ['Route', 'Invoice', 'LineItem']) {
+      if (models[model]?.update.mock.calls.length) {
+        expect(firstCall(model)).toBeLessThan(firstCall('Stop'));
+      }
+    }
+    const lastNonStop = Math.max(
+      ...Object.keys(models)
+        .filter((model) => model !== 'Stop')
+        .flatMap((model) => models[model].update.mock.invocationCallOrder ?? [])
+    );
+    expect(lastNonStop).toBeLessThan(firstCall('Stop'));
   });
 });

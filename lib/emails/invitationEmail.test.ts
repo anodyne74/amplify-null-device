@@ -61,7 +61,7 @@ describe('sendInvitationEmail', () => {
     const data = JSON.parse(command.input.TemplateData);
     const expectedKeys = [
       'customerName', 'inviterName', 'inviterEmail', 'inviteeName', 'inviteeEmail',
-      'temporaryPassword', 'expiryDays', 'portalUrl', 'resetPasswordUrl', 'supportUrl',
+      'inviteUrl', 'expiryDays', 'portalUrl', 'resetPasswordUrl', 'supportUrl',
       'unsubscribeUrl', 'logoUrl', 'companyAddress',
     ];
     for (const key of expectedKeys) {
@@ -72,7 +72,7 @@ describe('sendInvitationEmail', () => {
         customerName: 'Range Property',
         inviteeEmail: 'jamie@rangeproperty.com.au',
         inviteeName: 'Jamie Teammate',
-        temporaryPassword: 'Temp-Pass-9xKq',
+        inviteUrl: 'https://portal.example.com/#invite&email=jamie%40rangeproperty.com.au&code=Temp-Pass-9xKq',
         expiryDays: '7',
         portalUrl: 'https://portal.example.com/',
         logoUrl: 'https://portal.example.com/logo.svg',
@@ -80,6 +80,7 @@ describe('sendInvitationEmail', () => {
         companyAddress: 'Melbourne, Australia',
       })
     );
+    expect(data).not.toHaveProperty('temporaryPassword');
     expect(data.resetPasswordUrl).toMatch(/^mailto:/);
     expect(data.supportUrl).toMatch(/^mailto:/);
   });

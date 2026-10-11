@@ -6,6 +6,7 @@
  * Couldn't Collect reason suffix) lands once for every portal instead of being ported by
  * hand from one page's copy to another's.
  */
+import { isRouteCompleted } from './signRunPhase';
 import { stopProgress, type ExecutionPhase, type StopProgressStop } from './stopProgress';
 
 export interface StatusLabelStop {
@@ -20,7 +21,7 @@ export interface StatusLabelStop {
  * Couldn't Collect stop still reads that way after the route is done.
  */
 export function labelledPhase(executionPhase?: ExecutionPhase | null, routeStatus?: string | null): ExecutionPhase {
-  const routeDone = routeStatus === 'completed' || routeStatus === 'archived';
+  const routeDone = isRouteCompleted(routeStatus);
   return executionPhase && !routeDone ? executionPhase : 'pickup';
 }
 
@@ -29,7 +30,7 @@ export function getStopStatusLabel(
   executionPhase?: ExecutionPhase | null,
   routeStatus?: string | null
 ) {
-  const routeDone = routeStatus === 'completed' || routeStatus === 'archived';
+  const routeDone = isRouteCompleted(routeStatus);
   const phase = labelledPhase(executionPhase, routeStatus);
   const { state, reason } = stopProgress(stop)[phase];
   if (state === 'couldntCollect') {

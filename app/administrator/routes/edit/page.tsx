@@ -15,7 +15,7 @@ import { Button } from '@/app/components/ui/core/Button';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { Select } from '@/app/components/ui/forms/Select';
-import { geocodeAddress } from '@/lib/googleMaps';
+import { useCustomerAddressOrigin } from '@/lib/useCustomerAddressOrigin';
 import type { StopFormValues } from '@/lib/use-route-detail-data';
 import { getUserSettings } from '@/lib/userSettings';
 import type { Route, Stop } from '@/amplify/types';
@@ -85,7 +85,9 @@ function RouteEditContent() {
   // a changed Pickup Date is saved through its own audited action.
   const [savedPickupDate, setSavedPickupDate] = useState('');
   const [placementDate, setPlacementDate] = useState('');
-  const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const customerAddressOrigin = useCustomerAddressOrigin(
+    customers.find((customer) => customer.id === customerId)?.addressLine1
+  );
   const [mapTheme, setMapTheme] = useState<MapTheme>('light');
 
   const [operators, setOperators] = useState<OperatorOption[]>([]);
@@ -190,31 +192,6 @@ function RouteEditContent() {
 
     void load();
   }, [routeId]);
-
-  useEffect(() => {
-    const selected = customers.find((c) => c.id === customerId);
-    if (!selected?.addressLine1) {
-      setCustomerAddressOrigin(null);
-      return;
-    }
-
-    let cancelled = false;
-    void geocodeAddress(selected.addressLine1)
-      .then((resolved) => {
-        if (!cancelled) {
-          setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCustomerAddressOrigin(null);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [customerId, customers]);
 
   useEffect(() => {
     if (!user?.userId) return;

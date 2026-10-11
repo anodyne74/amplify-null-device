@@ -1,4 +1,4 @@
-import { getSignRunPhase, getRoutePhaseKey, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS } from './signRunPhase';
+import { getSignRunPhase, getRoutePhaseKey, isRouteCompleted, ROUTE_PHASE_KEYS, ROUTE_PHASE_LABELS } from './signRunPhase';
 import type { Route } from '@/amplify/types';
 
 function baseRoute(overrides: Partial<Route> = {}): Route {
@@ -204,5 +204,16 @@ describe('ROUTE_PHASE_KEYS / ROUTE_PHASE_LABELS', () => {
     ROUTE_PHASE_KEYS.forEach((key) => {
       expect(typeof ROUTE_PHASE_LABELS[key]).toBe('string');
     });
+  });
+});
+
+describe('isRouteCompleted', () => {
+  it('reads the legacy archived status as completed, and nothing else', () => {
+    expect(isRouteCompleted('completed')).toBe(true);
+    expect(isRouteCompleted('archived')).toBe(true);
+    expect(isRouteCompleted('in_progress')).toBe(false);
+    expect(isRouteCompleted('planned')).toBe(false);
+    expect(isRouteCompleted(null)).toBe(false);
+    expect(isRouteCompleted(undefined)).toBe(false);
   });
 });

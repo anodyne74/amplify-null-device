@@ -315,3 +315,7 @@ amplify.yml
 ## Contribution
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution and PR guidance.
+
+### Route Estimate key (`GOOGLE_ROUTES_API_KEY`)
+
+Route Estimates (the road distance an Operator drives, #515) call the Google Routes API from the server. This needs its own key, restricted to the Routes API only: the browser Maps key is referrer-restricted and is refused. Run `scripts/setup-routes-api-key.sh` to create it, save it to `.env.local`, and add it to the Amplify Console environment variables (`amplify.yml` copies it into the server environment at build). Without it, **Calculate estimate** shows a "key is missing" message.

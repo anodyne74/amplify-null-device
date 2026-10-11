@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Stop } from '@/amplify/types';
 import { isAdmin } from '@/lib/amplify-config';
-import { geocodeAddress } from '@/lib/googleMaps';
+import { useCustomerAddressOrigin } from '@/lib/useCustomerAddressOrigin';
 import type { GeocodedLocation } from '@/lib/locationPrecision';
 import { useRouteWithStops } from '@/lib/useRouteWithStops';
 import { activeStops, hasLoadChanges, isStopRemoved } from '@/lib/loadChange';
@@ -108,7 +108,8 @@ export function useRouteDetailData(id: string, user: unknown) {
 
   const [customerName, setCustomerName] = useState('');
   const [customerRatePerHour, setCustomerRatePerHour] = useState<number | null>(null);
-  const [customerAddressOrigin, setCustomerAddressOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [customerAddressLine1, setCustomerAddressLine1] = useState<string | null>(null);
+  const customerAddressOrigin = useCustomerAddressOrigin(customerAddressLine1);
   const [customerDefaults, setCustomerDefaults] = useState<CustomerDefaults | null>(null);
 
   const [showAddStop, setShowAddStop] = useState(false);
@@ -187,17 +188,7 @@ export function useRouteDetailData(id: string, user: unknown) {
           defaultAgentInitials: customer?.defaultAgentInitials ?? null,
           agentOptions: customer?.agentOptions ?? null,
         });
-
-        if (customer?.addressLine1) {
-          try {
-            const resolved = await geocodeAddress(customer.addressLine1);
-            if (!cancelled) setCustomerAddressOrigin({ latitude: resolved.latitude, longitude: resolved.longitude });
-          } catch {
-            if (!cancelled) setCustomerAddressOrigin(null);
-          }
-        } else {
-          setCustomerAddressOrigin(null);
-        }
+        setCustomerAddressLine1(customer?.addressLine1 ?? null);
       } catch (err) {
         console.error('Error loading route detail:', err);
         if (!cancelled) setError('Failed to load route.');

@@ -36,6 +36,10 @@ _Avoid_: Booking, order, job request
 A file a Customer sends listing the Properties for a Route, usually a spreadsheet saved as PDF. It is kept exactly as received and never edited; the Route's Stops are what gets changed.
 _Avoid_: Property list, run sheet, job sheet
 
+**Route Sheet**:
+A printable page of one Route for administrators to hand to the Operator: the Route's reference, Customer, Operator, Placement Date and Pickup Date, the Route's notes and the Customer's instructions, then its Stops in their current order, each with its agent, an auction mark, its notes, its number of signs and blank Place and Pickup boxes to tick by hand. Removed Stops are left out. It ends with blank Start/End boxes for Load, Placement, Pickup and Unload, the Signs Placed total, and the Route Estimate's distance when it is current. Staff only, for writing on, so it never shows recorded times and nothing written on it is saved.
+_Avoid_: Run sheet, job sheet, printout. Schedule means the Customer's own file, not this.
+
 **Route Amendment**:
 A later email from a Customer adding or removing Properties on a Route that has already been requested, sometimes with a revised Schedule, sometimes only a sentence in the email. A Route can have any number, kept in the order they were sent.
 _Avoid_: Change request, follow-up, variation
@@ -55,6 +59,14 @@ _Avoid_: Skipped, missed, failed pickup
 **Stop**:
 One visit to a Property on a Route, where signs are placed and later picked up.
 _Avoid_: Property (when you mean the single visit), location, visit
+
+**Route Estimate**:
+An administrator's calculation of how far a Route's Operator will drive: road distance from the Operator's home base through the Route's Stops in their current order, and back, for one pass only. It is kept until an administrator recalculates it, and shows as out of date once the Route's Stops or assigned Operator have changed. Stops with no pin, and Removed Stops, are left out, and the estimate says so. Staff only, and informational: it never changes Billed Time.
+_Avoid_: Route optimisation (it does not reorder Stops), quote
+
+**Leg**:
+The drive between two consecutive points of a Route Estimate: home base to the first Stop, one Stop to the next, or the last Stop back to home base.
+_Avoid_: Segment, route (for one piece of it)
 
 **Property**:
 The real-world address a Stop visits; many Stops, across many Routes and Customers, can share one Property. Identified by street number, street, suburb and postcode, never by map coordinates or a geocoder's place identifier, so one address is always one Property even when its pin is wrong. Where the geocoder and the entered address disagree on suburb, the entered address wins.
@@ -81,8 +93,12 @@ A Property History Report's lifecycle: active for 30 days, then soft-deleted (hi
 _Avoid_: Expiry, archive (Route already uses "archived")
 
 **Sign Run**:
-The phase flow a Route moves through: Load (signs collected from the customer, onto the van) → Placement (signs deployed) → Pickup (signs retrieved) → Unload (signs returned to the customer) → Finalise. A Route's current phase is derived from which phase-completion timestamps are set, not from a separately stored "current phase" pointer.
+The phase flow a Route moves through: Load (signs collected from the customer, onto the van) → Placement (signs deployed) → Pickup (signs retrieved) → Unload (signs returned to the customer) → Finalise. A Route's completed phases are derived from which phase-completion timestamps are set. The **Working Phase** is the one phase the Operator is on now: it is stored, and moves on the moment the previous phase is confirmed, so between phases it runs one ahead of the last completed phase.
 _Avoid_: Delivery run, job flow. Also avoid calling the Load phase "signs collected" — that phrase is reserved for the Signs Collected metric below, a different phase and a different count.
+
+**Working Phase**:
+The Sign Run phase an Operator is currently carrying out, which unlocks the next Operator screen as soon as the previous phase is confirmed. Staff phase badges and filters show the last completed phase instead; the Customer follows Placement until Pickup starts, then Pickup.
+_Avoid_: Current phase (ambiguous between this and the last completed phase)
 
 **Sign Run Transition**:
 One operator action that moves a Route along its Sign Run — start or confirm Load, start or complete Placement, start or complete Pickup, start or confirm Unload, Finalise. Each is only allowed from its own phase; one attempted from any other phase is refused and nothing is written. A transition takes effect for the operator the moment they confirm it, at the time they confirmed; saving it follows, and the operator never waits on the network to carry on. A transition that can't be saved is reported to the operator and undone on their screen. The same holds for settling a Stop: done or removed during Placement, collected or Couldn't Collect during Pickup. Finalise is the one transition an administrator can also make, and an administrator can also settle a Stop the same ways, both from the Route's detail page: these are saved straight away rather than after confirming, and recorded in the audit log.

@@ -73,7 +73,18 @@ function previousMonthKey(now: Date): string {
   return getDateGroup(previous.toISOString(), 'month');
 }
 
+export type SummaryPeriod = 'month' | 'year' | 'all';
+
+/** Whether a date falls in the current month / year; All time takes any date that exists. */
+export function isInPeriod(date: string | null | undefined, period: SummaryPeriod, now = new Date()): boolean {
+  if (!date) return false;
+  if (period === 'all') return true;
+  return getDateGroup(date, period) === getDateGroup(now.toISOString(), period);
+}
+
 export interface PeriodActivitySummary {
+  /** False for All time, where there is no earlier period to compare with. */
+  hasComparison: boolean;
   invoicedCurrent: number;
   invoicedDeltaPercent: number;
   invoicedDirection: TrendDirection;
@@ -88,29 +99,37 @@ export interface PeriodActivitySummary {
 }
 
 /**
- * This-month-vs-last-month activity, scoped to completed routes only (the
- * design's "Invoiced this month" / "Routes completed this month" / "Avg cost
- * per stop" stat tiles). Distinct from adminDashboardOverview's
- * summarizeRoutesStopsThisMonth, which counts any route with activity this
- * month (not just completed ones) — the wrong scope for "completed" here.
+ * Activity for the chosen period against the one before it (month vs last month,
+ * year vs last year; All time has no comparison), scoped to completed routes only
+ * (the design's "Invoiced" / "Routes completed" / "Avg cost per stop" stat
+ * tiles). Distinct from adminDashboardOverview's summarizeRoutesStopsThisMonth,
+ * which counts any route with activity this month (not just completed ones) —
+ * the wrong scope for "completed" here.
  */
 export function summarizePeriodActivity(
   routes: OverviewRoute[],
   stops: OverviewStop[],
   invoices: OverviewInvoice[],
-  now = new Date()
+  now = new Date(),
+  period: SummaryPeriod = 'month'
 ): PeriodActivitySummary {
-  const thisMonthKey = getDateGroup(now.toISOString(), 'month');
-  const lastMonthKey = previousMonthKey(now);
+  const hasComparison = period !== 'all';
+  const currentKey = period === 'all' ? '' : getDateGroup(now.toISOString(), period);
+  const previousKey =
+    period === 'month'
+      ? previousMonthKey(now)
+      : period === 'year'
+        ? String(now.getFullYear() - 1)
+        : '';
+  const within = (date: string | null, key: string) => {
+    if (!date) return false;
+    return period === 'all' || getDateGroup(date, period) === key;
+  };
 
   const completedRoutes = routes.filter((route) => phaseKeyOf(route) === 'completed');
-  const routesFor = (key: string) =>
-    completedRoutes.filter((route) => {
-      const date = routeActivityDate(route);
-      return date ? getDateGroup(date, 'month') === key : false;
-    });
-  const currentRoutes = routesFor(thisMonthKey);
-  const previousRoutes = routesFor(lastMonthKey);
+  const routesFor = (key: string) => completedRoutes.filter((route) => within(routeActivityDate(route), key));
+  const currentRoutes = routesFor(currentKey);
+  const previousRoutes = hasComparison ? routesFor(previousKey) : [];
 
   const stopsFor = (routeList: OverviewRoute[]) => {
     const routeIds = new Set(routeList.map((route) => route.id));
@@ -120,9 +139,11 @@ export function summarizePeriodActivity(
   const previousStops = stopsFor(previousRoutes);
 
   const invoicesFor = (key: string) =>
-    invoices.filter((invoice) => invoice.invoiceDate && getDateGroup(invoice.invoiceDate, 'month') === key);
-  const invoicedCurrent = invoicesFor(thisMonthKey).reduce((sum, invoice) => sum + (invoice.totalAmount || 0), 0);
-  const invoicedPrevious = invoicesFor(lastMonthKey).reduce((sum, invoice) => sum + (invoice.totalAmount || 0), 0);
+    invoices.filter((invoice) => within(invoice.invoiceDate ?? null, key));
+  const invoicedCurrent = invoicesFor(currentKey).reduce((sum, invoice) => sum + (invoice.totalAmount || 0), 0);
+  const invoicedPrevious = hasComparison
+    ? invoicesFor(previousKey).reduce((sum, invoice) => sum + (invoice.totalAmount || 0), 0)
+    : 0;
 
   const avgCostPerStop = currentStops.length === 0 ? 0 : invoicedCurrent / currentStops.length;
   const avgCostPerStopPrevious = previousStops.length === 0 ? 0 : invoicedPrevious / previousStops.length;
@@ -132,6 +153,7 @@ export function summarizePeriodActivity(
   const avgCostPerStopTrend = trend(avgCostPerStop, avgCostPerStopPrevious);
 
   return {
+    hasComparison,
     invoicedCurrent,
     invoicedDeltaPercent: invoicedTrend.deltaPercent,
     invoicedDirection: invoicedTrend.direction,
@@ -288,13 +310,22 @@ function shareCents(cents: number, weights: number[]): number[] {
  * An invoiced Route's amount is shared between its agents in proportion to their Stops;
  * Removed Stops count toward nothing, and Stops with no agent go under "Unassigned".
  * Routes not yet invoiced add no spend, but their Stops and signs still count.
+ * A period limits Stops to those serviced in it and invoices to those dated in it.
  */
-export function summarizeAgentActivity(stops: OverviewStop[], invoices: OverviewInvoice[] = []): AgentActivityRow[] {
-  const groups = groupByAgent(activeStops(stops));
+export function summarizeAgentActivity(
+  stops: OverviewStop[],
+  invoices: OverviewInvoice[] = [],
+  period: SummaryPeriod = 'all',
+  now = new Date()
+): AgentActivityRow[] {
+  const groups = groupByAgent(
+    activeStops(stops).filter((stop) => period === 'all' || isInPeriod(stopServiceDate(stop), period, now))
+  );
   const spendCents = new Map<string, number>();
 
   invoices.forEach((invoice) => {
     if (!invoice.routeId) return;
+    if (period !== 'all' && !isInPeriod(invoice.invoiceDate, period, now)) return;
     const routeStops = activeStops(stops.filter((stop) => stop.routeId === invoice.routeId));
     if (routeStops.length === 0) return;
     const byAgent = groupByAgent(routeStops);

@@ -52,6 +52,15 @@ type CustomerUser = {
 
 type CustomerUserSortKey = 'name' | 'customer' | 'role' | 'status';
 
+/** Calls to the access sync before giving up; each one runs about 20s. */
+const MAX_SYNC_CALLS = 15;
+
+/** How an access sync ended: done, out of calls with records left, or a failed write/request. */
+type AccessSyncOutcome = { status: 'complete'; updated: number } | { status: 'incomplete' } | { status: 'failed'; message: string };
+
+const countUpdated = (updated: unknown) =>
+  Object.values((updated ?? {}) as Record<string, number>).reduce((sum, count) => sum + count, 0);
+
 export default function UsersAdminPage() {
   // Customer Access section state
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
@@ -70,6 +79,8 @@ export default function UsersAdminPage() {
   const [accessPending, setAccessPending] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [accessSuccess, setAccessSuccess] = useState<string | null>(null);
+  // Records the running access sync has updated so far; null when none is running.
+  const [syncedCount, setSyncedCount] = useState<number | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<'account_owner' | 'read_only'>('read_only');
@@ -80,15 +91,26 @@ export default function UsersAdminPage() {
   const [editRole, setEditRole] = useState<'account_owner' | 'read_only'>('read_only');
 
   // Re-stamps the customer's records server-side (lib/customerAccess.ts) and
-  // returns an error message rather than throwing -- the membership change
-  // itself has already been saved by the time this runs.
+  // returns how it ended rather than throwing -- the membership change itself
+  // has already been saved by the time this runs. Each call syncs for a bounded
+  // time and reports whether it finished; the count of records updated so far
+  // is shown while it runs.
   const syncCustomerAccess = useCallback(
-    async (customerId: string, change: { added?: string; removed?: string }) => {
+    async (customerId: string, change: { added?: string; removed?: string } = {}): Promise<AccessSyncOutcome> => {
+      let synced = 0;
+      setSyncedCount(0);
       try {
-        await callApi('/api/admin/sync-customer-access', { customerId, ...change });
-        return null;
+        for (let attempt = 0; attempt < MAX_SYNC_CALLS; attempt++) {
+          const payload = await callApi('/api/admin/sync-customer-access', { customerId, ...change });
+          synced += countUpdated(payload.updated);
+          setSyncedCount(synced);
+          if (payload.complete !== false) return { status: 'complete', updated: synced };
+        }
+        return { status: 'incomplete' };
       } catch (e) {
-        return e instanceof Error ? e.message : 'Access sync failed.';
+        return { status: 'failed', message: e instanceof Error ? e.message : 'Access sync failed.' };
+      } finally {
+        setSyncedCount(null);
       }
     },
     []
@@ -352,15 +374,17 @@ export default function UsersAdminPage() {
           email: normalizedEmail,
         });
       }
-      const syncError = await syncCustomerAccess(selectedCustomerId, { added: assignedUserSub });
+      const sync = await syncCustomerAccess(selectedCustomerId, { added: assignedUserSub });
 
-      if (syncError) {
-        setAccessError(`User added, but syncing their access failed (${syncError}). Retry by re-adding them.`);
+      if (sync.status === 'failed') {
+        setAccessError(`User added, but syncing their access failed (${sync.message}). Use Re-sync access to retry.`);
+      } else if (sync.status === 'incomplete') {
+        setAccessError("User added, but syncing their access isn't finished. Use Re-sync access to finish it.");
       } else {
         setAccessSuccess(
           invited
             ? emailSent
-              ? 'Account created. We emailed them a branded invitation with a temporary password. Access is synced.'
+              ? 'Account created. We emailed them an invitation with a link to set their password. Access is synced.'
               : 'Account created, but the invitation email could not be sent. Ask the user to use "Forgot password" to get access.'
             : 'User assigned to customer and access synced to all routes and stops.'
         );
@@ -388,9 +412,11 @@ export default function UsersAdminPage() {
     if (!removed) {
       setAccessError('Failed to remove user.');
     } else {
-      const syncError = await syncCustomerAccess(target.customerId, { removed: target.userSub });
-      if (syncError) {
-        setAccessError(`User removed, but revoking their access failed (${syncError}). They may still see this customer's records.`);
+      const sync = await syncCustomerAccess(target.customerId, { removed: target.userSub });
+      if (sync.status === 'failed') {
+        setAccessError(`User removed, but revoking their access failed (${sync.message}). They may still see this customer's records. Use Re-sync access to retry.`);
+      } else if (sync.status === 'incomplete') {
+        setAccessError("User removed, but revoking their access isn't finished. They may still see this customer's records. Use Re-sync access to finish it.");
       } else {
         setAccessSuccess("User removed and access revoked from all of this customer's records.");
       }
@@ -398,6 +424,24 @@ export default function UsersAdminPage() {
     }
     setAccessPending(false);
     setRemovalTarget(null);
+  };
+
+  const handleResyncAccess = async () => {
+    setAccessPending(true);
+    setAccessError(null);
+    setAccessSuccess(null);
+
+    const sync = await syncCustomerAccess(selectedCustomerId);
+    if (sync.status === 'complete') {
+      setAccessSuccess(
+        `Access re-synced for this customer's routes, stops and invoices (${sync.updated} ${sync.updated === 1 ? 'record' : 'records'} updated).`
+      );
+    } else if (sync.status === 'incomplete') {
+      setAccessError("Access sync isn't finished. Run Re-sync access again to carry on.");
+    } else {
+      setAccessError(`Re-sync failed (${sync.message}). Run Re-sync access again to retry.`);
+    }
+    setAccessPending(false);
   };
 
   const openEditDialog = (target: CustomerUser) => {
@@ -611,6 +655,12 @@ export default function UsersAdminPage() {
           </div>
         </Dialog>
 
+        {syncedCount !== null && (
+          <div className={styles.successBanner} role="status" aria-live="polite">
+            Syncing access... {syncedCount} {syncedCount === 1 ? 'record' : 'records'} updated so far.
+          </div>
+        )}
+
         {(accessError || accessSuccess) && (
           <>
             {accessError && (
@@ -690,6 +740,16 @@ export default function UsersAdminPage() {
 
                 {selectedCustomerId && (
                   <>
+                    <Button
+                      type="button"
+                      block
+                      variant="secondary"
+                      loading={accessPending && syncedCount !== null}
+                      disabled={accessPending}
+                      onClick={() => void handleResyncAccess()}
+                    >
+                      Re-sync access
+                    </Button>
                     <p className={styles.mutedText}>
                       Enter the user email. Users in the customer group must be assigned to a customer.
                     </p>

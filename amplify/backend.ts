@@ -383,7 +383,7 @@ new CfnTemplate(sesStack, 'InvitationTemplate', {
 </style>
 </head>
 <body style="margin:0;padding:0;background-color:#F6F7FB;">
-<span style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;max-height:0;max-width:0;overflow:hidden;mso-hide:all;">{{inviterName}} invited you to the {{customerName}} portal. Sign in with your temporary password.</span>
+<span style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;max-height:0;max-width:0;overflow:hidden;mso-hide:all;">{{inviterName}} invited you to the {{customerName}} portal. Set your password to get started.</span>
 
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#F6F7FB;">
 <tr>
@@ -408,7 +408,7 @@ new CfnTemplate(sesStack, 'InvitationTemplate', {
     <td class="nd-pad" width="560" style="width:560px;padding:32px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;">
       <div style="font-family:Comfortaa,'Trebuchet MS',Tahoma,Arial,sans-serif;font-weight:bold;font-size:25px;line-height:33px;mso-line-height-rule:exactly;letter-spacing:-0.02em;color:#141B38;">You've been invited</div>
       <p style="margin:14px 0 0;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#48526C;">
-        Hi {{inviteeName}}, {{inviterDisplay}} has invited you to the <strong style="color:#141B38;">{{customerName}}</strong> portal on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+        Hi {{inviteeName}}, {{inviterDisplay}} has invited you to the <strong style="color:#141B38;">{{customerName}}</strong> portal on Null Device. Use the button below to set your password and sign in.
       </p>
     </td>
   </tr>
@@ -421,9 +421,7 @@ new CfnTemplate(sesStack, 'InvitationTemplate', {
           <td width="504" style="width:504px;padding:20px 24px;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;">
             <div style="font-size:11px;line-height:16px;mso-line-height-rule:exactly;letter-spacing:0.08em;text-transform:uppercase;color:#818AA4;font-weight:bold;">Email</div>
             <div style="font-family:'JetBrains Mono','Courier New',Courier,monospace;font-size:15px;line-height:22px;mso-line-height-rule:exactly;color:#141B38;padding-top:4px;">{{inviteeEmail}}</div>
-            <div style="font-size:11px;line-height:16px;mso-line-height-rule:exactly;letter-spacing:0.08em;text-transform:uppercase;color:#818AA4;font-weight:bold;padding-top:16px;">Temporary password</div>
-            <div style="font-family:'JetBrains Mono','Courier New',Courier,monospace;font-size:19px;line-height:26px;mso-line-height-rule:exactly;font-weight:bold;color:#141B38;padding-top:4px;">{{temporaryPassword}}</div>
-            <div style="font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;padding-top:12px;">Single use · expires in {{expiryDays}} days</div>
+            <div style="font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;padding-top:12px;">This link is single use and expires in {{expiryDays}} days</div>
           </td>
         </tr>
       </table>
@@ -436,7 +434,7 @@ new CfnTemplate(sesStack, 'InvitationTemplate', {
       <table role="presentation" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <td class="nd-cta" bgcolor="#5D65E6" style="border-radius:999px;">
-            <a href="{{portalUrl}}" style="display:inline-block;padding:14px 30px;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;mso-line-height-rule:exactly;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:999px;">Sign in</a>
+            <a href="{{inviteUrl}}" style="display:inline-block;padding:14px 30px;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;mso-line-height-rule:exactly;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:999px;">Set your password</a>
           </td>
         </tr>
       </table>
@@ -446,7 +444,7 @@ new CfnTemplate(sesStack, 'InvitationTemplate', {
   <!-- Secondary action -->
   <tr>
     <td class="nd-pad" width="560" style="width:560px;padding:16px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;mso-line-height-rule:exactly;color:#818AA4;">
-      Password expired or didn't work? <a href="{{resetPasswordUrl}}" style="color:#4B52C4;text-decoration:underline;font-weight:bold;">Request a new password</a>
+      Link expired or didn't work? <a href="{{resetPasswordUrl}}" style="color:#4B52C4;text-decoration:underline;font-weight:bold;">Ask for a new invitation</a>
     </td>
   </tr>
 
@@ -503,14 +501,13 @@ You've been invited to the {{customerName}} portal
 
 Hi {{inviteeName}},
 
-{{inviterDisplay}} has invited you to the {{customerName}} portal on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+{{inviterDisplay}} has invited you to the {{customerName}} portal on Null Device. Use the button below to set your password and sign in.
 
 Email: {{inviteeEmail}}
-Temporary password: {{temporaryPassword}}
-Single use - expires in {{expiryDays}} days.
+This link is single use and expires in {{expiryDays}} days.
 
-Sign in: {{portalUrl}}
-Password expired or didn't work? Request a new password: {{resetPasswordUrl}}
+Set your password: {{inviteUrl}}
+Link expired or didn't work? Ask for a new invitation: {{resetPasswordUrl}}
 
 What you can do in the portal:
 - Track your routes and stop-by-stop progress
@@ -553,7 +550,7 @@ new CfnTemplate(sesStack, 'StaffInvitationTemplate', {
 </style>
 </head>
 <body style="margin:0;padding:0;background-color:#F6F7FB;">
-<span style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;max-height:0;max-width:0;overflow:hidden;mso-hide:all;">{{inviterName}} invited you to Null Device as a {{roleLabel}}. Sign in with your temporary password.</span>
+<span style="display:none !important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;max-height:0;max-width:0;overflow:hidden;mso-hide:all;">{{inviterName}} invited you to Null Device as a {{roleLabel}}. Set your password to get started.</span>
 
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#F6F7FB;">
 <tr>
@@ -578,7 +575,7 @@ new CfnTemplate(sesStack, 'StaffInvitationTemplate', {
     <td class="nd-pad" width="560" style="width:560px;padding:32px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;">
       <div style="font-family:Comfortaa,'Trebuchet MS',Tahoma,Arial,sans-serif;font-weight:bold;font-size:25px;line-height:33px;mso-line-height-rule:exactly;letter-spacing:-0.02em;color:#141B38;">You've been invited</div>
       <p style="margin:14px 0 0;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#48526C;">
-        Hi {{inviteeName}}, {{inviterDisplay}} has added you as a <strong style="color:#141B38;">{{roleLabel}}</strong> on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+        Hi {{inviteeName}}, {{inviterDisplay}} has added you as a <strong style="color:#141B38;">{{roleLabel}}</strong> on Null Device. Use the button below to set your password and sign in.
       </p>
     </td>
   </tr>
@@ -591,9 +588,7 @@ new CfnTemplate(sesStack, 'StaffInvitationTemplate', {
           <td width="504" style="width:504px;padding:20px 24px;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;">
             <div style="font-size:11px;line-height:16px;mso-line-height-rule:exactly;letter-spacing:0.08em;text-transform:uppercase;color:#818AA4;font-weight:bold;">Email</div>
             <div style="font-family:'JetBrains Mono','Courier New',Courier,monospace;font-size:15px;line-height:22px;mso-line-height-rule:exactly;color:#141B38;padding-top:4px;">{{inviteeEmail}}</div>
-            <div style="font-size:11px;line-height:16px;mso-line-height-rule:exactly;letter-spacing:0.08em;text-transform:uppercase;color:#818AA4;font-weight:bold;padding-top:16px;">Temporary password</div>
-            <div style="font-family:'JetBrains Mono','Courier New',Courier,monospace;font-size:19px;line-height:26px;mso-line-height-rule:exactly;font-weight:bold;color:#141B38;padding-top:4px;">{{temporaryPassword}}</div>
-            <div style="font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;padding-top:12px;">Single use · expires in {{expiryDays}} days</div>
+            <div style="font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#818AA4;padding-top:12px;">This link is single use and expires in {{expiryDays}} days</div>
           </td>
         </tr>
       </table>
@@ -606,7 +601,7 @@ new CfnTemplate(sesStack, 'StaffInvitationTemplate', {
       <table role="presentation" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <td class="nd-cta" bgcolor="#5D65E6" style="border-radius:999px;">
-            <a href="{{portalUrl}}" style="display:inline-block;padding:14px 30px;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;mso-line-height-rule:exactly;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:999px;">Sign in</a>
+            <a href="{{inviteUrl}}" style="display:inline-block;padding:14px 30px;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:15px;line-height:20px;mso-line-height-rule:exactly;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:999px;">Set your password</a>
           </td>
         </tr>
       </table>
@@ -616,7 +611,7 @@ new CfnTemplate(sesStack, 'StaffInvitationTemplate', {
   <!-- Secondary action -->
   <tr>
     <td class="nd-pad" width="560" style="width:560px;padding:16px 28px 0;font-family:Manrope,'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;mso-line-height-rule:exactly;color:#818AA4;">
-      Password expired or didn't work? <a href="{{resetPasswordUrl}}" style="color:#4B52C4;text-decoration:underline;font-weight:bold;">Request a new password</a>
+      Link expired or didn't work? <a href="{{resetPasswordUrl}}" style="color:#4B52C4;text-decoration:underline;font-weight:bold;">Ask for a new invitation</a>
     </td>
   </tr>
 
@@ -659,14 +654,13 @@ You're invited to the Null Device {{roleLabel}} portal
 
 Hi {{inviteeName}},
 
-{{inviterDisplay}} has added you as a {{roleLabel}} on Null Device. Sign in with the temporary password below and you'll be asked to set your own.
+{{inviterDisplay}} has added you as a {{roleLabel}} on Null Device. Use the button below to set your password and sign in.
 
 Email: {{inviteeEmail}}
-Temporary password: {{temporaryPassword}}
-Single use - expires in {{expiryDays}} days.
+This link is single use and expires in {{expiryDays}} days.
 
-Sign in: {{portalUrl}}
-Password expired or didn't work? Request a new password: {{resetPasswordUrl}}
+Set your password: {{inviteUrl}}
+Link expired or didn't work? Ask for a new invitation: {{resetPasswordUrl}}
 
 Once you're signed in, your {{roleLabel}} portal will have everything you need to get started.
 

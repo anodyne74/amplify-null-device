@@ -139,3 +139,17 @@
     max-height: 430px;
   }
 }
+
+.homeMarker {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  background: var(--indigo-600);
+  color: var(--text-on-brand);
+  border: 2px solid var(--text-on-brand);
+  font-weight: 700;
+  font-size: 0.8rem;
+  box-shadow: var(--shadow-md);
+}

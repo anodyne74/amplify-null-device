@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { Customer } from '@/amplify/types';
 import { usePortalUser } from '@/lib/usePortalUser';
@@ -14,6 +14,7 @@ import type { RoutePhaseInput, RoutePhaseKey } from '@/lib/signRunPhase';
 import { summarizeOutstanding, summarizeSignsInField, formatWeekLabel } from '@/lib/adminDashboardOverview';
 import {
   summarizePeriodActivity,
+  type SummaryPeriod,
   summarizeCurrentRoute,
   summarizeStopsThisWeek,
   summarizeThisWeekListings,
@@ -30,6 +31,7 @@ import WelcomeCard from '@/app/customer/components/WelcomeCard';
 import { Card } from '@/app/components/ui/core/Card';
 import { Badge, type BadgeProps } from '@/app/components/ui/core/Badge';
 import { StatTile } from '@/app/components/ui/data/StatTile';
+import { Tabs } from '@/app/components/ui/navigation/Tabs';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import styles from './page.module.css';
 import { getCustomer } from '@/lib/customers';
@@ -38,6 +40,12 @@ import { listMyInvoices } from '@/lib/invoices';
 function presentationOf(route: OverviewRoute) {
   return getRouteStatusPresentation(route as unknown as RoutePhaseInput);
 }
+
+const PERIOD_OPTIONS: { id: SummaryPeriod; label: string; invoiced: string; agentSubtitle: string }[] = [
+  { id: 'month', label: 'Current month', invoiced: 'Invoiced this month', agentSubtitle: 'this month' },
+  { id: 'year', label: 'Current year', invoiced: 'Invoiced this year', agentSubtitle: 'this year' },
+  { id: 'all', label: 'All time', invoiced: 'Invoiced, all time', agentSubtitle: 'all time' },
+];
 
 const ROUTE_STATUS_TONE: Record<RoutePhaseKey, BadgeProps['tone']> = {
   planned: 'neutral',
@@ -111,14 +119,18 @@ export default function CustomerDashboard() {
 
   const isAccountOwner = customerRole === 'account_owner';
 
-  const periodActivity = useMemo(() => summarizePeriodActivity(routes, stops, invoices), [routes, stops, invoices]);
+  const [period, setPeriod] = useState<SummaryPeriod>('month');
+  const periodActivity = useMemo(
+    () => summarizePeriodActivity(routes, stops, invoices, new Date(), period),
+    [routes, stops, invoices, period]
+  );
   const outstanding = useMemo(() => summarizeOutstanding(invoices), [invoices]);
   const currentRoute = useMemo(() => summarizeCurrentRoute(routes), [routes]);
   const signsInField = useMemo(() => summarizeSignsInField(routes, stops), [routes, stops]);
   const stopsThisWeek = useMemo(() => summarizeStopsThisWeek(stops), [stops]);
   const weekListings = useMemo(() => summarizeThisWeekListings(stops, routes), [stops, routes]);
   const stopsByWeek = useMemo(() => summarizeStopsByWeek(stops), [stops]);
-  const agentActivity = useMemo(() => summarizeAgentActivity(stops, invoices), [stops, invoices]);
+  const agentActivity = useMemo(() => summarizeAgentActivity(stops, invoices, period), [stops, invoices, period]);
   const latestInvoice = useMemo(() => summarizeLatestInvoice(invoices), [invoices]);
 
   const stopCountsByRouteId = useMemo(() => {
@@ -185,6 +197,9 @@ export default function CustomerDashboard() {
     },
   ];
 
+  const periodLabels = PERIOD_OPTIONS.find((option) => option.id === period) ?? PERIOD_OPTIONS[0];
+  const deltaOf = (percent: number) => (statsLoading || !periodActivity.hasComparison ? undefined : `${percent}%`);
+
   const agentColumns: DataColumn<(typeof agentActivity)[number]>[] = [
     { key: 'agent', header: 'Agent' },
     { key: 'stops', header: 'Stops', numeric: true },
@@ -205,13 +220,23 @@ export default function CustomerDashboard() {
         <p className="nd-badge nd-badge--danger">{customerLoadError || routesError}</p>
       )}
 
+      {isAccountOwner && (
+        <Tabs
+          variant="pill"
+          aria-label="Statistics period"
+          items={PERIOD_OPTIONS.map(({ id, label }) => ({ id, label }))}
+          value={period}
+          onChange={(id) => setPeriod(id as SummaryPeriod)}
+        />
+      )}
+
       <div className={styles.statsGrid}>
         {isAccountOwner ? (
           <>
             <StatTile
-              label="Invoiced this month"
+              label={periodLabels.invoiced}
               value={statsLoading ? '…' : formatCurrency(periodActivity.invoicedCurrent)}
-              delta={statsLoading ? undefined : `${periodActivity.invoicedDeltaPercent}%`}
+              delta={deltaOf(periodActivity.invoicedDeltaPercent)}
               direction={periodActivity.invoicedDirection}
               icon="receipt"
             />
@@ -224,7 +249,7 @@ export default function CustomerDashboard() {
             <StatTile
               label="Routes completed"
               value={statsLoading ? '…' : periodActivity.routesCompletedCurrent}
-              delta={statsLoading ? undefined : `${periodActivity.routesCompletedDeltaPercent}%`}
+              delta={deltaOf(periodActivity.routesCompletedDeltaPercent)}
               direction={periodActivity.routesCompletedDirection}
               caption={`${periodActivity.stopsServiced} stops · ${periodActivity.signsHandled} signs`}
               icon="route"
@@ -232,7 +257,7 @@ export default function CustomerDashboard() {
             <StatTile
               label="Avg cost per stop"
               value={statsLoading ? '…' : formatCurrency(periodActivity.avgCostPerStop)}
-              delta={statsLoading ? undefined : `${periodActivity.avgCostPerStopDeltaPercent}%`}
+              delta={deltaOf(periodActivity.avgCostPerStopDeltaPercent)}
               direction={periodActivity.avgCostPerStopDirection}
               icon="map-pin"
             />
@@ -359,7 +384,7 @@ export default function CustomerDashboard() {
       </div>
 
       {isAccountOwner ? (
-        <Card title="Spend by agent" subtitle="Invoiced spend shared by Stops, ex GST" padded={false}>
+        <Card title="Spend by agent" subtitle={`Invoiced spend shared by Stops, ex GST · ${periodLabels.agentSubtitle}`} padded={false}>
           <div className="nd-table-scroll">
             <DataTable wrapped={false} columns={agentColumns} rows={agentActivity} empty="No agent activity yet." />
           </div>

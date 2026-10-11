@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import CustomerDashboard from '../page';
 import { useLiveRoutes } from '@/lib/useLiveRoutes';
 import { getCustomer, getCustomerPortalContext } from '@/lib/customers';
@@ -142,6 +142,31 @@ describe('Customer Dashboard', () => {
     expect(screen.getByRole('table').closest('.nd-table-scroll')).toBeInTheDocument();
 
     expect(screen.queryByRole('heading', { name: /recent routes/i })).not.toBeInTheDocument();
+  });
+
+  it('switches the period-based stats between current month, current year and all time', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'account_owner', customerId: 'cust-1' });
+
+    render(<CustomerDashboard />);
+
+    expect(await screen.findByText(/invoiced this month/i)).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /current month/i })).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.click(screen.getByRole('tab', { name: /current year/i }));
+    expect(await screen.findByText(/invoiced this year/i)).toBeInTheDocument();
+    expect(screen.queryByText(/invoiced this month/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /all time/i }));
+    expect(await screen.findByText(/invoiced, all time/i)).toBeInTheDocument();
+  });
+
+  it('does not offer the period filter to the reviewer, who has no period-based stats', async () => {
+    (getCustomerPortalContext as jest.Mock).mockResolvedValue({ role: 'read_only', customerId: 'cust-1' });
+
+    render(<CustomerDashboard />);
+
+    expect(await screen.findByText(/current route/i)).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /all time/i })).not.toBeInTheDocument();
   });
 
   it('opens with the welcome card, under the header and above the stats (#486)', async () => {

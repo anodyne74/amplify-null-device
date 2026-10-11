@@ -1,5 +1,6 @@
 import { SendTemplatedEmailCommand, SESClient } from '@aws-sdk/client-ses';
 import { APP_DOMAIN, SUPPORT_EMAIL } from '@/lib/publicAppConfig';
+import { buildInviteUrl } from '@/lib/inviteLink';
 import { customOutputs } from '@/lib/amplifyOutputsCustom';
 
 /**
@@ -37,7 +38,7 @@ const staffInvitationTemplateName =
   fallbackStaffInvitationTemplateName;
 
 export interface StaffInvitationEmailInput {
-  /** Recipient / invitee email address (also rendered in the credentials panel). */
+  /** Recipient / invitee email address (also rendered in the invitation panel). */
   toEmail: string;
   /** Invitee display name for the greeting; falls back to "there". */
   inviteeName?: string;
@@ -75,7 +76,7 @@ export async function sendStaffInvitationEmail(input: StaffInvitationEmailInput)
     inviterDisplay,
     inviteeName: input.inviteeName?.trim() || 'there',
     inviteeEmail: input.toEmail,
-    temporaryPassword: input.temporaryPassword,
+    inviteUrl: buildInviteUrl(appBaseUrl, input.toEmail, input.temporaryPassword),
     expiryDays: String(input.expiryDays ?? 7),
     // The app's sign-in and forgot-password flows both live at the site root.
     portalUrl: `${appBaseUrl}/`,

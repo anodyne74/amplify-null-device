@@ -25,12 +25,12 @@ import type { StandingPickupDay } from '@/amplify/types';
 import { locateDraftStops } from '@/lib/stopLocation';
 import { displayNotes } from '@/lib/stopProgress';
 import styles from './page.module.css';
-import { listAllRoutes, createRoute, createStopsForRoute, getRouteWithStops } from '@/lib/routes';
+import { listAllRoutes, getRouteWithStops } from '@/lib/routes';
+import { createRouteWithStops } from '@/lib/createRouteWithStops';
 import { activeStops } from '@/lib/loadChange';
 import { DataError } from '@/lib/graphqlResult';
 import { listAllCustomers } from '@/lib/customers';
 import {
-  attachNewRouteRequest,
   fetchRouteRequestAttachment,
   getRouteRequest,
   requesterLabel,
@@ -302,39 +302,17 @@ function NewRoutePageContent() {
     if (requestProblem) { setSubmitError(requestProblem); return; }
     setIsSubmitting(true);
     setSubmitError(null);
-    try {
-      const route = await createRoute({
-        routeCode: values.routeCode.trim(),
-        customerId: values.customerId,
-        scheduledDate: values.scheduledDate,
-        pickupDate: values.pickupDate,
-        status: 'planned',
-        notes: values.notes || undefined,
-      });
-
-      const stopResults = await createStopsForRoute(route.id, values.customerId, values.stops);
-      const failedStops = stopResults
-        .filter((stopResult) => !stopResult.success)
-        .map((stopResult) => `#${stopResult.index + 1} (${stopResult.address || 'Unknown address'}): ${stopResult.errorMessage}`);
-
-      if (failedStops.length > 0) {
-        setSubmitError(`Route was created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}`);
-        setIsSubmitting(false);
-        return;
-      }
-
-      const attached = await attachRouteRequest(route.id, values.customerId, null);
-      if (!attached.ok) {
-        setSubmitError(`Route was created, but not linked to its Route Request: ${attached.error} Link it from the Route's Requests.`);
-        setIsSubmitting(false);
-        return;
-      }
-
-      router.push(`/administrator/routes/detail?id=${route.id}`);
-    } catch (err) {
-      setSubmitError(err instanceof DataError ? err.message : 'An unexpected error occurred.');
+    const result = await createRouteWithStops({
+      route: values,
+      stops: values.stops,
+      request: routeRequestFor(null),
+    });
+    if (!result.ok) {
+      setSubmitError(result.error);
       setIsSubmitting(false);
+      return;
     }
+    router.push(`/administrator/routes/detail?id=${result.routeId}`);
   };
 
   const handleCancel = () => {
@@ -420,17 +398,15 @@ function NewRoutePageContent() {
   };
 
   // Links the email, or records the upload, as the new Route's Route Request.
-  const attachRouteRequest = async (routeId: string, customerId: string, file: File | null) => {
+  const routeRequestFor = (file: File | null) => {
     const name = requesterName.trim();
-    return attachNewRouteRequest({
-      routeId,
-      customerId,
+    return {
       fromRecordId: fromRecord?.id ?? null,
       requester: name ? { name, email: requesterEmail } : null,
       requestedAt: new Date(requestedAt).toISOString(),
       note: fromRecord ? null : requestNote,
       file: fromRecord ? null : file,
-    });
+    };
   };
 
   const handleParse = async () => {
@@ -545,37 +521,25 @@ function NewRoutePageContent() {
         return;
       }
 
-      // 1. Create route
-      const { id: routeId } = await createRoute({
-        routeCode: importRouteCode.trim(),
-        customerId: importCustomerId,
-        scheduledDate: importScheduledDate,
-        pickupDate: importPickupDate,
-        status: 'planned',
-        notes: importNotes || undefined,
+      // The Route Request is linked or recorded with the uploaded Schedule.
+      const result = await createRouteWithStops({
+        route: {
+          routeCode: importRouteCode,
+          customerId: importCustomerId,
+          scheduledDate: importScheduledDate,
+          pickupDate: importPickupDate,
+          notes: importNotes,
+        },
+        stops: importDraftStops,
+        request: routeRequestFor(importFile),
       });
-
-      // 2. Create stops
-      const stopResults = await createStopsForRoute(routeId, importCustomerId, importDraftStops);
-      const failedStops = stopResults
-        .filter((stopResult) => !stopResult.success)
-        .map((stopResult) => `#${stopResult.index + 1} (${stopResult.address || 'Unknown address'}): ${stopResult.errorMessage}`);
-
-      if (failedStops.length > 0) {
-        setImportError(`Route created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}`);
+      if (!result.ok) {
+        setImportError(result.error);
         setIsUploading(false);
         return;
       }
 
-      // 3. Link or record its Route Request, with the uploaded Schedule
-      const attached = await attachRouteRequest(routeId, importCustomerId, importFile);
-      if (!attached.ok) {
-        setImportError(`Route created, but not linked to its Route Request: ${attached.error} Link it from the Route's Requests.`);
-        setIsUploading(false);
-        return;
-      }
-
-      router.push(`/administrator/routes/detail?id=${routeId}`);
+      router.push(`/administrator/routes/detail?id=${result.routeId}`);
     } catch (err) {
       console.error('Import error:', err);
       setImportError(err instanceof DataError ? err.message : 'An unexpected error occurred during import.');

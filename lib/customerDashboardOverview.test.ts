@@ -6,6 +6,7 @@ import {
   summarizeStopsByWeek,
   summarizeAgentActivity,
   summarizeLatestInvoice,
+  isInPeriod,
 } from './customerDashboardOverview';
 
 const NOW = new Date('2026-08-28T12:00:00Z');
@@ -48,6 +49,63 @@ describe('customerDashboardOverview', () => {
       expect(result.stopsServiced).toBe(0);
       expect(result.avgCostPerStop).toBe(0);
       expect(result.invoicedDirection).toBe('flat');
+    });
+  });
+
+  describe('summarizePeriodActivity by period', () => {
+    const LAST_YEAR = '2025-11-20T09:00:00Z';
+    const EARLIER_THIS_YEAR = '2026-02-10T09:00:00Z';
+    const routes = [
+      { id: 'r1', status: 'completed', unloadConfirmedAt: THIS_MONTH, actualEndTime: THIS_MONTH },
+      { id: 'r2', status: 'completed', unloadConfirmedAt: EARLIER_THIS_YEAR, actualEndTime: EARLIER_THIS_YEAR },
+      { id: 'r3', status: 'completed', unloadConfirmedAt: LAST_YEAR, actualEndTime: LAST_YEAR },
+    ];
+    const stops = [
+      { id: 's1', routeId: 'r1' },
+      { id: 's2', routeId: 'r2' },
+      { id: 's3', routeId: 'r3' },
+    ];
+    const invoices = [
+      { id: 'i1', totalAmount: 100, invoiceDate: THIS_MONTH },
+      { id: 'i2', totalAmount: 300, invoiceDate: EARLIER_THIS_YEAR },
+      { id: 'i3', totalAmount: 50, invoiceDate: LAST_YEAR },
+    ];
+
+    it('year counts the whole calendar year and compares with last year', () => {
+      const result = summarizePeriodActivity(routes, stops, invoices, NOW, 'year');
+      expect(result.invoicedCurrent).toBe(400);
+      expect(result.routesCompletedCurrent).toBe(2);
+      expect(result.hasComparison).toBe(true);
+      expect(result.invoicedDirection).toBe('up');
+      expect(result.invoicedDeltaPercent).toBe(700);
+    });
+
+    it('all time counts everything and has no comparison', () => {
+      const result = summarizePeriodActivity(routes, stops, invoices, NOW, 'all');
+      expect(result.invoicedCurrent).toBe(450);
+      expect(result.routesCompletedCurrent).toBe(3);
+      expect(result.stopsServiced).toBe(3);
+      expect(result.hasComparison).toBe(false);
+    });
+
+    it('month still compares with last month', () => {
+      expect(summarizePeriodActivity(routes, stops, invoices, NOW).hasComparison).toBe(true);
+    });
+  });
+
+  describe('isInPeriod', () => {
+    it('treats 1 Jan as the start of the year and 31 Dec as the end', () => {
+      const now = new Date(2026, 5, 15);
+      expect(isInPeriod(new Date(2026, 0, 1).toISOString(), 'year', now)).toBe(true);
+      expect(isInPeriod(new Date(2026, 11, 31, 23, 0).toISOString(), 'year', now)).toBe(true);
+      expect(isInPeriod(new Date(2025, 11, 31, 23, 0).toISOString(), 'year', now)).toBe(false);
+      expect(isInPeriod(new Date(2026, 5, 1).toISOString(), 'month', now)).toBe(true);
+      expect(isInPeriod(new Date(2026, 4, 31).toISOString(), 'month', now)).toBe(false);
+    });
+
+    it('all time includes any dated value but not a missing date', () => {
+      expect(isInPeriod('1999-01-01T00:00:00Z', 'all')).toBe(true);
+      expect(isInPeriod(null, 'all')).toBe(false);
     });
   });
 
@@ -190,6 +248,21 @@ describe('customerDashboardOverview', () => {
         ['Unassigned', 2, 60],
         ['Jamie Lee', 1, 30],
       ]);
+    });
+
+    it('limits Stops and invoices to the period', () => {
+      const dated = (id: string, routeId: string, when: string) => ({ ...stop(id, routeId, 'Jamie Lee'), actualArrivalTime: when });
+      const result = summarizeAgentActivity(
+        [dated('s1', 'r1', THIS_MONTH), dated('s2', 'r2', LAST_MONTH)],
+        [
+          { id: 'i1', routeId: 'r1', totalAmount: 100, invoiceDate: THIS_MONTH },
+          { id: 'i2', routeId: 'r2', totalAmount: 40, invoiceDate: LAST_MONTH },
+        ],
+        'month',
+        NOW
+      );
+
+      expect(result).toEqual([{ id: 'Jamie Lee', agent: 'Jamie Lee', stops: 1, signs: 1, spend: 100 }]);
     });
 
     it('counts Removed Stops toward nothing', () => {

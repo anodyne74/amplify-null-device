@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useMemo, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAuthenticator } from '@aws-amplify/ui-react';
@@ -11,6 +11,7 @@ import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { StopForm } from '@/app/operator/components/StopForm';
 import StopCard from '@/app/administrator/components/StopCard';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
+import { RouteEstimateCard } from '@/app/administrator/components/RouteEstimateCard';
 import { RouteRequestsCard } from '@/app/administrator/components/RouteRequestsCard';
 import { AdministratorFinalisePanel } from '@/app/administrator/components/AdministratorFinalisePanel';
 import { BilledTimeCorrectionPanel } from '@/app/administrator/components/BilledTimeCorrectionPanel';
@@ -19,6 +20,9 @@ import { Button } from '@/app/components/ui/core/Button';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
+import { routeEstimateOverlay } from '@/lib/routeEstimateOverlay';
+import { routeReference } from '@/lib/routeSheet';
+import type { StoredRouteEstimate } from '@/lib/routeEstimates';
 import { useRouteDetailData } from '@/lib/use-route-detail-data';
 import { useRouteOverride } from '@/lib/useRouteOverride';
 import {
@@ -30,7 +34,7 @@ import {
 import { getUserSettings } from '@/lib/userSettings';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { computeRouteSummaryStats, getPhaseOverview } from '@/lib/routeDetailSummary';
-import { getSignRunPhase } from '@/lib/signRunPhase';
+import { getSignRunPhase, isRouteCompleted } from '@/lib/signRunPhase';
 import {
   removeStopAsAdministrator,
   restoreStopAsAdministrator,
@@ -42,7 +46,7 @@ import { canRestoreRemovedStops, isRemovedAtDoor } from '@/lib/loadChange';
 import { routeFeedbackLabel } from '@/lib/routeFeedback';
 import { STOP_PROBLEM_REASONS } from '@/app/operator/components/StopCompletionDialog';
 import { stopPhaseOf } from '@/lib/signRunTransitions';
-import { billedTime } from '@/lib/billedTime';
+import { billedAmount, billedTime } from '@/lib/billedTime';
 import { isStopCompleted, stopProgress, type ExecutionPhase } from '@/lib/stopProgress';
 import { getStopStatusLabel, labelledPhase, stopProgressTone } from '@/lib/stopStatusLabel';
 import { missingSigns } from '@/lib/signRunTotals';
@@ -94,6 +98,8 @@ function RouteDetailContent() {
   const [dragOverStopId, setDragOverStopId] = useState<string | null>(null);
   const [stopExecuting, setStopExecuting] = useState<Record<string, boolean>>({});
   const [stopErrors, setStopErrors] = useState<Record<string, string | null>>({});
+  const [routeEstimate, setRouteEstimate] = useState<StoredRouteEstimate | null>(null);
+  const estimateOverlay = useMemo(() => routeEstimateOverlay(routeEstimate), [routeEstimate]);
   const [mapTheme, setMapTheme] = useState<MapTheme>('light');
 
   const { routeDurationMinutes, kilometersTravelled, totalStops, totalSigns } = computeRouteSummaryStats(route, stops);
@@ -105,8 +111,7 @@ function RouteDetailContent() {
     signs: route?.overrideSigns ?? totalSigns,
     stops: route?.overrideStops ?? totalStops,
   };
-  const amount =
-    billed.totalMinutes !== null && customerRatePerHour !== null ? (billed.totalMinutes / 60) * customerRatePerHour : null;
+  const amount = billedAmount(route ?? {}, customerRatePerHour);
 
   const {
     values: invoiceCountOverrides,
@@ -191,7 +196,7 @@ function RouteDetailContent() {
 
   const planningLocked = route?.status !== 'planned';
   const currentExecutionPhase: ExecutionPhase = route?.executionPhase === 'pickup' ? 'pickup' : 'placement';
-  const routeDone = route?.status === 'completed' || route?.status === 'archived';
+  const routeDone = isRouteCompleted(route?.status);
   const stopPhase = route ? stopPhaseOf(route) : null;
   const visibleStops = (() => {
     if (stopPhase === 'placement') {
@@ -233,7 +238,7 @@ function RouteDetailContent() {
       <Breadcrumbs
         items={[
           { label: 'Routes', href: '/administrator/routes' },
-          { label: route ? `Route ${route.routeCode || route.id.slice(0, 8)}` : 'Route' },
+          { label: route ? `Route ${routeReference(route)}` : 'Route' },
         ]}
       />
 
@@ -249,13 +254,21 @@ function RouteDetailContent() {
           <Card>
             <div className={styles.routeCardHeader}>
               <h1 className={styles.routeTitle}>
-                Route {route.routeCode || route.id.slice(0, 8)}
+                Route {routeReference(route)}
               </h1>
               <RouteStatusPill route={route} />
               {loadChanged && <Badge tone="info" dot>changed on the day</Badge>}
               <div className={styles.headerActions}>
                 <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
                   Edit Route
+                </a>
+                <a
+                  href={`/administrator/routes/sheet?id=${route.id}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="nd-btn nd-btn--secondary nd-btn--sm"
+                >
+                  Print Route Sheet
                 </a>
                 {canManagePlanning && (
                   <Button
@@ -308,7 +321,7 @@ function RouteDetailContent() {
               </div>
             )}
 
-            {(route.status === 'completed' || route.status === 'archived') && (
+            {isRouteCompleted(route.status) && (
               <section className={styles.summaryPanel} aria-labelledby="customer-feedback-heading">
                 <h3 id="customer-feedback-heading" className={styles.summaryHeading}>Customer feedback</h3>
                 {route.customerFeedbackTone ? (
@@ -344,11 +357,11 @@ function RouteDetailContent() {
             {awaitingFinalise && (
               <div className={styles.summaryPanel}>
                 <h3 className={styles.summaryHeading}>Finalise Route</h3>
-                <AdministratorFinalisePanel key={route.id} route={route} onFinalised={refetch} />
+                <AdministratorFinalisePanel key={route.id} route={route} stops={stops} onFinalised={refetch} />
               </div>
             )}
 
-            {(route.status === 'signs_picked_up' || route.status === 'completed' || route.status === 'archived') && (
+            {(route.status === 'signs_picked_up' || isRouteCompleted(route.status)) && (
               <div className={styles.summaryPanel}>
                 <h3 className={styles.summaryHeading}>Route Summary</h3>
                 <div className={styles.factsGrid}>
@@ -384,7 +397,7 @@ function RouteDetailContent() {
                   </div>
                 </div>
 
-                {canManagePlanning && (route.status === 'completed' || route.status === 'archived') && (
+                {canManagePlanning && isRouteCompleted(route.status) && (
                   <div className={styles.billingSection}>
                     <h4 className={styles.billingHeading}>Correct Billed Time</h4>
                     <BilledTimeCorrectionPanel key={route.id} route={route} onSaved={refetch} />
@@ -446,9 +459,12 @@ function RouteDetailContent() {
                   activeStopId={topVisibleStopId}
                   phase={routeDone ? undefined : currentExecutionPhase}
                   mapTheme={mapTheme}
+                  estimateOverlay={estimateOverlay}
                 />
               </div>
             </Card>
+
+            <RouteEstimateCard routeId={route.id} assignedOperatorSub={route.assignedOperatorSub} stops={stops} onEstimateChange={setRouteEstimate} />
 
             {canManagePlanning && !planningLocked && (
               <div className={styles.reorderHint}>Drag and drop stop cards to change sequence.</div>

@@ -13,6 +13,7 @@ import StopCard from '@/app/operator/components/StopCard';
 import { RouteStatusPill } from '@/app/operator/components/RouteStatusPill';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
+import { RouteEstimateCard } from '@/app/administrator/components/RouteEstimateCard';
 import { useRouteDetailData } from '@/lib/use-route-detail-data';
 import { billedTime } from '@/lib/billedTime';
 import {
@@ -28,7 +29,7 @@ import { getUserSettings } from '@/lib/userSettings';
 import type { MapTheme } from '@/lib/mapThemes';
 import { MAP_THEMES } from '@/lib/mapThemes';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
-import { getSignRunPhase } from '@/lib/signRunPhase';
+import { getSignRunPhase, isRouteCompleted } from '@/lib/signRunPhase';
 import { missingSigns, signsPlaced } from '@/lib/signRunTotals';
 import { parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import styles from './page.module.css';
@@ -112,7 +113,7 @@ function RouteDetailContent() {
 
   const planningLocked = route?.status !== 'planned';
   const currentExecutionPhase = route?.executionPhase === 'pickup' ? 'pickup' : 'placement';
-  const routeDone = route?.status === 'completed' || route?.status === 'archived';
+  const routeDone = isRouteCompleted(route?.status);
   const visibleStops = (() => {
     if (!route) return stops;
 
@@ -289,7 +290,7 @@ function RouteDetailContent() {
               </div>
             )}
 
-            {(route.status === 'completed' || route.status === 'archived') && (
+            {isRouteCompleted(route.status) && (
               <div className={styles.summaryPanel}>
                 <h3 className={styles.summaryHeading}>Final Route Summary</h3>
                 <div className={styles.factsGrid}>
@@ -337,6 +338,10 @@ function RouteDetailContent() {
                 />
               </div>
             </Card>
+
+            {route && (
+              <RouteEstimateCard routeId={route.id} assignedOperatorSub={route.assignedOperatorSub} stops={stops} readOnly />
+            )}
 
             {canManagePlanning && !planningLocked && (
               <div className={styles.reorderHint}>Drag and drop stop cards to change sequence.</div>

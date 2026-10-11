@@ -344,6 +344,14 @@ describe('Operator Route Detail Page', () => {
     expect(mockListRouteInvoices).toHaveBeenCalledWith('route-test-id-1234');
   });
 
+  it('links to the Route Sheet, which opens in a new tab', async () => {
+    render(<RouteDetailPage />);
+
+    const link = await screen.findByRole('link', { name: 'Print Route Sheet' });
+    expect(link).toHaveAttribute('href', '/administrator/routes/sheet?id=route-test-id-1234');
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
   it('offers no Billed Time correction before a Route is completed', async () => {
     render(<RouteDetailPage />);
 

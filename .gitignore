@@ -50,3 +50,6 @@ legacy-import-bundle*.json
 # Tool-generated artifacts (headroom.ai wrap state, Serena MCP cache)
 .claude/.headroom_wrap_*
 .serena/
+
+# Claude Code per-machine settings
+.claude/settings.local.json

@@ -52,6 +52,9 @@ type CustomerUser = {
 
 type CustomerUserSortKey = 'name' | 'customer' | 'role' | 'status';
 
+/** Calls to the access sync before giving up; each one runs about 20s. */
+const MAX_SYNC_CALLS = 15;
+
 export default function UsersAdminPage() {
   // Customer Access section state
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
@@ -85,8 +88,12 @@ export default function UsersAdminPage() {
   const syncCustomerAccess = useCallback(
     async (customerId: string, change: { added?: string; removed?: string }) => {
       try {
-        await callApi('/api/admin/sync-customer-access', { customerId, ...change });
-        return null;
+        // Each call syncs for a bounded time and reports whether it finished.
+        for (let attempt = 0; attempt < MAX_SYNC_CALLS; attempt++) {
+          const payload = await callApi('/api/admin/sync-customer-access', { customerId, ...change });
+          if (payload.complete !== false) return null;
+        }
+        return 'Access sync is taking longer than expected';
       } catch (e) {
         return e instanceof Error ? e.message : 'Access sync failed.';
       }

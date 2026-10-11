@@ -40,7 +40,7 @@ describe('admin sync-customer-access API', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     verifyMock.mockResolvedValue({ sub: 'sub-admin', 'cognito:groups': ['administrator'] });
-    syncCustomerAccessMock.mockResolvedValue({ updated: { Customer: 1 }, errors: [] });
+    syncCustomerAccessMock.mockResolvedValue({ updated: { Customer: 1 }, errors: [], complete: true });
   });
 
   it('returns 401 when token is missing', async () => {
@@ -65,7 +65,7 @@ describe('admin sync-customer-access API', () => {
     const response = await POST(makeRequest({ customerId: 'cust-1', removed: 'sub-gone' }));
 
     expect(response.status).toBe(200);
-    expect(syncCustomerAccessMock).toHaveBeenCalledWith(iamClient, 'cust-1', { added: undefined, removed: 'sub-gone' });
+    expect(syncCustomerAccessMock).toHaveBeenCalledWith(iamClient, 'cust-1', { added: undefined, removed: 'sub-gone', budgetMs: expect.any(Number) });
   });
 
   it('returns 500 when the sync reports errors', async () => {

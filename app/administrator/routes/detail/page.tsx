@@ -21,6 +21,7 @@ import { Badge } from '@/app/components/ui/core/Badge';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
 import { routeEstimateOverlay } from '@/lib/routeEstimateOverlay';
+import { routeReference } from '@/lib/routeSheet';
 import type { StoredRouteEstimate } from '@/lib/routeEstimates';
 import { useRouteDetailData } from '@/lib/use-route-detail-data';
 import { useRouteOverride } from '@/lib/useRouteOverride';
@@ -237,7 +238,7 @@ function RouteDetailContent() {
       <Breadcrumbs
         items={[
           { label: 'Routes', href: '/administrator/routes' },
-          { label: route ? `Route ${route.routeCode || route.id.slice(0, 8)}` : 'Route' },
+          { label: route ? `Route ${routeReference(route)}` : 'Route' },
         ]}
       />
 
@@ -253,13 +254,21 @@ function RouteDetailContent() {
           <Card>
             <div className={styles.routeCardHeader}>
               <h1 className={styles.routeTitle}>
-                Route {route.routeCode || route.id.slice(0, 8)}
+                Route {routeReference(route)}
               </h1>
               <RouteStatusPill route={route} />
               {loadChanged && <Badge tone="info" dot>changed on the day</Badge>}
               <div className={styles.headerActions}>
                 <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
                   Edit Route
+                </a>
+                <a
+                  href={`/administrator/routes/sheet?id=${route.id}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="nd-btn nd-btn--secondary nd-btn--sm"
+                >
+                  Print Route Sheet
                 </a>
                 {canManagePlanning && (
                   <Button

@@ -127,6 +127,22 @@ describe('UsersAdminPage customer access actions', () => {
     expect(screen.queryByText(/access revoked from all/i)).not.toBeInTheDocument();
   });
 
+  it('keeps calling the access sync until it reports complete', async () => {
+    let syncCalls = 0;
+    mockCallApi.mockImplementation(async (path: string) => {
+      if (path === '/api/admin/sync-customer-access') return { success: true, complete: ++syncCalls >= 3 };
+      return { users: [] };
+    });
+
+    render(<UsersAdminPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Revoke access for Read User' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke Access' }));
+
+    expect(await screen.findByText(/access revoked from all/i)).toBeInTheDocument();
+    expect(syncCalls).toBe(3);
+  });
+
   it('edits display name and role from the edit dialog', async () => {
     render(<UsersAdminPage />);
 

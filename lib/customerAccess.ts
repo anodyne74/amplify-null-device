@@ -55,11 +55,19 @@ export type CustomerAccessChange = {
   added?: string;
   /** Sub of a user just removed — excluded even if their row is still listed. */
   removed?: string;
+  /**
+   * Stop writing after this many milliseconds, leaving the rest for another
+   * call (`complete: false`). For a caller that must answer within the SSR
+   * cutoff and can call again; without it the sync runs to the end.
+   */
+  budgetMs?: number;
 };
 
 export type CustomerAccessSyncResult = {
   updated: Partial<Record<AccessModel, number>>;
   errors: unknown[];
+  /** False when the budget ran out before every record was checked. */
+  complete: boolean;
 };
 
 function isRealSub(sub: string | null | undefined): sub is string {
@@ -80,6 +88,13 @@ export async function syncCustomerAccess(
   const models = client.models as UpdatableModels;
   const updated: CustomerAccessSyncResult['updated'] = {};
   const errors: unknown[] = [];
+  const deadline = change.budgetMs === undefined ? Infinity : Date.now() + change.budgetMs;
+  let complete = true;
+  const outOfTime = () => {
+    if (Date.now() < deadline) return false;
+    complete = false;
+    return true;
+  };
 
   const update = async (model: AccessModel, input: { id: string } & Record<string, unknown>) => {
     try {
@@ -105,6 +120,7 @@ export async function syncCustomerAccess(
   const stamp = async (model: AccessModel, rows: Array<{ id: string; viewerSubs?: (string | null)[] | null }>) => {
     for (const row of rows) {
       if (hasViewers(row.viewerSubs, viewerSubs)) continue;
+      if (outOfTime()) return;
       await update(model, { id: row.id, viewerSubs });
     }
   };
@@ -113,7 +129,7 @@ export async function syncCustomerAccess(
     filter: { customerId: { eq: customerId } },
   });
   if (userListErrors.length > 0) {
-    return { updated, errors: userListErrors };
+    return { updated, errors: userListErrors, complete: false };
   }
 
   const members = userRows.filter((row) => !change.removed || row.userSub?.trim() !== change.removed);
@@ -128,6 +144,7 @@ export async function syncCustomerAccess(
 
   let routeIds = new Set<string>();
   for (const model of CUSTOMER_SCOPED_MODELS) {
+    if (outOfTime()) break;
     // CustomerUser rows were already read above — re-listing could disagree.
     const rows =
       model === 'CustomerUser'
@@ -147,15 +164,17 @@ export async function syncCustomerAccess(
   // older records, so stops are found through their route. One walk of the
   // Stop table, matched to this customer's routes, rather than a filtered
   // table scan per route.
-  const { data: stops, errors: stopListErrors } = await listAll(client, 'Stop', {
-    selectionSet: ['id', 'routeId', 'viewerSubs'],
-  });
-  collectListErrors('Stop', stopListErrors);
-  await stamp('Stop', stops.filter((stop) => routeIds.has(stop.routeId)));
+  if (!outOfTime()) {
+    const { data: stops, errors: stopListErrors } = await listAll(client, 'Stop', {
+      selectionSet: ['id', 'routeId', 'viewerSubs'],
+    });
+    collectListErrors('Stop', stopListErrors);
+    await stamp('Stop', stops.filter((stop) => routeIds.has(stop.routeId)));
+  }
 
   if (errors.length > 0) {
     console.error(`syncCustomerAccess(${customerId}) completed with ${errors.length} error(s):`, errors);
   }
 
-  return { updated, errors };
+  return { updated, errors, complete };
 }

@@ -177,3 +177,22 @@
     padding-bottom: calc(var(--space-9) + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* Paper carries the page itself: no navigation, no sidebar gutter. */
+@media print {
+  .menuToggle,
+  .overlay,
+  .sidebar,
+  .status {
+    display: none;
+  }
+
+  .layout {
+    display: block;
+  }
+
+  .content {
+    padding: 0;
+    max-width: none;
+  }
+}

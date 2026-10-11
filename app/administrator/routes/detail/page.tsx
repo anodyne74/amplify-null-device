@@ -261,6 +261,14 @@ function RouteDetailContent() {
                 <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
                   Edit Route
                 </a>
+                <a
+                  href={`/administrator/routes/sheet?id=${route.id}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="nd-btn nd-btn--secondary nd-btn--sm"
+                >
+                  Print Route Sheet
+                </a>
                 {canManagePlanning && (
                   <Button
                     size="sm"

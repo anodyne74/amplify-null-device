@@ -60,6 +60,49 @@
   border: 2px solid #000;
 }
 
+.instructions {
+  border: 1px solid #000;
+  padding: var(--space-3) var(--space-4);
+}
+
+.instructions p {
+  margin: 0;
+}
+
+.times {
+  border-collapse: collapse;
+  align-self: flex-start;
+  min-width: 360px;
+}
+
+.times th,
+.times td {
+  border: 1px solid #000;
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  height: 32px;
+}
+
+.times td {
+  width: 120px;
+}
+
+.totals {
+  display: flex;
+  gap: var(--space-8);
+  align-items: baseline;
+}
+
+.totals p {
+  margin: 0;
+}
+
+.blank {
+  display: inline-block;
+  min-width: 120px;
+  border-bottom: 1px solid #000;
+}
+
 @media print {
   .toolbar {
     display: none;
@@ -70,7 +113,8 @@
     background: #fff;
   }
 
-  .stops tr {
+  .stops tr,
+  .times tr {
     break-inside: avoid;
   }
 }

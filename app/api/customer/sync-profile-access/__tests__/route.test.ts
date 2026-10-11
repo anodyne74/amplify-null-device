@@ -40,7 +40,7 @@ describe('customer sync-profile-access API', () => {
     customerUserListMock.mockResolvedValue({
       data: [{ customerId: 'cust-1', role: 'account_owner', userSub: 'sub-owner-1' }],
     });
-    syncCustomerAccessMock.mockResolvedValue({ updated: {}, errors: [] });
+    syncCustomerAccessMock.mockResolvedValue({ updated: {}, errors: [], complete: true });
   });
 
   it('returns 401 when token is missing', async () => {
@@ -67,11 +67,23 @@ describe('customer sync-profile-access API', () => {
 
     const response = await POST(request);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ success: true, customerId: 'cust-1' });
+    expect(await response.json()).toEqual({ success: true, customerId: 'cust-1', complete: true });
     expect(customerUserListMock).toHaveBeenCalledWith(
       expect.objectContaining({ filter: { userSub: { eq: 'sub-owner-1' } } })
     );
-    expect(syncCustomerAccessMock).toHaveBeenCalledWith(iamClient, 'cust-1');
+    expect(syncCustomerAccessMock).toHaveBeenCalledWith(iamClient, 'cust-1', { budgetMs: expect.any(Number) });
+  });
+
+  it('answers 200 with complete: false when the time budget ran out, so the portal calls again', async () => {
+    syncCustomerAccessMock.mockResolvedValue({ updated: {}, errors: [], complete: false });
+    const request = {
+      headers: new Headers({ authorization: 'Bearer token-value' }),
+      json: async () => ({}),
+    } as any;
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ success: true, complete: false });
   });
 
   it('returns 500 when the sync reports errors, so the portal retries next visit', async () => {

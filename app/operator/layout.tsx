@@ -19,6 +19,7 @@ const OPERATOR_NAV: PortalNavItem[] = [
   { href: '/operator/dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
   { href: '/operator/routes', label: 'Routes', icon: 'route' },
   { href: '/operator/calendar', label: 'Service Calendar', icon: 'calendar' },
+  { href: '/operator/payouts', label: 'Payouts', icon: 'wallet' },
   { href: '/operator/settings', label: 'Settings', icon: 'settings' },
 ];
 

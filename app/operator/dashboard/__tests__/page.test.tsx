@@ -6,6 +6,7 @@ import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
 import type { Route } from '@/amplify/types';
 import { getRouteWithStops } from '@/lib/routes';
 import { listAllCustomers } from '@/lib/customers';
+import { useMyPayouts } from '@/lib/useMyPayouts';
 
 jest.mock('@/lib/use-user-groups', () => ({
   useCurrentUserId: () => 'operator-me',
@@ -17,6 +18,10 @@ jest.mock('@/lib/useLiveRoutes', () => ({
 
 jest.mock('@/lib/customers', () => ({
   listAllCustomers: jest.fn(),
+}));
+
+jest.mock('@/lib/useMyPayouts', () => ({
+  useMyPayouts: jest.fn(),
 }));
 
 jest.mock('@/lib/routes', () => ({
@@ -39,6 +44,7 @@ describe('Operator Dashboard (Today)', () => {
     jest.clearAllMocks();
     (listAllCustomers as jest.Mock).mockResolvedValue([{ id: 'cust-1', name: 'Beltline Group' }]);
     (getRouteWithStops as jest.Mock).mockResolvedValue(null);
+    (useMyPayouts as jest.Mock).mockReturnValue({ payouts: [], loading: false, error: null });
   });
 
   it('shows unassigned routes and routes assigned to the signed-in operator, but excludes routes assigned to other operators', async () => {
@@ -80,5 +86,39 @@ describe('Operator Dashboard (Today)', () => {
     rerender(<OperatorDashboard />);
 
     await waitFor(() => expect(screen.getByText('W25-08-103')).toBeInTheDocument());
+  });
+
+  describe('Outstanding payouts tile', () => {
+    beforeEach(() => {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [], loading: false, error: null });
+    });
+
+    it('shows the total of pending payouts, linking to the payouts page', async () => {
+      (useMyPayouts as jest.Mock).mockReturnValue({
+        payouts: [
+          { id: 'a', amount: 40.5, status: 'pending' },
+          { id: 'b', amount: 10, status: 'pending' },
+          { id: 'c', amount: 99, status: 'paid' },
+        ],
+        loading: false,
+        error: null,
+      });
+      render(<OperatorDashboard />);
+
+      const link = await screen.findByRole('link', { name: /outstanding/i });
+      expect(link).toHaveAttribute('href', '/operator/payouts');
+      expect(link).toHaveTextContent('$50.50');
+    });
+
+    it('shows $0.00 rather than hiding when nothing is owed', async () => {
+      render(<OperatorDashboard />);
+      expect(await screen.findByRole('link', { name: /outstanding/i })).toHaveTextContent('$0.00');
+    });
+
+    it('does not show a figure while payouts are loading', async () => {
+      (useMyPayouts as jest.Mock).mockReturnValue({ payouts: [], loading: true, error: null });
+      render(<OperatorDashboard />);
+      expect(await screen.findByRole('link', { name: /outstanding/i })).not.toHaveTextContent('$0.00');
+    });
   });
 });

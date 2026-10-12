@@ -1,10 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
 import { getSignRunPhase, getRoutePhaseKey } from '@/lib/signRunPhase';
 import { signsPlaced } from '@/lib/signRunTotals';
 import { useCurrentUserId } from '@/lib/use-user-groups';
+import { useMyPayouts } from '@/lib/useMyPayouts';
+import { outstandingTotal } from '@/lib/payoutSummary';
 import PageHeader from '@/app/operator/components/PageHeader';
 import { SignRunRouteCard } from '@/app/operator/components/SignRunRouteCard';
 import { Card } from '@/app/components/ui/core/Card';
@@ -32,6 +35,8 @@ export default function OperatorDashboard() {
   const [customersLoading, setCustomersLoading] = useState(true);
   const [stopSummaryByRouteId, setStopSummaryByRouteId] = useState<Record<string, StopSummary>>({});
   const loading = routesLoading || customersLoading;
+  const { payouts, loading: payoutsLoading } = useMyPayouts();
+  const outstanding = useMemo(() => outstandingTotal(payouts), [payouts]);
 
   useEffect(() => {
     async function loadCustomers() {
@@ -119,6 +124,16 @@ export default function OperatorDashboard() {
   return (
     <div className={styles.page}>
       <PageHeader title="Today" subtitle={todayLine} />
+
+      {/* Outside the stats grid, which is hidden on phones: owed money is worth seeing there too. */}
+      <Link href="/operator/payouts" className={styles.outstandingLink} aria-label="Outstanding payouts">
+        <StatTile
+          label="Outstanding"
+          value={payoutsLoading ? '…' : `$${outstanding.toFixed(2)}`}
+          icon="wallet"
+          caption="Payouts not yet paid"
+        />
+      </Link>
 
       <div className={styles.statsGrid}>
         <StatTile label="Active routes" value={loading ? '…' : activeRoutes.length} icon="route" />

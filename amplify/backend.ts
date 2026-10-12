@@ -858,13 +858,21 @@ const sharedReceiptRuleSet = new AwsCustomResource(forwarderStack, 'SesSharedRec
 	installLatestAwsSdk: false,
 });
 
+// Personal mailboxes (comma-separated, full addresses) that are forwarded like
+// the shared ones. Kept in the build environment, not the repo, because they
+// name people; only addresses on this branch's domain can match this rule.
+const extraInboundRecipients = (process.env.SES_EXTRA_INBOUND_RECIPIENTS ?? '')
+	.split(',')
+	.map((address) => address.trim().toLowerCase())
+	.filter((address) => address.endsWith(`@${emailDomain}`));
+
 const receiptRule = new CfnReceiptRule(forwarderStack, 'SesSharedReceiptRule', {
 	ruleSetName: inboundRuleSetName,
 	rule: {
 		name: inboundRuleName,
 		enabled: true,
 		tlsPolicy: 'Optional',
-		recipients: [`admin@${emailDomain}`, `billing@${emailDomain}`, `support@${emailDomain}`, `requests@${emailDomain}`],
+		recipients: [`admin@${emailDomain}`, `billing@${emailDomain}`, `support@${emailDomain}`, `requests@${emailDomain}`, ...extraInboundRecipients],
 		scanEnabled: true,
 		actions: [
 			{ s3Action: { bucketName: inboundBucket.bucketName } },

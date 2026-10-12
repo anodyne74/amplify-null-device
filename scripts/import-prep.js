@@ -653,6 +653,9 @@ function buildBundle({
         payout = {
           operatorSub: resolvedOperator.sub,
           amount: trackerRecord.splitAmount,
+          // A legacy Payout is for this one Route: its period is the Route's completion day.
+          periodStartDate: pickupDate,
+          periodEndDate: pickupDate,
           status: trackerRecord.lifecycle.paidDate ? 'paid' : 'pending',
           paidAt: trackerRecord.lifecycle.paidDate ? toIsoDateTime(trackerRecord.lifecycle.paidDate) : undefined,
           notes: `Legacy import split for ${trackerRecord.routeCode}`,
@@ -1060,6 +1063,8 @@ async function applyBundle(bundle, args) {
           customerId: record.customerId,
           routeId: route.id,
           amount: record.payout.amount,
+          periodStartDate: record.payout.periodStartDate,
+          periodEndDate: record.payout.periodEndDate,
           status: record.payout.status,
           paidAt: record.payout.paidAt,
           notes: record.payout.notes,

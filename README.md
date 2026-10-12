@@ -248,6 +248,15 @@ Notes:
 - `--delay-ms` (default `200`) throttles requests between stops to stay under Google's per-second quota; `--limit` caps how many stops are processed in one run.
 - Same `--auth-mode`/`--outputs-path`/`--username`/`--password` conventions as `import-prep.js`.
 
+## Payout Period Backfill
+
+Payouts imported before `import:prep` wrote a period carry a `routeId` but no `periodStartDate`/`periodEndDate`. `scripts/backfill-payout-periods.js` sets both to the UTC date of the linked Route's `actualEndTime`. It never overwrites a period that is already set, and lists (without touching) any payout whose Route is missing or has no end time. The dry run also lists still-pending payouts, so check those are really unpaid. Needs an administrator login and refuses non-development APIs without `--allow-non-development`.
+
+```bash
+node scripts/backfill-payout-periods.js --outputs-path amplify_outputs.json                      # dry run
+node scripts/backfill-payout-periods.js --mode apply --confirm-apply --outputs-path amplify_outputs.json
+```
+
 ## Deployment
 
 ### Recommended

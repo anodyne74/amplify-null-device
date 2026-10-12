@@ -163,3 +163,11 @@ _Avoid_: viewerSubs sync, backfill, profile access sync
 **Feature Flag**:
 A temporary switch that gradually rolls out one customer portal feature, Customer by Customer, until it's on for everyone and the switch is removed. Its state is **Off** (the default), **Selected Customers**, or **Everyone** (which includes Customers created later). Switching a flag Off pauses it without forgetting its Selected Customers. Only administrators change it, and all users of one Customer always see the same thing. While a flag is off for a Customer, that Customer's users can't use the feature at all and see no sign of it. Flags limit customer users only, never operators or administrators acting for a Customer.
 _Avoid_: Toggle, entitlement, plan feature (a flag is never a permanent difference between Customers)
+
+**Payout**:
+An amount an administrator raises for one Operator for one Customer's billing period, as that Operator's share of what the Customer was billed. It is **Pending** until the administrator marks it **Paid**. An Operator sees only their own Payouts. A Payout imported from history is for a single Route, and its period is that one day, the Route's completion date. For summaries a Payout belongs to the month and year of its period's end date; one with no period yet falls back to when it was raised, and is shown as estimated.
+_Avoid_: Driver payment, wage, commission
+
+**Outstanding**:
+The total of an Operator's Pending Payouts: raised for them but not yet marked Paid. Work not yet raised as a Payout is not Outstanding.
+_Avoid_: Owed, unpaid balance

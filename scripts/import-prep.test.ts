@@ -179,6 +179,10 @@ describe('import-prep', () => {
         operatorSub: 'adam-sub-123',
         amount: 28.13,
         status: 'paid',
+        // The Route's completion day (the Saturday after W23-26's Friday): a legacy
+        // Payout is for that one Route, so its period is that one day.
+        periodStartDate: '2026-06-06',
+        periodEndDate: '2026-06-06',
       },
     });
     expect(bundle.records[1].payout).toBeNull();

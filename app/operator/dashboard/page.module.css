@@ -29,3 +29,9 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
+
+.outstandingLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}

@@ -1,0 +1,26 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-5);
+}
+
+.mutedText {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.errorText {
+  color: var(--danger, #b00020);
+  font-size: var(--text-sm);
+}
+
+.estimated {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}

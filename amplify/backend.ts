@@ -749,6 +749,7 @@ const forwarderFunction = new LambdaFunction(forwarderStack, 'SesForwarderFuncti
 import boto3
 import email
 import os
+from email.utils import formataddr, parseaddr
 
 ses = boto3.client('ses')
 s3 = boto3.client('s3')
@@ -772,11 +773,18 @@ def lambda_handler(event, context):
    	# Preserve original sender
     original_from = msg.get('From')
 	
-   	# Rewrite From header to the inbound address (DMARC-safe)
-    if 'From' in msg:
-        msg.replace_header("From", inbound_address)
+   	# Rewrite From header to the inbound address (DMARC-safe), keeping who it
+    # was from in the display name so it can be told apart in the inbox
+    sender_name, sender_address = parseaddr(original_from or '')
+    if sender_name and sender_address:
+        sender_label = sender_name + ' (' + sender_address + ')'
     else:
-        msg['From'] = inbound_address
+        sender_label = sender_address or sender_name
+    from_value = formataddr((sender_label, inbound_address), charset='utf-8')
+    if 'From' in msg:
+        msg.replace_header("From", from_value)
+    else:
+        msg['From'] = from_value
 
 	# Rewrite From header to the inbound address (DMARC-safe)
     if original_from and not msg.get('Reply-To'):

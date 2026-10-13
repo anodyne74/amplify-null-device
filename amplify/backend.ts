@@ -782,6 +782,11 @@ def lambda_handler(event, context):
     if original_from and not msg.get('Reply-To'):
         msg['Reply-To'] = original_from
 
+    # SES rejects the resend if Return-Path or Sender names an identity that
+    # isn't verified, which is every outside sender; SES sets its own
+    del msg['Return-Path']
+    del msg['Sender']
+
     # Rewrite To header to your destination inbox
     if 'To' in msg:
         msg.replace_header("To", FORWARD_TO)

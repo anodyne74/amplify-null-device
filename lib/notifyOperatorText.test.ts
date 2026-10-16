@@ -1,6 +1,6 @@
 import { isSingleSms, notifyOperatorText, textDate } from './notifyOperatorText';
 
-const routeLink = 'https://www.nulldevice.dev/r/3f2b8c1e-9a4d-4e6b-b7c2-1d5e8f0a9b3c';
+const routeLink = 'https://www.nulldevice.dev/r/k7q2m9';
 
 describe('textDate', () => {
   it('writes the scheduled date as weekday, day and month, without moving it across time zones', () => {
@@ -54,6 +54,21 @@ describe('notifyOperatorText', () => {
     expect(isSingleSms(text)).toBe(true);
     expect(text).toMatch(/^NullDevice: Route W40-26-009 for Laing\+Simmons .+\.\.\., 24 stops, date to be confirmed\. https:/);
     expect(text.endsWith(routeLink)).toBe(true);
+  });
+
+  it('keeps more of a long Customer name than the Route id link did', () => {
+    const input = {
+      routeCode: 'W40-26-009',
+      customerName: 'Laing+Simmons Young Property Group Cronulla and the Sutherland Shire',
+      stopCount: 24,
+      scheduledDate: null,
+    };
+    const idLink = 'https://www.nulldevice.dev/r/3f2b8c1e-9a4d-4e6b-b7c2-1d5e8f0a9b3c';
+    const withCode = notifyOperatorText({ ...input, routeLink });
+    const withId = notifyOperatorText({ ...input, routeLink: idLink });
+
+    const nameOf = (text: string) => /for (.+), 24 stops/.exec(text)![1];
+    expect(nameOf(withCode).length).toBeGreaterThan(nameOf(withId).length);
   });
 
   it('swaps characters outside the basic SMS alphabet so one text never becomes several', () => {

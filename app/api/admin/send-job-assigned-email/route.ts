@@ -10,6 +10,7 @@ import { recordAudit } from '@/lib/auditLog';
 import type { IamDataClient } from '@/lib/server/iamDataClient';
 import { australianMobile, maskedMobile } from '@/lib/operatorMobile';
 import { notifyOperatorText } from '@/lib/notifyOperatorText';
+import { ensureRouteLinkCode } from '@/lib/server/routeLinkCode';
 import { NO_MOBILE_REASON, type ChannelResult } from '@/lib/notifyOperatorOutcome';
 
 const region = process.env.AWS_REGION || 'ap-southeast-2';
@@ -117,6 +118,12 @@ export async function POST(request: NextRequest) {
       email = { status: 'failed', reason: `Email not sent: ${errorMessage}` };
     }
 
+    // Best effort like the rest of Notify Operator (ADR 0006): a Route Link code that can't
+    // be made falls back to the Route id, which `/r/` still opens.
+    const linkCode = await ensureRouteLinkCode(client, route.id).catch((err) => {
+      console.error('Route Link code not made:', err);
+      return route.id;
+    });
     const text = await textOperator(client, {
       operatorSub: route.assignedOperatorSub,
       body: notifyOperatorText({
@@ -124,7 +131,7 @@ export async function POST(request: NextRequest) {
         customerName: customer?.name || '',
         stopCount: stops.length,
         scheduledDate: route.scheduledDate,
-        routeLink: `${resolvedAppBaseUrl}/r/${routeId}`,
+        routeLink: `${resolvedAppBaseUrl}/r/${linkCode}`,
       }),
     });
 

@@ -212,6 +212,11 @@ export const schema = a.schema({
   Route: a
     .model({
       routeCode: a.string(), // Human-readable route identifier (e.g. W19-26-001)
+      // The Route Link's code (CONTEXT.md, ADR 0013): six lowercase characters, made the first
+      // time the Route is notified. Omit it rather than null it -- it is an index key.
+      // Customers can read it but never write it: the Route's coarse customer `update`
+      // (kept for customerInstructions) would let one repoint a texted link.
+      routeLinkCode: a.string().authorization(customerReadOnlyRouteField),
       customerId: a.id().required(), // Foreign key to Customer
       viewerSubs: a.string().array(), // Cognito subs of all customer users — grants read access
       status: a.enum(['planned', 'in_progress', 'signs_placed', 'signs_picked_up', 'completed', 'archived']),
@@ -297,6 +302,7 @@ export const schema = a.schema({
       invoices: a.hasMany('Invoice', 'routeId'),
       payouts: a.hasMany('OperatorPayout', 'routeId'),
     })
+    .secondaryIndexes((index) => [index('routeLinkCode').queryField('listRoutesByRouteLinkCode')])
     .authorization((allow) => [
       // 'update' scoped in practice to customerInstructions by the client (lib/routes.ts
       // updateRouteCustomerInstructions) — a coarse grant like the rest of this schema,

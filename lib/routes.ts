@@ -66,6 +66,20 @@ export async function getRouteCode(routeId: string): Promise<string | undefined>
 }
 
 /**
+ * The Route a Route Link code opens (CONTEXT.md), through the secondary index
+ * under the signed-in user's own authorization; null when no Route has it.
+ */
+export async function getRouteIdByLinkCode(code: string): Promise<string | null> {
+  return withDataError('Failed to look up the route.', async () => {
+    const result = await getDataClient().models.Route.listRoutesByRouteLinkCode(
+      { routeLinkCode: code },
+      { selectionSet: ['id'], limit: 1 }
+    );
+    return resultData(result)?.[0]?.id ?? null;
+  });
+}
+
+/**
  * Fetches every Stop for a route (see lib/listAll.ts for why one page isn't
  * enough).
  */

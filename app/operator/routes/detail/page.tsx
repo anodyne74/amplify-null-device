@@ -14,6 +14,7 @@ import { RouteStatusPill } from '@/app/operator/components/RouteStatusPill';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { RouteEstimateCard } from '@/app/administrator/components/RouteEstimateCard';
+import { useRouteIdFromLink } from '@/lib/useRouteIdFromLink';
 import { useRouteDetailData } from '@/lib/use-route-detail-data';
 import { billedTime } from '@/lib/billedTime';
 import {
@@ -53,7 +54,10 @@ const RouteStopsMap = dynamic(
 function RouteDetailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const id = searchParams.get('id') ?? '';
+  const { routeId: id, resolving: resolvingLink } = useRouteIdFromLink(
+    searchParams.get('id') ?? '',
+    searchParams.get('code') ?? ''
+  );
   const { user } = useAuthenticator();
 
   const {
@@ -161,7 +165,7 @@ function RouteDetailContent() {
     if (ok) router.push('/operator/routes');
   };
 
-  if (loading) return <LoadingSpinner message="Loading route..." />;
+  if (resolvingLink || loading) return <LoadingSpinner message="Loading route..." />;
   if (route?.status === 'in_progress') {
     return <LoadingSpinner message="Redirecting to the active phase screen..." />;
   }

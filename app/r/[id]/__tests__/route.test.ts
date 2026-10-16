@@ -21,4 +21,22 @@ describe('Route short link', () => {
 
     expect(response.headers.get('location')).toBe('https://www.nulldevice.dev/operator/routes/detail?id=a%26b');
   });
+
+  it('opens a Route Link code by its code, whatever the case', async () => {
+    const response = await GET(new NextRequest('https://www.nulldevice.dev/r/K7q2M9'), {
+      params: Promise.resolve({ id: 'K7q2M9' }),
+    });
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe('https://www.nulldevice.dev/operator/routes/detail?code=k7q2m9');
+  });
+
+  it('still opens a Route id from a text sent before codes', async () => {
+    const id = '3f2b8c1e-9a4d-4e6b-b7c2-1d5e8f0a9b3c';
+    const response = await GET(new NextRequest(`https://www.nulldevice.dev/r/${id}`), {
+      params: Promise.resolve({ id }),
+    });
+
+    expect(response.headers.get('location')).toBe(`https://www.nulldevice.dev/operator/routes/detail?id=${id}`);
+  });
 });

@@ -4,6 +4,7 @@ const mockRouteGet = jest.fn();
 const mockRouteCreate = jest.fn();
 const mockRouteUpdate = jest.fn();
 const mockRouteDelete = jest.fn();
+const mockRoutesByLinkCode = jest.fn();
 const mockStopList = jest.fn();
 const mockStopCreate = jest.fn();
 const mockStopDelete = jest.fn();
@@ -20,6 +21,7 @@ jest.mock('aws-amplify/data', () => ({
         create: mockRouteCreate,
         update: mockRouteUpdate,
         delete: mockRouteDelete,
+        listRoutesByRouteLinkCode: mockRoutesByLinkCode,
       },
       Stop: {
         list: mockStopList,
@@ -53,6 +55,7 @@ jest.mock('./propertyLocations', () => ({
 
 import {
   listCustomerRoutes,
+  getRouteIdByLinkCode,
   getRouteWithStops,
   listAllStopsForRoute,
   createRoute,
@@ -939,5 +942,28 @@ describe('routes', () => {
       });
       consoleErrorSpy.mockRestore();
     });
+  });
+});
+
+describe('getRouteIdByLinkCode', () => {
+  beforeEach(() => mockRoutesByLinkCode.mockReset());
+
+  it("returns the Route the code is on, through the Route Link index", async () => {
+    mockRoutesByLinkCode.mockResolvedValue({ data: [{ id: 'route-1' }], errors: undefined });
+
+    await expect(getRouteIdByLinkCode('k7q2m9')).resolves.toBe('route-1');
+    expect(mockRoutesByLinkCode).toHaveBeenCalledWith({ routeLinkCode: 'k7q2m9' }, expect.anything());
+  });
+
+  it('is null when no Route has the code', async () => {
+    mockRoutesByLinkCode.mockResolvedValue({ data: [], errors: undefined });
+
+    await expect(getRouteIdByLinkCode('k7q2m9')).resolves.toBeNull();
+  });
+
+  it('throws when the lookup is refused', async () => {
+    mockRoutesByLinkCode.mockResolvedValue({ data: null, errors: [{ message: 'Unauthorized' }] });
+
+    await expect(getRouteIdByLinkCode('k7q2m9')).rejects.toThrow();
   });
 });

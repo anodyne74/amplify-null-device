@@ -12,6 +12,10 @@ _Avoid_: Driver, staff (staff means operators and administrators together)
 An administrator's deliberate action telling a Route's assigned Operator about the Route: an email, plus a text message when the Operator has a mobile number. It is never sent automatically on assignment, only ever reaches the currently assigned Operator, and each one is kept in the Route's audit trail with the channels that went out.
 _Avoid_: Alert, dispatch, job-assigned email
 
+**Route Link**:
+The short address in a Notify Operator text that opens the Route for the Operator. It identifies one Route by a six-character code made the first time the Route is notified, and the Route keeps that code for good, so every later Notify Operator sends the same link. The code is lowercase and read without regard to case. The link only takes the Operator to the Route; they still sign in, and see only what they could see anyway. Texts sent before Route Links existed identified the Route differently and still open it.
+_Avoid_: Short code, short URL
+
 **Route**:
 A single trip assigned to an operator, made up of Stops, progressing through the Sign Run phases in order.
 _Avoid_: Job, trip. "Visit" means one Route at one Property, not the Route itself.

@@ -153,7 +153,7 @@ A person who signs in to the customer portal on one Customer's behalf, as either
 _Avoid_: Team member, teammate, sub-user, customer admin
 
 **Account Owner**:
-A Customer User who can see the Customer's invoices and manage its Customer Users and Property History reports. The other Customer User role, read-only, sees Routes and Stops only.
+A Customer User who can see the Customer's invoices and manage its Customer Users and Property History reports. The other Customer User role, read-only, sees Routes and Stops only. A Customer has at most one Account Owner, and its first Customer User must be one; the Account Owner can't be made read-only until another Customer User is promoted.
 _Avoid_: Customer Admin, customer administrator
 
 **Trading Name**:

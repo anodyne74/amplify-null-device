@@ -20,6 +20,7 @@ import CustomerUserTableRow, {
   type CustomerUserRowData,
 } from '@/app/administrator/users/components/CustomerUserTableRow';
 import styles from './page.module.css';
+import { addMemberRefusal, newMemberFields, planRoleChange } from '@/lib/customerUserMembership';
 import { createCustomerUser, deleteCustomerUser, updateCustomerUser, listAllCustomerUsers, listAllCustomers } from '@/lib/customers';
 
 type CognitoUser = {
@@ -275,13 +276,9 @@ export default function UsersAdminPage() {
     const normalizedEmail = newUserEmail.trim().toLowerCase();
     const resolvedUser = await resolveUserByEmail(normalizedEmail).catch(() => null);
 
-    const owner = customerUsersForSelected.find((u) => u.role === 'account_owner');
-    if (newUserRole === 'read_only' && !owner) {
-      setAccessError('No account owner assigned for this customer yet. Assign a primary contact first.');
-      return;
-    }
-    if (newUserRole === 'account_owner' && owner && owner.userSub !== resolvedUser?.sub) {
-      setAccessError('This customer already has a primary contact. Remove the current owner before assigning a new one.');
+    const refusal = addMemberRefusal(customerUsersForSelected, newUserRole, resolvedUser?.sub);
+    if (refusal) {
+      setAccessError(refusal);
       return;
     }
 
@@ -342,11 +339,7 @@ export default function UsersAdminPage() {
           created = await createCustomerUser({
           customerId: selectedCustomerId,
           userSub: assignedUserSub,
-          accountOwnerSub:
-            newUserRole === 'account_owner'
-              ? assignedUserSub
-              : (owner?.userSub || assignedUserSub),
-          role: newUserRole,
+          ...newMemberFields(customerUsersForSelected, newUserRole, assignedUserSub),
           name: newUserName || resolvedUser?.name || resolvedUser?.firstName || undefined,
           email: normalizedEmail,
           });
@@ -365,11 +358,7 @@ export default function UsersAdminPage() {
           id: createdCustomerUserId || `temp-${assignedUserSub}`,
           customerId: selectedCustomerId,
           userSub: assignedUserSub,
-          accountOwnerSub:
-            newUserRole === 'account_owner'
-              ? assignedUserSub
-              : (owner?.userSub || assignedUserSub),
-          role: newUserRole,
+          ...newMemberFields(customerUsersForSelected, newUserRole, assignedUserSub),
           name: newUserName || resolvedUser?.name || resolvedUser?.firstName || undefined,
           email: normalizedEmail,
         });
@@ -461,34 +450,18 @@ export default function UsersAdminPage() {
     if (!editTarget) return;
 
     const trimmedName = editName.trim();
-    const roleChanged = editRole !== editTarget.role;
-
-    if (roleChanged) {
-      const otherOwner = customerUsersForSelected.find(
-        (u) => u.role === 'account_owner' && u.id !== editTarget.id
-      );
-      if (editRole === 'account_owner' && otherOwner) {
-        setAccessError(
-          'This customer already has a primary contact. Remove or change the current owner before assigning a new one.'
-        );
-        return;
-      }
-      if (editRole === 'read_only' && editTarget.role === 'account_owner') {
-        setAccessError('Promote another user to primary contact before changing this one to read-only.');
-        return;
-      }
+    const plan = planRoleChange(customerUsersForSelected, editTarget, editRole);
+    if (!plan.ok) {
+      setAccessError(plan.message);
+      return;
     }
 
     setAccessPending(true);
     setAccessError(null);
     setAccessSuccess(null);
 
-    // Promoting a user to account owner re-keys the denormalized accountOwnerSub
-    // carried on every CustomerUser row for this customer -- it must stay the
-    // same value across all rows (see amplify/data/resource.ts) so the new
-    // owner's ownerDefinedIn('accountOwnerSub') grant actually resolves.
-    const promotingToOwner = roleChanged && editRole === 'account_owner';
-    const newOwnerSub = editTarget.userSub;
+    const promotingToOwner = plan.promoting;
+    const newOwnerSub = plan.ownerSub;
 
     try {
       await updateCustomerUser({
@@ -505,11 +478,8 @@ export default function UsersAdminPage() {
 
     let rekeyFailed = false;
     if (promotingToOwner) {
-      const rowsToRekey = customerUsersForSelected.filter(
-        (u) => u.id !== editTarget.id && u.accountOwnerSub !== newOwnerSub
-      );
       const rekeys = await Promise.allSettled(
-        rowsToRekey.map((u) => updateCustomerUser({ id: u.id, accountOwnerSub: newOwnerSub }))
+        plan.rekeyIds.map((id) => updateCustomerUser({ id, accountOwnerSub: newOwnerSub }))
       );
       rekeyFailed = rekeys.some((rekey) => rekey.status === 'rejected');
     }

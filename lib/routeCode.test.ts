@@ -1,4 +1,4 @@
-import { nextRouteCode, routeCodeWeekPrefix } from './routeCode';
+import { nextRouteCode, routeCodeClashes, routeCodeWeekPrefix } from './routeCode';
 
 describe('routeCodeWeekPrefix', () => {
   it('counts weeks in blocks of seven days from 1 January, in the Placement Date\'s year', () => {
@@ -58,5 +58,33 @@ describe('nextRouteCode', () => {
 
   it('is null until there is a Placement Date', () => {
     expect(nextRouteCode([], '')).toBeNull();
+  });
+});
+
+describe('routeCodeClashes', () => {
+  const routes = [
+    { id: 'r1', routeCode: 'W42-26-001' },
+    { id: 'r2', routeCode: 'w42-26-002 ' },
+    { id: 'r3', routeCode: null },
+    { id: 'r4' },
+  ];
+
+  it('finds the Route using a code, ignoring case and surrounding spaces', () => {
+    expect(routeCodeClashes(routes, ' W42-26-002')).toEqual([routes[1]]);
+    expect(routeCodeClashes(routes, 'w42-26-001')).toEqual([routes[0]]);
+  });
+
+  it('finds every Route that shares it', () => {
+    const shared = [...routes, { id: 'r5', routeCode: 'W42-26-001' }];
+    expect(routeCodeClashes(shared, 'W42-26-001').map((route) => route.id)).toEqual(['r1', 'r5']);
+  });
+
+  it('does not count the Route being edited', () => {
+    expect(routeCodeClashes(routes, 'W42-26-001', 'r1')).toEqual([]);
+  });
+
+  it('finds nothing for a code nobody uses, or no code yet', () => {
+    expect(routeCodeClashes(routes, 'W42-26-003')).toEqual([]);
+    expect(routeCodeClashes(routes, '  ')).toEqual([]);
   });
 });

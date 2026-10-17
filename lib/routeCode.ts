@@ -10,8 +10,9 @@
  *
  * Pure: it is given the codes already in use and says nothing about whether
  * they could be read. A code is not guaranteed unique -- nothing stores or
- * checks that -- so a caller that couldn't read the existing codes should say so
- * rather than ask for the next one.
+ * checks that -- so a screen shows when the code in a field is another Route's
+ * (routeCodeClashes) and leaves it to the administrator to resolve; one that
+ * couldn't read the existing codes says so rather than suggest one.
  */
 
 const DAY_MS = 86_400_000;
@@ -51,4 +52,19 @@ export function nextRouteCode(
   let next = 1;
   while (used.has(next)) next += 1;
   return `${prefix}-${String(next).padStart(3, '0')}`;
+}
+
+/** A Route and its code, as far as telling two Routes' codes apart needs. */
+export interface RouteCodeEntry {
+  id: string;
+  routeCode?: string | null;
+}
+
+const sameCode = (code: string) => code.trim().toLowerCase();
+
+/** The other Routes already using `code`, ignoring case and surrounding spaces. `ownId` is the Route being edited, if any. */
+export function routeCodeClashes<T extends RouteCodeEntry>(routes: readonly T[], code: string, ownId?: string): T[] {
+  const wanted = sameCode(code);
+  if (!wanted) return [];
+  return routes.filter((route) => route.id !== ownId && route.routeCode != null && sameCode(route.routeCode) === wanted);
 }

@@ -16,7 +16,8 @@ import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { RouteForm, withDraftStopNote, type RouteDraftStop } from '@/app/operator/components/RouteForm';
 import { RequesterFields, RouteRequestView, localNow, recordTitle } from '@/app/administrator/components/RouteRequests';
 import { pickStopLocationFields } from '@/lib/locationPrecision';
-import { nextRouteCode } from '@/lib/routeCode';
+import { nextRouteCode, type RouteCodeEntry } from '@/lib/routeCode';
+import { routeCodeFeedback } from '@/app/administrator/components/routeCodeFeedback';
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseScheduleText } from '@/lib/parseSchedule';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
@@ -92,8 +93,8 @@ function NewRoutePageContent() {
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // Route Codes already in use: undefined until read, null if they couldn't be.
-  const [existingRouteCodes, setExistingRouteCodes] = useState<string[] | null | undefined>(undefined);
+  // Routes' codes already in use: undefined until read, null if they couldn't be.
+  const [existingRouteCodes, setExistingRouteCodes] = useState<RouteCodeEntry[] | null | undefined>(undefined);
   const [importRouteCode, setImportRouteCode] = useState('');
   const [importRouteCodeTyped, setImportRouteCodeTyped] = useState(false);
   const [copyStopSources, setCopyStopSources] = useState<Array<{
@@ -157,7 +158,7 @@ function NewRoutePageContent() {
     let cancelled = false;
     void listAllRoutes().then(
       (routes) => {
-        if (!cancelled) setExistingRouteCodes((routes as Array<{ routeCode?: string | null }>).map((route) => route.routeCode ?? ''));
+        if (!cancelled) setExistingRouteCodes(routes as RouteCodeEntry[]);
       },
       () => {
         if (!cancelled) setExistingRouteCodes(null);
@@ -170,7 +171,7 @@ function NewRoutePageContent() {
 
   // The code follows the Placement Date (lib/routeCode.ts), and nothing is suggested until the codes in use are known.
   const suggestRouteCode = useCallback(
-    (placementDate: string) => (existingRouteCodes === undefined ? '' : (nextRouteCode(existingRouteCodes ?? [], placementDate) ?? '')),
+    (placementDate: string) => (existingRouteCodes === undefined ? '' : (nextRouteCode((existingRouteCodes ?? []).map((route) => route.routeCode), placementDate) ?? '')),
     [existingRouteCodes]
   );
 
@@ -695,7 +696,7 @@ function NewRoutePageContent() {
                     />
                   </Field>
 
-                  <Field label="Route ID" htmlFor="import-route-code">
+                  <Field label="Route ID" htmlFor="import-route-code" {...routeCodeFeedback(existingRouteCodes, importRouteCode)}>
                     <Input
                       id="import-route-code"
                       value={importRouteCode}
@@ -842,6 +843,7 @@ function NewRoutePageContent() {
               <RouteForm
                 customers={customers}
                 suggestRouteCode={suggestRouteCode}
+                routeCodeFeedback={(code) => routeCodeFeedback(existingRouteCodes, code)}
                 onSubmit={handleSubmit}
                 onCancel={handleCancel}
                 isSubmitting={isSubmitting}

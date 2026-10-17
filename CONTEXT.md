@@ -21,7 +21,7 @@ A single trip assigned to an operator, made up of Stops, progressing through the
 _Avoid_: Job, trip. "Visit" means one Route at one Property, not the Route itself.
 
 **Route Code**:
-The human-readable reference for a Route, shown at the top of the Route and on its Route Sheet: a week, a year and a number, such as W41-26-003. The week and year are those of the Route's Placement Date, not the day the Route was made: weeks run in blocks of seven days from 1 January, up to week 52, so a Placement on 31 December 2026 is W52-26 and one on 1 January 2027 is W01-27. It is suggested when the Route is created, following the Placement Date until an administrator types a code of their own, and is never renamed afterwards, even if the Placement Date moves. It is not guaranteed unique.
+The human-readable reference for a Route, shown at the top of the Route and on its Route Sheet: a week, a year and a number, such as W41-26-003. The week and year are those of the Route's Placement Date, not the day the Route was made: weeks run in blocks of seven days from 1 January, up to week 52, so a Placement on 31 December 2026 is W52-26 and one on 1 January 2027 is W01-27. It is suggested when the Route is created, following the Placement Date until an administrator types a code of their own, and is never renamed afterwards, even if the Placement Date moves. It is not guaranteed unique: where an administrator sets it, the screen warns when another Route has the same code and links to that Route, and leaves resolving it to them. When the Routes' codes couldn't be read it says so, and suggests no code.
 _Avoid_: Route ID, route number
 
 **Placement Date**:

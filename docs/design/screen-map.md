@@ -76,4 +76,6 @@ Design personas map to the customer portal's two roles: customer admin is an Acc
 
 - When a change touches a page in this table, update its row and the **Last checked** line in the same change.
 - A divergence someone might "fix" later belongs in an ADR as well; link it from the Notes column.
-- Re-run the comparison after a large feature, and after the design project changes. The design system's tokens can be checked against `app/components/ui/tokens.css` with the drift check (planned).
+- Re-run the comparison after a large feature, and after the design project changes. Check the design tokens against `app/components/ui/tokens.css` with `npm run check:design-tokens -- <dir>`, where `<dir>` holds a copy of the design system's `tokens/*.css`. Reading the design project needs a claude.ai login, so ask Claude to fetch those files into a folder first. It exits 1 on a changed or missing token; the font variables are listed as intentional differences.
+
+Known issue in the design system itself, not in this repo's port: its `elevation.css` still carries a teal `--shadow-teal` and neutral-black shadows (`rgba(13,13,13,…)`), while its readme says shadows are navy-tinted and black is banned. `tokens.css` copies them as they are, so the check passes.

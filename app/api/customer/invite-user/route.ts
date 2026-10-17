@@ -5,6 +5,7 @@ import { createOrGetCognitoUser } from '@/app/api/admin/users/route';
 import { sendInvitationEmail } from '@/lib/emails/invitationEmail';
 import { listAll } from '@/lib/listAll';
 import { syncCustomerAccess } from '@/lib/customerAccess';
+import { newMemberFields } from '@/lib/customerUserMembership';
 
 const userPoolId = process.env.AMPLIFY_COGNITO_USER_POOL_ID || outputs.auth?.user_pool_id;
 
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
     if (!auth.ok) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
-    const { caller, claims, client } = auth;
+    const { caller, client } = auth;
     const { customerId, row: ownRow } = caller;
 
     const body = (await request.json().catch(() => null)) as { email?: string; name?: string } | null;
@@ -83,8 +84,7 @@ export async function POST(request: NextRequest) {
     const { data: created, errors } = await client.models.CustomerUser.create({
       customerId,
       userSub: sub,
-      accountOwnerSub: claims.sub,
-      role: 'read_only',
+      ...newMemberFields([ownRow, ...(existingRows || [])], 'read_only', sub),
       name,
       email: normalizedEmail,
     });

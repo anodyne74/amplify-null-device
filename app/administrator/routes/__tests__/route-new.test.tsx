@@ -257,4 +257,28 @@ describe('NewRoutePage copied Stop notes (#464)', () => {
     fireEvent.change(note, { target: { value: 'Side gate' } });
     expect(note).toHaveValue('Side gate');
   });
+
+  describe('Route Code', () => {
+    it('suggests a code once the codes in use are known, and warns with a link when it is typed over with another Route\'s', async () => {
+      (listAllRoutes as jest.Mock).mockResolvedValue([{ id: 'old-route', customerId: 'c1', routeCode: 'OLD-1' }]);
+      render(<NewRoutePage />);
+
+      const field = await screen.findByLabelText(/route id/i);
+      await waitFor(() => expect((field as HTMLInputElement).value).toMatch(/^W\d{2}-\d{2}-001$/));
+      expect(screen.queryByText(/this code is already used by/i)).not.toBeInTheDocument();
+
+      fireEvent.change(field, { target: { value: 'old-1' } });
+
+      expect(await screen.findByText(/this code is already used by/i)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'another Route' })).toHaveAttribute('href', '/administrator/routes/detail?id=old-route');
+    });
+
+    it("says so, and suggests nothing, when the codes in use couldn't be read", async () => {
+      (listAllRoutes as jest.Mock).mockRejectedValue(new Error('offline'));
+      render(<NewRoutePage />);
+
+      expect(await screen.findByText(/couldn't check existing route codes/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/route id/i)).toHaveValue('');
+    });
+  });
 });

@@ -71,6 +71,8 @@ interface RouteFormProps {
   initialRouteCode?: string;
   /** The Route Code to suggest for a Placement Date, or '' for none yet. Followed until the administrator types a code of their own. */
   suggestRouteCode?: (placementDate: string) => string;
+  /** A warning or note to show under the Route ID for the code in the field. */
+  routeCodeFeedback?: (code: string) => { error?: React.ReactNode; hint?: React.ReactNode };
   onCancel: () => void;
   isSubmitting?: boolean;
   error?: string | null;
@@ -94,6 +96,7 @@ export function RouteForm({
   onSubmit,
   initialRouteCode = '',
   suggestRouteCode,
+  routeCodeFeedback,
   onCancel,
   isSubmitting,
   error,
@@ -320,7 +323,7 @@ export function RouteForm({
         )}
 
         <div className={styles.fieldsStack}>
-          <Field label="Route ID" htmlFor="routeCode" required>
+          <Field label="Route ID" htmlFor="routeCode" required {...routeCodeFeedback?.(routeCode)}>
             <Input
               id="routeCode"
               value={routeCode}

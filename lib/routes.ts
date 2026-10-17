@@ -10,7 +10,8 @@
  * loading), and the Sign Run writes -- updateRoute, updateRouteCustomerInstructions
  * and updateStopExecution -- keep the raw AppSync {data, errors}, since the Sign
  * Run outbox tells a write to retry from one the server refused by its errors;
- * so does createLoadStop, for the same reason.
+ * so does createLoadStop, for the same reason. A caller of these must check
+ * `errors` itself: they never throw, so an unchecked failure reads as saved.
  */
 
 import { getDataClient } from '@/lib/data-client';

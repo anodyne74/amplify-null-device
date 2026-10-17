@@ -20,6 +20,10 @@ _Avoid_: Short code, short URL
 A single trip assigned to an operator, made up of Stops, progressing through the Sign Run phases in order.
 _Avoid_: Job, trip. "Visit" means one Route at one Property, not the Route itself.
 
+**Route Code**:
+The human-readable reference for a Route, shown at the top of the Route and on its Route Sheet: a week, a year and a number, such as W41-26-003. It is suggested when the Route is created and an administrator can type a different one. It is not guaranteed unique.
+_Avoid_: Route ID, route number
+
 **Placement Date**:
 The day a Route is planned to run Load and Placement. One per Route, a date only, set by staff when the Route is scheduled. It is the plan, not when Placement actually started.
 _Avoid_: Scheduled date, run date

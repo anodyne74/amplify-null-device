@@ -18,7 +18,7 @@
  * saves. An administrator's removal and restore reuse the plans but save
  * straight away (lib/administratorRouteActions.ts).
  */
-import { getSignRunPhase } from './signRunPhase';
+import { getSignRunPhase, isRouteCompleted } from './signRunPhase';
 import { stopPropertyKey } from './propertyKey';
 import { stopProgress } from './stopProgress';
 import type { Route, Stop } from '../amplify/types';
@@ -111,7 +111,7 @@ export interface StopRestorePatch {
  * finalised, as its Billed Time and invoice are worked out from its Stops.
  */
 export function canRestoreRemovedStops(route: Pick<LoadChangeRoute, 'status'>): boolean {
-  return route.status !== 'completed' && route.status !== 'archived';
+  return !isRouteCompleted(route.status);
 }
 
 /**

@@ -96,6 +96,10 @@ _Avoid_: Export, audit PDF, property report
 A Property History Report's lifecycle: active for 30 days, then soft-deleted (hidden from the Customer, restorable by an administrator for a fresh 30 days), then hard-deleted at 60 days (PDF destroyed, record kept as a stub). A manual delete by an Account Owner is an early soft delete.
 _Avoid_: Expiry, archive (Route already uses "archived")
 
+**Completed Route**:
+A Route that has been Finalised. A Route with the legacy archived status reads as completed everywhere a Route's completion matters; a completed Route's Stops and Billed Time are settled.
+_Avoid_: Closed Route
+
 **Sign Run**:
 The phase flow a Route moves through: Load (signs collected from the customer, onto the van) → Placement (signs deployed) → Pickup (signs retrieved) → Unload (signs returned to the customer) → Finalise. A Route's completed phases are derived from which phase-completion timestamps are set. The **Working Phase** is the one phase the Operator is on now: it is stored, and moves on the moment the previous phase is confirmed, so between phases it runs one ahead of the last completed phase.
 _Avoid_: Delivery run, job flow. Also avoid calling the Load phase "signs collected" — that phrase is reserved for the Signs Collected metric below, a different phase and a different count.

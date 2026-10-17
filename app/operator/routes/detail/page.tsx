@@ -31,6 +31,7 @@ import type { MapTheme } from '@/lib/mapThemes';
 import { MAP_THEMES } from '@/lib/mapThemes';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { getSignRunPhase, isRouteCompleted } from '@/lib/signRunPhase';
+import { stopPhaseOf } from '@/lib/signRunTransitions';
 import { missingSigns, signsPlaced } from '@/lib/signRunTotals';
 import { parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import styles from './page.module.css';
@@ -116,7 +117,7 @@ function RouteDetailContent() {
   }, [user?.userId]);
 
   const planningLocked = route?.status !== 'planned';
-  const currentExecutionPhase = route?.executionPhase === 'pickup' ? 'pickup' : 'placement';
+  const currentExecutionPhase = (route && stopPhaseOf(route)) ?? 'placement';
   const routeDone = isRouteCompleted(route?.status);
   const visibleStops = (() => {
     if (!route) return stops;

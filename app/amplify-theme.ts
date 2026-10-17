@@ -59,6 +59,17 @@ export const amplifyTheme = createTheme({
   name: 'nulldevice',
   tokens: {
     colors: toAmplifyColorTokens('light'),
+    // Without this the theme wrapper sets Amplify's own Inter on everything
+    // inside it, so any text outside the nd-* components (which set their own
+    // font) rendered in Inter instead of the design system's Manrope. The
+    // variable lives in tokens.css; Amplify writes this value into a custom
+    // property on the wrapper, so it is read from :root when used.
+    fonts: {
+      default: {
+        variable: { value: 'var(--font-body)' },
+        static: { value: 'var(--font-body)' },
+      },
+    },
     radii: {
       small: { value: '6px' },
       medium: { value: '12px' },

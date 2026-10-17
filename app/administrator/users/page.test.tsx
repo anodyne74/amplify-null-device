@@ -244,6 +244,46 @@ describe('UsersAdminPage customer access actions', () => {
     expect(screen.queryByText('User updated.')).not.toBeInTheDocument();
   });
 
+  describe('promoting to primary contact', () => {
+    const promote = async () => {
+      mockListAllCustomerUsers.mockResolvedValue([
+        { id: 'cu-1', customerId: 'cust-1', userSub: 'sub-1', accountOwnerSub: 'sub-1', name: 'Read User', role: 'read_only' },
+      ] as any);
+      render(<UsersAdminPage />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Change role for Read User' }));
+      const dialog = screen.getByRole('dialog');
+      fireEvent.click(within(dialog).getByRole('radio', { name: /Primary contact/ }));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }));
+    };
+
+    it('syncs the customer access so the Customer record names the new owner', async () => {
+      await promote();
+
+      expect(await screen.findByText('User updated.')).toBeInTheDocument();
+      expect(mockCallApi).toHaveBeenCalledWith('/api/admin/sync-customer-access', { customerId: 'cust-1' });
+    });
+
+    it('says so when the sync fails after the promotion saved', async () => {
+      mockCallApi.mockImplementation(async (path: string) => {
+        if (path === '/api/admin/sync-customer-access') throw new ApiError('Access sync finished with 2 error(s).', 500);
+        return { users: [] };
+      });
+      await promote();
+
+      expect(await screen.findByText(/syncing the new owner's access failed.*Re-sync access/i)).toBeInTheDocument();
+      expect(screen.queryByText('User updated.')).not.toBeInTheDocument();
+    });
+
+    it('does not sync when only the name changes', async () => {
+      render(<UsersAdminPage />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Change role for Read User' }));
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save Changes' }));
+
+      await waitFor(() => expect(mockUpdateCustomerUser).toHaveBeenCalled());
+      expect(mockCallApi.mock.calls.filter(([path]) => path === '/api/admin/sync-customer-access')).toHaveLength(0);
+    });
+  });
+
   it('sorts the customer user list from a column header (#441)', async () => {
     mockListAllCustomerUsers.mockResolvedValue([
       { id: 'cu-1', customerId: 'cust-1', userSub: 'sub-1', accountOwnerSub: 'sub-owner', name: 'Zara User', email: 'zara@example.com', role: 'read_only' },

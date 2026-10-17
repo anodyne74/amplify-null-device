@@ -145,6 +145,33 @@ describe('syncCustomerAccess', () => {
     expect(models.CustomerUser.update).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'cu-read' }));
   });
 
+  it("restamps the customer's closure blocks with the current owner, and skips ones already current", async () => {
+    const tables = customerTables();
+    tables.CustomerClosureBlock = [
+      { id: 'ccb-old', customerId: 'c1', accountOwnerSub: 'sub-previous-owner', viewerSubs: ['sub-owner', 'sub-read'] },
+      { id: 'ccb-current', customerId: 'c1', accountOwnerSub: 'sub-owner', viewerSubs: ['sub-owner', 'sub-read'] },
+      { id: 'ccb-other', customerId: 'c2', accountOwnerSub: 'sub-previous-owner' },
+    ];
+    const { client, models } = fakeClient(tables);
+
+    await syncCustomerAccess(client, 'c1');
+
+    expect(tables.CustomerClosureBlock.map((row) => row.accountOwnerSub)).toEqual(['sub-owner', 'sub-owner', 'sub-previous-owner']);
+    expect(models.CustomerClosureBlock.update).toHaveBeenCalledTimes(1);
+    expect(models.CustomerClosureBlock.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'ccb-old', accountOwnerSub: 'sub-owner' }));
+  });
+
+  it("leaves a closure block's owner alone when no owner has signed in yet", async () => {
+    const tables = customerTables();
+    tables.CustomerUser = [{ id: 'cu-owner', customerId: 'c1', role: 'account_owner', userSub: 'pending:o@example.com' }];
+    tables.CustomerClosureBlock = [{ id: 'ccb1', customerId: 'c1', accountOwnerSub: 'sub-previous-owner', viewerSubs: [] }];
+    const { client } = fakeClient(tables);
+
+    await syncCustomerAccess(client, 'c1');
+
+    expect(tables.CustomerClosureBlock[0].accountOwnerSub).toBe('sub-previous-owner');
+  });
+
   it('leaves accountOwnerSub untouched when no owner has signed in yet', async () => {
     const tables = customerTables();
     tables.Customer[0].accountOwnerSub = 'sub-previous';

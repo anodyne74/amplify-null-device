@@ -6,7 +6,9 @@
  * Customer, `accountOwnerSub`) stamped on each record, because `customerId`
  * is a foreign key, not a Cognito sub, so ownerDefinedIn can't use it. Every
  * time CustomerUser membership changes, those stamps must be rewritten on
- * every record the customer owns, or users keep (or never gain) access.
+ * every record the customer owns, or users keep (or never gain) access. A
+ * Customer's closure blocks carry the owner's sub as well, restamped when the
+ * owner changes.
  *
  * The viewer list is derived here from the customer's CustomerUser rows —
  * callers don't compute it. `list` is eventually consistent, so a caller that
@@ -117,11 +119,17 @@ export async function syncCustomerAccess(
     errors.push(...listErrors);
   };
 
-  const stamp = async (model: AccessModel, rows: Array<{ id: string; viewerSubs?: (string | null)[] | null }>) => {
+  const stamp = async (
+    model: AccessModel,
+    rows: Array<{ id: string; viewerSubs?: (string | null)[] | null; accountOwnerSub?: string | null }>
+  ) => {
+    // A closure block carries its owner's sub too, so it follows a change of owner.
+    const followsOwner = model === 'CustomerClosureBlock' && accountOwnerSub !== undefined;
     for (const row of rows) {
-      if (hasViewers(row.viewerSubs, viewerSubs)) continue;
+      const ownerCurrent = !followsOwner || row.accountOwnerSub === accountOwnerSub;
+      if (hasViewers(row.viewerSubs, viewerSubs) && ownerCurrent) continue;
       if (outOfTime()) return;
-      await update(model, { id: row.id, viewerSubs });
+      await update(model, { id: row.id, viewerSubs, ...(followsOwner ? { accountOwnerSub } : {}) });
     }
   };
 

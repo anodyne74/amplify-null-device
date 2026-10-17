@@ -496,8 +496,15 @@ export default function UsersAdminPage() {
       })
     );
 
+    // The Customer record names its owner too, and the old owner keeps that access until it is restamped.
+    const sync = promotingToOwner ? await syncCustomerAccess(editTarget.customerId) : null;
+
     if (rekeyFailed) {
       setAccessError("User updated, but some of this customer's other users weren't moved to the new owner. Promote them again to retry.");
+    } else if (sync?.status === 'failed') {
+      setAccessError(`User updated, but syncing the new owner's access failed (${sync.message}). Use Re-sync access to retry.`);
+    } else if (sync?.status === 'incomplete') {
+      setAccessError("User updated, but syncing the new owner's access isn't finished. Use Re-sync access to finish it.");
     } else {
       setAccessSuccess('User updated.');
     }

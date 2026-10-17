@@ -1,10 +1,12 @@
 /**
- * Route Codes (see CONTEXT.md): `W{week}-{yy}-{nnn}`, e.g. W41-26-003. The week
- * is the week of the year counted in blocks of seven days from 1 January, of
- * the date two days earlier (so a Route made on a Monday or Tuesday still reads
- * as the previous week's), and the number is the first unused one in that week.
- * The one place that knows the format; the new Route page asks it for the next
- * code, and an administrator can still type a different one.
+ * Route Codes (see CONTEXT.md): `W{week}-{yy}-{nnn}`, e.g. W41-26-003. A Route's
+ * code comes from its Placement Date, not from the day it was created: the week
+ * is the Placement Date's day of the year counted in blocks of seven from
+ * 1 January (so 1-7 January is week 1), capped at 52, in the Placement Date's own
+ * year; the number is the first unused one in that week. So a Placement on 31
+ * December 2026 is W52-26 and one on 1 January 2027 is W01-27. The one place that
+ * knows the format; the new Route page asks it for the next code, and an
+ * administrator can still type a different one.
  *
  * Pure: it is given the codes already in use and says nothing about whether
  * they could be read. A code is not guaranteed unique -- nothing stores or
@@ -13,23 +15,32 @@
  */
 
 const DAY_MS = 86_400_000;
+const LAST_WEEK = 52;
+const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-/** `W{week}-{yy}` for the week a Route made on `date` belongs to (local time). */
-export function routeCodeWeekPrefix(date: Date = new Date()): string {
-  const shifted = new Date(date);
-  shifted.setDate(shifted.getDate() - 2);
+/** `W{week}-{yy}` for a Placement Date (`YYYY-MM-DD`), or null if it isn't one. */
+export function routeCodeWeekPrefix(placementDate: string): string | null {
+  const match = DATE.exec(placementDate);
+  if (!match) return null;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
 
-  const yearStart = new Date(shifted.getFullYear(), 0, 1);
-  const dayOfYear = Math.floor((shifted.getTime() - yearStart.getTime()) / DAY_MS) + 1;
-  const week = Math.floor((dayOfYear - 1) / 7) + 1;
-  const yy = String(shifted.getFullYear()).slice(-2);
+  const dayOfYear = (Date.UTC(year, month - 1, day) - Date.UTC(year, 0, 1)) / DAY_MS + 1;
+  const week = Math.min(LAST_WEEK, Math.floor((dayOfYear - 1) / 7) + 1);
 
-  return `W${String(week).padStart(2, '0')}-${yy}`;
+  return `W${String(week).padStart(2, '0')}-${String(year).slice(-2)}`;
 }
 
-/** The next Route Code for `date`: its week's first number not used by `existingCodes`. */
-export function nextRouteCode(existingCodes: ReadonlyArray<string | null | undefined>, date: Date = new Date()): string {
-  const prefix = routeCodeWeekPrefix(date);
+/**
+ * The next Route Code for a Placement Date: its week's first number not used by
+ * `existingCodes`. Null when the Placement Date isn't a date yet.
+ */
+export function nextRouteCode(
+  existingCodes: ReadonlyArray<string | null | undefined>,
+  placementDate: string
+): string | null {
+  const prefix = routeCodeWeekPrefix(placementDate);
+  if (!prefix) return null;
+
   const used = new Set<number>();
   for (const code of existingCodes) {
     if (!code || !code.startsWith(`${prefix}-`)) continue;

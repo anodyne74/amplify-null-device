@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
@@ -42,11 +42,6 @@ import {
 function todayDateKey() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
-
-async function generateNextRouteCode() {
-  const routes = await listAllRoutes().catch(() => null);
-  return nextRouteCode(routes ? (routes as Array<{ routeCode?: string | null }>).map((route) => route.routeCode) : []);
 }
 
 function sanitizeCopiedStopNotes(notes?: string | null) {
@@ -97,9 +92,10 @@ function NewRoutePageContent() {
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [manualRouteCode, setManualRouteCode] = useState('');
+  // Route Codes already in use: undefined until read, null if they couldn't be.
+  const [existingRouteCodes, setExistingRouteCodes] = useState<string[] | null | undefined>(undefined);
   const [importRouteCode, setImportRouteCode] = useState('');
-  const [routeCodeInitialized, setRouteCodeInitialized] = useState(false);
+  const [importRouteCodeTyped, setImportRouteCodeTyped] = useState(false);
   const [copyStopSources, setCopyStopSources] = useState<Array<{
     id: string;
     customerId: string;
@@ -158,20 +154,29 @@ function NewRoutePageContent() {
     });
 
   useEffect(() => {
-    if (routeCodeInitialized) return;
-
     let cancelled = false;
-    void generateNextRouteCode().then((code) => {
-      if (cancelled) return;
-      setManualRouteCode(code);
-      setImportRouteCode(code);
-      setRouteCodeInitialized(true);
-    });
-
+    void listAllRoutes().then(
+      (routes) => {
+        if (!cancelled) setExistingRouteCodes((routes as Array<{ routeCode?: string | null }>).map((route) => route.routeCode ?? ''));
+      },
+      () => {
+        if (!cancelled) setExistingRouteCodes(null);
+      }
+    );
     return () => {
       cancelled = true;
     };
-  }, [routeCodeInitialized]);
+  }, []);
+
+  // The code follows the Placement Date (lib/routeCode.ts), and nothing is suggested until the codes in use are known.
+  const suggestRouteCode = useCallback(
+    (placementDate: string) => (existingRouteCodes === undefined ? '' : (nextRouteCode(existingRouteCodes ?? [], placementDate) ?? '')),
+    [existingRouteCodes]
+  );
+
+  useEffect(() => {
+    if (!importRouteCodeTyped) setImportRouteCode(suggestRouteCode(importScheduledDate));
+  }, [suggestRouteCode, importScheduledDate, importRouteCodeTyped]);
 
   useEffect(() => {
     if (!fromRecordId) return;
@@ -694,7 +699,10 @@ function NewRoutePageContent() {
                     <Input
                       id="import-route-code"
                       value={importRouteCode}
-                      onChange={(e) => setImportRouteCode(e.target.value)}
+                      onChange={(e) => {
+                        setImportRouteCodeTyped(true);
+                        setImportRouteCode(e.target.value);
+                      }}
                       placeholder="e.g. W18-26-001"
                     />
                   </Field>
@@ -833,7 +841,7 @@ function NewRoutePageContent() {
             {activeTab === 'manual' && (
               <RouteForm
                 customers={customers}
-                initialRouteCode={manualRouteCode}
+                suggestRouteCode={suggestRouteCode}
                 onSubmit={handleSubmit}
                 onCancel={handleCancel}
                 isSubmitting={isSubmitting}

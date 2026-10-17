@@ -13,7 +13,7 @@ const RULES = [
   {
     rule: 'a completed Route',
     owner: path.join('lib', 'signRunPhase.ts'),
-    pattern: /=== 'completed' \|\| [\w.?]+ === 'archived'/,
+    pattern: /=== 'completed' \|\| [\w.?]+ === 'archived'|!== 'completed' && [\w.?]+ !== 'archived'/,
     use: 'isRouteCompleted()',
   },
 ];

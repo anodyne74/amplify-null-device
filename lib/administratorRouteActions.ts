@@ -21,6 +21,7 @@ import {
 } from '@/lib/billedTime';
 import { getDataClient } from '@/lib/data-client';
 import { isRemovedAtDoor, planStopRemoval, planStopRestore, type LoadChangeRoute } from '@/lib/loadChange';
+import { isRouteCompleted } from '@/lib/signRunPhase';
 import { stopProgress } from '@/lib/stopProgress';
 import { pickupDateProblem } from '@/lib/pickupDate';
 import { updateRoute, updateStopExecution } from '@/lib/routes';
@@ -227,7 +228,7 @@ export async function correctBilledTime(
   route: BilledTimeRoute & Pick<Route, 'id' | 'customerId' | 'status'>,
   correction: BilledTimeCorrection
 ): Promise<AdministratorActionResult> {
-  if (route.status !== 'completed' && route.status !== 'archived') {
+  if (!isRouteCompleted(route.status)) {
     return refused('Billed Time can only be corrected once the route is completed.');
   }
 

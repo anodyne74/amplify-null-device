@@ -16,6 +16,7 @@ import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { RouteForm, withDraftStopNote, type RouteDraftStop } from '@/app/operator/components/RouteForm';
 import { RequesterFields, RouteRequestView, localNow, recordTitle } from '@/app/administrator/components/RouteRequests';
 import { pickStopLocationFields } from '@/lib/locationPrecision';
+import { nextRouteCode } from '@/lib/routeCode';
 import { extractScheduleText } from '@/lib/extractScheduleText';
 import { parseScheduleText } from '@/lib/parseSchedule';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
@@ -43,37 +44,9 @@ function todayDateKey() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-function getExcelStyleWeekPrefix(date = new Date()) {
-  const shifted = new Date(date);
-  shifted.setDate(shifted.getDate() - 2);
-
-  const yearStart = new Date(shifted.getFullYear(), 0, 1);
-  const dayOfYear = Math.floor((shifted.getTime() - yearStart.getTime()) / 86400000) + 1;
-  const weekNum = Math.floor((dayOfYear - 1) / 7) + 1;
-  const yy = String(shifted.getFullYear()).slice(-2);
-
-  return `W${String(weekNum).padStart(2, '0')}-${yy}`;
-}
-
 async function generateNextRouteCode() {
-  const prefix = getExcelStyleWeekPrefix();
   const routes = await listAllRoutes().catch(() => null);
-  if (!routes) {
-    return `${prefix}-001`;
-  }
-
-  const used = new Set<number>();
-  (routes as Array<{ routeCode?: string | null }>).forEach((route) => {
-    const code = route.routeCode;
-    if (!code || !code.startsWith(`${prefix}-`)) return;
-    const match = code.match(/-(\d{3})$/);
-    if (!match) return;
-    used.add(Number(match[1]));
-  });
-
-  let next = 1;
-  while (used.has(next)) next += 1;
-  return `${prefix}-${String(next).padStart(3, '0')}`;
+  return nextRouteCode(routes ? (routes as Array<{ routeCode?: string | null }>).map((route) => route.routeCode) : []);
 }
 
 function sanitizeCopiedStopNotes(notes?: string | null) {

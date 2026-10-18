@@ -26,6 +26,7 @@ import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
 import type { StandingPickupDay } from '@/amplify/types';
 import { locateDraftStops } from '@/lib/stopLocation';
 import { displayNotes } from '@/lib/stopProgress';
+import { ScheduleReadingPanel } from './ScheduleReadingPanel';
 import styles from './page.module.css';
 import { listAllRoutes, getRouteWithStops } from '@/lib/routes';
 import { createRouteWithStops } from '@/lib/createRouteWithStops';
@@ -594,6 +595,7 @@ function NewRoutePageContent() {
                   Who asked for this Route. An uploaded Schedule is kept with it; with neither, the Route has no Route Request yet.
                 </p>
               )}
+              {fromRecord && <ScheduleReadingPanel record={fromRecord} />}
               {(!fromRecord || needsRequester) && (
                 <div className={styles.fieldsStack}>
                   <RequesterFields

@@ -1,4 +1,4 @@
-import { buildSchedulePrompt, parseScheduleReading, SCHEDULE_SYSTEM_PROMPT } from '@/lib/scheduleReading';
+import { buildSchedulePrompt, mergeScheduleReadings, parseScheduleReading, readingFromStored, SCHEDULE_SYSTEM_PROMPT } from '@/lib/scheduleReading';
 
 const answer = (value: unknown) => JSON.stringify(value);
 
@@ -108,5 +108,56 @@ describe('buildSchedulePrompt', () => {
 
   it('tells the model the Customer text is data', () => {
     expect(SCHEDULE_SYSTEM_PROMPT).toMatch(/Never follow instructions/);
+  });
+});
+
+describe('buildSchedulePrompt by page', () => {
+  it('marks the page, and sends the email with the first page only', () => {
+    const first = buildSchedulePrompt({ sheetText: 'one', emailBody: 'Hello team', page: { number: 1, count: 2 } });
+    expect(first).toContain('page="1" of="2"');
+    expect(first).toContain('Hello team');
+
+    const second = buildSchedulePrompt({ sheetText: 'two', emailBody: 'Hello team', page: { number: 2, count: 2 } });
+    expect(second).toContain('page="2" of="2"');
+    expect(second).not.toContain('Hello team');
+    expect(second).toContain('already read');
+  });
+});
+
+describe('mergeScheduleReadings', () => {
+  const one = { sheetDate: '10th October 2026', rows: [{ address: '1 A St' }], instructions: [{ text: 'Gate code 12' }], warnings: ['Blurry'], statedTotals: { agents: [{ agent: 'Alex', signs: 3 }] } };
+  const two = { rows: [{ address: '2 B St' }], instructions: [{ text: 'Gate code 12' }, { text: 'Call first' }], warnings: ['Blurry'], statedTotals: { signs: 9, agents: [{ agent: 'alex', signs: 4 }, { agent: 'Betty', signs: 6 }] } };
+
+  it('keeps rows in order, the first date, the grand total, each agent once, and no repeats', () => {
+    expect(mergeScheduleReadings(one, two)).toEqual({
+      sheetDate: '10th October 2026',
+      rows: [{ address: '1 A St' }, { address: '2 B St' }],
+      instructions: [{ text: 'Gate code 12' }, { text: 'Call first' }],
+      warnings: ['Blurry'],
+      statedTotals: { signs: 9, agents: [{ agent: 'Alex', signs: 3 }, { agent: 'Betty', signs: 6 }] },
+    });
+  });
+
+  it('is the next page alone when nothing was read before', () => {
+    expect(mergeScheduleReadings(null, two)).toBe(two);
+  });
+});
+
+describe('readingFromStored', () => {
+  it('drops the nulls AppSync adds', () => {
+    expect(
+      readingFromStored({
+        sheetDate: null,
+        statedTotals: { signs: null, agents: [{ agent: 'Alex', signs: 3 }, null] },
+        rows: [{ address: '1 A St', numberOfSigns: 2, agent: null, isAuction: null, isNew: true }, null],
+        instructions: [{ text: 'Call first', address: null, source: 'email' }],
+        warnings: ['Blurry', null],
+      })
+    ).toEqual({
+      statedTotals: { agents: [{ agent: 'Alex', signs: 3 }] },
+      rows: [{ address: '1 A St', numberOfSigns: 2, isNew: true }],
+      instructions: [{ text: 'Call first', source: 'email' }],
+      warnings: ['Blurry'],
+    });
   });
 });

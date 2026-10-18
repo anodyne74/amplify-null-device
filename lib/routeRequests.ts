@@ -308,9 +308,24 @@ export type ScheduleReading = NonNullable<RouteRequestRecord['scheduleReading']>
 /**
  * What the Schedule on a Route Request says, read by the server (ADR 0014): the stored reading if there
  * is one, otherwise a new one (a model call, which can take a while). A proposal only; no Route changes.
+ * The server reads a page a call, so this asks again until the whole sheet is read, telling `onProgress`
+ * after each page. A read left part way by an earlier failure or a reload carries on from where it stopped.
  */
-export async function readSchedule(requestId: string, options: { force?: boolean } = {}): Promise<ScheduleReading> {
-  return (await callApi<{ reading: ScheduleReading }>('/api/route-requests/read-schedule', { requestId, force: options.force === true })).reading;
+export async function readSchedule(
+  requestId: string,
+  options: { force?: boolean; onProgress?: (progress: { pagesRead: number; pageCount: number }) => void } = {}
+): Promise<ScheduleReading> {
+  let force = options.force === true;
+  let pagesRead = -1;
+  for (;;) {
+    const { reading } = await callApi<{ reading: ScheduleReading }>('/api/route-requests/read-schedule', { requestId, force });
+    const progress = reading.progress;
+    if (!progress) return reading;
+    if (progress.pagesRead <= pagesRead) throw new Error('Reading the Schedule is not moving on. Try again.');
+    pagesRead = progress.pagesRead;
+    options.onProgress?.({ pagesRead: progress.pagesRead, pageCount: progress.pageCount });
+    force = false;
+  }
 }
 
 /** One record, for New route to prefill from. */

@@ -34,7 +34,7 @@ jest.mock('@/lib/server/iamDataClient', () => ({
 const readFileMock = jest.fn();
 jest.mock('@/lib/server/reportStorage', () => ({ readRouteRequestFile: (key: string) => readFileMock(key) }));
 const pdfTextMock = jest.fn();
-jest.mock('@/lib/server/pdfLayoutText', () => ({ extractPdfLayoutText: (data: Uint8Array) => pdfTextMock(data) }));
+jest.mock('@/lib/server/pdfLayoutText', () => ({ extractPdfLayoutPages: (data: Uint8Array) => pdfTextMock(data) }));
 const askMock = jest.fn();
 jest.mock('@/lib/server/scheduleModel', () => ({ askScheduleModel: (input: unknown) => askMock(input) }));
 
@@ -72,7 +72,7 @@ describe('POST /api/route-requests/read-schedule', () => {
     });
     for (const mock of [updateMock, readFileMock, pdfTextMock, askMock]) mock.mockClear();
     readFileMock.mockResolvedValue(new Uint8Array([1]));
-    pdfTextMock.mockResolvedValue(SHEET);
+    pdfTextMock.mockResolvedValue([SHEET]);
     askMock.mockResolvedValue(MODEL_ANSWER);
     jest.spyOn(console, 'error').mockImplementation(() => {});
   });
@@ -114,8 +114,83 @@ describe('POST /api/route-requests/read-schedule', () => {
     expect(askMock).toHaveBeenCalledTimes(1);
   });
 
+  describe('a sheet of several pages', () => {
+    const PAGE_ONE = 'TIME  Total  PROPERTY  AGENT\n9:15  5  1 Example Street, Epping  Alex';
+    const PAGE_TWO = '10:00  2  7 Sample Road, Eastwood  Betty\nTotal 7';
+    const answer = (fields: object) => JSON.stringify({ rows: [], instructions: [], warnings: [], ...fields });
+
+    beforeEach(() => {
+      pdfTextMock.mockResolvedValue([PAGE_ONE, PAGE_TWO]);
+      askMock.mockReset();
+      askMock
+        .mockResolvedValueOnce(answer({ sheetDate: '10th October 2026', rows: [{ address: '1 Example Street, Epping', numberOfSigns: 5, agent: 'Alex' }], instructions: [{ text: 'Use the side street', source: 'email' }] }))
+        .mockResolvedValueOnce(answer({ rows: [{ address: '7 Sample Road, Eastwood', numberOfSigns: 2, agent: 'Betty' }], statedTotals: { signs: 7, agents: [] } }));
+    });
+
+    it('reads one page a call, storing the rows so far with how far it got', async () => {
+      const first = await call(ADMIN, { requestId: 'ses-msg-1' });
+
+      expect(first.status).toBe(200);
+      expect(askMock).toHaveBeenCalledTimes(1);
+      expect(askMock.mock.calls[0][0].prompt).toContain(PAGE_ONE);
+      expect(askMock.mock.calls[0][0].prompt).not.toContain(PAGE_TWO);
+      expect(askMock.mock.calls[0][0].prompt).toContain('page="1" of="2"');
+      expect(first.body.reading.progress).toEqual({ pagesRead: 1, pageCount: 2 });
+      expect(first.body.reading.rows).toHaveLength(1);
+      expect(records[0].scheduleReading.progress).toEqual({ pagesRead: 1, pageCount: 2 });
+    });
+
+    it('carries on from the stored pages when asked again, and finishes with no progress', async () => {
+      await call(ADMIN, { requestId: 'ses-msg-1' });
+      const second = await call(ADMIN, { requestId: 'ses-msg-1' });
+
+      expect(second.body.cached).toBe(false);
+      expect(askMock).toHaveBeenCalledTimes(2);
+      expect(askMock.mock.calls[1][0].prompt).toContain(PAGE_TWO);
+      expect(askMock.mock.calls[1][0].prompt).toContain('page="2" of="2"');
+      expect(askMock.mock.calls[1][0].prompt).not.toContain('Schedule attached');
+      expect(second.body.reading.progress).toBeUndefined();
+      expect(second.body.reading.sheetDate).toBe('10th October 2026');
+      expect(second.body.reading.rows.map((row: { address: string }) => row.address)).toEqual(['1 Example Street, Epping', '7 Sample Road, Eastwood']);
+      expect(second.body.reading.instructions).toEqual([{ text: 'Use the side street', source: 'email' }]);
+      expect(second.body.reading.statedTotals.signs).toBe(7);
+
+      // A finished reading is returned as it is.
+      askMock.mockClear();
+      expect((await call(ADMIN, { requestId: 'ses-msg-1' })).body.cached).toBe(true);
+      expect(askMock).not.toHaveBeenCalled();
+    });
+
+    it('keeps the pages read when a later page fails, and retries that page', async () => {
+      await call(ADMIN, { requestId: 'ses-msg-1' });
+      askMock.mockReset();
+      askMock.mockRejectedValueOnce(new Error('The model ran out of room')).mockResolvedValueOnce(answer({ rows: [{ address: '7 Sample Road, Eastwood' }] }));
+
+      expect((await call(ADMIN, { requestId: 'ses-msg-1' })).status).toBe(502);
+      expect(records[0].scheduleReading.progress).toEqual({ pagesRead: 1, pageCount: 2 });
+
+      const retry = await call(ADMIN, { requestId: 'ses-msg-1' });
+      expect(retry.body.reading.rows).toHaveLength(2);
+      expect(askMock.mock.calls[1][0].prompt).toContain(PAGE_TWO);
+    });
+
+    it('starts over when forced, or when the stored pages are of a different file', async () => {
+      await call(ADMIN, { requestId: 'ses-msg-1' });
+      askMock.mockClear();
+      askMock.mockResolvedValue(answer({ rows: [{ address: '1 Example Street, Epping' }] }));
+
+      const forced = await call(ADMIN, { requestId: 'ses-msg-1', force: true });
+      expect(askMock.mock.calls[0][0].prompt).toContain(PAGE_ONE);
+      expect(forced.body.reading.progress).toEqual({ pagesRead: 1, pageCount: 2 });
+
+      pdfTextMock.mockResolvedValue([PAGE_ONE, PAGE_TWO, 'page three']);
+      await call(ADMIN, { requestId: 'ses-msg-1' });
+      expect(askMock.mock.calls[1][0].prompt).toContain(PAGE_ONE);
+    });
+  });
+
   it('does not send a scan to the model', async () => {
-    pdfTextMock.mockResolvedValue('');
+    pdfTextMock.mockResolvedValue([]);
     const { status, body } = await call(ADMIN, { requestId: 'ses-msg-1' });
     expect(status).toBe(422);
     expect(body.error).toMatch(/no text to read/);

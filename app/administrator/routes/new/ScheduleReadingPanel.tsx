@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
 import { totalsWarnings } from '@/lib/scheduleTotals';
@@ -20,28 +20,43 @@ export function ScheduleReadingPanel({
   /** Told the reading now showing (null for none), so the page can compare it with the copied Stops. */
   onReading?: (reading: ScheduleReading | null) => void;
 }) {
-  const [reading, setReading] = useState<ScheduleReading | null>(record.scheduleReading ?? null);
+  // Rows stored part way through a read are not a reading yet; reading carries on from them.
+  const unfinished = Boolean(record.scheduleReading?.progress);
+  const [reading, setReading] = useState<ScheduleReading | null>(unfinished ? null : (record.scheduleReading ?? null));
   const [isReading, setIsReading] = useState(false);
+  const [progress, setProgress] = useState<{ pagesRead: number; pageCount: number } | null>(record.scheduleReading?.progress ?? null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     onReading?.(reading);
   }, [reading, onReading]);
 
-  if (!reading && scheduleAttachmentIndex(record.attachments) === null) return null;
+  const read = useCallback(
+    async (force: boolean) => {
+      setIsReading(true);
+      setError(null);
+      try {
+        setReading(await readSchedule(record.id, { force, onProgress: setProgress }));
+        setProgress(null);
+      } catch (err) {
+        console.error('Reading the Schedule failed:', err);
+        setError(err instanceof Error ? err.message : 'Could not read the Schedule.');
+      } finally {
+        setIsReading(false);
+      }
+    },
+    [record.id]
+  );
 
-  const read = async (force: boolean) => {
-    setIsReading(true);
-    setError(null);
-    try {
-      setReading(await readSchedule(record.id, { force }));
-    } catch (err) {
-      console.error('Reading the Schedule failed:', err);
-      setError(err instanceof Error ? err.message : 'Could not read the Schedule.');
-    } finally {
-      setIsReading(false);
-    }
-  };
+  // A reload part way through a read picks the same read up from its stored pages.
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (!unfinished || resumed.current) return;
+    resumed.current = true;
+    void read(false);
+  }, [unfinished, read]);
+
+  if (!reading && !unfinished && scheduleAttachmentIndex(record.attachments) === null) return null;
 
   const rows = (reading?.rows ?? []).filter((row): row is NonNullable<typeof row> => Boolean(row));
 
@@ -56,6 +71,10 @@ export function ScheduleReadingPanel({
       <p className={styles.hint}>
         A proposal read from the attached Schedule. It changes nothing on the Route; check it against the file.
       </p>
+
+      {isReading && progress && (
+        <p className={styles.hint} role="status">Read {progress.pagesRead} of {progress.pageCount} pages…</p>
+      )}
 
       {error && <div className={styles.error} role="alert">{error}</div>}
 

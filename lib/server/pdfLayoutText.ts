@@ -1,13 +1,13 @@
 import { layoutText, type PositionedText } from '@/lib/pdfLayoutText';
 
 /**
- * The text of a PDF with its page layout kept (lib/pdfLayoutText.ts), pages
- * separated by a blank line. Empty when the PDF has no text layer, a scan or
+ * The text of each page of a PDF with its page layout kept (lib/pdfLayoutText.ts),
+ * leaving out pages with no text. Empty when the PDF has no text layer, a scan or
  * pictures of a sheet, which the caller must not send to the model as if read.
  * pdfjs-dist is listed in serverExternalPackages (next.config.js) so it loads
  * its own worker file in Node instead of being bundled.
  */
-export async function extractPdfLayoutText(data: Uint8Array): Promise<string> {
+export async function extractPdfLayoutPages(data: Uint8Array): Promise<string[]> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const task = pdfjs.getDocument({ data, useSystemFonts: true });
   const document = await task.promise;
@@ -23,8 +23,13 @@ export async function extractPdfLayoutText(data: Uint8Array): Promise<string> {
       const pageText = layoutText(positioned);
       if (pageText) pages.push(pageText);
     }
-    return pages.join('\n\n');
+    return pages;
   } finally {
     await task.destroy();
   }
+}
+
+/** The pages of `extractPdfLayoutPages`, separated by a blank line. */
+export async function extractPdfLayoutText(data: Uint8Array): Promise<string> {
+  return (await extractPdfLayoutPages(data)).join('\n\n');
 }

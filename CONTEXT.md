@@ -41,8 +41,12 @@ A Customer's email asking for one Route to be created and scheduled, usually wit
 _Avoid_: Booking, order, job request
 
 **Schedule**:
-A file a Customer sends listing the Properties for a Route, usually a spreadsheet saved as PDF. It is kept exactly as received and never edited; the Route's Stops are what gets changed.
+A file a Customer sends listing the Properties for a Route, usually a spreadsheet saved as PDF. Its layout changes from week to week. It is kept exactly as received and never edited; the Route's Stops are what gets changed, and only by an administrator, who may be helped by a Schedule Diff.
 _Avoid_: Property list, run sheet, job sheet
+
+**Schedule Diff**:
+The changes a Route Request's Schedule and email imply for a Route copied from the Customer's previous one: Properties to add, Properties to drop, and changes to a Stop's agent, number of signs or notes, plus any instructions for the Route. It is only a proposal, kept with the Route Request: nothing reaches the Route until an administrator accepts each line. It also warns when the Schedule's own totals don't match what was read.
+_Avoid_: Import, auto-fill, parsed Schedule. Dropped Properties are "dropped", never "removed" (see Removed Stop).
 
 **Route Sheet**:
 A printable page of one Route for administrators to hand to the Operator: the Route's reference, Customer, Operator, Placement Date and Pickup Date, the Route's notes and the Customer's instructions, then its Stops in their current order, each with its agent, an auction mark, its notes, its number of signs and blank Place and Pickup boxes to tick by hand. Removed Stops are left out. It ends with blank Start/End boxes for Load, Placement, Pickup and Unload, the Signs Placed total, and the Route Estimate's distance when it is current. Staff only, for writing on, so it never shows recorded times and nothing written on it is saved.

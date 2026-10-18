@@ -19,7 +19,8 @@ export type AskScheduleModelInput = {
   maxTokens?: number;
 };
 
-export async function askScheduleModel({ system, prompt, maxTokens = 4096 }: AskScheduleModelInput): Promise<string> {
+// maxTokens also pays for the model's thinking, which is on by default, so leave room beyond the answer itself.
+export async function askScheduleModel({ system, prompt, maxTokens = 8192 }: AskScheduleModelInput): Promise<string> {
   const modelId = process.env.BEDROCK_SCHEDULE_MODEL_ID;
   if (!modelId) throw new Error('BEDROCK_SCHEDULE_MODEL_ID is not set');
 
@@ -28,8 +29,8 @@ export async function askScheduleModel({ system, prompt, maxTokens = 4096 }: Ask
       modelId,
       system: [{ text: system }],
       messages: [{ role: 'user', content: [{ text: prompt }] }],
-      // Reading a sheet is transcription, not writing: no randomness wanted.
-      inferenceConfig: { maxTokens, temperature: 0 },
+      // No temperature: the Claude 5 models reject non-default sampling values (400).
+      inferenceConfig: { maxTokens },
     })
   );
 

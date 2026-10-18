@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const answer = await askScheduleModel({
       system: 'You answer with exactly one word and nothing else.',
       prompt: 'Reply with the word OK.',
-      maxTokens: 16,
+      maxTokens: 1024, // thinking counts against it; the answer itself is one word
     });
     return NextResponse.json({ ok: true, answer: answer.trim(), modelId: process.env.BEDROCK_SCHEDULE_MODEL_ID });
   } catch (err) {

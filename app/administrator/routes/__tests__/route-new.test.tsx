@@ -166,7 +166,7 @@ describe('NewRoutePage Route Request', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
 
       const panel = await screen.findByRole('region', { name: 'Schedule Diff' });
-      expect(panel).toHaveTextContent('1 to add, 1 to drop, 0 to check, 1 unchanged.');
+      expect(panel).toHaveTextContent('1 to add, 1 to drop, 0 to change, 0 to check, 1 unchanged.');
       expect(panel).toHaveTextContent('31 Hazel Road Riverbend');
       expect(panel).toHaveTextContent('15 Grove Crescent, Hillview');
       expect(screen.getByRole('button', { name: 'Create Route (2 stops)' })).toBeInTheDocument();
@@ -227,6 +227,86 @@ describe('NewRoutePage Route Request', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Create Route (2 stops)' }));
       await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
       expect((createStopsForRoute as jest.Mock).mock.calls[0][2][1]).toMatchObject({ address: '15 Grove Crescent, Hillview', notes: 'Side gate' });
+    });
+
+    describe('Change lines', () => {
+      const withRows = (rows: object[], stops: object[]) => {
+        (getRouteWithStops as jest.Mock).mockResolvedValue({ stops });
+        (getRouteRequest as jest.Mock).mockResolvedValue({ ...EMAIL, scheduleReading: { ...READING, rows } });
+      };
+      const stopAt = (address: string, number: string, street: string, extra: object = {}) => ({
+        address,
+        addressStreetNumber: number,
+        addressStreet: street,
+        addressSuburb: 'Hillview',
+        ...extra,
+      });
+      const open = async () => {
+        render(<NewRoutePage />);
+        await waitFor(() => expect(screen.getByLabelText('Customer')).toHaveValue('c2'));
+        fireEvent.change(await screen.findByLabelText('Copy Stops From Previous Route'), { target: { value: 'old-route' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
+        await screen.findByRole('region', { name: 'Schedule Diff' });
+      };
+      const created = () => (createStopsForRoute as jest.Mock).mock.calls[0][2];
+
+      it('proposes nothing for an agent written differently from the Route’s, and changes only the field accepted', async () => {
+        withRows(
+          [
+            { address: '12 Alder Street, Hillview', agent: 'AJ', numberOfSigns: 3 },
+            { address: '15 Grove Crescent, Hillview', agent: 'Dana', numberOfSigns: 5 },
+          ],
+          [
+            stopAt('12 Alder Street, Hillview', '12', 'Alder Street', { agent: 'Alex', numberOfSigns: 5, notes: 'Side gate' }),
+            stopAt('15 Grove Crescent, Hillview', '15', 'Grove Crescent', { agent: 'Blake', numberOfSigns: 5 }),
+          ]
+        );
+        await open();
+
+        // 12 Alder: AJ is Alex, so only the signs differ. 15 Grove: Dana is a new agent.
+        expect(screen.queryByRole('button', { name: /Accept: change agent of 12 Alder/ })).not.toBeInTheDocument();
+        expect(screen.getByText('New agent')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Accept: change signs of 12 Alder Street, Hillview' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Create Route (2 stops)' }));
+        await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
+
+        expect(created()[0]).toMatchObject({ address: '12 Alder Street, Hillview', numberOfSigns: 3, agent: 'Alex', notes: 'Side gate' });
+        expect(created()[1]).toMatchObject({ address: '15 Grove Crescent, Hillview', numberOfSigns: 5, agent: 'Blake' });
+      });
+
+      it('takes an accepted change back to what the copy had, and gives an Add the Route’s spelling of its agent', async () => {
+        withRows(
+          [
+            { address: '12 Alder Street, Hillview', agent: 'Blake' },
+            { address: '31 Hazel Road Riverbend', agent: 'AJ', isPreview: true, numberOfSigns: 1 },
+          ],
+          [stopAt('12 Alder Street, Hillview', '12', 'Alder Street', { agent: 'Alex' })]
+        );
+        await open();
+        fireEvent.click(screen.getByRole('button', { name: 'Accept: change agent of 12 Alder Street, Hillview' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Reject: change agent of 12 Alder Street, Hillview' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Accept: add 31 Hazel Road Riverbend' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Create Route (2 stops)' }));
+        await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
+
+        expect(created()[0]).toMatchObject({ address: '12 Alder Street, Hillview', agent: 'Alex' });
+        expect(created()[1]).toMatchObject({ address: '31 Hazel Road Riverbend', agent: 'Alex', numberOfSigns: 1, notes: 'Preview' });
+      });
+
+      it('adds a Preview to the note as it now stands, and the auction mark', async () => {
+        withRows(
+          [{ address: '12 Alder Street, Hillview', isPreview: true, isAuction: true }],
+          [stopAt('12 Alder Street, Hillview', '12', 'Alder Street', { agent: 'Alex', notes: 'Side gate' })]
+        );
+        await open();
+        fireEvent.change(screen.getByLabelText('Notes for stop 1, 12 Alder Street, Hillview'), { target: { value: 'Side gate, ring bell' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Accept all changes' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Create Route (1 stops)' }));
+        await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
+
+        expect(created()[0]).toMatchObject({ notes: 'Side gate, ring bell; Preview', isAuction: true });
+      });
     });
 
     it('does not add a row that cannot be found on the map without a suburb, and says so', async () => {

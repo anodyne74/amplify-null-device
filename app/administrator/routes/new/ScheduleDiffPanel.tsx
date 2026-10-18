@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
 import type { ScheduleReading } from '@/lib/routeRequests';
+import { agentVocabulary, fieldChanges, matchAgent, type ChangeField, type ChangeStop, type FieldChange } from '@/lib/scheduleChanges';
 import { scheduleDiff, type DiffStop } from '@/lib/scheduleDiff';
 import styles from './ScheduleDiffPanel.module.css';
 
@@ -11,10 +12,28 @@ type Row = NonNullable<NonNullable<ScheduleReading['rows']>[number]>;
 
 export type DiffDecision = 'accepted' | 'rejected';
 
-/** One Add or Drop line: `index` is its row's position in the reading (Add) or the Stop's position in the copy (Drop). */
-export type DiffLine = { kind: 'add' | 'drop'; index: number };
+/**
+ * One line of the Diff. `index` is its row's position in the reading (Add), or the Stop's position in
+ * the copy (Drop, Change); a Change is for one `field` of that Stop.
+ */
+export type DiffLine = { kind: 'add' | 'drop'; index: number; field?: undefined } | { kind: 'change'; index: number; field: ChangeField };
 
-export const lineKey = ({ kind, index }: DiffLine) => `${kind}:${index}`;
+export const lineKey = (line: DiffLine) => (line.kind === 'change' ? `change:${line.index}:${line.field}` : `${line.kind}:${line.index}`);
+
+const FIELD_LABELS: Record<ChangeField, string> = { agent: 'agent', numberOfSigns: 'signs', isAuction: 'auction', notes: 'notes' };
+
+function describe(change: FieldChange): string {
+  switch (change.field) {
+    case 'agent':
+      return `${change.from ?? 'no agent'} → ${change.to}`;
+    case 'numberOfSigns':
+      return `${change.from ?? 'none'} → ${change.to}`;
+    case 'isAuction':
+      return change.to ? 'not an auction → auction' : 'auction → not an auction';
+    case 'notes':
+      return change.from ? `"${change.from}" → "${change.to}"` : `add "${change.to}"`;
+  }
+}
 
 /**
  * The Schedule Diff (ADR 0014): what the Schedule reading says against the Stops
@@ -32,7 +51,7 @@ export function ScheduleDiffPanel({
 }: {
   reading: ScheduleReading;
   /** The Stops as copied, not as edited since. */
-  stops: DiffStop[];
+  stops: Array<DiffStop & ChangeStop>;
   decisions: Record<string, DiffDecision>;
   /** Keys of lines being applied (an Add is found on the map first). */
   busy: ReadonlySet<string>;
@@ -40,7 +59,21 @@ export function ScheduleDiffPanel({
 }) {
   const rows = useMemo(() => (reading.rows ?? []).filter((row): row is Row => Boolean(row)), [reading]);
   const diff = useMemo(() => scheduleDiff(rows, stops), [rows, stops]);
+  const vocabulary = useMemo(() => agentVocabulary(stops), [stops]);
   const unitChanges = diff.matched.filter(({ unitDiffers }) => unitDiffers);
+  const changes = useMemo(
+    () =>
+      diff.matched.flatMap(({ row, stop }) =>
+        fieldChanges(row, stop, vocabulary).map((change) => ({
+          stop,
+          change,
+          line: { kind: 'change', index: stops.indexOf(stop), field: change.field } as DiffLine,
+        }))
+      ),
+    [diff, stops, vocabulary]
+  );
+  const changedStops = new Set(changes.map(({ stop }) => stop));
+  const unchanged = diff.matched.filter(({ stop, unitDiffers }) => !unitDiffers && !changedStops.has(stop)).length;
 
   const adds = diff.adds.map((row) => ({ row, line: { kind: 'add', index: rows.indexOf(row) } as DiffLine }));
   const drops = diff.drops.map((stop) => ({ stop, line: { kind: 'drop', index: stops.indexOf(stop) } as DiffLine }));
@@ -87,8 +120,8 @@ export function ScheduleDiffPanel({
     <section className={styles.panel} aria-label="Schedule Diff">
       <strong>Changes the Schedule suggests</strong>
       <p className={styles.summary}>
-        {adds.length} to add, {drops.length} to drop, {diff.ambiguous.length} to check,{' '}
-        {diff.matched.length - unitChanges.length} unchanged. Accept the ones you want; nothing reaches the Route until you create it.
+        {adds.length} to add, {drops.length} to drop, {changedStops.size} to change, {diff.ambiguous.length} to check,{' '}
+        {unchanged} unchanged. Accept the ones you want; nothing reaches the Route until you create it.
       </p>
 
       {adds.length > 0 && (
@@ -100,7 +133,9 @@ export function ScheduleDiffPanel({
                 <span>
                   {row.address}
                   {row.numberOfSigns != null && ` · ${row.numberOfSigns} signs`}
-                  {row.agent && ` · ${row.agent}`} {row.isAuction && <Badge size="sm" tone="warning">Auction</Badge>}
+                  {row.agent && ` · ${matchAgent(row.agent, vocabulary).agent}`}
+                  {row.agent && matchAgent(row.agent, vocabulary).newAgent && <span className={styles.reason}> (new agent)</span>}{' '}
+                  {row.isAuction && <Badge size="sm" tone="warning">Auction</Badge>}
                 </span>
                 {buttons(line, `add ${row.address}`)}
               </li>
@@ -117,6 +152,23 @@ export function ScheduleDiffPanel({
               <li key={lineKey(line)} className={styles.line}>
                 <span>{stop.address}</span>
                 {buttons(line, `drop ${stop.address}`)}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {changes.length > 0 && (
+        <>
+          <h4 className={styles.heading}>Change {acceptAll(changes, 'Accept all changes')}</h4>
+          <ul className={styles.list}>
+            {changes.map(({ stop, change, line }) => (
+              <li key={lineKey(line)} className={styles.line}>
+                <span>
+                  {stop.address} <span className={styles.reason}>{FIELD_LABELS[change.field]}: {describe(change)}</span>
+                  {change.field === 'agent' && change.newAgent && <Badge size="sm" tone="warning">New agent</Badge>}
+                </span>
+                {buttons(line, `change ${FIELD_LABELS[change.field]} of ${stop.address}`)}
               </li>
             ))}
           </ul>

@@ -35,7 +35,7 @@ describe('ScheduleDiffPanel', () => {
       />
     );
 
-    expect(screen.getByText(/1 to add, 1 to drop, 0 to change, 1 to check, 1 unchanged\./)).toBeInTheDocument();
+    expect(screen.getByText(/1 to add, 1 to drop, 0 to change, 0 instructions, 1 to check, 1 unchanged\./)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /^Add/ })).toBeInTheDocument();
     expect(screen.getByText(/31 Hazel Road Riverbend · 5 signs · Alex/)).toBeInTheDocument();
     expect(screen.getByText('Auction')).toBeInTheDocument();
@@ -50,7 +50,7 @@ describe('ScheduleDiffPanel', () => {
     render(
       <ScheduleDiffPanel {...NO_DECISIONS} reading={reading({ address: '12 Alder Street, Hillview' })} stops={[stop('12 Alder Street, Hillview', '12', 'Alder Street', 'Hillview')]} />
     );
-    expect(screen.getByText(/0 to add, 0 to drop, 0 to change, 0 to check, 1 unchanged\. Accept the ones you want; nothing reaches the Route until you create it/)).toBeInTheDocument();
+    expect(screen.getByText(/0 to add, 0 to drop, 0 to change, 0 instructions, 0 to check, 1 unchanged\. Accept the ones you want; nothing reaches the Route until you create it/)).toBeInTheDocument();
     expect(screen.queryByRole('heading')).not.toBeInTheDocument();
   });
 
@@ -157,6 +157,57 @@ describe('ScheduleDiffPanel', () => {
     it('shows an Add’s agent as the Route spells it', () => {
       render(<ScheduleDiffPanel {...props} reading={reading({ address: '31 Hazel Road Riverbend', agent: 'AJ' })} />);
       expect(screen.getByText(/31 Hazel Road Riverbend · Alex/)).toBeInTheDocument();
+    });
+  });
+
+  describe('Instructions', () => {
+    const ALDER = { ...stop('12 Alder Street, Hillview', '12', 'Alder Street', 'Hillview'), notes: 'Side gate' };
+    const withInstructions = (instructions: object[]) => ({ ...reading({ address: '12 Alder Street, Hillview' }), instructions });
+    const props = { ...NO_DECISIONS, stops: [ALDER] };
+
+    it('lists an instruction in the customer’s words with where it goes and what is there now', () => {
+      render(<ScheduleDiffPanel {...props} reading={withInstructions([{ text: 'Ring the bell first', address: '12 Alder St, Hillview', source: 'email' }])} />);
+      expect(screen.getByText('For 12 Alder Street, Hillview:')).toBeInTheDocument();
+      expect(screen.getByText(/Ring the bell first/)).toBeInTheDocument();
+      expect(screen.getByText(/from the email/)).toBeInTheDocument();
+      expect(screen.getByText(/Stop.s note now: .Side gate./)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Accept: instruction 1' }));
+      expect(props.onDecide).toHaveBeenLastCalledWith([{ kind: 'instruction', index: 0 }], 'accepted');
+    });
+
+    it('shows no section at all when there are no instructions, or an older reading has none', () => {
+      const { rerender } = render(<ScheduleDiffPanel {...props} reading={withInstructions([])} />);
+      expect(screen.queryByRole('heading', { name: /^Instructions/ })).not.toBeInTheDocument();
+      rerender(<ScheduleDiffPanel {...props} reading={reading({ address: '12 Alder Street, Hillview' })} />);
+      expect(screen.queryByRole('heading', { name: /^Instructions/ })).not.toBeInTheDocument();
+    });
+
+    it('leaves out what is already said, and offers no button for what has nowhere to go', () => {
+      render(
+        <ScheduleDiffPanel
+          {...props}
+          standingInstructions="Call the office on arrival"
+          reading={withInstructions([
+            { text: 'side gate', address: '12 Alder Street, Hillview' },
+            { text: 'Call the office on arrival' },
+            { text: 'Mind the dog', address: '99 Nowhere Road, Hillview' },
+          ])}
+        />
+      );
+      expect(screen.queryByText(/side gate/i, { selector: 'span' })).not.toBeInTheDocument();
+      expect(screen.getByText(/No Stop at that address on the Route yet/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^(Accept|Reject): instruction/ })).not.toBeInTheDocument();
+    });
+
+    it('accepts all the instructions that have somewhere to go', () => {
+      render(
+        <ScheduleDiffPanel
+          {...props}
+          reading={withInstructions([{ text: 'A', address: '12 Alder Street, Hillview' }, { text: 'B' }, { text: 'C', address: '99 Nowhere Road, Hillview' }])}
+        />
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Accept all instructions' }));
+      expect(props.onDecide).toHaveBeenCalledWith([{ kind: 'instruction', index: 0 }, { kind: 'instruction', index: 1 }], 'accepted');
     });
   });
 });

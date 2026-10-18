@@ -28,6 +28,8 @@ import { locateDraftStops } from '@/lib/stopLocation';
 import { displayNotes } from '@/lib/stopProgress';
 import { scheduleDiff } from '@/lib/scheduleDiff';
 import { ScheduleDiffPanel, lineKey, type DiffDecision, type DiffLine } from './ScheduleDiffPanel';
+import { addToNote, instructionLines, removeFromNote } from '@/lib/scheduleInstructions';
+import { appendRouteInstruction } from '@/lib/routeInstructions';
 import { agentVocabulary, fieldChanges, matchAgent, withPreviewNote } from '@/lib/scheduleChanges';
 import { addToDraft, dropFromDraft, removeAddFromDraft, restoreToDraft, type DraftMarks } from '@/lib/scheduleDiffDraft';
 import { ScheduleReadingPanel } from './ScheduleReadingPanel';
@@ -139,6 +141,7 @@ function NewRoutePageContent() {
   const [copyingImportStops, setCopyingImportStops] = useState(false);
   // The Stops as copied, which the Schedule Diff compares with; the draft changes as its lines are accepted.
   const [copiedStops, setCopiedStops] = useState<RouteDraftStop[] | null>(null);
+  const importDraftStopsRef = useRef<DraftStop[] | null>(null);
   const [diffDecisions, setDiffDecisions] = useState<Record<string, DiffDecision>>({});
   const [diffBusy, setDiffBusy] = useState<ReadonlySet<string>>(new Set());
   const diffDecisionsRef = useRef<Record<string, DiffDecision>>({});
@@ -146,6 +149,9 @@ function NewRoutePageContent() {
   const droppedStopsRef = useRef(new Map<number, DraftStop>());
   // Bumped whenever the copy is replaced, so an Add still being found on the map is dropped.
   const diffRunRef = useRef(0);
+  // Route-wide instructions accepted, by their position in the reading, and where each Stop instruction went, for taking it back.
+  const [acceptedRouteInstructions, setAcceptedRouteInstructions] = useState<Record<number, string>>({});
+  const instructionStopsRef = useRef(new Map<number, { copiedFrom?: number; fromRow?: number }>());
   const [parseWarnings, setParseWarnings] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -510,6 +516,8 @@ function NewRoutePageContent() {
     setDiffDecisions({});
     setDiffBusy(new Set());
     droppedStopsRef.current.clear();
+    instructionStopsRef.current.clear();
+    setAcceptedRouteInstructions({});
   }
 
   const setDiffDecision = (key: string, decision: DiffDecision) => {
@@ -543,7 +551,40 @@ function NewRoutePageContent() {
       const previous = diffDecisionsRef.current[key];
       if (previous === decision) continue;
 
-      if (line.kind === 'change') {
+      if (line.kind === 'instruction') {
+        const instruction = scheduleReading?.instructions?.[line.index];
+        if (!instruction) continue;
+        const text = instruction.text;
+        if (decision === 'accepted') {
+          if (!instruction.address) {
+            setAcceptedRouteInstructions((current) => ({ ...current, [line.index]: text }));
+          } else {
+            // Placed against the draft as it is now, so an Add accepted a moment ago counts.
+            const placed = instructionLines([{ text, address: instruction.address }], importDraftStopsRef.current ?? [], null)[0];
+            if (placed.target.kind !== 'stop') continue;
+            const target = importDraftStopsRef.current![placed.target.draftIndex];
+            instructionStopsRef.current.set(line.index, { copiedFrom: target.copiedFrom, fromRow: target.fromRow });
+            setImportDraftStops((draft) =>
+              draft ? draft.map((stop) => (stop === target ? { ...stop, notes: addToNote(stop.notes, text) } : stop)) : draft
+            );
+          }
+        } else if (previous === 'accepted') {
+          if (!instruction.address) {
+            setAcceptedRouteInstructions(({ [line.index]: _taken, ...rest }) => rest);
+          } else {
+            const where = instructionStopsRef.current.get(line.index);
+            setImportDraftStops((draft) =>
+              draft
+                ? draft.map((stop) =>
+                    where && stop.copiedFrom === where.copiedFrom && stop.fromRow === where.fromRow
+                      ? { ...stop, notes: removeFromNote(stop.notes, text) }
+                      : stop
+                  )
+                : draft
+            );
+          }
+        }
+      } else if (line.kind === 'change') {
         // Only the one field of the one Stop; undoing it puts back what the copy had.
         const original = copiedStops?.[line.index];
         const row = changeFor(line);
@@ -626,6 +667,16 @@ function NewRoutePageContent() {
     }
   }, [scheduleReading, copiedStops]);
 
+  useEffect(() => {
+    importDraftStopsRef.current = importDraftStops;
+  }, [importDraftStops]);
+
+  // The accepted route-wide instructions as the Route's customer instructions (lib/routeInstructions.ts), in the reading's order.
+  const customerInstructionsToCreate = () =>
+    Object.entries(acceptedRouteInstructions)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .reduce<string | undefined>((feed, [, text]) => appendRouteInstruction(feed, { text }), undefined);
+
   const handleImportSubmit = async () => {
     if (!importCustomerId) { setImportError('Select a customer.'); return; }
     if (!importRouteCode.trim()) { setImportError('Enter a route ID.'); return; }
@@ -663,6 +714,7 @@ function NewRoutePageContent() {
           scheduledDate: importScheduledDate,
           pickupDate: importPickupDate,
           notes: importNotes,
+          customerInstructions: customerInstructionsToCreate(),
         },
         stops: importDraftStops,
         request: routeRequestFor(importFile),
@@ -976,6 +1028,8 @@ function NewRoutePageContent() {
                     reading={scheduleReading}
                     stops={copiedStops}
                     decisions={diffDecisions}
+                    draftStops={importDraftStops ?? undefined}
+                    standingInstructions={customers.find((customer) => customer.id === importCustomerId)?.standingInstructions}
                     busy={diffBusy}
                     onDecide={(lines, decision) => void decideDiffLines(lines, decision)}
                   />

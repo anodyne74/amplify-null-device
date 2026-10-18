@@ -830,6 +830,13 @@ export const schema = a.schema({
     timeSlot: a.string(), // Kept for traceability; it never becomes part of a Stop
   }),
 
+  /** An instruction for the Operator found in a Route Request's email or Schedule (ADR 0014), in the customer's words. */
+  ScheduleReadingInstruction: a.customType({
+    text: a.string().required(),
+    address: a.string(), // The property it is about, as written; absent for one about the whole Route
+    source: a.string(), // 'email' or 'sheet'
+  }),
+
   /** What was read from a Route Request's Schedule and email (ADR 0014); a proposal, never applied to a Route by itself. */
   ScheduleReading: a.customType({
     readAt: a.datetime().required(),
@@ -837,6 +844,7 @@ export const schema = a.schema({
     attachmentIndex: a.integer().required(), // Which of the record's attachments was read
     sheetDate: a.string(), // The date in the sheet's title, which is the one to trust over the file name
     rows: a.ref('ScheduleReadingRow').array().required(),
+    instructions: a.ref('ScheduleReadingInstruction').array(), // Absent on a reading stored before these were read
     warnings: a.string().array(),
   }),
 

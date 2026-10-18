@@ -19,6 +19,7 @@ const READING = {
     { address: '1 Example Street, Epping', numberOfSigns: 5, agent: 'Alex', timeSlot: '9:15 - 9:45', isNew: true },
     { address: '2/3 Sample Road, Eastwood', numberOfSigns: 1, isAuction: true },
   ],
+  instructions: [{ text: 'Use the side street', address: '1 Example Street, Epping' }, { text: 'Call on arrival' }],
   warnings: ['Total unclear'],
 };
 
@@ -37,6 +38,8 @@ describe('ScheduleReadingPanel', () => {
     expect(readSchedule).toHaveBeenCalledWith('e1', { force: false });
     expect(screen.getByText(/Sheet dated 10th October 2026\. 2 properties\./)).toBeInTheDocument();
     expect(screen.getByText('Total unclear')).toBeInTheDocument();
+    expect(screen.getByText('2 instructions found:')).toBeInTheDocument();
+    expect(screen.getByText('1 Example Street, Epping: Use the side street')).toBeInTheDocument();
     expect(screen.getByText('Auction')).toBeInTheDocument();
     expect(screen.getByText('New')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Read again' })).toBeInTheDocument();

@@ -166,7 +166,7 @@ describe('NewRoutePage Route Request', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
 
       const panel = await screen.findByRole('region', { name: 'Schedule Diff' });
-      expect(panel).toHaveTextContent('1 to add, 1 to drop, 0 to change, 0 to check, 1 unchanged.');
+      expect(panel).toHaveTextContent('1 to add, 1 to drop, 0 to change, 0 instructions, 0 to check, 1 unchanged.');
       expect(panel).toHaveTextContent('31 Hazel Road Riverbend');
       expect(panel).toHaveTextContent('15 Grove Crescent, Hillview');
       expect(screen.getByRole('button', { name: 'Create Route (2 stops)' })).toBeInTheDocument();
@@ -306,6 +306,95 @@ describe('NewRoutePage Route Request', () => {
         await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
 
         expect(created()[0]).toMatchObject({ notes: 'Side gate, ring bell; Preview', isAuction: true });
+      });
+    });
+
+    describe('Instructions', () => {
+      const withInstructions = (instructions: object[], rows: object[] = [{ address: '12 Alder Street, Hillview' }], extraCustomer: object = {}) => {
+        (listAllCustomers as jest.Mock).mockResolvedValue([
+          { id: 'c1', name: 'First Agency', email: 'a@first.test' },
+          { id: 'c2', name: 'Harcourts Epping', email: 'a@epping.test', ...extraCustomer },
+        ]);
+        (getRouteWithStops as jest.Mock).mockResolvedValue({
+          stops: [{ address: '12 Alder Street, Hillview', addressStreetNumber: '12', addressStreet: 'Alder Street', addressSuburb: 'Hillview', notes: 'Side gate' }],
+        });
+        (getRouteRequest as jest.Mock).mockResolvedValue({ ...EMAIL, scheduleReading: { ...READING, rows, instructions } });
+      };
+      const open = async () => {
+        render(<NewRoutePage />);
+        await waitFor(() => expect(screen.getByLabelText('Customer')).toHaveValue('c2'));
+        fireEvent.change(await screen.findByLabelText('Copy Stops From Previous Route'), { target: { value: 'old-route' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
+        await screen.findByRole('region', { name: 'Schedule Diff' });
+      };
+      const submit = async () => {
+        fireEvent.click(await screen.findByRole('button', { name: /^Create Route/ }));
+        await waitFor(() => expect(createRoute).toHaveBeenCalled());
+      };
+
+      it('puts an accepted instruction about a property in that Stop’s note, after what is there', async () => {
+        withInstructions([{ text: 'Ring the bell first', address: '12 Alder St Hillview', source: 'email' }]);
+        await open();
+        expect(screen.getByText(/Stop.s note now: .Side gate./)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Accept: instruction 1' }));
+        await submit();
+
+        expect(createStopsForRoute).toHaveBeenCalledTimes(1);
+        expect((createStopsForRoute as jest.Mock).mock.calls[0][2][0].notes).toBe('Side gate; Ring the bell first');
+        expect((createRoute as jest.Mock).mock.calls[0][0].customerInstructions).toBeUndefined();
+      });
+
+      it('puts an accepted route-wide instruction in the Route’s customer instructions, and shows the standing ones beside it', async () => {
+        withInstructions([{ text: 'Call the office on arrival', source: 'sheet' }], [{ address: '12 Alder Street, Hillview' }], { standingInstructions: 'Use the main road' });
+        await open();
+        expect(screen.getByText(/Standing instructions: .Use the main road./)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Accept: instruction 1' }));
+        await submit();
+
+        const feed = JSON.parse((createRoute as jest.Mock).mock.calls[0][0].customerInstructions);
+        expect(feed.entries.map((entry: { text: string }) => entry.text)).toEqual(['Call the office on arrival']);
+      });
+
+      it('changes nothing when an instruction is rejected, or accepted and then taken back', async () => {
+        withInstructions([{ text: 'Ring the bell first', address: '12 Alder Street, Hillview' }, { text: 'Call the office' }]);
+        await open();
+        fireEvent.click(screen.getByRole('button', { name: 'Accept: instruction 1' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Accept: instruction 2' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Reject: instruction 1' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Reject: instruction 2' }));
+        await submit();
+
+        expect((createStopsForRoute as jest.Mock).mock.calls[0][2][0].notes).toBe('Side gate');
+        expect((createRoute as jest.Mock).mock.calls[0][0].customerInstructions).toBeUndefined();
+      });
+
+      it('has nothing to accept for an instruction the Stop’s note already says, or when there are none', async () => {
+        withInstructions([{ text: 'side gate', address: '12 Alder Street, Hillview' }]);
+        await open();
+        expect(screen.queryByRole('heading', { name: /^Instructions/ })).not.toBeInTheDocument();
+      });
+
+      it('cannot place an instruction about an Add until the Add is accepted, then can', async () => {
+        withInstructions(
+          [{ text: 'Use the side street', address: '31 Hazel Road Riverbend' }],
+          [{ address: '12 Alder Street, Hillview' }, { address: '31 Hazel Road Riverbend' }]
+        );
+        (locateDraftStops as jest.Mock).mockImplementationOnce(async (drafts: any[]) => ({
+          stops: drafts.map((d) => ({ ...d, addressStreetNumber: '31', addressStreet: 'Hazel Road', addressSuburb: 'Riverbend' })),
+          unpinned: 0,
+          leftOut: [],
+        }));
+        await open();
+        expect(screen.getByText(/No Stop at that address on the Route yet/)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Accept: instruction 1' })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Accept: add 31 Hazel Road Riverbend' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Accept: instruction 1' }));
+        await submit();
+
+        expect((createStopsForRoute as jest.Mock).mock.calls[0][2][1]).toMatchObject({ address: '31 Hazel Road Riverbend', notes: 'Use the side street' });
       });
     });
 

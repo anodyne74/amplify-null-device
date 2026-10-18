@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
       attachmentIndex: index,
       ...(parsed.sheetDate && { sheetDate: parsed.sheetDate }),
       rows: parsed.rows,
+      instructions: parsed.instructions,
       warnings: parsed.warnings,
     };
     const { errors: updateErrors } = await auth.client.models.RouteRequestRecord.update({ id: requestId, scheduleReading: reading });

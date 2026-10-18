@@ -69,6 +69,22 @@ export function ScheduleReadingPanel({
               {(reading.warnings ?? []).map((warning) => <li key={warning}>{warning}</li>)}
             </ul>
           )}
+          {(reading.instructions ?? []).length > 0 && (
+            <>
+              <p className={styles.summary}>
+                {(reading.instructions ?? []).length} {(reading.instructions ?? []).length === 1 ? 'instruction' : 'instructions'} found:
+              </p>
+              <ul className={styles.instructions}>
+                {(reading.instructions ?? []).map((item, index) =>
+                  item ? (
+                    <li key={`${item.text}-${index}`}>
+                      {item.address ? `${item.address}: ` : ''}{item.text}
+                    </li>
+                  ) : null
+                )}
+              </ul>
+            </>
+          )}
           <table className={styles.table}>
             <thead>
               <tr><th>Address</th><th>Signs</th><th>Agent</th><th>Time</th><th /></tr>

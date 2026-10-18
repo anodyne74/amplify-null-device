@@ -26,7 +26,8 @@ import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
 import type { StandingPickupDay } from '@/amplify/types';
 import { locateDraftStops } from '@/lib/stopLocation';
 import { displayNotes } from '@/lib/stopProgress';
-import { ScheduleDiffPanel } from './ScheduleDiffPanel';
+import { ScheduleDiffPanel, lineKey, type DiffDecision, type DiffLine } from './ScheduleDiffPanel';
+import { addToDraft, dropFromDraft, removeAddFromDraft, restoreToDraft, type DraftMarks } from '@/lib/scheduleDiffDraft';
 import { ScheduleReadingPanel } from './ScheduleReadingPanel';
 import styles from './page.module.css';
 import { listAllRoutes, getRouteWithStops } from '@/lib/routes';
@@ -42,6 +43,9 @@ import {
   type RouteRequestRecord,
   type ScheduleReading,
 } from '@/lib/routeRequests';
+
+// A draft Stop, with where the Schedule Diff took it from (lib/scheduleDiffDraft.ts).
+type DraftStop = RouteDraftStop & DraftMarks;
 
 function todayDateKey() {
   const now = new Date();
@@ -127,10 +131,19 @@ function NewRoutePageContent() {
   const [importNotes, setImportNotes] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importText, setImportText] = useState('');
-  const [importDraftStops, setImportDraftStops] = useState<RouteDraftStop[] | null>(null);
+  const [importDraftStops, setImportDraftStops] = useState<DraftStop[] | null>(null);
   const [importDraftSource, setImportDraftSource] = useState<'copy' | 'upload' | null>(null);
   const [importCopySourceRouteId, setImportCopySourceRouteId] = useState('');
   const [copyingImportStops, setCopyingImportStops] = useState(false);
+  // The Stops as copied, which the Schedule Diff compares with; the draft changes as its lines are accepted.
+  const [copiedStops, setCopiedStops] = useState<RouteDraftStop[] | null>(null);
+  const [diffDecisions, setDiffDecisions] = useState<Record<string, DiffDecision>>({});
+  const [diffBusy, setDiffBusy] = useState<ReadonlySet<string>>(new Set());
+  const diffDecisionsRef = useRef<Record<string, DiffDecision>>({});
+  // Copied Stops taken out by an accepted Drop, as the administrator last had them, for taking it back.
+  const droppedStopsRef = useRef(new Map<number, DraftStop>());
+  // Bumped whenever the copy is replaced, so an Add still being found on the map is dropped.
+  const diffRunRef = useRef(0);
   const [parseWarnings, setParseWarnings] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -477,7 +490,9 @@ function NewRoutePageContent() {
 
       locateRunRef.current += 1;
       setLocatingProgress(null);
-      setImportDraftStops(copiedStops);
+      resetDiffDecisions();
+      setCopiedStops(copiedStops);
+      setImportDraftStops(copiedStops.map((stop, i) => ({ ...stop, copiedFrom: i })));
       setImportDraftSource('copy');
       setParseWarnings([]);
     } catch {
@@ -486,6 +501,94 @@ function NewRoutePageContent() {
       setCopyingImportStops(false);
     }
   };
+
+  function resetDiffDecisions() {
+    diffRunRef.current += 1;
+    diffDecisionsRef.current = {};
+    setDiffDecisions({});
+    setDiffBusy(new Set());
+    droppedStopsRef.current.clear();
+  }
+
+  const setDiffDecision = (key: string, decision: DiffDecision) => {
+    diffDecisionsRef.current = { ...diffDecisionsRef.current, [key]: decision };
+    setDiffDecisions(diffDecisionsRef.current);
+  };
+
+  const setLineBusy = (key: string, busy: boolean) =>
+    setDiffBusy((current) => {
+      const next = new Set(current);
+      if (busy) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+
+  // Accepts or rejects Schedule Diff lines (ADR 0014): accepting puts an Add in the draft, found on the map first, or takes a Drop out;
+  // rejecting a line that was accepted takes it back. Rejecting any other leaves the copy as it was.
+  const decideDiffLines = async (lines: DiffLine[], decision: DiffDecision) => {
+    const run = diffRunRef.current;
+    for (const line of lines) {
+      const key = lineKey(line);
+      const previous = diffDecisionsRef.current[key];
+      if (previous === decision) continue;
+
+      if (decision === 'accepted' && line.kind === 'drop') {
+        setImportDraftStops((draft) => {
+          if (!draft) return draft;
+          const result = dropFromDraft(draft, line.index);
+          if (result.dropped) droppedStopsRef.current.set(line.index, result.dropped);
+          return result.draft;
+        });
+      } else if (decision === 'accepted') {
+        const row = scheduleReading?.rows?.[line.index];
+        if (!row) continue;
+        setLineBusy(key, true);
+        try {
+          const located = await locateDraftStops<RouteDraftStop>([
+            { address: row.address, numberOfSigns: row.numberOfSigns ?? undefined, agent: row.agent ?? undefined, isAuction: row.isAuction ?? undefined },
+          ]);
+          if (diffRunRef.current !== run) return;
+          const [stop] = located.stops;
+          if (!stop) {
+            setImportError(`${row.address} has no suburb that could be found on the map, so it was not added. Add it to the Route once it's created, with the suburb.`);
+            continue;
+          }
+          if (located.unpinned > 0) {
+            setParseWarnings((warnings) => [...warnings, `${row.address} couldn't be found on the map and will be created without a pin. It still appears in Property History.`]);
+          }
+          setImportDraftStops((draft) => (draft ? addToDraft(draft, { ...stop, fromRow: line.index }) : draft));
+        } finally {
+          setLineBusy(key, false);
+        }
+      } else if (previous === 'accepted' && line.kind === 'drop') {
+        const original = copiedStops?.[line.index];
+        const stop = droppedStopsRef.current.get(line.index) ?? (original && { ...original, copiedFrom: line.index });
+        if (stop) setImportDraftStops((draft) => (draft ? restoreToDraft(draft, stop) : draft));
+      } else if (previous === 'accepted') {
+        setImportDraftStops((draft) => (draft ? removeAddFromDraft(draft, line.index) : draft));
+      }
+      setDiffDecision(key, decision);
+    }
+  };
+
+  // The copy is only a copy while it is the draft's source; reading the Schedule again starts the lines over.
+  useEffect(() => {
+    if (importDraftSource !== 'copy') {
+      setCopiedStops(null);
+      resetDiffDecisions();
+    }
+  }, [importDraftSource]);
+
+  const lastReadAtRef = useRef<string | null>(null);
+  useEffect(() => {
+    const readAt = scheduleReading?.readAt ?? null;
+    const changed = lastReadAtRef.current !== null && readAt !== lastReadAtRef.current;
+    lastReadAtRef.current = readAt;
+    if (changed && copiedStops && Object.keys(diffDecisionsRef.current).length > 0) {
+      resetDiffDecisions();
+      setImportDraftStops(copiedStops.map((stop, i) => ({ ...stop, copiedFrom: i })));
+    }
+  }, [scheduleReading, copiedStops]);
 
   const handleImportSubmit = async () => {
     if (!importCustomerId) { setImportError('Select a customer.'); return; }
@@ -832,8 +935,14 @@ function NewRoutePageContent() {
 
                 {importError && <div className={styles.errorBanner}>{importError}</div>}
 
-                {importDraftSource === 'copy' && importDraftStops && scheduleReading && (
-                  <ScheduleDiffPanel reading={scheduleReading} stops={importDraftStops} />
+                {importDraftSource === 'copy' && copiedStops && scheduleReading && (
+                  <ScheduleDiffPanel
+                    reading={scheduleReading}
+                    stops={copiedStops}
+                    decisions={diffDecisions}
+                    busy={diffBusy}
+                    onDecide={(lines, decision) => void decideDiffLines(lines, decision)}
+                  />
                 )}
                 {importDraftSource === 'copy' && importDraftStops && fromRecord && !scheduleReading && scheduleAttachmentIndex(fromRecord.attachments) !== null && (
                   <p className={styles.importHint}>Read the Schedule, under Route Request, to see what changed since this Route.</p>

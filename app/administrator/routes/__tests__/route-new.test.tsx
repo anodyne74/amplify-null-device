@@ -6,6 +6,7 @@ import { createRoute, createStopsForRoute, getRouteWithStops, listAllRoutes } fr
 import { listAllCustomers } from '@/lib/customers';
 import { attachNewRouteRequest, fetchRouteRequestAttachment, getRouteRequest } from '@/lib/routeRequests';
 import { extractScheduleText } from '@/lib/extractScheduleText';
+import { locateDraftStops } from '@/lib/stopLocation';
 
 const mockRouterPush = jest.fn();
 let mockRequestParam: string | null = null;
@@ -169,6 +170,73 @@ describe('NewRoutePage Route Request', () => {
       expect(panel).toHaveTextContent('31 Hazel Road Riverbend');
       expect(panel).toHaveTextContent('15 Grove Crescent, Hillview');
       expect(screen.getByRole('button', { name: 'Create Route (2 stops)' })).toBeInTheDocument();
+    });
+
+    async function copyWithReading() {
+      (getRouteRequest as jest.Mock).mockResolvedValue({ ...EMAIL, scheduleReading: READING });
+      render(<NewRoutePage />);
+      await waitFor(() => expect(screen.getByLabelText('Customer')).toHaveValue('c2'));
+      fireEvent.change(await screen.findByLabelText('Copy Stops From Previous Route'), { target: { value: 'old-route' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
+      await screen.findByRole('region', { name: 'Schedule Diff' });
+    }
+    const createdStopAddresses = () => (createStopsForRoute as jest.Mock).mock.calls[0][2].map((stop: { address: string }) => stop.address);
+
+    it('creates the copied Route unchanged when every line is rejected', async () => {
+      await copyWithReading();
+      fireEvent.click(screen.getByRole('button', { name: 'Reject: add 31 Hazel Road Riverbend' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Reject: drop 15 Grove Crescent, Hillview' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Create Route (2 stops)' }));
+
+      await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
+      expect(createdStopAddresses()).toEqual(['12 Alder Street, Hillview', '15 Grove Crescent, Hillview']);
+    });
+
+    it('puts an accepted Add at the bottom and takes an accepted Drop out, then creates the Route with them', async () => {
+      await copyWithReading();
+      fireEvent.click(screen.getByRole('button', { name: 'Accept: add 31 Hazel Road Riverbend' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Accept: drop 15 Grove Crescent, Hillview' }));
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Create Route (2 stops)' }));
+      await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
+      expect(createdStopAddresses()).toEqual(['12 Alder Street, Hillview', '31 Hazel Road Riverbend']);
+      expect(locateDraftStops).toHaveBeenCalledWith([expect.objectContaining({ address: '31 Hazel Road Riverbend' })]);
+      expect(attachNewRouteRequest).toHaveBeenCalledWith(expect.objectContaining({ fromRecordId: 'e1' }));
+    });
+
+    it('takes an accepted line back when it is then rejected', async () => {
+      await copyWithReading();
+      fireEvent.click(screen.getByRole('button', { name: 'Accept: add 31 Hazel Road Riverbend' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Accept: drop 15 Grove Crescent, Hillview' }));
+      await screen.findByRole('button', { name: 'Create Route (2 stops)' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reject: add 31 Hazel Road Riverbend' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Reject: drop 15 Grove Crescent, Hillview' }));
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Create Route (2 stops)' }));
+      await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
+      expect(createdStopAddresses()).toEqual(['12 Alder Street, Hillview', '15 Grove Crescent, Hillview']);
+    });
+
+    it('keeps a note edited on a Stop through taking it out and back', async () => {
+      await copyWithReading();
+      fireEvent.change(screen.getByLabelText('Notes for stop 2, 15 Grove Crescent, Hillview'), { target: { value: 'Side gate' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Accept: drop 15 Grove Crescent, Hillview' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Reject: drop 15 Grove Crescent, Hillview' }));
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Create Route (2 stops)' }));
+      await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
+      expect((createStopsForRoute as jest.Mock).mock.calls[0][2][1]).toMatchObject({ address: '15 Grove Crescent, Hillview', notes: 'Side gate' });
+    });
+
+    it('does not add a row that cannot be found on the map without a suburb, and says so', async () => {
+      (locateDraftStops as jest.Mock).mockResolvedValueOnce({ stops: [], unpinned: 0, leftOut: ['31 Hazel Road Riverbend'] });
+      await copyWithReading();
+      fireEvent.click(screen.getByRole('button', { name: 'Accept: add 31 Hazel Road Riverbend' }));
+
+      expect(await screen.findByText(/31 Hazel Road Riverbend has no suburb that could be found on the map/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Create Route (2 stops)' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Accept: add 31 Hazel Road Riverbend' })).toHaveAttribute('aria-pressed', 'false');
     });
 
     it('points to Read Schedule when the Stops are copied but the Schedule has not been read', async () => {

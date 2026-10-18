@@ -6,6 +6,7 @@ import { Button } from '@/app/components/ui/core/Button';
 import type { ScheduleReading } from '@/lib/routeRequests';
 import { agentVocabulary, fieldChanges, matchAgent, type ChangeField, type ChangeStop, type FieldChange } from '@/lib/scheduleChanges';
 import { scheduleDiff, type DiffStop } from '@/lib/scheduleDiff';
+import { instructionLines } from '@/lib/scheduleInstructions';
 import styles from './ScheduleDiffPanel.module.css';
 
 type Row = NonNullable<NonNullable<ScheduleReading['rows']>[number]>;
@@ -13,10 +14,10 @@ type Row = NonNullable<NonNullable<ScheduleReading['rows']>[number]>;
 export type DiffDecision = 'accepted' | 'rejected';
 
 /**
- * One line of the Diff. `index` is its row's position in the reading (Add), or the Stop's position in
- * the copy (Drop, Change); a Change is for one `field` of that Stop.
+ * One line of the Diff. `index` is its row's position in the reading (Add) or the instruction's (Instruction),
+ * or the Stop's position in the copy (Drop, Change); a Change is for one `field` of that Stop.
  */
-export type DiffLine = { kind: 'add' | 'drop'; index: number; field?: undefined } | { kind: 'change'; index: number; field: ChangeField };
+export type DiffLine = { kind: 'add' | 'drop' | 'instruction'; index: number; field?: undefined } | { kind: 'change'; index: number; field: ChangeField };
 
 export const lineKey = (line: DiffLine) => (line.kind === 'change' ? `change:${line.index}:${line.field}` : `${line.kind}:${line.index}`);
 
@@ -46,6 +47,8 @@ export function ScheduleDiffPanel({
   reading,
   stops,
   decisions,
+  draftStops,
+  standingInstructions,
   busy,
   onDecide,
 }: {
@@ -53,6 +56,10 @@ export function ScheduleDiffPanel({
   /** The Stops as copied, not as edited since. */
   stops: Array<DiffStop & ChangeStop>;
   decisions: Record<string, DiffDecision>;
+  /** The Stops as they are now, with accepted lines applied: where an instruction about a property would go. */
+  draftStops?: Array<DiffStop & { notes?: string | null }>;
+  /** The Customer's Route Defaults instructions, which the Operator already sees. */
+  standingInstructions?: string | null;
   /** Keys of lines being applied (an Add is found on the map first). */
   busy: ReadonlySet<string>;
   onDecide: (lines: DiffLine[], decision: DiffDecision) => void;
@@ -60,6 +67,18 @@ export function ScheduleDiffPanel({
   const rows = useMemo(() => (reading.rows ?? []).filter((row): row is Row => Boolean(row)), [reading]);
   const diff = useMemo(() => scheduleDiff(rows, stops), [rows, stops]);
   const vocabulary = useMemo(() => agentVocabulary(stops), [stops]);
+  const instructions = useMemo(
+    () => instructionLines((reading.instructions ?? []).filter((item): item is NonNullable<typeof item> => Boolean(item)).map((item) => ({
+      text: item.text,
+      address: item.address ?? undefined,
+      source: item.source === 'email' || item.source === 'sheet' ? item.source : undefined,
+    })), draftStops ?? stops, standingInstructions),
+    [reading, draftStops, stops, standingInstructions]
+  );
+  // One the Stop already says is not offered, but one just accepted stays, so it can be taken back.
+  const proposedInstructions = instructions.filter(
+    (line) => !line.alreadyHeld || decisions[lineKey({ kind: 'instruction', index: line.index })] !== undefined
+  );
   const unitChanges = diff.matched.filter(({ unitDiffers }) => unitDiffers);
   const changes = useMemo(
     () =>
@@ -120,7 +139,7 @@ export function ScheduleDiffPanel({
     <section className={styles.panel} aria-label="Schedule Diff">
       <strong>Changes the Schedule suggests</strong>
       <p className={styles.summary}>
-        {adds.length} to add, {drops.length} to drop, {changedStops.size} to change, {diff.ambiguous.length} to check,{' '}
+        {adds.length} to add, {drops.length} to drop, {changedStops.size} to change, {proposedInstructions.length} instructions, {diff.ambiguous.length} to check,{' '}
         {unchanged} unchanged. Accept the ones you want; nothing reaches the Route until you create it.
       </p>
 
@@ -171,6 +190,48 @@ export function ScheduleDiffPanel({
                 {buttons(line, `change ${FIELD_LABELS[change.field]} of ${stop.address}`)}
               </li>
             ))}
+          </ul>
+        </>
+      )}
+
+      {proposedInstructions.length > 0 && (
+        <>
+          <h4 className={styles.heading}>
+            Instructions{' '}
+            {acceptAll(
+              proposedInstructions
+                .filter((item) => item.target.kind !== 'unplaced')
+                .map((item) => ({ line: { kind: 'instruction', index: item.index } as DiffLine })),
+              'Accept all instructions'
+            )}
+          </h4>
+          <p className={styles.reason}>The customer&rsquo;s words, copied as written. Accepting adds to what is there; nothing is replaced.</p>
+          <ul className={styles.list}>
+            {proposedInstructions.map((item) => {
+              const line: DiffLine = { kind: 'instruction', index: item.index };
+              const where =
+                item.target.kind === 'route'
+                  ? 'For the Route'
+                  : item.target.kind === 'stop'
+                    ? `For ${item.target.address}`
+                    : `About ${item.address}`;
+              return (
+                <li key={lineKey(line)} className={styles.line}>
+                  <span>
+                    <strong>{where}:</strong> {item.text}
+                    {item.source && <span className={styles.reason}> ({item.source === 'email' ? 'from the email' : 'from the sheet'})</span>}
+                    {item.target.kind === 'stop' && item.target.existingNote && (
+                      <span className={styles.reason}> · Stop&rsquo;s note now: &ldquo;{item.target.existingNote}&rdquo;</span>
+                    )}
+                    {item.target.kind === 'route' && standingInstructions && (
+                      <span className={styles.reason}> · Standing instructions: &ldquo;{standingInstructions}&rdquo;</span>
+                    )}
+                    {item.target.kind === 'unplaced' && <span className={styles.reason}> · {item.target.reason}</span>}
+                  </span>
+                  {item.target.kind !== 'unplaced' && buttons(line, `instruction ${item.index + 1}`)}
+                </li>
+              );
+            })}
           </ul>
         </>
       )}

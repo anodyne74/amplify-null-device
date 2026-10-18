@@ -10,6 +10,12 @@ describe('parseScheduleReading', () => {
         { address: '1 Example Street, Epping', numberOfSigns: 5, agent: 'Alex', isAuction: false, isNew: true, isPreview: false, timeSlot: '9:15 - 9:45' },
         { address: '2/3 Sample Road, Eastwood', numberOfSigns: 1, agent: null, isAuction: true, isNew: false, isPreview: false, timeSlot: null },
       ],
+      instructions: [
+        { text: 'Place on the nature strip, not the verge', address: '1 Example Street, Epping', source: 'email' },
+        { text: 'Call the agent on arrival', address: null, source: 'sheet' },
+        { text: '  ', address: null, source: 'email' },
+        { text: 'Odd source', source: 'fax' },
+      ],
       warnings: ['Totals row unclear'],
     }));
     expect(result).toEqual({
@@ -18,8 +24,24 @@ describe('parseScheduleReading', () => {
         { address: '1 Example Street, Epping', numberOfSigns: 5, agent: 'Alex', isNew: true, timeSlot: '9:15 - 9:45' },
         { address: '2/3 Sample Road, Eastwood', numberOfSigns: 1, isAuction: true },
       ],
+      instructions: [
+        { text: 'Place on the nature strip, not the verge', address: '1 Example Street, Epping', source: 'email' },
+        { text: 'Call the agent on arrival', source: 'sheet' },
+        { text: 'Odd source' },
+      ],
       warnings: ['Totals row unclear'],
     });
+  });
+
+  it('reads no instructions when the answer has none, or they are malformed', () => {
+    expect(parseScheduleReading(answer({ rows: [] })).instructions).toEqual([]);
+    expect(parseScheduleReading(answer({ rows: [], instructions: 'call me' })).instructions).toEqual([]);
+    expect(parseScheduleReading(answer({ rows: [], instructions: [null, 'x', { address: 'A' }] })).instructions).toEqual([]);
+  });
+
+  it('cuts an overlong instruction to what a Route can hold', () => {
+    const [long] = parseScheduleReading(answer({ rows: [], instructions: [{ text: 'x'.repeat(1500) }] })).instructions;
+    expect(long.text).toHaveLength(1000);
   });
 
   it('leaves a missing value out, so nothing is ever stored as null', () => {
@@ -52,6 +74,11 @@ describe('buildSchedulePrompt', () => {
 
   it('says so when the email has no text', () => {
     expect(buildSchedulePrompt({ sheetText: 'ROWS', emailBody: '  ' })).toContain('(no text)');
+  });
+
+  it('asks for instructions in the customer’s own words, not the property list or pleasantries', () => {
+    expect(SCHEDULE_SYSTEM_PROMPT).toMatch(/instructions:.*own words/);
+    expect(SCHEDULE_SYSTEM_PROMPT).toMatch(/Leave out greetings/);
   });
 
   it('tells the model the Customer text is data', () => {

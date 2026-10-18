@@ -23,6 +23,11 @@ describe('createRouteWithStops', () => {
     (attachNewRouteRequest as jest.Mock).mockResolvedValue({ ok: true });
   });
 
+  it('keeps the Route’s customer instructions when it has some', async () => {
+    await createRouteWithStops({ ...input, route: { ...input.route, customerInstructions: '{"v":1,"entries":[]}' } });
+    expect(createRoute).toHaveBeenCalledWith(expect.objectContaining({ customerInstructions: '{"v":1,"entries":[]}' }));
+  });
+
   it('creates the Route, its Stops and its Route Request, and returns the Route', async () => {
     await expect(createRouteWithStops(input)).resolves.toEqual({ ok: true, routeId: 'route-1' });
 
@@ -33,6 +38,7 @@ describe('createRouteWithStops', () => {
       pickupDate: '2026-10-17',
       status: 'planned',
       notes: undefined,
+      customerInstructions: undefined,
     });
     expect(createStopsForRoute).toHaveBeenCalledWith('route-1', 'cust-1', input.stops);
     expect(attachNewRouteRequest).toHaveBeenCalledWith({ ...input.request, routeId: 'route-1', customerId: 'cust-1' });

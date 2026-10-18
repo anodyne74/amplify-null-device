@@ -11,7 +11,7 @@ import { attachNewRouteRequest } from '@/lib/routeRequests';
 export type CreateRouteWithStopsResult = { ok: true; routeId: string } | { ok: false; error: string };
 
 export async function createRouteWithStops(input: {
-  route: { routeCode: string; customerId: string; scheduledDate: string; pickupDate: string; notes?: string };
+  route: { routeCode: string; customerId: string; scheduledDate: string; pickupDate: string; notes?: string; customerInstructions?: string };
   stops: CreateStopsForRouteInput[];
   request: Omit<Parameters<typeof attachNewRouteRequest>[0], 'routeId' | 'customerId'>;
 }): Promise<CreateRouteWithStopsResult> {
@@ -24,6 +24,7 @@ export async function createRouteWithStops(input: {
       pickupDate: route.pickupDate,
       status: 'planned',
       notes: route.notes || undefined,
+      customerInstructions: route.customerInstructions || undefined,
     });
 
     const failedStops = (await createStopsForRoute(created.id, route.customerId, stops))

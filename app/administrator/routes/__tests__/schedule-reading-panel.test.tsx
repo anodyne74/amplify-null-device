@@ -35,7 +35,7 @@ describe('ScheduleReadingPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Read Schedule' }));
 
     expect(await screen.findByText('1 Example Street, Epping')).toBeInTheDocument();
-    expect(readSchedule).toHaveBeenCalledWith('e1', { force: false });
+    expect(readSchedule).toHaveBeenCalledWith('e1', { force: false, onProgress: expect.any(Function) });
     expect(screen.getByText(/Sheet dated 10th October 2026\. 2 properties\./)).toBeInTheDocument();
     expect(screen.getByText('Total unclear')).toBeInTheDocument();
     expect(screen.getByText('2 instructions found:')).toBeInTheDocument();
@@ -55,7 +55,7 @@ describe('ScheduleReadingPanel', () => {
     jest.mocked(readSchedule).mockResolvedValue(READING as any);
     render(<ScheduleReadingPanel record={record({ scheduleReading: READING })} />);
     fireEvent.click(screen.getByRole('button', { name: 'Read again' }));
-    await waitFor(() => expect(readSchedule).toHaveBeenCalledWith('e1', { force: true }));
+    await waitFor(() => expect(readSchedule).toHaveBeenCalledWith('e1', { force: true, onProgress: expect.any(Function) }));
   });
 
   it("shows the server's reason when it cannot read the file", async () => {
@@ -81,5 +81,39 @@ describe('ScheduleReadingPanel', () => {
     );
     const items = screen.getAllByRole('listitem').map((item) => item.textContent);
     expect(items.findIndex((text) => /add up to 5 signs, but the sheet says 9/.test(text ?? ''))).toBeLessThan(items.indexOf('Total unclear'));
+  });
+
+  describe('a read left part way', () => {
+    const PARTIAL = { ...READING, progress: { pagesRead: 1, pageCount: 2 } };
+
+    it('carries on by itself once, rather than showing the rows so far as a reading', async () => {
+      let finish: (reading: any) => void = () => {};
+      jest.mocked(readSchedule).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+      const onReading = jest.fn();
+
+      const { rerender } = render(<ScheduleReadingPanel record={record({ scheduleReading: PARTIAL })} onReading={onReading} />);
+      rerender(<ScheduleReadingPanel record={record({ scheduleReading: PARTIAL })} onReading={onReading} />);
+
+      expect(screen.queryByText('1 Example Street, Epping')).not.toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent('Read 1 of 2 pages');
+      expect(readSchedule).toHaveBeenCalledTimes(1);
+      expect(readSchedule).toHaveBeenCalledWith('e1', { force: false, onProgress: expect.any(Function) });
+      expect(onReading).not.toHaveBeenCalledWith(expect.objectContaining({ rows: expect.anything() }));
+
+      finish(READING);
+      expect(await screen.findByText('1 Example Street, Epping')).toBeInTheDocument();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('shows the error and can be run again when carrying on fails', async () => {
+      jest.mocked(readSchedule).mockRejectedValueOnce(new Error('The model did not answer with valid JSON'));
+      render(<ScheduleReadingPanel record={record({ scheduleReading: PARTIAL })} />);
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('The model did not answer with valid JSON');
+
+      jest.mocked(readSchedule).mockResolvedValue(READING as any);
+      fireEvent.click(screen.getByRole('button', { name: 'Read Schedule' }));
+      expect(await screen.findByText('1 Example Street, Epping')).toBeInTheDocument();
+    });
   });
 });

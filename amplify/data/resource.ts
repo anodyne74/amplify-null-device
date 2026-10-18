@@ -849,6 +849,12 @@ export const schema = a.schema({
     agents: a.ref('ScheduleReadingAgentTotal').array(),
   }),
 
+  /** How far a Schedule is read, a page to a call so a slow read outlasts the ~28s limit on one. Absent once the whole sheet is read. */
+  ScheduleReadingProgress: a.customType({
+    pagesRead: a.integer().required(),
+    pageCount: a.integer().required(),
+  }),
+
   /** What was read from a Route Request's Schedule and email (ADR 0014); a proposal, never applied to a Route by itself. */
   ScheduleReading: a.customType({
     readAt: a.datetime().required(),
@@ -859,6 +865,7 @@ export const schema = a.schema({
     statedTotals: a.ref('ScheduleReadingTotals'), // Absent when the sheet prints none, or on a reading stored before these were read
     instructions: a.ref('ScheduleReadingInstruction').array(), // Absent on a reading stored before these were read
     warnings: a.string().array(),
+    progress: a.ref('ScheduleReadingProgress'), // Present while pages remain: rows so far, not yet a reading to compare
   }),
 
   /**

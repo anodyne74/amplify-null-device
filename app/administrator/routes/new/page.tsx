@@ -26,7 +26,9 @@ import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
 import type { StandingPickupDay } from '@/amplify/types';
 import { locateDraftStops } from '@/lib/stopLocation';
 import { displayNotes } from '@/lib/stopProgress';
+import { scheduleDiff } from '@/lib/scheduleDiff';
 import { ScheduleDiffPanel, lineKey, type DiffDecision, type DiffLine } from './ScheduleDiffPanel';
+import { agentVocabulary, fieldChanges, matchAgent, withPreviewNote } from '@/lib/scheduleChanges';
 import { addToDraft, dropFromDraft, removeAddFromDraft, restoreToDraft, type DraftMarks } from '@/lib/scheduleDiffDraft';
 import { ScheduleReadingPanel } from './ScheduleReadingPanel';
 import styles from './page.module.css';
@@ -523,6 +525,15 @@ function NewRoutePageContent() {
       return next;
     });
 
+  // The change a Change line stands for, worked out again from the reading and the copy it was shown against.
+  const changeFor = (line: DiffLine & { kind: 'change' }) => {
+    const original = copiedStops?.[line.index];
+    const rows = (scheduleReading?.rows ?? []).filter((row): row is NonNullable<typeof row> => Boolean(row));
+    if (!original) return undefined;
+    const match = scheduleDiff(rows, copiedStops ?? []).matched.find(({ stop }) => stop === original);
+    return match ? fieldChanges(match.row, original, agentVocabulary(copiedStops ?? [])).find((change) => change.field === line.field) : undefined;
+  };
+
   // Accepts or rejects Schedule Diff lines (ADR 0014): accepting puts an Add in the draft, found on the map first, or takes a Drop out;
   // rejecting a line that was accepted takes it back. Rejecting any other leaves the copy as it was.
   const decideDiffLines = async (lines: DiffLine[], decision: DiffDecision) => {
@@ -532,7 +543,25 @@ function NewRoutePageContent() {
       const previous = diffDecisionsRef.current[key];
       if (previous === decision) continue;
 
-      if (decision === 'accepted' && line.kind === 'drop') {
+      if (line.kind === 'change') {
+        // Only the one field of the one Stop; undoing it puts back what the copy had.
+        const original = copiedStops?.[line.index];
+        const row = changeFor(line);
+        if (!original || !row) continue;
+        const value = decision === 'accepted' ? row.to : previous === 'accepted' ? row.from : undefined;
+        if (decision === 'accepted' || previous === 'accepted') {
+          setImportDraftStops((draft) =>
+            draft
+              ? draft.map((stop) => {
+                  if (stop.copiedFrom !== line.index) return stop;
+                  // A Preview is added to the note as it stands now, which may have been edited since the copy.
+                  if (line.field === 'notes' && decision === 'accepted') return { ...stop, notes: withPreviewNote(stop.notes) ?? stop.notes };
+                  return { ...stop, [line.field]: value };
+                })
+              : draft
+          );
+        }
+      } else if (decision === 'accepted' && line.kind === 'drop') {
         setImportDraftStops((draft) => {
           if (!draft) return draft;
           const result = dropFromDraft(draft, line.index);
@@ -545,7 +574,14 @@ function NewRoutePageContent() {
         setLineBusy(key, true);
         try {
           const located = await locateDraftStops<RouteDraftStop>([
-            { address: row.address, numberOfSigns: row.numberOfSigns ?? undefined, agent: row.agent ?? undefined, isAuction: row.isAuction ?? undefined },
+            {
+              address: row.address,
+              numberOfSigns: row.numberOfSigns ?? undefined,
+              // In the spelling the Route already uses for that agent.
+              agent: row.agent ? matchAgent(row.agent, agentVocabulary(copiedStops ?? [])).agent : undefined,
+              isAuction: row.isAuction ?? undefined,
+              notes: row.isPreview ? withPreviewNote(null) : undefined,
+            },
           ]);
           if (diffRunRef.current !== run) return;
           const [stop] = located.stops;

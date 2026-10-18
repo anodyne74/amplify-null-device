@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
       readBySub: auth.claims.sub,
       attachmentIndex: index,
       ...(parsed.sheetDate && { sheetDate: parsed.sheetDate }),
+      ...(parsed.statedTotals && { statedTotals: parsed.statedTotals }),
       rows: parsed.rows,
       instructions: parsed.instructions,
       warnings: parsed.warnings,

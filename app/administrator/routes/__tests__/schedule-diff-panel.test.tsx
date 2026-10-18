@@ -210,4 +210,22 @@ describe('ScheduleDiffPanel', () => {
       expect(props.onDecide).toHaveBeenCalledWith([{ kind: 'instruction', index: 0 }, { kind: 'instruction', index: 1 }], 'accepted');
     });
   });
+
+  describe('Totals', () => {
+    const ALDER = stop('12 Alder Street, Hillview', '12', 'Alder Street', 'Hillview');
+    const sheet = (statedTotals: object | undefined) =>
+      ({ ...reading({ address: '12 Alder Street, Hillview', numberOfSigns: 5, agent: 'Alex' }), statedTotals }) as any;
+
+    it('warns, naming both figures, when the rows do not add up to the sheet’s total', () => {
+      render(<ScheduleDiffPanel {...NO_DECISIONS} stops={[ALDER]} reading={sheet({ signs: 8 })} />);
+      expect(screen.getByRole('alert')).toHaveTextContent('add up to 5 signs, but the sheet says 8');
+    });
+
+    it('says nothing for a sheet that adds up, or one that prints no totals', () => {
+      const { rerender } = render(<ScheduleDiffPanel {...NO_DECISIONS} stops={[ALDER]} reading={sheet({ signs: 5, agents: [{ agent: 'Alex', signs: 5 }] })} />);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      rerender(<ScheduleDiffPanel {...NO_DECISIONS} stops={[ALDER]} reading={sheet(undefined)} />);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+  });
 });

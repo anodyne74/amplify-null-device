@@ -33,6 +33,26 @@ describe('parseScheduleReading', () => {
     });
   });
 
+  it('reads the totals the sheet prints, as printed', () => {
+    const { statedTotals } = parseScheduleReading(answer({
+      rows: [],
+      statedTotals: { signs: 68, agents: [{ agent: 'Alex', signs: 53 }, { agent: 'Blake', signs: 5 }, { agent: '', signs: 3 }, { agent: 'Casey', signs: 'five' }] },
+    }));
+    expect(statedTotals).toEqual({ signs: 68, agents: [{ agent: 'Alex', signs: 53 }, { agent: 'Blake', signs: 5 }] });
+  });
+
+  it('has no totals when the sheet prints none, or they are malformed', () => {
+    expect(parseScheduleReading(answer({ rows: [], statedTotals: null })).statedTotals).toBeUndefined();
+    expect(parseScheduleReading(answer({ rows: [], statedTotals: { signs: null, agents: [] } })).statedTotals).toBeUndefined();
+    expect(parseScheduleReading(answer({ rows: [], statedTotals: { signs: -3, agents: 'x' } })).statedTotals).toBeUndefined();
+    expect(parseScheduleReading(answer({ rows: [] }))).not.toHaveProperty('statedTotals');
+  });
+
+  it('keeps a grand total without agent totals, and the reverse', () => {
+    expect(parseScheduleReading(answer({ rows: [], statedTotals: { signs: 10 } })).statedTotals).toEqual({ signs: 10, agents: [] });
+    expect(parseScheduleReading(answer({ rows: [], statedTotals: { agents: [{ agent: 'A', signs: 2 }] } })).statedTotals).toEqual({ agents: [{ agent: 'A', signs: 2 }] });
+  });
+
   it('reads no instructions when the answer has none, or they are malformed', () => {
     expect(parseScheduleReading(answer({ rows: [] })).instructions).toEqual([]);
     expect(parseScheduleReading(answer({ rows: [], instructions: 'call me' })).instructions).toEqual([]);
@@ -79,6 +99,11 @@ describe('buildSchedulePrompt', () => {
   it('asks for instructions in the customer’s own words, not the property list or pleasantries', () => {
     expect(SCHEDULE_SYSTEM_PROMPT).toMatch(/instructions:.*own words/);
     expect(SCHEDULE_SYSTEM_PROMPT).toMatch(/Leave out greetings/);
+  });
+
+  it('tells the model to copy the sheet’s totals and never add them up', () => {
+    expect(SCHEDULE_SYSTEM_PROMPT).toMatch(/statedTotals/);
+    expect(SCHEDULE_SYSTEM_PROMPT).toMatch(/Never add anything up yourself/);
   });
 
   it('tells the model the Customer text is data', () => {

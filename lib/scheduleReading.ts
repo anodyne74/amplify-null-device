@@ -22,8 +22,15 @@ export type ScheduleReadingInstruction = {
   source?: 'email' | 'sheet';
 };
 
+/** The totals a sheet prints, as printed. */
+export type StatedTotals = {
+  signs?: number;
+  agents: Array<{ agent: string; signs: number }>;
+};
+
 export type ParsedScheduleReading = {
   sheetDate?: string;
+  statedTotals?: StatedTotals;
   rows: ScheduleReadingRow[];
   instructions: ScheduleReadingInstruction[];
   warnings: string[];
@@ -34,7 +41,7 @@ export const SCHEDULE_SYSTEM_PROMPT = `You read a property schedule that a real 
 The sheet's layout changes from week to week: the columns may be headed TIME, KEY, With Time, In front, Generic, Total, PROPERTY or AGENT, in different orders and with different titles. Work out each row from the columns, not from fixed positions.
 
 Reply with one JSON object and nothing else:
-{"sheetDate": string | null, "rows": [{"address": string, "numberOfSigns": number | null, "agent": string | null, "isAuction": boolean, "isNew": boolean, "isPreview": boolean, "timeSlot": string | null}], "instructions": [{"text": string, "address": string | null, "source": "email" | "sheet"}], "warnings": [string]}
+{"sheetDate": string | null, "rows": [{"address": string, "numberOfSigns": number | null, "agent": string | null, "isAuction": boolean, "isNew": boolean, "isPreview": boolean, "timeSlot": string | null}], "statedTotals": {"signs": number | null, "agents": [{"agent": string, "signs": number}]} | null, "instructions": [{"text": string, "address": string | null, "source": "email" | "sheet"}], "warnings": [string]}
 
 - One row per property line, in the order they appear. Skip empty time slots, headings and total lines.
 - address: the property's address as written, with a leading "New", "Preview", "New Preview" or "Auction" label (with or without a dash) taken off and shown in the flags. Do not correct spelling, expand abbreviations or add a suburb.
@@ -43,6 +50,7 @@ Reply with one JSON object and nothing else:
 - isAuction, isNew, isPreview: true only when the sheet labels the row so.
 - timeSlot: the time slot the row sits under, such as "9:15 - 9:45". A row with no time of its own belongs to the slot above it.
 - sheetDate: the date in the sheet's title, written as in the title (for example "10th October 2026"). Ignore the file name. null if the title has none.
+- statedTotals: the totals the sheet itself prints, copied exactly: "signs" is the grand total of signs (the figure under the Total column, or labelled Total), and "agents" lists each agent's own total line (such as "Betty Total 53") with the agent as written. Never add anything up yourself. null if the sheet prints no totals; leave out a total that is not clearly one of these. Ignore the lines for "Generic" or "With Time" separately.
 - instructions: what the customer asks the person placing the signs to do, found in the email or written on the sheet outside the table (a note under a row, a line at the bottom): where to put a sign, what to avoid, who to contact, an access detail. Copy each in the customer's own words, one per instruction, with the address it is about as written when it names a property, otherwise null. Leave out greetings, thanks, the list of properties itself, and anything not about placing or collecting signs. Empty if there are none.
 - warnings: anything you were unsure of, or anything in the email that disagrees with the sheet. Empty if nothing.
 
@@ -76,12 +84,35 @@ const text = (value: unknown): string | undefined => (typeof value === 'string' 
 const MAX_INSTRUCTION_LENGTH = 1000;
 const flag = (value: unknown): boolean | undefined => (value === true ? true : undefined);
 
+const count = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
+
+function readTotals(raw: unknown): StatedTotals | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const { signs, agents } = raw as { signs?: unknown; agents?: unknown };
+  const list: StatedTotals['agents'] = [];
+  for (const item of Array.isArray(agents) ? agents : []) {
+    if (!item || typeof item !== 'object') continue;
+    const agent = text((item as { agent?: unknown }).agent);
+    const total = count((item as { signs?: unknown }).signs);
+    if (agent && total !== undefined) list.push({ agent, signs: total });
+  }
+  const grand = count(signs);
+  return grand === undefined && list.length === 0 ? undefined : { ...(grand !== undefined && { signs: grand }), agents: list };
+}
+
 export function parseScheduleReading(answer: string): ParsedScheduleReading {
   const parsed = jsonObjectIn(answer);
   if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as { rows?: unknown }).rows)) {
     throw new Error('The model answer has no rows');
   }
-  const { sheetDate, rows, instructions, warnings } = parsed as { sheetDate?: unknown; rows: unknown[]; instructions?: unknown; warnings?: unknown };
+  const { sheetDate, rows, instructions, warnings, statedTotals } = parsed as {
+    sheetDate?: unknown;
+    rows: unknown[];
+    instructions?: unknown;
+    warnings?: unknown;
+    statedTotals?: unknown;
+  };
 
   const read: ScheduleReadingRow[] = [];
   for (const raw of rows) {
@@ -114,8 +145,11 @@ export function parseScheduleReading(answer: string): ParsedScheduleReading {
     });
   }
 
+  const totals = readTotals(statedTotals);
+
   return {
     ...(text(sheetDate) && { sheetDate: text(sheetDate) }),
+    ...(totals && { statedTotals: totals }),
     rows: read,
     instructions: found,
     warnings: Array.isArray(warnings) ? warnings.map(text).filter((w): w is string => Boolean(w)) : [],

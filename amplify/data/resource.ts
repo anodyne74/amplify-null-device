@@ -837,6 +837,18 @@ export const schema = a.schema({
     source: a.string(), // 'email' or 'sheet'
   }),
 
+  /** One agent's total of signs as the sheet itself prints it. */
+  ScheduleReadingAgentTotal: a.customType({
+    agent: a.string().required(), // As written on the sheet
+    signs: a.integer().required(),
+  }),
+
+  /** The totals a sheet prints (ADR 0014), copied as printed so the rows can be checked against them. */
+  ScheduleReadingTotals: a.customType({
+    signs: a.integer(), // The sheet's grand total of signs
+    agents: a.ref('ScheduleReadingAgentTotal').array(),
+  }),
+
   /** What was read from a Route Request's Schedule and email (ADR 0014); a proposal, never applied to a Route by itself. */
   ScheduleReading: a.customType({
     readAt: a.datetime().required(),
@@ -844,6 +856,7 @@ export const schema = a.schema({
     attachmentIndex: a.integer().required(), // Which of the record's attachments was read
     sheetDate: a.string(), // The date in the sheet's title, which is the one to trust over the file name
     rows: a.ref('ScheduleReadingRow').array().required(),
+    statedTotals: a.ref('ScheduleReadingTotals'), // Absent when the sheet prints none, or on a reading stored before these were read
     instructions: a.ref('ScheduleReadingInstruction').array(), // Absent on a reading stored before these were read
     warnings: a.string().array(),
   }),

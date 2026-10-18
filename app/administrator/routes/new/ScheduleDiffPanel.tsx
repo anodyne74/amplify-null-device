@@ -7,6 +7,7 @@ import type { ScheduleReading } from '@/lib/routeRequests';
 import { agentVocabulary, fieldChanges, matchAgent, type ChangeField, type ChangeStop, type FieldChange } from '@/lib/scheduleChanges';
 import { scheduleDiff, type DiffStop } from '@/lib/scheduleDiff';
 import { instructionLines } from '@/lib/scheduleInstructions';
+import { totalsWarnings } from '@/lib/scheduleTotals';
 import styles from './ScheduleDiffPanel.module.css';
 
 type Row = NonNullable<NonNullable<ScheduleReading['rows']>[number]>;
@@ -79,6 +80,7 @@ export function ScheduleDiffPanel({
   const proposedInstructions = instructions.filter(
     (line) => !line.alreadyHeld || decisions[lineKey({ kind: 'instruction', index: line.index })] !== undefined
   );
+  const warnings = useMemo(() => totalsWarnings(reading), [reading]);
   const unitChanges = diff.matched.filter(({ unitDiffers }) => unitDiffers);
   const changes = useMemo(
     () =>
@@ -142,6 +144,12 @@ export function ScheduleDiffPanel({
         {adds.length} to add, {drops.length} to drop, {changedStops.size} to change, {proposedInstructions.length} instructions, {diff.ambiguous.length} to check,{' '}
         {unchanged} unchanged. Accept the ones you want; nothing reaches the Route until you create it.
       </p>
+
+      {warnings.length > 0 && (
+        <ul className={styles.warnings} role="alert">
+          {warnings.map((warning) => <li key={warning}>{warning}</li>)}
+        </ul>
+      )}
 
       {adds.length > 0 && (
         <>

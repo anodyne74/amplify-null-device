@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
+import { totalsWarnings } from '@/lib/scheduleTotals';
 import { readSchedule, scheduleAttachmentIndex, type RouteRequestRecord, type ScheduleReading } from '@/lib/routeRequests';
 import styles from './ScheduleReadingPanel.module.css';
 
@@ -64,9 +65,9 @@ export function ScheduleReadingPanel({
             {reading.sheetDate ? `Sheet dated ${reading.sheetDate}. ` : ''}
             {rows.length} {rows.length === 1 ? 'property' : 'properties'}.
           </p>
-          {(reading.warnings ?? []).length > 0 && (
+          {[...totalsWarnings(reading), ...(reading.warnings ?? [])].length > 0 && (
             <ul className={styles.warnings}>
-              {(reading.warnings ?? []).map((warning) => <li key={warning}>{warning}</li>)}
+              {[...totalsWarnings(reading), ...(reading.warnings ?? [])].map((warning) => <li key={warning}>{warning}</li>)}
             </ul>
           )}
           {(reading.instructions ?? []).length > 0 && (

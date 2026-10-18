@@ -33,8 +33,9 @@ describe('askScheduleModel', () => {
       modelId: 'test-model',
       system: [{ text: 'Read it' }],
       messages: [{ role: 'user', content: [{ text: 'Sheet text' }] }],
-      inferenceConfig: { temperature: 0 },
     });
+    // The Claude 5 models answer 400 to any sampling value that isn't their default.
+    expect(sendMock.mock.calls[0][0].input.inferenceConfig).not.toHaveProperty('temperature');
   });
 
   it('refuses to call a model nobody chose', async () => {

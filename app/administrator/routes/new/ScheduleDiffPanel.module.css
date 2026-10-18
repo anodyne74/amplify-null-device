@@ -1,0 +1,27 @@
+.panel {
+  margin: var(--space-5) 0;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.summary {
+  margin: var(--space-2) 0 0;
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
+}
+
+.heading {
+  margin: var(--space-4) 0 var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.list {
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-sm);
+}
+
+.reason {
+  color: var(--text-subtle);
+}

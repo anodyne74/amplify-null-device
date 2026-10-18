@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
 import { readSchedule, scheduleAttachmentIndex, type RouteRequestRecord, type ScheduleReading } from '@/lib/routeRequests';
@@ -11,10 +11,21 @@ import styles from './ScheduleReadingPanel.module.css';
  * listed here as a proposal. Read-only: nothing here changes the Route being
  * made. A reading already stored on the record shows straight away.
  */
-export function ScheduleReadingPanel({ record }: { record: RouteRequestRecord }) {
+export function ScheduleReadingPanel({
+  record,
+  onReading,
+}: {
+  record: RouteRequestRecord;
+  /** Told the reading now showing (null for none), so the page can compare it with the copied Stops. */
+  onReading?: (reading: ScheduleReading | null) => void;
+}) {
   const [reading, setReading] = useState<ScheduleReading | null>(record.scheduleReading ?? null);
   const [isReading, setIsReading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onReading?.(reading);
+  }, [reading, onReading]);
 
   if (!reading && scheduleAttachmentIndex(record.attachments) === null) return null;
 

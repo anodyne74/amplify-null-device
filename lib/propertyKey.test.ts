@@ -1,12 +1,16 @@
 import {
   comparePropertyKeys,
+  endsWithStreetType,
+  enteredStreet,
   enteredStreetNumber,
+  enteredUnit,
   parsePropertyKey,
   propertyKey,
   propertyKeyLabel,
   propertyKeyPrefix,
   streetKeyOf,
   streetLabel,
+  suburbAfterStreet,
   suburbLabel,
 } from './propertyKey';
 
@@ -136,5 +140,37 @@ describe('labels', () => {
   it('names a Property from its key, or shows a malformed key as is', () => {
     expect(propertyKeyLabel('epping|2121|cliff road|14')).toBe('14 Cliff Road, Epping 2121');
     expect(propertyKeyLabel('not a key')).toBe('not a key');
+  });
+});
+
+describe('enteredUnit', () => {
+  it('reads a unit written either way, lower-cased', () => {
+    expect(enteredUnit('308/3 Hazlewood Place, Epping')).toBe('308');
+    expect(enteredUnit('Unit 12A, 3 Hazlewood Place')).toBe('12a');
+    expect(enteredUnit('3 Hazlewood Place, Epping')).toBeUndefined();
+  });
+});
+
+describe('suburbAfterStreet', () => {
+  it('finds the suburb of an address written without a comma', () => {
+    expect(suburbAfterStreet(enteredStreet('20 Gloucester Road Epping')!, 'gloucester road')).toBe('epping');
+    expect(suburbAfterStreet(enteredStreet('22 Valley Rd Eastwood NSW 2122')!, 'valley road')).toBe('eastwood');
+  });
+
+  it('tolerates an abbreviated street type and an empty suburb', () => {
+    expect(suburbAfterStreet('Cambridge St Epping', 'cambridge street')).toBe('epping');
+    expect(suburbAfterStreet('Kent St', 'kent street')).toBe('');
+  });
+
+  it('is undefined for a different street', () => {
+    expect(suburbAfterStreet('Kent Street Epping', 'valley road')).toBeUndefined();
+  });
+});
+
+describe('endsWithStreetType', () => {
+  it('is true when no suburb follows the street', () => {
+    expect(endsWithStreetType('Kent Street')).toBe(true);
+    expect(endsWithStreetType('Kent St.')).toBe(true);
+    expect(endsWithStreetType('Valley Road Eastwood')).toBe(false);
   });
 });

@@ -113,6 +113,77 @@ describe('NewRoutePage Route Request', () => {
     );
   });
 
+  it('pre-selects the Customer’s latest Route to copy when creating from a Route Request', async () => {
+    mockRequestParam = 'e1';
+    (getRouteRequest as jest.Mock).mockResolvedValue({ ...EMAIL, attachments: [] });
+    (listAllRoutes as jest.Mock).mockResolvedValue([
+      { id: 'older', customerId: 'c2', routeCode: 'OLD-1', createdAt: '2026-09-01T00:00:00.000Z' },
+      { id: 'latest', customerId: 'c2', routeCode: 'OLD-2', createdAt: '2026-10-01T00:00:00.000Z' },
+      { id: 'other-customer', customerId: 'c1', routeCode: 'OLD-3', createdAt: '2026-10-10T00:00:00.000Z' },
+    ]);
+    render(<NewRoutePage />);
+
+    await waitFor(() => expect(screen.getByLabelText('Copy Stops From Previous Route')).toHaveValue('latest'));
+  });
+
+  it('leaves the copy source empty when not creating from a Route Request', async () => {
+    (listAllRoutes as jest.Mock).mockResolvedValue([{ id: 'old-route', customerId: 'c1', routeCode: 'OLD-1' }]);
+    render(<NewRoutePage />);
+    await screen.findByLabelText('Copy Stops From Previous Route');
+    expect(screen.getByLabelText('Copy Stops From Previous Route')).toHaveValue('');
+  });
+
+  describe('Schedule Diff', () => {
+    const READING = {
+      readAt: '2026-10-18T01:00:00.000Z',
+      readBySub: 'sub-admin',
+      attachmentIndex: 1,
+      rows: [{ address: '12 Alder Street, Hillview' }, { address: '31 Hazel Road Riverbend' }],
+      warnings: [],
+    };
+    const copiedStop = (address: string, number: string, street: string, suburb: string) => ({
+      address,
+      addressStreetNumber: number,
+      addressStreet: street,
+      addressSuburb: suburb,
+    });
+
+    beforeEach(() => {
+      mockRequestParam = 'e1';
+      (getRouteWithStops as jest.Mock).mockResolvedValue({
+        stops: [copiedStop('12 Alder Street, Hillview', '12', 'Alder Street', 'Hillview'), copiedStop('15 Grove Crescent, Hillview', '15', 'Grove Crescent', 'Hillview')],
+      });
+      (fetchRouteRequestAttachment as jest.Mock).mockResolvedValue(new File(['pdf'], 'schedule.pdf', { type: 'application/pdf' }));
+    });
+
+    it('shows what the Schedule suggests once its Stops are copied, and applies nothing', async () => {
+      (getRouteRequest as jest.Mock).mockResolvedValue({ ...EMAIL, scheduleReading: READING });
+      render(<NewRoutePage />);
+      await waitFor(() => expect(screen.getByLabelText('Customer')).toHaveValue('c2'));
+
+      fireEvent.change(await screen.findByLabelText('Copy Stops From Previous Route'), { target: { value: 'old-route' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
+
+      const panel = await screen.findByRole('region', { name: 'Schedule Diff' });
+      expect(panel).toHaveTextContent('1 to add, 1 to drop, 0 to check, 1 unchanged.');
+      expect(panel).toHaveTextContent('31 Hazel Road Riverbend');
+      expect(panel).toHaveTextContent('15 Grove Crescent, Hillview');
+      expect(screen.getByRole('button', { name: 'Create Route (2 stops)' })).toBeInTheDocument();
+    });
+
+    it('points to Read Schedule when the Stops are copied but the Schedule has not been read', async () => {
+      (getRouteRequest as jest.Mock).mockResolvedValue(EMAIL);
+      render(<NewRoutePage />);
+      await waitFor(() => expect(screen.getByLabelText('Customer')).toHaveValue('c2'));
+
+      fireEvent.change(await screen.findByLabelText('Copy Stops From Previous Route'), { target: { value: 'old-route' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
+
+      expect(await screen.findByText(/Read the Schedule, under Route Request/)).toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: 'Schedule Diff' })).not.toBeInTheDocument();
+    });
+  });
+
   it('needs the requester’s name for an email Logged by staff', async () => {
     mockRequestParam = 'e1';
     (getRouteRequest as jest.Mock).mockResolvedValue({ ...EMAIL, loggedByStaff: true, attachments: [] });

@@ -84,6 +84,23 @@ ssrComputeRole.addToPrincipalPolicy(
 	}),
 );
 
+// Reading a Route Request's Schedule (ADR 0014) asks a Bedrock model to turn the
+// sheet's text into rows; only /api/route-requests routes do, through the SSR
+// role. Anthropic models only. The cross-region inference profile lives in this
+// region, but Bedrock checks the underlying model in every region it may route
+// to, hence the wildcard region on foundation-model.
+ssrComputeRole.addToPrincipalPolicy(
+	new PolicyStatement({
+		sid: 'AllowBedrockInvokeAnthropicModels',
+		effect: Effect.ALLOW,
+		actions: ['bedrock:InvokeModel'],
+		resources: [
+			'arn:aws:bedrock:*::foundation-model/anthropic.*',
+			`arn:aws:bedrock:${Stack.of(backend.data.resources.graphqlApi).region}:${Stack.of(backend.data.resources.graphqlApi).account}:inference-profile/*anthropic.*`,
+		],
+	}),
+);
+
 // Property History Reports (#291, ADR 0003) are written and handed out only by
 // the /api/property-history/reports routes, so the SSR role is the one
 // principal with access to reports/ -- amplify/storage/resource.ts grants no

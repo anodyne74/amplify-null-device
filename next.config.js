@@ -7,6 +7,8 @@
 
 export default {
   reactStrictMode: true,
+  // Loaded from node_modules at run time, not bundled: pdfjs finds its own worker file that way (lib/server/pdfLayoutText.ts).
+  serverExternalPackages: ['pdfjs-dist'],
   images: {
     unoptimized: true,
   },

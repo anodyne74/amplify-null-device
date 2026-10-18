@@ -303,6 +303,16 @@ export async function fetchRouteRequestAttachment(requestId: string, index: numb
   return new File([await response.blob()], filename, { type: contentType ?? '' });
 }
 
+export type ScheduleReading = NonNullable<RouteRequestRecord['scheduleReading']>;
+
+/**
+ * What the Schedule on a Route Request says, read by the server (ADR 0014): the stored reading if there
+ * is one, otherwise a new one (a model call, which can take a while). A proposal only; no Route changes.
+ */
+export async function readSchedule(requestId: string, options: { force?: boolean } = {}): Promise<ScheduleReading> {
+  return (await callApi<{ reading: ScheduleReading }>('/api/route-requests/read-schedule', { requestId, force: options.force === true })).reading;
+}
+
 /** One record, for New route to prefill from. */
 export async function getRouteRequest(id: string): Promise<RouteRequestRecord | null> {
   const { data, errors } = await getDataClient().models.RouteRequestRecord.get({ id });

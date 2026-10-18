@@ -296,13 +296,6 @@ export async function openRouteRequestFile(requestId: string, file: number | 'ra
   return (await callApi<{ url: string }>('/api/route-requests/file', { requestId, file })).url;
 }
 
-/** One of a record's attachments as a File, to load into New route's import panel. */
-export async function fetchRouteRequestAttachment(requestId: string, index: number, filename: string, contentType: string | null | undefined): Promise<File> {
-  const response = await fetch(await openRouteRequestFile(requestId, index));
-  if (!response.ok) throw new Error(`Fetching the attachment failed: ${response.status}`);
-  return new File([await response.blob()], filename, { type: contentType ?? '' });
-}
-
 export type ScheduleReading = NonNullable<RouteRequestRecord['scheduleReading']>;
 
 /**

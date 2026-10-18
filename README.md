@@ -318,7 +318,6 @@ amplify.yml
 |---|---|---|
 | Auth not configured | Placeholder/missing `amplify_outputs.json` or env vars | Run `npm run generate:config` locally and verify Amplify env vars |
 | Invoice email fails | SES sender not verified or missing config | Verify SES identity and `SES_SENDER_EMAIL` |
-| Upload parse yields no stops | File text extraction/parsing failed | Use a selectable-text PDF/CSV/TXT and retry Preview Stops |
 | Build artifact errors in Amplify | Wrong output directory | Confirm Amplify base directory is `.next` |
 
 ## Contribution

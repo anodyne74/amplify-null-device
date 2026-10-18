@@ -18,8 +18,6 @@ import { RequesterFields, RouteRequestView, localNow, recordTitle } from '@/app/
 import { pickStopLocationFields } from '@/lib/locationPrecision';
 import { nextRouteCode, type RouteCodeEntry } from '@/lib/routeCode';
 import { routeCodeFeedback } from '@/app/administrator/components/routeCodeFeedback';
-import { extractScheduleText } from '@/lib/extractScheduleText';
-import { parseScheduleText } from '@/lib/parseSchedule';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
 import { pickupDateProblem } from '@/lib/pickupDate';
 import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
@@ -40,7 +38,6 @@ import { activeStops } from '@/lib/loadChange';
 import { DataError } from '@/lib/graphqlResult';
 import { listAllCustomers } from '@/lib/customers';
 import {
-  fetchRouteRequestAttachment,
   getRouteRequest,
   requesterLabel,
   scheduleAttachmentIndex,
@@ -134,9 +131,8 @@ function NewRoutePageContent() {
   );
   const [importNotes, setImportNotes] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [importText, setImportText] = useState('');
   const [importDraftStops, setImportDraftStops] = useState<DraftStop[] | null>(null);
-  const [importDraftSource, setImportDraftSource] = useState<'copy' | 'upload' | null>(null);
+  const [importDraftSource, setImportDraftSource] = useState<'copy' | null>(null);
   const [importCopySourceRouteId, setImportCopySourceRouteId] = useState('');
   const [copyingImportStops, setCopyingImportStops] = useState(false);
   // The Stops as copied, which the Schedule Diff compares with; the draft changes as its lines are accepted.
@@ -155,15 +151,12 @@ function NewRoutePageContent() {
   const [parseWarnings, setParseWarnings] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const [locatingProgress, setLocatingProgress] = useState<{ located: number; total: number } | null>(null);
   // Bumped whenever the drafts change, so a slow locate of an earlier parse is dropped.
-  const locateRunRef = useRef(0);
 
   // The Route Request (#359): the inbox record this Route is created from, or
   // one recorded by hand from the uploaded Schedule and an optional requester.
   const [fromRecord, setFromRecord] = useState<RouteRequestRecord | null>(null);
   const [fromRecordError, setFromRecordError] = useState<string | null>(null);
-  const [fromAttachment, setFromAttachment] = useState('');
   // What the Schedule says, as shown by the Schedule reading panel; compared with the copied Stops (ADR 0014).
   const [scheduleReading, setScheduleReading] = useState<ScheduleReading | null>(null);
   const [requesterName, setRequesterName] = useState('');
@@ -226,14 +219,10 @@ function NewRoutePageContent() {
         return;
       }
       setFromRecord(record);
-      const index = scheduleAttachmentIndex(record.attachments);
-      if (index !== null) void loadRecordAttachment(record, index);
     });
     return () => {
       cancelled = true;
     };
-    // loadRecordAttachment only sets state; it's run once per record.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromRecordId]);
 
   // The suggested Customer, once both it and the Customers have loaded.
@@ -361,8 +350,6 @@ function NewRoutePageContent() {
   };
 
   const handleImportCustomerChange = (customerId: string) => {
-    locateRunRef.current += 1;
-    setLocatingProgress(null);
     setImportCustomerId(customerId);
     setImportCopySourceRouteId('');
     setImportDraftStops(null);
@@ -374,37 +361,7 @@ function NewRoutePageContent() {
   // ── Import tab handlers ───────────────────────────────────────────────────
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFromAttachment('');
-    loadImportFile(e.target.files?.[0] ?? null);
-  };
-
-  const loadImportFile = (file: File | null) => {
-    setImportFile(file);
-    setImportText('');
-    setParseWarnings([]);
-    setImportError(null);
-    if (file) {
-      void extractScheduleText(file)
-        .then((text) => {
-          setImportText(text);
-        })
-        .catch((error) => {
-          console.error('Failed to extract schedule text:', error);
-          setImportError('Could not read the uploaded file. PDFs must contain selectable text.');
-        });
-    }
-  };
-
-  const loadRecordAttachment = async (record: RouteRequestRecord, index: number) => {
-    const attachment = record.attachments?.[index];
-    if (!attachment) return;
-    setFromAttachment(String(index));
-    try {
-      loadImportFile(await fetchRouteRequestAttachment(record.id, index, attachment.filename, attachment.contentType));
-    } catch (error) {
-      console.error('Failed to load the email attachment:', error);
-      setImportError(`Could not load ${attachment.filename} from the email.`);
-    }
+    setImportFile(e.target.files?.[0] ?? null);
   };
 
   const routeRequestProblem = () => {
@@ -425,62 +382,6 @@ function NewRoutePageContent() {
     };
   };
 
-  const handleParse = async () => {
-    if (importDraftSource === 'copy') {
-      setImportError('Stops are currently sourced from a copied route. Clear copied stops first to use uploaded file stops.');
-      return;
-    }
-
-    const text = importText.trim();
-    if (!text) { setImportError('Upload a schedule file first.'); return; }
-    const result = parseScheduleText(text);
-    const run = ++locateRunRef.current;
-    setImportDraftStops(null);
-    setImportDraftSource(null);
-    let unpinned = 0;
-    let leftOut: string[] = [];
-    if (result.stops.length > 0) {
-      setImportError(null);
-      setLocatingProgress({ located: 0, total: result.stops.length });
-      const located = await locateDraftStops<RouteDraftStop>(
-        result.stops.map((stop) => ({
-          address: stop.address,
-          numberOfSigns: stop.numberOfSigns,
-          agent: stop.agent,
-          isAuction: stop.isAuction,
-        })),
-        (count, total) => {
-          if (locateRunRef.current === run) setLocatingProgress({ located: count, total });
-        }
-      );
-      if (locateRunRef.current !== run) return;
-      setLocatingProgress(null);
-      setImportDraftStops(located.stops);
-      setImportDraftSource('upload');
-      unpinned = located.unpinned;
-      leftOut = located.leftOut;
-    }
-    const warnings: string[] = [];
-    if (leftOut.length) {
-      warnings.push(
-        `Left out ${leftOut.length} stop(s) with no suburb that couldn't be found on the map: ${leftOut.join(', ')}. Add them to the Route once it's created, with the suburb.`
-      );
-    }
-    if (unpinned > 0) {
-      warnings.push(
-        `${unpinned} stop(s) couldn't be found on the map and will be created without a pin. They still appear in Property History.`
-      );
-    }
-    if (result.duplicatesRemoved.length) {
-      warnings.push(`Removed ${result.duplicatesRemoved.length} duplicate address(es): ${result.duplicatesRemoved.join(', ')}`);
-    }
-    if (result.unparsedLines.length) {
-      warnings.push(`${result.unparsedLines.length} line(s) could not be parsed and were skipped.`);
-    }
-    setParseWarnings(warnings);
-    setImportError(result.stops.length === 0 ? 'No stops could be extracted from the uploaded file.' : null);
-  };
-
   const handleCopyStopsToImport = async () => {
     if (!importCopySourceRouteId) {
       setImportError('Select a previous route to copy from.');
@@ -496,9 +397,7 @@ function NewRoutePageContent() {
         return;
       }
 
-      locateRunRef.current += 1;
-      setLocatingProgress(null);
-      resetDiffDecisions();
+          resetDiffDecisions();
       setCopiedStops(copiedStops);
       setImportDraftStops(copiedStops.map((stop, i) => ({ ...stop, copiedFrom: i })));
       setImportDraftSource('copy');
@@ -934,84 +833,33 @@ function NewRoutePageContent() {
                     />
                   </Field>
 
-                  {fromRecord && (fromRecord.attachments ?? []).length > 0 && (
-                    <Field label="Schedule from the email" htmlFor="import-from-attachment">
-                      <Select
-                        id="import-from-attachment"
-                        value={fromAttachment}
-                        onChange={(e) => {
-                          if (e.target.value) void loadRecordAttachment(fromRecord, Number(e.target.value));
-                        }}
-                        disabled={isUploading}
-                      >
-                        <option value="">Choose an attachment...</option>
-                        {(fromRecord.attachments ?? []).map((attachment, index) =>
-                          attachment ? (
-                            <option key={attachment.key} value={index}>{attachment.filename}</option>
-                          ) : null
-                        )}
-                      </Select>
-                    </Field>
-                  )}
-
-                  <Field
-                    label="Upload Schedule File"
-                    hint={fromRecord ? 'PDF, CSV, TXT, to parse. The email keeps its own files' : 'PDF, CSV, TXT, kept with the Route Request'}
-                  >
-                    <div className={styles.fileRow}>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".pdf,.csv,.txt"
-                        style={{ display: 'none' }}
-                        onChange={handleFileSelected}
-                      />
-                      <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>
-                        {importFile ? importFile.name : 'Choose File'}
-                      </Button>
-                      {importFile && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => {
-                            locateRunRef.current += 1;
-                            setLocatingProgress(null);
-                            setImportFile(null);
-                            setImportText('');
-                            if (importDraftSource === 'upload') {
-                              setImportDraftStops(null);
-                              setImportDraftSource(null);
-                            }
-                            if (fileInputRef.current) fileInputRef.current.value = '';
-                          }}
-                        >
-                          Remove
+                  {!fromRecord && (
+                    <Field label="Upload Schedule File" hint="PDF, CSV, TXT, kept with the Route Request. Stops are copied from a previous Route or entered by hand">
+                      <div className={styles.fileRow}>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".pdf,.csv,.txt"
+                          style={{ display: 'none' }}
+                          onChange={handleFileSelected}
+                        />
+                        <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                          {importFile ? importFile.name : 'Choose File'}
                         </Button>
-                      )}
-                    </div>
-                    {importFile && importText.trim() && (
-                      <p className={styles.mutedText}>File text extracted. Preview stops to parse and review.</p>
-                    )}
-                  </Field>
-
-                  <Button
-                    type="button"
-                    onClick={() => void handleParse()}
-                    loading={locatingProgress !== null}
-                    disabled={
-                      !importText.trim() ||
-                      isUploading ||
-                      copyingImportStops ||
-                      locatingProgress !== null ||
-                      importDraftSource === 'copy'
-                    }
-                  >
-                    Preview Stops
-                  </Button>
-                  {locatingProgress && (
-                    <p className={styles.mutedText} role="status">
-                      Finding stops on the map… {locatingProgress.located} of {locatingProgress.total}
-                    </p>
+                        {importFile && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                              setImportFile(null);
+                              if (fileInputRef.current) fileInputRef.current.value = '';
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    </Field>
                   )}
                 </div>
 

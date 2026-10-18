@@ -4,8 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import NewRoutePage from '../new/page';
 import { createRoute, createStopsForRoute, getRouteWithStops, listAllRoutes } from '@/lib/routes';
 import { listAllCustomers } from '@/lib/customers';
-import { attachNewRouteRequest, fetchRouteRequestAttachment, getRouteRequest } from '@/lib/routeRequests';
-import { extractScheduleText } from '@/lib/extractScheduleText';
+import { attachNewRouteRequest, getRouteRequest } from '@/lib/routeRequests';
 import { locateDraftStops } from '@/lib/stopLocation';
 
 const mockRouterPush = jest.fn();
@@ -28,7 +27,6 @@ jest.mock('@/app/operator/components/RouteForm', () => ({
 
 jest.mock('@/lib/routes');
 jest.mock('@/lib/customers');
-jest.mock('@/lib/extractScheduleText', () => ({ extractScheduleText: jest.fn() }));
 jest.mock('@/lib/stopLocation', () => ({
   ...jest.requireActual('@/lib/stopLocation'),
   // Pins every draft as-is: these tests are about the draft list, not the map.
@@ -43,7 +41,6 @@ jest.mock('@/lib/routeRequests', () => {
     requesterLabel: actual.requesterLabel,
     scheduleAttachmentIndex: actual.scheduleAttachmentIndex,
     getRouteRequest: jest.fn(),
-    fetchRouteRequestAttachment: jest.fn(),
     attachNewRouteRequest: jest.fn(),
     openRouteRequestFile: jest.fn(),
   };
@@ -89,21 +86,16 @@ describe('NewRoutePage Route Request', () => {
     (createRoute as jest.Mock).mockResolvedValue({ id: 'new-route' });
     (createStopsForRoute as jest.Mock).mockResolvedValue([{ success: true, index: 0 }]);
     (attachNewRouteRequest as jest.Mock).mockResolvedValue({ ok: true });
-    (extractScheduleText as jest.Mock).mockResolvedValue('1 Main St');
   });
 
   it('prefills the Customer and Schedule from an inbox email, and links it as the new Route’s Route Request', async () => {
     mockRequestParam = 'e1';
     (getRouteRequest as jest.Mock).mockResolvedValue(EMAIL);
-    const schedule = new File(['pdf'], 'schedule.pdf', { type: 'application/pdf' });
-    (fetchRouteRequestAttachment as jest.Mock).mockResolvedValue(schedule);
     render(<NewRoutePage />);
 
     await waitFor(() => expect(screen.getByLabelText('Customer')).toHaveValue('c2'));
-    expect(fetchRouteRequestAttachment).toHaveBeenCalledWith('e1', 1, 'schedule.pdf', 'application/pdf');
-    // The email's own download button, and the import panel's file, now loaded.
-    await waitFor(() => expect(screen.getAllByRole('button', { name: 'schedule.pdf' })).toHaveLength(2));
-    expect(screen.getByLabelText('Schedule from the email')).toHaveValue('1');
+    // The email keeps its own files, so there is nothing to upload.
+    expect(screen.queryByText('Choose File')).not.toBeInTheDocument();
 
     await createFromCopiedStops();
 
@@ -154,7 +146,6 @@ describe('NewRoutePage Route Request', () => {
       (getRouteWithStops as jest.Mock).mockResolvedValue({
         stops: [copiedStop('12 Alder Street, Hillview', '12', 'Alder Street', 'Hillview'), copiedStop('15 Grove Crescent, Hillview', '15', 'Grove Crescent', 'Hillview')],
       });
-      (fetchRouteRequestAttachment as jest.Mock).mockResolvedValue(new File(['pdf'], 'schedule.pdf', { type: 'application/pdf' }));
     });
 
     it('shows what the Schedule suggests once its Stops are copied, and applies nothing', async () => {
@@ -550,20 +541,6 @@ describe('NewRoutePage copied Stop notes (#464)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
 
     await waitFor(() => expect(screen.getByLabelText('Notes for stop 2, 20 Gloucester Road, Epping')).toHaveValue('Gate code 1234'));
-  });
-
-  it('gives Stops from an uploaded Schedule an empty, editable note', async () => {
-    (extractScheduleText as jest.Mock).mockResolvedValue('2 1 Main St, Epping  BO');
-    render(<NewRoutePage />);
-    const input = (await screen.findByText('Choose File')).closest('div')!.querySelector('input[type="file"]')!;
-    fireEvent.change(input, { target: { files: [new File(['pdf'], 'mine.pdf', { type: 'application/pdf' })] } });
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Preview Stops' }));
-
-    const note = await screen.findByLabelText(/^Notes for /);
-    expect(note).toHaveValue('');
-    fireEvent.change(note, { target: { value: 'Side gate' } });
-    expect(note).toHaveValue('Side gate');
   });
 
   describe('Route Code', () => {

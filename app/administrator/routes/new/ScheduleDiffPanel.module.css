@@ -42,3 +42,12 @@
   gap: var(--space-1);
   flex-shrink: 0;
 }
+
+.warnings {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-6);
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}

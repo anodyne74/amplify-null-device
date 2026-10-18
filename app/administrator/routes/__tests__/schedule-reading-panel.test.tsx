@@ -72,4 +72,14 @@ describe('ScheduleReadingPanel', () => {
     );
     expect(container).toBeEmptyDOMElement();
   });
+
+  it('puts a mismatch with the sheet’s totals among the warnings, before the model’s own', async () => {
+    render(
+      <ScheduleReadingPanel
+        record={record({ scheduleReading: { ...READING, rows: [{ address: 'A', numberOfSigns: 5 }], statedTotals: { signs: 9 } } })}
+      />
+    );
+    const items = screen.getAllByRole('listitem').map((item) => item.textContent);
+    expect(items.findIndex((text) => /add up to 5 signs, but the sheet says 9/.test(text ?? ''))).toBeLessThan(items.indexOf('Total unclear'));
+  });
 });

@@ -56,6 +56,7 @@ const MODEL_ANSWER = JSON.stringify({
   sheetDate: '10th October 2026',
   rows: [{ address: '1 Example Street, Epping', numberOfSigns: 5, agent: 'Alex', timeSlot: '9:15 - 9:45' }],
   instructions: [{ text: 'Use the side street', address: '1 Example Street, Epping', source: 'email' }],
+  statedTotals: { signs: 5, agents: [{ agent: 'Alex', signs: 5 }] },
   warnings: [],
 });
 
@@ -88,6 +89,7 @@ describe('POST /api/route-requests/read-schedule', () => {
       sheetDate: '10th October 2026',
       rows: [{ address: '1 Example Street, Epping', numberOfSigns: 5, agent: 'Alex', timeSlot: '9:15 - 9:45' }],
       instructions: [{ text: 'Use the side street', address: '1 Example Street, Epping', source: 'email' }],
+      statedTotals: { signs: 5, agents: [{ agent: 'Alex', signs: 5 }] },
     });
     expect(readFileMock).toHaveBeenCalledWith('requests/ses-msg-1/1-schedule.pdf');
     expect(askMock.mock.calls[0][0].prompt).toContain(SHEET);

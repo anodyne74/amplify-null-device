@@ -26,6 +26,7 @@ import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
 import type { StandingPickupDay } from '@/amplify/types';
 import { locateDraftStops } from '@/lib/stopLocation';
 import { displayNotes } from '@/lib/stopProgress';
+import { ScheduleDiffPanel } from './ScheduleDiffPanel';
 import { ScheduleReadingPanel } from './ScheduleReadingPanel';
 import styles from './page.module.css';
 import { listAllRoutes, getRouteWithStops } from '@/lib/routes';
@@ -39,6 +40,7 @@ import {
   requesterLabel,
   scheduleAttachmentIndex,
   type RouteRequestRecord,
+  type ScheduleReading,
 } from '@/lib/routeRequests';
 
 function todayDateKey() {
@@ -141,6 +143,8 @@ function NewRoutePageContent() {
   const [fromRecord, setFromRecord] = useState<RouteRequestRecord | null>(null);
   const [fromRecordError, setFromRecordError] = useState<string | null>(null);
   const [fromAttachment, setFromAttachment] = useState('');
+  // What the Schedule says, as shown by the Schedule reading panel; compared with the copied Stops (ADR 0014).
+  const [scheduleReading, setScheduleReading] = useState<ScheduleReading | null>(null);
   const [requesterName, setRequesterName] = useState('');
   const [requesterEmail, setRequesterEmail] = useState('');
   const [requestedAt, setRequestedAt] = useState(localNow);
@@ -175,6 +179,17 @@ function NewRoutePageContent() {
     (placementDate: string) => (existingRouteCodes === undefined ? '' : (nextRouteCode((existingRouteCodes ?? []).map((route) => route.routeCode), placementDate) ?? '')),
     [existingRouteCodes]
   );
+
+  // Creating from a Route Request: the Customer's latest Route is the one to copy, unless another is chosen.
+  const latestCopySourceId = importCopySourcesForCustomer[0]?.id ?? '';
+  const copySourceIsTheirs = importCopySourcesForCustomer.some((route) => route.id === importCopySourceRouteId);
+  const preselectedFor = useRef('');
+  useEffect(() => {
+    if (!fromRecord || !importCustomerId || !latestCopySourceId || preselectedFor.current === importCustomerId) return;
+    preselectedFor.current = importCustomerId;
+    // Not one already chosen for this Customer, but a stale one from the Customer shown before the suggested one.
+    if (!copySourceIsTheirs) setImportCopySourceRouteId(latestCopySourceId);
+  }, [fromRecord, importCustomerId, latestCopySourceId, copySourceIsTheirs]);
 
   useEffect(() => {
     if (!importRouteCodeTyped) setImportRouteCode(suggestRouteCode(importScheduledDate));
@@ -595,7 +610,7 @@ function NewRoutePageContent() {
                   Who asked for this Route. An uploaded Schedule is kept with it; with neither, the Route has no Route Request yet.
                 </p>
               )}
-              {fromRecord && <ScheduleReadingPanel record={fromRecord} />}
+              {fromRecord && <ScheduleReadingPanel record={fromRecord} onReading={setScheduleReading} />}
               {(!fromRecord || needsRequester) && (
                 <div className={styles.fieldsStack}>
                   <RequesterFields
@@ -816,6 +831,13 @@ function NewRoutePageContent() {
                 )}
 
                 {importError && <div className={styles.errorBanner}>{importError}</div>}
+
+                {importDraftSource === 'copy' && importDraftStops && scheduleReading && (
+                  <ScheduleDiffPanel reading={scheduleReading} stops={importDraftStops} />
+                )}
+                {importDraftSource === 'copy' && importDraftStops && fromRecord && !scheduleReading && scheduleAttachmentIndex(fromRecord.attachments) !== null && (
+                  <p className={styles.importHint}>Read the Schedule, under Route Request, to see what changed since this Route.</p>
+                )}
 
                 {importDraftStops && importDraftStops.length > 0 && (
                   <div>

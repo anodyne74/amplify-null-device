@@ -12,6 +12,9 @@
 }
 
 .heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   margin: var(--space-4) 0 var(--space-1);
   font-size: var(--text-sm);
 }
@@ -24,4 +27,18 @@
 
 .reason {
   color: var(--text-subtle);
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+}
+
+.actions {
+  display: inline-flex;
+  gap: var(--space-1);
+  flex-shrink: 0;
 }

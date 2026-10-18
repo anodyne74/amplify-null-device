@@ -819,6 +819,27 @@ export const schema = a.schema({
     inline: a.boolean(), // An inline part (a signature logo, say) rather than an attached file
   }),
 
+  /** One property row read from a Route Request's Schedule (ADR 0014), before any matching against a Route's Stops. */
+  ScheduleReadingRow: a.customType({
+    address: a.string().required(), // As written on the sheet, with any New/Preview/Auction prefix removed
+    numberOfSigns: a.integer(),
+    agent: a.string(), // As written on the sheet
+    isAuction: a.boolean(),
+    isNew: a.boolean(), // Marked New on the sheet; a hint only
+    isPreview: a.boolean(),
+    timeSlot: a.string(), // Kept for traceability; it never becomes part of a Stop
+  }),
+
+  /** What was read from a Route Request's Schedule and email (ADR 0014); a proposal, never applied to a Route by itself. */
+  ScheduleReading: a.customType({
+    readAt: a.datetime().required(),
+    readBySub: a.string().required(),
+    attachmentIndex: a.integer().required(), // Which of the record's attachments was read
+    sheetDate: a.string(), // The date in the sheet's title, which is the one to trust over the file name
+    rows: a.ref('ScheduleReadingRow').array().required(),
+    warnings: a.string().array(),
+  }),
+
   /**
    * RouteRequestRecord - a Route Request or Route Amendment as received (ADR
    * 0008): an email sent to requests@ (#358), captured by the
@@ -847,6 +868,7 @@ export const schema = a.schema({
       dmarcVerdict: a.string(),
       rawMessageKey: a.string(), // Email only
       attachments: a.ref('RouteRequestAttachment').array(),
+      scheduleReading: a.ref('ScheduleReading'), // Written by the server route that reads the Schedule; replaced, never nulled, on a re-read
       loggedByStaff: a.boolean(), // Sent from our own domain, so the real requester is entered by hand
       suggestedCustomerId: a.id(),
       // The requester entered by hand, for a manual record or a Logged-by-staff email.

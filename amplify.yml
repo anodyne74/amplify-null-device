@@ -28,7 +28,7 @@ frontend:
         # for Route Estimates (scripts/setup-routes-api-key.sh).
         - '[ -z "$GOOGLE_ROUTES_API_KEY" ] || echo "GOOGLE_ROUTES_API_KEY=$GOOGLE_ROUTES_API_KEY" >> .env.production'
         # BEDROCK_SCHEDULE_MODEL_ID: the Bedrock model (or inference profile) that
-        # reads Route Request Schedules (ADR 0014); the SSR role is granted Anthropic models only.
+        # reads Route Request Schedules (ADR 0014); the SSR role is granted Anthropic and Amazon Nova models only.
         - '[ -z "$BEDROCK_SCHEDULE_MODEL_ID" ] || echo "BEDROCK_SCHEDULE_MODEL_ID=$BEDROCK_SCHEDULE_MODEL_ID" >> .env.production'
         # Build frontend (quality checks already passed in GitHub Actions)
         - npm run build

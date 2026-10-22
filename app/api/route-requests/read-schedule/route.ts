@@ -9,6 +9,9 @@ import { buildSchedulePrompt, mergeScheduleReadings, parseScheduleReading, readi
 // A sheet with fewer characters than this has no text layer worth reading.
 const MIN_SHEET_TEXT = 20;
 
+// The most the Amazon Nova models accept (a higher value is a 400).
+const SCHEDULE_MAX_TOKENS = 10000;
+
 const isPdf = (attachment: { filename: string; contentType?: string | null }) =>
   /pdf/i.test(attachment.contentType ?? '') || /\.pdf$/i.test(attachment.filename);
 const isPlainText = (attachment: { filename: string; contentType?: string | null }) =>
@@ -87,7 +90,7 @@ export async function POST(request: NextRequest) {
         filename: attachment.filename,
         ...(pages.length > 1 && { page: { number: pagesRead + 1, count: pages.length } }),
       }),
-      maxTokens: 16000,
+      maxTokens: SCHEDULE_MAX_TOKENS,
     });
     const parsed = mergeScheduleReadings(soFar, parseScheduleReading(answer));
 

@@ -15,6 +15,7 @@ const customerGetMock = jest.fn();
 const operatorGetMock = jest.fn();
 const auditCreateMock = jest.fn();
 const smsSendMock = jest.fn();
+const ensureCodeMock = jest.fn();
 const customOutputs: Record<string, string | undefined> = {};
 
 jest.mock('aws-jwt-verify', () => ({
@@ -38,6 +39,10 @@ jest.mock('@aws-sdk/client-pinpoint-sms-voice-v2', () => ({
 }));
 
 jest.mock('@/lib/amplifyOutputsCustom', () => ({ customOutputs }));
+
+jest.mock('@/lib/server/routeLinkCode', () => ({
+  ensureRouteLinkCode: (...args: unknown[]) => ensureCodeMock(...args),
+}));
 
 // lib/server/iamDataClient re-exports generateClient's return value wired
 // with real IAM credentials -- mocked wholesale here so tests never import
@@ -99,6 +104,7 @@ describe('send job-assigned email API', () => {
     sesSendMock.mockResolvedValue({ MessageId: 'ses-message-id-1' });
     operatorGetMock.mockResolvedValue({ data: { id: 'sub-operator-1', phone: '0412 345 678' } });
     smsSendMock.mockResolvedValue({ MessageId: 'sms-message-id-1' });
+    ensureCodeMock.mockResolvedValue('k7q2m9');
     auditCreateMock.mockResolvedValue({ errors: undefined });
   });
 
@@ -203,11 +209,27 @@ describe('send job-assigned email API', () => {
       DestinationPhoneNumber: '+61412345678',
       OriginationIdentity: 'NullDevice',
       MessageBody: expect.stringMatching(
-        /^NullDevice: Route W25-08-114 for Beltline Group, 2 stops, Wed 7 Oct\. https:\/\/.+\/r\/route-1$/
+        /^NullDevice: Route W25-08-114 for Beltline Group, 2 stops, Wed 7 Oct\. https:\/\/.+\/r\/k7q2m9$/
       ),
       MessageType: 'TRANSACTIONAL',
       ConfigurationSetName: 'nulldevice-sms-main',
     });
+  });
+
+  it("links the Route by its Route Link code", async () => {
+    await notify();
+
+    expect(ensureCodeMock).toHaveBeenCalledWith(expect.anything(), 'route-1');
+  });
+
+  it('falls back to the Route id in the link when no Route Link code can be made', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    ensureCodeMock.mockRejectedValue(new Error('boom'));
+
+    const response = await notify();
+
+    expect(response.status).toBe(200);
+    expect(smsSendMock.mock.calls[0][0].input.MessageBody).toMatch(/\/r\/route-1$/);
   });
 
   it('records the notification against the Route with the channels that went out and a masked mobile', async () => {

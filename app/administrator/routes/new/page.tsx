@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
@@ -16,14 +16,21 @@ import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { RouteForm, withDraftStopNote, type RouteDraftStop } from '@/app/operator/components/RouteForm';
 import { RequesterFields, RouteRequestView, localNow, recordTitle } from '@/app/administrator/components/RouteRequests';
 import { pickStopLocationFields } from '@/lib/locationPrecision';
-import { extractScheduleText } from '@/lib/extractScheduleText';
-import { parseScheduleText } from '@/lib/parseSchedule';
+import { nextRouteCode, type RouteCodeEntry } from '@/lib/routeCode';
+import { routeCodeFeedback } from '@/app/administrator/components/routeCodeFeedback';
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
 import { pickupDateProblem } from '@/lib/pickupDate';
 import { useNewRoutePickupDate } from '@/lib/useNewRoutePickupDate';
 import type { StandingPickupDay } from '@/amplify/types';
 import { locateDraftStops } from '@/lib/stopLocation';
 import { displayNotes } from '@/lib/stopProgress';
+import { scheduleDiff } from '@/lib/scheduleDiff';
+import { ScheduleDiffPanel, lineKey, type DiffDecision, type DiffLine } from './ScheduleDiffPanel';
+import { addToNote, instructionLines, removeFromNote } from '@/lib/scheduleInstructions';
+import { appendRouteInstruction } from '@/lib/routeInstructions';
+import { agentVocabulary, fieldChanges, matchAgent, withPreviewNote } from '@/lib/scheduleChanges';
+import { addToDraft, dropFromDraft, removeAddFromDraft, restoreToDraft, type DraftMarks } from '@/lib/scheduleDiffDraft';
+import { ScheduleReadingPanel } from './ScheduleReadingPanel';
 import styles from './page.module.css';
 import { listAllRoutes, getRouteWithStops } from '@/lib/routes';
 import { createRouteWithStops } from '@/lib/createRouteWithStops';
@@ -31,49 +38,19 @@ import { activeStops } from '@/lib/loadChange';
 import { DataError } from '@/lib/graphqlResult';
 import { listAllCustomers } from '@/lib/customers';
 import {
-  fetchRouteRequestAttachment,
   getRouteRequest,
   requesterLabel,
   scheduleAttachmentIndex,
   type RouteRequestRecord,
+  type ScheduleReading,
 } from '@/lib/routeRequests';
+
+// A draft Stop, with where the Schedule Diff took it from (lib/scheduleDiffDraft.ts).
+type DraftStop = RouteDraftStop & DraftMarks;
 
 function todayDateKey() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
-
-function getExcelStyleWeekPrefix(date = new Date()) {
-  const shifted = new Date(date);
-  shifted.setDate(shifted.getDate() - 2);
-
-  const yearStart = new Date(shifted.getFullYear(), 0, 1);
-  const dayOfYear = Math.floor((shifted.getTime() - yearStart.getTime()) / 86400000) + 1;
-  const weekNum = Math.floor((dayOfYear - 1) / 7) + 1;
-  const yy = String(shifted.getFullYear()).slice(-2);
-
-  return `W${String(weekNum).padStart(2, '0')}-${yy}`;
-}
-
-async function generateNextRouteCode() {
-  const prefix = getExcelStyleWeekPrefix();
-  const routes = await listAllRoutes().catch(() => null);
-  if (!routes) {
-    return `${prefix}-001`;
-  }
-
-  const used = new Set<number>();
-  (routes as Array<{ routeCode?: string | null }>).forEach((route) => {
-    const code = route.routeCode;
-    if (!code || !code.startsWith(`${prefix}-`)) return;
-    const match = code.match(/-(\d{3})$/);
-    if (!match) return;
-    used.add(Number(match[1]));
-  });
-
-  let next = 1;
-  while (used.has(next)) next += 1;
-  return `${prefix}-${String(next).padStart(3, '0')}`;
 }
 
 function sanitizeCopiedStopNotes(notes?: string | null) {
@@ -124,9 +101,10 @@ function NewRoutePageContent() {
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [manualRouteCode, setManualRouteCode] = useState('');
+  // Routes' codes already in use: undefined until read, null if they couldn't be.
+  const [existingRouteCodes, setExistingRouteCodes] = useState<RouteCodeEntry[] | null | undefined>(undefined);
   const [importRouteCode, setImportRouteCode] = useState('');
-  const [routeCodeInitialized, setRouteCodeInitialized] = useState(false);
+  const [importRouteCodeTyped, setImportRouteCodeTyped] = useState(false);
   const [copyStopSources, setCopyStopSources] = useState<Array<{
     id: string;
     customerId: string;
@@ -153,23 +131,34 @@ function NewRoutePageContent() {
   );
   const [importNotes, setImportNotes] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [importText, setImportText] = useState('');
-  const [importDraftStops, setImportDraftStops] = useState<RouteDraftStop[] | null>(null);
-  const [importDraftSource, setImportDraftSource] = useState<'copy' | 'upload' | null>(null);
+  const [importDraftStops, setImportDraftStops] = useState<DraftStop[] | null>(null);
+  const [importDraftSource, setImportDraftSource] = useState<'copy' | null>(null);
   const [importCopySourceRouteId, setImportCopySourceRouteId] = useState('');
   const [copyingImportStops, setCopyingImportStops] = useState(false);
+  // The Stops as copied, which the Schedule Diff compares with; the draft changes as its lines are accepted.
+  const [copiedStops, setCopiedStops] = useState<RouteDraftStop[] | null>(null);
+  const importDraftStopsRef = useRef<DraftStop[] | null>(null);
+  const [diffDecisions, setDiffDecisions] = useState<Record<string, DiffDecision>>({});
+  const [diffBusy, setDiffBusy] = useState<ReadonlySet<string>>(new Set());
+  const diffDecisionsRef = useRef<Record<string, DiffDecision>>({});
+  // Copied Stops taken out by an accepted Drop, as the administrator last had them, for taking it back.
+  const droppedStopsRef = useRef(new Map<number, DraftStop>());
+  // Bumped whenever the copy is replaced, so an Add still being found on the map is dropped.
+  const diffRunRef = useRef(0);
+  // Route-wide instructions accepted, by their position in the reading, and where each Stop instruction went, for taking it back.
+  const [acceptedRouteInstructions, setAcceptedRouteInstructions] = useState<Record<number, string>>({});
+  const instructionStopsRef = useRef(new Map<number, { copiedFrom?: number; fromRow?: number }>());
   const [parseWarnings, setParseWarnings] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const [locatingProgress, setLocatingProgress] = useState<{ located: number; total: number } | null>(null);
   // Bumped whenever the drafts change, so a slow locate of an earlier parse is dropped.
-  const locateRunRef = useRef(0);
 
   // The Route Request (#359): the inbox record this Route is created from, or
   // one recorded by hand from the uploaded Schedule and an optional requester.
   const [fromRecord, setFromRecord] = useState<RouteRequestRecord | null>(null);
   const [fromRecordError, setFromRecordError] = useState<string | null>(null);
-  const [fromAttachment, setFromAttachment] = useState('');
+  // What the Schedule says, as shown by the Schedule reading panel; compared with the copied Stops (ADR 0014).
+  const [scheduleReading, setScheduleReading] = useState<ScheduleReading | null>(null);
   const [requesterName, setRequesterName] = useState('');
   const [requesterEmail, setRequesterEmail] = useState('');
   const [requestedAt, setRequestedAt] = useState(localNow);
@@ -185,20 +174,40 @@ function NewRoutePageContent() {
     });
 
   useEffect(() => {
-    if (routeCodeInitialized) return;
-
     let cancelled = false;
-    void generateNextRouteCode().then((code) => {
-      if (cancelled) return;
-      setManualRouteCode(code);
-      setImportRouteCode(code);
-      setRouteCodeInitialized(true);
-    });
-
+    void listAllRoutes().then(
+      (routes) => {
+        if (!cancelled) setExistingRouteCodes(routes as RouteCodeEntry[]);
+      },
+      () => {
+        if (!cancelled) setExistingRouteCodes(null);
+      }
+    );
     return () => {
       cancelled = true;
     };
-  }, [routeCodeInitialized]);
+  }, []);
+
+  // The code follows the Placement Date (lib/routeCode.ts), and nothing is suggested until the codes in use are known.
+  const suggestRouteCode = useCallback(
+    (placementDate: string) => (existingRouteCodes === undefined ? '' : (nextRouteCode((existingRouteCodes ?? []).map((route) => route.routeCode), placementDate) ?? '')),
+    [existingRouteCodes]
+  );
+
+  // Creating from a Route Request: the Customer's latest Route is the one to copy, unless another is chosen.
+  const latestCopySourceId = importCopySourcesForCustomer[0]?.id ?? '';
+  const copySourceIsTheirs = importCopySourcesForCustomer.some((route) => route.id === importCopySourceRouteId);
+  const preselectedFor = useRef('');
+  useEffect(() => {
+    if (!fromRecord || !importCustomerId || !latestCopySourceId || preselectedFor.current === importCustomerId) return;
+    preselectedFor.current = importCustomerId;
+    // Not one already chosen for this Customer, but a stale one from the Customer shown before the suggested one.
+    if (!copySourceIsTheirs) setImportCopySourceRouteId(latestCopySourceId);
+  }, [fromRecord, importCustomerId, latestCopySourceId, copySourceIsTheirs]);
+
+  useEffect(() => {
+    if (!importRouteCodeTyped) setImportRouteCode(suggestRouteCode(importScheduledDate));
+  }, [suggestRouteCode, importScheduledDate, importRouteCodeTyped]);
 
   useEffect(() => {
     if (!fromRecordId) return;
@@ -210,14 +219,10 @@ function NewRoutePageContent() {
         return;
       }
       setFromRecord(record);
-      const index = scheduleAttachmentIndex(record.attachments);
-      if (index !== null) void loadRecordAttachment(record, index);
     });
     return () => {
       cancelled = true;
     };
-    // loadRecordAttachment only sets state; it's run once per record.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromRecordId]);
 
   // The suggested Customer, once both it and the Customers have loaded.
@@ -345,8 +350,6 @@ function NewRoutePageContent() {
   };
 
   const handleImportCustomerChange = (customerId: string) => {
-    locateRunRef.current += 1;
-    setLocatingProgress(null);
     setImportCustomerId(customerId);
     setImportCopySourceRouteId('');
     setImportDraftStops(null);
@@ -358,37 +361,7 @@ function NewRoutePageContent() {
   // ── Import tab handlers ───────────────────────────────────────────────────
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFromAttachment('');
-    loadImportFile(e.target.files?.[0] ?? null);
-  };
-
-  const loadImportFile = (file: File | null) => {
-    setImportFile(file);
-    setImportText('');
-    setParseWarnings([]);
-    setImportError(null);
-    if (file) {
-      void extractScheduleText(file)
-        .then((text) => {
-          setImportText(text);
-        })
-        .catch((error) => {
-          console.error('Failed to extract schedule text:', error);
-          setImportError('Could not read the uploaded file. PDFs must contain selectable text.');
-        });
-    }
-  };
-
-  const loadRecordAttachment = async (record: RouteRequestRecord, index: number) => {
-    const attachment = record.attachments?.[index];
-    if (!attachment) return;
-    setFromAttachment(String(index));
-    try {
-      loadImportFile(await fetchRouteRequestAttachment(record.id, index, attachment.filename, attachment.contentType));
-    } catch (error) {
-      console.error('Failed to load the email attachment:', error);
-      setImportError(`Could not load ${attachment.filename} from the email.`);
-    }
+    setImportFile(e.target.files?.[0] ?? null);
   };
 
   const routeRequestProblem = () => {
@@ -409,62 +382,6 @@ function NewRoutePageContent() {
     };
   };
 
-  const handleParse = async () => {
-    if (importDraftSource === 'copy') {
-      setImportError('Stops are currently sourced from a copied route. Clear copied stops first to use uploaded file stops.');
-      return;
-    }
-
-    const text = importText.trim();
-    if (!text) { setImportError('Upload a schedule file first.'); return; }
-    const result = parseScheduleText(text);
-    const run = ++locateRunRef.current;
-    setImportDraftStops(null);
-    setImportDraftSource(null);
-    let unpinned = 0;
-    let leftOut: string[] = [];
-    if (result.stops.length > 0) {
-      setImportError(null);
-      setLocatingProgress({ located: 0, total: result.stops.length });
-      const located = await locateDraftStops<RouteDraftStop>(
-        result.stops.map((stop) => ({
-          address: stop.address,
-          numberOfSigns: stop.numberOfSigns,
-          agent: stop.agent,
-          isAuction: stop.isAuction,
-        })),
-        (count, total) => {
-          if (locateRunRef.current === run) setLocatingProgress({ located: count, total });
-        }
-      );
-      if (locateRunRef.current !== run) return;
-      setLocatingProgress(null);
-      setImportDraftStops(located.stops);
-      setImportDraftSource('upload');
-      unpinned = located.unpinned;
-      leftOut = located.leftOut;
-    }
-    const warnings: string[] = [];
-    if (leftOut.length) {
-      warnings.push(
-        `Left out ${leftOut.length} stop(s) with no suburb that couldn't be found on the map: ${leftOut.join(', ')}. Add them to the Route once it's created, with the suburb.`
-      );
-    }
-    if (unpinned > 0) {
-      warnings.push(
-        `${unpinned} stop(s) couldn't be found on the map and will be created without a pin. They still appear in Property History.`
-      );
-    }
-    if (result.duplicatesRemoved.length) {
-      warnings.push(`Removed ${result.duplicatesRemoved.length} duplicate address(es): ${result.duplicatesRemoved.join(', ')}`);
-    }
-    if (result.unparsedLines.length) {
-      warnings.push(`${result.unparsedLines.length} line(s) could not be parsed and were skipped.`);
-    }
-    setParseWarnings(warnings);
-    setImportError(result.stops.length === 0 ? 'No stops could be extracted from the uploaded file.' : null);
-  };
-
   const handleCopyStopsToImport = async () => {
     if (!importCopySourceRouteId) {
       setImportError('Select a previous route to copy from.');
@@ -480,9 +397,9 @@ function NewRoutePageContent() {
         return;
       }
 
-      locateRunRef.current += 1;
-      setLocatingProgress(null);
-      setImportDraftStops(copiedStops);
+          resetDiffDecisions();
+      setCopiedStops(copiedStops);
+      setImportDraftStops(copiedStops.map((stop, i) => ({ ...stop, copiedFrom: i })));
       setImportDraftSource('copy');
       setParseWarnings([]);
     } catch {
@@ -491,6 +408,173 @@ function NewRoutePageContent() {
       setCopyingImportStops(false);
     }
   };
+
+  function resetDiffDecisions() {
+    diffRunRef.current += 1;
+    diffDecisionsRef.current = {};
+    setDiffDecisions({});
+    setDiffBusy(new Set());
+    droppedStopsRef.current.clear();
+    instructionStopsRef.current.clear();
+    setAcceptedRouteInstructions({});
+  }
+
+  const setDiffDecision = (key: string, decision: DiffDecision) => {
+    diffDecisionsRef.current = { ...diffDecisionsRef.current, [key]: decision };
+    setDiffDecisions(diffDecisionsRef.current);
+  };
+
+  const setLineBusy = (key: string, busy: boolean) =>
+    setDiffBusy((current) => {
+      const next = new Set(current);
+      if (busy) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+
+  // The change a Change line stands for, worked out again from the reading and the copy it was shown against.
+  const changeFor = (line: DiffLine & { kind: 'change' }) => {
+    const original = copiedStops?.[line.index];
+    const rows = (scheduleReading?.rows ?? []).filter((row): row is NonNullable<typeof row> => Boolean(row));
+    if (!original) return undefined;
+    const match = scheduleDiff(rows, copiedStops ?? []).matched.find(({ stop }) => stop === original);
+    return match ? fieldChanges(match.row, original, agentVocabulary(copiedStops ?? [])).find((change) => change.field === line.field) : undefined;
+  };
+
+  // Accepts or rejects Schedule Diff lines (ADR 0014): accepting puts an Add in the draft, found on the map first, or takes a Drop out;
+  // rejecting a line that was accepted takes it back. Rejecting any other leaves the copy as it was.
+  const decideDiffLines = async (lines: DiffLine[], decision: DiffDecision) => {
+    const run = diffRunRef.current;
+    for (const line of lines) {
+      const key = lineKey(line);
+      const previous = diffDecisionsRef.current[key];
+      if (previous === decision) continue;
+
+      if (line.kind === 'instruction') {
+        const instruction = scheduleReading?.instructions?.[line.index];
+        if (!instruction) continue;
+        const text = instruction.text;
+        if (decision === 'accepted') {
+          if (!instruction.address) {
+            setAcceptedRouteInstructions((current) => ({ ...current, [line.index]: text }));
+          } else {
+            // Placed against the draft as it is now, so an Add accepted a moment ago counts.
+            const placed = instructionLines([{ text, address: instruction.address }], importDraftStopsRef.current ?? [], null)[0];
+            if (placed.target.kind !== 'stop') continue;
+            const target = importDraftStopsRef.current![placed.target.draftIndex];
+            instructionStopsRef.current.set(line.index, { copiedFrom: target.copiedFrom, fromRow: target.fromRow });
+            setImportDraftStops((draft) =>
+              draft ? draft.map((stop) => (stop === target ? { ...stop, notes: addToNote(stop.notes, text) } : stop)) : draft
+            );
+          }
+        } else if (previous === 'accepted') {
+          if (!instruction.address) {
+            setAcceptedRouteInstructions(({ [line.index]: _taken, ...rest }) => rest);
+          } else {
+            const where = instructionStopsRef.current.get(line.index);
+            setImportDraftStops((draft) =>
+              draft
+                ? draft.map((stop) =>
+                    where && stop.copiedFrom === where.copiedFrom && stop.fromRow === where.fromRow
+                      ? { ...stop, notes: removeFromNote(stop.notes, text) }
+                      : stop
+                  )
+                : draft
+            );
+          }
+        }
+      } else if (line.kind === 'change') {
+        // Only the one field of the one Stop; undoing it puts back what the copy had.
+        const original = copiedStops?.[line.index];
+        const row = changeFor(line);
+        if (!original || !row) continue;
+        const value = decision === 'accepted' ? row.to : previous === 'accepted' ? row.from : undefined;
+        if (decision === 'accepted' || previous === 'accepted') {
+          setImportDraftStops((draft) =>
+            draft
+              ? draft.map((stop) => {
+                  if (stop.copiedFrom !== line.index) return stop;
+                  // A Preview is added to the note as it stands now, which may have been edited since the copy.
+                  if (line.field === 'notes' && decision === 'accepted') return { ...stop, notes: withPreviewNote(stop.notes) ?? stop.notes };
+                  return { ...stop, [line.field]: value };
+                })
+              : draft
+          );
+        }
+      } else if (decision === 'accepted' && line.kind === 'drop') {
+        setImportDraftStops((draft) => {
+          if (!draft) return draft;
+          const result = dropFromDraft(draft, line.index);
+          if (result.dropped) droppedStopsRef.current.set(line.index, result.dropped);
+          return result.draft;
+        });
+      } else if (decision === 'accepted') {
+        const row = scheduleReading?.rows?.[line.index];
+        if (!row) continue;
+        setLineBusy(key, true);
+        try {
+          const located = await locateDraftStops<RouteDraftStop>([
+            {
+              address: row.address,
+              numberOfSigns: row.numberOfSigns ?? undefined,
+              // In the spelling the Route already uses for that agent.
+              agent: row.agent ? matchAgent(row.agent, agentVocabulary(copiedStops ?? [])).agent : undefined,
+              isAuction: row.isAuction ?? undefined,
+              notes: row.isPreview ? withPreviewNote(null) : undefined,
+            },
+          ]);
+          if (diffRunRef.current !== run) return;
+          const [stop] = located.stops;
+          if (!stop) {
+            setImportError(`${row.address} has no suburb that could be found on the map, so it was not added. Add it to the Route once it's created, with the suburb.`);
+            continue;
+          }
+          if (located.unpinned > 0) {
+            setParseWarnings((warnings) => [...warnings, `${row.address} couldn't be found on the map and will be created without a pin. It still appears in Property History.`]);
+          }
+          setImportDraftStops((draft) => (draft ? addToDraft(draft, { ...stop, fromRow: line.index }) : draft));
+        } finally {
+          setLineBusy(key, false);
+        }
+      } else if (previous === 'accepted' && line.kind === 'drop') {
+        const original = copiedStops?.[line.index];
+        const stop = droppedStopsRef.current.get(line.index) ?? (original && { ...original, copiedFrom: line.index });
+        if (stop) setImportDraftStops((draft) => (draft ? restoreToDraft(draft, stop) : draft));
+      } else if (previous === 'accepted') {
+        setImportDraftStops((draft) => (draft ? removeAddFromDraft(draft, line.index) : draft));
+      }
+      setDiffDecision(key, decision);
+    }
+  };
+
+  // The copy is only a copy while it is the draft's source; reading the Schedule again starts the lines over.
+  useEffect(() => {
+    if (importDraftSource !== 'copy') {
+      setCopiedStops(null);
+      resetDiffDecisions();
+    }
+  }, [importDraftSource]);
+
+  const lastReadAtRef = useRef<string | null>(null);
+  useEffect(() => {
+    const readAt = scheduleReading?.readAt ?? null;
+    const changed = lastReadAtRef.current !== null && readAt !== lastReadAtRef.current;
+    lastReadAtRef.current = readAt;
+    if (changed && copiedStops && Object.keys(diffDecisionsRef.current).length > 0) {
+      resetDiffDecisions();
+      setImportDraftStops(copiedStops.map((stop, i) => ({ ...stop, copiedFrom: i })));
+    }
+  }, [scheduleReading, copiedStops]);
+
+  useEffect(() => {
+    importDraftStopsRef.current = importDraftStops;
+  }, [importDraftStops]);
+
+  // The accepted route-wide instructions as the Route's customer instructions (lib/routeInstructions.ts), in the reading's order.
+  const customerInstructionsToCreate = () =>
+    Object.entries(acceptedRouteInstructions)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .reduce<string | undefined>((feed, [, text]) => appendRouteInstruction(feed, { text }), undefined);
 
   const handleImportSubmit = async () => {
     if (!importCustomerId) { setImportError('Select a customer.'); return; }
@@ -529,6 +613,7 @@ function NewRoutePageContent() {
           scheduledDate: importScheduledDate,
           pickupDate: importPickupDate,
           notes: importNotes,
+          customerInstructions: customerInstructionsToCreate(),
         },
         stops: importDraftStops,
         request: routeRequestFor(importFile),
@@ -615,6 +700,7 @@ function NewRoutePageContent() {
                   Who asked for this Route. An uploaded Schedule is kept with it; with neither, the Route has no Route Request yet.
                 </p>
               )}
+              {fromRecord && <ScheduleReadingPanel record={fromRecord} onReading={setScheduleReading} />}
               {(!fromRecord || needsRequester) && (
                 <div className={styles.fieldsStack}>
                   <RequesterFields
@@ -717,11 +803,14 @@ function NewRoutePageContent() {
                     />
                   </Field>
 
-                  <Field label="Route ID" htmlFor="import-route-code">
+                  <Field label="Route ID" htmlFor="import-route-code" {...routeCodeFeedback(existingRouteCodes, importRouteCode)}>
                     <Input
                       id="import-route-code"
                       value={importRouteCode}
-                      onChange={(e) => setImportRouteCode(e.target.value)}
+                      onChange={(e) => {
+                        setImportRouteCodeTyped(true);
+                        setImportRouteCode(e.target.value);
+                      }}
                       placeholder="e.g. W18-26-001"
                     />
                   </Field>
@@ -744,84 +833,33 @@ function NewRoutePageContent() {
                     />
                   </Field>
 
-                  {fromRecord && (fromRecord.attachments ?? []).length > 0 && (
-                    <Field label="Schedule from the email" htmlFor="import-from-attachment">
-                      <Select
-                        id="import-from-attachment"
-                        value={fromAttachment}
-                        onChange={(e) => {
-                          if (e.target.value) void loadRecordAttachment(fromRecord, Number(e.target.value));
-                        }}
-                        disabled={isUploading}
-                      >
-                        <option value="">Choose an attachment...</option>
-                        {(fromRecord.attachments ?? []).map((attachment, index) =>
-                          attachment ? (
-                            <option key={attachment.key} value={index}>{attachment.filename}</option>
-                          ) : null
-                        )}
-                      </Select>
-                    </Field>
-                  )}
-
-                  <Field
-                    label="Upload Schedule File"
-                    hint={fromRecord ? 'PDF, CSV, TXT, to parse. The email keeps its own files' : 'PDF, CSV, TXT, kept with the Route Request'}
-                  >
-                    <div className={styles.fileRow}>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".pdf,.csv,.txt"
-                        style={{ display: 'none' }}
-                        onChange={handleFileSelected}
-                      />
-                      <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>
-                        {importFile ? importFile.name : 'Choose File'}
-                      </Button>
-                      {importFile && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => {
-                            locateRunRef.current += 1;
-                            setLocatingProgress(null);
-                            setImportFile(null);
-                            setImportText('');
-                            if (importDraftSource === 'upload') {
-                              setImportDraftStops(null);
-                              setImportDraftSource(null);
-                            }
-                            if (fileInputRef.current) fileInputRef.current.value = '';
-                          }}
-                        >
-                          Remove
+                  {!fromRecord && (
+                    <Field label="Upload Schedule File" hint="PDF, CSV, TXT, kept with the Route Request. Stops are copied from a previous Route or entered by hand">
+                      <div className={styles.fileRow}>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".pdf,.csv,.txt"
+                          style={{ display: 'none' }}
+                          onChange={handleFileSelected}
+                        />
+                        <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                          {importFile ? importFile.name : 'Choose File'}
                         </Button>
-                      )}
-                    </div>
-                    {importFile && importText.trim() && (
-                      <p className={styles.mutedText}>File text extracted. Preview stops to parse and review.</p>
-                    )}
-                  </Field>
-
-                  <Button
-                    type="button"
-                    onClick={() => void handleParse()}
-                    loading={locatingProgress !== null}
-                    disabled={
-                      !importText.trim() ||
-                      isUploading ||
-                      copyingImportStops ||
-                      locatingProgress !== null ||
-                      importDraftSource === 'copy'
-                    }
-                  >
-                    Preview Stops
-                  </Button>
-                  {locatingProgress && (
-                    <p className={styles.mutedText} role="status">
-                      Finding stops on the map… {locatingProgress.located} of {locatingProgress.total}
-                    </p>
+                        {importFile && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                              setImportFile(null);
+                              if (fileInputRef.current) fileInputRef.current.value = '';
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                    </Field>
                   )}
                 </div>
 
@@ -832,6 +870,21 @@ function NewRoutePageContent() {
                 )}
 
                 {importError && <div className={styles.errorBanner}>{importError}</div>}
+
+                {importDraftSource === 'copy' && copiedStops && scheduleReading && (
+                  <ScheduleDiffPanel
+                    reading={scheduleReading}
+                    stops={copiedStops}
+                    decisions={diffDecisions}
+                    draftStops={importDraftStops ?? undefined}
+                    standingInstructions={customers.find((customer) => customer.id === importCustomerId)?.standingInstructions}
+                    busy={diffBusy}
+                    onDecide={(lines, decision) => void decideDiffLines(lines, decision)}
+                  />
+                )}
+                {importDraftSource === 'copy' && importDraftStops && fromRecord && !scheduleReading && scheduleAttachmentIndex(fromRecord.attachments) !== null && (
+                  <p className={styles.importHint}>Read the Schedule, under Route Request, to see what changed since this Route.</p>
+                )}
 
                 {importDraftStops && importDraftStops.length > 0 && (
                   <div>
@@ -860,7 +913,8 @@ function NewRoutePageContent() {
             {activeTab === 'manual' && (
               <RouteForm
                 customers={customers}
-                initialRouteCode={manualRouteCode}
+                suggestRouteCode={suggestRouteCode}
+                routeCodeFeedback={(code) => routeCodeFeedback(existingRouteCodes, code)}
                 onSubmit={handleSubmit}
                 onCancel={handleCancel}
                 isSubmitting={isSubmitting}

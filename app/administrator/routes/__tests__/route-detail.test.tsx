@@ -199,6 +199,15 @@ describe('Operator Route Detail Page', () => {
     expect(await screen.findAllByRole('button', { name: 'Signs Placed' })).toHaveLength(2);
   });
 
+  it('reads a legacy signs_placed route with no executionPhase as Pickup', async () => {
+    mockFetched.route = { ...mockRoute, status: 'signs_placed', executionPhase: undefined };
+
+    render(<RouteDetailPage />);
+
+    expect((await screen.findAllByText('Awaiting pickup')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Awaiting placement')).not.toBeInTheDocument();
+  });
+
   it('shows "Add Stop" button', async () => {
     render(<RouteDetailPage />);
 

@@ -12,9 +12,17 @@ _Avoid_: Driver, staff (staff means operators and administrators together)
 An administrator's deliberate action telling a Route's assigned Operator about the Route: an email, plus a text message when the Operator has a mobile number. It is never sent automatically on assignment, only ever reaches the currently assigned Operator, and each one is kept in the Route's audit trail with the channels that went out.
 _Avoid_: Alert, dispatch, job-assigned email
 
+**Route Link**:
+The short address in a Notify Operator text that opens the Route for the Operator. It identifies one Route by a six-character code made the first time the Route is notified, and the Route keeps that code for good, so every later Notify Operator sends the same link. The code is lowercase and read without regard to case. The link only takes the Operator to the Route; they still sign in, and see only what they could see anyway. Texts sent before Route Links existed identified the Route differently and still open it.
+_Avoid_: Short code, short URL
+
 **Route**:
 A single trip assigned to an operator, made up of Stops, progressing through the Sign Run phases in order.
 _Avoid_: Job, trip. "Visit" means one Route at one Property, not the Route itself.
+
+**Route Code**:
+The human-readable reference for a Route, shown at the top of the Route and on its Route Sheet: a week, a year and a number, such as W41-26-003. The week and year are those of the Route's Placement Date, not the day the Route was made: weeks run in blocks of seven days from 1 January, up to week 52, so a Placement on 31 December 2026 is W52-26 and one on 1 January 2027 is W01-27. It is suggested when the Route is created, following the Placement Date until an administrator types a code of their own, and is never renamed afterwards, even if the Placement Date moves. It is not guaranteed unique: where an administrator sets it, the screen warns when another Route has the same code and links to that Route, and leaves resolving it to them. When the Routes' codes couldn't be read it says so, and suggests no code.
+_Avoid_: Route ID, route number
 
 **Placement Date**:
 The day a Route is planned to run Load and Placement. One per Route, a date only, set by staff when the Route is scheduled. It is the plan, not when Placement actually started.
@@ -33,8 +41,12 @@ A Customer's email asking for one Route to be created and scheduled, usually wit
 _Avoid_: Booking, order, job request
 
 **Schedule**:
-A file a Customer sends listing the Properties for a Route, usually a spreadsheet saved as PDF. It is kept exactly as received and never edited; the Route's Stops are what gets changed.
+A file a Customer sends listing the Properties for a Route, usually a spreadsheet saved as PDF. Its layout changes from week to week. It is kept exactly as received and never edited; the Route's Stops are what gets changed, and only by an administrator, who may be helped by a Schedule Diff.
 _Avoid_: Property list, run sheet, job sheet
+
+**Schedule Diff**:
+The changes a Route Request's Schedule and email imply for a Route copied from the Customer's previous one: Properties to add, Properties to drop, and changes to a Stop's agent, number of signs or notes, plus any instructions for the Route. It is only a proposal, kept with the Route Request: nothing reaches the Route until an administrator accepts each line. It also warns when the Schedule's own totals don't match what was read.
+_Avoid_: Import, auto-fill, parsed Schedule. Dropped Properties are "dropped", never "removed" (see Removed Stop).
 
 **Route Sheet**:
 A printable page of one Route for administrators to hand to the Operator: the Route's reference, Customer, Operator, Placement Date and Pickup Date, the Route's notes and the Customer's instructions, then its Stops in their current order, each with its agent, an auction mark, its notes, its number of signs and blank Place and Pickup boxes to tick by hand. Removed Stops are left out. It ends with blank Start/End boxes for Load, Placement, Pickup and Unload, the Signs Placed total, and the Route Estimate's distance when it is current. Staff only, for writing on, so it never shows recorded times and nothing written on it is saved.
@@ -92,6 +104,10 @@ _Avoid_: Export, audit PDF, property report
 A Property History Report's lifecycle: active for 30 days, then soft-deleted (hidden from the Customer, restorable by an administrator for a fresh 30 days), then hard-deleted at 60 days (PDF destroyed, record kept as a stub). A manual delete by an Account Owner is an early soft delete.
 _Avoid_: Expiry, archive (Route already uses "archived")
 
+**Completed Route**:
+A Route that has been Finalised. A Route with the legacy archived status reads as completed everywhere a Route's completion matters; a completed Route's Stops and Billed Time are settled.
+_Avoid_: Closed Route
+
 **Sign Run**:
 The phase flow a Route moves through: Load (signs collected from the customer, onto the van) → Placement (signs deployed) → Pickup (signs retrieved) → Unload (signs returned to the customer) → Finalise. A Route's completed phases are derived from which phase-completion timestamps are set. The **Working Phase** is the one phase the Operator is on now: it is stored, and moves on the moment the previous phase is confirmed, so between phases it runs one ahead of the last completed phase.
 _Avoid_: Delivery run, job flow. Also avoid calling the Load phase "signs collected" — that phrase is reserved for the Signs Collected metric below, a different phase and a different count.
@@ -145,7 +161,7 @@ A person who signs in to the customer portal on one Customer's behalf, as either
 _Avoid_: Team member, teammate, sub-user, customer admin
 
 **Account Owner**:
-A Customer User who can see the Customer's invoices and manage its Customer Users and Property History reports. The other Customer User role, read-only, sees Routes and Stops only.
+A Customer User who can see the Customer's invoices and manage its Customer Users and Property History reports. The other Customer User role, read-only, sees Routes and Stops only. A Customer has at most one Account Owner, and its first Customer User must be one; the Account Owner can't be made read-only until another Customer User is promoted.
 _Avoid_: Customer Admin, customer administrator
 
 **Trading Name**:

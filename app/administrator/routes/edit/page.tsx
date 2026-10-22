@@ -21,7 +21,9 @@ import { getUserSettings } from '@/lib/userSettings';
 import type { Route, Stop } from '@/amplify/types';
 import type { MapTheme } from '@/lib/mapThemes';
 import styles from './page.module.css';
-import { getRouteWithStops, updateRoute, deleteStop, saveStop, resequenceStops, UNPINNED_STOP_NOTICE, saveStopFailure } from '@/lib/routes';
+import { routeCodeFeedback } from '@/app/administrator/components/routeCodeFeedback';
+import type { RouteCodeEntry } from '@/lib/routeCode';
+import { getRouteWithStops, listAllRoutes, updateRoute, deleteStop, saveStop, resequenceStops, UNPINNED_STOP_NOTICE, saveStopFailure } from '@/lib/routes';
 import { listAllCustomers } from '@/lib/customers';
 import { activeStops } from '@/lib/loadChange';
 import { notifyOperatorOutcome, type NotifyOperatorResult } from '@/lib/notifyOperatorOutcome';
@@ -78,6 +80,8 @@ function RouteEditContent() {
   const [stopPendingDelete, setStopPendingDelete] = useState<Stop | null>(null);
 
   const [routeCode, setRouteCode] = useState('');
+  // Every Route's code, to warn when this one is taken: undefined until read, null if they couldn't be.
+  const [routesInUse, setRoutesInUse] = useState<RouteCodeEntry[] | null | undefined>(undefined);
   const [customerId, setCustomerId] = useState('');
   const [notes, setNotes] = useState('');
   const [pickupDate, setPickupDate] = useState('');
@@ -136,13 +140,14 @@ function RouteEditContent() {
       setLoading(true);
       setError(null);
 
-      const [routeResult, customersResult, operatorsResult] = await Promise.all([
+      const [routeResult, customersResult, operatorsResult, routesResult] = await Promise.all([
         getRouteWithStops(routeId).catch(() => null),
         listAllCustomers().catch(() => null),
         callApi<{ users?: Array<{ sub?: string; name?: string; email?: string }> }>('/api/admin/users', {
           action: 'listUsersInGroup',
           groupName: 'operator',
         }).catch(() => ({ users: [] })),
+        listAllRoutes().catch(() => null),
       ]);
 
       if (!routeResult) {
@@ -151,6 +156,7 @@ function RouteEditContent() {
         return;
       }
 
+      setRoutesInUse(routesResult as RouteCodeEntry[] | null);
       const route = routeResult.route as unknown as Route;
       setRouteCode(route.routeCode || route.id.slice(0, 8));
       setCustomerId(route.customerId);
@@ -436,7 +442,7 @@ function RouteEditContent() {
           {error && <div className={styles.errorBanner}>{error}</div>}
 
           <div className={styles.fieldsGrid}>
-            <Field label="Route Code" htmlFor="routeCode" required>
+            <Field label="Route Code" htmlFor="routeCode" required {...routeCodeFeedback(routesInUse, routeCode, routeId)}>
               <Input
                 id="routeCode"
                 value={routeCode}

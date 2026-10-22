@@ -50,6 +50,7 @@ import {
   recordManualRequest,
   requesterLabel,
   scheduleAttachmentIndex,
+  readSchedule,
 } from './routeRequests';
 
 const page = (data: object[], nextToken: string | null = null) => ({ data, errors: null, nextToken });
@@ -318,5 +319,35 @@ describe('attachNewRouteRequest', () => {
     expect(result).toEqual({ ok: true });
     expect(mockRequestCreate).not.toHaveBeenCalled();
     expect(mockSlotCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe('readSchedule', () => {
+  const partial = (pagesRead: number) => ({ reading: { rows: [], progress: { pagesRead, pageCount: 3 } } });
+
+  beforeEach(() => mockCallApi.mockReset());
+
+  it('asks again until the whole sheet is read, forcing only the first call', async () => {
+    mockCallApi
+      .mockResolvedValueOnce(partial(1))
+      .mockResolvedValueOnce(partial(2))
+      .mockResolvedValueOnce({ reading: { rows: [{ address: '1 A St' }] } });
+    const onProgress = jest.fn();
+
+    const reading = await readSchedule('r1', { force: true, onProgress });
+
+    expect(reading.rows).toHaveLength(1);
+    expect(mockCallApi.mock.calls.map((call) => call[1])).toEqual([
+      { requestId: 'r1', force: true },
+      { requestId: 'r1', force: false },
+      { requestId: 'r1', force: false },
+    ]);
+    expect(onProgress.mock.calls).toEqual([[{ pagesRead: 1, pageCount: 3 }], [{ pagesRead: 2, pageCount: 3 }]]);
+  });
+
+  it('stops with an error rather than asking forever when the read does not move on', async () => {
+    mockCallApi.mockResolvedValue(partial(1));
+    await expect(readSchedule('r1')).rejects.toThrow(/not moving on/);
+    expect(mockCallApi).toHaveBeenCalledTimes(2);
   });
 });

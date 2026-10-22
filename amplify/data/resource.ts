@@ -212,6 +212,11 @@ export const schema = a.schema({
   Route: a
     .model({
       routeCode: a.string(), // Human-readable route identifier (e.g. W19-26-001)
+      // The Route Link's code (CONTEXT.md, ADR 0013): six lowercase characters, made the first
+      // time the Route is notified. Omit it rather than null it -- it is an index key.
+      // Customers can read it but never write it: the Route's coarse customer `update`
+      // (kept for customerInstructions) would let one repoint a texted link.
+      routeLinkCode: a.string().authorization(customerReadOnlyRouteField),
       customerId: a.id().required(), // Foreign key to Customer
       viewerSubs: a.string().array(), // Cognito subs of all customer users — grants read access
       status: a.enum(['planned', 'in_progress', 'signs_placed', 'signs_picked_up', 'completed', 'archived']),
@@ -297,6 +302,7 @@ export const schema = a.schema({
       invoices: a.hasMany('Invoice', 'routeId'),
       payouts: a.hasMany('OperatorPayout', 'routeId'),
     })
+    .secondaryIndexes((index) => [index('routeLinkCode').queryField('listRoutesByRouteLinkCode')])
     .authorization((allow) => [
       // 'update' scoped in practice to customerInstructions by the client (lib/routes.ts
       // updateRouteCustomerInstructions) — a coarse grant like the rest of this schema,
@@ -813,6 +819,55 @@ export const schema = a.schema({
     inline: a.boolean(), // An inline part (a signature logo, say) rather than an attached file
   }),
 
+  /** One property row read from a Route Request's Schedule (ADR 0014), before any matching against a Route's Stops. */
+  ScheduleReadingRow: a.customType({
+    address: a.string().required(), // As written on the sheet, with any New/Preview/Auction prefix removed
+    numberOfSigns: a.integer(),
+    agent: a.string(), // As written on the sheet
+    isAuction: a.boolean(),
+    isNew: a.boolean(), // Marked New on the sheet; a hint only
+    isPreview: a.boolean(),
+    timeSlot: a.string(), // Kept for traceability; it never becomes part of a Stop
+  }),
+
+  /** An instruction for the Operator found in a Route Request's email or Schedule (ADR 0014), in the customer's words. */
+  ScheduleReadingInstruction: a.customType({
+    text: a.string().required(),
+    address: a.string(), // The property it is about, as written; absent for one about the whole Route
+    source: a.string(), // 'email' or 'sheet'
+  }),
+
+  /** One agent's total of signs as the sheet itself prints it. */
+  ScheduleReadingAgentTotal: a.customType({
+    agent: a.string().required(), // As written on the sheet
+    signs: a.integer().required(),
+  }),
+
+  /** The totals a sheet prints (ADR 0014), copied as printed so the rows can be checked against them. */
+  ScheduleReadingTotals: a.customType({
+    signs: a.integer(), // The sheet's grand total of signs
+    agents: a.ref('ScheduleReadingAgentTotal').array(),
+  }),
+
+  /** How far a Schedule is read, a page to a call so a slow read outlasts the ~28s limit on one. Absent once the whole sheet is read. */
+  ScheduleReadingProgress: a.customType({
+    pagesRead: a.integer().required(),
+    pageCount: a.integer().required(),
+  }),
+
+  /** What was read from a Route Request's Schedule and email (ADR 0014); a proposal, never applied to a Route by itself. */
+  ScheduleReading: a.customType({
+    readAt: a.datetime().required(),
+    readBySub: a.string().required(),
+    attachmentIndex: a.integer().required(), // Which of the record's attachments was read
+    sheetDate: a.string(), // The date in the sheet's title, which is the one to trust over the file name
+    rows: a.ref('ScheduleReadingRow').array().required(),
+    statedTotals: a.ref('ScheduleReadingTotals'), // Absent when the sheet prints none, or on a reading stored before these were read
+    instructions: a.ref('ScheduleReadingInstruction').array(), // Absent on a reading stored before these were read
+    warnings: a.string().array(),
+    progress: a.ref('ScheduleReadingProgress'), // Present while pages remain: rows so far, not yet a reading to compare
+  }),
+
   /**
    * RouteRequestRecord - a Route Request or Route Amendment as received (ADR
    * 0008): an email sent to requests@ (#358), captured by the
@@ -841,6 +896,7 @@ export const schema = a.schema({
       dmarcVerdict: a.string(),
       rawMessageKey: a.string(), // Email only
       attachments: a.ref('RouteRequestAttachment').array(),
+      scheduleReading: a.ref('ScheduleReading'), // Written by the server route that reads the Schedule; replaced, never nulled, on a re-read
       loggedByStaff: a.boolean(), // Sent from our own domain, so the real requester is entered by hand
       suggestedCustomerId: a.id(),
       // The requester entered by hand, for a manual record or a Logged-by-staff email.

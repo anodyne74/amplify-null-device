@@ -10,7 +10,8 @@
  * loading), and the Sign Run writes -- updateRoute, updateRouteCustomerInstructions
  * and updateStopExecution -- keep the raw AppSync {data, errors}, since the Sign
  * Run outbox tells a write to retry from one the server refused by its errors;
- * so does createLoadStop, for the same reason.
+ * so does createLoadStop, for the same reason. A caller of these must check
+ * `errors` itself: they never throw, so an unchecked failure reads as saved.
  */
 
 import { getDataClient } from '@/lib/data-client';
@@ -66,6 +67,20 @@ export async function getRouteCode(routeId: string): Promise<string | undefined>
 }
 
 /**
+ * The Route a Route Link code opens (CONTEXT.md), through the secondary index
+ * under the signed-in user's own authorization; null when no Route has it.
+ */
+export async function getRouteIdByLinkCode(code: string): Promise<string | null> {
+  return withDataError('Failed to look up the route.', async () => {
+    const result = await getDataClient().models.Route.listRoutesByRouteLinkCode(
+      { routeLinkCode: code },
+      { selectionSet: ['id'], limit: 1 }
+    );
+    return resultData(result)?.[0]?.id ?? null;
+  });
+}
+
+/**
  * Fetches every Stop for a route (see lib/listAll.ts for why one page isn't
  * enough).
  */
@@ -106,6 +121,7 @@ export async function createRoute(input: {
   scheduledDate?: string;
   pickupDate: string;
   notes?: string;
+  customerInstructions?: string;
 }) {
   return withDataError('Failed to create route.', async () => {
     const viewerSubs = input.viewerSubs ?? (await getCustomerViewerSubs(input.customerId));

@@ -108,6 +108,7 @@ const mockOperators = [
 describe('Administrator Route Edit Page', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (routesModule.listAllRoutes as jest.Mock).mockResolvedValue([{ id: 'route-test-id-1234', routeCode: 'W19-26-001' }]);
 
     (callApi as jest.Mock).mockImplementation(async (path: string) => {
       if (path === '/api/admin/users') return { users: mockOperators };
@@ -191,6 +192,52 @@ describe('Administrator Route Edit Page', () => {
         'route-test-id-1234',
         expect.objectContaining({ routeCode: 'W19-26-999' })
       );
+    });
+  });
+
+  describe('Route Code clash', () => {
+    const clashMessage = /this code is already used by/i;
+
+    it('warns, with a link to the other Route, when the code is another Route\'s', async () => {
+      (routesModule.listAllRoutes as jest.Mock).mockResolvedValue([
+        { id: 'route-test-id-1234', routeCode: 'W19-26-001' },
+        { id: 'other-route', routeCode: 'W19-26-002' },
+      ]);
+      render(<RouteEditPage />);
+
+      fireEvent.change(await screen.findByLabelText(/route code/i), { target: { value: 'w19-26-002 ' } });
+
+      expect(await screen.findByText(clashMessage)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'another Route' })).toHaveAttribute('href', '/administrator/routes/detail?id=other-route');
+    });
+
+    it('stays quiet about the Route\'s own saved code, and never blocks saving', async () => {
+      (routesModule.listAllRoutes as jest.Mock).mockResolvedValue([
+        { id: 'route-test-id-1234', routeCode: 'W19-26-001' },
+        { id: 'other-route', routeCode: 'W19-26-002' },
+      ]);
+      render(<RouteEditPage />);
+
+      const input = await screen.findByLabelText(/route code/i);
+      expect(screen.queryByText(clashMessage)).not.toBeInTheDocument();
+
+      fireEvent.change(input, { target: { value: 'W19-26-002' } });
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(routesModule.updateRoute).toHaveBeenCalledWith(
+          'route-test-id-1234',
+          expect.objectContaining({ routeCode: 'W19-26-002' })
+        );
+      });
+    });
+
+    it("says so when the other Routes' codes couldn't be read", async () => {
+      (routesModule.listAllRoutes as jest.Mock).mockRejectedValue(new Error('offline'));
+      render(<RouteEditPage />);
+
+      await screen.findByLabelText(/route code/i);
+      expect(await screen.findByText(/couldn't check existing route codes/i)).toBeInTheDocument();
     });
   });
 

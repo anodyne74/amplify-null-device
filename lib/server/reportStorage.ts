@@ -56,6 +56,14 @@ export function signedRouteRequestFileUrl(key: string, filename: string): Promis
   return signedUrl(key, { ResponseContentDisposition: asDownload(filename) });
 }
 
+/** A Route Request attachment's bytes (ADR 0014), for the Schedule to be read; the caller already checked it is an administrator. */
+export async function readRouteRequestFile(key: string): Promise<Uint8Array> {
+  const { s3, bucket } = appBucket();
+  const { Body } = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  if (!Body) throw new Error(`${key} has no content`);
+  return Body.transformToByteArray();
+}
+
 /**
  * A few-minute download link to a Route Request's raw message (#358), kept in
  * the inbound mail bucket under its SES message ID, for an administrator.

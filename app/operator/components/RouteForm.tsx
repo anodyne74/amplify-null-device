@@ -69,6 +69,10 @@ interface RouteFormProps {
     stops: RouteDraftStop[];
   }) => Promise<void>;
   initialRouteCode?: string;
+  /** The Route Code to suggest for a Placement Date, or '' for none yet. Followed until the administrator types a code of their own. */
+  suggestRouteCode?: (placementDate: string) => string;
+  /** A warning or note to show under the Route ID for the code in the field. */
+  routeCodeFeedback?: (code: string) => { error?: React.ReactNode; hint?: React.ReactNode };
   onCancel: () => void;
   isSubmitting?: boolean;
   error?: string | null;
@@ -91,6 +95,8 @@ export function RouteForm({
   customers,
   onSubmit,
   initialRouteCode = '',
+  suggestRouteCode,
+  routeCodeFeedback,
   onCancel,
   isSubmitting,
   error,
@@ -101,6 +107,7 @@ export function RouteForm({
   const [routeCode, setRouteCode] = useState(initialRouteCode);
   const [customerId, setCustomerId] = useState('');
   const [scheduledDate, setScheduledDate] = useState(todayDateKey);
+  const [routeCodeTyped, setRouteCodeTyped] = useState(false);
   const {
     pickupDate,
     choosePickupDate,
@@ -144,6 +151,11 @@ export function RouteForm({
   useEffect(() => {
     setRouteCode(initialRouteCode);
   }, [initialRouteCode]);
+
+  useEffect(() => {
+    if (!suggestRouteCode || routeCodeTyped) return;
+    setRouteCode(suggestRouteCode(scheduledDate));
+  }, [suggestRouteCode, scheduledDate, routeCodeTyped]);
 
   useEffect(() => {
     setSelectedCopySourceId('');
@@ -311,11 +323,14 @@ export function RouteForm({
         )}
 
         <div className={styles.fieldsStack}>
-          <Field label="Route ID" htmlFor="routeCode" required>
+          <Field label="Route ID" htmlFor="routeCode" required {...routeCodeFeedback?.(routeCode)}>
             <Input
               id="routeCode"
               value={routeCode}
-              onChange={(e) => setRouteCode(e.target.value)}
+              onChange={(e) => {
+                setRouteCodeTyped(true);
+                setRouteCode(e.target.value);
+              }}
               disabled={isSubmitting}
               placeholder="e.g. W18-26-001"
             />

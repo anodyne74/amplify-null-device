@@ -28,6 +28,26 @@ describe('RouteForm', () => {
     jest.clearAllMocks();
   });
 
+  describe('suggested Route Code', () => {
+    const suggest = (placementDate: string) => `suggested-for-${placementDate}`;
+    const codeField = () => screen.getByLabelText(/route id/i);
+
+    it('follows the Placement Date', () => {
+      render(<RouteForm customers={mockCustomers} suggestRouteCode={suggest} onSubmit={jest.fn()} onCancel={noop} />);
+      fireEvent.change(screen.getByLabelText(/placement date/i), { target: { value: '2027-01-01' } });
+      expect(codeField()).toHaveValue('suggested-for-2027-01-01');
+      fireEvent.change(screen.getByLabelText(/placement date/i), { target: { value: '2026-12-31' } });
+      expect(codeField()).toHaveValue('suggested-for-2026-12-31');
+    });
+
+    it('leaves a code the administrator typed alone when the date changes', () => {
+      render(<RouteForm customers={mockCustomers} suggestRouteCode={suggest} onSubmit={jest.fn()} onCancel={noop} />);
+      fireEvent.change(codeField(), { target: { value: 'W01-27-009' } });
+      fireEvent.change(screen.getByLabelText(/placement date/i), { target: { value: '2027-01-01' } });
+      expect(codeField()).toHaveValue('W01-27-009');
+    });
+  });
+
   it('renders all fields (customer dropdown, notes, submit/cancel buttons)', () => {
     render(
       <RouteForm customers={mockCustomers} onSubmit={noop} onCancel={noop} />

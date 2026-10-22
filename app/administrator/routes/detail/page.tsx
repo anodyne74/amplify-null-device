@@ -195,7 +195,7 @@ function RouteDetailContent() {
   }, [user?.userId]);
 
   const planningLocked = route?.status !== 'planned';
-  const currentExecutionPhase: ExecutionPhase = route?.executionPhase === 'pickup' ? 'pickup' : 'placement';
+  const currentExecutionPhase: ExecutionPhase = (route && stopPhaseOf(route)) ?? 'placement';
   const routeDone = isRouteCompleted(route?.status);
   const stopPhase = route ? stopPhaseOf(route) : null;
   const visibleStops = (() => {

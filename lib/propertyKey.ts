@@ -69,8 +69,41 @@ export function enteredStreetNumber(address: string): string | undefined {
   return address.match(STREET_NUMBER_AND_STREET)?.[1].toLowerCase();
 }
 
-function enteredStreet(address: string): string | undefined {
+export function enteredStreet(address: string): string | undefined {
   return address.match(STREET_NUMBER_AND_STREET)?.[2];
+}
+
+const UNIT = /^\s*(?:(?:unit|u|apt|apartment|shop|suite)\s*(\d+[a-z]?)|(\d+[a-z]?)\s*\/)/i;
+
+/** The unit in an entered address ("308/3 Hazlewood Place", "Unit 308, 3 Hazlewood Place" -> "308"), lower-cased. A unit is not part of the Property key. */
+export function enteredUnit(address: string): string | undefined {
+  const match = address.match(UNIT);
+  return (match?.[1] ?? match?.[2])?.toLowerCase();
+}
+
+/**
+ * What follows `street` (a Property key's street, "gloucester road") in an entered
+ * street segment, normalised: "Gloucester Road Epping" -> "epping", "Cambridge St" after
+ * "cambridge street" -> "". Undefined when the segment does not start with that street.
+ * For an address written without a comma before its suburb.
+ */
+export function suburbAfterStreet(segment: string, street: string): string | undefined {
+  const words = normalise(segment).split(' ');
+  const count = street.split(' ').length;
+  if (words.length < count || normaliseStreet(words.slice(0, count).join(' ')) !== street) return undefined;
+  return words
+    .slice(count)
+    .join(' ')
+    .replace(STATES, '')
+    .replace(/\b\d{4}\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Whether the text ends in a street type ("Kent Street", "Kent St"), so no suburb follows the street. */
+export function endsWithStreetType(text: string): boolean {
+  const last = normalise(text).split(' ').pop() ?? '';
+  return Object.keys(STREET_TYPES).includes(last) || Object.values(STREET_TYPES).includes(last);
 }
 
 /** The suburb named after the street, e.g. "Epping" in "14 Cliff Rd, Epping NSW 2121". */

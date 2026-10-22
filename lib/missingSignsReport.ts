@@ -7,6 +7,7 @@
  */
 import type { Route, Stop } from '@/amplify/types';
 import { activeStops } from './loadChange';
+import { isRouteCompleted } from './signRunPhase';
 import { missingSigns } from './signRunTotals';
 import { formatRouteDate } from './routeDetailHelpers';
 import type { InvoiceRecipients } from './invoiceRecipients';
@@ -30,7 +31,7 @@ export function missingSignsReportDecision({
   customer: ReportCustomer;
   stops: ReportStop[];
 }): { send: true; total: number; properties: MissingSignsProperty[] } | { send: false; reason: string } {
-  if (route.status !== 'completed' && route.status !== 'archived') return { send: false, reason: 'route not finalised' };
+  if (!isRouteCompleted(route.status)) return { send: false, reason: 'route not finalised' };
   if (route.missingSignsReportSentAt) return { send: false, reason: 'already sent' };
   if (customer.missingSignsReportEnabled !== true) return { send: false, reason: 'reports not switched on for this customer' };
   if (customer.sendMissingSignsReport === false) return { send: false, reason: 'customer has turned reports off' };

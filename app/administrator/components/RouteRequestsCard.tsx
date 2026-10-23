@@ -19,7 +19,8 @@ import {
   type RouteRequestRecord,
 } from '@/lib/routeRequests';
 import type { DiffStop } from '@/lib/scheduleDiff';
-import { acceptAmendmentAdd, canAcceptLines, LOAD_STARTED_MESSAGE, rejectAmendmentLine } from '@/lib/amendmentLines';
+import { acceptAmendmentAdd, acceptAmendmentDrop, canAcceptLines, LOAD_STARTED_MESSAGE, rejectAmendmentLine, type LineResult } from '@/lib/amendmentLines';
+import type { AmendmentViewLine } from '@/app/administrator/routes/new/AmendmentDiffView';
 import { ScheduleReadingPanel } from '@/app/administrator/routes/new/ScheduleReadingPanel';
 import styles from './RouteRequests.module.css';
 
@@ -28,7 +29,7 @@ import styles from './RouteRequests.module.css';
  * Amendments in the order they were sent, each with everything captured, and
  * ways to link another from the Request inbox, record one by hand, or unlink.
  */
-type CardStop = Omit<DiffStop, 'address'> & { address?: string | null; sequence?: number | null; agent?: string | null };
+type CardStop = Omit<DiffStop, 'address'> & { id?: string; address?: string | null; sequence?: number | null; agent?: string | null };
 
 export function RouteRequestsCard({
   routeId,
@@ -71,15 +72,24 @@ export function RouteRequestsCard({
 
   const hasRouteRequest = records.some((record) => record.role === 'request');
 
-  async function decide(record: RouteRequestRecord, accepted: boolean, line: { row: { address: string; numberOfSigns?: number | null; agent?: string | null; isAuction?: boolean | null; isPreview?: boolean | null }; address: string }) {
-    const key = `add:${line.row.address}`;
+  async function decide(record: RouteRequestRecord, accepted: boolean, line: AmendmentViewLine) {
+    const key = `${line.change}:${line.row.address}`;
     setBusyLines((current) => new Set(current).add(key));
     setLineMessage(null);
     try {
-      const common = { recordId: record.id, decisions: record.amendmentDecisions };
-      const result = accepted
-        ? await acceptAmendmentAdd({ ...common, route: { id: routeId, customerId, ...route }, stops: routeStops ?? [], row: line.row, address: line.address })
-        : await rejectAmendmentLine({ ...common, change: 'add', address: line.row.address });
+      const common = { recordId: record.id, decisions: record.amendmentDecisions, route: { id: routeId, customerId, ...route } };
+      let result: LineResult;
+      if (!accepted) {
+        result = await rejectAmendmentLine({ recordId: record.id, decisions: record.amendmentDecisions, change: line.change, address: line.row.address });
+      } else if (line.change === 'add') {
+        result = await acceptAmendmentAdd({ ...common, stops: routeStops ?? [], row: line.row, address: line.address });
+      } else {
+        const stop = line.stop as { id?: string; address: string };
+        const stopsWithIds = (routeStops ?? []).flatMap((item) => (item.id ? [{ id: item.id, sequence: item.sequence }] : []));
+        result = stop.id
+          ? await acceptAmendmentDrop({ ...common, stops: stopsWithIds, stop: { id: stop.id, address: stop.address }, address: line.row.address })
+          : { ok: false, error: `Could not find ${stop.address} on the Route.` };
+      }
       if (!result.ok) setLineMessage(result.error);
       else if (result.warning) setLineMessage(result.warning);
       if (result.ok && accepted) onStopsChanged?.();

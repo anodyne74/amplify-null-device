@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RouteRequestsCard } from '../RouteRequestsCard';
-import { acceptAmendmentAdd, rejectAmendmentLine } from '@/lib/amendmentLines';
+import { acceptAmendmentAdd, acceptAmendmentDrop, rejectAmendmentLine } from '@/lib/amendmentLines';
 import {
   linkRouteRequest,
   listRouteRequests,
@@ -14,6 +14,7 @@ import {
 jest.mock('@/lib/amendmentLines', () => ({
   ...jest.requireActual('@/lib/amendmentLines'),
   acceptAmendmentAdd: jest.fn(),
+  acceptAmendmentDrop: jest.fn(),
   rejectAmendmentLine: jest.fn(),
 }));
 
@@ -124,6 +125,55 @@ describe('RouteRequestsCard', () => {
       show();
       fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
       expect(await screen.findByText('No suburb found')).toBeInTheDocument();
+    });
+  });
+
+  describe('deciding a Route Amendment\'s drops', () => {
+    const reading = { readAt: '2026-09-28T01:05:00.000Z', readBySub: 's', attachmentIndex: -1, rows: [{ address: '5 Other Street, Eastwood', change: 'drop' }] };
+    const stops = [{ id: 'stop-5', address: '5 Other Street, Eastwood NSW 2122', sequence: 1 }, { id: 'stop-6', address: '6 Other Street, Eastwood NSW 2122', sequence: 2 }];
+    const show = (decisions: object[] = [], route: object = { loadStartedAt: null, status: 'scheduled' }, routeStops = stops) => {
+      (listRouteRequestsForRoute as jest.Mock).mockResolvedValue({ data: [REQUEST, { ...AMENDMENT, scheduleReading: reading, amendmentDecisions: decisions }] });
+      const changed = jest.fn();
+      render(<RouteRequestsCard routeId="route-1" customerId="c1" stops={routeStops} route={route} onStopsChanged={changed} />);
+      return changed;
+    };
+
+    it('accepts a drop, which reloads the Route\'s Stops', async () => {
+      (acceptAmendmentDrop as jest.Mock).mockResolvedValue({ ok: true });
+      const changed = show();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
+
+      await waitFor(() => expect(changed).toHaveBeenCalled());
+      expect(acceptAmendmentDrop).toHaveBeenCalledWith(
+        expect.objectContaining({ recordId: 'amd', stop: { id: 'stop-5', address: '5 Other Street, Eastwood NSW 2122' }, address: '5 Other Street, Eastwood' })
+      );
+    });
+
+    it('rejects a drop, leaving the Stop', async () => {
+      (rejectAmendmentLine as jest.Mock).mockResolvedValue({ ok: true });
+      const changed = show();
+      fireEvent.click(await screen.findByRole('button', { name: 'Reject' }));
+      await waitFor(() => expect(rejectAmendmentLine).toHaveBeenCalledWith(expect.objectContaining({ change: 'drop', address: '5 Other Street, Eastwood' })));
+      expect(changed).not.toHaveBeenCalled();
+    });
+
+    it('shows a rejected drop with Accept still available', async () => {
+      show([{ change: 'drop', address: '5 Other Street, Eastwood', decision: 'rejected', decidedAt: 't', decidedBySub: 's' }]);
+      expect(await screen.findByText('Rejected')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Accept' })).toBeEnabled();
+    });
+
+    it('shows an accepted drop as taken off once its Stop is gone', async () => {
+      show([{ change: 'drop', address: '5 Other Street, Eastwood', decision: 'accepted', decidedAt: 't', decidedBySub: 's', stopId: 'stop-5' }], undefined, [stops[1]]);
+      expect(await screen.findByText('Taken off')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Accept' })).not.toBeInTheDocument();
+    });
+
+    it('disables Accept once Load has started, but still allows Reject', async () => {
+      show([], { loadStartedAt: '2026-10-24T01:00:00Z', status: 'in_progress' });
+      expect(await screen.findByRole('button', { name: 'Accept' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Reject' })).toBeEnabled();
     });
   });
 

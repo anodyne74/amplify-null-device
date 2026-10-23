@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
-import type { AmendmentRow } from '@/lib/amendmentDiff';
 import type { DiffStop } from '@/lib/scheduleDiff';
-import { AmendmentDiffView } from './AmendmentDiffView';
+import { AmendmentDiffView, type AmendmentViewLine } from './AmendmentDiffView';
 import { totalsWarnings } from '@/lib/scheduleTotals';
 import { readSchedule, scheduleAttachmentIndex, type RouteRequestRecord, type ScheduleReading } from '@/lib/routeRequests';
 import styles from './ScheduleReadingPanel.module.css';
@@ -29,8 +28,8 @@ export function ScheduleReadingPanel({
     canAccept: boolean;
     busy: ReadonlySet<string>;
     loadMessage: string;
-    onAccept: (line: { row: AmendmentRow; address: string }) => void;
-    onReject: (line: { row: AmendmentRow; address: string }) => void;
+    onAccept: (line: AmendmentViewLine) => void;
+    onReject: (line: AmendmentViewLine) => void;
   };
   /** Told the reading now showing (null for none), so the page can compare it with the copied Stops. */
   onReading?: (reading: ScheduleReading | null) => void;

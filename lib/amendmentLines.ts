@@ -1,7 +1,8 @@
 /**
  * Deciding the lines of a Route Amendment's Schedule Diff (ADR 0014). Accepting
- * an add creates the Stop on the Route, at the end of its order, and rejecting
- * leaves the Route as it was; either way the decision is kept on the record, so
+ * an add creates the Stop on the Route, at the end of its order; accepting a
+ * drop deletes the Stop (before Load there is no Removed Stop), and the rest are
+ * renumbered. Rejecting leaves the Route as it was; either way the decision is kept on the record, so
  * it survives a reload. Lines can be accepted only until Load starts: after that
  * the change is a Load Change (CONTEXT.md). Rejecting is always allowed.
  */
@@ -9,7 +10,7 @@ import { fetchUserId } from '@/lib/amplify-config';
 import { recordAudit } from '@/lib/auditLog';
 import { getDataClient } from '@/lib/data-client';
 import { getCustomer } from '@/lib/customers';
-import { createStop } from '@/lib/routes';
+import { createStop, deleteStop, resequenceStops } from '@/lib/routes';
 import { pickStopLocationFields } from '@/lib/locationPrecision';
 import { locateDraftStops } from '@/lib/stopLocation';
 import { agentVocabulary, matchAgent } from '@/lib/scheduleChanges';
@@ -29,6 +30,8 @@ export type StoredDecision = {
 export type AmendmentLineRoute = { id: string; customerId?: string | null; loadStartedAt?: string | null; status?: string | null };
 
 export type AmendmentAddRow = {
+  address?: string;
+  change?: string | null;
   numberOfSigns?: number | null;
   agent?: string | null;
   isAuction?: boolean | null;
@@ -142,6 +145,52 @@ export async function acceptAmendmentAdd(input: {
   const audited = await audit(route, stopId ?? route.id, 'amendment_add_accepted', { recordId: input.recordId, address }, bySub);
   if (!saved || !audited) {
     return { ok: true, warning: `${address} was added to the Route, but ${!saved ? 'the decision' : 'the audit entry'} could not be saved.` };
+  }
+  return { ok: true, ...(warning && { warning }) };
+}
+
+/**
+ * Accepts a drop: the Stop is deleted from the Route and the Stops left are
+ * renumbered. The audit entry names the Stop deleted, since nothing else will.
+ */
+export async function acceptAmendmentDrop(input: {
+  recordId: string;
+  decisions: ReadonlyArray<StoredDecision | null | undefined> | null | undefined;
+  route: AmendmentLineRoute;
+  stops: ReadonlyArray<{ id: string; sequence?: number | null }>;
+  stop: { id: string; address: string };
+  /** The row's address as read, which identifies the line. */
+  address: string;
+}): Promise<LineResult> {
+  const { route, stop } = input;
+  if (!canAcceptLines(route)) return { ok: false, error: LOAD_STARTED_MESSAGE };
+
+  try {
+    await deleteStop(stop.id);
+  } catch (error) {
+    console.error('Deleting the Amendment Stop failed:', error);
+    return { ok: false, error: `Could not take ${stop.address} off the Route.` };
+  }
+
+  // The Stop is gone; failing to renumber leaves a gap in the order, not a wrong Route.
+  const remaining = input.stops
+    .filter((item) => item.id !== stop.id)
+    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+    .map((item) => item.id);
+  let warning: string | undefined;
+  try {
+    await resequenceStops(remaining);
+  } catch (error) {
+    console.error('Renumbering the Stops after an Amendment drop failed:', error);
+    warning = `${stop.address} was taken off the Route, but the order of the other Stops could not be saved.`;
+  }
+
+  const bySub = (await fetchUserId()) ?? 'unknown';
+  const next: StoredDecision = { change: 'drop', address: input.address, decision: 'accepted', decidedAt: new Date().toISOString(), decidedBySub: bySub, stopId: stop.id };
+  const saved = await saveDecisions(input.recordId, withDecision(input.decisions, next));
+  const audited = await audit(route, stop.id, 'amendment_drop_accepted', { recordId: input.recordId, address: stop.address }, bySub);
+  if (!saved || !audited) {
+    return { ok: true, warning: `${stop.address} was taken off the Route, but ${!saved ? 'the decision' : 'the audit entry'} could not be saved.` };
   }
   return { ok: true, ...(warning && { warning }) };
 }

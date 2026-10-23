@@ -12,7 +12,7 @@ When an administrator creates a Route from a Route Request, the Schedule's layou
 - The Schedule's own totals are checked against the rows. A mismatch is a warning on the Diff, not a block.
 - A PDF with no text layer is not read; the administrator uses the manual flow.
 - The result is stored on the Route Request, so reopening it doesn't call the model again. It runs when the administrator asks, not when the email arrives, so mail that is never made into a Route costs nothing.
-- Route Amendments are out of scope for now.
+- A Route Amendment is read the same way, once an administrator has linked it to its Route (linking starts the read; if the read fails the link stands and it can be retried). Its Diff is against the Route's Stops as they are then, so earlier accepted amendments and manual edits count. Only the additions and drops the amendment states are proposed: a Property a revised Schedule leaves out is flagged, never proposed for dropping. A Property named without a suburb takes it from the Route's own Stops on that street, or is flagged unmatched. The administrator reviews the lines on the Route's detail page, and can accept them only until Load starts. The Customer is shown nothing new.
 
 ## Considered Options
 

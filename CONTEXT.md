@@ -45,7 +45,7 @@ A file a Customer sends listing the Properties for a Route, usually a spreadshee
 _Avoid_: Property list, run sheet, job sheet
 
 **Schedule Diff**:
-The changes a Route Request's Schedule and email imply for a Route copied from the Customer's previous one: Properties to add, Properties to drop, and changes to a Stop's agent, number of signs or notes, plus any instructions for the Route. It is only a proposal, kept with the Route Request: nothing reaches the Route until an administrator accepts each line. It also warns when the Schedule's own totals don't match what was read.
+The changes a Route Request's Schedule and email imply for a Route copied from the Customer's previous one, or that a Route Amendment implies for its Route: Properties to add, Properties to drop, and changes to a Stop's agent, number of signs or notes, plus any instructions for the Route. It is only a proposal, kept with the Route Request: nothing reaches the Route until an administrator accepts each line. It also warns when the Schedule's own totals don't match what was read.
 _Avoid_: Import, auto-fill, parsed Schedule. Dropped Properties are "dropped", never "removed" (see Removed Stop).
 
 **Route Sheet**:
@@ -53,7 +53,7 @@ A printable page of one Route for administrators to hand to the Operator: the Ro
 _Avoid_: Run sheet, job sheet, printout. Schedule means the Customer's own file, not this.
 
 **Route Amendment**:
-A later email from a Customer adding or removing Properties on a Route that has already been requested, sometimes with a revised Schedule, sometimes only a sentence in the email. A Route can have any number, kept in the order they were sent.
+A later email from a Customer adding or removing Properties on a Route that has already been requested, sometimes with a revised Schedule, sometimes only a sentence in the email. A Route can have any number, kept in the order they were sent. Once an administrator links one to its Route it is read into a Schedule Diff against the Route's Stops as they are then. Only the additions and drops it states are proposed; a Property it doesn't mention is left alone, even when a revised Schedule leaves it out (that is only flagged). Its lines can be accepted until Load starts; after that the change is a Load Change.
 _Avoid_: Change request, follow-up, variation
 
 **Load Change**:

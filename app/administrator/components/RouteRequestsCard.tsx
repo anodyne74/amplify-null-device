@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import {
@@ -18,6 +18,7 @@ import {
   unlinkRouteRequest,
   type RouteRequestRecord,
 } from '@/lib/routeRequests';
+import type { DiffStop } from '@/lib/scheduleDiff';
 import { ScheduleReadingPanel } from '@/app/administrator/routes/new/ScheduleReadingPanel';
 import styles from './RouteRequests.module.css';
 
@@ -26,7 +27,9 @@ import styles from './RouteRequests.module.css';
  * Amendments in the order they were sent, each with everything captured, and
  * ways to link another from the Request inbox, record one by hand, or unlink.
  */
-export function RouteRequestsCard({ routeId, customerId }: { routeId: string; customerId: string | null }) {
+export function RouteRequestsCard({ routeId, customerId, stops }: { routeId: string; customerId: string | null; stops?: Array<Omit<DiffStop, 'address'> & { address?: string | null }> }) {
+  // A Stop with no address matches nothing, so it is left out.
+  const routeStops = useMemo(() => stops?.flatMap((stop) => (stop.address ? [{ ...stop, address: stop.address }] : [])), [stops]);
   const [records, setRecords] = useState<RouteRequestRecord[]>([]);
   const [inbox, setInbox] = useState<RouteRequestRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +81,7 @@ export function RouteRequestsCard({ routeId, customerId }: { routeId: string; cu
                 {formatWhen(record.sentAt)} <RouteRequestBadges record={record} />
               </summary>
               <RouteRequestView record={record} />
-              {record.role === 'amendment' && <ScheduleReadingPanel record={record} />}
+              {record.role === 'amendment' && <ScheduleReadingPanel record={record} stops={routeStops} />}
               <div className={styles.actions}>
                 <Button size="sm" variant="secondary" disabled={unlinkingId === record.id} onClick={() => void unlink(record.id)}>
                   Unlink

@@ -448,7 +448,7 @@ function RouteDetailContent() {
             )}
           </Card>
 
-          <RouteRequestsCard routeId={route.id} customerId={route.customerId ?? null} />
+          <RouteRequestsCard routeId={route.id} customerId={route.customerId ?? null} stops={stops} />
 
           {/* Stops Section */}
           <div className={styles.stopsSection}>

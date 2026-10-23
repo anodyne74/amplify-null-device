@@ -136,6 +136,27 @@ describe('ScheduleReadingPanel', () => {
     expect(screen.getByText(/check it against the email/)).toBeInTheDocument();
   });
 
+  it('shows a Route Amendment against the Route\'s Stops when it is given them', () => {
+    const reading = {
+      ...READING,
+      attachmentIndex: -1,
+      rows: [
+        { address: '3/13 Carlingford Road', change: 'add' },
+        { address: '5 Other Street, Eastwood', change: 'drop' },
+        { address: '20 Gloucester Road', change: 'add' },
+      ],
+    };
+    const stops = [{ address: '7 Carlingford Road, Epping NSW 2121' }, { address: '5 Other Street, Eastwood NSW 2122' }, { address: '20 Gloucester Road, Epping NSW 2121' }];
+    render(<ScheduleReadingPanel record={record({ role: 'amendment', attachments: [], scheduleReading: reading })} stops={stops} />);
+
+    expect(screen.getByText('To add (1):')).toBeInTheDocument();
+    expect(screen.getByText(/3\/13 Carlingford Road/)).toBeInTheDocument();
+    expect(screen.getByText(/suburb taken from the Route's other Stops/)).toBeInTheDocument();
+    expect(screen.getByText('To take off (1):')).toBeInTheDocument();
+    expect(screen.getByText('Already on the Route:')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
   it('shows nothing for a Route Request that has no Schedule', () => {
     const { container } = render(<ScheduleReadingPanel record={record({ role: 'request', attachments: [] })} />);
     expect(container).toBeEmptyDOMElement();

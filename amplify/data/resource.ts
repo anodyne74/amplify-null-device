@@ -869,6 +869,16 @@ export const schema = a.schema({
     progress: a.ref('ScheduleReadingProgress'), // Present while pages remain: rows so far, not yet a reading to compare
   }),
 
+  /** An administrator's decision on one line of a Route Amendment's Schedule Diff (ADR 0014). */
+  AmendmentDecision: a.customType({
+    change: a.string().required(), // 'add' or 'drop'
+    address: a.string().required(), // The row's address as read, which with `change` identifies the line
+    decision: a.string().required(), // 'accepted' or 'rejected'
+    decidedAt: a.datetime().required(),
+    decidedBySub: a.string().required(),
+    stopId: a.id(), // The Stop an accepted add created
+  }),
+
   /**
    * RouteRequestRecord - a Route Request or Route Amendment as received (ADR
    * 0008): an email sent to requests@ (#358), captured by the
@@ -898,6 +908,7 @@ export const schema = a.schema({
       rawMessageKey: a.string(), // Email only
       attachments: a.ref('RouteRequestAttachment').array(),
       scheduleReading: a.ref('ScheduleReading'), // Written by the server route that reads the Schedule; replaced, never nulled, on a re-read
+      amendmentDecisions: a.ref('AmendmentDecision').array(), // An Amendment's accepted and rejected Diff lines; replaced as a whole, never nulled
       loggedByStaff: a.boolean(), // Sent from our own domain, so the real requester is entered by hand
       suggestedCustomerId: a.id(),
       // The requester entered by hand, for a manual record or a Logged-by-staff email.

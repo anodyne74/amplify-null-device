@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
+import type { AmendmentRow } from '@/lib/amendmentDiff';
 import type { DiffStop } from '@/lib/scheduleDiff';
 import { AmendmentDiffView } from './AmendmentDiffView';
 import { totalsWarnings } from '@/lib/scheduleTotals';
@@ -18,10 +19,19 @@ export function ScheduleReadingPanel({
   record,
   onReading,
   stops,
+  lines,
 }: {
   record: RouteRequestRecord;
   /** The Route's Stops, for a Route Amendment: its changes are shown against them instead of as a list of rows. */
   stops?: DiffStop[];
+  /** What deciding an Amendment's lines needs; without it they are shown but not decidable. */
+  lines?: {
+    canAccept: boolean;
+    busy: ReadonlySet<string>;
+    loadMessage: string;
+    onAccept: (line: { row: AmendmentRow; address: string }) => void;
+    onReject: (line: { row: AmendmentRow; address: string }) => void;
+  };
   /** Told the reading now showing (null for none), so the page can compare it with the copied Stops. */
   onReading?: (reading: ScheduleReading | null) => void;
 }) {
@@ -115,7 +125,7 @@ export function ScheduleReadingPanel({
             </>
           )}
           {isAmendment && stops ? (
-            <AmendmentDiffView rows={rows} stops={stops} />
+            <AmendmentDiffView rows={rows} stops={stops} decisions={record.amendmentDecisions} {...lines} />
           ) : (
           <table className={styles.table}>
             <thead>

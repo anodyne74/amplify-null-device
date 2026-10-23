@@ -19,6 +19,7 @@ import {
   type RouteRequestRecord,
 } from '@/lib/routeRequests';
 import type { DiffStop } from '@/lib/scheduleDiff';
+import { acceptAmendmentAdd, canAcceptLines, LOAD_STARTED_MESSAGE, rejectAmendmentLine } from '@/lib/amendmentLines';
 import { ScheduleReadingPanel } from '@/app/administrator/routes/new/ScheduleReadingPanel';
 import styles from './RouteRequests.module.css';
 
@@ -27,7 +28,23 @@ import styles from './RouteRequests.module.css';
  * Amendments in the order they were sent, each with everything captured, and
  * ways to link another from the Request inbox, record one by hand, or unlink.
  */
-export function RouteRequestsCard({ routeId, customerId, stops }: { routeId: string; customerId: string | null; stops?: Array<Omit<DiffStop, 'address'> & { address?: string | null }> }) {
+type CardStop = Omit<DiffStop, 'address'> & { address?: string | null; sequence?: number | null; agent?: string | null };
+
+export function RouteRequestsCard({
+  routeId,
+  customerId,
+  stops,
+  route,
+  onStopsChanged,
+}: {
+  routeId: string;
+  customerId: string | null;
+  stops?: CardStop[];
+  /** Where the Route is in its Sign Run: Amendment lines can be accepted only until Load starts. */
+  route?: { loadStartedAt?: string | null; status?: string | null };
+  /** Told when accepting a line changed the Route's Stops, so the page can reload them. */
+  onStopsChanged?: () => void;
+}) {
   // A Stop with no address matches nothing, so it is left out.
   const routeStops = useMemo(() => stops?.flatMap((stop) => (stop.address ? [{ ...stop, address: stop.address }] : [])), [stops]);
   const [records, setRecords] = useState<RouteRequestRecord[]>([]);
@@ -36,6 +53,9 @@ export function RouteRequestsCard({ routeId, customerId, stops }: { routeId: str
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState<'link' | 'manual' | null>(null);
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
+  // Why a line could not be accepted, or a warning about one that was; kept apart from `error`, which every reload resets.
+  const [lineMessage, setLineMessage] = useState<string | null>(null);
+  const [busyLines, setBusyLines] = useState<ReadonlySet<string>>(new Set());
 
   const load = useCallback(async () => {
     const [own, all] = await Promise.all([listRouteRequestsForRoute(routeId), listRouteRequests()]);
@@ -50,6 +70,28 @@ export function RouteRequestsCard({ routeId, customerId, stops }: { routeId: str
   }, [load]);
 
   const hasRouteRequest = records.some((record) => record.role === 'request');
+
+  async function decide(record: RouteRequestRecord, accepted: boolean, line: { row: { address: string; numberOfSigns?: number | null; agent?: string | null; isAuction?: boolean | null; isPreview?: boolean | null }; address: string }) {
+    const key = `add:${line.row.address}`;
+    setBusyLines((current) => new Set(current).add(key));
+    setLineMessage(null);
+    try {
+      const common = { recordId: record.id, decisions: record.amendmentDecisions };
+      const result = accepted
+        ? await acceptAmendmentAdd({ ...common, route: { id: routeId, customerId, ...route }, stops: routeStops ?? [], row: line.row, address: line.address })
+        : await rejectAmendmentLine({ ...common, change: 'add', address: line.row.address });
+      if (!result.ok) setLineMessage(result.error);
+      else if (result.warning) setLineMessage(result.warning);
+      if (result.ok && accepted) onStopsChanged?.();
+      await load();
+    } finally {
+      setBusyLines((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+    }
+  }
 
   function added() {
     setAdding(null);
@@ -69,6 +111,7 @@ export function RouteRequestsCard({ routeId, customerId, stops }: { routeId: str
     <Card title="Requests" subtitle="The Route Request and any Route Amendments, in the order they were sent">
       <div className={styles.view}>
         {error && <p className="nd-badge nd-badge--danger">{error}</p>}
+        {lineMessage && <p className="nd-badge nd-badge--danger" role="alert">{lineMessage}</p>}
         {loading ? (
           <p className={styles.note}>Loading requests…</p>
         ) : records.length === 0 ? (
@@ -81,7 +124,21 @@ export function RouteRequestsCard({ routeId, customerId, stops }: { routeId: str
                 {formatWhen(record.sentAt)} <RouteRequestBadges record={record} />
               </summary>
               <RouteRequestView record={record} />
-              {record.role === 'amendment' && <ScheduleReadingPanel record={record} stops={routeStops} />}
+              {record.role === 'amendment' && <ScheduleReadingPanel
+                  record={record}
+                  stops={routeStops}
+                  lines={
+                    route
+                      ? {
+                          canAccept: canAcceptLines(route),
+                          busy: busyLines,
+                          loadMessage: LOAD_STARTED_MESSAGE,
+                          onAccept: (line) => void decide(record, true, line),
+                          onReject: (line) => void decide(record, false, line),
+                        }
+                      : undefined
+                  }
+                />}
               <div className={styles.actions}>
                 <Button size="sm" variant="secondary" disabled={unlinkingId === record.id} onClick={() => void unlink(record.id)}>
                   Unlink

@@ -828,6 +828,7 @@ export const schema = a.schema({
     isNew: a.boolean(), // Marked New on the sheet; a hint only
     isPreview: a.boolean(),
     timeSlot: a.string(), // Kept for traceability; it never becomes part of a Stop
+    change: a.string(), // 'add' or 'drop': what a Route Amendment's email asks of this property; absent on a Schedule's rows
   }),
 
   /** An instruction for the Operator found in a Route Request's email or Schedule (ADR 0014), in the customer's words. */
@@ -859,13 +860,23 @@ export const schema = a.schema({
   ScheduleReading: a.customType({
     readAt: a.datetime().required(),
     readBySub: a.string().required(),
-    attachmentIndex: a.integer().required(), // Which of the record's attachments was read
+    attachmentIndex: a.integer().required(), // Which of the record's attachments was read; -1 when only the email was (an Amendment with no Schedule)
     sheetDate: a.string(), // The date in the sheet's title, which is the one to trust over the file name
     rows: a.ref('ScheduleReadingRow').array().required(),
     statedTotals: a.ref('ScheduleReadingTotals'), // Absent when the sheet prints none, or on a reading stored before these were read
     instructions: a.ref('ScheduleReadingInstruction').array(), // Absent on a reading stored before these were read
     warnings: a.string().array(),
     progress: a.ref('ScheduleReadingProgress'), // Present while pages remain: rows so far, not yet a reading to compare
+  }),
+
+  /** An administrator's decision on one line of a Route Amendment's Schedule Diff (ADR 0014). */
+  AmendmentDecision: a.customType({
+    change: a.string().required(), // 'add' or 'drop'
+    address: a.string().required(), // The row's address as read, which with `change` identifies the line
+    decision: a.string().required(), // 'accepted' or 'rejected'
+    decidedAt: a.datetime().required(),
+    decidedBySub: a.string().required(),
+    stopId: a.id(), // The Stop an accepted add created
   }),
 
   /**
@@ -897,6 +908,7 @@ export const schema = a.schema({
       rawMessageKey: a.string(), // Email only
       attachments: a.ref('RouteRequestAttachment').array(),
       scheduleReading: a.ref('ScheduleReading'), // Written by the server route that reads the Schedule; replaced, never nulled, on a re-read
+      amendmentDecisions: a.ref('AmendmentDecision').array(), // An Amendment's accepted and rejected Diff lines; replaced as a whole, never nulled
       loggedByStaff: a.boolean(), // Sent from our own domain, so the real requester is entered by hand
       suggestedCustomerId: a.id(),
       // The requester entered by hand, for a manual record or a Logged-by-staff email.

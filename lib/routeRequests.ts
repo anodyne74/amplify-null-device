@@ -178,7 +178,13 @@ export async function linkRouteRequest(input: {
   requester?: { name: string; email?: string | null };
 }): Promise<Result> {
   try {
-    return await linkRouteRequestRecord(linkClient(), { ...input, bySub: (await fetchUserId()) ?? null, now: new Date().toISOString() });
+    const result = await linkRouteRequestRecord(linkClient(), { ...input, bySub: (await fetchUserId()) ?? null, now: new Date().toISOString() });
+    // A linked Amendment is read straight away (ADR 0014). It runs on its own: a failed read never undoes the link,
+    // and the Route's Requests section offers it again.
+    if (result.ok && input.role === 'amendment') {
+      void readSchedule(input.recordId).catch((error) => console.error('Reading the Route Amendment failed:', error));
+    }
+    return result;
   } catch (error) {
     console.error('Linking the Route Request failed:', error);
     return { ok: false, error: 'Could not link it to the Route.' };

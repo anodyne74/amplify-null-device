@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
+import type { DiffStop } from '@/lib/scheduleDiff';
+import { AmendmentDiffView, type AmendmentViewLine } from './AmendmentDiffView';
 import { totalsWarnings } from '@/lib/scheduleTotals';
 import { readSchedule, scheduleAttachmentIndex, type RouteRequestRecord, type ScheduleReading } from '@/lib/routeRequests';
 import styles from './ScheduleReadingPanel.module.css';
@@ -15,8 +17,20 @@ import styles from './ScheduleReadingPanel.module.css';
 export function ScheduleReadingPanel({
   record,
   onReading,
+  stops,
+  lines,
 }: {
   record: RouteRequestRecord;
+  /** The Route's Stops, for a Route Amendment: its changes are shown against them instead of as a list of rows. */
+  stops?: DiffStop[];
+  /** What deciding an Amendment's lines needs; without it they are shown but not decidable. */
+  lines?: {
+    canAccept: boolean;
+    busy: ReadonlySet<string>;
+    loadMessage: string;
+    onAccept: (line: AmendmentViewLine) => void;
+    onReject: (line: AmendmentViewLine) => void;
+  };
   /** Told the reading now showing (null for none), so the page can compare it with the copied Stops. */
   onReading?: (reading: ScheduleReading | null) => void;
 }) {
@@ -56,7 +70,9 @@ export function ScheduleReadingPanel({
     void read(false);
   }, [unfinished, read]);
 
-  if (!reading && !unfinished && scheduleAttachmentIndex(record.attachments) === null) return null;
+  // An Amendment can be a sentence with no Schedule; the email alone is read.
+  const isAmendment = record.role === 'amendment';
+  if (!reading && !unfinished && !isAmendment && scheduleAttachmentIndex(record.attachments) === null) return null;
 
   const rows = (reading?.rows ?? []).filter((row): row is NonNullable<typeof row> => Boolean(row));
 
@@ -65,11 +81,13 @@ export function ScheduleReadingPanel({
       <div className={styles.header}>
         <strong>Schedule reading</strong>
         <Button size="sm" variant="secondary" loading={isReading} onClick={() => void read(reading !== null)}>
-          {reading ? 'Read again' : 'Read Schedule'}
+          {reading ? 'Read again' : isAmendment ? 'Read Amendment' : 'Read Schedule'}
         </Button>
       </div>
       <p className={styles.hint}>
-        A proposal read from the attached Schedule. It changes nothing on the Route; check it against the file.
+        {isAmendment
+          ? 'A proposal read from this Route Amendment. It changes nothing on the Route; check it against the email.'
+          : 'A proposal read from the attached Schedule. It changes nothing on the Route; check it against the file.'}
       </p>
 
       {isReading && progress && (
@@ -105,6 +123,9 @@ export function ScheduleReadingPanel({
               </ul>
             </>
           )}
+          {isAmendment && stops ? (
+            <AmendmentDiffView rows={rows} stops={stops} decisions={record.amendmentDecisions} {...lines} />
+          ) : (
           <table className={styles.table}>
             <thead>
               <tr><th>Address</th><th>Signs</th><th>Agent</th><th>Time</th><th /></tr>
@@ -117,6 +138,7 @@ export function ScheduleReadingPanel({
                   <td>{row.agent ?? ''}</td>
                   <td>{row.timeSlot ?? ''}</td>
                   <td className={styles.flags}>
+                    {row.change && <Badge size="sm" tone={row.change === 'drop' ? 'warning' : 'success'}>{row.change === 'drop' ? 'Drop' : 'Add'}</Badge>}
                     {row.isAuction && <Badge size="sm" tone="warning">Auction</Badge>}
                     {row.isPreview && <Badge size="sm" tone="info">Preview</Badge>}
                     {row.isNew && <Badge size="sm" tone="brand">New</Badge>}
@@ -125,6 +147,7 @@ export function ScheduleReadingPanel({
               ))}
             </tbody>
           </table>
+          )}
         </>
       )}
     </section>

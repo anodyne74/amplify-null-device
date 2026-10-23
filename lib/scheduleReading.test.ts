@@ -161,3 +161,30 @@ describe('readingFromStored', () => {
     });
   });
 });
+
+describe('Route Amendment readings', () => {
+  it('keeps add and drop on a row, and ignores any other value', () => {
+    const read = parseScheduleReading(
+      JSON.stringify({
+        rows: [
+          { address: '3/13 Carlingford Road', change: 'add' },
+          { address: '9 Other Street', change: 'drop' },
+          { address: '1 Odd Street', change: 'remove' },
+          { address: '2 Plain Street' },
+        ],
+      })
+    );
+    expect(read.rows.map((row) => row.change)).toEqual(['add', 'drop', undefined, undefined]);
+    expect('change' in read.rows[3]).toBe(false);
+  });
+
+  it('keeps change through a stored reading', () => {
+    const read = readingFromStored({ rows: [{ address: '3/13 Carlingford Road', change: 'add' }, { address: 'x', change: null }] });
+    expect(read.rows[0].change).toBe('add');
+    expect('change' in read.rows[1]).toBe(false);
+  });
+
+  it('asks about an email alone when there is no sheet', () => {
+    expect(buildSchedulePrompt({ sheetText: null, emailBody: 'Please add 3 Foo St' })).toBe('<sheet>(none)</sheet>\n\n<email>\nPlease add 3 Foo St\n</email>');
+  });
+});

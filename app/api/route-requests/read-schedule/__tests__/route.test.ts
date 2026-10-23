@@ -220,6 +220,56 @@ describe('POST /api/route-requests/read-schedule', () => {
     expect((await call(ADMIN, {})).status).toBe(400);
   });
 
+  it('reads a Route Amendment sent as a sentence from the email alone', async () => {
+    records[0] = { id: 'amend-1', role: 'amendment', bodyText: 'Please add 3/13 Carlingford Road and 15/13 Carlingford Road to your list.', attachments: [] };
+    askMock.mockResolvedValue(
+      JSON.stringify({
+        rows: [
+          { address: '3/13 Carlingford Road', change: 'add' },
+          { address: '15/13 Carlingford Road', change: 'add' },
+        ],
+        instructions: [],
+        warnings: [],
+      })
+    );
+    const { status, body } = await call(ADMIN, { requestId: 'amend-1' });
+    expect(status).toBe(200);
+    expect(body.reading.rows.map((row: any) => [row.address, row.change])).toEqual([
+      ['3/13 Carlingford Road', 'add'],
+      ['15/13 Carlingford Road', 'add'],
+    ]);
+    expect(body.reading.attachmentIndex).toBe(-1);
+    expect(readFileMock).not.toHaveBeenCalled();
+    const sent = askMock.mock.calls[0][0];
+    expect(sent.system).toMatch(/Route Amendment/);
+    expect(sent.prompt).toContain('<sheet>(none)</sheet>');
+    expect(sent.prompt).toContain('Carlingford Road');
+    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'amend-1' }));
+  });
+
+  it('reads a Route Amendment that has a Schedule from the Schedule, with the Amendment prompt', async () => {
+    records[0].role = 'amendment';
+    askMock.mockResolvedValue(MODEL_ANSWER);
+    expect((await call(ADMIN, { requestId: 'ses-msg-1' })).status).toBe(200);
+    expect(askMock.mock.calls[0][0].system).toMatch(/Route Amendment/);
+    expect(askMock.mock.calls[0][0].prompt).toContain('Example Street');
+  });
+
+  it('reads an Amendment recorded by hand from its note', async () => {
+    records[0] = { id: 'amend-2', role: 'amendment', source: 'manual', note: 'Phone call: add 2 Smith Street, Epping', attachments: [] };
+    askMock.mockResolvedValue(JSON.stringify({ rows: [{ address: '2 Smith Street, Epping', change: 'add' }], instructions: [], warnings: [] }));
+    expect((await call(ADMIN, { requestId: 'amend-2' })).status).toBe(200);
+    expect(askMock.mock.calls[0][0].prompt).toContain('Phone call');
+  });
+
+  it('refuses to read an Amendment with no text, and a Route Request with no Schedule still needs one', async () => {
+    records[0] = { id: 'amend-3', role: 'amendment', bodyText: 'ok', attachments: [] };
+    expect((await call(ADMIN, { requestId: 'amend-3' })).status).toBe(422);
+    records[0] = { id: 'req-1', role: 'request', bodyText: 'Please add things to the list', attachments: [] };
+    expect((await call(ADMIN, { requestId: 'req-1' })).status).toBe(422);
+    expect(askMock).not.toHaveBeenCalled();
+  });
+
   it('refuses operators, customers and a request with no session before reading anything', async () => {
     expect((await call(OPERATOR, { requestId: 'ses-msg-1' })).status).toBe(403);
     expect((await call(CUSTOMER, { requestId: 'ses-msg-1' })).status).toBe(403);

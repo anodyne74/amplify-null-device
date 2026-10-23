@@ -56,7 +56,9 @@ export function ScheduleReadingPanel({
     void read(false);
   }, [unfinished, read]);
 
-  if (!reading && !unfinished && scheduleAttachmentIndex(record.attachments) === null) return null;
+  // An Amendment can be a sentence with no Schedule; the email alone is read.
+  const isAmendment = record.role === 'amendment';
+  if (!reading && !unfinished && !isAmendment && scheduleAttachmentIndex(record.attachments) === null) return null;
 
   const rows = (reading?.rows ?? []).filter((row): row is NonNullable<typeof row> => Boolean(row));
 
@@ -65,11 +67,13 @@ export function ScheduleReadingPanel({
       <div className={styles.header}>
         <strong>Schedule reading</strong>
         <Button size="sm" variant="secondary" loading={isReading} onClick={() => void read(reading !== null)}>
-          {reading ? 'Read again' : 'Read Schedule'}
+          {reading ? 'Read again' : isAmendment ? 'Read Amendment' : 'Read Schedule'}
         </Button>
       </div>
       <p className={styles.hint}>
-        A proposal read from the attached Schedule. It changes nothing on the Route; check it against the file.
+        {isAmendment
+          ? 'A proposal read from this Route Amendment. It changes nothing on the Route; check it against the email.'
+          : 'A proposal read from the attached Schedule. It changes nothing on the Route; check it against the file.'}
       </p>
 
       {isReading && progress && (
@@ -117,6 +121,7 @@ export function ScheduleReadingPanel({
                   <td>{row.agent ?? ''}</td>
                   <td>{row.timeSlot ?? ''}</td>
                   <td className={styles.flags}>
+                    {row.change && <Badge size="sm" tone={row.change === 'drop' ? 'warning' : 'success'}>{row.change === 'drop' ? 'Drop' : 'Add'}</Badge>}
                     {row.isAuction && <Badge size="sm" tone="warning">Auction</Badge>}
                     {row.isPreview && <Badge size="sm" tone="info">Preview</Badge>}
                     {row.isNew && <Badge size="sm" tone="brand">New</Badge>}

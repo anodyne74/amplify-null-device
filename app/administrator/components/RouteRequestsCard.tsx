@@ -18,6 +18,7 @@ import {
   unlinkRouteRequest,
   type RouteRequestRecord,
 } from '@/lib/routeRequests';
+import { ScheduleReadingPanel } from '@/app/administrator/routes/new/ScheduleReadingPanel';
 import styles from './RouteRequests.module.css';
 
 /**
@@ -77,6 +78,7 @@ export function RouteRequestsCard({ routeId, customerId }: { routeId: string; cu
                 {formatWhen(record.sentAt)} <RouteRequestBadges record={record} />
               </summary>
               <RouteRequestView record={record} />
+              {record.role === 'amendment' && <ScheduleReadingPanel record={record} />}
               <div className={styles.actions}>
                 <Button size="sm" variant="secondary" disabled={unlinkingId === record.id} onClick={() => void unlink(record.id)}>
                   Unlink

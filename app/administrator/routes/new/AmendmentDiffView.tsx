@@ -13,6 +13,9 @@ import styles from './ScheduleReadingPanel.module.css';
  * now (ADR 0014): what it adds, what it asks to take off, and what to check by
  * hand. Read-only: nothing here changes the Route.
  */
+/** One line being decided: an add (with the address the Diff completed) or a drop (with the Stop it takes off). */
+export type AmendmentViewLine = { change: 'add'; row: AmendmentRow; address: string } | { change: 'drop'; row: AmendmentRow; stop: DiffStop };
+
 export function AmendmentDiffView({
   rows,
   stops,
@@ -30,8 +33,8 @@ export function AmendmentDiffView({
   canAccept?: boolean;
   /** Keys (`add:<address>`) of lines being decided. */
   busy?: ReadonlySet<string>;
-  onAccept?: (line: { row: AmendmentRow; address: string }) => void;
-  onReject?: (line: { row: AmendmentRow; address: string }) => void;
+  onAccept?: (line: AmendmentViewLine) => void;
+  onReject?: (line: AmendmentViewLine) => void;
   loadMessage?: string;
 }) {
   const diff = useMemo(() => amendmentDiff(rows, stops), [rows, stops]);
@@ -59,13 +62,13 @@ export function AmendmentDiffView({
                   {onAccept && (
                     <>
                       {' '}
-                      <Button size="sm" disabled={!canAccept || working} loading={working} onClick={() => onAccept({ row, address })}>
+                      <Button size="sm" disabled={!canAccept || working} loading={working} onClick={() => onAccept({ change: 'add', row, address })}>
                         Accept
                       </Button>
                       {!rejected && (
                         <>
                           {' '}
-                          <Button size="sm" variant="secondary" disabled={working} onClick={() => onReject?.({ row, address })}>
+                          <Button size="sm" variant="secondary" disabled={working} onClick={() => onReject?.({ change: 'add', row, address })}>
                             Reject
                           </Button>
                         </>
@@ -83,11 +86,32 @@ export function AmendmentDiffView({
         <>
           <p className={styles.summary}>To take off ({diff.drops.length}):</p>
           <ul className={styles.instructions}>
-            {diff.drops.map(({ row, stop }, index) => (
-              <li key={`${row.address}-${index}`}>
-                <Badge size="sm" tone="warning">Drop</Badge> {stop.address}
-              </li>
-            ))}
+            {diff.drops.map(({ row, stop }, index) => {
+              const rejected = decisionFor(decisions, 'drop', row.address)?.decision === 'rejected';
+              const working = busy?.has(`drop:${row.address}`) ?? false;
+              return (
+                <li key={`${row.address}-${index}`}>
+                  <Badge size="sm" tone="warning">Drop</Badge> {stop.address}
+                  {rejected && <> <Badge size="sm" tone="neutral">Rejected</Badge></>}
+                  {onAccept && (
+                    <>
+                      {' '}
+                      <Button size="sm" disabled={!canAccept || working} loading={working} onClick={() => onAccept({ change: 'drop', row, stop })}>
+                        Accept
+                      </Button>
+                      {!rejected && (
+                        <>
+                          {' '}
+                          <Button size="sm" variant="secondary" disabled={working} onClick={() => onReject?.({ change: 'drop', row, stop })}>
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </>
       )}
@@ -111,10 +135,13 @@ export function AmendmentDiffView({
 
       {diff.notOnRoute.length > 0 && (
         <>
-          <p className={styles.summary}>Asked to take off, but not on the Route:</p>
+          <p className={styles.summary}>Asked to take off, not on the Route:</p>
           <ul className={styles.instructions}>
             {diff.notOnRoute.map((row, index) => (
-              <li key={`${row.address}-${index}`}>{row.address}</li>
+              <li key={`${row.address}-${index}`}>
+                {row.address}
+                {decisionFor(decisions, 'drop', row.address)?.decision === 'accepted' && <> <Badge size="sm" tone="success">Taken off</Badge></>}
+              </li>
             ))}
           </ul>
         </>

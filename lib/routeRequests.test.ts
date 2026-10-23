@@ -51,6 +51,7 @@ import {
   requesterLabel,
   scheduleAttachmentIndex,
   readSchedule,
+  linkRouteRequest,
 } from './routeRequests';
 
 const page = (data: object[], nextToken: string | null = null) => ({ data, errors: null, nextToken });
@@ -349,5 +350,37 @@ describe('readSchedule', () => {
     mockCallApi.mockResolvedValue(partial(1));
     await expect(readSchedule('r1')).rejects.toThrow(/not moving on/);
     expect(mockCallApi).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('linkRouteRequest', () => {
+  beforeEach(() => {
+    mockCallApi.mockReset();
+    mockRequestGet.mockReset().mockResolvedValue({ data: { id: 'r1', status: 'unlinked' }, errors: null });
+    mockRequestUpdate.mockReset().mockResolvedValue({ data: {}, errors: null });
+    mockCallApi.mockResolvedValue({ reading: { rows: [] } });
+  });
+
+  it('reads an Amendment as soon as it is linked', async () => {
+    expect(await linkRouteRequest({ recordId: 'r1', routeId: 'route-1', role: 'amendment' })).toEqual({ ok: true });
+    expect(mockCallApi).toHaveBeenCalledWith('/api/route-requests/read-schedule', { requestId: 'r1', force: false });
+  });
+
+  it('keeps the link when the read fails', async () => {
+    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockCallApi.mockRejectedValue(new Error('Could not read the Schedule'));
+    expect(await linkRouteRequest({ recordId: 'r1', routeId: 'route-1', role: 'amendment' })).toEqual({ ok: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(log).toHaveBeenCalledWith('Reading the Route Amendment failed:', expect.any(Error));
+    log.mockRestore();
+  });
+
+  it('does not read a record that fails to link, or one linked as the Route Request', async () => {
+    mockRequestGet.mockResolvedValue({ data: { id: 'r1', status: 'linked' }, errors: null });
+    expect((await linkRouteRequest({ recordId: 'r1', routeId: 'route-1', role: 'amendment' })).ok).toBe(false);
+    mockRequestGet.mockResolvedValue({ data: { id: 'r1', status: 'unlinked' }, errors: null });
+    mockSlotCreate.mockResolvedValue({ data: {}, errors: null });
+    expect(await linkRouteRequest({ recordId: 'r1', routeId: 'route-1', role: 'request' })).toEqual({ ok: true });
+    expect(mockCallApi).not.toHaveBeenCalled();
   });
 });

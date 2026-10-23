@@ -4,7 +4,10 @@ import { extractPdfLayoutPages } from '@/lib/server/pdfLayoutText';
 import { readRouteRequestFile } from '@/lib/server/reportStorage';
 import { askScheduleModel } from '@/lib/server/scheduleModel';
 import { scheduleAttachmentIndex } from '@/lib/routeRequests';
-import { buildSchedulePrompt, mergeScheduleReadings, parseScheduleReading, readingFromStored, SCHEDULE_SYSTEM_PROMPT } from '@/lib/scheduleReading';
+import { AMENDMENT_PROMPT, buildSchedulePrompt, mergeScheduleReadings, parseScheduleReading, readingFromStored, SCHEDULE_SYSTEM_PROMPT } from '@/lib/scheduleReading';
+
+// Stored as the attachment index of a reading made from the email alone (a Route Amendment sent as a sentence).
+const EMAIL_ONLY = -1;
 
 // A sheet with fewer characters than this has no text layer worth reading.
 const MIN_SHEET_TEXT = 20;
@@ -56,23 +59,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ reading: record.scheduleReading, cached: true });
     }
 
-    const index = Number.isInteger(body.attachmentIndex) ? body.attachmentIndex : scheduleAttachmentIndex(record.attachments);
-    const attachment = index === null ? null : record.attachments?.[index];
-    if (index === null || !attachment) {
+    const isAmendment = record.role === 'amendment';
+    // An Amendment recorded by hand has its text in the note, not a body.
+    const emailText = (record.bodyText || record.note || '').trim();
+    const chosen = Number.isInteger(body.attachmentIndex) ? body.attachmentIndex : scheduleAttachmentIndex(record.attachments);
+    // An Amendment can be a sentence in the email with no Schedule: the email alone is read.
+    const emailOnly = isAmendment && (chosen === null || !record.attachments?.[chosen]);
+    const index = emailOnly ? EMAIL_ONLY : chosen;
+    const attachment = index === null || emailOnly ? null : record.attachments?.[index];
+    if (!emailOnly && (index === null || !attachment)) {
       return NextResponse.json({ error: 'This Route Request has no Schedule attached. Enter the Stops by hand.' }, { status: 422 });
     }
 
-    let pages: string[];
-    if (isPdf(attachment)) {
-      pages = await extractPdfLayoutPages(await readRouteRequestFile(attachment.key));
-    } else if (isPlainText(attachment)) {
-      pages = [new TextDecoder().decode(await readRouteRequestFile(attachment.key))];
+    let pages: Array<string | null>;
+    if (emailOnly) {
+      if (emailText.length < MIN_SHEET_TEXT) {
+        return NextResponse.json({ error: 'This Route Amendment has no text to read. Enter the changes by hand.' }, { status: 422 });
+      }
+      pages = [null];
+    } else if (isPdf(attachment!)) {
+      pages = await extractPdfLayoutPages(await readRouteRequestFile(attachment!.key));
+    } else if (isPlainText(attachment!)) {
+      pages = [new TextDecoder().decode(await readRouteRequestFile(attachment!.key))];
     } else {
-      return NextResponse.json({ error: `${attachment.filename} is not a PDF or text file. Enter the Stops by hand.` }, { status: 422 });
+      return NextResponse.json({ error: `${attachment!.filename} is not a PDF or text file. Enter the Stops by hand.` }, { status: 422 });
     }
-    if (pages.join('').trim().length < MIN_SHEET_TEXT) {
+    if (!emailOnly && pages.join('').trim().length < MIN_SHEET_TEXT) {
       // A scan: nothing to read, so nothing goes to the model.
-      return NextResponse.json({ error: `${attachment.filename} has no text to read (it may be a scan). Enter the Stops by hand.` }, { status: 422 });
+      return NextResponse.json({ error: `${attachment!.filename} has no text to read (it may be a scan). Enter the Stops by hand.` }, { status: 422 });
     }
 
     // Carry on from the stored pages, unless this is a new read or the stored ones are of a different file.
@@ -83,11 +97,11 @@ export async function POST(request: NextRequest) {
     const soFar = resuming ? readingFromStored(resuming) : null;
 
     const answer = await askScheduleModel({
-      system: SCHEDULE_SYSTEM_PROMPT,
+      system: isAmendment ? SCHEDULE_SYSTEM_PROMPT + AMENDMENT_PROMPT : SCHEDULE_SYSTEM_PROMPT,
       prompt: buildSchedulePrompt({
         sheetText: pages[pagesRead],
-        emailBody: record.bodyText,
-        filename: attachment.filename,
+        emailBody: emailText,
+        filename: attachment?.filename,
         ...(pages.length > 1 && { page: { number: pagesRead + 1, count: pages.length } }),
       }),
       maxTokens: SCHEDULE_MAX_TOKENS,

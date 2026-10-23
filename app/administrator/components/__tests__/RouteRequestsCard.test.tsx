@@ -53,6 +53,21 @@ describe('RouteRequestsCard', () => {
     });
   });
 
+  it('shows what was read from a Route Amendment, and a way to read it again', async () => {
+    const read = { ...AMENDMENT, scheduleReading: { readAt: '2026-09-28T01:05:00.000Z', readBySub: 's', attachmentIndex: -1, rows: [{ address: '3/13 Carlingford Road', change: 'add' }] } };
+    (listRouteRequestsForRoute as jest.Mock).mockResolvedValue({ data: [REQUEST, read] });
+    render(<RouteRequestsCard routeId="route-1" customerId="c1" />);
+
+    expect(await screen.findByText('3/13 Carlingford Road')).toBeInTheDocument();
+    expect(screen.getByText('Add')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Read again' })).toBeInTheDocument();
+  });
+
+  it('offers to read a Route Amendment that has not been read', async () => {
+    render(<RouteRequestsCard routeId="route-1" customerId="c1" />);
+    expect(await screen.findByRole('button', { name: 'Read Amendment' })).toBeInTheDocument();
+  });
+
   it('lists the Route Request and Amendments in the order sent', async () => {
     render(<RouteRequestsCard routeId="route-1" customerId="c1" />);
 

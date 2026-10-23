@@ -116,4 +116,28 @@ describe('ScheduleReadingPanel', () => {
       expect(await screen.findByText('1 Example Street, Epping')).toBeInTheDocument();
     });
   });
+
+  it('offers to read a Route Amendment that has no Schedule, and marks its adds and drops', async () => {
+    jest.mocked(readSchedule).mockResolvedValue({
+      ...READING,
+      attachmentIndex: -1,
+      rows: [
+        { address: '3/13 Carlingford Road', change: 'add' },
+        { address: '9 Other Street', change: 'drop' },
+      ],
+    } as any);
+    render(<ScheduleReadingPanel record={record({ role: 'amendment', attachments: [] })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Read Amendment' }));
+
+    expect(await screen.findByText('3/13 Carlingford Road')).toBeInTheDocument();
+    expect(screen.getByText('Add')).toBeInTheDocument();
+    expect(screen.getByText('Drop')).toBeInTheDocument();
+    expect(screen.getByText(/check it against the email/)).toBeInTheDocument();
+  });
+
+  it('shows nothing for a Route Request that has no Schedule', () => {
+    const { container } = render(<ScheduleReadingPanel record={record({ role: 'request', attachments: [] })} />);
+    expect(container).toBeEmptyDOMElement();
+  });
 });

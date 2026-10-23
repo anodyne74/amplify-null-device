@@ -6,18 +6,16 @@ import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { Button } from '@/app/components/ui/core/Button';
 import { getCustomer } from '@/lib/customers';
-import { getRouteEstimate, type StoredRouteEstimate } from '@/lib/routeEstimates';
 import { signsPlaced } from '@/lib/signRunTotals';
 import { useRouteWithStops } from '@/lib/useRouteWithStops';
 import { formatRouteDate } from '@/lib/routeDetailHelpers';
-import { ROUTE_SHEET_PHASES, routeReference, routeSheetDistance, routeSheetStops } from '@/lib/routeSheet';
+import { ROUTE_SHEET_PHASES, routeReference, routeSheetStops } from '@/lib/routeSheet';
 import styles from './page.module.css';
 
 function RouteSheetContent() {
   const routeId = useSearchParams().get('id');
   const { route, stops, loading, error } = useRouteWithStops(routeId);
   const [customerName, setCustomerName] = useState('');
-  const [estimate, setEstimate] = useState<StoredRouteEstimate | null>(null);
 
   const customerId = route?.customerId;
   useEffect(() => {
@@ -33,22 +31,10 @@ function RouteSheetContent() {
     };
   }, [customerId]);
 
-  useEffect(() => {
-    if (!routeId) return;
-    let cancelled = false;
-    getRouteEstimate(routeId).then(({ data }) => {
-      if (!cancelled) setEstimate(data);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [routeId]);
-
   if (loading) return <LoadingSpinner message="Loading route..." />;
   if (error || !route) return <p role="alert">{error ?? 'Route not found.'}</p>;
 
   const rows = routeSheetStops(stops);
-  const distance = routeSheetDistance(estimate, route, stops);
 
   return (
     <div className={styles.sheet}>
@@ -153,7 +139,7 @@ function RouteSheetContent() {
           <strong>Signs Placed:</strong> {signsPlaced(stops)}
         </p>
         <p>
-          <strong>Distance:</strong> {distance ?? <span className={styles.blank} aria-label="Distance blank" />}
+          <strong>Distance:</strong> <span className={styles.blank} aria-label="Distance blank" />
         </p>
       </footer>
     </div>

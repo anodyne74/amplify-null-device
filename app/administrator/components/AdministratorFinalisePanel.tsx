@@ -1,12 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import type { Route, Stop } from '@/amplify/types';
+import type { Route } from '@/amplify/types';
 import { Button } from '@/app/components/ui/core/Button';
 import { FinaliseAdjusters } from '@/app/components/FinaliseAdjusters';
 import { finaliseRouteAsAdministrator } from '@/lib/administratorRouteActions';
 import { formatDuration } from '@/lib/format';
-import { useStoredRouteEstimate } from '@/lib/useStoredRouteEstimate';
 import { useFinaliseAdjusters } from '@/lib/useFinaliseAdjusters';
 import styles from './AdministratorFinalisePanel.module.css';
 
@@ -17,15 +16,12 @@ import styles from './AdministratorFinalisePanel.module.css';
  */
 export function AdministratorFinalisePanel({
   route,
-  stops,
   onFinalised,
 }: {
   route: Route;
-  stops: Stop[];
   onFinalised: () => Promise<void> | void;
 }) {
   const adjusters = useFinaliseAdjusters(route);
-  const { estimate: routeEstimate, outOfDate: estimateOutOfDate } = useStoredRouteEstimate(route, stops);
   const { billedMinutes, distanceKm, billTotal, canConfirm } = adjusters;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +47,7 @@ export function AdministratorFinalisePanel({
           {error}
         </div>
       )}
-      <FinaliseAdjusters adjusters={adjusters} estimateMeters={routeEstimate?.totalMeters} estimateOutOfDate={estimateOutOfDate} />
+      <FinaliseAdjusters adjusters={adjusters} />
       <Button type="button" onClick={() => void handleFinalise()} disabled={!canConfirm} loading={saving}>
         {saving ? 'Finalising…' : `Finalise route · ${formatDuration(billTotal)}`}
       </Button>

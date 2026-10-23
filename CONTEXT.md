@@ -49,7 +49,7 @@ The changes a Route Request's Schedule and email imply for a Route copied from t
 _Avoid_: Import, auto-fill, parsed Schedule. Dropped Properties are "dropped", never "removed" (see Removed Stop).
 
 **Route Sheet**:
-A printable page of one Route for administrators to hand to the Operator: the Route's reference, Customer, Operator, Placement Date and Pickup Date, the Route's notes and the Customer's instructions, then its Stops in their current order, each with its agent, an auction mark, its notes, its number of signs and blank Place and Pickup boxes to tick by hand. Removed Stops are left out. It ends with blank Start/End boxes for Load, Placement, Pickup and Unload, the Signs Placed total, and the Route Estimate's distance when it is current. Staff only, for writing on, so it never shows recorded times and nothing written on it is saved.
+A printable page of one Route for administrators to hand to the Operator: the Route's reference, Customer, Operator, Placement Date and Pickup Date, the Route's notes and the Customer's instructions, then its Stops in their current order, each with its agent, an auction mark, its notes, its number of signs and blank Place and Pickup boxes to tick by hand. Removed Stops are left out. It ends with blank Start/End boxes for Load, Placement, Pickup and Unload, the Signs Placed total, and a blank to write the distance driven in. Staff only, for writing on, so it never shows recorded times and nothing written on it is saved.
 _Avoid_: Run sheet, job sheet, printout. Schedule means the Customer's own file, not this.
 
 **Route Amendment**:
@@ -71,14 +71,6 @@ _Avoid_: Skipped, missed, failed pickup
 **Stop**:
 One visit to a Property on a Route, where signs are placed and later picked up.
 _Avoid_: Property (when you mean the single visit), location, visit
-
-**Route Estimate**:
-An administrator's calculation of how far a Route's Operator will drive: road distance from the Operator's home base through the Route's Stops in their current order, and back, for one pass only. It is kept until an administrator recalculates it, and shows as out of date once the Route's Stops or assigned Operator have changed. Stops with no pin, and Removed Stops, are left out, and the estimate says so. Staff only, and informational: it never changes Billed Time.
-_Avoid_: Route optimisation (it does not reorder Stops), quote
-
-**Leg**:
-The drive between two consecutive points of a Route Estimate: home base to the first Stop, one Stop to the next, or the last Stop back to home base.
-_Avoid_: Segment, route (for one piece of it)
 
 **Property**:
 The real-world address a Stop visits; many Stops, across many Routes and Customers, can share one Property. Identified by street number, street, suburb and postcode, never by map coordinates or a geocoder's place identifier, so one address is always one Property even when its pin is wrong. Where the geocoder and the entered address disagree on suburb, the entered address wins.

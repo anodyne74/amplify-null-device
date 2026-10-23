@@ -19,7 +19,7 @@ export type AmendmentRow = DiffRow & { change?: string | null };
 
 export type AmendmentDiff<R, S> = {
   /** Properties to add: stated by the email, or on a revised Schedule, with no Stop on the Route. */
-  adds: Array<{ row: R; inferredSuburb: boolean }>;
+  adds: Array<{ row: R; address: string; inferredSuburb: boolean }>;
   /** Stops the email asks to take off. */
   drops: Array<{ row: R; stop: S }>;
   /** Rows that already have a Stop on the Route. */
@@ -66,7 +66,7 @@ export function amendmentDiff<R extends AmendmentRow, S extends DiffStop>(rows: 
   const hasSchedule = rows.some((row) => !row.change);
 
   return {
-    adds: wanted.adds.map((entry) => ({ row: back(entry), inferredSuburb: entry.item.inferred })),
+    adds: wanted.adds.map((entry) => ({ row: back(entry), address: entry.item.address, inferredSuburb: entry.item.inferred })),
     drops: dropping.matched.map(({ row, stop }) => ({ row: back(row), stop })),
     alreadyOn: wanted.matched.map(({ row, stop, unitDiffers }) => ({ row: back(row), stop, unitDiffers })),
     notOnRoute: dropping.adds.map(back),

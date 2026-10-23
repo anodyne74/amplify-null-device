@@ -24,9 +24,6 @@ frontend:
         # (Notify Operator, ADR 0010). Kept out of amplify_outputs.json, which
         # browsers download.
         - '[ -z "$SMS_TEST_NUMBERS" ] || echo "SMS_TEST_NUMBERS=$SMS_TEST_NUMBERS" >> .env.production'
-        # GOOGLE_ROUTES_API_KEY: server-only key restricted to the Routes API,
-        # for Route Estimates (scripts/setup-routes-api-key.sh).
-        - '[ -z "$GOOGLE_ROUTES_API_KEY" ] || echo "GOOGLE_ROUTES_API_KEY=$GOOGLE_ROUTES_API_KEY" >> .env.production'
         # BEDROCK_SCHEDULE_MODEL_ID: the Bedrock model (or inference profile) that
         # reads Route Request Schedules (ADR 0014); the SSR role is granted Anthropic and Amazon Nova models only.
         - '[ -z "$BEDROCK_SCHEDULE_MODEL_ID" ] || echo "BEDROCK_SCHEDULE_MODEL_ID=$BEDROCK_SCHEDULE_MODEL_ID" >> .env.production'

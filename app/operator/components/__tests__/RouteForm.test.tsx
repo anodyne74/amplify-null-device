@@ -607,4 +607,58 @@ describe('RouteForm', () => {
       expect(onSubmit.mock.calls[0][0].stops).toEqual([draft('1 Given St, Epping')]);
     });
   });
+  describe('suggestions from the parent', () => {
+    const sources = [
+      { id: 'route-1', customerId: 'cust-1', label: 'W19-26-003' },
+      { id: 'route-2', customerId: 'cust-1', label: 'W20-26-001' },
+    ];
+
+    it('chooses the suggested Customer and reports it, and the administrator can change it', async () => {
+      const onCustomerChange = jest.fn();
+      render(
+        <RouteForm customers={mockCustomers} suggestedCustomerId="cust-1" onCustomerChange={onCustomerChange} onSubmit={noop} onCancel={noop} />
+      );
+
+      await waitFor(() => expect(screen.getByLabelText(/customer/i)).toHaveValue('cust-1'));
+      expect(onCustomerChange).toHaveBeenLastCalledWith('cust-1');
+
+      fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: '' } });
+      expect(screen.getByLabelText(/customer/i)).toHaveValue('');
+    });
+
+    it('ignores a suggested Customer it does not know', () => {
+      render(<RouteForm customers={mockCustomers} suggestedCustomerId="nobody" onSubmit={noop} onCancel={noop} />);
+      expect(screen.getByLabelText(/customer/i)).toHaveValue('');
+    });
+
+    it('chooses the suggested previous Route once it is one of the Customer’s', async () => {
+      render(
+        <RouteForm
+          customers={mockCustomers}
+          suggestedCustomerId="cust-1"
+          suggestedCopySourceId="route-2"
+          copyStopSources={sources}
+          onCopyStopsFromSource={jest.fn()}
+          onSubmit={noop}
+          onCancel={noop}
+        />
+      );
+
+      await waitFor(() => expect(screen.getByLabelText('Copy stops from previous route')).toHaveValue('route-2'));
+    });
+
+    it('shows what the parent puts under the copy control', () => {
+      render(
+        <RouteForm
+          customers={mockCustomers}
+          copyStopSources={sources}
+          onCopyStopsFromSource={jest.fn()}
+          underCopyStops={<p>Diff goes here</p>}
+          onSubmit={noop}
+          onCancel={noop}
+        />
+      );
+      expect(screen.getByText('Diff goes here')).toBeInTheDocument();
+    });
+  });
 });

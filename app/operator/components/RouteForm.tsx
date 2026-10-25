@@ -76,6 +76,14 @@ interface RouteFormProps {
   /** The draft Stops, when the parent owns them (with `onStopsChange`). Omit both and the form keeps its own. */
   stops?: RouteDraftStop[];
   onStopsChange?: (stops: RouteDraftStop[]) => void;
+  /** A Customer to choose once it is known (e.g. the one an email came from). The administrator can still change it. */
+  suggestedCustomerId?: string;
+  /** A previous Route to have chosen to copy from, once it is one of the chosen Customer's. */
+  suggestedCopySourceId?: string;
+  /** Called with the chosen Customer's id ('' for none) whenever it changes. */
+  onCustomerChange?: (customerId: string) => void;
+  /** Shown under the copy-Stops control, e.g. a Schedule Diff to review against the Stops. */
+  underCopyStops?: React.ReactNode;
   onCancel: () => void;
   isSubmitting?: boolean;
   error?: string | null;
@@ -102,6 +110,10 @@ export function RouteForm({
   routeCodeFeedback,
   stops: stopsProp,
   onStopsChange,
+  suggestedCustomerId,
+  suggestedCopySourceId,
+  onCustomerChange,
+  underCopyStops,
   onCancel,
   isSubmitting,
   error,
@@ -171,10 +183,29 @@ export function RouteForm({
     setRouteCode(suggestRouteCode(scheduledDate));
   }, [suggestRouteCode, scheduledDate, routeCodeTyped]);
 
+  const onCustomerChangeRef = useRef(onCustomerChange);
+  onCustomerChangeRef.current = onCustomerChange;
+  useEffect(() => {
+    onCustomerChangeRef.current?.(customerId);
+  }, [customerId]);
+
+  useEffect(() => {
+    if (suggestedCustomerId && customers.some((customer) => customer.id === suggestedCustomerId)) setCustomerId(suggestedCustomerId);
+  }, [suggestedCustomerId, customers]);
+
   useEffect(() => {
     setSelectedCopySourceId('');
     setCopyError(null);
   }, [customerId]);
+
+  // After the reset above, so a suggestion for this Customer wins over the blank it leaves.
+  useEffect(() => {
+    if (suggestedCopySourceId && copySourcesForCustomer.some((route) => route.id === suggestedCopySourceId)) {
+      setSelectedCopySourceId(suggestedCopySourceId);
+    }
+    // Only when the suggestion or the Customer changes, never over a choice made since.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestedCopySourceId, customerId]);
 
   useEffect(() => {
     if (!onCheckDateBlock || !customerId || !scheduledDate) {
@@ -459,6 +490,8 @@ export function RouteForm({
               </div>
             </Field>
           )}
+
+          {underCopyStops}
 
           {showAddStop && (
             <div className={styles.stopFormCard}>

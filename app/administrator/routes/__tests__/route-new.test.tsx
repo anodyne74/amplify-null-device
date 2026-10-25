@@ -20,10 +20,13 @@ jest.mock('@/app/components/OperatorRoute', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('@/app/operator/components/RouteForm', () => ({
-  ...jest.requireActual('@/app/operator/components/RouteForm'),
-  RouteForm: () => <div>Route form</div>,
+// Toast hook (the provider lives in the root layout, not in this tree)
+jest.mock('@/app/components/ToastProvider', () => ({
+  __esModule: true,
+  default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useToast: () => ({ showToast: jest.fn() }),
 }));
+jest.mock('@/lib/propertyLocations', () => ({ getConfirmedPin: jest.fn().mockResolvedValue(null) }));
 
 jest.mock('@/lib/routes');
 jest.mock('@/lib/customers');
@@ -70,6 +73,17 @@ async function createFromCopiedStops() {
   fireEvent.click(await screen.findByRole('button', { name: 'Create Route (1 stops)' }));
 }
 
+// From an email the Stops are copied into the Route form, which is the whole page.
+async function copyIntoForm() {
+  fireEvent.change(await screen.findByLabelText('Copy stops from previous route'), { target: { value: 'old-route' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
+}
+
+async function createFromEmailCopy() {
+  await copyIntoForm();
+  fireEvent.click(await screen.findByRole('button', { name: 'Create Route' }));
+}
+
 describe('NewRoutePage Route Request', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -93,17 +107,35 @@ describe('NewRoutePage Route Request', () => {
     (getRouteRequest as jest.Mock).mockResolvedValue(EMAIL);
     render(<NewRoutePage />);
 
-    await waitFor(() => expect(screen.getByLabelText('Customer')).toHaveValue('c2'));
+    await waitFor(() => expect(screen.getByLabelText(/^Customer/)).toHaveValue('c2'));
     // The email keeps its own files, so there is nothing to upload.
     expect(screen.queryByText('Choose File')).not.toBeInTheDocument();
 
-    await createFromCopiedStops();
+    await createFromEmailCopy();
 
     await waitFor(() => expect(mockRouterPush).toHaveBeenCalledWith('/administrator/routes/detail?id=new-route'));
     expect(createRoute).toHaveBeenCalledWith(expect.not.objectContaining({ scheduleS3Key: expect.anything() }));
     expect(attachNewRouteRequest).toHaveBeenCalledWith(
       expect.objectContaining({ routeId: 'new-route', customerId: 'c2', fromRecordId: 'e1', file: null })
     );
+  });
+
+  it('shows the email panel and one form, with no tabs, when creating from an email', async () => {
+    mockRequestParam = 'e1';
+    (getRouteRequest as jest.Mock).mockResolvedValue(EMAIL);
+    render(<NewRoutePage />);
+
+    expect(await screen.findByText('Creating from email')).toBeInTheDocument();
+    expect(screen.getByText('Route for Tuesday')).toBeInTheDocument();
+    expect(screen.queryByText('Import from Schedule')).not.toBeInTheDocument();
+    expect(screen.queryByText('Manual Entry')).not.toBeInTheDocument();
+  });
+
+  it('shows no email panel when there is no email', async () => {
+    render(<NewRoutePage />);
+
+    expect(await screen.findByText('Import from Schedule')).toBeInTheDocument();
+    expect(screen.queryByText('Creating from email')).not.toBeInTheDocument();
   });
 
   it('pre-selects the Customer’s latest Route to copy when creating from a Route Request', async () => {
@@ -116,7 +148,7 @@ describe('NewRoutePage Route Request', () => {
     ]);
     render(<NewRoutePage />);
 
-    await waitFor(() => expect(screen.getByLabelText('Copy Stops From Previous Route')).toHaveValue('latest'));
+    await waitFor(() => expect(screen.getByLabelText('Copy stops from previous route')).toHaveValue('latest'));
   });
 
   it('leaves the copy source empty when not creating from a Route Request', async () => {
@@ -151,33 +183,55 @@ describe('NewRoutePage Route Request', () => {
     it('shows what the Schedule suggests once its Stops are copied, and applies nothing', async () => {
       (getRouteRequest as jest.Mock).mockResolvedValue({ ...EMAIL, scheduleReading: READING });
       render(<NewRoutePage />);
-      await waitFor(() => expect(screen.getByLabelText('Customer')).toHaveValue('c2'));
+      await waitFor(() => expect(screen.getByLabelText(/^Customer/)).toHaveValue('c2'));
 
-      fireEvent.change(await screen.findByLabelText('Copy Stops From Previous Route'), { target: { value: 'old-route' } });
+      fireEvent.change(await screen.findByLabelText('Copy stops from previous route'), { target: { value: 'old-route' } });
       fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
 
       const panel = await screen.findByRole('region', { name: 'Schedule Diff' });
       expect(panel).toHaveTextContent('1 to add, 1 to drop, 0 to change, 0 instructions, 0 to check, 1 unchanged.');
       expect(panel).toHaveTextContent('31 Hazel Road Riverbend');
       expect(panel).toHaveTextContent('15 Grove Crescent, Hillview');
-      expect(screen.getByRole('button', { name: 'Create Route (2 stops)' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Create Route' })).toBeInTheDocument();
     });
 
     async function copyWithReading() {
       (getRouteRequest as jest.Mock).mockResolvedValue({ ...EMAIL, scheduleReading: READING });
       render(<NewRoutePage />);
-      await waitFor(() => expect(screen.getByLabelText('Customer')).toHaveValue('c2'));
-      fireEvent.change(await screen.findByLabelText('Copy Stops From Previous Route'), { target: { value: 'old-route' } });
+      await waitFor(() => expect(screen.getByLabelText(/^Customer/)).toHaveValue('c2'));
+      fireEvent.change(await screen.findByLabelText('Copy stops from previous route'), { target: { value: 'old-route' } });
       fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
       await screen.findByRole('region', { name: 'Schedule Diff' });
     }
     const createdStopAddresses = () => (createStopsForRoute as jest.Mock).mock.calls[0][2].map((stop: { address: string }) => stop.address);
 
+    it('shows an accepted Add in the form’s own Stops, and never submits the form by deciding a line', async () => {
+      await copyWithReading();
+      expect(screen.queryByLabelText('Notes for stop 3, 31 Hazel Road Riverbend')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Accept: add 31 Hazel Road Riverbend' }));
+
+      expect(await screen.findByLabelText('Notes for stop 3, 31 Hazel Road Riverbend')).toBeInTheDocument();
+      expect(createRoute).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'Create Route' })).toBeEnabled();
+    });
+
+    it('starts the lines over when another Customer is chosen', async () => {
+      await copyWithReading();
+      fireEvent.click(screen.getByRole('button', { name: 'Accept: add 31 Hazel Road Riverbend' }));
+      await screen.findByLabelText('Notes for stop 3, 31 Hazel Road Riverbend');
+
+      fireEvent.change(screen.getByLabelText(/^Customer/), { target: { value: 'c1' } });
+
+      await waitFor(() => expect(screen.queryByRole('region', { name: 'Schedule Diff' })).not.toBeInTheDocument());
+      expect(screen.getByText('No stops added yet.')).toBeInTheDocument();
+    });
+
     it('creates the copied Route unchanged when every line is rejected', async () => {
       await copyWithReading();
       fireEvent.click(screen.getByRole('button', { name: 'Reject: add 31 Hazel Road Riverbend' }));
       fireEvent.click(screen.getByRole('button', { name: 'Reject: drop 15 Grove Crescent, Hillview' }));
-      fireEvent.click(screen.getByRole('button', { name: 'Create Route (2 stops)' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Create Route' }));
 
       await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
       expect(createdStopAddresses()).toEqual(['12 Alder Street, Hillview', '15 Grove Crescent, Hillview']);
@@ -188,7 +242,7 @@ describe('NewRoutePage Route Request', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Accept: add 31 Hazel Road Riverbend' }));
       fireEvent.click(screen.getByRole('button', { name: 'Accept: drop 15 Grove Crescent, Hillview' }));
 
-      fireEvent.click(await screen.findByRole('button', { name: 'Create Route (2 stops)' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Create Route' }));
       await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
       expect(createdStopAddresses()).toEqual(['12 Alder Street, Hillview', '31 Hazel Road Riverbend']);
       expect(locateDraftStops).toHaveBeenCalledWith([expect.objectContaining({ address: '31 Hazel Road Riverbend' })]);
@@ -199,12 +253,12 @@ describe('NewRoutePage Route Request', () => {
       await copyWithReading();
       fireEvent.click(screen.getByRole('button', { name: 'Accept: add 31 Hazel Road Riverbend' }));
       fireEvent.click(screen.getByRole('button', { name: 'Accept: drop 15 Grove Crescent, Hillview' }));
-      await screen.findByRole('button', { name: 'Create Route (2 stops)' });
+      await screen.findByRole('button', { name: 'Create Route' });
 
       fireEvent.click(screen.getByRole('button', { name: 'Reject: add 31 Hazel Road Riverbend' }));
       fireEvent.click(screen.getByRole('button', { name: 'Reject: drop 15 Grove Crescent, Hillview' }));
 
-      fireEvent.click(await screen.findByRole('button', { name: 'Create Route (2 stops)' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Create Route' }));
       await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
       expect(createdStopAddresses()).toEqual(['12 Alder Street, Hillview', '15 Grove Crescent, Hillview']);
     });
@@ -215,7 +269,7 @@ describe('NewRoutePage Route Request', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Accept: drop 15 Grove Crescent, Hillview' }));
       fireEvent.click(screen.getByRole('button', { name: 'Reject: drop 15 Grove Crescent, Hillview' }));
 
-      fireEvent.click(await screen.findByRole('button', { name: 'Create Route (2 stops)' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Create Route' }));
       await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
       expect((createStopsForRoute as jest.Mock).mock.calls[0][2][1]).toMatchObject({ address: '15 Grove Crescent, Hillview', notes: 'Side gate' });
     });
@@ -234,8 +288,8 @@ describe('NewRoutePage Route Request', () => {
       });
       const open = async () => {
         render(<NewRoutePage />);
-        await waitFor(() => expect(screen.getByLabelText('Customer')).toHaveValue('c2'));
-        fireEvent.change(await screen.findByLabelText('Copy Stops From Previous Route'), { target: { value: 'old-route' } });
+        await waitFor(() => expect(screen.getByLabelText(/^Customer/)).toHaveValue('c2'));
+        fireEvent.change(await screen.findByLabelText('Copy stops from previous route'), { target: { value: 'old-route' } });
         fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
         await screen.findByRole('region', { name: 'Schedule Diff' });
       };
@@ -259,7 +313,7 @@ describe('NewRoutePage Route Request', () => {
         expect(screen.getByText('New agent')).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: 'Accept: change signs of 12 Alder Street, Hillview' }));
-        fireEvent.click(await screen.findByRole('button', { name: 'Create Route (2 stops)' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Create Route' }));
         await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
 
         expect(created()[0]).toMatchObject({ address: '12 Alder Street, Hillview', numberOfSigns: 3, agent: 'Alex', notes: 'Side gate' });
@@ -278,7 +332,7 @@ describe('NewRoutePage Route Request', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Accept: change agent of 12 Alder Street, Hillview' }));
         fireEvent.click(screen.getByRole('button', { name: 'Reject: change agent of 12 Alder Street, Hillview' }));
         fireEvent.click(screen.getByRole('button', { name: 'Accept: add 31 Hazel Road Riverbend' }));
-        fireEvent.click(await screen.findByRole('button', { name: 'Create Route (2 stops)' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Create Route' }));
         await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
 
         expect(created()[0]).toMatchObject({ address: '12 Alder Street, Hillview', agent: 'Alex' });
@@ -293,7 +347,7 @@ describe('NewRoutePage Route Request', () => {
         await open();
         fireEvent.change(screen.getByLabelText('Notes for stop 1, 12 Alder Street, Hillview'), { target: { value: 'Side gate, ring bell' } });
         fireEvent.click(screen.getByRole('button', { name: 'Accept all changes' }));
-        fireEvent.click(await screen.findByRole('button', { name: 'Create Route (1 stops)' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Create Route' }));
         await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
 
         expect(created()[0]).toMatchObject({ notes: 'Side gate, ring bell; Preview', isAuction: true });
@@ -313,8 +367,8 @@ describe('NewRoutePage Route Request', () => {
       };
       const open = async () => {
         render(<NewRoutePage />);
-        await waitFor(() => expect(screen.getByLabelText('Customer')).toHaveValue('c2'));
-        fireEvent.change(await screen.findByLabelText('Copy Stops From Previous Route'), { target: { value: 'old-route' } });
+        await waitFor(() => expect(screen.getByLabelText(/^Customer/)).toHaveValue('c2'));
+        fireEvent.change(await screen.findByLabelText('Copy stops from previous route'), { target: { value: 'old-route' } });
         fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
         await screen.findByRole('region', { name: 'Schedule Diff' });
       };
@@ -395,19 +449,19 @@ describe('NewRoutePage Route Request', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Accept: add 31 Hazel Road Riverbend' }));
 
       expect(await screen.findByText(/31 Hazel Road Riverbend has no suburb that could be found on the map/)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Create Route (2 stops)' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Create Route' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Accept: add 31 Hazel Road Riverbend' })).toHaveAttribute('aria-pressed', 'false');
     });
 
     it('points to Read Schedule when the Stops are copied but the Schedule has not been read', async () => {
       (getRouteRequest as jest.Mock).mockResolvedValue(EMAIL);
       render(<NewRoutePage />);
-      await waitFor(() => expect(screen.getByLabelText('Customer')).toHaveValue('c2'));
+      await waitFor(() => expect(screen.getByLabelText(/^Customer/)).toHaveValue('c2'));
 
-      fireEvent.change(await screen.findByLabelText('Copy Stops From Previous Route'), { target: { value: 'old-route' } });
+      fireEvent.change(await screen.findByLabelText('Copy stops from previous route'), { target: { value: 'old-route' } });
       fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
 
-      expect(await screen.findByText(/Read the Schedule, under Route Request/)).toBeInTheDocument();
+      expect(await screen.findByText(/Read the Schedule, above/)).toBeInTheDocument();
       expect(screen.queryByRole('region', { name: 'Schedule Diff' })).not.toBeInTheDocument();
     });
   });
@@ -416,14 +470,14 @@ describe('NewRoutePage Route Request', () => {
     mockRequestParam = 'e1';
     (getRouteRequest as jest.Mock).mockResolvedValue({ ...EMAIL, loggedByStaff: true, attachments: [] });
     render(<NewRoutePage />);
-    await waitFor(() => expect(screen.getByLabelText('Customer')).toHaveValue('c2'));
+    await waitFor(() => expect(screen.getByLabelText(/^Customer/)).toHaveValue('c2'));
 
-    await createFromCopiedStops();
+    await createFromEmailCopy();
     expect(await screen.findByText(/Enter the name of the person who asked for this Route/)).toBeInTheDocument();
     expect(createRoute).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText('Requested by'), { target: { value: 'Ann Agent' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Create Route (1 stops)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create Route' }));
     await waitFor(() =>
       expect(attachNewRouteRequest).toHaveBeenCalledWith(expect.objectContaining({ fromRecordId: 'e1', requester: { name: 'Ann Agent', email: '' } }))
     );

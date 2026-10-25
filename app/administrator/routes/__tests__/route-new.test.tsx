@@ -67,20 +67,21 @@ const EMAIL = {
   ],
 };
 
-async function createFromCopiedStops() {
-  fireEvent.change(await screen.findByLabelText('Copy Stops From Previous Route'), { target: { value: 'old-route' } });
+async function copyIntoForm() {
+  const select = await screen.findByLabelText('Copy stops from previous route');
+  await screen.findByRole('option', { name: 'OLD-1' });
+  fireEvent.change(select, { target: { value: 'old-route' } });
   fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Create Route (1 stops)' }));
 }
 
-// From an email the Stops are copied into the Route form, which is the whole page.
-async function copyIntoForm() {
-  fireEvent.change(await screen.findByLabelText('Copy stops from previous route'), { target: { value: 'old-route' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
+async function chooseCustomerAndCopy(customerId = 'c1') {
+  fireEvent.change(await screen.findByLabelText(/^Customer/), { target: { value: customerId } });
+  await copyIntoForm();
 }
 
 async function createFromEmailCopy() {
   await copyIntoForm();
+  await screen.findByLabelText(/^Notes for stop 1,/);
   fireEvent.click(await screen.findByRole('button', { name: 'Create Route' }));
 }
 
@@ -131,11 +132,14 @@ describe('NewRoutePage Route Request', () => {
     expect(screen.queryByText('Manual Entry')).not.toBeInTheDocument();
   });
 
-  it('shows no email panel when there is no email', async () => {
+  it('shows the same form, with no email panel and no tabs, when there is no email', async () => {
     render(<NewRoutePage />);
 
-    expect(await screen.findByText('Import from Schedule')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Copy stops from previous route')).toBeInTheDocument();
     expect(screen.queryByText('Creating from email')).not.toBeInTheDocument();
+    expect(screen.queryByText('Import from Schedule')).not.toBeInTheDocument();
+    expect(screen.queryByText('Manual Entry')).not.toBeInTheDocument();
+    expect(screen.queryByText('Choose File')).not.toBeInTheDocument();
   });
 
   it('pre-selects the Customer’s latest Route to copy when creating from a Route Request', async () => {
@@ -154,8 +158,8 @@ describe('NewRoutePage Route Request', () => {
   it('leaves the copy source empty when not creating from a Route Request', async () => {
     (listAllRoutes as jest.Mock).mockResolvedValue([{ id: 'old-route', customerId: 'c1', routeCode: 'OLD-1' }]);
     render(<NewRoutePage />);
-    await screen.findByLabelText('Copy Stops From Previous Route');
-    expect(screen.getByLabelText('Copy Stops From Previous Route')).toHaveValue('');
+    await screen.findByLabelText('Copy stops from previous route');
+    expect(screen.getByLabelText('Copy stops from previous route')).toHaveValue('');
   });
 
   describe('Schedule Diff', () => {
@@ -498,28 +502,15 @@ describe('NewRoutePage Route Request', () => {
     );
   });
 
-  it('keeps an uploaded Schedule as a manual Route Request instead of writing scheduleS3Key', async () => {
-    render(<NewRoutePage />);
-    const file = new File(['pdf'], 'mine.pdf', { type: 'application/pdf' });
-    const input = (await screen.findByText('Choose File')).closest('div')!.querySelector('input[type="file"]')!;
-    fireEvent.change(input, { target: { files: [file] } });
-
-    await createFromCopiedStops();
-
-    await waitFor(() => expect(mockRouterPush).toHaveBeenCalled());
-    expect(createRoute).toHaveBeenCalledWith(expect.not.objectContaining({ scheduleS3Key: expect.anything() }));
-    expect(attachNewRouteRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ routeId: 'new-route', customerId: 'c1', fromRecordId: null, requester: null, file })
-    );
-  });
-
   it('creates the Stops before the Route Request, so a failed link never leaves an empty Route', async () => {
     (attachNewRouteRequest as jest.Mock).mockResolvedValue({ ok: false, error: 'That Route already has a Route Request.' });
     render(<NewRoutePage />);
     fireEvent.change(await screen.findByLabelText('Requested by (optional)'), { target: { value: 'Ben' } });
     fireEvent.change(screen.getByLabelText('Note (optional)'), { target: { value: 'Phoned in' } });
 
-    await createFromCopiedStops();
+    await chooseCustomerAndCopy();
+    await screen.findByLabelText(/^Notes for stop 1,/);
+    fireEvent.click(screen.getByRole('button', { name: 'Create Route' }));
 
     expect(await screen.findByText(/not linked to its Route Request: That Route already has a Route Request\./)).toBeInTheDocument();
     expect(createStopsForRoute).toHaveBeenCalled();
@@ -562,9 +553,8 @@ describe('NewRoutePage copied Stop notes (#464)', () => {
 
   async function copyStops() {
     render(<NewRoutePage />);
-    fireEvent.change(await screen.findByLabelText('Copy Stops From Previous Route'), { target: { value: 'old-route' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Stops' }));
-    await screen.findByRole('button', { name: 'Create Route (3 stops)' });
+    await chooseCustomerAndCopy();
+    await screen.findByLabelText('Notes for stop 3, 9 Grayson Rd, North Epping');
   }
 
   function createdStops() {
@@ -581,7 +571,7 @@ describe('NewRoutePage copied Stop notes (#464)', () => {
 
   it('keeps a copied note nobody touched', async () => {
     await copyStops();
-    fireEvent.click(screen.getByRole('button', { name: 'Create Route (3 stops)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create Route' }));
 
     await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
     expect(createdStops()[1].notes).toBe('Gate code 1234');
@@ -593,7 +583,7 @@ describe('NewRoutePage copied Stop notes (#464)', () => {
     fireEvent.change(screen.getByLabelText('Notes for stop 1, 1409/26 Cambridge St, Epping'), { target: { value: '' } });
     fireEvent.change(screen.getByLabelText('Notes for stop 2, 20 Gloucester Road, Epping'), { target: { value: '   ' } });
     fireEvent.change(screen.getByLabelText('Notes for stop 3, 9 Grayson Rd, North Epping'), { target: { value: 'Beware of dog' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Create Route (3 stops)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create Route' }));
 
     await waitFor(() => expect(createStopsForRoute).toHaveBeenCalled());
     const [cambridge, gloucester, grayson] = createdStops();

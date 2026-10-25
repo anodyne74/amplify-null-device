@@ -546,4 +546,65 @@ describe('RouteForm', () => {
       expect((await submittedStops(onSubmit))[0].notes).toBe('Side gate, left');
     });
   });
+  describe('when the parent owns the Stops', () => {
+    const draft = (address: string) => ({ address, numberOfSigns: 1 });
+
+    it('shows the Stops it is given and reports an added Stop to the parent', async () => {
+      const onStopsChange = jest.fn();
+      render(
+        <RouteForm
+          customers={mockCustomers}
+          stops={[draft('1 Given St, Epping')]}
+          onStopsChange={onStopsChange}
+          onSubmit={noop}
+          onCancel={noop}
+        />
+      );
+      expect(screen.getByLabelText(/^Notes for stop 1, 1 Given St, Epping/)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
+      fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: '2 Added St, Epping' } });
+      fireEvent.click(screen.getByRole('button', { name: /add stop to route/i }));
+
+      await waitFor(() => expect(onStopsChange).toHaveBeenCalled());
+      const next = onStopsChange.mock.calls[onStopsChange.mock.calls.length - 1][0];
+      expect(next.map((stop: { address: string }) => stop.address)).toEqual(['1 Given St, Epping', '2 Added St, Epping']);
+    });
+
+    it('does not change the Stops itself, only through the parent', () => {
+      const onStopsChange = jest.fn();
+      render(
+        <RouteForm
+          customers={mockCustomers}
+          stops={[draft('1 Given St, Epping')]}
+          onStopsChange={onStopsChange}
+          onSubmit={noop}
+          onCancel={noop}
+        />
+      );
+      fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]);
+
+      expect(onStopsChange).toHaveBeenCalledWith([]);
+      expect(screen.getByLabelText(/^Notes for stop 1/)).toBeInTheDocument();
+    });
+
+    it('submits the parent\'s Stops', async () => {
+      const onSubmit = jest.fn().mockResolvedValue(undefined);
+      render(
+        <RouteForm
+          customers={mockCustomers}
+          initialRouteCode="W20-26-001"
+          stops={[draft('1 Given St, Epping')]}
+          onStopsChange={jest.fn()}
+          onSubmit={onSubmit}
+          onCancel={noop}
+        />
+      );
+      fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+      fireEvent.click(screen.getByRole('button', { name: /create route/i }));
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(onSubmit.mock.calls[0][0].stops).toEqual([draft('1 Given St, Epping')]);
+    });
+  });
 });

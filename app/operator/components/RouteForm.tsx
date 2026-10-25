@@ -73,6 +73,9 @@ interface RouteFormProps {
   suggestRouteCode?: (placementDate: string) => string;
   /** A warning or note to show under the Route ID for the code in the field. */
   routeCodeFeedback?: (code: string) => { error?: React.ReactNode; hint?: React.ReactNode };
+  /** The draft Stops, when the parent owns them (with `onStopsChange`). Omit both and the form keeps its own. */
+  stops?: RouteDraftStop[];
+  onStopsChange?: (stops: RouteDraftStop[]) => void;
   onCancel: () => void;
   isSubmitting?: boolean;
   error?: string | null;
@@ -97,6 +100,8 @@ export function RouteForm({
   initialRouteCode = '',
   suggestRouteCode,
   routeCodeFeedback,
+  stops: stopsProp,
+  onStopsChange,
   onCancel,
   isSubmitting,
   error,
@@ -123,7 +128,16 @@ export function RouteForm({
     blocked: false,
   });
   const [notes, setNotes] = useState('');
-  const [stops, setStops] = useState<RouteDraftStop[]>([]);
+  const [ownStops, setOwnStops] = useState<RouteDraftStop[]>([]);
+  const stops = stopsProp ?? ownStops;
+  // An update that waits on a geocode must apply to the Stops as they are then, not as they were when it began.
+  const latestStops = useRef(stops);
+  latestStops.current = stops;
+  const setStops = (next: RouteDraftStop[] | ((prev: RouteDraftStop[]) => RouteDraftStop[])) => {
+    const resolved = typeof next === 'function' ? next(latestStops.current) : next;
+    latestStops.current = resolved;
+    (onStopsChange ?? setOwnStops)(resolved);
+  };
   const [showAddStop, setShowAddStop] = useState(false);
   const [addingStop, setAddingStop] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);

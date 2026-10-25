@@ -130,6 +130,7 @@ function NewRoutePageContent() {
     checkRouteDateBlocked
   );
   const [importNotes, setImportNotes] = useState('');
+  const [formStops, setFormStops] = useState<RouteDraftStop[]>([]);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importDraftStops, setImportDraftStops] = useState<DraftStop[] | null>(null);
   const [importDraftSource, setImportDraftSource] = useState<'copy' | null>(null);
@@ -915,6 +916,8 @@ function NewRoutePageContent() {
                 customers={customers}
                 suggestRouteCode={suggestRouteCode}
                 routeCodeFeedback={(code) => routeCodeFeedback(existingRouteCodes, code)}
+                stops={formStops}
+                onStopsChange={setFormStops}
                 onSubmit={handleSubmit}
                 onCancel={handleCancel}
                 isSubmitting={isSubmitting}

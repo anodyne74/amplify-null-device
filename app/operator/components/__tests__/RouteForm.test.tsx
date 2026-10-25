@@ -546,4 +546,119 @@ describe('RouteForm', () => {
       expect((await submittedStops(onSubmit))[0].notes).toBe('Side gate, left');
     });
   });
+  describe('when the parent owns the Stops', () => {
+    const draft = (address: string) => ({ address, numberOfSigns: 1 });
+
+    it('shows the Stops it is given and reports an added Stop to the parent', async () => {
+      const onStopsChange = jest.fn();
+      render(
+        <RouteForm
+          customers={mockCustomers}
+          stops={[draft('1 Given St, Epping')]}
+          onStopsChange={onStopsChange}
+          onSubmit={noop}
+          onCancel={noop}
+        />
+      );
+      expect(screen.getByLabelText(/^Notes for stop 1, 1 Given St, Epping/)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /add stop/i }));
+      fireEvent.change(screen.getByLabelText(/^address/i), { target: { value: '2 Added St, Epping' } });
+      fireEvent.click(screen.getByRole('button', { name: /add stop to route/i }));
+
+      await waitFor(() => expect(onStopsChange).toHaveBeenCalled());
+      const next = onStopsChange.mock.calls[onStopsChange.mock.calls.length - 1][0];
+      expect(next.map((stop: { address: string }) => stop.address)).toEqual(['1 Given St, Epping', '2 Added St, Epping']);
+    });
+
+    it('does not change the Stops itself, only through the parent', () => {
+      const onStopsChange = jest.fn();
+      render(
+        <RouteForm
+          customers={mockCustomers}
+          stops={[draft('1 Given St, Epping')]}
+          onStopsChange={onStopsChange}
+          onSubmit={noop}
+          onCancel={noop}
+        />
+      );
+      fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]);
+
+      expect(onStopsChange).toHaveBeenCalledWith([]);
+      expect(screen.getByLabelText(/^Notes for stop 1/)).toBeInTheDocument();
+    });
+
+    it('submits the parent\'s Stops', async () => {
+      const onSubmit = jest.fn().mockResolvedValue(undefined);
+      render(
+        <RouteForm
+          customers={mockCustomers}
+          initialRouteCode="W20-26-001"
+          stops={[draft('1 Given St, Epping')]}
+          onStopsChange={jest.fn()}
+          onSubmit={onSubmit}
+          onCancel={noop}
+        />
+      );
+      fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: 'cust-1' } });
+      fireEvent.click(screen.getByRole('button', { name: /create route/i }));
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(onSubmit.mock.calls[0][0].stops).toEqual([draft('1 Given St, Epping')]);
+    });
+  });
+  describe('suggestions from the parent', () => {
+    const sources = [
+      { id: 'route-1', customerId: 'cust-1', label: 'W19-26-003' },
+      { id: 'route-2', customerId: 'cust-1', label: 'W20-26-001' },
+    ];
+
+    it('chooses the suggested Customer and reports it, and the administrator can change it', async () => {
+      const onCustomerChange = jest.fn();
+      render(
+        <RouteForm customers={mockCustomers} suggestedCustomerId="cust-1" onCustomerChange={onCustomerChange} onSubmit={noop} onCancel={noop} />
+      );
+
+      await waitFor(() => expect(screen.getByLabelText(/customer/i)).toHaveValue('cust-1'));
+      expect(onCustomerChange).toHaveBeenLastCalledWith('cust-1');
+
+      fireEvent.change(screen.getByLabelText(/customer/i), { target: { value: '' } });
+      expect(screen.getByLabelText(/customer/i)).toHaveValue('');
+    });
+
+    it('ignores a suggested Customer it does not know', () => {
+      render(<RouteForm customers={mockCustomers} suggestedCustomerId="nobody" onSubmit={noop} onCancel={noop} />);
+      expect(screen.getByLabelText(/customer/i)).toHaveValue('');
+    });
+
+    it('chooses the suggested previous Route once it is one of the Customer’s', async () => {
+      render(
+        <RouteForm
+          customers={mockCustomers}
+          suggestedCustomerId="cust-1"
+          suggestedCopySourceId="route-2"
+          copyStopSources={sources}
+          onCopyStopsFromSource={jest.fn()}
+          onSubmit={noop}
+          onCancel={noop}
+        />
+      );
+
+      await waitFor(() => expect(screen.getByLabelText('Copy stops from previous route')).toHaveValue('route-2'));
+    });
+
+    it('shows what the parent puts under the copy control', () => {
+      render(
+        <RouteForm
+          customers={mockCustomers}
+          copyStopSources={sources}
+          onCopyStopsFromSource={jest.fn()}
+          underCopyStops={<p>Diff goes here</p>}
+          onSubmit={noop}
+          onCancel={noop}
+        />
+      );
+      expect(screen.getByText('Diff goes here')).toBeInTheDocument();
+    });
+  });
 });

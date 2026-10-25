@@ -17,13 +17,6 @@
   max-width: 560px;
 }
 
-.fileRow {
-  display: flex;
-  gap: var(--space-3);
-  align-items: center;
-  flex-wrap: wrap;
-}
-
 .errorBanner {
   padding: var(--space-4);
   background: var(--status-danger-bg);
@@ -48,46 +41,9 @@
   margin: 0;
 }
 
-.previewHeader {
-  margin: var(--space-6) 0 var(--space-4);
-  font-size: var(--text-sm);
-  color: var(--text-body);
-}
-
-.previewHeader strong {
-  color: var(--text-heading);
-}
-
 .mutedText {
   color: var(--text-subtle);
   font-size: var(--text-sm);
-}
-
-.draftNoteInput {
-  min-width: 256px;
-}
-
-.noPinBadge {
-  display: inline-block;
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--status-neutral-bg);
-  color: var(--status-neutral-fg);
-  font-size: var(--text-2xs);
-  font-weight: var(--fw-semibold);
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.auctionBadge {
-  display: inline-block;
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--status-warning-bg);
-  color: var(--status-warning-fg);
-  font-size: var(--text-2xs);
-  font-weight: var(--fw-semibold);
-  text-transform: uppercase;
 }
 
 .fromRecord {

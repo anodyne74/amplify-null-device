@@ -273,11 +273,10 @@ describe('recordManualRequest', () => {
 });
 
 describe('attachNewRouteRequest', () => {
-  const base = { routeId: 'r1', customerId: 'c1', requestedAt: '2026-09-28T23:00:00.000Z' };
+  const base = { routeId: 'r1' };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUploadData.mockReturnValue({ result: Promise.resolve({}) });
     mockSlotCreate.mockResolvedValue({ data: {}, errors: null });
     mockRequestCreate.mockResolvedValue({ data: {}, errors: null });
     mockRequestUpdate.mockResolvedValue({ data: {}, errors: null });
@@ -286,7 +285,7 @@ describe('attachNewRouteRequest', () => {
   it('links the inbox record the Route was created from as its Route Request', async () => {
     mockRequestGet.mockResolvedValue({ data: { id: 'e1', status: 'unlinked', loggedByStaff: true }, errors: null });
 
-    const result = await attachNewRouteRequest({ ...base, fromRecordId: 'e1', requester: { name: 'Ann' }, file: null });
+    const result = await attachNewRouteRequest({ ...base, fromRecordId: 'e1', requester: { name: 'Ann' } });
 
     expect(result).toEqual({ ok: true });
     expect(mockSlotCreate).toHaveBeenCalledWith({ id: 'r1', recordId: 'e1' });
@@ -296,30 +295,13 @@ describe('attachNewRouteRequest', () => {
     expect(mockRequestCreate).not.toHaveBeenCalled();
   });
 
-  it('records an uploaded Schedule as a manual Route Request, uploaded by administrator', async () => {
-    const file = new File(['abc'], 'schedule.pdf', { type: 'application/pdf' });
-
-    const result = await attachNewRouteRequest({ ...base, fromRecordId: null, requester: null, file });
-
-    expect(result).toEqual({ ok: true });
-    expect(mockRequestCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'manual', routeId: 'r1', role: 'request', requesterName: null, sentAt: base.requestedAt })
-    );
-  });
-
-  it('records a note on its own as a manual Route Request', async () => {
-    const result = await attachNewRouteRequest({ ...base, fromRecordId: null, requester: null, note: 'Phoned in', file: null });
-
-    expect(result).toEqual({ ok: true });
-    expect(mockRequestCreate).toHaveBeenCalledWith(expect.objectContaining({ source: 'manual', note: 'Phoned in', attachments: [] }));
-  });
-
-  it('records nothing when there is neither a file nor a requester', async () => {
-    const result = await attachNewRouteRequest({ ...base, fromRecordId: null, requester: null, file: null });
+  it('records nothing for a Route made with no email, even with a requester', async () => {
+    const result = await attachNewRouteRequest({ ...base, fromRecordId: null, requester: { name: 'Ann' } });
 
     expect(result).toEqual({ ok: true });
     expect(mockRequestCreate).not.toHaveBeenCalled();
     expect(mockSlotCreate).not.toHaveBeenCalled();
+    expect(mockRequestUpdate).not.toHaveBeenCalled();
   });
 });
 

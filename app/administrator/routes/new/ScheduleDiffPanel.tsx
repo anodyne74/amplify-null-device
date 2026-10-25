@@ -105,6 +105,7 @@ export function ScheduleDiffPanel({
     return (
       <span className={styles.actions}>
         <Button
+          type="button"
           size="sm"
           variant={decision === 'accepted' ? 'primary' : 'secondary'}
           aria-pressed={decision === 'accepted'}
@@ -115,6 +116,7 @@ export function ScheduleDiffPanel({
           Accept
         </Button>
         <Button
+          type="button"
           size="sm"
           variant={decision === 'rejected' ? 'primary' : 'secondary'}
           aria-pressed={decision === 'rejected'}
@@ -131,7 +133,7 @@ export function ScheduleDiffPanel({
   const acceptAll = (group: Array<{ line: DiffLine }>, label: string) => {
     const pending = group.filter(({ line }) => decisions[lineKey(line)] === undefined).map(({ line }) => line);
     return (
-      <Button size="sm" variant="ghost" disabled={pending.length === 0} onClick={() => onDecide(pending, 'accepted')}>
+      <Button type="button" size="sm" variant="ghost" disabled={pending.length === 0} onClick={() => onDecide(pending, 'accepted')}>
         {label}
       </Button>
     );

@@ -1,6 +1,6 @@
 /**
  * Creating a Route on New route (CONTEXT.md): the Route, then its Stops, then
- * its Route Request. Each step happens only if the one before it fully
+ * its Route Request (when it came from an email). Each step happens only if the one before it fully
  * worked; a failure after the Route exists says so, because the Route is kept
  * and the administrator finishes it from its detail page.
  */
@@ -13,7 +13,7 @@ export type CreateRouteWithStopsResult = { ok: true; routeId: string } | { ok: f
 export async function createRouteWithStops(input: {
   route: { routeCode: string; customerId: string; scheduledDate: string; pickupDate: string; notes?: string; customerInstructions?: string };
   stops: CreateStopsForRouteInput[];
-  request: Omit<Parameters<typeof attachNewRouteRequest>[0], 'routeId' | 'customerId'>;
+  request: Omit<Parameters<typeof attachNewRouteRequest>[0], 'routeId'>;
 }): Promise<CreateRouteWithStopsResult> {
   const { route, stops, request } = input;
   try {
@@ -34,7 +34,7 @@ export async function createRouteWithStops(input: {
       return { ok: false, error: `Route was created, but ${failedStops.length} stop(s) failed to save: ${failedStops.join(' | ')}` };
     }
 
-    const attached = await attachNewRouteRequest({ ...request, routeId: created.id, customerId: route.customerId });
+    const attached = await attachNewRouteRequest({ ...request, routeId: created.id });
     if (!attached.ok) {
       return {
         ok: false,

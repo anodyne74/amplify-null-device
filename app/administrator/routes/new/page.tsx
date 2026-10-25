@@ -7,10 +7,8 @@ import LoadingSpinner from '@/app/components/LoadingSpinner';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import PageHeader from '@/app/administrator/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
-import { Field } from '@/app/components/ui/forms/Field';
-import { Input } from '@/app/components/ui/forms/Input';
 import { RouteForm, type RouteDraftStop } from '@/app/operator/components/RouteForm';
-import { RequesterFields, RouteRequestView, localNow, recordTitle } from '@/app/administrator/components/RouteRequests';
+import { RequesterFields, RouteRequestView, recordTitle } from '@/app/administrator/components/RouteRequests';
 import { pickStopLocationFields } from '@/lib/locationPrecision';
 import { nextRouteCode, type RouteCodeEntry } from '@/lib/routeCode';
 import { routeCodeFeedback } from '@/app/administrator/components/routeCodeFeedback';
@@ -125,8 +123,6 @@ function NewRoutePageContent() {
   const [scheduleReading, setScheduleReading] = useState<ScheduleReading | null>(null);
   const [requesterName, setRequesterName] = useState('');
   const [requesterEmail, setRequesterEmail] = useState('');
-  const [requestedAt, setRequestedAt] = useState(localNow);
-  const [requestNote, setRequestNote] = useState('');
   const needsRequester = Boolean(fromRecord?.loggedByStaff);
 
   useEffect(() => {
@@ -310,22 +306,13 @@ function NewRoutePageContent() {
     }
   };
 
-  const routeRequestProblem = () => {
-    if (needsRequester && !requesterName.trim()) return 'Enter the name of the person who asked for this Route, in the panel above.';
-    if (!fromRecord && !requestedAt) return 'Enter when the Route was requested, under Route Request.';
-    return null;
-  };
+  const routeRequestProblem = () =>
+    needsRequester && !requesterName.trim() ? 'Enter the name of the person who asked for this Route, in the panel above.' : null;
 
-  // Links the email, or records the upload, as the new Route's Route Request.
+  // Links the email as the new Route's Route Request. A Route with no email has none (ADR 0015).
   const routeRequestFor = () => {
     const name = requesterName.trim();
-    return {
-      fromRecordId: fromRecord?.id ?? null,
-      requester: name ? { name, email: requesterEmail } : null,
-      requestedAt: new Date(requestedAt).toISOString(),
-      note: fromRecord ? null : requestNote,
-      file: null,
-    };
+    return { fromRecordId: fromRecord?.id ?? null, requester: name ? { name, email: requesterEmail } : null };
   };
 
   function resetDiffDecisions() {
@@ -571,35 +558,7 @@ function NewRoutePageContent() {
               </Card>
             )}
 
-            {!fromRecord && (
-              <Card title="Route Request">
-                {fromRecordError && <div className={styles.warningsBanner}>{fromRecordError}</div>}
-                <p className={styles.importHint}>
-                  Who asked for this Route. Leave it blank and the Route has no Route Request.
-                </p>
-                <div className={styles.fieldsStack}>
-                  <RequesterFields
-                    idPrefix="request"
-                    name={requesterName}
-                    email={requesterEmail}
-                    required={false}
-                    onName={setRequesterName}
-                    onEmail={setRequesterEmail}
-                  />
-                  <Field label="Requested at" htmlFor="request-requested-at">
-                    <Input
-                      id="request-requested-at"
-                      type="datetime-local"
-                      value={requestedAt}
-                      onChange={(e) => setRequestedAt(e.target.value)}
-                    />
-                  </Field>
-                  <Field label="Note (optional)" htmlFor="request-note" hint="e.g. what was asked for on the phone">
-                    <Input id="request-note" value={requestNote} onChange={(e) => setRequestNote(e.target.value)} />
-                  </Field>
-                </div>
-              </Card>
-            )}
+            {fromRecordError && <div className={styles.warningsBanner}>{fromRecordError}</div>}
 
             {routeForm}
           </>

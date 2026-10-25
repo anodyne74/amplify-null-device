@@ -9,7 +9,7 @@ jest.mock('@/lib/routeRequests');
 const input = {
   route: { routeCode: ' W19-26-001 ', customerId: 'cust-1', scheduledDate: '2026-10-16', pickupDate: '2026-10-17', notes: '' },
   stops: [{ address: '1 A St' }, { address: '2 B St' }],
-  request: { fromRecordId: null, requester: null, requestedAt: '2026-10-11T00:00:00.000Z', file: null },
+  request: { fromRecordId: 'e1', requester: null },
 };
 
 describe('createRouteWithStops', () => {
@@ -41,7 +41,7 @@ describe('createRouteWithStops', () => {
       customerInstructions: undefined,
     });
     expect(createStopsForRoute).toHaveBeenCalledWith('route-1', 'cust-1', input.stops);
-    expect(attachNewRouteRequest).toHaveBeenCalledWith({ ...input.request, routeId: 'route-1', customerId: 'cust-1' });
+    expect(attachNewRouteRequest).toHaveBeenCalledWith({ ...input.request, routeId: 'route-1' });
   });
 
   it('says which Stops failed, and does not attach the Route Request', async () => {

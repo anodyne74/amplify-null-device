@@ -117,7 +117,7 @@ describe('NewRoutePage Route Request', () => {
     await waitFor(() => expect(mockRouterPush).toHaveBeenCalledWith('/administrator/routes/detail?id=new-route'));
     expect(createRoute).toHaveBeenCalledWith(expect.not.objectContaining({ scheduleS3Key: expect.anything() }));
     expect(attachNewRouteRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ routeId: 'new-route', customerId: 'c2', fromRecordId: 'e1', file: null })
+      expect.objectContaining({ routeId: 'new-route', fromRecordId: 'e1' })
     );
   });
 
@@ -502,22 +502,31 @@ describe('NewRoutePage Route Request', () => {
     );
   });
 
-  it('creates the Stops before the Route Request, so a failed link never leaves an empty Route', async () => {
-    (attachNewRouteRequest as jest.Mock).mockResolvedValue({ ok: false, error: 'That Route already has a Route Request.' });
+  it('creates a Route with no Route Request when there is no email', async () => {
     render(<NewRoutePage />);
-    fireEvent.change(await screen.findByLabelText('Requested by (optional)'), { target: { value: 'Ben' } });
-    fireEvent.change(screen.getByLabelText('Note (optional)'), { target: { value: 'Phoned in' } });
+    expect(screen.queryByLabelText('Requested by (optional)')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Requested at')).not.toBeInTheDocument();
 
     await chooseCustomerAndCopy();
     await screen.findByLabelText(/^Notes for stop 1,/);
     fireEvent.click(screen.getByRole('button', { name: 'Create Route' }));
 
+    await waitFor(() => expect(mockRouterPush).toHaveBeenCalledWith('/administrator/routes/detail?id=new-route'));
+    expect(attachNewRouteRequest).toHaveBeenCalledWith({ routeId: 'new-route', fromRecordId: null, requester: null });
+  });
+
+  it('creates the Stops before linking the email, so a failed link never leaves an empty Route', async () => {
+    mockRequestParam = 'e1';
+    (getRouteRequest as jest.Mock).mockResolvedValue(EMAIL);
+    (attachNewRouteRequest as jest.Mock).mockResolvedValue({ ok: false, error: 'That Route already has a Route Request.' });
+    render(<NewRoutePage />);
+    await waitFor(() => expect(screen.getByLabelText(/^Customer/)).toHaveValue('c2'));
+
+    await createFromEmailCopy();
+
     expect(await screen.findByText(/not linked to its Route Request: That Route already has a Route Request\./)).toBeInTheDocument();
     expect(createStopsForRoute).toHaveBeenCalled();
     expect(mockRouterPush).not.toHaveBeenCalled();
-    expect(attachNewRouteRequest).toHaveBeenCalledWith(
-      expect.objectContaining({ requester: { name: 'Ben', email: '' }, note: 'Phoned in' })
-    );
   });
 
   it('says so when the email is no longer in the inbox', async () => {

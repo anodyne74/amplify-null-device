@@ -37,7 +37,7 @@ The weekday a Customer usually wants their signs picked up, set by the Customer.
 _Avoid_: Default pickup date, preferred pickup
 
 **Route Request**:
-A Customer's email asking for one Route to be created and scheduled, usually with its Schedule attached. Each Route has at most one, and every Route Request is for exactly one Route. It is kept as received, with who sent it and when, as part of the Route's audit trail. A request a staff member forwards from our own domain (e.g. one taken by phone) is marked as logged by staff, and the real requester is entered by hand. A Route made with no email has no Route Request; its audit trail shows who created it.
+A Customer's email asking for one Route to be created and scheduled, usually with its Schedule attached. Each Route has at most one, and every Route Request is for exactly one Route. It is kept as received, with who sent it and when, as part of the Route's audit trail. A request a staff member forwards from our own domain (e.g. one taken by phone) is marked as logged by staff, and the real requester is entered by hand. A Route created with no email has no Route Request; its audit trail shows who created it. An administrator can still record a Route Request or Route Amendment by hand on an existing Route.
 _Avoid_: Booking, order, job request
 
 **Schedule**:

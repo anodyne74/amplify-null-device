@@ -1,6 +1,6 @@
 # Route Requests are captured from inbound email, and the raw message is the evidence
 
-Status: accepted
+Status: accepted. Amended by ADR 0015: hand-recorded Route Requests are no longer created.
 
 Customers ask for Routes by emailing a Schedule, and they send Route Amendments the same way. These emails are the audit trail behind a Route and its invoice. Mail sent to a dedicated `requests@` address is captured by the existing SES inbound pipeline, which already stores every raw message in a versioned, retained bucket. Each email becomes a record holding the sender, the time sent, the subject, the plain-text body, the attachments and SES's SPF/DKIM/DMARC results. It waits in an administrator inbox until it is linked to a Route as its Route Request or as a Route Amendment, used to create a Route, or dismissed. The email is still forwarded to staff as before.
 

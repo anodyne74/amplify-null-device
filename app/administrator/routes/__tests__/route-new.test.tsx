@@ -466,6 +466,21 @@ describe('NewRoutePage Route Request', () => {
     });
   });
 
+  it('asks for the requester only in the email panel, and only for an email Logged by staff', async () => {
+    mockRequestParam = 'e1';
+    (getRouteRequest as jest.Mock).mockResolvedValue(EMAIL);
+    const { unmount } = render(<NewRoutePage />);
+    await screen.findByText('Creating from email');
+    expect(screen.queryByLabelText('Requested by')).not.toBeInTheDocument();
+    unmount();
+
+    (getRouteRequest as jest.Mock).mockResolvedValue({ ...EMAIL, loggedByStaff: true });
+    render(<NewRoutePage />);
+    expect(await screen.findByLabelText('Requested by')).toBeInTheDocument();
+    // The card for a Route with no email, with its requested-at and note, is not shown.
+    expect(screen.queryByLabelText('Requested at')).not.toBeInTheDocument();
+  });
+
   it('needs the requester’s name for an email Logged by staff', async () => {
     mockRequestParam = 'e1';
     (getRouteRequest as jest.Mock).mockResolvedValue({ ...EMAIL, loggedByStaff: true, attachments: [] });

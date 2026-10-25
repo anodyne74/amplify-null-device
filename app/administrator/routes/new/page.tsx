@@ -381,7 +381,7 @@ function NewRoutePageContent() {
   };
 
   const routeRequestProblem = () => {
-    if (needsRequester && !requesterName.trim()) return 'Enter the name of the person who asked for this Route, under Route Request.';
+    if (needsRequester && !requesterName.trim()) return 'Enter the name of the person who asked for this Route, in the panel above.';
     if (!fromRecord && !requestedAt) return 'Enter when the Route was requested, under Route Request.';
     return null;
   };
@@ -745,41 +745,47 @@ function NewRoutePageContent() {
                   <RouteRequestView record={fromRecord} />
                 </details>
                 <ScheduleReadingPanel record={fromRecord} onReading={setScheduleReading} />
+                {needsRequester && (
+                  <div className={styles.fieldsStack}>
+                    <RequesterFields
+                      idPrefix="request"
+                      name={requesterName}
+                      email={requesterEmail}
+                      required
+                      onName={setRequesterName}
+                      onEmail={setRequesterEmail}
+                    />
+                  </div>
+                )}
               </Card>
             )}
 
-            {(!fromRecord || needsRequester) && (
+            {!fromRecord && (
               <Card title="Route Request">
                 {fromRecordError && <div className={styles.warningsBanner}>{fromRecordError}</div>}
-                {!fromRecord && (
-                  <p className={styles.importHint}>
-                    Who asked for this Route. An uploaded Schedule is kept with it; with neither, the Route has no Route Request yet.
-                  </p>
-                )}
+                <p className={styles.importHint}>
+                  Who asked for this Route. An uploaded Schedule is kept with it; with neither, the Route has no Route Request yet.
+                </p>
                 <div className={styles.fieldsStack}>
                   <RequesterFields
                     idPrefix="request"
                     name={requesterName}
                     email={requesterEmail}
-                    required={needsRequester}
+                    required={false}
                     onName={setRequesterName}
                     onEmail={setRequesterEmail}
                   />
-                  {!fromRecord && (
-                    <Field label="Requested at" htmlFor="request-requested-at">
-                      <Input
-                        id="request-requested-at"
-                        type="datetime-local"
-                        value={requestedAt}
-                        onChange={(e) => setRequestedAt(e.target.value)}
-                      />
-                    </Field>
-                  )}
-                  {!fromRecord && (
-                    <Field label="Note (optional)" htmlFor="request-note" hint="e.g. what was asked for on the phone">
-                      <Input id="request-note" value={requestNote} onChange={(e) => setRequestNote(e.target.value)} />
-                    </Field>
-                  )}
+                  <Field label="Requested at" htmlFor="request-requested-at">
+                    <Input
+                      id="request-requested-at"
+                      type="datetime-local"
+                      value={requestedAt}
+                      onChange={(e) => setRequestedAt(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Note (optional)" htmlFor="request-note" hint="e.g. what was asked for on the phone">
+                    <Input id="request-note" value={requestNote} onChange={(e) => setRequestNote(e.target.value)} />
+                  </Field>
                 </div>
               </Card>
             )}

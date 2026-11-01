@@ -15,13 +15,11 @@ import { routeCodeFeedback } from '@/app/administrator/components/routeCodeFeedb
 import { checkRouteDateBlocked } from '@/lib/routeScheduleGuard';
 import type { StandingPickupDay } from '@/amplify/types';
 import { locateDraftStops } from '@/lib/stopLocation';
+import { useScheduleDiffDraft } from '@/lib/useScheduleDiffDraft';
 import { displayNotes } from '@/lib/stopProgress';
-import { scheduleDiff } from '@/lib/scheduleDiff';
-import { ScheduleDiffPanel, lineKey, type DiffDecision, type DiffLine } from './ScheduleDiffPanel';
-import { addToNote, instructionLines, removeFromNote } from '@/lib/scheduleInstructions';
+import { ScheduleDiffPanel } from './ScheduleDiffPanel';
 import { appendRouteInstruction } from '@/lib/routeInstructions';
-import { agentVocabulary, fieldChanges, matchAgent, withPreviewNote } from '@/lib/scheduleChanges';
-import { addToDraft, dropFromDraft, removeAddFromDraft, restoreToDraft, type DraftMarks } from '@/lib/scheduleDiffDraft';
+import type { DraftMarks } from '@/lib/scheduleDiffDraft';
 import { ScheduleReadingPanel } from './ScheduleReadingPanel';
 import styles from './page.module.css';
 import { listAllRoutes, getRouteWithStops } from '@/lib/routes';
@@ -98,22 +96,9 @@ function NewRoutePageContent() {
 
   // The form's draft Stops, and who they are for; the Schedule Diff edits them (ADR 0014).
   const [formStops, setFormStops] = useState<DraftStop[]>([]);
-  const formStopsRef = useRef<DraftStop[]>([]);
   const [formCustomerId, setFormCustomerId] = useState('');
   // The Stops as copied, which the Schedule Diff compares with; the draft changes as its lines are accepted.
   const [copiedStops, setCopiedStops] = useState<RouteDraftStop[] | null>(null);
-  const [diffDecisions, setDiffDecisions] = useState<Record<string, DiffDecision>>({});
-  const [diffBusy, setDiffBusy] = useState<ReadonlySet<string>>(new Set());
-  const diffDecisionsRef = useRef<Record<string, DiffDecision>>({});
-  // Copied Stops taken out by an accepted Drop, as the administrator last had them, for taking it back.
-  const droppedStopsRef = useRef(new Map<number, DraftStop>());
-  // Bumped whenever the copy is replaced, so an Add still being found on the map is dropped.
-  const diffRunRef = useRef(0);
-  // Route-wide instructions accepted, by their position in the reading, and where each Stop instruction went, for taking it back.
-  const [acceptedRouteInstructions, setAcceptedRouteInstructions] = useState<Record<number, string>>({});
-  const instructionStopsRef = useRef(new Map<number, { copiedFrom?: number; fromRow?: number }>());
-  const [parseWarnings, setParseWarnings] = useState<string[]>([]);
-  const [diffError, setDiffError] = useState<string | null>(null);
 
   // The Route Request (#359): the inbox record this Route is created from, or
   // one recorded by hand from the uploaded Schedule and an optional requester.
@@ -124,6 +109,14 @@ function NewRoutePageContent() {
   const [requesterName, setRequesterName] = useState('');
   const [requesterEmail, setRequesterEmail] = useState('');
   const needsRequester = Boolean(fromRecord?.loggedByStaff);
+  const diffDraft = useScheduleDiffDraft<DraftStop>({
+    reading: scheduleReading,
+    copiedStops,
+    draftStops: formStops,
+    setStops: setFormStops,
+    locate: (drafts) => locateDraftStops<RouteDraftStop>(drafts),
+  });
+  const { reset: resetDiff, hasDecisions: hasDiffDecisions } = diffDraft;
 
   useEffect(() => {
     let cancelled = false;
@@ -286,10 +279,8 @@ function NewRoutePageContent() {
   const copyStopsIntoForm = async (sourceRouteId: string): Promise<RouteDraftStop[]> => {
     const copied = await handleCopyStopsFromRoute(sourceRouteId);
     if (copied.length > 0) {
-      resetDiffDecisions();
+      diffDraft.reset();
       setCopiedStops(copied);
-      setParseWarnings([]);
-      setDiffError(null);
     }
     return copied.map((stop, i) => ({ ...stop, copiedFrom: i }));
   };
@@ -298,11 +289,9 @@ function NewRoutePageContent() {
     setFormCustomerId(customerId);
     // Stops copied for one Customer, and the lines decided against them, are not another's.
     if (copiedStops) {
-      resetDiffDecisions();
+      diffDraft.reset();
       setCopiedStops(null);
       setFormStops([]);
-      setParseWarnings([]);
-      setDiffError(null);
     }
   };
 
@@ -315,162 +304,20 @@ function NewRoutePageContent() {
     return { fromRecordId: fromRecord?.id ?? null, requester: name ? { name, email: requesterEmail } : null };
   };
 
-  function resetDiffDecisions() {
-    diffRunRef.current += 1;
-    diffDecisionsRef.current = {};
-    setDiffDecisions({});
-    setDiffBusy(new Set());
-    droppedStopsRef.current.clear();
-    instructionStopsRef.current.clear();
-    setAcceptedRouteInstructions({});
-  }
-
-  const setDiffDecision = (key: string, decision: DiffDecision) => {
-    diffDecisionsRef.current = { ...diffDecisionsRef.current, [key]: decision };
-    setDiffDecisions(diffDecisionsRef.current);
-  };
-
-  const setLineBusy = (key: string, busy: boolean) =>
-    setDiffBusy((current) => {
-      const next = new Set(current);
-      if (busy) next.add(key);
-      else next.delete(key);
-      return next;
-    });
-
-  // The change a Change line stands for, worked out again from the reading and the copy it was shown against.
-  const changeFor = (line: DiffLine & { kind: 'change' }) => {
-    const original = copiedStops?.[line.index];
-    const rows = (scheduleReading?.rows ?? []).filter((row): row is NonNullable<typeof row> => Boolean(row));
-    if (!original) return undefined;
-    const match = scheduleDiff(rows, copiedStops ?? []).matched.find(({ stop }) => stop === original);
-    return match ? fieldChanges(match.row, original, agentVocabulary(copiedStops ?? [])).find((change) => change.field === line.field) : undefined;
-  };
-
-  // Accepts or rejects Schedule Diff lines (ADR 0014): accepting puts an Add in the draft, found on the map first, or takes a Drop out;
-  // rejecting a line that was accepted takes it back. Rejecting any other leaves the copy as it was.
-  const decideDiffLines = async (lines: DiffLine[], decision: DiffDecision) => {
-    const run = diffRunRef.current;
-    for (const line of lines) {
-      const key = lineKey(line);
-      const previous = diffDecisionsRef.current[key];
-      if (previous === decision) continue;
-
-      if (line.kind === 'instruction') {
-        const instruction = scheduleReading?.instructions?.[line.index];
-        if (!instruction) continue;
-        const text = instruction.text;
-        if (decision === 'accepted') {
-          if (!instruction.address) {
-            setAcceptedRouteInstructions((current) => ({ ...current, [line.index]: text }));
-          } else {
-            // Placed against the draft as it is now, so an Add accepted a moment ago counts.
-            const placed = instructionLines([{ text, address: instruction.address }], formStopsRef.current ?? [], null)[0];
-            if (placed.target.kind !== 'stop') continue;
-            const target = formStopsRef.current![placed.target.draftIndex];
-            instructionStopsRef.current.set(line.index, { copiedFrom: target.copiedFrom, fromRow: target.fromRow });
-            setFormStops((draft) =>
-              draft ? draft.map((stop) => (stop === target ? { ...stop, notes: addToNote(stop.notes, text) } : stop)) : draft
-            );
-          }
-        } else if (previous === 'accepted') {
-          if (!instruction.address) {
-            setAcceptedRouteInstructions(({ [line.index]: _taken, ...rest }) => rest);
-          } else {
-            const where = instructionStopsRef.current.get(line.index);
-            setFormStops((draft) =>
-              draft
-                ? draft.map((stop) =>
-                    where && stop.copiedFrom === where.copiedFrom && stop.fromRow === where.fromRow
-                      ? { ...stop, notes: removeFromNote(stop.notes, text) }
-                      : stop
-                  )
-                : draft
-            );
-          }
-        }
-      } else if (line.kind === 'change') {
-        // Only the one field of the one Stop; undoing it puts back what the copy had.
-        const original = copiedStops?.[line.index];
-        const row = changeFor(line);
-        if (!original || !row) continue;
-        const value = decision === 'accepted' ? row.to : previous === 'accepted' ? row.from : undefined;
-        if (decision === 'accepted' || previous === 'accepted') {
-          setFormStops((draft) =>
-            draft
-              ? draft.map((stop) => {
-                  if (stop.copiedFrom !== line.index) return stop;
-                  // A Preview is added to the note as it stands now, which may have been edited since the copy.
-                  if (line.field === 'notes' && decision === 'accepted') return { ...stop, notes: withPreviewNote(stop.notes) ?? stop.notes };
-                  return { ...stop, [line.field]: value };
-                })
-              : draft
-          );
-        }
-      } else if (decision === 'accepted' && line.kind === 'drop') {
-        setFormStops((draft) => {
-          if (!draft) return draft;
-          const result = dropFromDraft(draft, line.index);
-          if (result.dropped) droppedStopsRef.current.set(line.index, result.dropped);
-          return result.draft;
-        });
-      } else if (decision === 'accepted') {
-        const row = scheduleReading?.rows?.[line.index];
-        if (!row) continue;
-        setLineBusy(key, true);
-        try {
-          const located = await locateDraftStops<RouteDraftStop>([
-            {
-              address: row.address,
-              numberOfSigns: row.numberOfSigns ?? undefined,
-              // In the spelling the Route already uses for that agent.
-              agent: row.agent ? matchAgent(row.agent, agentVocabulary(copiedStops ?? [])).agent : undefined,
-              isAuction: row.isAuction ?? undefined,
-              notes: row.isPreview ? withPreviewNote(null) : undefined,
-            },
-          ]);
-          if (diffRunRef.current !== run) return;
-          const [stop] = located.stops;
-          if (!stop) {
-            setDiffError(`${row.address} has no suburb that could be found on the map, so it was not added. Add it to the Route once it's created, with the suburb.`);
-            continue;
-          }
-          if (located.unpinned > 0) {
-            setParseWarnings((warnings) => [...warnings, `${row.address} couldn't be found on the map and will be created without a pin. It still appears in Property History.`]);
-          }
-          setFormStops((draft) => (draft ? addToDraft(draft, { ...stop, fromRow: line.index }) : draft));
-        } finally {
-          setLineBusy(key, false);
-        }
-      } else if (previous === 'accepted' && line.kind === 'drop') {
-        const original = copiedStops?.[line.index];
-        const stop = droppedStopsRef.current.get(line.index) ?? (original && { ...original, copiedFrom: line.index });
-        if (stop) setFormStops((draft) => (draft ? restoreToDraft(draft, stop) : draft));
-      } else if (previous === 'accepted') {
-        setFormStops((draft) => (draft ? removeAddFromDraft(draft, line.index) : draft));
-      }
-      setDiffDecision(key, decision);
-    }
-  };
-
   const lastReadAtRef = useRef<string | null>(null);
   useEffect(() => {
     const readAt = scheduleReading?.readAt ?? null;
     const changed = lastReadAtRef.current !== null && readAt !== lastReadAtRef.current;
     lastReadAtRef.current = readAt;
-    if (changed && copiedStops && Object.keys(diffDecisionsRef.current).length > 0) {
-      resetDiffDecisions();
+    if (changed && copiedStops && hasDiffDecisions()) {
+      resetDiff();
       setFormStops(copiedStops.map((stop, i) => ({ ...stop, copiedFrom: i })));
     }
-  }, [scheduleReading, copiedStops]);
-
-  useEffect(() => {
-    formStopsRef.current = formStops;
-  }, [formStops]);
+  }, [scheduleReading, copiedStops, hasDiffDecisions, resetDiff]);
 
   // The accepted route-wide instructions as the Route's customer instructions (lib/routeInstructions.ts), in the reading's order.
   const customerInstructionsToCreate = () =>
-    Object.entries(acceptedRouteInstructions)
+    Object.entries(diffDraft.acceptedRouteInstructions)
       .sort(([a], [b]) => Number(a) - Number(b))
       .reduce<string | undefined>((feed, [, text]) => appendRouteInstruction(feed, { text }), undefined);
 
@@ -486,21 +333,22 @@ function NewRoutePageContent() {
       onCustomerChange={handleFormCustomerChange}
       underCopyStops={
         <>
-          {parseWarnings.length > 0 && (
+          {diffDraft.warnings.length > 0 && (
             <div className={styles.warningsBanner}>
-              {parseWarnings.map((w, i) => <p key={i}>{w}</p>)}
+              {diffDraft.warnings.map((w, i) => <p key={i}>{w}</p>)}
             </div>
           )}
-          {diffError && <div className={styles.errorBanner}>{diffError}</div>}
-          {copiedStops && scheduleReading && (
+          {diffDraft.error && <div className={styles.errorBanner}>{diffDraft.error}</div>}
+          {copiedStops && scheduleReading && diffDraft.readingDiff && (
             <ScheduleDiffPanel
               reading={scheduleReading}
+              readingDiff={diffDraft.readingDiff}
               stops={copiedStops}
-              decisions={diffDecisions}
+              decisions={diffDraft.decisions}
               draftStops={formStops}
               standingInstructions={customers.find((customer) => customer.id === formCustomerId)?.standingInstructions}
-              busy={diffBusy}
-              onDecide={(lines, decision) => void decideDiffLines(lines, decision)}
+              busy={diffDraft.busy}
+              onDecide={(lines, decision) => void diffDraft.decide(lines, decision)}
             />
           )}
           {copiedStops && fromRecord && !scheduleReading && scheduleAttachmentIndex(fromRecord.attachments) !== null && (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { addMember, changeMember, removeMember, syncCustomerAccess } from '@/lib/customerUserAccess';
 import { callApi } from '@/lib/apiClient';
 import { customerInviteStatus, resendCustomerInvite } from '@/lib/customerInvite';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
@@ -21,7 +22,7 @@ import CustomerUserTableRow, {
 } from '@/app/administrator/users/components/CustomerUserTableRow';
 import styles from './page.module.css';
 import { addMemberRefusal, newMemberFields, planRoleChange } from '@/lib/customerUserMembership';
-import { createCustomerUser, deleteCustomerUser, updateCustomerUser, listAllCustomerUsers, listAllCustomers } from '@/lib/customers';
+import { listAllCustomerUsers, listAllCustomers } from '@/lib/customers';
 
 type CognitoUser = {
   id?: string;
@@ -52,15 +53,6 @@ type CustomerUser = {
 };
 
 type CustomerUserSortKey = 'name' | 'customer' | 'role' | 'status';
-
-/** Calls to the access sync before giving up; each one runs about 20s. */
-const MAX_SYNC_CALLS = 15;
-
-/** How an access sync ended: done, out of calls with records left, or a failed write/request. */
-type AccessSyncOutcome = { status: 'complete'; updated: number } | { status: 'incomplete' } | { status: 'failed'; message: string };
-
-const countUpdated = (updated: unknown) =>
-  Object.values((updated ?? {}) as Record<string, number>).reduce((sum, count) => sum + count, 0);
 
 export default function UsersAdminPage() {
   // Customer Access section state
@@ -96,26 +88,13 @@ export default function UsersAdminPage() {
   // has already been saved by the time this runs. Each call syncs for a bounded
   // time and reports whether it finished; the count of records updated so far
   // is shown while it runs.
-  const syncCustomerAccess = useCallback(
-    async (customerId: string, change: { added?: string; removed?: string } = {}): Promise<AccessSyncOutcome> => {
-      let synced = 0;
-      setSyncedCount(0);
-      try {
-        for (let attempt = 0; attempt < MAX_SYNC_CALLS; attempt++) {
-          const payload = await callApi('/api/admin/sync-customer-access', { customerId, ...change });
-          synced += countUpdated(payload.updated);
-          setSyncedCount(synced);
-          if (payload.complete !== false) return { status: 'complete', updated: synced };
-        }
-        return { status: 'incomplete' };
-      } catch (e) {
-        return { status: 'failed', message: e instanceof Error ? e.message : 'Access sync failed.' };
-      } finally {
-        setSyncedCount(null);
-      }
-    },
-    []
-  );
+  const syncWithProgress = useCallback(async <T,>(run: (onProgress: (updated: number) => void) => Promise<T>): Promise<T> => {
+    try {
+      return await run(setSyncedCount);
+    } finally {
+      setSyncedCount(null);
+    }
+  }, []);
 
   const resolveUserByEmail = useCallback(async (email: string): Promise<CognitoUser> => {
     const payload = await callApi('/api/admin/users', { action: 'getUserByEmail', email });
@@ -332,38 +311,39 @@ export default function UsersAdminPage() {
       const existing =
         customerUsersForSelected.find((u) => u.userSub === assignedUserSub) ||
         customerUsersForSelected.find((u) => (u.email || '').toLowerCase() === normalizedEmail);
-      let createdCustomerUserId: string | undefined;
-      if (!existing) {
-        let created: { id?: string } | null;
-        try {
-          created = await createCustomerUser({
-          customerId: selectedCustomerId,
-          userSub: assignedUserSub,
-          ...newMemberFields(customerUsersForSelected, newUserRole, assignedUserSub),
-          name: newUserName || resolvedUser?.name || resolvedUser?.firstName || undefined,
-          email: normalizedEmail,
-          });
-        } catch {
-          setAccessError('Failed to add user to customer.');
-          setAccessPending(false);
-          return;
-        }
-
-        createdCustomerUserId = created?.id;
+      const memberFields = newMemberFields(customerUsersForSelected, newUserRole, assignedUserSub);
+      const memberName = newUserName || resolvedUser?.name || resolvedUser?.firstName || undefined;
+      const added = await syncWithProgress((onProgress) =>
+        addMember(
+          {
+            customerId: selectedCustomerId,
+            userSub: assignedUserSub,
+            ...memberFields,
+            name: memberName,
+            email: normalizedEmail,
+            existing: Boolean(existing),
+          },
+          onProgress
+        )
+      );
+      if (!added.saved) {
+        setAccessError('Failed to add user to customer.');
+        setAccessPending(false);
+        return;
       }
+      const sync = added.sync;
 
       const updated = [...customerUsersForSelected];
       if (!existing) {
         updated.push({
-          id: createdCustomerUserId || `temp-${assignedUserSub}`,
+          id: added.id || `temp-${assignedUserSub}`,
           customerId: selectedCustomerId,
           userSub: assignedUserSub,
-          ...newMemberFields(customerUsersForSelected, newUserRole, assignedUserSub),
-          name: newUserName || resolvedUser?.name || resolvedUser?.firstName || undefined,
+          ...memberFields,
+          name: memberName,
           email: normalizedEmail,
         });
       }
-      const sync = await syncCustomerAccess(selectedCustomerId, { added: assignedUserSub });
 
       if (sync.status === 'failed') {
         setAccessError(`User added, but syncing their access failed (${sync.message}). Use Re-sync access to retry.`);
@@ -394,14 +374,11 @@ export default function UsersAdminPage() {
     setAccessError(null);
     setAccessSuccess(null);
 
-    const removed = await deleteCustomerUser(target.id).then(
-      () => true,
-      () => false
-    );
-    if (!removed) {
+    const removal = await syncWithProgress((onProgress) => removeMember(target, onProgress));
+    if (!removal.removed) {
       setAccessError('Failed to remove user.');
     } else {
-      const sync = await syncCustomerAccess(target.customerId, { removed: target.userSub });
+      const sync = removal.sync;
       if (sync.status === 'failed') {
         setAccessError(`User removed, but revoking their access failed (${sync.message}). They may still see this customer's records. Use Re-sync access to retry.`);
       } else if (sync.status === 'incomplete') {
@@ -420,7 +397,7 @@ export default function UsersAdminPage() {
     setAccessError(null);
     setAccessSuccess(null);
 
-    const sync = await syncCustomerAccess(selectedCustomerId);
+    const sync = await syncWithProgress((onProgress) => syncCustomerAccess(selectedCustomerId, {}, onProgress));
     if (sync.status === 'complete') {
       setAccessSuccess(
         `Access re-synced for this customer's routes, stops and invoices (${sync.updated} ${sync.updated === 1 ? 'record' : 'records'} updated).`
@@ -463,41 +440,36 @@ export default function UsersAdminPage() {
     const promotingToOwner = plan.promoting;
     const newOwnerSub = plan.ownerSub;
 
-    try {
-      await updateCustomerUser({
-        id: editTarget.id,
-        name: trimmedName || undefined,
-        role: editRole,
-        ...(promotingToOwner ? { accountOwnerSub: newOwnerSub } : {}),
-      });
-    } catch {
+    const changed = await syncWithProgress((onProgress) =>
+      changeMember(
+        {
+          id: editTarget.id,
+          customerId: editTarget.customerId,
+          name: trimmedName || undefined,
+          role: editRole,
+          plan,
+          onSaved: () =>
+            setAllCustomerUsers((prev) =>
+              prev.map((u) => {
+                if (u.id === editTarget.id) {
+                  return { ...u, name: trimmedName || undefined, role: editRole, ...(promotingToOwner ? { accountOwnerSub: newOwnerSub } : {}) };
+                }
+                if (promotingToOwner && u.customerId === editTarget.customerId) {
+                  return { ...u, accountOwnerSub: newOwnerSub };
+                }
+                return u;
+              })
+            ),
+        },
+        onProgress
+      )
+    );
+    if (!changed.saved) {
       setAccessError('Failed to update user.');
       setAccessPending(false);
       return;
     }
-
-    let rekeyFailed = false;
-    if (promotingToOwner) {
-      const rekeys = await Promise.allSettled(
-        plan.rekeyIds.map((id) => updateCustomerUser({ id, accountOwnerSub: newOwnerSub }))
-      );
-      rekeyFailed = rekeys.some((rekey) => rekey.status === 'rejected');
-    }
-
-    setAllCustomerUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === editTarget.id) {
-          return { ...u, name: trimmedName || undefined, role: editRole, ...(promotingToOwner ? { accountOwnerSub: newOwnerSub } : {}) };
-        }
-        if (promotingToOwner && u.customerId === editTarget.customerId) {
-          return { ...u, accountOwnerSub: newOwnerSub };
-        }
-        return u;
-      })
-    );
-
-    // The Customer record names its owner too, and the old owner keeps that access until it is restamped.
-    const sync = promotingToOwner ? await syncCustomerAccess(editTarget.customerId) : null;
+    const { rekeyFailed, sync } = changed;
 
     if (rekeyFailed) {
       setAccessError("User updated, but some of this customer's other users weren't moved to the new owner. Promote them again to retry.");

@@ -5,22 +5,14 @@ import { Badge } from '@/app/components/ui/core/Badge';
 import { Button } from '@/app/components/ui/core/Button';
 import type { ScheduleReading } from '@/lib/routeRequests';
 import { agentVocabulary, fieldChanges, matchAgent, type ChangeField, type ChangeStop, type FieldChange } from '@/lib/scheduleChanges';
-import { scheduleDiff, type DiffStop } from '@/lib/scheduleDiff';
+import type { DiffStop } from '@/lib/scheduleDiff';
+import { lineKey, type DiffDecision, type DiffLine, type ReadingDiff } from '@/lib/useScheduleDiffDraft';
 import { instructionLines } from '@/lib/scheduleInstructions';
 import { totalsWarnings } from '@/lib/scheduleTotals';
 import styles from './ScheduleDiffPanel.module.css';
 
-type Row = NonNullable<NonNullable<ScheduleReading['rows']>[number]>;
-
-export type DiffDecision = 'accepted' | 'rejected';
-
-/**
- * One line of the Diff. `index` is its row's position in the reading (Add) or the instruction's (Instruction),
- * or the Stop's position in the copy (Drop, Change); a Change is for one `field` of that Stop.
- */
-export type DiffLine = { kind: 'add' | 'drop' | 'instruction'; index: number; field?: undefined } | { kind: 'change'; index: number; field: ChangeField };
-
-export const lineKey = (line: DiffLine) => (line.kind === 'change' ? `change:${line.index}:${line.field}` : `${line.kind}:${line.index}`);
+export { lineKey };
+export type { DiffDecision, DiffLine };
 
 const FIELD_LABELS: Record<ChangeField, string> = { agent: 'agent', numberOfSigns: 'signs', isAuction: 'auction', notes: 'notes' };
 
@@ -46,6 +38,7 @@ function describe(change: FieldChange): string {
  */
 export function ScheduleDiffPanel({
   reading,
+  readingDiff,
   stops,
   decisions,
   draftStops,
@@ -54,6 +47,8 @@ export function ScheduleDiffPanel({
   onDecide,
 }: {
   reading: ScheduleReading;
+  /** The reading against the copied Stops, worked out once by the Schedule Diff draft. */
+  readingDiff: ReadingDiff<DiffStop & ChangeStop>;
   /** The Stops as copied, not as edited since. */
   stops: Array<DiffStop & ChangeStop>;
   decisions: Record<string, DiffDecision>;
@@ -65,8 +60,7 @@ export function ScheduleDiffPanel({
   busy: ReadonlySet<string>;
   onDecide: (lines: DiffLine[], decision: DiffDecision) => void;
 }) {
-  const rows = useMemo(() => (reading.rows ?? []).filter((row): row is Row => Boolean(row)), [reading]);
-  const diff = useMemo(() => scheduleDiff(rows, stops), [rows, stops]);
+  const { rows, diff } = readingDiff;
   const vocabulary = useMemo(() => agentVocabulary(stops), [stops]);
   const instructions = useMemo(
     () => instructionLines((reading.instructions ?? []).filter((item): item is NonNullable<typeof item> => Boolean(item)).map((item) => ({
@@ -105,6 +99,7 @@ export function ScheduleDiffPanel({
     return (
       <span className={styles.actions}>
         <Button
+          type="button"
           size="sm"
           variant={decision === 'accepted' ? 'primary' : 'secondary'}
           aria-pressed={decision === 'accepted'}
@@ -115,6 +110,7 @@ export function ScheduleDiffPanel({
           Accept
         </Button>
         <Button
+          type="button"
           size="sm"
           variant={decision === 'rejected' ? 'primary' : 'secondary'}
           aria-pressed={decision === 'rejected'}
@@ -131,7 +127,7 @@ export function ScheduleDiffPanel({
   const acceptAll = (group: Array<{ line: DiffLine }>, label: string) => {
     const pending = group.filter(({ line }) => decisions[lineKey(line)] === undefined).map(({ line }) => line);
     return (
-      <Button size="sm" variant="ghost" disabled={pending.length === 0} onClick={() => onDecide(pending, 'accepted')}>
+      <Button type="button" size="sm" variant="ghost" disabled={pending.length === 0} onClick={() => onDecide(pending, 'accepted')}>
         {label}
       </Button>
     );

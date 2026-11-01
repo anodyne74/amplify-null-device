@@ -204,7 +204,7 @@ export async function unlinkRouteRequest(recordId: string): Promise<Result> {
 /**
  * Records a Route Request or Amendment by hand: stores its files under
  * requests/<new id>/, then the record, linked to the Route if one is given.
- * A null requester means an administrator uploaded it (the New route upload).
+ * A null requester means an administrator uploaded it.
  */
 export async function recordManualRequest(input: {
   routeId: string | null;
@@ -246,33 +246,21 @@ export async function recordManualRequest(input: {
 }
 
 /**
- * Gives a Route just created on New route its Route Request: the inbox record
- * it was created from, or else, if a Schedule was uploaded or a requester or
- * note entered, one recorded by hand. With neither, there's nothing to record.
+ * Gives a Route just created on New route its Route Request: the inbox email
+ * it was created from. A Route made with no email has no Route Request
+ * (ADR 0015), so there's nothing to record.
  */
 export async function attachNewRouteRequest(input: {
   routeId: string;
-  customerId: string;
   fromRecordId: string | null;
   requester: { name: string; email?: string | null } | null;
-  requestedAt: string;
-  note?: string | null;
-  file: File | null;
 }): Promise<Result> {
-  const { routeId, requester, file } = input;
-  if (input.fromRecordId) {
-    return linkRouteRequest({ recordId: input.fromRecordId, routeId, role: 'request', requester: requester ?? undefined });
-  }
-  if (!file && !requester && !input.note?.trim()) return { ok: true };
-  return recordManualRequest({
-    routeId,
+  if (!input.fromRecordId) return { ok: true };
+  return linkRouteRequest({
+    recordId: input.fromRecordId,
+    routeId: input.routeId,
     role: 'request',
-    requesterName: requester?.name ?? null,
-    requesterEmail: requester?.email ?? null,
-    sentAt: input.requestedAt,
-    note: input.note,
-    files: file ? [file] : [],
-    customerId: input.customerId,
+    requester: input.requester ?? undefined,
   });
 }
 

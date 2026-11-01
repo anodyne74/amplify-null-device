@@ -5,6 +5,7 @@
  * (app/api/customer/route-feedback) and the card that asks for it agree.
  */
 import type { Route } from '@/amplify/types';
+import { isRouteCompleted } from '@/lib/signRunPhase';
 
 export type RouteFeedbackTone = 'good' | 'issue';
 
@@ -34,7 +35,7 @@ const INVOICED = 'This route has been invoiced, so its feedback can no longer be
 
 /** Why feedback can't be given or changed on a Route right now, or null if it can. */
 export function routeFeedbackLocked(route: Pick<Route, 'status'>, invoiced: boolean): string | null {
-  if (route.status !== 'completed') return NOT_COMPLETE;
+  if (!isRouteCompleted(route.status)) return NOT_COMPLETE;
   if (invoiced) return INVOICED;
   return null;
 }

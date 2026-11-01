@@ -99,6 +99,13 @@ describe('InvoicePreview', () => {
     expect(screen.getByText('Route not yet finalised, so figures may change.')).toBeInTheDocument();
   });
 
+  it('does not flag a legacy archived route as unfinalised', () => {
+    const props = baseProps();
+    render(<InvoicePreview {...props} route={{ ...props.route, status: 'archived' } as unknown as Route} />);
+
+    expect(screen.queryByText('Route not yet finalised, so figures may change.')).not.toBeInTheDocument();
+  });
+
   it('shows a grouped-by-agent breakdown when the customer setting is on', () => {
     const props = baseProps();
     render(<InvoicePreview {...props} customer={{ ...props.customer, groupLineItemsByAgent: true }} />);

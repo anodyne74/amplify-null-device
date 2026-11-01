@@ -24,7 +24,7 @@ import { formatRouteDate, getRouteDate } from '@/lib/routeDetailHelpers';
 import { billedTime } from '@/lib/billedTime';
 import { appendRouteInstruction, parseRouteInstructions, sortRouteInstructionsNewestFirst } from '@/lib/routeInstructions';
 import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
-import { getRoutePhaseKey, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
+import { getRoutePhaseKey, isRouteCompleted, ROUTE_PHASE_KEYS } from '@/lib/signRunPhase';
 import { missingSigns, signsPlaced } from '@/lib/signRunTotals';
 import { stopProgress } from '@/lib/stopProgress';
 import { customerRouteProgress } from '@/lib/customerRouteProgress';
@@ -418,7 +418,7 @@ export default function RouteDetailContent({ params }: RouteDetailContentProps) 
           </Card>
         )}
 
-        {route.status === 'completed' && (
+        {isRouteCompleted(route.status) && (
           <RouteFeedbackCard
             key={route.id}
             routeId={route.id}

@@ -146,9 +146,65 @@ describe('useScheduleDiffDraft', () => {
   it('reset clears decisions, messages and accepted instructions', async () => {
     const { hook } = setup({ locate: async () => ({ stops: [], unpinned: 0 }) });
     await act(() => hook.result.current.decide([{ kind: 'add', index: 1 }, { kind: 'drop', index: 1 }], 'accepted'));
-    expect(hook.result.current.hasDecisions()).toBe(true);
+    expect(hook.result.current.decisions).not.toEqual({});
     act(() => hook.result.current.reset());
-    expect(hook.result.current.hasDecisions()).toBe(false);
+    expect(hook.result.current.decisions).toEqual({});
     expect(hook.result.current.error).toBeNull();
+  });
+
+  describe('a new reading', () => {
+    const newer = () => reading({ readAt: '2026-10-19T01:00:00.000Z' });
+
+    it('clears the decisions and starts the draft over from the copy once a line was decided', async () => {
+      const { hook } = setup();
+      await act(() => hook.result.current.decide([{ kind: 'drop', index: 1 }], 'accepted'));
+      expect(hook.result.current.draft).toHaveLength(1);
+
+      hook.rerender({ reading: newer() });
+      expect(hook.result.current.decisions).toEqual({});
+      expect(hook.result.current.draft.map((s) => s.address)).toEqual([ALDER.address, GROVE.address]);
+      expect(hook.result.current.draft.map((s) => s.copiedFrom)).toEqual([0, 1]);
+    });
+
+    it('discards a hand edit made after copying when it starts over', async () => {
+      const { hook } = setup();
+      await act(() => hook.result.current.decide([{ kind: 'change', index: 0, field: 'numberOfSigns' }], 'accepted'));
+      hook.rerender({ reading: newer() });
+      expect(hook.result.current.draft[0].numberOfSigns).toBe(2);
+    });
+
+    it('leaves the draft alone when nothing had been decided', async () => {
+      const { hook } = setup();
+      const before = hook.result.current.draft;
+      hook.rerender({ reading: newer() });
+      expect(hook.result.current.draft).toBe(before);
+    });
+
+    it('leaves the draft alone when the same reading comes round again', async () => {
+      const { hook } = setup();
+      await act(() => hook.result.current.decide([{ kind: 'drop', index: 1 }], 'accepted'));
+      hook.rerender({ reading: reading() });
+      expect(hook.result.current.draft).toHaveLength(1);
+      expect(hook.result.current.decisions['drop:1']).toBe('accepted');
+    });
+
+    it('leaves nothing stale when it arrives while an Add is still being found', async () => {
+      let finish!: (value: { stops: Stop[]; unpinned: number }) => void;
+      const { hook } = setup({ locate: () => new Promise((resolve) => (finish = resolve)) });
+      await act(() => hook.result.current.decide([{ kind: 'drop', index: 1 }], 'accepted'));
+      let pending!: Promise<void>;
+      act(() => {
+        pending = hook.result.current.decide([{ kind: 'add', index: 1 }], 'accepted');
+      });
+
+      hook.rerender({ reading: newer() });
+      await act(async () => {
+        finish({ stops: [stop('31 Hazel Road, Hillview', '31', 'Hazel Road')], unpinned: 0 });
+        await pending;
+      });
+      expect(hook.result.current.draft.map((s) => s.address)).toEqual([ALDER.address, GROVE.address]);
+      expect(hook.result.current.decisions).toEqual({});
+      expect(hook.result.current.busy.size).toBe(0);
+    });
   });
 });

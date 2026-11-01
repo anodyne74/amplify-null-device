@@ -41,9 +41,10 @@ jest.mock('@/lib/routes', () => ({
 }));
 
 const NOW = new Date();
-// Day 1 of the current month is guaranteed to be earlier than NOW (whatever
-// day the suite happens to run on), so this reliably sorts before NOW_ISO.
-const CURRENT_MONTH_DATE = new Date(NOW.getFullYear(), NOW.getMonth(), 1, 9, 0, 0).toISOString();
+// The start of the current month is earlier than NOW whatever day and time the
+// suite runs (09:00 on the 1st is still ahead of NOW early on the 1st in UTC),
+// so this reliably sorts before NOW_ISO.
+const CURRENT_MONTH_DATE = new Date(NOW.getFullYear(), NOW.getMonth(), 1, 0, 0, 0).toISOString();
 const NOW_ISO = NOW.toISOString();
 
 describe('Customer Dashboard', () => {

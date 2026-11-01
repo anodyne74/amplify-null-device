@@ -1,7 +1,13 @@
 import '@testing-library/jest-dom';
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { ScheduleDiffPanel } from '../new/ScheduleDiffPanel';
+import { ScheduleDiffPanel as Panel } from '../new/ScheduleDiffPanel';
+import { readingDiff } from '@/lib/useScheduleDiffDraft';
+
+// The page gets the reading against the copied Stops from useScheduleDiffDraft; here it is worked out the same way.
+const ScheduleDiffPanel = (props: Omit<React.ComponentProps<typeof Panel>, 'readingDiff'>) => (
+  <Panel {...props} readingDiff={readingDiff(props.reading, props.stops)} />
+);
 
 const stop = (address: string, number: string, street: string, suburb: string) => ({
   address,

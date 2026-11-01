@@ -17,7 +17,9 @@ import { addToDraft, dropFromDraft, removeAddFromDraft, restoreToDraft, type Dra
  * `setStops`, and touches only Stops carrying its own marks (lib/scheduleDiffDraft.ts).
  * The map lookup behind an Add is `locate`, so tests can supply their own.
  * `reset` drops every decision, and an Add still being found when it is called is
- * discarded rather than landing in a draft it no longer belongs to.
+ * discarded rather than landing in a draft it no longer belongs to. A new reading
+ * of the Schedule, once any line has been decided, does the same and starts the
+ * draft over from the copy: a new proposal is reviewed from a clean draft.
  */
 
 export type DiffDecision = 'accepted' | 'rejected';
@@ -93,7 +95,17 @@ export function useScheduleDiffDraft<S extends DraftMarks & DiffStop & ChangeSto
     setError(null);
   }, []);
 
-  const hasDecisions = useCallback(() => Object.keys(decisionsRef.current).length > 0, []);
+  // A new reading starts the draft over from the copy, but only if a line had been decided against the last one.
+  const lastReadAtRef = useRef<string | null>(null);
+  useEffect(() => {
+    const readAt = reading?.readAt ?? null;
+    const changed = lastReadAtRef.current !== null && readAt !== lastReadAtRef.current;
+    lastReadAtRef.current = readAt;
+    if (changed && copiedStops && Object.keys(decisionsRef.current).length > 0) {
+      reset();
+      setStops(copiedStops.map((stop, i) => ({ ...stop, copiedFrom: i })));
+    }
+  }, [reading, copiedStops, reset, setStops]);
 
   const decided = (key: string, decision: DiffDecision) => {
     decisionsRef.current = { ...decisionsRef.current, [key]: decision };
@@ -224,7 +236,5 @@ export function useScheduleDiffDraft<S extends DraftMarks & DiffStop & ChangeSto
     acceptedRouteInstructions,
     decide,
     reset,
-    /** Whether any line has been decided. */
-    hasDecisions,
   };
 }

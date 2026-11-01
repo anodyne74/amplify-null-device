@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
@@ -116,7 +116,6 @@ function NewRoutePageContent() {
     setStops: setFormStops,
     locate: (drafts) => locateDraftStops<RouteDraftStop>(drafts),
   });
-  const { reset: resetDiff, hasDecisions: hasDiffDecisions } = diffDraft;
 
   useEffect(() => {
     let cancelled = false;
@@ -303,17 +302,6 @@ function NewRoutePageContent() {
     const name = requesterName.trim();
     return { fromRecordId: fromRecord?.id ?? null, requester: name ? { name, email: requesterEmail } : null };
   };
-
-  const lastReadAtRef = useRef<string | null>(null);
-  useEffect(() => {
-    const readAt = scheduleReading?.readAt ?? null;
-    const changed = lastReadAtRef.current !== null && readAt !== lastReadAtRef.current;
-    lastReadAtRef.current = readAt;
-    if (changed && copiedStops && hasDiffDecisions()) {
-      resetDiff();
-      setFormStops(copiedStops.map((stop, i) => ({ ...stop, copiedFrom: i })));
-    }
-  }, [scheduleReading, copiedStops, hasDiffDecisions, resetDiff]);
 
   // The accepted route-wide instructions as the Route's customer instructions (lib/routeInstructions.ts), in the reading's order.
   const customerInstructionsToCreate = () =>

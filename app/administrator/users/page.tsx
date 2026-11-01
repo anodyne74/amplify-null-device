@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { runAccessSync, type AccessSyncOutcome } from '@/lib/runAccessSync';
 import { callApi } from '@/lib/apiClient';
 import { customerInviteStatus, resendCustomerInvite } from '@/lib/customerInvite';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
@@ -53,15 +54,6 @@ type CustomerUser = {
 
 type CustomerUserSortKey = 'name' | 'customer' | 'role' | 'status';
 
-/** Calls to the access sync before giving up; each one runs about 20s. */
-const MAX_SYNC_CALLS = 15;
-
-/** How an access sync ended: done, out of calls with records left, or a failed write/request. */
-type AccessSyncOutcome = { status: 'complete'; updated: number } | { status: 'incomplete' } | { status: 'failed'; message: string };
-
-const countUpdated = (updated: unknown) =>
-  Object.values((updated ?? {}) as Record<string, number>).reduce((sum, count) => sum + count, 0);
-
 export default function UsersAdminPage() {
   // Customer Access section state
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
@@ -96,26 +88,14 @@ export default function UsersAdminPage() {
   // has already been saved by the time this runs. Each call syncs for a bounded
   // time and reports whether it finished; the count of records updated so far
   // is shown while it runs.
-  const syncCustomerAccess = useCallback(
-    async (customerId: string, change: { added?: string; removed?: string } = {}): Promise<AccessSyncOutcome> => {
-      let synced = 0;
-      setSyncedCount(0);
-      try {
-        for (let attempt = 0; attempt < MAX_SYNC_CALLS; attempt++) {
-          const payload = await callApi('/api/admin/sync-customer-access', { customerId, ...change });
-          synced += countUpdated(payload.updated);
-          setSyncedCount(synced);
-          if (payload.complete !== false) return { status: 'complete', updated: synced };
-        }
-        return { status: 'incomplete' };
-      } catch (e) {
-        return { status: 'failed', message: e instanceof Error ? e.message : 'Access sync failed.' };
-      } finally {
-        setSyncedCount(null);
-      }
-    },
-    []
-  );
+  const syncCustomerAccess = useCallback(async (customerId: string, change: { added?: string; removed?: string } = {}): Promise<AccessSyncOutcome> => {
+    setSyncedCount(0);
+    try {
+      return await runAccessSync('/api/admin/sync-customer-access', { customerId, ...change }, setSyncedCount);
+    } finally {
+      setSyncedCount(null);
+    }
+  }, []);
 
   const resolveUserByEmail = useCallback(async (email: string): Promise<CognitoUser> => {
     const payload = await callApi('/api/admin/users', { action: 'getUserByEmail', email });

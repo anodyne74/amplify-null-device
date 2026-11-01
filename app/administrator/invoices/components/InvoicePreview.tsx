@@ -14,6 +14,7 @@ import { formatDuration } from '@/lib/format';
 import { formatAbn } from '@/lib/companyBilling';
 import { billToName } from '@/lib/billToName';
 import { signsPlaced } from '@/lib/signRunTotals';
+import { isRouteCompleted } from '@/lib/signRunPhase';
 import styles from './InvoicePreview.module.css';
 
 interface InvoicePreviewProps {
@@ -125,7 +126,7 @@ export default function InvoicePreview({
   const billed = route ? billedTime(route) : null;
   const routeMinutes = billed?.totalMinutes ?? 0;
   const routeDistanceKm = billed?.distanceKm ?? 0;
-  const routeNotFinalized = Boolean(route) && route?.status !== 'completed';
+  const routeNotFinalized = Boolean(route) && !isRouteCompleted(route?.status);
 
   if (!customer) {
     return null;

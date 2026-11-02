@@ -19,15 +19,27 @@ describe('resolveBuildNumber', () => {
   });
 
   it('is unknown in a deploy that lost its commit', () => {
-    expect(resolveBuildNumber({ AWS_JOB_ID: '64' }, () => '20261102')).toBe('unknown');
+    expect(resolveBuildNumber({ AWS_JOB_ID: '64' }, () => '20261102', () => undefined)).toBe('unknown');
   });
 
   it('is unknown when git cannot give the commit date', () => {
     expect(resolveBuildNumber({ AWS_JOB_ID: '64', AWS_COMMIT_ID: 'a6f6444' }, () => undefined)).toBe('unknown');
   });
 
+  it('reads the commit from the checkout when Amplify says HEAD', () => {
+    expect(
+      resolveBuildNumber({ AWS_JOB_ID: '64', AWS_COMMIT_ID: 'HEAD' }, () => '20261102', () => 'a6f6444abcdef12'),
+    ).toBe('20261102-a6f6444-64');
+  });
+
+  it('is unknown when HEAD cannot be resolved', () => {
+    expect(resolveBuildNumber({ AWS_JOB_ID: '64', AWS_COMMIT_ID: 'HEAD' }, () => '20261102', () => undefined)).toBe(
+      'unknown',
+    );
+  });
+
   it('builds the number in a deploy', () => {
-    expect(resolveBuildNumber({ AWS_JOB_ID: '64', AWS_COMMIT_ID: 'a6f6444x' }, () => '20261102')).toBe(
+    expect(resolveBuildNumber({ AWS_JOB_ID: '64', AWS_COMMIT_ID: 'a6f6444abc' }, () => '20261102')).toBe(
       '20261102-a6f6444-64',
     );
   });

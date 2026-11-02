@@ -5,8 +5,12 @@
  * This configuration generates static files suitable for CDN hosting via Amplify
  */
 
+import { resolveBuildNumber } from './scripts/build-number.js';
+
 export default {
   reactStrictMode: true,
+  // The Build Number (CONTEXT.md, Build), inlined into the browser bundle and the API routes alike.
+  env: { NEXT_PUBLIC_BUILD_NUMBER: resolveBuildNumber() },
   // Loaded from node_modules at run time, not bundled: pdfjs finds its own worker file that way (lib/server/pdfLayoutText.ts).
   serverExternalPackages: ['pdfjs-dist'],
   images: {

@@ -179,3 +179,7 @@ _Avoid_: Driver payment, wage, commission
 **Outstanding**:
 The total of an Operator's Pending Payouts: raised for them but not yet marked Paid. Work not yet raised as a Payout is not Outstanding.
 _Avoid_: Owed, unpaid balance
+
+**Build**:
+One deploy of the app, identified by a Build Number: the build date, the commit and the Amplify job that produced it, written `YYYYMMDD-<short commit>-<job>`, such as 20261102-a6f6444-64. The same Build Number is what the portal shows staff and what a running deploy reports about itself, so they cannot disagree. A copy running outside a deploy, such as a developer's machine, has no Build Number.
+_Avoid_: Version, release (there are no release numbers; a deploy is promoted, not released)

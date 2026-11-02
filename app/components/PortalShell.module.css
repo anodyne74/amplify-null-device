@@ -196,3 +196,12 @@
     max-width: none;
   }
 }
+
+/* Staff only: which Build is deployed (CONTEXT.md, Build). */
+.build {
+  font-size: var(--text-2xs);
+  color: var(--text-subtle);
+  margin: var(--space-3) 0 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+}

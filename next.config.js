@@ -5,8 +5,12 @@
  * This configuration generates static files suitable for CDN hosting via Amplify
  */
 
+import { resolveBuildNumber } from './scripts/build-number.js';
+
 export default {
   reactStrictMode: true,
+  // The Build Number (CONTEXT.md, Build), inlined into the browser bundle and the API routes alike.
+  env: { NEXT_PUBLIC_BUILD_NUMBER: resolveBuildNumber() },
   images: {
     unoptimized: true,
   },

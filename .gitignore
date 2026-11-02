@@ -53,3 +53,6 @@ legacy-import-bundle*.json
 
 # Claude Code per-machine settings
 .claude/settings.local.json
+
+# Samples
+docs/samples/

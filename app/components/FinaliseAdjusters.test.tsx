@@ -20,23 +20,10 @@ const adjusters = {
 } as never;
 
 describe('FinaliseAdjusters distance row', () => {
-  it('shows the Route Estimate beside the distance as a sanity check, without changing the entered distance', () => {
-    render(<FinaliseAdjusters adjusters={adjusters} estimateMeters={13400} />);
-
-    expect(screen.getByText(/Route Estimate 13\.4 km/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Distance (km)')).toHaveValue('12.0');
-  });
-
-  it('says when the Route Estimate is out of date', () => {
-    render(<FinaliseAdjusters adjusters={adjusters} estimateMeters={13400} estimateOutOfDate />);
-
-    expect(screen.getByText(/Route Estimate 13\.4 km \(out of date\)/)).toBeInTheDocument();
-  });
-
-  it('shows nothing about an estimate when there is none', () => {
+  it('asks for the distance to be entered by hand', () => {
     render(<FinaliseAdjusters adjusters={adjusters} />);
 
-    expect(screen.queryByText(/Route Estimate/)).not.toBeInTheDocument();
     expect(screen.getByText(/not tracked, enter manually/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Distance (km)')).toHaveValue('12.0');
   });
 });

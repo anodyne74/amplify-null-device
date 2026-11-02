@@ -13,10 +13,6 @@ export async function updateOperator(
     /** International form (lib/operatorMobile.ts); null clears it. */
     phone: string | null;
     vehicleAndRego: string;
-    homeBase: string;
-    /** null clears the pin along with the home base text. */
-    homeBaseLatitude: number | null;
-    homeBaseLongitude: number | null;
     status: OperatorStatus;
     driverSplitPercent: number;
     payCycle: BillingCycle;

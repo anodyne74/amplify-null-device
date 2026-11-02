@@ -18,8 +18,6 @@ import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { listOperators } from '@/lib/queries/ListOperators';
 import { updateOperator } from '@/lib/queries/UpdateOperator';
 import { mobileForDisplay, mobileToStore } from '@/lib/operatorMobile';
-import { resolveHomeBasePin, type HomeBasePin } from '@/lib/operatorHomeBase';
-import { geocodeAddress } from '@/lib/googleMaps';
 import { getDateGroup } from '@/lib/aggregateRouteData';
 import { formatDurationCompact } from '@/lib/dashboardAnalytics';
 import { summarizeRoutesStopsThisMonth, summarizeAverageRouteDuration } from '@/lib/adminDashboardOverview';
@@ -50,10 +48,6 @@ type Driver = {
   email: string;
   phone: string;
   vehicleAndRego: string;
-  homeBase: string;
-  /** The home base text as last saved; the pin is only re-made when the text moves off it. */
-  savedHomeBase: string;
-  homeBasePin: HomeBasePin | null;
   status: OperatorStatus;
   driverSplitPercent: number | '';
   payCycle: BillingCycle;
@@ -70,12 +64,6 @@ function toDriver(cognitoUser: CognitoOperator, record?: Operator): Driver {
     email: record?.email || cognitoUser.email || '',
     phone: mobileForDisplay(record?.phone),
     vehicleAndRego: record?.vehicleAndRego || '',
-    homeBase: record?.homeBase || '',
-    savedHomeBase: record?.homeBase || '',
-    homeBasePin:
-      record?.homeBaseLatitude != null && record?.homeBaseLongitude != null
-        ? { latitude: record.homeBaseLatitude, longitude: record.homeBaseLongitude }
-        : null,
     status: record?.status || 'onboarding',
     driverSplitPercent: record?.driverSplitPercent ?? '',
     payCycle: record?.payCycle || 'fortnightly',
@@ -158,14 +146,13 @@ export default function AdministratorDriversPage() {
     setDrivers((prev) => prev.map((d) => (d.id === selected.id ? { ...d, ...patch } : d)));
   };
 
-  const persist = async (id: string, updates: Partial<Driver>, appliedFields: Parameters<typeof updateOperator>[1], warning?: string) => {
+  const persist = async (id: string, updates: Partial<Driver>, appliedFields: Parameters<typeof updateOperator>[1]) => {
     setSaving(true);
     setSaveError(null);
     setSaveWarning(null);
     try {
       await updateOperator(id, appliedFields);
       setDrivers((prev) => prev.map((d) => (d.id === id ? { ...d, ...updates } : d)));
-      if (warning) setSaveWarning(warning);
     } catch {
       setSaveError('Could not save that change.');
     }
@@ -180,28 +167,18 @@ export default function AdministratorDriversPage() {
       return;
     }
     setSaving(true);
-    const home = await resolveHomeBasePin(
-      { text: selected.homeBase, saved: { text: selected.savedHomeBase, pin: selected.homeBasePin } },
-      geocodeAddress
-    );
     await persist(
       selected.id,
       {
         phone: mobileForDisplay(mobile.phone),
-        savedHomeBase: selected.homeBase,
-        homeBasePin: home.pin,
       },
       {
         phone: mobile.phone,
         vehicleAndRego: selected.vehicleAndRego || undefined,
-        homeBase: selected.homeBase || undefined,
-        homeBaseLatitude: home.pin ? home.pin.latitude : null,
-        homeBaseLongitude: home.pin ? home.pin.longitude : null,
         driverSplitPercent: selected.driverSplitPercent === '' ? undefined : Number(selected.driverSplitPercent),
         payCycle: selected.payCycle,
         paySplitOnCompletedStopsOnly: selected.paySplitOnCompletedStopsOnly,
-      },
-      home.warning
+      }
     );
   };
 
@@ -317,7 +294,6 @@ export default function AdministratorDriversPage() {
           <Avatar name={row.name} size="sm" />
           <div>
             <div className={styles.driverCellName}>{row.name}</div>
-            <div className={styles.driverCellMeta}>{row.homeBase ? `based ${row.homeBase}` : 'Home base not set'}</div>
           </div>
         </div>
       ),
@@ -330,11 +306,6 @@ export default function AdministratorDriversPage() {
           {statusLabel(row.status)}
         </Badge>
       ),
-    },
-    {
-      key: 'startPoint',
-      header: 'Start point',
-      render: (row) => (row.homeBasePin ? 'Set' : 'Not set'),
     },
     { key: 'vehicle', header: 'Vehicle', render: (row) => row.vehicleAndRego || '—' },
     {
@@ -507,13 +478,6 @@ export default function AdministratorDriversPage() {
                     id="driver-vehicle"
                     value={selected.vehicleAndRego}
                     onChange={(e) => updateSelected({ vehicleAndRego: e.target.value })}
-                  />
-                </Field>
-                <Field label="Home base" hint="Routes are built outwards from here" htmlFor="driver-home-base">
-                  <Input
-                    id="driver-home-base"
-                    value={selected.homeBase}
-                    onChange={(e) => updateSelected({ homeBase: e.target.value })}
                   />
                 </Field>
                 {resendMessage && (

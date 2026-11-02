@@ -17,11 +17,6 @@ jest.mock('@/lib/customers', () => ({
   getCustomer: jest.fn().mockResolvedValue({ id: 'cust-1', name: 'Ray White Epping' }),
 }));
 
-const mockGetRouteEstimate = jest.fn();
-jest.mock('@/lib/routeEstimates', () => ({
-  ...jest.requireActual('@/lib/routeEstimates'),
-  getRouteEstimate: (id: string) => mockGetRouteEstimate(id),
-}));
 
 const mockUseRouteWithStops = jest.fn();
 jest.mock('@/lib/useRouteWithStops', () => ({
@@ -43,7 +38,6 @@ const stops = [
 ];
 
 beforeEach(() => {
-  mockGetRouteEstimate.mockResolvedValue({ data: null });
   mockUseRouteWithStops.mockReturnValue({ route, stops, loading: false, error: null });
 });
 
@@ -123,30 +117,7 @@ describe('Route Sheet page', () => {
     expect(screen.getByText('Signs Placed:').parentElement).toHaveTextContent('Signs Placed: 7');
   });
 
-  it('shows the distance of a current Route Estimate', async () => {
-    mockUseRouteWithStops.mockReturnValue({
-      route: { ...route, assignedOperatorSub: 'op-1' },
-      stops: [{ id: 's1', sequence: 1, address: '20 Gloucester Road', latitude: -33.8, longitude: 151.1 }],
-      loading: false,
-      error: null,
-    });
-    mockGetRouteEstimate.mockResolvedValue({
-      data: {
-        operatorSub: 'op-1',
-        stopIds: ['s1'],
-        stopPins: [{ stopId: 's1', latitude: -33.8, longitude: 151.1 }],
-        totalMeters: 12345,
-      },
-    });
-    render(<RouteSheetPage />);
-    expect(await screen.findByText('12.3 km')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Distance blank')).not.toBeInTheDocument();
-  });
-
-  it('leaves a blank Distance box when the Route Estimate is out of date or missing', async () => {
-    mockGetRouteEstimate.mockResolvedValue({
-      data: { operatorSub: 'op-1', stopIds: ['gone'], stopPins: [], totalMeters: 99000 },
-    });
+  it('leaves a blank Distance box to write in', async () => {
     render(<RouteSheetPage />);
     await screen.findByText('Ray White Epping');
     expect(screen.getByLabelText('Distance blank')).toBeInTheDocument();

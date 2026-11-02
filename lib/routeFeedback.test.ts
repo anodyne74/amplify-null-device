@@ -11,6 +11,8 @@ describe('routeFeedbackLocked', () => {
   it('locks feedback until the Route is completed, and again once it is invoiced', () => {
     expect(routeFeedbackLocked(route({ status: 'signs_picked_up' }), false)).toBe('This route isn’t complete yet.');
     expect(routeFeedbackLocked(route(), false)).toBeNull();
+    // A legacy archived Route reads as completed (CONTEXT.md, Completed Route).
+    expect(routeFeedbackLocked(route({ status: 'archived' }), false)).toBeNull();
     expect(routeFeedbackLocked(route(), true)).toBe('This route has been invoiced, so its feedback can no longer be changed.');
   });
 });

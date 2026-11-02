@@ -12,6 +12,7 @@ import { useInvoicesDataState } from '@/app/administrator/invoices/hooks/useInvo
 import type { Invoice } from '@/app/administrator/invoices/types';
 import styles from './page.module.css';
 import { deleteInvoice, updateInvoice } from '@/lib/invoices';
+import { isRouteCompleted } from '@/lib/signRunPhase';
 
 function normalizeInvoiceStatus(status?: Invoice['status'] | string | null) {
   return String(status ?? '').trim().toLowerCase();
@@ -140,7 +141,7 @@ export default function InvoicesAdminPage() {
   const paymentTermsDaysForCustomer = (id: string) => customers.find((c) => c.id === id)?.paymentTermsDays;
 
   const uninvoicedCompletedRoutes = routes.filter(
-    (route) => route.status === 'completed' && !invoices.some((invoice) => invoice.routeId === route.id)
+    (route) => isRouteCompleted(route.status) && !invoices.some((invoice) => invoice.routeId === route.id)
   );
 
   return (

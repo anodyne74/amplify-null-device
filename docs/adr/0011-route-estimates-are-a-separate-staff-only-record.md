@@ -1,6 +1,6 @@
 # Route Estimates are a separate staff-only record, not fields on Route
 
-Status: accepted
+Status: superseded. Route Estimates, and the Operator home base that fed them, were removed; the reasoning below is kept for the record. Stored estimates and home base pins are dropped in a later schema change.
 
 A Route Estimate (the road distance an Operator will drive, Leg by Leg, from their home base through the Route's Stops and back) is stored in its own record, one per Route, readable only by staff. Its first and last Legs reveal where an Operator lives, and Customers can read `Route`, so the estimate must never be reachable through a Customer's Route queries or subscriptions. Keeping it off `Route` makes that true by construction, rather than by a rule someone has to keep right.
 

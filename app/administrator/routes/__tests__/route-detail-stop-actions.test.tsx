@@ -35,10 +35,6 @@ jest.mock('@/app/administrator/components/RouteRequestsCard', () => ({
   RouteRequestsCard: () => <div>Requests</div>,
 }));
 
-jest.mock('@/app/administrator/components/RouteEstimateCard', () => ({
-  RouteEstimateCard: () => <div>Estimate</div>,
-}));
-
 jest.mock('@/app/components/OperatorRoute', () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,

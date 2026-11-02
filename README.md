@@ -318,13 +318,8 @@ amplify.yml
 |---|---|---|
 | Auth not configured | Placeholder/missing `amplify_outputs.json` or env vars | Run `npm run generate:config` locally and verify Amplify env vars |
 | Invoice email fails | SES sender not verified or missing config | Verify SES identity and `SES_SENDER_EMAIL` |
-| Upload parse yields no stops | File text extraction/parsing failed | Use a selectable-text PDF/CSV/TXT and retry Preview Stops |
 | Build artifact errors in Amplify | Wrong output directory | Confirm Amplify base directory is `.next` |
 
 ## Contribution
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution and PR guidance.
-
-### Route Estimate key (`GOOGLE_ROUTES_API_KEY`)
-
-Route Estimates (the road distance an Operator drives, #515) call the Google Routes API from the server. This needs its own key, restricted to the Routes API only: the browser Maps key is referrer-restricted and is refused. Run `scripts/setup-routes-api-key.sh` to create it, save it to `.env.local`, and add it to the Amplify Console environment variables (`amplify.yml` copies it into the server environment at build). Without it, **Calculate estimate** shows a "key is missing" message.

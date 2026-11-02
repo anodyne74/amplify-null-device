@@ -178,7 +178,13 @@ export async function linkRouteRequest(input: {
   requester?: { name: string; email?: string | null };
 }): Promise<Result> {
   try {
-    return await linkRouteRequestRecord(linkClient(), { ...input, bySub: (await fetchUserId()) ?? null, now: new Date().toISOString() });
+    const result = await linkRouteRequestRecord(linkClient(), { ...input, bySub: (await fetchUserId()) ?? null, now: new Date().toISOString() });
+    // A linked Amendment is read straight away (ADR 0014). It runs on its own: a failed read never undoes the link,
+    // and the Route's Requests section offers it again.
+    if (result.ok && input.role === 'amendment') {
+      void readSchedule(input.recordId).catch((error) => console.error('Reading the Route Amendment failed:', error));
+    }
+    return result;
   } catch (error) {
     console.error('Linking the Route Request failed:', error);
     return { ok: false, error: 'Could not link it to the Route.' };
@@ -198,7 +204,7 @@ export async function unlinkRouteRequest(recordId: string): Promise<Result> {
 /**
  * Records a Route Request or Amendment by hand: stores its files under
  * requests/<new id>/, then the record, linked to the Route if one is given.
- * A null requester means an administrator uploaded it (the New route upload).
+ * A null requester means an administrator uploaded it.
  */
 export async function recordManualRequest(input: {
   routeId: string | null;
@@ -240,33 +246,21 @@ export async function recordManualRequest(input: {
 }
 
 /**
- * Gives a Route just created on New route its Route Request: the inbox record
- * it was created from, or else, if a Schedule was uploaded or a requester or
- * note entered, one recorded by hand. With neither, there's nothing to record.
+ * Gives a Route just created on New route its Route Request: the inbox email
+ * it was created from. A Route made with no email has no Route Request
+ * (ADR 0015), so there's nothing to record.
  */
 export async function attachNewRouteRequest(input: {
   routeId: string;
-  customerId: string;
   fromRecordId: string | null;
   requester: { name: string; email?: string | null } | null;
-  requestedAt: string;
-  note?: string | null;
-  file: File | null;
 }): Promise<Result> {
-  const { routeId, requester, file } = input;
-  if (input.fromRecordId) {
-    return linkRouteRequest({ recordId: input.fromRecordId, routeId, role: 'request', requester: requester ?? undefined });
-  }
-  if (!file && !requester && !input.note?.trim()) return { ok: true };
-  return recordManualRequest({
-    routeId,
+  if (!input.fromRecordId) return { ok: true };
+  return linkRouteRequest({
+    recordId: input.fromRecordId,
+    routeId: input.routeId,
     role: 'request',
-    requesterName: requester?.name ?? null,
-    requesterEmail: requester?.email ?? null,
-    sentAt: input.requestedAt,
-    note: input.note,
-    files: file ? [file] : [],
-    customerId: input.customerId,
+    requester: input.requester ?? undefined,
   });
 }
 
@@ -296,11 +290,29 @@ export async function openRouteRequestFile(requestId: string, file: number | 'ra
   return (await callApi<{ url: string }>('/api/route-requests/file', { requestId, file })).url;
 }
 
-/** One of a record's attachments as a File, to load into New route's import panel. */
-export async function fetchRouteRequestAttachment(requestId: string, index: number, filename: string, contentType: string | null | undefined): Promise<File> {
-  const response = await fetch(await openRouteRequestFile(requestId, index));
-  if (!response.ok) throw new Error(`Fetching the attachment failed: ${response.status}`);
-  return new File([await response.blob()], filename, { type: contentType ?? '' });
+export type ScheduleReading = NonNullable<RouteRequestRecord['scheduleReading']>;
+
+/**
+ * What the Schedule on a Route Request says, read by the server (ADR 0014): the stored reading if there
+ * is one, otherwise a new one (a model call, which can take a while). A proposal only; no Route changes.
+ * The server reads a page a call, so this asks again until the whole sheet is read, telling `onProgress`
+ * after each page. A read left part way by an earlier failure or a reload carries on from where it stopped.
+ */
+export async function readSchedule(
+  requestId: string,
+  options: { force?: boolean; onProgress?: (progress: { pagesRead: number; pageCount: number }) => void } = {}
+): Promise<ScheduleReading> {
+  let force = options.force === true;
+  let pagesRead = -1;
+  for (;;) {
+    const { reading } = await callApi<{ reading: ScheduleReading }>('/api/route-requests/read-schedule', { requestId, force });
+    const progress = reading.progress;
+    if (!progress) return reading;
+    if (progress.pagesRead <= pagesRead) throw new Error('Reading the Schedule is not moving on. Try again.');
+    pagesRead = progress.pagesRead;
+    options.onProgress?.({ pagesRead: progress.pagesRead, pageCount: progress.pageCount });
+    force = false;
+  }
 }
 
 /** One record, for New route to prefill from. */

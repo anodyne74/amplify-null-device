@@ -121,6 +121,7 @@ export async function createRoute(input: {
   scheduledDate?: string;
   pickupDate: string;
   notes?: string;
+  customerInstructions?: string;
 }) {
   return withDataError('Failed to create route.', async () => {
     const viewerSubs = input.viewerSubs ?? (await getCustomerViewerSubs(input.customerId));

@@ -93,9 +93,6 @@ export interface Operator {
   role: OperatorRole;
   phone?: string | null;
   vehicleAndRego?: string | null;
-  homeBase?: string | null;
-  homeBaseLatitude?: number | null;
-  homeBaseLongitude?: number | null;
   status?: OperatorStatus | null;
   driverSplitPercent?: number | null;
   payCycle?: BillingCycle | null;
@@ -377,7 +374,7 @@ export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'paid' | 'overdue' | '
 export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'check' | 'cash' | 'other';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'cancelled';
 export type AuditEventType = 'login' | 'logout' | 'access_denied' | 'data_access' | 'data_modification' | 'data_deletion';
-export type AuditResourceType = 'customer' | 'route' | 'stop' | 'invoice' | 'payment' | 'operator' | 'feature_flag' | 'property' | 'report' | 'route_estimate';
+export type AuditResourceType = 'customer' | 'route' | 'stop' | 'invoice' | 'payment' | 'operator' | 'feature_flag' | 'property' | 'report';
 export type AuditStatus = 'success' | 'failure';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type MapTheme = 'light' | 'dark' | 'satellite' | 'streets';
@@ -614,28 +611,4 @@ export interface DataResponse<T> {
     message: string;
     errorType?: string;
   }>;
-}
-
-export interface RouteEstimateLeg {
-  order: number;
-  fromStopId?: string | null;
-  toStopId?: string | null;
-  distanceMeters: number;
-  path?: string | null;
-}
-
-export interface RouteEstimate {
-  /** The Route's id. */
-  id: string;
-  operatorSub: string;
-  originLatitude: number;
-  originLongitude: number;
-  stopIds: string[];
-  stopPins?: { stopId: string; latitude: number; longitude: number }[] | null;
-  leftOutNoPin: number;
-  leftOutRemoved: number;
-  totalMeters: number;
-  legs: RouteEstimateLeg[];
-  calculatedAt: string;
-  calculatedBySub: string;
 }

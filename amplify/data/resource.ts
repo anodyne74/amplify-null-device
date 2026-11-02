@@ -24,7 +24,6 @@ import { routeRequestCapture } from '../functions/route-request-capture/resource
  * - PropertyLocation: an administrator's review decisions for one Property (Confirmed pin, dismissed suburb flag)
  * - PropertyHistoryReport: a frozen Property History PDF's record (read through the reports API)
  * - RouteRequestRecord: a Route Request or Amendment, captured from requests@ or recorded by hand (ADR 0008)
- * - RouteEstimate: a Route's Route Estimate, staff read only (ADR 0011)
  * - RouteRequestSlot: held by a Route while it has a Route Request
  * - OperatorAvailabilityBlock: Days Null Device has no drivers available for a customer
  * - CustomerClosureBlock: Days a customer's agency is closed
@@ -173,10 +172,6 @@ export const schema = a.schema({
       // save on the Drivers screen's free-text Mobile field.
       phone: a.string(),
       vehicleAndRego: a.string(),
-      homeBase: a.string(),
-      // Pin for homeBase, set when the Drivers screen saves it: the start point of a Route Estimate.
-      homeBaseLatitude: a.float(),
-      homeBaseLongitude: a.float(),
       // Starts 'onboarding' on creation; flipped to 'active' by
       // operator-status-activation's postAuthentication trigger on first sign-in,
       // and to 'inactive' by removeUserFromGroup when the operator group is removed.
@@ -552,7 +547,7 @@ export const schema = a.schema({
       customerId: a.id(), // Optional: associated customer
       operatorId: a.id(), // Optional: user who performed action
       eventType: a.enum(['login', 'logout', 'access_denied', 'data_access', 'data_modification', 'data_deletion']),
-      resourceType: a.enum(['customer', 'route', 'stop', 'invoice', 'payment', 'operator', 'feature_flag', 'property', 'report', 'route_estimate']),
+      resourceType: a.enum(['customer', 'route', 'stop', 'invoice', 'payment', 'operator', 'feature_flag', 'property', 'report']),
       resourceId: a.id(),
       action: a.string().required(),
       status: a.enum(['success', 'failure']),
@@ -819,6 +814,66 @@ export const schema = a.schema({
     inline: a.boolean(), // An inline part (a signature logo, say) rather than an attached file
   }),
 
+  /** One property row read from a Route Request's Schedule (ADR 0014), before any matching against a Route's Stops. */
+  ScheduleReadingRow: a.customType({
+    address: a.string().required(), // As written on the sheet, with any New/Preview/Auction prefix removed
+    numberOfSigns: a.integer(),
+    agent: a.string(), // As written on the sheet
+    isAuction: a.boolean(),
+    isNew: a.boolean(), // Marked New on the sheet; a hint only
+    isPreview: a.boolean(),
+    timeSlot: a.string(), // Kept for traceability; it never becomes part of a Stop
+    change: a.string(), // 'add' or 'drop': what a Route Amendment's email asks of this property; absent on a Schedule's rows
+  }),
+
+  /** An instruction for the Operator found in a Route Request's email or Schedule (ADR 0014), in the customer's words. */
+  ScheduleReadingInstruction: a.customType({
+    text: a.string().required(),
+    address: a.string(), // The property it is about, as written; absent for one about the whole Route
+    source: a.string(), // 'email' or 'sheet'
+  }),
+
+  /** One agent's total of signs as the sheet itself prints it. */
+  ScheduleReadingAgentTotal: a.customType({
+    agent: a.string().required(), // As written on the sheet
+    signs: a.integer().required(),
+  }),
+
+  /** The totals a sheet prints (ADR 0014), copied as printed so the rows can be checked against them. */
+  ScheduleReadingTotals: a.customType({
+    signs: a.integer(), // The sheet's grand total of signs
+    agents: a.ref('ScheduleReadingAgentTotal').array(),
+  }),
+
+  /** How far a Schedule is read, a page to a call so a slow read outlasts the ~28s limit on one. Absent once the whole sheet is read. */
+  ScheduleReadingProgress: a.customType({
+    pagesRead: a.integer().required(),
+    pageCount: a.integer().required(),
+  }),
+
+  /** What was read from a Route Request's Schedule and email (ADR 0014); a proposal, never applied to a Route by itself. */
+  ScheduleReading: a.customType({
+    readAt: a.datetime().required(),
+    readBySub: a.string().required(),
+    attachmentIndex: a.integer().required(), // Which of the record's attachments was read; -1 when only the email was (an Amendment with no Schedule)
+    sheetDate: a.string(), // The date in the sheet's title, which is the one to trust over the file name
+    rows: a.ref('ScheduleReadingRow').array().required(),
+    statedTotals: a.ref('ScheduleReadingTotals'), // Absent when the sheet prints none, or on a reading stored before these were read
+    instructions: a.ref('ScheduleReadingInstruction').array(), // Absent on a reading stored before these were read
+    warnings: a.string().array(),
+    progress: a.ref('ScheduleReadingProgress'), // Present while pages remain: rows so far, not yet a reading to compare
+  }),
+
+  /** An administrator's decision on one line of a Route Amendment's Schedule Diff (ADR 0014). */
+  AmendmentDecision: a.customType({
+    change: a.string().required(), // 'add' or 'drop'
+    address: a.string().required(), // The row's address as read, which with `change` identifies the line
+    decision: a.string().required(), // 'accepted' or 'rejected'
+    decidedAt: a.datetime().required(),
+    decidedBySub: a.string().required(),
+    stopId: a.id(), // The Stop an accepted add created
+  }),
+
   /**
    * RouteRequestRecord - a Route Request or Route Amendment as received (ADR
    * 0008): an email sent to requests@ (#358), captured by the
@@ -847,6 +902,8 @@ export const schema = a.schema({
       dmarcVerdict: a.string(),
       rawMessageKey: a.string(), // Email only
       attachments: a.ref('RouteRequestAttachment').array(),
+      scheduleReading: a.ref('ScheduleReading'), // Written by the server route that reads the Schedule; replaced, never nulled, on a re-read
+      amendmentDecisions: a.ref('AmendmentDecision').array(), // An Amendment's accepted and rejected Diff lines; replaced as a whole, never nulled
       loggedByStaff: a.boolean(), // Sent from our own domain, so the real requester is entered by hand
       suggestedCustomerId: a.id(),
       // The requester entered by hand, for a manual record or a Logged-by-staff email.
@@ -882,48 +939,6 @@ export const schema = a.schema({
       updatedAt: a.datetime(),
     })
     .authorization((allow) => [allow.groups(['administrator']).to(['read', 'create', 'delete'])]),
-
-  /** Where a Stop's pin was when a Route Estimate was calculated, to tell later whether it has moved. */
-  RouteEstimateStopPin: a.customType({
-    stopId: a.id().required(),
-    latitude: a.float().required(),
-    longitude: a.float().required(),
-  }),
-
-  /** One drive of a Route Estimate: its distance and the encoded polyline of its path. */
-  RouteEstimateLeg: a.customType({
-    order: a.integer().required(),
-    fromStopId: a.id(), // Empty when the Leg starts at the Operator's home base
-    toStopId: a.id(), // Empty when the Leg ends at the Operator's home base
-    distanceMeters: a.float().required(),
-    path: a.string(),
-  }),
-
-  /**
-   * RouteEstimate - a Route's Route Estimate (ADR 0011): the road distance from
-   * the Operator's home base through the Route's pinned Stops and back. One per
-   * Route; its id is the Route's id. Its own record, not fields on Route, because
-   * the first and last Legs reveal where the Operator lives and Customers can
-   * read Route. Staff read it; it is written only by /api/route-estimates
-   * (IAM), which replaces it on each calculation and never sets a field to null.
-   */
-  RouteEstimate: a
-    .model({
-      operatorSub: a.string().required(),
-      originLatitude: a.float().required(),
-      originLongitude: a.float().required(),
-      stopIds: a.id().array().required(), // The Stops used, in order
-      stopPins: a.ref('RouteEstimateStopPin').array(), // Their pins at the time; absent on an estimate stored before these
-      leftOutNoPin: a.integer().required(),
-      leftOutRemoved: a.integer().required(),
-      totalMeters: a.float().required(),
-      legs: a.ref('RouteEstimateLeg').array().required(),
-      calculatedAt: a.datetime().required(),
-      calculatedBySub: a.string().required(),
-      createdAt: a.datetime(),
-      updatedAt: a.datetime(),
-    })
-    .authorization((allow) => [allow.groups(['administrator', 'operator']).to(['read'])]),
 }).authorization((allow) => [
   allow.resource(customerAccessActivation).to(['query', 'mutate']),
   allow.resource(operatorStatusActivation).to(['query', 'mutate']),

@@ -77,6 +77,10 @@
   font-weight: var(--fw-semibold);
 }
 
+.unavailable {
+  color: var(--status-danger-fg);
+}
+
 .overdueDate {
   color: var(--status-danger-fg);
   font-weight: var(--fw-semibold);
@@ -101,6 +105,15 @@
   border-color: var(--status-warning-fg);
   background: var(--status-warning-bg);
   color: var(--status-warning-fg);
+}
+
+.totalsSkeleton {
+  display: inline-block;
+  width: 9ch;
+  height: 0.9em;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  vertical-align: middle;
 }
 
 .filterHint {

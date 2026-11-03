@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Route, Stop } from '@/amplify/types';
 import {
   buildPropertyMatches,
@@ -17,21 +17,28 @@ import { listAllStops } from '@/lib/routes';
 export function usePropertySearch(routes: Route[], customersById: Record<string, string>) {
   const [stops, setStops] = useState<Stop[]>([]);
   const [stopsLoading, setStopsLoading] = useState(true);
+  const [stopsFailed, setStopsFailed] = useState(false);
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<PropertyMatchScope>('Anything');
   const [focusedRouteId, setFocusedRouteId] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchAllStops() {
-      setStopsLoading(true);
-      // An unreadable Stop list searches as empty, as before.
-      const result = await listAllStops().catch(() => []);
-      setStops(result as Stop[]);
-      setStopsLoading(false);
-    }
-
-    void fetchAllStops();
+  const loadStops = useCallback(async () => {
+    setStopsLoading(true);
+    // An unreadable Stop list searches as empty, as before; stopsFailed lets the Routes list say so
+    // instead of showing every Route as having no Stops.
+    let failed = false;
+    const result = await listAllStops().catch(() => {
+      failed = true;
+      return [];
+    });
+    setStops(result as Stop[]);
+    setStopsFailed(failed);
+    setStopsLoading(false);
   }, []);
+
+  useEffect(() => {
+    void loadStops();
+  }, [loadStops]);
 
   const routesById = useMemo(() => {
     const map: Record<string, Route> = {};
@@ -80,6 +87,8 @@ export function usePropertySearch(routes: Route[], customersById: Record<string,
     scopes: PROPERTY_MATCH_SCOPES,
     stops,
     stopsLoading,
+    stopsFailed,
+    reloadStops: loadStops,
     matches,
     matchedRouteIds,
     totalPropertiesCount,

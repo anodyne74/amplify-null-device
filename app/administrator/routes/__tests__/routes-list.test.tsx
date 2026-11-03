@@ -158,6 +158,44 @@ describe('Operator Routes List Page', () => {
     expect(within(row).getAllByText('—')).toHaveLength(2);
   });
 
+  describe('Stops and signs column', () => {
+    const row = async (code: string) => (await screen.findByText(code)).closest('tr') as HTMLElement;
+
+    it('says "No stops yet" for a Route with no Stops, not a dash', async () => {
+      const noStops = { ...mockRoutes[0], id: 'route-none-0000', routeCode: 'W19-26-009' };
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [noStops], loading: false, error: null });
+      render(<RoutesPage />);
+
+      await waitFor(() => expect(within(screen.getByText('W19-26-009').closest('tr') as HTMLElement).getByText('No stops yet')).toBeInTheDocument());
+    });
+
+    it('shows a placeholder, not repeated words, while Stops load', async () => {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+      (listAllStops as jest.Mock).mockReturnValue(new Promise(() => {}));
+      render(<RoutesPage />);
+
+      const first = await row('W19-26-001');
+      expect(within(first).queryByText(/loading/i)).not.toBeInTheDocument();
+      expect(within(first).queryByText('No stops yet')).not.toBeInTheDocument();
+    });
+
+    it('says Unavailable, explains why, and retries when the Stop list fails to load', async () => {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+      (listAllStops as jest.Mock).mockRejectedValueOnce(new Error('network')).mockResolvedValue(mockStops);
+      render(<RoutesPage />);
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(/stop and sign totals couldn.t be loaded/i);
+      expect(within(await row('W19-26-001')).getByText('Unavailable')).toBeInTheDocument();
+      expect(within(await row('W19-26-001')).queryByText('No stops yet')).not.toBeInTheDocument();
+
+      fireEvent.click(within(alert).getByRole('button', { name: /try again/i }));
+
+      await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+      expect(within(await row('W19-26-001')).getByText('2 stops · 7 signs')).toBeInTheDocument();
+    });
+  });
+
   it('lists the latest Placement Date first, and Routes with no Placement Date last', async () => {
     (useLiveAllRoutes as jest.Mock).mockReturnValue({
       routes: [

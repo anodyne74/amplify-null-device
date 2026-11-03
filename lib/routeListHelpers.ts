@@ -144,9 +144,9 @@ export function summariseStopsByRoute(stops: Pick<Stop, 'routeId' | 'numberOfSig
   return totals;
 }
 
-/** "12 stops · 31 signs", singular where it is 1. */
+/** "12 stops · 31 signs", singular where it is 1; "No stops yet" for a Route with none. */
 export function formatStopTotals(totals: RouteStopTotals | undefined): string {
-  if (!totals) return '—';
+  if (!totals) return 'No stops yet';
   const stops = `${totals.stops} ${totals.stops === 1 ? 'stop' : 'stops'}`;
   const signs = `${totals.signs} ${totals.signs === 1 ? 'sign' : 'signs'}`;
   return `${stops} · ${signs}`;

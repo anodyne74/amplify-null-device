@@ -73,8 +73,25 @@
 }
 
 .unassigned {
-  color: var(--text-muted);
-  font-style: italic;
+  color: var(--status-warning-fg);
+  font-weight: var(--fw-semibold);
+}
+
+.overdueDate {
+  color: var(--status-danger-fg);
+  font-weight: var(--fw-semibold);
+}
+
+.dateWithFlag {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.filterHint {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
 }
 
 .propertySearchBody {
@@ -123,7 +140,7 @@
 
 .propertyNoteWarning {
   font-weight: var(--fw-semibold);
-  color: var(--amber-600);
+  color: var(--status-warning-fg);
 }
 
 .propertyResults {

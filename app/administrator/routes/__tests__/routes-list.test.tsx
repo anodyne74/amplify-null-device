@@ -187,6 +187,38 @@ describe('Operator Routes List Page', () => {
     expect(screen.queryByRole('columnheader', { name: 'Duration' })).not.toBeInTheDocument();
   });
 
+  describe('why a Route needs attention', () => {
+    it('flags an overdue Pickup Date with the word Overdue, and an Unassigned Route with a badge', async () => {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({
+        routes: [
+          { ...mockRoutes[0], assignedOperatorName: 'Pat Lee', pickupDate: '2000-01-01' },
+          { ...mockRoutes[1], pickupDate: '2999-01-01' },
+        ],
+        loading: false,
+        error: null,
+      });
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+
+      const overdueRow = screen.getByText('W19-26-001').closest('tr') as HTMLElement;
+      expect(within(overdueRow).getByText('Overdue')).toBeInTheDocument();
+      expect(within(overdueRow).queryByText('Unassigned')).not.toBeInTheDocument();
+
+      const futureRow = screen.getByText('W19-26-002').closest('tr') as HTMLElement;
+      expect(within(futureRow).queryByText('Overdue')).not.toBeInTheDocument();
+      expect(within(futureRow).getByText('Unassigned')).toBeInTheDocument();
+    });
+
+    it('states the Needs attention rule beside the toggle and ties it to the toggle', async () => {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+
+      const toggle = screen.getByRole('button', { name: /needs attention/i });
+      expect(toggle).toHaveAccessibleDescription(/no operator assigned, or pickup date passed and route not finished/i);
+    });
+  });
+
   describe('Needs attention filter', () => {
     const staffed = { assignedOperatorName: 'Pat Lee' };
     const routes: Route[] = [

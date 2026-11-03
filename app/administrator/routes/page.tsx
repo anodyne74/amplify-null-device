@@ -12,7 +12,7 @@ import { isAdmin } from '@/lib/amplify-config';
 import { useRoutesList, ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
 import { useAdminTableSort } from '@/app/components/AdminDataTable';
 import { usePropertySearch } from '@/lib/usePropertySearch';
-import { compareRoutesBy, formatRouteDate, formatStopTotals, routeNeedsAttention, summariseStopsByRoute, type RouteSortKey } from '@/lib/routeListHelpers';
+import { compareRoutesBy, formatRouteDate, formatStopTotals, localToday, NEEDS_ATTENTION_RULE, routeNeedsAttention, routePickupOverdue, routeUnassigned, summariseStopsByRoute, type RouteSortKey } from '@/lib/routeListHelpers';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { routeFeedbackLabel } from '@/lib/routeFeedback';
@@ -85,8 +85,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   // composed with the status-filtered list.
   const visibleRoutes = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const today = localToday();
 
     const matching = filteredRoutes.filter((route) => {
       if (propertyFilterActive && !shownRouteIdSet.has(route.id)) return false;
@@ -114,6 +113,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
     return sortBy ? [...matching].sort(compareRoutesBy(sortBy, sortDirection, customersById)) : matching;
   }, [filteredRoutes, customersById, searchQuery, dateFrom, dateTo, needsAttention, propertyFilterActive, shownRouteIdSet, sortBy, sortDirection]);
 
+  const today = localToday();
   const focusedRoute = focusedRouteId ? filteredRoutes.find((route) => route.id === focusedRouteId) : undefined;
   const focusedRouteLabel = focusedRoute ? focusedRoute.routeCode || focusedRoute.id.slice(0, 8) : null;
 
@@ -191,7 +191,20 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       ),
     },
     { key: 'placementDate', header: 'Placement', sortKey: 'placementDate', render: (route) => formatRouteDate(route.scheduledDate) },
-    { key: 'pickupDate', header: 'Pickup', sortKey: 'pickupDate', render: (route) => formatRouteDate(route.pickupDate) },
+    {
+      key: 'pickupDate',
+      header: 'Pickup',
+      sortKey: 'pickupDate',
+      render: (route) =>
+        routePickupOverdue(route, today) ? (
+          <span className={styles.dateWithFlag}>
+            <span className={styles.overdueDate}>{formatRouteDate(route.pickupDate)}</span>
+            <Badge tone="danger" size="sm">Overdue</Badge>
+          </span>
+        ) : (
+          formatRouteDate(route.pickupDate)
+        ),
+    },
     {
       key: 'stopTotals',
       header: 'Stops and signs',
@@ -201,7 +214,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
     {
       key: 'operator',
       header: 'Operator',
-      render: (route) => route.assignedOperatorName || route.assignedOperatorEmail || <span className={styles.unassigned}>Unassigned</span>,
+      render: (route) => routeUnassigned(route) ? <span className={styles.unassigned}>Unassigned</span> : route.assignedOperatorName || route.assignedOperatorEmail,
     },
     {
       key: 'action',
@@ -300,9 +313,16 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
               {formatStatusFilterLabel(status)}
             </Tag>
           ))}
-          <Tag selected={needsAttention} onClick={() => setNeedsAttention((on) => !on)}>
+          <Tag
+            selected={needsAttention}
+            onClick={() => setNeedsAttention((on) => !on)}
+            aria-describedby="routes-needs-attention-rule"
+          >
             Needs attention
           </Tag>
+          <span id="routes-needs-attention-rule" className={styles.filterHint}>
+            {NEEDS_ATTENTION_RULE}
+          </span>
         </div>
       </div>
 
@@ -386,7 +406,7 @@ export default function AdministratorRoutesPage() {
       <div className={styles.page}>
         <PageHeader
           title="Routes"
-          subtitle="Plan and manage delivery routes across all customers."
+          subtitle="Plan and manage Routes across all Customers."
           actions={
             <Link href="/administrator/routes/new" className="nd-btn nd-btn--primary nd-btn--md">
               Create New Route

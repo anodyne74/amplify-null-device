@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import AsyncState from '@/app/components/AsyncState';
 import OperatorRoute from '@/app/components/OperatorRoute';
@@ -24,6 +25,10 @@ import { PropertySearchCard } from './PropertySearchCard';
 import type { Route } from '@/amplify/types';
 import styles from './page.module.css';
 
+function routeDetailHref(route: Route) {
+  return `/administrator/routes/detail?id=${route.id}`;
+}
+
 function formatStatusFilterLabel(status: StatusFilter) {
   return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
 }
@@ -38,6 +43,7 @@ interface RoutesListSectionProps {
  * parent so Retry can remount it and re-run the fetch effect.
  */
 function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps) {
+  const router = useRouter();
   const {
     cancelDeleteRoute,
     customersById,
@@ -111,9 +117,12 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       header: 'Route Code',
       render: (route) => (
         <div>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-heading)' }}>
+          <Link
+            href={routeDetailHref(route)}
+            style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-heading)' }}
+          >
             {route.routeCode || `${route.id.slice(0, 8)}...`}
-          </span>
+          </Link>
           {route.notes && (
             <div className={styles.notesPreview}>
               {route.notes.slice(0, 60)}
@@ -155,37 +164,34 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       header: 'Operator',
       render: (route) => route.assignedOperatorName || route.assignedOperatorEmail || <span className={styles.unassigned}>Unassigned</span>,
     },
-    {
-      key: 'action',
-      header: '',
-      width: canDeleteRoutes ? 220 : 90,
-      render: (route) => {
-        const routeLabel = route.routeCode || route.id.slice(0, 8);
-        return (
-          <div className={styles.actionsCell}>
-            <a href={`/administrator/routes/detail?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
-              View
-            </a>
-            {canDeleteRoutes && (
-              <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
-                Edit
-              </a>
-            )}
-            {canDeleteRoutes && (
-              <Button
-                size="sm"
-                variant="danger"
-                loading={deletingRouteId === route.id}
-                onClick={() => requestDeleteRoute(route)}
-                aria-label={`Delete route ${routeLabel}`}
-              >
-                {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
-              </Button>
-            )}
-          </div>
-        );
-      },
-    },
+    ...(canDeleteRoutes
+      ? [
+          {
+            key: 'action',
+            header: '',
+            width: 150,
+            render: (route: Route) => {
+              const routeLabel = route.routeCode || route.id.slice(0, 8);
+              return (
+                <div className={styles.actionsCell}>
+                  <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
+                    Edit
+                  </a>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    loading={deletingRouteId === route.id}
+                    onClick={() => requestDeleteRoute(route)}
+                    aria-label={`Delete route ${routeLabel}`}
+                  >
+                    {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
+                  </Button>
+                </div>
+              );
+            },
+          } satisfies DataColumn<Route>,
+        ]
+      : []),
   ];
 
   return (
@@ -272,7 +278,12 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       ) : (
         <Card padded={false}>
           <div className={styles.tableWrap}>
-            <DataTable columns={columns} rows={visibleRoutes} wrapped={false} />
+            <DataTable
+              columns={columns}
+              rows={visibleRoutes}
+              wrapped={false}
+              onRowClick={(route) => router.push(routeDetailHref(route))}
+            />
           </div>
         </Card>
       )}

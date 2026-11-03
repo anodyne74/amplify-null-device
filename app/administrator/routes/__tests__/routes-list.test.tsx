@@ -7,8 +7,9 @@ import * as listAllCustomersModule from '@/lib/customers';
 import { listAllStops } from '@/lib/routes';
 import type { Route, Stop } from '@/amplify/types';
 
+const pushMock = jest.fn();
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: jest.fn() }),
+  useRouter: () => ({ push: pushMock }),
 }));
 
 jest.mock('@aws-amplify/ui-react', () => ({
@@ -166,6 +167,39 @@ describe('Operator Routes List Page', () => {
     expect(screen.getByRole('columnheader', { name: 'Route Code' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Created' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Duration' })).not.toBeInTheDocument();
+  });
+
+  describe('opening a Route from its row', () => {
+    beforeEach(() => {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+    });
+
+    it('opens the Route when its row is clicked, with no separate View button', async () => {
+      render(<RoutesPage />);
+
+      const row = (await screen.findByText('Acme Corp')).closest('tr') as HTMLElement;
+      fireEvent.click(row);
+
+      expect(pushMock).toHaveBeenCalledWith('/administrator/routes/detail?id=route-aaaa-1111');
+      expect(screen.queryByRole('link', { name: 'View' })).not.toBeInTheDocument();
+    });
+
+    it('makes the Route Code a link to the Route, the keyboard route in', async () => {
+      render(<RoutesPage />);
+
+      const link = await screen.findByRole('link', { name: 'W19-26-001' });
+      expect(link).toHaveAttribute('href', '/administrator/routes/detail?id=route-aaaa-1111');
+    });
+
+    it('does not navigate when a control inside the row is used', async () => {
+      render(<RoutesPage />);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete route W19-26-001' }));
+      fireEvent.click(screen.getAllByRole('link', { name: 'Edit' })[0]);
+      fireEvent.click(screen.getByRole('link', { name: 'W19-26-001' }));
+
+      expect(pushMock).not.toHaveBeenCalled();
+    });
   });
 
   it('flags a Route whose customer said something was off (#467)', async () => {

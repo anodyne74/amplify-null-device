@@ -72,7 +72,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   const shownRouteIdSet = useMemo(() => new Set(shownRouteIds), [shownRouteIds]);
 
   // Client-side search (route code / route id / customer name), inclusive
-  // createdAt date-range filter, and property-search route filter, all
+  // Placement Date range filter, and property-search route filter, all
   // composed with the status-filtered list.
   const visibleRoutes = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -89,10 +89,10 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       }
 
       if (dateFrom || dateTo) {
-        const createdDate = (route.createdAt || '').slice(0, 10);
-        if (!createdDate) return false;
-        if (dateFrom && createdDate < dateFrom) return false;
-        if (dateTo && createdDate > dateTo) return false;
+        const placementDate = route.scheduledDate || '';
+        if (!placementDate) return false;
+        if (dateFrom && placementDate < dateFrom) return false;
+        if (dateTo && placementDate > dateTo) return false;
       }
 
       return true;
@@ -101,6 +101,25 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
 
   const focusedRoute = focusedRouteId ? filteredRoutes.find((route) => route.id === focusedRouteId) : undefined;
   const focusedRouteLabel = focusedRoute ? focusedRoute.routeCode || focusedRoute.id.slice(0, 8) : null;
+
+  // Routes the date range can't place, because they have no Placement Date yet.
+  const hiddenForNoPlacementDate =
+    dateFrom || dateTo ? filteredRoutes.filter((route) => !route.scheduledDate).length : 0;
+
+  const activeFilterNames = [
+    statusFilter !== 'all' ? `status ${formatStatusFilterLabel(statusFilter).toLowerCase()}` : null,
+    searchQuery.trim() ? `search "${searchQuery.trim()}"` : null,
+    dateFrom || dateTo
+      ? `Placement ${dateFrom ? `from ${formatRouteDate(dateFrom)}` : ''}${dateFrom && dateTo ? ' ' : ''}${dateTo ? `to ${formatRouteDate(dateTo)}` : ''}`
+      : null,
+    propertyFilterActive ? 'a property match' : null,
+  ].filter((name): name is string => name !== null);
+
+  function clearAllFilters() {
+    clearRefinements();
+    setStatusFilter('all');
+    propertySearch.clear();
+  }
 
   function clearRefinements() {
     setSearchQuery('');
@@ -236,7 +255,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
             onChange={(event) => setSearchQuery(event.target.value)}
           />
         </Field>
-        <Field label="Created from" htmlFor="routes-date-from" className={styles.dateField}>
+        <Field label="Placement from" htmlFor="routes-date-from" className={styles.dateField}>
           <Input
             id="routes-date-from"
             type="date"
@@ -245,7 +264,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
             onChange={(event) => setDateFrom(event.target.value)}
           />
         </Field>
-        <Field label="Created to" htmlFor="routes-date-to" className={styles.dateField}>
+        <Field label="Placement to" htmlFor="routes-date-to" className={styles.dateField}>
           <Input
             id="routes-date-to"
             type="date"
@@ -264,6 +283,8 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       {hasRefinements && (
         <p className={styles.resultCount} role="status">
           Showing {visibleRoutes.length} of {filteredRoutes.length} routes
+          {hiddenForNoPlacementDate > 0 &&
+            ` (${hiddenForNoPlacementDate} without a Placement Date ${hiddenForNoPlacementDate === 1 ? 'is' : 'are'} hidden by the date range)`}
         </p>
       )}
 
@@ -277,7 +298,16 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       </div>
 
       {visibleRoutes.length === 0 ? (
-        <p className={styles.resultCount}>No routes found.</p>
+        <div className={styles.emptyFiltered} role="status">
+          <p className={styles.resultCount}>
+            No routes found{activeFilterNames.length > 0 ? ` for ${activeFilterNames.join(', ')}` : ''}.
+          </p>
+          {activeFilterNames.length > 0 && (
+            <button type="button" className={styles.clearFiltersBtn} onClick={clearAllFilters}>
+              Clear filters
+            </button>
+          )}
+        </div>
       ) : (
         <Card padded={false}>
           <div className={styles.tableWrap}>

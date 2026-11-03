@@ -158,6 +158,24 @@ describe('Operator Routes List Page', () => {
     expect(within(row).getAllByText('—')).toHaveLength(2);
   });
 
+  it('lists the latest Placement Date first, and Routes with no Placement Date last', async () => {
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({
+      routes: [
+        mockRoutes[1],
+        { ...mockRoutes[0], scheduledDate: '2026-05-08' },
+        { ...mockRoutes[0], id: 'route-eeee-5555', routeCode: 'W20-26-001', scheduledDate: '2026-05-15' },
+      ],
+      loading: false,
+      error: null,
+    });
+
+    render(<RoutesPage />);
+
+    await screen.findByText('W20-26-001');
+    const codes = screen.getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('link')[0].textContent);
+    expect(codes).toEqual(['W20-26-001', 'W19-26-001', 'W19-26-002']);
+  });
+
   it('heads the first column Route Code and no longer lists Created or Duration', async () => {
     (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
 
@@ -353,8 +371,12 @@ describe('Operator Routes List Page', () => {
   });
 
   describe('search and date filters', () => {
-    async function renderWithRoutes() {
-      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+    // Placement Dates 2024-03-01 and 2024-03-02, matching the fixtures' createdAt days.
+    async function renderWithRoutes(routes: Route[] = [
+      { ...mockRoutes[0], scheduledDate: '2024-03-01' },
+      { ...mockRoutes[1], scheduledDate: '2024-03-02' },
+    ]) {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes, loading: false, error: null });
 
       render(<RoutesPage />);
 
@@ -393,26 +415,55 @@ describe('Operator Routes List Page', () => {
       expect(screen.queryByRole('link', { name: /create your first route/i })).not.toBeInTheDocument();
     });
 
-    it('narrows results by created date range with inclusive bounds', async () => {
+    it('narrows results by Placement Date range with inclusive bounds', async () => {
       await renderWithRoutes();
 
       // From-only bound: 2024-03-02 keeps the second route, drops the first.
-      fireEvent.change(screen.getByLabelText(/created from/i), { target: { value: '2024-03-02' } });
+      fireEvent.change(screen.getByLabelText(/placement from/i), { target: { value: '2024-03-02' } });
 
       expect(screen.queryByText('W19-26-001')).not.toBeInTheDocument();
       expect(screen.getByText('W19-26-002')).toBeInTheDocument();
 
       // Inclusive To bound on the same day keeps the route visible.
-      fireEvent.change(screen.getByLabelText(/created to/i), { target: { value: '2024-03-02' } });
+      fireEvent.change(screen.getByLabelText(/placement to/i), { target: { value: '2024-03-02' } });
 
       expect(screen.getByText('W19-26-002')).toBeInTheDocument();
       expect(screen.getByText(/showing 1 of 2 routes/i)).toBeInTheDocument();
     });
 
+    it('says how many Routes with no Placement Date the date range hides', async () => {
+      await renderWithRoutes([
+        { ...mockRoutes[0], scheduledDate: '2024-03-01' },
+        mockRoutes[1],
+      ]);
+
+      fireEvent.change(screen.getByLabelText(/placement from/i), { target: { value: '2024-03-01' } });
+
+      expect(screen.getByText(/showing 1 of 2 routes \(1 without a placement date is hidden/i)).toBeInTheDocument();
+    });
+
+    it('names the active filters when nothing matches, and Clear filters restores the list', async () => {
+      await renderWithRoutes();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Planned' }));
+      fireEvent.change(screen.getByLabelText(/placement from/i), { target: { value: '2024-03-02' } });
+
+      const empty = screen.getByText(/no routes found for/i);
+      expect(empty).toHaveTextContent('status planned');
+      expect(empty).toHaveTextContent('Placement from Mar 2, 2024');
+
+      fireEvent.click(screen.getAllByRole('button', { name: /clear filters/i }).slice(-1)[0]);
+
+      expect(screen.getByText('W19-26-001')).toBeInTheDocument();
+      expect(screen.getByText('W19-26-002')).toBeInTheDocument();
+      expect(screen.getByLabelText(/placement from/i)).toHaveValue('');
+      expect(screen.getByRole('button', { name: 'Planned' })).toHaveAttribute('aria-pressed', 'false');
+    });
+
     it('filters by To date only', async () => {
       await renderWithRoutes();
 
-      fireEvent.change(screen.getByLabelText(/created to/i), { target: { value: '2024-03-01' } });
+      fireEvent.change(screen.getByLabelText(/placement to/i), { target: { value: '2024-03-01' } });
 
       expect(screen.getByText('W19-26-001')).toBeInTheDocument();
       expect(screen.queryByText('W19-26-002')).not.toBeInTheDocument();
@@ -422,7 +473,7 @@ describe('Operator Routes List Page', () => {
       await renderWithRoutes();
 
       fireEvent.change(screen.getByLabelText(/search/i), { target: { value: 'globex' } });
-      fireEvent.change(screen.getByLabelText(/created from/i), { target: { value: '2024-03-02' } });
+      fireEvent.change(screen.getByLabelText(/placement from/i), { target: { value: '2024-03-02' } });
 
       expect(screen.queryByText('W19-26-001')).not.toBeInTheDocument();
 
@@ -431,7 +482,7 @@ describe('Operator Routes List Page', () => {
       expect(screen.getByText('W19-26-001')).toBeInTheDocument();
       expect(screen.getByText('W19-26-002')).toBeInTheDocument();
       expect(screen.getByLabelText(/search/i)).toHaveValue('');
-      expect(screen.getByLabelText(/created from/i)).toHaveValue('');
+      expect(screen.getByLabelText(/placement from/i)).toHaveValue('');
       expect(screen.queryByRole('button', { name: /clear filters/i })).not.toBeInTheDocument();
     });
 

@@ -232,3 +232,14 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+.emptyFiltered {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.emptyFiltered .resultCount {
+  margin: 0;
+}

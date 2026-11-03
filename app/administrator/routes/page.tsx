@@ -64,6 +64,9 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
+  // Find a property stays out of the way until wanted; a live property match keeps its note below.
+  const [findPropertyOpen, setFindPropertyOpen] = useState(false);
+
   const hasRefinements = searchQuery.trim() !== '' || dateFrom !== '' || dateTo !== '';
 
   const propertySearch = usePropertySearch(filteredRoutes, customersById);
@@ -230,7 +233,65 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       )}
       onRetry={onRetry}
     >
-      <PropertySearchCard search={propertySearch} />
+      <div className={styles.toolbar} role="group" aria-label="Filter routes">
+        <div className={styles.searchFilterRow}>
+          <Field label="Search" htmlFor="routes-search" className={styles.searchField}>
+            <Input
+              id="routes-search"
+              type="search"
+              placeholder="Route code, ID, or customer"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          </Field>
+          <Field label="Placement from" htmlFor="routes-date-from" className={styles.dateField}>
+            <Input
+              id="routes-date-from"
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(event) => setDateFrom(event.target.value)}
+            />
+          </Field>
+          <Field label="Placement to" htmlFor="routes-date-to" className={styles.dateField}>
+            <Input
+              id="routes-date-to"
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(event) => setDateTo(event.target.value)}
+            />
+          </Field>
+          <Button
+            variant="ghost"
+            aria-expanded={findPropertyOpen}
+            aria-controls="routes-find-property"
+            onClick={() => setFindPropertyOpen((open) => !open)}
+          >
+            Find a property
+          </Button>
+          {hasRefinements && (
+            <button type="button" className={styles.clearFiltersBtn} onClick={clearRefinements}>
+              Clear filters
+            </button>
+          )}
+        </div>
+
+        <div className={styles.filterRow} role="group" aria-labelledby="routes-status-label">
+          <span id="routes-status-label" className={styles.filterLabel}>Status</span>
+          {ROUTE_STATUS_FILTERS.map((status) => (
+            <Tag key={status} selected={statusFilter === status} onClick={() => setStatusFilter(status)}>
+              {formatStatusFilterLabel(status)}
+            </Tag>
+          ))}
+        </div>
+      </div>
+
+      {findPropertyOpen && (
+        <div id="routes-find-property">
+          <PropertySearchCard search={propertySearch} />
+        </div>
+      )}
 
       {propertyFilterActive && (
         <div className={styles.propertyFilterBar}>
@@ -245,41 +306,6 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
         </div>
       )}
 
-      <div className={styles.searchFilterRow}>
-        <Field label="Search" htmlFor="routes-search" className={styles.searchField}>
-          <Input
-            id="routes-search"
-            type="search"
-            placeholder="Route code, ID, or customer"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-          />
-        </Field>
-        <Field label="Placement from" htmlFor="routes-date-from" className={styles.dateField}>
-          <Input
-            id="routes-date-from"
-            type="date"
-            value={dateFrom}
-            max={dateTo || undefined}
-            onChange={(event) => setDateFrom(event.target.value)}
-          />
-        </Field>
-        <Field label="Placement to" htmlFor="routes-date-to" className={styles.dateField}>
-          <Input
-            id="routes-date-to"
-            type="date"
-            value={dateTo}
-            min={dateFrom || undefined}
-            onChange={(event) => setDateTo(event.target.value)}
-          />
-        </Field>
-        {hasRefinements && (
-          <button type="button" className={styles.clearFiltersBtn} onClick={clearRefinements}>
-            Clear filters
-          </button>
-        )}
-      </div>
-
       {hasRefinements && (
         <p className={styles.resultCount} role="status">
           Showing {visibleRoutes.length} of {filteredRoutes.length} routes
@@ -287,15 +313,6 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
             ` (${hiddenForNoPlacementDate} without a Placement Date ${hiddenForNoPlacementDate === 1 ? 'is' : 'are'} hidden by the date range)`}
         </p>
       )}
-
-      <div className={styles.filterRow}>
-        <span className={styles.filterLabel}>Status:</span>
-        {ROUTE_STATUS_FILTERS.map((status) => (
-          <Tag key={status} selected={statusFilter === status} onClick={() => setStatusFilter(status)}>
-            {formatStatusFilterLabel(status)}
-          </Tag>
-        ))}
-      </div>
 
       {visibleRoutes.length === 0 ? (
         <div className={styles.emptyFiltered} role="status">

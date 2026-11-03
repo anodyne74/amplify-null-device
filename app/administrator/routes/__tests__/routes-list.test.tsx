@@ -504,6 +504,54 @@ describe('Operator Routes List Page', () => {
     });
   });
 
+  describe('filter toolbar', () => {
+    beforeEach(() => {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+    });
+
+    it('puts search, the date range and the status filter in one toolbar', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+
+      const toolbar = screen.getByRole('group', { name: /filter routes/i });
+      expect(within(toolbar).getByLabelText(/^search$/i)).toBeInTheDocument();
+      expect(within(toolbar).getByLabelText(/placement from/i)).toBeInTheDocument();
+      expect(within(toolbar).getByLabelText(/placement to/i)).toBeInTheDocument();
+      expect(within(toolbar).getByRole('group', { name: 'Status' })).toBeInTheDocument();
+      expect(within(toolbar).getByRole('button', { name: /find a property/i })).toBeInTheDocument();
+    });
+
+    it('keeps Find a property collapsed until it is opened, then closes it again', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+      const toggle = screen.getByRole('button', { name: /find a property/i });
+
+      expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.queryByLabelText(/property address, street, or suburb/i)).not.toBeInTheDocument();
+
+      fireEvent.click(toggle);
+      expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      expect(screen.getByLabelText(/property address, street, or suburb/i)).toBeInTheDocument();
+
+      fireEvent.click(toggle);
+      expect(screen.queryByLabelText(/property address, street, or suburb/i)).not.toBeInTheDocument();
+    });
+
+    it('keeps a property match and its way out visible after the search is collapsed', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+      const toggle = screen.getByRole('button', { name: /find a property/i });
+
+      fireEvent.click(toggle);
+      fireEvent.change(screen.getByLabelText(/property address, street, or suburb/i), { target: { value: 'ryedale' } });
+      fireEvent.click(toggle);
+
+      expect(screen.getByText(/showing 1 of 2 routes with a property match/i)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /show all routes/i }));
+      expect(within(screen.getByRole('table')).getByText('W19-26-002')).toBeInTheDocument();
+    });
+  });
+
   describe('find a property', () => {
     async function renderWithRoutes() {
       (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
@@ -513,6 +561,7 @@ describe('Operator Routes List Page', () => {
       await waitFor(() => {
         expect(screen.getByText('W19-26-001')).toBeInTheDocument();
       });
+      fireEvent.click(screen.getByRole('button', { name: /find a property/i }));
     }
 
     it('links to the full Property History', async () => {

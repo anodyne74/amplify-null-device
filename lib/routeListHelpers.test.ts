@@ -3,6 +3,8 @@ import {
   compareRouteIdDesc,
   formatEstimatedDurationMinutes,
   formatRouteDuration,
+  formatStopTotals,
+  summariseStopsByRoute,
 } from '@/lib/routeListHelpers';
 
 function makeRoute(overrides: Partial<Route>): Route {
@@ -127,5 +129,36 @@ describe('routeListHelpers', () => {
 
       expect(routes.map((route) => route.routeCode)).toEqual(['W36-26-002', 'W36-26-001']);
     });
+  });
+});
+
+describe('summariseStopsByRoute', () => {
+  it('totals Stops and Signs per Route', () => {
+    const totals = summariseStopsByRoute([
+      { routeId: 'a', numberOfSigns: 2 },
+      { routeId: 'a', numberOfSigns: 3 },
+      { routeId: 'b', numberOfSigns: 1 },
+    ]);
+    expect(totals.get('a')).toEqual({ stops: 2, signs: 5 });
+    expect(totals.get('b')).toEqual({ stops: 1, signs: 1 });
+  });
+
+  it('counts a Stop with no sign count as a Stop with no Signs', () => {
+    expect(summariseStopsByRoute([{ routeId: 'a', numberOfSigns: null }]).get('a')).toEqual({ stops: 1, signs: 0 });
+  });
+
+  it('has no entry for a Route with no Stops', () => {
+    expect(summariseStopsByRoute([]).get('a')).toBeUndefined();
+  });
+});
+
+describe('formatStopTotals', () => {
+  it('pluralises', () => {
+    expect(formatStopTotals({ stops: 12, signs: 31 })).toBe('12 stops · 31 signs');
+    expect(formatStopTotals({ stops: 1, signs: 1 })).toBe('1 stop · 1 sign');
+  });
+
+  it('shows a dash when the Route has no Stops', () => {
+    expect(formatStopTotals(undefined)).toBe('—');
   });
 });

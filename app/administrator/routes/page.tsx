@@ -9,7 +9,7 @@ import ConfirmDialog from '@/app/components/ConfirmDialog';
 import { isAdmin } from '@/lib/amplify-config';
 import { useRoutesList, ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
 import { usePropertySearch } from '@/lib/usePropertySearch';
-import { formatRouteDate, formatRouteDuration } from '@/lib/routeListHelpers';
+import { formatRouteDate, formatStopTotals, summariseStopsByRoute } from '@/lib/routeListHelpers';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { routeFeedbackLabel } from '@/lib/routeFeedback';
@@ -61,6 +61,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
 
   const propertySearch = usePropertySearch(filteredRoutes, customersById);
   const { filterActive: propertyFilterActive, shownRouteIds, focusedRouteId } = propertySearch;
+  const stopTotalsByRoute = useMemo(() => summariseStopsByRoute(propertySearch.stops), [propertySearch.stops]);
   const shownRouteIdSet = useMemo(() => new Set(shownRouteIds), [shownRouteIds]);
 
   // Client-side search (route code / route id / customer name), inclusive
@@ -107,11 +108,19 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   const columns: DataColumn<Route>[] = [
     {
       key: 'routeCode',
-      header: 'Route ID',
+      header: 'Route Code',
       render: (route) => (
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-heading)' }}>
-          {route.routeCode || `${route.id.slice(0, 8)}...`}
-        </span>
+        <div>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-heading)' }}>
+            {route.routeCode || `${route.id.slice(0, 8)}...`}
+          </span>
+          {route.notes && (
+            <div className={styles.notesPreview}>
+              {route.notes.slice(0, 60)}
+              {route.notes.length > 60 ? '…' : ''}
+            </div>
+          )}
+        </div>
       ),
     },
     {
@@ -133,21 +142,18 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
         </div>
       ),
     },
-    { key: 'created', header: 'Created', render: (route) => formatRouteDate(route.createdAt) },
+    { key: 'placementDate', header: 'Placement', render: (route) => formatRouteDate(route.scheduledDate) },
+    { key: 'pickupDate', header: 'Pickup', render: (route) => formatRouteDate(route.pickupDate) },
     {
-      key: 'duration',
-      header: 'Duration',
-      render: (route) => (
-        <div>
-          {formatRouteDuration(route)}
-          {route.notes && (
-            <div className={styles.notesPreview}>
-              {route.notes.slice(0, 60)}
-              {route.notes.length > 60 ? '…' : ''}
-            </div>
-          )}
-        </div>
-      ),
+      key: 'stopTotals',
+      header: 'Stops and signs',
+      render: (route) =>
+        propertySearch.stopsLoading ? <span className={styles.notesPreview}>Loading…</span> : formatStopTotals(stopTotalsByRoute.get(route.id)),
+    },
+    {
+      key: 'operator',
+      header: 'Operator',
+      render: (route) => route.assignedOperatorName || route.assignedOperatorEmail || <span className={styles.unassigned}>Unassigned</span>,
     },
     {
       key: 'action',

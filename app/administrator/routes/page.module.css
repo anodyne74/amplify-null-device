@@ -69,6 +69,11 @@
   color: var(--text-subtle);
 }
 
+.unassigned {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .actionsCell {
   display: flex;
   gap: var(--space-3);

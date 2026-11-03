@@ -123,6 +123,51 @@ describe('Operator Routes List Page', () => {
     expect(screen.getByText('Globex Inc')).toBeInTheDocument();
   });
 
+  it('shows each Route\'s Placement Date, Pickup Date, Stops and Signs, and Operator', async () => {
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({
+      routes: [
+        {
+          ...mockRoutes[0],
+          scheduledDate: '2026-05-08',
+          pickupDate: '2026-05-09',
+          assignedOperatorName: 'Pat Lee',
+        },
+        mockRoutes[1],
+      ],
+      loading: false,
+      error: null,
+    });
+
+    render(<RoutesPage />);
+
+    const row = (await screen.findByText('W19-26-001')).closest('tr') as HTMLElement;
+    expect(within(row).getByText('May 8, 2026')).toBeInTheDocument();
+    expect(within(row).getByText('May 9, 2026')).toBeInTheDocument();
+    await waitFor(() => expect(within(row).getByText('2 stops · 7 signs')).toBeInTheDocument());
+    expect(within(row).getByText('Pat Lee')).toBeInTheDocument();
+  });
+
+  it('shows an unassigned Route and a Route with no dates plainly, not blank', async () => {
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: [mockRoutes[1]], loading: false, error: null });
+
+    render(<RoutesPage />);
+
+    const row = (await screen.findByText('W19-26-002')).closest('tr') as HTMLElement;
+    expect(within(row).getByText('Unassigned')).toBeInTheDocument();
+    expect(within(row).getAllByText('—')).toHaveLength(2);
+  });
+
+  it('heads the first column Route Code and no longer lists Created or Duration', async () => {
+    (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+
+    render(<RoutesPage />);
+
+    await screen.findByText('W19-26-001');
+    expect(screen.getByRole('columnheader', { name: 'Route Code' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Created' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Duration' })).not.toBeInTheDocument();
+  });
+
   it('flags a Route whose customer said something was off (#467)', async () => {
     (useLiveAllRoutes as jest.Mock).mockReturnValue({
       routes: [

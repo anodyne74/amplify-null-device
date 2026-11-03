@@ -219,8 +219,12 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
     {
       key: 'stopTotals',
       header: 'Stops and signs',
-      render: (route) =>
-        propertySearch.stopsLoading ? <span className={styles.notesPreview}>Loading…</span> : formatStopTotals(stopTotalsByRoute.get(route.id)),
+      numeric: true,
+      render: (route) => {
+        if (propertySearch.stopsLoading) return <span className={styles.totalsSkeleton} aria-hidden="true" />;
+        if (propertySearch.stopsFailed) return <span className={styles.unavailable}>Unavailable</span>;
+        return formatStopTotals(stopTotalsByRoute.get(route.id));
+      },
     },
     {
       key: 'operator',
@@ -372,6 +376,17 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
           {hiddenForNoPlacementDate > 0 &&
             ` (${hiddenForNoPlacementDate} without a Placement Date ${hiddenForNoPlacementDate === 1 ? 'is' : 'are'} hidden by the date range)`}
         </p>
+      )}
+
+      {propertySearch.stopsFailed && (
+        <div className={styles.propertyFilterBar} role="alert">
+          <p className={styles.propertyFilterNote}>
+            Stop and sign totals couldn&rsquo;t be loaded, and Find a property can&rsquo;t search until they are.
+          </p>
+          <button type="button" className={styles.clearFiltersBtn} onClick={() => void propertySearch.reloadStops()}>
+            Try again
+          </button>
+        </div>
       )}
 
       <p className={styles.visuallyHidden} role="status">

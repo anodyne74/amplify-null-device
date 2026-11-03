@@ -163,8 +163,8 @@ describe('formatStopTotals', () => {
     expect(formatStopTotals({ stops: 1, signs: 1 })).toBe('1 stop · 1 sign');
   });
 
-  it('shows a dash when the Route has no Stops', () => {
-    expect(formatStopTotals(undefined)).toBe('—');
+  it('says so plainly when the Route has no Stops', () => {
+    expect(formatStopTotals(undefined)).toBe('No stops yet');
   });
 });
 

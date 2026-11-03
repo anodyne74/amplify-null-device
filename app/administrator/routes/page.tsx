@@ -31,6 +31,13 @@ function routeDetailHref(route: Route) {
   return `/administrator/routes/detail?id=${route.id}`;
 }
 
+const SORT_LABELS: Record<RouteSortKey, string> = {
+  placementDate: 'Placement',
+  pickupDate: 'Pickup',
+  customer: 'Customer',
+  status: 'Status',
+};
+
 function formatStatusFilterLabel(status: StatusFilter) {
   return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
 }
@@ -367,6 +374,12 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
         </p>
       )}
 
+      <p className={styles.visuallyHidden} role="status">
+        {sortBy
+          ? `Sorted by ${SORT_LABELS[sortBy]}, ${sortDirection === 'asc' ? 'ascending' : 'descending'}`
+          : 'Sorted by Placement, latest first'}
+      </p>
+
       {visibleRoutes.length === 0 ? (
         <div className={styles.emptyFiltered} role="status">
           <p className={styles.resultCount}>
@@ -388,6 +401,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
               sortBy={sortBy}
               sortDirection={sortDirection}
               onSort={(key) => toggleSort(key as RouteSortKey)}
+              defaultSort={{ key: 'placementDate', direction: 'desc' }}
               onRowClick={(route) => router.push(routeDetailHref(route))}
             />
           </div>

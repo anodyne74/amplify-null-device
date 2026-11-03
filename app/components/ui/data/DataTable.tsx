@@ -1,4 +1,5 @@
 import React from 'react';
+import { Icon } from '@/app/components/ui/core/Icon';
 
 export interface DataColumn<T = any> {
   key: string;
@@ -26,6 +27,8 @@ export interface DataTableProps<T = any> extends Omit<React.TableHTMLAttributes<
   sortBy?: string | null;
   sortDirection?: 'asc' | 'desc';
   onSort?: (key: string) => void;
+  /** The order the rows arrive in when sortBy is null, so the header can show it truthfully. */
+  defaultSort?: { key: string; direction: 'asc' | 'desc' };
 }
 
 const INTERACTIVE = 'a, button, input, select, textarea, label, [role="button"], [role="menuitem"]';
@@ -40,6 +43,7 @@ export function DataTable<T extends { id?: string | number } = any>({
   sortBy = null,
   sortDirection = 'asc',
   onSort,
+  defaultSort,
   className = '',
   ...rest
 }: DataTableProps<T>) {
@@ -49,17 +53,23 @@ export function DataTable<T extends { id?: string | number } = any>({
         <tr>
           {columns.map((c) => {
             const sortable = Boolean(c.sortKey && onSort);
-            const active = sortable && sortBy === c.sortKey;
+            const shownSort = sortBy !== null ? { key: sortBy, direction: sortDirection } : defaultSort;
+            const active = sortable && shownSort?.key === c.sortKey;
+            const direction = shownSort?.direction ?? 'asc';
             return (
               <th
                 key={c.key}
-                aria-sort={sortable ? (active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}
+                aria-sort={sortable ? (active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}
                 style={{ textAlign: c.align || (c.numeric ? 'right' : 'left'), width: c.width }}
               >
                 {sortable ? (
                   <button type="button" className="nd-table__sort" onClick={() => onSort?.(c.sortKey as string)}>
                     {c.header}
-                    <span aria-hidden="true">{active ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}</span>
+                    <Icon
+                      name={active ? (direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'chevrons-up-down'}
+                      size={14}
+                      className={active ? undefined : 'nd-table__sort-idle'}
+                    />
                   </button>
                 ) : (
                   c.header

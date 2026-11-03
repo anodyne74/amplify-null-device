@@ -294,11 +294,23 @@ describe('Operator Routes List Page', () => {
       await screen.findByText('W19-26-001');
     }
 
-    it('starts in the default order with no header marked as sorted', async () => {
+    it('starts in the default order and marks Placement as the descending sort', async () => {
       await renderDated();
 
       expect(codes()).toEqual(['W19-26-002', 'W19-26-001']);
-      expect(screen.getAllByRole('columnheader').filter((th) => th.getAttribute('aria-sort') !== null && th.getAttribute('aria-sort') !== 'none')).toHaveLength(0);
+      expect(screen.getByRole('columnheader', { name: /placement/i })).toHaveAttribute('aria-sort', 'descending');
+      expect(screen.getByRole('columnheader', { name: /pickup/i })).toHaveAttribute('aria-sort', 'none');
+      expect(screen.getByText('Sorted by Placement, latest first')).toBeInTheDocument();
+    });
+
+    it('announces a changed sort in a status region', async () => {
+      await renderDated();
+
+      fireEvent.click(within(screen.getByRole('columnheader', { name: /customer/i })).getByRole('button'));
+      expect(screen.getByText('Sorted by Customer, ascending')).toBeInTheDocument();
+
+      fireEvent.click(within(screen.getByRole('columnheader', { name: /customer/i })).getByRole('button'));
+      expect(screen.getByText('Sorted by Customer, descending')).toBeInTheDocument();
     });
 
     it('sorts by Pickup, then reverses, then returns to the default order', async () => {
@@ -315,6 +327,7 @@ describe('Operator Routes List Page', () => {
 
       fireEvent.click(within(pickup()).getByRole('button'));
       expect(pickup()).toHaveAttribute('aria-sort', 'none');
+      expect(screen.getByRole('columnheader', { name: /placement/i })).toHaveAttribute('aria-sort', 'descending');
     });
 
     it.each(['Placement', 'Customer', 'Status'])('makes the %s header sortable', async (name) => {

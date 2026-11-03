@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
@@ -20,6 +20,7 @@ import PageHeader from '@/app/administrator/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
+import { Checkbox } from '@/app/components/ui/forms/Checkbox';
 import { Button } from '@/app/components/ui/core/Button';
 import { Tag } from '@/app/components/ui/core/Tag';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
@@ -120,6 +121,23 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
     return sortBy ? [...matching].sort(compareRoutesBy(sortBy, sortDirection, customersById)) : matching;
   }, [filteredRoutes, customersById, searchQuery, dateFrom, dateTo, needsAttention, propertyFilterActive, shownRouteIdSet, sortBy, sortDirection]);
 
+  // Selected Routes, by id. Anything that changes which Routes are shown starts the selection over, so it
+  // never holds a Route the administrator can't see; a Route that goes away (deleted) drops out below.
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
+  const shownScope = [statusFilter, searchQuery, dateFrom, dateTo, needsAttention, sortBy, sortDirection, propertyFilterActive, focusedRouteId].join('|');
+  useEffect(() => setSelectedIds(new Set()), [shownScope]);
+
+  const selectedCount = visibleRoutes.filter((route) => selectedIds.has(route.id)).length;
+  const allShownSelected = visibleRoutes.length > 0 && selectedCount === visibleRoutes.length;
+
+  function toggleSelected(routeId: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (!next.delete(routeId)) next.add(routeId);
+      return next;
+    });
+  }
+
   const today = localToday();
   const needsAttentionCount = useMemo(
     () => filteredRoutes.filter((route) => routeNeedsAttention(route, today)).length,
@@ -169,6 +187,25 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   const isEmpty = !loading && !error && statusFilter === 'all' && filteredRoutes.length === 0;
 
   const columns: DataColumn<Route>[] = [
+    {
+      key: 'select',
+      header: (
+        <Checkbox
+          aria-label={`Select all ${visibleRoutes.length} ${visibleRoutes.length === 1 ? 'route' : 'routes'} shown`}
+          checked={allShownSelected}
+          indeterminate={selectedCount > 0 && !allShownSelected}
+          onChange={() => setSelectedIds(allShownSelected ? new Set() : new Set(visibleRoutes.map((route) => route.id)))}
+        />
+      ),
+      width: 48,
+      render: (route) => (
+        <Checkbox
+          aria-label={`Select route ${route.routeCode || route.id.slice(0, 8)}`}
+          checked={selectedIds.has(route.id)}
+          onChange={() => toggleSelected(route.id)}
+        />
+      ),
+    },
     {
       key: 'routeCode',
       header: 'Route Code',
@@ -408,6 +445,17 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
           ? `Sorted by ${SORT_LABELS[sortBy]}, ${sortDirection === 'asc' ? 'ascending' : 'descending'}`
           : 'Sorted by Placement, latest first'}
       </p>
+
+      <div role="status">
+        {selectedCount > 0 && (
+          <div className={styles.selectionBar}>
+            <span>{selectedCount} selected</span>
+            <button type="button" className={styles.clearFiltersBtn} onClick={() => setSelectedIds(new Set())}>
+              Clear selection
+            </button>
+          </div>
+        )}
+      </div>
 
       {visibleRoutes.length === 0 ? (
         <div className={styles.emptyFiltered} role="status">

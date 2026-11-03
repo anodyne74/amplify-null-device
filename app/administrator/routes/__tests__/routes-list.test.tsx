@@ -438,6 +438,99 @@ describe('Operator Routes List Page', () => {
     });
   });
 
+  describe('selecting Routes', () => {
+    const live = (routes: Route[]) =>
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes, loading: false, error: null });
+    const rowBox = (code: string) => screen.getByRole('checkbox', { name: `Select route ${code}` }) as HTMLInputElement;
+    const headerBox = (n: number) => screen.getByRole('checkbox', { name: `Select all ${n} ${n === 1 ? 'route' : 'routes'} shown` }) as HTMLInputElement;
+
+    beforeEach(() => live(mockRoutes));
+
+    it('shows no selection bar until a Route is selected, then counts and clears', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+      expect(screen.queryByText(/selected$/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Clear selection' })).not.toBeInTheDocument();
+
+      fireEvent.click(rowBox('W19-26-001'));
+      expect(screen.getByText('1 selected')).toBeInTheDocument();
+      expect(screen.getByText('1 selected').closest('[role="status"]')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
+      expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+      expect(rowBox('W19-26-001').checked).toBe(false);
+    });
+
+    it('selects exactly the shown rows from the header, and shows a partial selection as indeterminate', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+
+      fireEvent.click(rowBox('W19-26-001'));
+      expect(headerBox(2).indeterminate).toBe(true);
+      expect(headerBox(2).checked).toBe(false);
+
+      fireEvent.click(headerBox(2));
+      expect(screen.getByText('2 selected')).toBeInTheDocument();
+      expect(headerBox(2).checked).toBe(true);
+      expect(headerBox(2).indeterminate).toBe(false);
+
+      fireEvent.click(headerBox(2));
+      expect(screen.queryByText(/\d+ selected/)).not.toBeInTheDocument();
+    });
+
+    it('selects only the Routes left after a filter', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+
+      fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'Acme' } });
+      fireEvent.click(headerBox(1));
+
+      expect(screen.getByText('1 selected')).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('Search'), { target: { value: '' } });
+      expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+    });
+
+    it.each([
+      ['a status filter', () => fireEvent.click(screen.getByRole('radio', { name: 'Planned' }))],
+      ['a date range', () => fireEvent.change(screen.getByLabelText('Placement from'), { target: { value: '2020-01-01' } })],
+      ['Needs attention', () => fireEvent.click(screen.getByRole('button', { name: /Needs attention/ }))],
+      ['a sort', () => fireEvent.click(screen.getByRole('button', { name: /^Customer/ }))],
+    ])('clears the selection when %s changes', async (_name, change) => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+      fireEvent.click(rowBox('W19-26-001'));
+      expect(screen.getByText('1 selected')).toBeInTheDocument();
+
+      change();
+
+      expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+    });
+
+    it('does not open the Route when a checkbox is clicked, but still does for the rest of the row', async () => {
+      render(<RoutesPage />);
+      const row = (await screen.findByText('Acme Corp')).closest('tr') as HTMLElement;
+
+      fireEvent.click(rowBox('W19-26-001'));
+      expect(pushMock).not.toHaveBeenCalled();
+
+      fireEvent.click(row);
+      expect(pushMock).toHaveBeenCalledWith('/administrator/routes/detail?id=route-aaaa-1111');
+    });
+
+    it('drops a Route that goes away from the selection', async () => {
+      const { rerender } = render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+      fireEvent.click(rowBox('W19-26-001'));
+      fireEvent.click(rowBox('W19-26-002'));
+      expect(screen.getByText('2 selected')).toBeInTheDocument();
+
+      live([mockRoutes[1]]);
+      rerender(<RoutesPage />);
+
+      await waitFor(() => expect(screen.getByText('1 selected')).toBeInTheDocument());
+    });
+  });
+
   describe('row actions menu', () => {
     beforeEach(() => {
       (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });

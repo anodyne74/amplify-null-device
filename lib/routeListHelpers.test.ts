@@ -6,6 +6,7 @@ import {
   formatEstimatedDurationMinutes,
   formatRouteDuration,
   formatStopTotals,
+  routeNeedsAttention,
   summariseStopsByRoute,
 } from '@/lib/routeListHelpers';
 
@@ -179,6 +180,30 @@ describe('comparePlacementDateDesc', () => {
       comparePlacementDateDesc
     );
     expect(sorted.map((r) => r.id)).toEqual(['b', 'a']);
+  });
+});
+
+describe('routeNeedsAttention', () => {
+  const today = '2026-11-04';
+  const staffed = { assignedOperatorName: 'Pat Lee' };
+
+  it('includes a Route with no Operator, by name or email', () => {
+    expect(routeNeedsAttention(makeRoute({}), today)).toBe(true);
+    expect(routeNeedsAttention(makeRoute({ assignedOperatorEmail: 'pat@example.com', pickupDate: '2026-12-01' }), today)).toBe(false);
+  });
+
+  it('includes an assigned Route whose Pickup Date has passed and is not finished', () => {
+    expect(routeNeedsAttention(makeRoute({ ...staffed, pickupDate: '2026-11-03' }), today)).toBe(true);
+  });
+
+  it('leaves out an assigned Route picking up today or later, or with no Pickup Date', () => {
+    expect(routeNeedsAttention(makeRoute({ ...staffed, pickupDate: '2026-11-04' }), today)).toBe(false);
+    expect(routeNeedsAttention(makeRoute({ ...staffed, pickupDate: '2026-11-20' }), today)).toBe(false);
+    expect(routeNeedsAttention(makeRoute({ ...staffed }), today)).toBe(false);
+  });
+
+  it('never includes a finished Route, even unassigned and past its Pickup Date', () => {
+    expect(routeNeedsAttention(makeRoute({ status: 'completed', pickupDate: '2026-01-01' }), today)).toBe(false);
   });
 });
 

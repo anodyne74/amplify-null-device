@@ -187,6 +187,60 @@ describe('Operator Routes List Page', () => {
     expect(screen.queryByRole('columnheader', { name: 'Duration' })).not.toBeInTheDocument();
   });
 
+  describe('Needs attention filter', () => {
+    const staffed = { assignedOperatorName: 'Pat Lee' };
+    const routes: Route[] = [
+      { ...mockRoutes[0], id: 'unassigned', routeCode: 'W19-26-001', pickupDate: '2999-01-01' },
+      { ...mockRoutes[0], ...staffed, id: 'overdue', routeCode: 'W19-26-002', pickupDate: '2000-01-01' },
+      { ...mockRoutes[0], ...staffed, id: 'fine', routeCode: 'W19-26-003', pickupDate: '2999-01-01' },
+      { ...mockRoutes[0], ...staffed, id: 'no-pickup', routeCode: 'W19-26-004' },
+      { ...mockRoutes[0], id: 'done', routeCode: 'W19-26-005', status: 'completed', pickupDate: '2000-01-01' },
+    ];
+    const listed = () => within(screen.getByRole('table')).getAllByRole('link').map((link) => link.textContent).filter((t) => t?.startsWith('W'));
+
+    async function renderRoutes() {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes, loading: false, error: null });
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-003');
+    }
+
+    it('shows only unassigned and overdue Routes, leaving out finished ones and ones with no Pickup Date', async () => {
+      await renderRoutes();
+
+      fireEvent.click(screen.getByRole('button', { name: /needs attention/i }));
+
+      expect(listed().sort()).toEqual(['W19-26-001', 'W19-26-002']);
+    });
+
+    it('announces the result count like the other filters, and is pressed while on', async () => {
+      await renderRoutes();
+      const toggle = screen.getByRole('button', { name: /needs attention/i });
+
+      fireEvent.click(toggle);
+
+      expect(toggle).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByText(/showing 2 of 5 routes/i)).toBeInTheDocument();
+    });
+
+    it('combines with search and the status filter', async () => {
+      await renderRoutes();
+
+      fireEvent.click(screen.getByRole('button', { name: /needs attention/i }));
+      fireEvent.change(screen.getByLabelText(/^search$/i), { target: { value: '002' } });
+
+      expect(listed()).toEqual(['W19-26-002']);
+    });
+
+    it('turns off with Clear filters', async () => {
+      await renderRoutes();
+
+      fireEvent.click(screen.getByRole('button', { name: /needs attention/i }));
+      fireEvent.click(screen.getByRole('button', { name: /^clear filters$/i }));
+
+      expect(listed()).toHaveLength(5);
+    });
+  });
+
   describe('sorting by column header', () => {
     const dated: Route[] = [
       { ...mockRoutes[0], scheduledDate: '2026-05-08', pickupDate: '2026-05-30' },

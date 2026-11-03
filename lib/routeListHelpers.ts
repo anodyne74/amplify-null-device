@@ -1,6 +1,7 @@
 import type { Route, Stop } from '@/amplify/types';
 import { billedTime } from '@/lib/billedTime';
 import { getRouteDurationMinutes } from '@/lib/routeDetailHelpers';
+import { getRoutePhaseKey, ROUTE_PHASE_KEYS, type RoutePhaseInput } from '@/lib/signRunPhase';
 export { formatRouteDate } from '@/lib/routeDetailHelpers';
 
 export function formatRouteDuration(route: Route) {
@@ -53,6 +54,41 @@ export function comparePlacementDateDesc(a: Route, b: Route) {
     return aDate < bDate ? 1 : -1;
   }
   return compareRouteIdDesc(a, b);
+}
+
+export type RouteSortKey = 'placementDate' | 'pickupDate' | 'customer' | 'status';
+export type RouteSortDirection = 'asc' | 'desc';
+
+/** Orders Routes for a clicked column header. A Route with nothing to sort on (no date) goes last in
+ * either direction, so flipping the direction never buries the dated Routes. Ties fall back to the
+ * default order. Status follows the Sign Run flow (Load, Placement, ...), not the alphabet. */
+export function compareRoutesBy(
+  key: RouteSortKey,
+  direction: RouteSortDirection,
+  customersById: Record<string, string>
+) {
+  const sign = direction === 'asc' ? 1 : -1;
+  return (a: Route, b: Route) => {
+    let result = 0;
+    if (key === 'placementDate' || key === 'pickupDate') {
+      const field = key === 'placementDate' ? 'scheduledDate' : 'pickupDate';
+      const aDate = a[field] || '';
+      const bDate = b[field] || '';
+      if (aDate !== bDate) {
+        if (!aDate) return 1;
+        if (!bDate) return -1;
+        result = aDate < bDate ? -1 : 1;
+      }
+    } else if (key === 'customer') {
+      result = (customersById[a.customerId] || '').localeCompare(customersById[b.customerId] || '', undefined, {
+        sensitivity: 'base',
+      });
+    } else {
+      const phase = (route: Route) => ROUTE_PHASE_KEYS.indexOf(getRoutePhaseKey(route as unknown as RoutePhaseInput));
+      result = phase(a) - phase(b);
+    }
+    return result !== 0 ? result * sign : comparePlacementDateDesc(a, b);
+  };
 }
 
 export function formatEstimatedDurationMinutes(minutes?: number | null) {

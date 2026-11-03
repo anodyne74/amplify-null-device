@@ -189,6 +189,9 @@
 /* DataTable */
 .nd-table{width:100%;border-collapse:separate;border-spacing:0;font-size:var(--text-base)}
 .nd-table th{text-align:left;font-size:var(--text-xs);font-weight:var(--fw-semibold);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-subtle);padding:var(--space-4) var(--space-6);border-bottom:var(--border-hairline) solid var(--border-subtle);background:var(--surface-card);white-space:nowrap}
+.nd-table__sort{display:inline-flex;align-items:center;gap:var(--space-2);padding:0;border:none;background:none;box-shadow:none;cursor:pointer;font:inherit;color:inherit;text-transform:inherit;letter-spacing:inherit}
+.nd-table__sort:hover,.nd-table__sort:focus-visible{text-decoration:underline}
+.nd-table__sort span{font-size:.65rem;line-height:1;opacity:.75}
 .nd-table td{padding:var(--space-5) var(--space-6);border-bottom:var(--border-hairline) solid var(--border-subtle);color:var(--text-body);vertical-align:middle}
 .nd-table tbody tr:last-child td{border-bottom:none}
 .nd-table tbody tr{transition:background-color var(--dur-fast) var(--ease-standard)}

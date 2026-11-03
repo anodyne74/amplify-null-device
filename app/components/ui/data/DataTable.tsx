@@ -8,6 +8,8 @@ export interface DataColumn<T = any> {
   align?: 'left' | 'right' | 'center';
   width?: string | number;
   render?: (row: T) => React.ReactNode;
+  /** Makes the header a button that calls onSort with this key. Needs a string header for its label. */
+  sortKey?: string;
 }
 
 export interface DataTableProps<T = any> extends Omit<React.TableHTMLAttributes<HTMLTableElement>, 'children'> {
@@ -20,6 +22,10 @@ export interface DataTableProps<T = any> extends Omit<React.TableHTMLAttributes<
   /** Makes a click on the row (outside any link, button or form control in it) call this. The row is
    *  not focusable: put a real link in one cell as the keyboard and screen-reader route. */
   onRowClick?: (row: T) => void;
+  /** The active sort, from the caller; the table does not reorder rows itself. */
+  sortBy?: string | null;
+  sortDirection?: 'asc' | 'desc';
+  onSort?: (key: string) => void;
 }
 
 const INTERACTIVE = 'a, button, input, select, textarea, label, [role="button"], [role="menuitem"]';
@@ -31,6 +37,9 @@ export function DataTable<T extends { id?: string | number } = any>({
   wrapped = true,
   empty = 'Nothing here yet',
   onRowClick,
+  sortBy = null,
+  sortDirection = 'asc',
+  onSort,
   className = '',
   ...rest
 }: DataTableProps<T>) {
@@ -38,11 +47,26 @@ export function DataTable<T extends { id?: string | number } = any>({
     <table className={`nd-table ${hoverable ? 'nd-table--hoverable' : ''} ${className}`} {...rest}>
       <thead>
         <tr>
-          {columns.map((c) => (
-            <th key={c.key} style={{ textAlign: c.align || (c.numeric ? 'right' : 'left'), width: c.width }}>
-              {c.header}
-            </th>
-          ))}
+          {columns.map((c) => {
+            const sortable = Boolean(c.sortKey && onSort);
+            const active = sortable && sortBy === c.sortKey;
+            return (
+              <th
+                key={c.key}
+                aria-sort={sortable ? (active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}
+                style={{ textAlign: c.align || (c.numeric ? 'right' : 'left'), width: c.width }}
+              >
+                {sortable ? (
+                  <button type="button" className="nd-table__sort" onClick={() => onSort?.(c.sortKey as string)}>
+                    {c.header}
+                    <span aria-hidden="true">{active ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </button>
+                ) : (
+                  c.header
+                )}
+              </th>
+            );
+          })}
         </tr>
       </thead>
       <tbody>

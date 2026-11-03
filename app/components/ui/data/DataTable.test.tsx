@@ -51,3 +51,33 @@ describe('DataTable onRowClick', () => {
     expect(screen.getByRole('cell', { name: '1' }).closest('tr')).not.toHaveStyle({ cursor: 'pointer' });
   });
 });
+
+describe('DataTable sortable headers', () => {
+  const sortable: DataColumn<Row>[] = [
+    { key: 'name', header: 'Name', sortKey: 'name' },
+    { key: 'count', header: 'Count' },
+  ];
+  const rows = [{ id: 'a', name: 'A', count: 1, note: 'x' }];
+
+  it('makes a sortable header a button that reports its key, and leaves other headers plain', () => {
+    const onSort = jest.fn();
+    render(<DataTable columns={sortable} rows={rows} onSort={onSort} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /name/i }));
+
+    expect(onSort).toHaveBeenCalledWith('name');
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.getByRole('columnheader', { name: 'Count' })).not.toHaveAttribute('aria-sort');
+  });
+
+  it('exposes the active sort and its direction through aria-sort', () => {
+    const { rerender } = render(<DataTable columns={sortable} rows={rows} onSort={jest.fn()} sortBy="name" sortDirection="desc" />);
+    expect(screen.getByRole('columnheader', { name: /name/i })).toHaveAttribute('aria-sort', 'descending');
+
+    rerender(<DataTable columns={sortable} rows={rows} onSort={jest.fn()} sortBy="name" sortDirection="asc" />);
+    expect(screen.getByRole('columnheader', { name: /name/i })).toHaveAttribute('aria-sort', 'ascending');
+
+    rerender(<DataTable columns={sortable} rows={rows} onSort={jest.fn()} sortBy={null} />);
+    expect(screen.getByRole('columnheader', { name: /name/i })).toHaveAttribute('aria-sort', 'none');
+  });
+});

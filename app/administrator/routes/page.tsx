@@ -11,7 +11,7 @@ import AdminRowMenu from '@/app/components/AdminRowMenu';
 import { isAdmin } from '@/lib/amplify-config';
 import { useRoutesList, ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
 import { usePropertySearch } from '@/lib/usePropertySearch';
-import { formatRouteDate, formatStopTotals, summariseStopsByRoute } from '@/lib/routeListHelpers';
+import { formatRouteDate, formatStopTotals, routeNeedsAttention, summariseStopsByRoute } from '@/lib/routeListHelpers';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { routeFeedbackLabel } from '@/lib/routeFeedback';
@@ -64,7 +64,9 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  const hasRefinements = searchQuery.trim() !== '' || dateFrom !== '' || dateTo !== '';
+  const [needsAttention, setNeedsAttention] = useState(false);
+
+  const hasRefinements = searchQuery.trim() !== '' || dateFrom !== '' || dateTo !== '' || needsAttention;
 
   const propertySearch = usePropertySearch(filteredRoutes, customersById);
   const { filterActive: propertyFilterActive, shownRouteIds, focusedRouteId } = propertySearch;
@@ -76,9 +78,13 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   // composed with the status-filtered list.
   const visibleRoutes = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     return filteredRoutes.filter((route) => {
       if (propertyFilterActive && !shownRouteIdSet.has(route.id)) return false;
+
+      if (needsAttention && !routeNeedsAttention(route, today)) return false;
 
       if (query) {
         const customerName = customersById[route.customerId] || '';
@@ -97,7 +103,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
 
       return true;
     });
-  }, [filteredRoutes, customersById, searchQuery, dateFrom, dateTo, propertyFilterActive, shownRouteIdSet]);
+  }, [filteredRoutes, customersById, searchQuery, dateFrom, dateTo, needsAttention, propertyFilterActive, shownRouteIdSet]);
 
   const focusedRoute = focusedRouteId ? filteredRoutes.find((route) => route.id === focusedRouteId) : undefined;
   const focusedRouteLabel = focusedRoute ? focusedRoute.routeCode || focusedRoute.id.slice(0, 8) : null;
@@ -112,6 +118,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
     dateFrom || dateTo
       ? `Placement ${dateFrom ? `from ${formatRouteDate(dateFrom)}` : ''}${dateFrom && dateTo ? ' ' : ''}${dateTo ? `to ${formatRouteDate(dateTo)}` : ''}`
       : null,
+    needsAttention ? 'needs attention' : null,
     propertyFilterActive ? 'a property match' : null,
   ].filter((name): name is string => name !== null);
 
@@ -125,6 +132,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
     setSearchQuery('');
     setDateFrom('');
     setDateTo('');
+    setNeedsAttention(false);
   }
 
   // Only treat the unfiltered list as "empty" — when a status filter is active,
@@ -295,6 +303,9 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
             {formatStatusFilterLabel(status)}
           </Tag>
         ))}
+        <Tag selected={needsAttention} onClick={() => setNeedsAttention((on) => !on)}>
+          Needs attention
+        </Tag>
       </div>
 
       {visibleRoutes.length === 0 ? (

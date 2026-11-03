@@ -1,6 +1,7 @@
 import type { Route, Stop } from '@/amplify/types';
 import { billedTime } from '@/lib/billedTime';
 import { getRouteDurationMinutes } from '@/lib/routeDetailHelpers';
+import { getRoutePhaseKey, type RoutePhaseInput } from '@/lib/signRunPhase';
 export { formatRouteDate } from '@/lib/routeDetailHelpers';
 
 export function formatRouteDuration(route: Route) {
@@ -53,6 +54,17 @@ export function comparePlacementDateDesc(a: Route, b: Route) {
     return aDate < bDate ? 1 : -1;
   }
   return compareRouteIdDesc(a, b);
+}
+
+/** Whether an administrator has something to do about a Route: nobody is assigned as Operator, or its
+ * Pickup Date has passed and the Route isn't finished (judged by the same Route Phase the rest of the app
+ * uses). A finished Route never needs attention; a Route with no Pickup Date can't be overdue.
+ * `today` is a local YYYY-MM-DD, the same shape as `pickupDate`. */
+export function routeNeedsAttention(route: Route, today: string) {
+  if (getRoutePhaseKey(route as unknown as RoutePhaseInput) === 'completed') return false;
+  const unassigned = !route.assignedOperatorName && !route.assignedOperatorEmail;
+  const overdue = Boolean(route.pickupDate) && (route.pickupDate as string) < today;
+  return unassigned || overdue;
 }
 
 export function formatEstimatedDurationMinutes(minutes?: number | null) {

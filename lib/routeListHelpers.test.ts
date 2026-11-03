@@ -1,6 +1,7 @@
 import type { Route } from '@/amplify/types';
 import {
   compareRouteIdDesc,
+  comparePlacementDateDesc,
   formatEstimatedDurationMinutes,
   formatRouteDuration,
   formatStopTotals,
@@ -160,5 +161,22 @@ describe('formatStopTotals', () => {
 
   it('shows a dash when the Route has no Stops', () => {
     expect(formatStopTotals(undefined)).toBe('—');
+  });
+});
+
+describe('comparePlacementDateDesc', () => {
+  const route = (id: string, scheduledDate?: string, routeCode?: string) =>
+    makeRoute({ id, scheduledDate, routeCode });
+
+  it('puts the latest Placement Date first and Routes with none last', () => {
+    const sorted = [route('none'), route('may', '2026-05-08'), route('june', '2026-06-01')].sort(comparePlacementDateDesc);
+    expect(sorted.map((r) => r.id)).toEqual(['june', 'may', 'none']);
+  });
+
+  it('orders Routes on the same day by Route Code, latest first', () => {
+    const sorted = [route('a', '2026-05-08', 'W19-26-001'), route('b', '2026-05-08', 'W19-26-002')].sort(
+      comparePlacementDateDesc
+    );
+    expect(sorted.map((r) => r.id)).toEqual(['b', 'a']);
   });
 });

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { Route } from '@/amplify/types';
-import { compareRouteIdDesc } from '@/lib/routeListHelpers';
+import { comparePlacementDateDesc } from '@/lib/routeListHelpers';
 import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
 import { getRoutePhaseKey, ROUTE_PHASE_KEYS, type RoutePhaseKey } from '@/lib/signRunPhase';
 import { deleteRoute } from '@/lib/routes';
@@ -50,7 +50,7 @@ export function useRoutesList(canDeleteRoutes: boolean) {
   }, []);
 
   const routes = useMemo(
-    () => [...liveRoutes].filter((route) => !locallyDeletedIds.has(route.id)).sort(compareRouteIdDesc),
+    () => [...liveRoutes].filter((route) => !locallyDeletedIds.has(route.id)).sort(comparePlacementDateDesc),
     [liveRoutes, locallyDeletedIds]
   );
 

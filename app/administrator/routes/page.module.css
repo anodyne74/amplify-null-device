@@ -4,12 +4,16 @@
   gap: var(--space-6);
 }
 
+.toolbar {
+  margin-bottom: var(--space-4);
+}
+
 .searchFilterRow {
   display: flex;
   gap: var(--space-4);
   flex-wrap: wrap;
   align-items: flex-end;
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-3);
 }
 
 .searchField {
@@ -43,7 +47,6 @@
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
-  margin-bottom: var(--space-5);
 }
 
 .filterLabel {

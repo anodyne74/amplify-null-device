@@ -114,6 +114,10 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   }, [filteredRoutes, customersById, searchQuery, dateFrom, dateTo, needsAttention, propertyFilterActive, shownRouteIdSet, sortBy, sortDirection]);
 
   const today = localToday();
+  const needsAttentionCount = useMemo(
+    () => filteredRoutes.filter((route) => routeNeedsAttention(route, today)).length,
+    [filteredRoutes, today]
+  );
   const focusedRoute = focusedRouteId ? filteredRoutes.find((route) => route.id === focusedRouteId) : undefined;
   const focusedRouteLabel = focusedRoute ? focusedRoute.routeCode || focusedRoute.id.slice(0, 8) : null;
 
@@ -291,6 +295,19 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
               onChange={(event) => setDateTo(event.target.value)}
             />
           </Field>
+          <div className={styles.attentionControl}>
+            <Tag
+              className={styles.attentionTag}
+              selected={needsAttention}
+              onClick={() => setNeedsAttention((on) => !on)}
+              aria-describedby="routes-needs-attention-rule"
+            >
+              Needs attention · {needsAttentionCount}
+            </Tag>
+            <span id="routes-needs-attention-rule" className={styles.filterHint}>
+              {NEEDS_ATTENTION_RULE}
+            </span>
+          </div>
           <Button
             variant="ghost"
             aria-expanded={findPropertyOpen}
@@ -306,23 +323,20 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
           )}
         </div>
 
-        <div className={styles.filterRow} role="group" aria-labelledby="routes-status-label">
+        <div className={styles.filterRow} role="radiogroup" aria-labelledby="routes-status-label">
           <span id="routes-status-label" className={styles.filterLabel}>Status</span>
           {ROUTE_STATUS_FILTERS.map((status) => (
-            <Tag key={status} selected={statusFilter === status} onClick={() => setStatusFilter(status)}>
+            <Tag
+              key={status}
+              role="radio"
+              aria-checked={statusFilter === status}
+              aria-pressed={undefined}
+              selected={statusFilter === status}
+              onClick={() => setStatusFilter(status)}
+            >
               {formatStatusFilterLabel(status)}
             </Tag>
           ))}
-          <Tag
-            selected={needsAttention}
-            onClick={() => setNeedsAttention((on) => !on)}
-            aria-describedby="routes-needs-attention-rule"
-          >
-            Needs attention
-          </Tag>
-          <span id="routes-needs-attention-rule" className={styles.filterHint}>
-            {NEEDS_ATTENTION_RULE}
-          </span>
         </div>
       </div>
 

@@ -244,6 +244,14 @@ describe('Operator Routes List Page', () => {
       expect(listed().sort()).toEqual(['W19-26-001', 'W19-26-002']);
     });
 
+    it('sits outside the Status group, with a count of Routes that need attention', async () => {
+      await renderRoutes();
+
+      const toggle = screen.getByRole('button', { name: /needs attention/i });
+      expect(toggle).toHaveTextContent('Needs attention · 2');
+      expect(within(screen.getByRole('radiogroup', { name: 'Status' })).queryByText(/needs attention/i)).not.toBeInTheDocument();
+    });
+
     it('announces the result count like the other filters, and is pressed while on', async () => {
       await renderRoutes();
       const toggle = screen.getByRole('button', { name: /needs attention/i });
@@ -486,12 +494,12 @@ describe('Operator Routes List Page', () => {
     render(<RoutesPage />);
     await screen.findByText('W19-26-001');
 
-    expect(screen.getByRole('button', { name: /^all$/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('radio', { name: /^all$/i })).toHaveAttribute('aria-checked', 'true');
 
-    fireEvent.click(screen.getByRole('button', { name: /^signs placed$/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /^signs placed$/i }));
 
-    expect(screen.getByRole('button', { name: /^signs placed$/i })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: /^all$/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('radio', { name: /^signs placed$/i })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: /^all$/i })).toHaveAttribute('aria-checked', 'false');
   });
 
   it('keeps the status filter visible when a filtered status has no routes', async () => {
@@ -503,11 +511,11 @@ describe('Operator Routes List Page', () => {
       expect(screen.getByText('W19-26-001')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /^signs picked up$/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /^signs picked up$/i }));
 
     expect(screen.getByText(/no routes found/i)).toBeInTheDocument();
     // The filter row stays so the user can switch back.
-    expect(screen.getByRole('button', { name: /^all$/i })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^all$/i })).toBeInTheDocument();
     // The full-page empty CTA is reserved for a truly empty route list.
     expect(screen.queryByRole('link', { name: /create your first route/i })).not.toBeInTheDocument();
   });
@@ -587,7 +595,7 @@ describe('Operator Routes List Page', () => {
     it('names the active filters when nothing matches, and Clear filters restores the list', async () => {
       await renderWithRoutes();
 
-      fireEvent.click(screen.getByRole('button', { name: 'Planned' }));
+      fireEvent.click(screen.getByRole('radio', { name: 'Planned' }));
       fireEvent.change(screen.getByLabelText(/placement from/i), { target: { value: '2024-03-02' } });
 
       const empty = screen.getByText(/no routes found for/i);
@@ -599,7 +607,7 @@ describe('Operator Routes List Page', () => {
       expect(screen.getByText('W19-26-001')).toBeInTheDocument();
       expect(screen.getByText('W19-26-002')).toBeInTheDocument();
       expect(screen.getByLabelText(/placement from/i)).toHaveValue('');
-      expect(screen.getByRole('button', { name: 'Planned' })).toHaveAttribute('aria-pressed', 'false');
+      expect(screen.getByRole('radio', { name: 'Planned' })).toHaveAttribute('aria-checked', 'false');
     });
 
     it('filters by To date only', async () => {
@@ -638,7 +646,7 @@ describe('Operator Routes List Page', () => {
       expect(screen.getByText('W19-26-002')).toBeInTheDocument();
 
       // Status filter narrows to the signs_placed route only.
-      fireEvent.click(screen.getByRole('button', { name: /^signs placed$/i }));
+      fireEvent.click(screen.getByRole('radio', { name: /^signs placed$/i }));
 
       expect(screen.queryByText('W19-26-001')).not.toBeInTheDocument();
       expect(screen.getByText('W19-26-002')).toBeInTheDocument();
@@ -659,7 +667,7 @@ describe('Operator Routes List Page', () => {
       expect(within(toolbar).getByLabelText(/^search$/i)).toBeInTheDocument();
       expect(within(toolbar).getByLabelText(/placement from/i)).toBeInTheDocument();
       expect(within(toolbar).getByLabelText(/placement to/i)).toBeInTheDocument();
-      expect(within(toolbar).getByRole('group', { name: 'Status' })).toBeInTheDocument();
+      expect(within(toolbar).getByRole('radiogroup', { name: 'Status' })).toBeInTheDocument();
       expect(within(toolbar).getByRole('button', { name: /find a property/i })).toBeInTheDocument();
     });
 
@@ -792,7 +800,7 @@ describe('Operator Routes List Page', () => {
       expect(table().getByText('W19-26-001')).toBeInTheDocument();
       expect(table().getByText('W19-26-002')).toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole('button', { name: /^signs placed$/i }));
+      fireEvent.click(screen.getByRole('radio', { name: /^signs placed$/i }));
 
       expect(table().queryByText('W19-26-001')).not.toBeInTheDocument();
       expect(table().getByText('W19-26-002')).toBeInTheDocument();

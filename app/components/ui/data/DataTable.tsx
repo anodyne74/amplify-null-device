@@ -17,7 +17,12 @@ export interface DataTableProps<T = any> extends Omit<React.TableHTMLAttributes<
   /** Wraps in a bordered card shell. Set false inside a padded={false} Card. */
   wrapped?: boolean;
   empty?: React.ReactNode;
+  /** Makes a click on the row (outside any link, button or form control in it) call this. The row is
+   *  not focusable: put a real link in one cell as the keyboard and screen-reader route. */
+  onRowClick?: (row: T) => void;
 }
+
+const INTERACTIVE = 'a, button, input, select, textarea, label, [role="button"], [role="menuitem"]';
 
 export function DataTable<T extends { id?: string | number } = any>({
   columns = [],
@@ -25,6 +30,7 @@ export function DataTable<T extends { id?: string | number } = any>({
   hoverable = true,
   wrapped = true,
   empty = 'Nothing here yet',
+  onRowClick,
   className = '',
   ...rest
 }: DataTableProps<T>) {
@@ -48,7 +54,14 @@ export function DataTable<T extends { id?: string | number } = any>({
           </tr>
         )}
         {rows.map((r, i) => (
-          <tr key={r.id ?? i}>
+          <tr
+            key={r.id ?? i}
+            style={onRowClick ? { cursor: 'pointer' } : undefined}
+            onClick={onRowClick ? (event) => {
+              if ((event.target as HTMLElement).closest(INTERACTIVE)) return;
+              onRowClick(r);
+            } : undefined}
+          >
             {columns.map((c) => (
               <td key={c.key} className={c.numeric ? 'nd-table__num' : ''} style={{ textAlign: c.align || (c.numeric ? 'right' : 'left') }}>
                 {c.render ? c.render(r) : (r as any)[c.key]}

@@ -230,3 +230,14 @@
   font-size: var(--text-sm);
   color: var(--text-subtle);
 }
+
+.emptyFiltered {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.emptyFiltered .resultCount {
+  margin: 0;
+}

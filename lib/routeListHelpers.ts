@@ -42,6 +42,19 @@ export function compareRouteIdDesc(a: Route, b: Route) {
   return bId.localeCompare(aId, undefined, { numeric: true, sensitivity: 'base' });
 }
 
+/** The administrator Routes list's default order: latest Placement Date first, Routes with no
+ * Placement Date last, ties by Route Code as before. */
+export function comparePlacementDateDesc(a: Route, b: Route) {
+  const aDate = a.scheduledDate || '';
+  const bDate = b.scheduledDate || '';
+  if (aDate !== bDate) {
+    if (!aDate) return 1;
+    if (!bDate) return -1;
+    return aDate < bDate ? 1 : -1;
+  }
+  return compareRouteIdDesc(a, b);
+}
+
 export function formatEstimatedDurationMinutes(minutes?: number | null) {
   if (!minutes) return 'N/A';
   const hours = Math.floor(minutes / 60);

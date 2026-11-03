@@ -80,4 +80,30 @@ describe('DataTable sortable headers', () => {
     rerender(<DataTable columns={sortable} rows={rows} onSort={jest.fn()} sortBy={null} />);
     expect(screen.getByRole('columnheader', { name: /name/i })).toHaveAttribute('aria-sort', 'none');
   });
+
+  it('shows the default order on its column while no sort is chosen, and drops it once one is', () => {
+    const two: DataColumn<Row>[] = [
+      { key: 'name', header: 'Name', sortKey: 'name' },
+      { key: 'count', header: 'Count', sortKey: 'count' },
+    ];
+    const { rerender } = render(
+      <DataTable columns={two} rows={rows} onSort={jest.fn()} defaultSort={{ key: 'count', direction: 'desc' }} />
+    );
+    expect(screen.getByRole('columnheader', { name: /count/i })).toHaveAttribute('aria-sort', 'descending');
+    expect(screen.getByRole('columnheader', { name: /name/i })).toHaveAttribute('aria-sort', 'none');
+
+    rerender(
+      <DataTable columns={two} rows={rows} onSort={jest.fn()} sortBy="name" sortDirection="asc" defaultSort={{ key: 'count', direction: 'desc' }} />
+    );
+    expect(screen.getByRole('columnheader', { name: /name/i })).toHaveAttribute('aria-sort', 'ascending');
+    expect(screen.getByRole('columnheader', { name: /count/i })).toHaveAttribute('aria-sort', 'none');
+  });
+
+  it('draws the sort direction with an icon, not a text glyph', () => {
+    render(<DataTable columns={sortable} rows={rows} onSort={jest.fn()} sortBy="name" sortDirection="asc" />);
+
+    const header = screen.getByRole('columnheader', { name: /name/i });
+    expect(header.querySelector('[data-icon="arrow-up"]')).not.toBeNull();
+    expect(header.textContent).not.toMatch(/[▲▼↕]/);
+  });
 });

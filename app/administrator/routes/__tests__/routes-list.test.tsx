@@ -187,6 +187,62 @@ describe('Operator Routes List Page', () => {
     expect(screen.queryByRole('columnheader', { name: 'Duration' })).not.toBeInTheDocument();
   });
 
+  describe('sorting by column header', () => {
+    const dated: Route[] = [
+      { ...mockRoutes[0], scheduledDate: '2026-05-08', pickupDate: '2026-05-30' },
+      { ...mockRoutes[1], scheduledDate: '2026-05-15', pickupDate: '2026-05-20' },
+    ];
+    const codes = () => screen.getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('link')[0].textContent);
+
+    async function renderDated() {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: dated, loading: false, error: null });
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+    }
+
+    it('starts in the default order with no header marked as sorted', async () => {
+      await renderDated();
+
+      expect(codes()).toEqual(['W19-26-002', 'W19-26-001']);
+      expect(screen.getAllByRole('columnheader').filter((th) => th.getAttribute('aria-sort') !== null && th.getAttribute('aria-sort') !== 'none')).toHaveLength(0);
+    });
+
+    it('sorts by Pickup, then reverses, then returns to the default order', async () => {
+      await renderDated();
+      const pickup = () => screen.getByRole('columnheader', { name: /pickup/i });
+
+      fireEvent.click(within(pickup()).getByRole('button'));
+      expect(codes()).toEqual(['W19-26-002', 'W19-26-001']);
+      expect(pickup()).toHaveAttribute('aria-sort', 'ascending');
+
+      fireEvent.click(within(pickup()).getByRole('button'));
+      expect(codes()).toEqual(['W19-26-001', 'W19-26-002']);
+      expect(pickup()).toHaveAttribute('aria-sort', 'descending');
+
+      fireEvent.click(within(pickup()).getByRole('button'));
+      expect(pickup()).toHaveAttribute('aria-sort', 'none');
+    });
+
+    it.each(['Placement', 'Customer', 'Status'])('makes the %s header sortable', async (name) => {
+      await renderDated();
+
+      const header = screen.getByRole('columnheader', { name: new RegExp(name, 'i') });
+      fireEvent.click(within(header).getByRole('button'));
+
+      expect(header).toHaveAttribute('aria-sort', 'ascending');
+    });
+
+    it('keeps the sort while the search narrows the list', async () => {
+      await renderDated();
+
+      fireEvent.click(within(screen.getByRole('columnheader', { name: /customer/i })).getByRole('button'));
+      fireEvent.change(screen.getByLabelText(/search/i), { target: { value: 'W19' } });
+
+      expect(codes()).toEqual(['W19-26-001', 'W19-26-002']);
+      expect(screen.getByRole('columnheader', { name: /customer/i })).toHaveAttribute('aria-sort', 'ascending');
+    });
+  });
+
   describe('row actions menu', () => {
     beforeEach(() => {
       (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });

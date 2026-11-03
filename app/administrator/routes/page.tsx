@@ -10,8 +10,9 @@ import ConfirmDialog from '@/app/components/ConfirmDialog';
 import AdminRowMenu from '@/app/components/AdminRowMenu';
 import { isAdmin } from '@/lib/amplify-config';
 import { useRoutesList, ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
+import { useAdminTableSort } from '@/app/components/AdminDataTable';
 import { usePropertySearch } from '@/lib/usePropertySearch';
-import { formatRouteDate, formatStopTotals, summariseStopsByRoute } from '@/lib/routeListHelpers';
+import { compareRoutesBy, formatRouteDate, formatStopTotals, summariseStopsByRoute, type RouteSortKey } from '@/lib/routeListHelpers';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { routeFeedbackLabel } from '@/lib/routeFeedback';
@@ -67,6 +68,9 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   // Find a property stays out of the way until wanted; a live property match keeps its note below.
   const [findPropertyOpen, setFindPropertyOpen] = useState(false);
 
+  // null keeps the hook's default order (latest Placement Date first).
+  const { sortBy, sortDirection, toggleSort } = useAdminTableSort<RouteSortKey>();
+
   const hasRefinements = searchQuery.trim() !== '' || dateFrom !== '' || dateTo !== '';
 
   const propertySearch = usePropertySearch(filteredRoutes, customersById);
@@ -80,7 +84,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   const visibleRoutes = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    return filteredRoutes.filter((route) => {
+    const matching = filteredRoutes.filter((route) => {
       if (propertyFilterActive && !shownRouteIdSet.has(route.id)) return false;
 
       if (query) {
@@ -100,7 +104,9 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
 
       return true;
     });
-  }, [filteredRoutes, customersById, searchQuery, dateFrom, dateTo, propertyFilterActive, shownRouteIdSet]);
+
+    return sortBy ? [...matching].sort(compareRoutesBy(sortBy, sortDirection, customersById)) : matching;
+  }, [filteredRoutes, customersById, searchQuery, dateFrom, dateTo, propertyFilterActive, shownRouteIdSet, sortBy, sortDirection]);
 
   const focusedRoute = focusedRouteId ? filteredRoutes.find((route) => route.id === focusedRouteId) : undefined;
   const focusedRouteLabel = focusedRoute ? focusedRoute.routeCode || focusedRoute.id.slice(0, 8) : null;
@@ -158,11 +164,13 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
     {
       key: 'customer',
       header: 'Customer',
+      sortKey: 'customer',
       render: (route) => customersById[route.customerId] || 'Unknown customer',
     },
     {
       key: 'status',
       header: 'Status',
+      sortKey: 'status',
       render: (route) => (
         <div className={styles.statusCell}>
           <RouteStatusPill route={route} />
@@ -174,8 +182,8 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
         </div>
       ),
     },
-    { key: 'placementDate', header: 'Placement', render: (route) => formatRouteDate(route.scheduledDate) },
-    { key: 'pickupDate', header: 'Pickup', render: (route) => formatRouteDate(route.pickupDate) },
+    { key: 'placementDate', header: 'Placement', sortKey: 'placementDate', render: (route) => formatRouteDate(route.scheduledDate) },
+    { key: 'pickupDate', header: 'Pickup', sortKey: 'pickupDate', render: (route) => formatRouteDate(route.pickupDate) },
     {
       key: 'stopTotals',
       header: 'Stops and signs',
@@ -332,6 +340,9 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
               columns={columns}
               rows={visibleRoutes}
               wrapped={false}
+              sortBy={sortBy}
+              sortDirection={sortDirection}
+              onSort={(key) => toggleSort(key as RouteSortKey)}
               onRowClick={(route) => router.push(routeDetailHref(route))}
             />
           </div>

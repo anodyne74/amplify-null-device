@@ -2,6 +2,7 @@ import type { Route } from '@/amplify/types';
 import {
   compareRouteIdDesc,
   comparePlacementDateDesc,
+  compareRoutesBy,
   formatEstimatedDurationMinutes,
   formatRouteDuration,
   formatStopTotals,
@@ -178,5 +179,32 @@ describe('comparePlacementDateDesc', () => {
       comparePlacementDateDesc
     );
     expect(sorted.map((r) => r.id)).toEqual(['b', 'a']);
+  });
+});
+
+describe('compareRoutesBy', () => {
+  const customers = { c1: 'Acme', c2: 'globex' };
+  const sorted = (routes: Route[], key: Parameters<typeof compareRoutesBy>[0], direction: 'asc' | 'desc') =>
+    [...routes].sort(compareRoutesBy(key, direction, customers)).map((route) => route.id);
+
+  const early = makeRoute({ id: 'early', scheduledDate: '2026-05-01', pickupDate: '2026-05-20', customerId: 'c2' });
+  const late = makeRoute({ id: 'late', scheduledDate: '2026-05-09', pickupDate: '2026-05-30', customerId: 'c1' });
+  const undated = makeRoute({ id: 'undated', routeCode: 'W01-26-001', scheduledDate: undefined, pickupDate: undefined, customerId: 'c1' });
+
+  it.each(['placementDate', 'pickupDate'] as const)('sorts %s both ways, with undated Routes last either way', (key) => {
+    expect(sorted([undated, late, early], key, 'asc')).toEqual(['early', 'late', 'undated']);
+    expect(sorted([undated, early, late], key, 'desc')).toEqual(['late', 'early', 'undated']);
+  });
+
+  it('sorts by Customer name ignoring case, both ways', () => {
+    expect(sorted([early, late], 'customer', 'asc')).toEqual(['late', 'early']);
+    expect(sorted([early, late], 'customer', 'desc')).toEqual(['early', 'late']);
+  });
+
+  it('sorts by Status in Sign Run flow order, both ways', () => {
+    const planned = makeRoute({ id: 'planned', status: 'planned' });
+    const placed = makeRoute({ id: 'placed', status: 'signs_placed' });
+    expect(sorted([placed, planned], 'status', 'asc')).toEqual(['planned', 'placed']);
+    expect(sorted([planned, placed], 'status', 'desc')).toEqual(['placed', 'planned']);
   });
 });

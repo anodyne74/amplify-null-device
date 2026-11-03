@@ -5,15 +5,22 @@ export interface CheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputE
   label?: React.ReactNode;
   /** Secondary line under the label. */
   description?: React.ReactNode;
+  /** Some, not all, of a group are on. Shown as a dash; the input reports `mixed` to assistive technology. */
+  indeterminate?: boolean;
 }
 
-export function Checkbox({ checked, defaultChecked, onChange, label, description, disabled = false, className = '', ...rest }: CheckboxProps) {
+export function Checkbox({ checked, defaultChecked, onChange, label, description, indeterminate = false, disabled = false, className = '', ...rest }: CheckboxProps) {
   const [inner, setInner] = React.useState(!!defaultChecked);
   const on = checked !== undefined ? checked : inner;
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (inputRef.current) inputRef.current.indeterminate = indeterminate;
+  }, [indeterminate]);
 
   return (
     <label className={`nd-choice ${disabled ? 'nd-choice--disabled' : ''} ${className}`}>
       <input
+        ref={inputRef}
         type="checkbox"
         checked={on}
         disabled={disabled}
@@ -23,8 +30,8 @@ export function Checkbox({ checked, defaultChecked, onChange, label, description
         }}
         {...rest}
       />
-      <span className={`nd-choice__box nd-choice__box--check ${on ? 'nd-choice__box--on' : ''}`}>
-        <Icon name="check" size={13} />
+      <span className={`nd-choice__box nd-choice__box--check ${on || indeterminate ? 'nd-choice__box--on' : ''}`}>
+        <Icon name={indeterminate && !on ? 'minus' : 'check'} size={13} />
       </span>
       {(label || description) && (
         <span className="nd-choice__text">

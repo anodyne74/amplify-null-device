@@ -257,6 +257,56 @@ describe('Operator Routes List Page', () => {
     });
   });
 
+  describe('applied filters', () => {
+    beforeEach(() => {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+    });
+
+    it('shows nothing until a filter is on', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+
+      expect(screen.queryByRole('group', { name: /applied filters/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /clear filters/i })).not.toBeInTheDocument();
+    });
+
+    it('lists each filter that is on as a removable tag, and removes just that one', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+
+      fireEvent.change(screen.getByLabelText(/^search$/i), { target: { value: 'acme' } });
+      fireEvent.click(screen.getByRole('radio', { name: 'Planned' }));
+      const applied = within(screen.getByRole('group', { name: /applied filters/i }));
+      expect(applied.getByText('Search: "acme"')).toBeInTheDocument();
+      expect(applied.getByText('Status: Planned')).toBeInTheDocument();
+
+      fireEvent.click(applied.getByRole('button', { name: 'Remove filter Search: "acme"' }));
+
+      expect(screen.getByLabelText(/^search$/i)).toHaveValue('');
+      expect(screen.getByRole('radio', { name: 'Planned' })).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('has one Clear filters that clears search, dates, Needs attention, Status and the property match together', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+      fireEvent.click(screen.getByRole('button', { name: /find a property/i }));
+
+      fireEvent.change(screen.getByLabelText(/^search$/i), { target: { value: 'w19' } });
+      fireEvent.change(screen.getByLabelText(/placement from/i), { target: { value: '2024-01-01' } });
+      fireEvent.click(screen.getByRole('button', { name: /needs attention/i }));
+      fireEvent.click(screen.getByRole('radio', { name: 'Planned' }));
+      fireEvent.change(screen.getByLabelText(/property address, street, or suburb/i), { target: { value: 'ryedale' } });
+
+      fireEvent.click(screen.getByRole('button', { name: /^clear filters$/i }));
+
+      expect(screen.getByLabelText(/^search$/i)).toHaveValue('');
+      expect(screen.getByLabelText(/placement from/i)).toHaveValue('');
+      expect(screen.getByRole('button', { name: /needs attention/i })).toHaveAttribute('aria-pressed', 'false');
+      expect(screen.getByRole('radio', { name: /^all$/i })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.queryByRole('group', { name: /applied filters/i })).not.toBeInTheDocument();
+    });
+  });
+
   describe('Needs attention filter', () => {
     const staffed = { assignedOperatorName: 'Pat Lee' };
     const routes: Route[] = [
@@ -650,10 +700,10 @@ describe('Operator Routes List Page', () => {
       fireEvent.change(screen.getByLabelText(/placement from/i), { target: { value: '2024-03-02' } });
 
       const empty = screen.getByText(/no routes found for/i);
-      expect(empty).toHaveTextContent('status planned');
+      expect(empty).toHaveTextContent('Status: Planned');
       expect(empty).toHaveTextContent('Placement from Mar 2, 2024');
 
-      fireEvent.click(screen.getAllByRole('button', { name: /clear filters/i }).slice(-1)[0]);
+      fireEvent.click(screen.getByRole('button', { name: /^clear filters$/i }));
 
       expect(screen.getByText('W19-26-001')).toBeInTheDocument();
       expect(screen.getByText('W19-26-002')).toBeInTheDocument();
@@ -748,8 +798,10 @@ describe('Operator Routes List Page', () => {
       fireEvent.click(toggle);
 
       expect(screen.getByText(/showing 1 of 2 routes with a property match/i)).toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: /show all routes/i }));
+      expect(toggle).toHaveTextContent('Find a property · filtering');
+      fireEvent.click(screen.getByRole('button', { name: /remove filter property match/i }));
       expect(within(screen.getByRole('table')).getByText('W19-26-002')).toBeInTheDocument();
+      expect(toggle).toHaveTextContent(/^Find a property$/);
     });
   });
 
@@ -800,7 +852,7 @@ describe('Operator Routes List Page', () => {
       expect(screen.getByText(/no property matches/i)).toBeInTheDocument();
     });
 
-    it('isolates a single route when its chip is clicked, and restores it via Show all routes', async () => {
+    it('isolates a single route when its chip is clicked, and restores it by removing the Property match filter', async () => {
       await renderWithRoutes();
 
       // "14 Cliff Rd" is on both mock routes, so both stay visible after the search.
@@ -818,7 +870,7 @@ describe('Operator Routes List Page', () => {
       expect(table().getByText('W19-26-001')).toBeInTheDocument();
       expect(table().queryByText('W19-26-002')).not.toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole('button', { name: /show all routes/i }));
+      fireEvent.click(screen.getByRole('button', { name: /remove filter property match/i }));
 
       expect(table().getByText('W19-26-001')).toBeInTheDocument();
       expect(table().getByText('W19-26-002')).toBeInTheDocument();

@@ -132,27 +132,36 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   const hiddenForNoPlacementDate =
     dateFrom || dateTo ? filteredRoutes.filter((route) => !route.scheduledDate).length : 0;
 
-  const activeFilterNames = [
-    statusFilter !== 'all' ? `status ${formatStatusFilterLabel(statusFilter).toLowerCase()}` : null,
-    searchQuery.trim() ? `search "${searchQuery.trim()}"` : null,
-    dateFrom || dateTo
-      ? `Placement ${dateFrom ? `from ${formatRouteDate(dateFrom)}` : ''}${dateFrom && dateTo ? ' ' : ''}${dateTo ? `to ${formatRouteDate(dateTo)}` : ''}`
+  // Every filter that is on, with how to turn it off. Drives the removable tags, the empty-state
+  // message and the one Clear filters button.
+  const appliedFilters: { key: string; label: string; remove: () => void }[] = [
+    statusFilter !== 'all'
+      ? { key: 'status', label: `Status: ${formatStatusFilterLabel(statusFilter)}`, remove: () => setStatusFilter('all') }
       : null,
-    needsAttention ? 'needs attention' : null,
-    propertyFilterActive ? 'a property match' : null,
-  ].filter((name): name is string => name !== null);
+    searchQuery.trim()
+      ? { key: 'search', label: `Search: "${searchQuery.trim()}"`, remove: () => setSearchQuery('') }
+      : null,
+    dateFrom || dateTo
+      ? {
+          key: 'placement',
+          label: `Placement ${dateFrom ? `from ${formatRouteDate(dateFrom)}` : ''}${dateFrom && dateTo ? ' ' : ''}${dateTo ? `to ${formatRouteDate(dateTo)}` : ''}`,
+          remove: () => {
+            setDateFrom('');
+            setDateTo('');
+          },
+        }
+      : null,
+    needsAttention ? { key: 'attention', label: 'Needs attention', remove: () => setNeedsAttention(false) } : null,
+    propertyFilterActive ? { key: 'property', label: 'Property match', remove: propertySearch.clear } : null,
+  ].filter((filter): filter is { key: string; label: string; remove: () => void } => filter !== null);
 
   function clearAllFilters() {
-    clearRefinements();
-    setStatusFilter('all');
-    propertySearch.clear();
-  }
-
-  function clearRefinements() {
     setSearchQuery('');
     setDateFrom('');
     setDateTo('');
     setNeedsAttention(false);
+    setStatusFilter('all');
+    propertySearch.clear();
   }
 
   // Only treat the unfiltered list as "empty" — when a status filter is active,
@@ -325,13 +334,8 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
             aria-controls="routes-find-property"
             onClick={() => setFindPropertyOpen((open) => !open)}
           >
-            Find a property
+            Find a property{propertyFilterActive ? ' · filtering' : ''}
           </Button>
-          {hasRefinements && (
-            <button type="button" className={styles.clearFiltersBtn} onClick={clearRefinements}>
-              Clear filters
-            </button>
-          )}
         </div>
 
         <div className={styles.filterRow} role="radiogroup" aria-labelledby="routes-status-label">
@@ -351,6 +355,19 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
         </div>
       </div>
 
+      {appliedFilters.length > 0 && (
+        <div className={styles.appliedFilters} role="group" aria-label="Applied filters">
+          {appliedFilters.map((filter) => (
+            <Tag key={filter.key} onRemove={filter.remove} removeLabel={`Remove filter ${filter.label}`}>
+              {filter.label}
+            </Tag>
+          ))}
+          <button type="button" className={styles.clearFiltersBtn} onClick={clearAllFilters}>
+            Clear filters
+          </button>
+        </div>
+      )}
+
       {findPropertyOpen && (
         <div id="routes-find-property">
           <PropertySearchCard search={propertySearch} />
@@ -364,9 +381,6 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
               ? `Showing ${focusedRouteLabel} only`
               : `Showing ${visibleRoutes.length} of ${filteredRoutes.length} routes with a property match`}
           </p>
-          <button type="button" className={styles.clearFiltersBtn} onClick={propertySearch.clear}>
-            Show all routes
-          </button>
         </div>
       )}
 
@@ -398,13 +412,8 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       {visibleRoutes.length === 0 ? (
         <div className={styles.emptyFiltered} role="status">
           <p className={styles.resultCount}>
-            No routes found{activeFilterNames.length > 0 ? ` for ${activeFilterNames.join(', ')}` : ''}.
+            No routes found{appliedFilters.length > 0 ? ` for ${appliedFilters.map((filter) => filter.label).join(', ')}` : ''}.
           </p>
-          {activeFilterNames.length > 0 && (
-            <button type="button" className={styles.clearFiltersBtn} onClick={clearAllFilters}>
-              Clear filters
-            </button>
-          )}
         </div>
       ) : (
         <Card padded={false}>

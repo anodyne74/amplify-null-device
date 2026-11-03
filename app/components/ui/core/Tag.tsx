@@ -6,9 +6,11 @@ export interface TagProps extends React.HTMLAttributes<HTMLSpanElement> {
   selected?: boolean;
   /** Renders a remove affordance. */
   onRemove?: (e: React.MouseEvent) => void;
+  /** Accessible name of the remove button, e.g. "Remove search filter". */
+  removeLabel?: string;
 }
 
-export function Tag({ selected = false, onRemove, onClick, onKeyDown, children, className = '', ...rest }: TagProps) {
+export function Tag({ selected = false, onRemove, removeLabel = 'Remove', onClick, onKeyDown, children, className = '', ...rest }: TagProps) {
   const cls = ['nd-tag', selected ? 'nd-tag--selected' : '', onClick ? 'nd-tag--clickable' : '', className]
     .filter(Boolean)
     .join(' ');
@@ -41,7 +43,7 @@ export function Tag({ selected = false, onRemove, onClick, onKeyDown, children, 
             e.stopPropagation();
             onRemove(e);
           }}
-          aria-label="Remove"
+          aria-label={removeLabel}
         >
           <Icon name="x" size={13} />
         </button>

@@ -56,16 +56,31 @@ export function comparePlacementDateDesc(a: Route, b: Route) {
   return compareRouteIdDesc(a, b);
 }
 
-/** Whether an administrator has something to do about a Route: nobody is assigned as Operator, or its
- * Pickup Date has passed and the Route isn't finished (judged by the same Route Phase the rest of the app
- * uses). A finished Route never needs attention; a Route with no Pickup Date can't be overdue.
- * `today` is a local YYYY-MM-DD, the same shape as `pickupDate`. */
+/** Today as a local YYYY-MM-DD, the same shape as `pickupDate`. */
+export function localToday(now = new Date()) {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+/** A Route is overdue when its Pickup Date has passed and it isn't finished (by Route Phase, as the rest
+ * of the app judges it). A Route with no Pickup Date can't be overdue. */
+export function routePickupOverdue(route: Route, today: string) {
+  if (!route.pickupDate || route.pickupDate >= today) return false;
+  return getRoutePhaseKey(route as unknown as RoutePhaseInput) !== 'completed';
+}
+
+export function routeUnassigned(route: Route) {
+  return !route.assignedOperatorName && !route.assignedOperatorEmail;
+}
+
+/** Whether an administrator has something to do about a Route: nobody is assigned as Operator, or it is
+ * overdue. A finished Route never needs attention. `today` is a local YYYY-MM-DD. */
 export function routeNeedsAttention(route: Route, today: string) {
   if (getRoutePhaseKey(route as unknown as RoutePhaseInput) === 'completed') return false;
-  const unassigned = !route.assignedOperatorName && !route.assignedOperatorEmail;
-  const overdue = Boolean(route.pickupDate) && (route.pickupDate as string) < today;
-  return unassigned || overdue;
+  return routeUnassigned(route) || routePickupOverdue(route, today);
 }
+
+/** The rule behind Needs attention, in the words the Routes list shows beside it. */
+export const NEEDS_ATTENTION_RULE = 'No Operator assigned, or Pickup Date passed and Route not finished';
 
 export type RouteSortKey = 'placementDate' | 'pickupDate' | 'customer' | 'status';
 export type RouteSortDirection = 'asc' | 'desc';

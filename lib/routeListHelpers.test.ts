@@ -7,6 +7,8 @@ import {
   formatRouteDuration,
   formatStopTotals,
   routeNeedsAttention,
+  routePickupOverdue,
+  localToday,
   summariseStopsByRoute,
 } from '@/lib/routeListHelpers';
 
@@ -231,5 +233,20 @@ describe('compareRoutesBy', () => {
     const placed = makeRoute({ id: 'placed', status: 'signs_placed' });
     expect(sorted([placed, planned], 'status', 'asc')).toEqual(['planned', 'placed']);
     expect(sorted([planned, placed], 'status', 'desc')).toEqual(['placed', 'planned']);
+  });
+});
+
+describe('routePickupOverdue', () => {
+  it('is overdue only when the Pickup Date is before today and the Route is not finished', () => {
+    expect(routePickupOverdue(makeRoute({ pickupDate: '2026-11-03' }), '2026-11-04')).toBe(true);
+    expect(routePickupOverdue(makeRoute({ pickupDate: '2026-11-04' }), '2026-11-04')).toBe(false);
+    expect(routePickupOverdue(makeRoute({}), '2026-11-04')).toBe(false);
+    expect(routePickupOverdue(makeRoute({ status: 'completed', pickupDate: '2026-01-01' }), '2026-11-04')).toBe(false);
+  });
+});
+
+describe('localToday', () => {
+  it('formats the local date as YYYY-MM-DD', () => {
+    expect(localToday(new Date(2026, 10, 4, 23, 59))).toBe('2026-11-04');
   });
 });

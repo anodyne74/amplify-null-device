@@ -7,6 +7,7 @@ import { useAuthenticator } from '@aws-amplify/ui-react';
 import AsyncState from '@/app/components/AsyncState';
 import OperatorRoute from '@/app/components/OperatorRoute';
 import ConfirmDialog from '@/app/components/ConfirmDialog';
+import AdminRowMenu from '@/app/components/AdminRowMenu';
 import { isAdmin } from '@/lib/amplify-config';
 import { useRoutesList, ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
 import { usePropertySearch } from '@/lib/usePropertySearch';
@@ -183,34 +184,36 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       header: 'Operator',
       render: (route) => route.assignedOperatorName || route.assignedOperatorEmail || <span className={styles.unassigned}>Unassigned</span>,
     },
-    ...(canDeleteRoutes
-      ? [
-          {
-            key: 'action',
-            header: '',
-            width: 150,
-            render: (route: Route) => {
-              const routeLabel = route.routeCode || route.id.slice(0, 8);
-              return (
-                <div className={styles.actionsCell}>
-                  <a href={`/administrator/routes/edit?id=${route.id}`} className="nd-btn nd-btn--secondary nd-btn--sm">
-                    Edit
-                  </a>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    loading={deletingRouteId === route.id}
-                    onClick={() => requestDeleteRoute(route)}
-                    aria-label={`Delete route ${routeLabel}`}
-                  >
-                    {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
-                  </Button>
-                </div>
-              );
-            },
-          } satisfies DataColumn<Route>,
-        ]
-      : []),
+    {
+      key: 'action',
+      header: <span className={styles.visuallyHidden}>Actions</span>,
+      width: 110,
+      render: (route: Route) => {
+        const routeLabel = route.routeCode || route.id.slice(0, 8);
+        return (
+          <AdminRowMenu ariaLabel={`Actions for route ${routeLabel}`} align="end">
+            <Link
+              href={`/administrator/routes/edit?id=${route.id}`}
+              className="nd-btn nd-btn--ghost nd-btn--sm"
+              aria-label={`Edit route ${routeLabel}`}
+            >
+              Edit
+            </Link>
+            {canDeleteRoutes && (
+              <Button
+                size="sm"
+                variant="danger"
+                loading={deletingRouteId === route.id}
+                onClick={() => requestDeleteRoute(route)}
+                aria-label={`Delete route ${routeLabel}`}
+              >
+                {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
+              </Button>
+            )}
+          </AdminRowMenu>
+        );
+      },
+    },
   ];
 
   return (

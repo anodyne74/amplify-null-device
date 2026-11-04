@@ -323,6 +323,54 @@ describe('Operator Routes List Page', () => {
     });
   });
 
+  describe('Status radio group', () => {
+    beforeEach(() => {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+    });
+
+    it('is one tab stop, on the selected chip', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+
+      const radios = within(screen.getByRole('radiogroup', { name: 'Status' })).getAllByRole('radio');
+      expect(radios.filter((radio) => radio.tabIndex === 0).map((radio) => radio.textContent)).toEqual(['All']);
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Planned' }));
+      expect(radios.filter((radio) => radio.tabIndex === 0).map((radio) => radio.textContent)).toEqual(['Planned']);
+    });
+
+    it('moves and selects with the arrow keys, wrapping at the ends', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+      const radios = within(screen.getByRole('radiogroup', { name: 'Status' })).getAllByRole('radio');
+
+      fireEvent.keyDown(radios[0], { key: 'ArrowRight' });
+      expect(radios[1]).toHaveAttribute('aria-checked', 'true');
+      expect(radios[1]).toHaveFocus();
+
+      fireEvent.keyDown(radios[1], { key: 'ArrowLeft' });
+      expect(radios[0]).toHaveAttribute('aria-checked', 'true');
+
+      fireEvent.keyDown(radios[0], { key: 'ArrowLeft' });
+      expect(radios[radios.length - 1]).toHaveAttribute('aria-checked', 'true');
+      expect(radios[radios.length - 1]).toHaveFocus();
+
+      fireEvent.keyDown(radios[radios.length - 1], { key: 'ArrowDown' });
+      expect(radios[0]).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('jumps to the first and last chip with Home and End', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+      const radios = within(screen.getByRole('radiogroup', { name: 'Status' })).getAllByRole('radio');
+
+      fireEvent.keyDown(radios[0], { key: 'End' });
+      expect(radios[radios.length - 1]).toHaveAttribute('aria-checked', 'true');
+      fireEvent.keyDown(radios[radios.length - 1], { key: 'Home' });
+      expect(radios[0]).toHaveAttribute('aria-checked', 'true');
+    });
+  });
+
   describe('Needs attention filter', () => {
     const staffed = { assignedOperatorName: 'Pat Lee' };
     const routes: Route[] = [

@@ -506,8 +506,7 @@ describe('Operator Routes List Page', () => {
       ['a status filter', () => fireEvent.click(screen.getByRole('radio', { name: 'Planned' }))],
       ['a date range', () => fireEvent.change(screen.getByLabelText('Placement from'), { target: { value: '2020-01-01' } })],
       ['Needs attention', () => fireEvent.click(screen.getByRole('button', { name: /Needs attention/ }))],
-      ['a sort', () => fireEvent.click(screen.getByRole('button', { name: /^Customer/ }))],
-    ])('clears the selection when %s changes', async (_name, change) => {
+    ])('clears the selection when %s changes, and says so', async (_name, change) => {
       render(<RoutesPage />);
       await screen.findByText('W19-26-001');
       fireEvent.click(rowBox('W19-26-001'));
@@ -516,6 +515,34 @@ describe('Operator Routes List Page', () => {
       change();
 
       expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+      expect(screen.getByText('Selection cleared because the filters changed.')).toBeInTheDocument();
+
+      const remaining = screen.queryAllByRole('checkbox', { name: /^Select route/ });
+      if (remaining.length > 0) {
+        fireEvent.click(remaining[0]);
+        expect(screen.queryByText('Selection cleared because the filters changed.')).not.toBeInTheDocument();
+      }
+    });
+
+    it('keeps the selection when the list is sorted', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+      fireEvent.click(rowBox('W19-26-001'));
+
+      fireEvent.click(screen.getByRole('button', { name: /^Customer/ }));
+
+      expect(screen.getByText('1 selected')).toBeInTheDocument();
+      expect(rowBox('W19-26-001').checked).toBe(true);
+      expect(screen.queryByText('Selection cleared because the filters changed.')).not.toBeInTheDocument();
+    });
+
+    it('says nothing when a filter changes with nothing selected', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Planned' }));
+
+      expect(screen.queryByText('Selection cleared because the filters changed.')).not.toBeInTheDocument();
     });
 
     it('does not open the Route when a checkbox is clicked, but still does for the rest of the row', async () => {

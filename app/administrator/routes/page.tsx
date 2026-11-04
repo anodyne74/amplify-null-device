@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
@@ -124,9 +124,19 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
 
   // Selected Routes, by id. Anything that changes which Routes are shown starts the selection over, so it
   // never holds a Route the administrator can't see; a Route that goes away (deleted) drops out below.
+  // Sorting only reorders the same Routes, so it is not part of the scope.
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
-  const shownScope = [statusFilter, searchQuery, dateFrom, dateTo, needsAttention, sortBy, sortDirection, propertyFilterActive, focusedRouteId].join('|');
-  useEffect(() => setSelectedIds(new Set()), [shownScope]);
+  const [selectionReset, setSelectionReset] = useState(false);
+  const selectedSize = useRef(0);
+  const shownScope = [statusFilter, searchQuery, dateFrom, dateTo, needsAttention, propertyFilterActive, focusedRouteId].join('|');
+  useEffect(() => {
+    selectedSize.current = selectedIds.size;
+    if (selectedIds.size > 0) setSelectionReset(false);
+  }, [selectedIds]);
+  useEffect(() => {
+    if (selectedSize.current > 0) setSelectionReset(true);
+    setSelectedIds(new Set());
+  }, [shownScope]);
 
   const [assignOpen, setAssignOpen] = useState(false);
   const selectedCount = visibleRoutes.filter((route) => selectedIds.has(route.id)).length;
@@ -449,6 +459,9 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       </p>
 
       <div role="status">
+        {selectedCount === 0 && selectionReset && (
+          <p className={styles.resultCount}>Selection cleared because the filters changed.</p>
+        )}
         {selectedCount > 0 && (
           <div className={styles.selectionBar}>
             <span>{selectedCount} selected</span>

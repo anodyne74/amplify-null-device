@@ -33,8 +33,12 @@ const DONE_MARKER: Record<ExecutionPhase, string> = { placement: 'PLACEMENT_DONE
 const COULDNT_COLLECT_MARKER = 'PICKUP_SKIPPED';
 // Never written any more, and never was in practice; still stripped from notes and read as nothing.
 const RETIRED_MARKERS = ['PLACEMENT_SKIPPED'];
+// Written when a Placement is undone. Reads as nothing (the Stop is awaiting again), but it is a
+// marker, so a Stop whose only settlement was undone doesn't fall back to the legacy reading
+// below: an operator can set Stop fields but not clear them, so the departure time stays.
+const REOPENED_MARKERS = ['PLACEMENT_REOPENED'];
 
-const ALL_MARKERS = [...Object.values(DONE_MARKER), COULDNT_COLLECT_MARKER, ...RETIRED_MARKERS];
+const ALL_MARKERS = [...Object.values(DONE_MARKER), COULDNT_COLLECT_MARKER, ...RETIRED_MARKERS, ...REOPENED_MARKERS];
 
 const PENDING: PhaseProgress = { state: 'pending', at: null, reason: null };
 const LEGACY_DONE: PhaseProgress = { state: 'done', at: null, reason: null };
@@ -98,10 +102,17 @@ export function settleStopNotes(
   const [marker, other] = action === 'complete' ? [done, COULDNT_COLLECT_MARKER] : [COULDNT_COLLECT_MARKER, done];
   let base = removeMarker(notes ?? '', marker);
   if (phase === 'pickup') base = removeMarker(base, other);
+  if (phase === 'placement') base = removeMarker(base, 'PLACEMENT_REOPENED');
   // A reason can't hold the marker's own delimiters.
   const cleanReason = action === 'couldntCollect' ? (reason ?? '').replace(/[|\]]/g, ' ').replace(/\s+/g, ' ').trim() : '';
   const value = cleanReason ? `${at}|${cleanReason}` : at;
   return `${base}${base ? ' ' : ''}[${marker}:${value}]`;
+}
+
+/** The notes with a Placement undone: the Stop is awaiting placement again. */
+export function reopenPlacementNotes(notes: string | null | undefined, at: string): string {
+  const base = removeMarker(removeMarker(notes ?? '', DONE_MARKER.placement), 'PLACEMENT_REOPENED');
+  return `${base}${base ? ' ' : ''}[PLACEMENT_REOPENED:${at}]`;
 }
 
 /** The operator-typed part of Stop.notes, with the progress markers stripped. */

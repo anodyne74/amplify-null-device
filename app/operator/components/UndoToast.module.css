@@ -1,0 +1,24 @@
+/* Sits above the pinned action bar (signRunStopCard.module.css), whose height this is kept in sync
+ * with: the bar's button, its vertical padding and the safe area. */
+.dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(58px + var(--space-4) * 2 + env(safe-area-inset-bottom, 0px) + var(--space-3));
+  z-index: 31;
+  padding: 0 var(--gutter-page-sm);
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+@media (min-width: 769px) {
+  .dock {
+    left: var(--sidebar-w);
+    padding: 0 var(--gutter-page);
+  }
+}

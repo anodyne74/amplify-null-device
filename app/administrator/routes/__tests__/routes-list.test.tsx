@@ -462,26 +462,37 @@ describe('Operator Routes List Page', () => {
 
     beforeEach(() => live(mockRoutes));
 
-    it('keeps the selection bar in place, idle until a Route is selected, then counts and clears', async () => {
+    it('shows no selection bar until a Route is selected, then counts, announces and clears', async () => {
       render(<RoutesPage />);
       await screen.findByText('W19-26-001');
       expect(screen.queryByText(/\d+ selected/)).not.toBeInTheDocument();
-      expect(screen.getByText('Select Routes to assign an Operator.')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Clear selection' })).toBeDisabled();
+      expect(screen.queryByRole('button', { name: 'Assign Operator' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Clear selection' })).not.toBeInTheDocument();
 
       fireEvent.click(rowBox('W19-26-001'));
       expect(screen.getByText('1 selected')).toBeInTheDocument();
-      expect(screen.getByText('1 selected').closest('[role="status"]')).toBeInTheDocument();
+      expect(screen.getByText('1 Route selected').closest('[role="status"]')).toBeInTheDocument();
 
       fireEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
       expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Assign Operator' })).not.toBeInTheDocument();
       expect(rowBox('W19-26-001').checked).toBe(false);
     });
 
-    it('enables Assign Operator only while Routes are selected', async () => {
+    it('puts the selection bar after the table, so selecting does not move a row', async () => {
       render(<RoutesPage />);
       await screen.findByText('W19-26-001');
-      expect(screen.getByRole('button', { name: 'Assign Operator' })).toBeDisabled();
+
+      fireEvent.click(rowBox('W19-26-001'));
+
+      const table = screen.getByRole('table');
+      const bar = screen.getByText('1 selected').parentElement as HTMLElement;
+      expect(table.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('opens Assign Operator for the selected Routes', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
 
       fireEvent.click(rowBox('W19-26-001'));
       fireEvent.click(screen.getByRole('button', { name: 'Assign Operator' }));

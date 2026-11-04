@@ -530,18 +530,12 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
           : 'Sorted by Placement, latest first'}
       </p>
 
-      <div className={styles.selectionBar}>
-        <span role="status">
-          {selectedCount > 0 ? <span>{selectedCount} selected</span> : <span>Select Routes to assign an Operator.</span>}
-          {selectedCount === 0 && selectionReset && <span> Selection cleared because the filters changed.</span>}
-        </span>
-        <Button id={ASSIGN_OPERATOR_ID} size="sm" variant="secondary" disabled={selectedCount === 0} onClick={() => setAssignOpen(true)}>
-          Assign Operator
-        </Button>
-        <button type="button" className={styles.clearFiltersBtn} disabled={selectedCount === 0} onClick={() => setSelectedIds(new Set())}>
-          Clear selection
-        </button>
-      </div>
+      <p className={styles.selectionNotice} role="status">
+        {selectedCount === 0 && selectionReset ? 'Selection cleared because the filters changed.' : ''}
+      </p>
+      <p className={styles.visuallyHidden} role="status">
+        {selectedCount > 0 ? `${selectedCount} ${selectedCount === 1 ? 'Route' : 'Routes'} selected` : ''}
+      </p>
 
       {visibleRoutes.length === 0 ? (
         <div className={styles.emptyFiltered} role="status">
@@ -565,6 +559,18 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
             />
           </div>
         </Card>
+      )}
+
+      {selectedCount > 0 && (
+        <div className={styles.selectionBar}>
+          <span>{selectedCount} selected</span>
+          <Button id={ASSIGN_OPERATOR_ID} size="sm" variant="secondary" onClick={() => setAssignOpen(true)}>
+            Assign Operator
+          </Button>
+          <button type="button" className={styles.clearFiltersBtn} onClick={() => setSelectedIds(new Set())}>
+            Clear selection
+          </button>
+        </div>
       )}
 
       {assignOpen && (

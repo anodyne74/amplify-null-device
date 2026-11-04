@@ -9,6 +9,7 @@ import {
   routeNeedsAttention,
   routePickupOverdue,
   localToday,
+  planOperatorAssignment,
   summariseStopsByRoute,
 } from '@/lib/routeListHelpers';
 
@@ -248,5 +249,25 @@ describe('routePickupOverdue', () => {
 describe('localToday', () => {
   it('formats the local date as YYYY-MM-DD', () => {
     expect(localToday(new Date(2026, 10, 4, 23, 59))).toBe('2026-11-04');
+  });
+});
+
+describe('planOperatorAssignment', () => {
+  const open = makeRoute({ id: 'open' });
+  const staffedByOther = makeRoute({ id: 'other', assignedOperatorSub: 'sub-2', assignedOperatorName: 'Sam' });
+  const staffedBySame = makeRoute({ id: 'same', assignedOperatorSub: 'sub-1', assignedOperatorName: 'Pat' });
+  const finished = makeRoute({ id: 'done', status: 'completed' });
+
+  it('assigns unstaffed and differently staffed Routes, naming the ones it would overwrite', () => {
+    const plan = planOperatorAssignment([open, staffedByOther], 'sub-1');
+    expect(plan.eligible.map((r) => r.id)).toEqual(['open', 'other']);
+    expect(plan.overwrites.map((r) => r.id)).toEqual(['other']);
+  });
+
+  it('leaves finished Routes and Routes already with this Operator alone', () => {
+    const plan = planOperatorAssignment([finished, staffedBySame, open], 'sub-1');
+    expect(plan.finished.map((r) => r.id)).toEqual(['done']);
+    expect(plan.alreadyAssigned.map((r) => r.id)).toEqual(['same']);
+    expect(plan.eligible.map((r) => r.id)).toEqual(['open']);
   });
 });

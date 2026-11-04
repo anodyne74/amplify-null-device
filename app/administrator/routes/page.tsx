@@ -25,6 +25,7 @@ import { Button } from '@/app/components/ui/core/Button';
 import { Tag } from '@/app/components/ui/core/Tag';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { PropertySearchCard } from './PropertySearchCard';
+import { AssignOperatorDialog } from './AssignOperatorDialog';
 import type { Route } from '@/amplify/types';
 import styles from './page.module.css';
 
@@ -127,6 +128,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   const shownScope = [statusFilter, searchQuery, dateFrom, dateTo, needsAttention, sortBy, sortDirection, propertyFilterActive, focusedRouteId].join('|');
   useEffect(() => setSelectedIds(new Set()), [shownScope]);
 
+  const [assignOpen, setAssignOpen] = useState(false);
   const selectedCount = visibleRoutes.filter((route) => selectedIds.has(route.id)).length;
   const allShownSelected = visibleRoutes.length > 0 && selectedCount === visibleRoutes.length;
 
@@ -450,6 +452,9 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
         {selectedCount > 0 && (
           <div className={styles.selectionBar}>
             <span>{selectedCount} selected</span>
+            <Button size="sm" variant="secondary" onClick={() => setAssignOpen(true)}>
+              Assign Operator
+            </Button>
             <button type="button" className={styles.clearFiltersBtn} onClick={() => setSelectedIds(new Set())}>
               Clear selection
             </button>
@@ -478,6 +483,17 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
             />
           </div>
         </Card>
+      )}
+
+      {assignOpen && (
+        <AssignOperatorDialog
+          routes={visibleRoutes.filter((route) => selectedIds.has(route.id))}
+          onDone={() => {
+            setAssignOpen(false);
+            setSelectedIds(new Set());
+          }}
+          onClose={() => setAssignOpen(false)}
+        />
       )}
 
       <ConfirmDialog

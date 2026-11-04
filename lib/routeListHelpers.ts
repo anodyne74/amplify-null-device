@@ -82,6 +82,26 @@ export function routeNeedsAttention(route: Route, today: string) {
 /** The rule behind Needs attention, in the words the Routes list shows beside it. */
 export const NEEDS_ATTENTION_RULE = 'No Operator assigned, or Pickup Date passed and Route not finished';
 
+/** What assigning one Operator to a set of selected Routes will do. A finished Route is left alone, and
+ * so is one that already has this Operator; `overwrites` are the eligible Routes whose current Operator
+ * would be replaced, so the administrator can be told before it happens. */
+export function planOperatorAssignment(routes: Route[], operatorSub: string) {
+  const finished: Route[] = [];
+  const alreadyAssigned: Route[] = [];
+  const eligible: Route[] = [];
+  for (const route of routes) {
+    if (getRoutePhaseKey(route as unknown as RoutePhaseInput) === 'completed') finished.push(route);
+    else if (route.assignedOperatorSub === operatorSub) alreadyAssigned.push(route);
+    else eligible.push(route);
+  }
+  const overwrites = eligible.filter((route) => !routeUnassigned(route));
+  return { eligible, finished, alreadyAssigned, overwrites };
+}
+
+export function routeLabel(route: Pick<Route, 'id' | 'routeCode'>) {
+  return route.routeCode || route.id.slice(0, 8);
+}
+
 export type RouteSortKey = 'placementDate' | 'pickupDate' | 'customer' | 'status';
 export type RouteSortDirection = 'asc' | 'desc';
 

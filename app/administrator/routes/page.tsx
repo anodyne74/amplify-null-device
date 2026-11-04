@@ -60,11 +60,13 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   const {
     cancelDeleteRoute,
     customersById,
+    customersFailed,
     deletingRouteId,
     error,
     filteredRoutes,
     handleDeleteRoute,
     loading,
+    reloadCustomers,
     requestDeleteRoute,
     routePendingDelete,
     setStatusFilter,
@@ -255,7 +257,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       key: 'customer',
       header: 'Customer',
       sortKey: 'customer',
-      render: (route) => customersById[route.customerId] || 'Unknown customer',
+      render: (route) => customersById[route.customerId] || (customersFailed ? '—' : 'Unknown customer'),
     },
     {
       key: 'status',
@@ -452,6 +454,17 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
           {hiddenForNoPlacementDate > 0 &&
             ` (${hiddenForNoPlacementDate} without a Placement Date ${hiddenForNoPlacementDate === 1 ? 'is' : 'are'} hidden by the date range)`}
         </p>
+      )}
+
+      {customersFailed && (
+        <div className={styles.propertyFilterBar} role="alert">
+          <p className={styles.propertyFilterNote}>
+            Customer names couldn&rsquo;t be loaded, so Customer search and sorting won&rsquo;t work until they are.
+          </p>
+          <button type="button" className={styles.clearFiltersBtn} onClick={() => void reloadCustomers()}>
+            Try again
+          </button>
+        </div>
       )}
 
       {propertySearch.stopsFailed && (

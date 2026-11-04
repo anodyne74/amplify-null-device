@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Route } from '@/amplify/types';
 import { comparePlacementDateDesc } from '@/lib/routeListHelpers';
 import { useLiveAllRoutes } from '@/lib/useLiveRoutes';
@@ -27,27 +27,29 @@ export function useRoutesList(canDeleteRoutes: boolean) {
   // subscription.
   const [locallyDeletedIds, setLocallyDeletedIds] = useState<ReadonlySet<string>>(new Set());
 
-  useEffect(() => {
-    async function fetchCustomers() {
-      setCustomersLoading(true);
+  // A failed fetch leaves the names empty; customersFailed lets the list say so instead of every row
+  // reading as an unknown Customer.
+  const [customersFailed, setCustomersFailed] = useState(false);
 
-      const customers = await listAllCustomers().catch(() => null);
-      if (customers) {
-        const mapped = customers.reduce(
-          (acc, customer) => {
-            acc[customer.id] = customer.name;
-            return acc;
-          },
-          {} as Record<string, string>
-        );
-        setCustomersById(mapped);
-      }
-
-      setCustomersLoading(false);
+  const loadCustomers = useCallback(async () => {
+    const customers = await listAllCustomers().catch(() => null);
+    if (customers) {
+      const mapped = customers.reduce(
+        (acc, customer) => {
+          acc[customer.id] = customer.name;
+          return acc;
+        },
+        {} as Record<string, string>
+      );
+      setCustomersById(mapped);
     }
-
-    void fetchCustomers();
+    setCustomersFailed(customers === null);
+    setCustomersLoading(false);
   }, []);
+
+  useEffect(() => {
+    void loadCustomers();
+  }, [loadCustomers]);
 
   const routes = useMemo(
     () => [...liveRoutes].filter((route) => !locallyDeletedIds.has(route.id)).sort(comparePlacementDateDesc),
@@ -95,11 +97,13 @@ export function useRoutesList(canDeleteRoutes: boolean) {
   return {
     cancelDeleteRoute,
     customersById,
+    customersFailed,
     deletingRouteId,
     error,
     filteredRoutes,
     handleDeleteRoute,
     loading,
+    reloadCustomers: loadCustomers,
     requestDeleteRoute,
     routePendingDelete,
     statusFilter,

@@ -584,6 +584,40 @@ describe('Operator Routes List Page', () => {
     });
   });
 
+  describe('when Customers cannot be loaded', () => {
+    const customers = listAllCustomersModule.listAllCustomers as jest.Mock;
+    const customerRows = [
+      { id: 'cust-bbbb-2222', name: 'Acme Corp', email: 'acme@example.com' },
+      { id: 'cust-dddd-4444', name: 'Globex Inc', email: 'globex@example.com' },
+    ];
+
+    beforeEach(() => {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+    });
+
+    it('says so with a way to retry, and shows no row as an unknown Customer', async () => {
+      customers.mockRejectedValueOnce(new Error('network'));
+      render(<RoutesPage />);
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Customer names couldn’t be loaded');
+      expect(screen.queryByText('Unknown customer')).not.toBeInTheDocument();
+
+      customers.mockResolvedValueOnce(customerRows);
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+      expect(await screen.findByText('Acme Corp')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('still reads Unknown customer for a Route whose Customer is missing after a successful load', async () => {
+      customers.mockResolvedValueOnce([customerRows[1]]);
+      render(<RoutesPage />);
+
+      expect(await screen.findByText('Unknown customer')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+  });
+
   describe('row actions menu', () => {
     beforeEach(() => {
       (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });

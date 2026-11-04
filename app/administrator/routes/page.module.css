@@ -302,6 +302,7 @@
 .selectionBar {
   display: flex;
   align-items: center;
+  min-height: 48px;
   gap: var(--space-4);
   margin-bottom: var(--space-4);
   padding: var(--space-3) var(--space-5);
@@ -314,6 +315,43 @@
 
 .selectionBar .clearFiltersBtn {
   padding: 0;
+}
+
+.selectionBar .clearFiltersBtn:disabled {
+  color: var(--text-subtle);
+  cursor: default;
+}
+
+.selectCell {
+  position: relative;
+}
+
+/* Only a ticked Route has one: the next tab stop after its checkbox, so a keyboard user reaches the
+   bar above the table without tabbing back through the rows. Hidden until focused. */
+.jumpToActions {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.jumpToActions:focus {
+  left: 0;
+  top: 100%;
+  z-index: 1;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: var(--border-hairline) solid var(--border-subtle);
+  background: var(--surface-card);
+  color: var(--text-brand);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
 }
 
 .assignBody {

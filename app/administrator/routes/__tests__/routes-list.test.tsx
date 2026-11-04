@@ -271,20 +271,35 @@ describe('Operator Routes List Page', () => {
       expect(screen.queryByRole('button', { name: /clear filters/i })).not.toBeInTheDocument();
     });
 
-    it('lists each filter that is on as a removable tag, and removes just that one', async () => {
+    it("leaves out tags for filters the toolbar already shows as set", async () => {
       render(<RoutesPage />);
       await screen.findByText('W19-26-001');
 
       fireEvent.change(screen.getByLabelText(/^search$/i), { target: { value: 'acme' } });
+      fireEvent.change(screen.getByLabelText(/placement from/i), { target: { value: '2024-01-01' } });
+      fireEvent.click(screen.getByRole('button', { name: /needs attention/i }));
       fireEvent.click(screen.getByRole('radio', { name: 'Planned' }));
+
       const applied = within(screen.getByRole('group', { name: /applied filters/i }));
-      expect(applied.getByText('Search: "acme"')).toBeInTheDocument();
-      expect(applied.getByText('Status: Planned')).toBeInTheDocument();
-
-      fireEvent.click(applied.getByRole('button', { name: 'Remove filter Search: "acme"' }));
-
-      expect(screen.getByLabelText(/^search$/i)).toHaveValue('');
+      expect(applied.queryByText(/Search:|Status:|Placement from|Needs attention/)).not.toBeInTheDocument();
+      expect(applied.queryByRole('button', { name: /^Remove filter/ })).not.toBeInTheDocument();
+      expect(applied.getByRole('button', { name: /^clear filters$/i })).toBeInTheDocument();
+      expect(screen.getByLabelText(/^search$/i)).toHaveValue('acme');
       expect(screen.getByRole('radio', { name: 'Planned' })).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('keeps a removable tag for the property match, which the toolbar does not show', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+      fireEvent.click(screen.getByRole('button', { name: /find a property/i }));
+      fireEvent.change(screen.getByLabelText(/property address, street, or suburb/i), { target: { value: 'ryedale' } });
+
+      const applied = within(screen.getByRole('group', { name: /applied filters/i }));
+      expect(applied.getByText('Property match')).toBeInTheDocument();
+
+      fireEvent.click(applied.getByRole('button', { name: 'Remove filter Property match' }));
+
+      expect(screen.queryByRole('group', { name: /applied filters/i })).not.toBeInTheDocument();
     });
 
     it('has one Clear filters that clears search, dates, Needs attention, Status and the property match together', async () => {

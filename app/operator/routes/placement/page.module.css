@@ -12,7 +12,7 @@
   color: var(--text-body);
   font-family: var(--font-body);
   font-weight: var(--fw-medium);
-  font-size: var(--text-sm);
+  font-size: var(--text-field-min);
   line-height: var(--lh-relaxed);
 }
 

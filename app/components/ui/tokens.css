@@ -231,6 +231,9 @@
   --text-5xl: 52px;
   --text-6xl: 64px;
 
+  /* Floor for text an Operator reads mid-run, on a phone in a van. */
+  --text-field-min: 14px;
+
   --lh-tight: 1.15;
   --lh-snug: 1.3;
   --lh-normal: 1.55;

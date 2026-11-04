@@ -172,8 +172,8 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   const hiddenForNoPlacementDate =
     dateFrom || dateTo ? filteredRoutes.filter((route) => !route.scheduledDate).length : 0;
 
-  // Every filter that is on, with how to turn it off. Drives the removable tags, the empty-state
-  // message and the one Clear filters button.
+  // Every filter that is on, with how to turn it off. Drives the empty-state message, the one Clear
+  // filters button and the removable tags for filters the toolbar can't show.
   const appliedFilters: { key: string; label: string; remove: () => void }[] = [
     statusFilter !== 'all'
       ? { key: 'status', label: `Status: ${formatStatusFilterLabel(statusFilter)}`, remove: () => setStatusFilter('all') }
@@ -467,7 +467,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
 
       {appliedFilters.length > 0 && (
         <div className={styles.appliedFilters} role="group" aria-label="Applied filters">
-          {appliedFilters.map((filter) => (
+          {appliedFilters.filter((filter) => filter.key === 'property').map((filter) => (
             <Tag key={filter.key} onRemove={filter.remove} removeLabel={`Remove filter ${filter.label}`}>
               {filter.label}
             </Tag>

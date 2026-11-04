@@ -365,3 +365,10 @@
   font-size: var(--text-sm);
   color: var(--text-muted);
 }
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

@@ -374,7 +374,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
               Edit
             </Link>
             {canDeleteRoutes && (
-              <AdminRowMenu ariaLabel={`Actions for route ${label}`} align="end">
+              <AdminRowMenu ariaLabel={`Delete options for route ${label}`} label="Delete" align="end">
                 <Button
                   size="sm"
                   variant="danger"

@@ -786,8 +786,10 @@ describe('Operator Routes List Page', () => {
         '/administrator/routes/edit?id=route-aaaa-1111'
       );
       expect(screen.queryByRole('button', { name: /^Delete route/ })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Delete options for route W19-26-001' })).toHaveTextContent('Delete');
+      expect(screen.queryByText('More')).not.toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole('button', { name: 'Actions for route W19-26-001' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete options for route W19-26-001' }));
 
       expect(screen.getByRole('button', { name: 'Delete route W19-26-001' })).toBeInTheDocument();
     });
@@ -795,7 +797,7 @@ describe('Operator Routes List Page', () => {
     it('still asks which Route will be deleted before deleting it', async () => {
       render(<RoutesPage />);
 
-      fireEvent.click(await screen.findByRole('button', { name: 'Actions for route W19-26-001' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete options for route W19-26-001' }));
       fireEvent.click(screen.getByRole('button', { name: 'Delete route W19-26-001' }));
 
       expect(await screen.findByText(/delete route W19-26-001\?/i)).toBeInTheDocument();
@@ -827,7 +829,7 @@ describe('Operator Routes List Page', () => {
     it('does not navigate when a control inside the row is used', async () => {
       render(<RoutesPage />);
 
-      fireEvent.click(await screen.findByRole('button', { name: 'Actions for route W19-26-001' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete options for route W19-26-001' }));
       fireEvent.click(screen.getByRole('button', { name: 'Delete route W19-26-001' }));
       fireEvent.click(screen.getByRole('link', { name: 'Edit route W19-26-001' }));
       fireEvent.click(screen.getByRole('link', { name: 'W19-26-001' }));

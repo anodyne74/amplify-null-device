@@ -12,7 +12,8 @@ import { isAdmin } from '@/lib/amplify-config';
 import { useRoutesList, ROUTE_STATUS_FILTERS, type StatusFilter } from '@/lib/useRoutesList';
 import { useAdminTableSort } from '@/app/components/AdminDataTable';
 import { usePropertySearch } from '@/lib/usePropertySearch';
-import { compareRoutesBy, formatRouteDate, formatStopTotals, localToday, NEEDS_ATTENTION_RULE, routeNeedsAttention, routePickupOverdue, routeUnassigned, summariseStopsByRoute, type RouteSortKey } from '@/lib/routeListHelpers';
+import { useIsNarrowViewport } from '@/lib/useIsNarrowViewport';
+import { compareRoutesBy, formatRouteDate, formatStopTotals, localToday, routeLabel, NEEDS_ATTENTION_RULE, routeNeedsAttention, routePickupOverdue, routeUnassigned, summariseStopsByRoute, type RouteSortKey } from '@/lib/routeListHelpers';
 import { RouteStatusPill } from '@/app/administrator/components/RouteStatusPill';
 import { Badge } from '@/app/components/ui/core/Badge';
 import { routeFeedbackLabel } from '@/lib/routeFeedback';
@@ -34,6 +35,9 @@ const ASSIGN_OPERATOR_ID = 'routes-assign-operator';
 function routeDetailHref(route: Route) {
   return `/administrator/routes/detail?id=${route.id}`;
 }
+
+// Below this the table can't hold every column, so Stops and signs moves under the Route Code.
+const NARROW_TABLE_MAX_WIDTH = 1279;
 
 const SORT_LABELS: Record<RouteSortKey, string> = {
   placementDate: 'Placement',
@@ -160,7 +164,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
     [filteredRoutes, today]
   );
   const focusedRoute = focusedRouteId ? filteredRoutes.find((route) => route.id === focusedRouteId) : undefined;
-  const focusedRouteLabel = focusedRoute ? focusedRoute.routeCode || focusedRoute.id.slice(0, 8) : null;
+  const focusedRouteLabel = focusedRoute ? routeLabel(focusedRoute) : null;
 
   // Routes the date range can't place, because they have no Placement Date yet.
   const hiddenForNoPlacementDate =
@@ -202,7 +206,15 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   // the inline table renders its own empty message below the filter row.
   const isEmpty = !loading && !error && statusFilter === 'all' && filteredRoutes.length === 0;
 
-  const columns: DataColumn<Route>[] = [
+  const narrowTable = useIsNarrowViewport(NARROW_TABLE_MAX_WIDTH);
+
+  function stopTotalsCell(route: Route) {
+    if (propertySearch.stopsLoading) return <span className={styles.totalsSkeleton} aria-hidden="true" />;
+    if (propertySearch.stopsFailed) return <span className={styles.unavailable}>Unavailable</span>;
+    return formatStopTotals(stopTotalsByRoute.get(route.id));
+  }
+
+  const allColumns: DataColumn<Route>[] = [
     {
       key: 'select',
       header: (
@@ -217,7 +229,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       render: (route) => (
         <div className={styles.selectCell}>
           <Checkbox
-            aria-label={`Select route ${route.routeCode || route.id.slice(0, 8)}`}
+            aria-label={`Select route ${routeLabel(route)}`}
             checked={selectedIds.has(route.id)}
             onChange={() => toggleSelected(route.id)}
           />
@@ -238,12 +250,10 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       header: 'Route Code',
       render: (route) => (
         <div>
-          <Link
-            href={routeDetailHref(route)}
-            style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-heading)' }}
-          >
-            {route.routeCode || `${route.id.slice(0, 8)}...`}
+          <Link href={routeDetailHref(route)} className={styles.routeCodeLink}>
+            {routeLabel(route)}
           </Link>
+          {narrowTable && <div className={styles.notesPreview}>{stopTotalsCell(route)}</div>}
           {route.notes && (
             <div className={styles.notesPreview}>
               {route.notes.slice(0, 60)}
@@ -293,11 +303,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       key: 'stopTotals',
       header: 'Stops and signs',
       numeric: true,
-      render: (route) => {
-        if (propertySearch.stopsLoading) return <span className={styles.totalsSkeleton} aria-hidden="true" />;
-        if (propertySearch.stopsFailed) return <span className={styles.unavailable}>Unavailable</span>;
-        return formatStopTotals(stopTotalsByRoute.get(route.id));
-      },
+      render: stopTotalsCell,
     },
     {
       key: 'operator',
@@ -309,24 +315,24 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       header: <span className={styles.visuallyHidden}>Actions</span>,
       width: 170,
       render: (route: Route) => {
-        const routeLabel = route.routeCode || route.id.slice(0, 8);
+        const label = routeLabel(route);
         return (
           <div className={styles.rowActions}>
             <Link
               href={`/administrator/routes/edit?id=${route.id}`}
               className="nd-btn nd-btn--ghost nd-btn--sm"
-              aria-label={`Edit route ${routeLabel}`}
+              aria-label={`Edit route ${label}`}
             >
               Edit
             </Link>
             {canDeleteRoutes && (
-              <AdminRowMenu ariaLabel={`Actions for route ${routeLabel}`} align="end">
+              <AdminRowMenu ariaLabel={`Actions for route ${label}`} align="end">
                 <Button
                   size="sm"
                   variant="danger"
                   loading={deletingRouteId === route.id}
                   onClick={() => requestDeleteRoute(route)}
-                  aria-label={`Delete route ${routeLabel}`}
+                  aria-label={`Delete route ${label}`}
                 >
                   {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
                 </Button>
@@ -337,6 +343,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       },
     },
   ];
+  const columns = narrowTable ? allColumns.filter((column) => column.key !== 'stopTotals') : allColumns;
 
   return (
     <AsyncState
@@ -509,6 +516,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
         <Card padded={false}>
           <div className={styles.tableWrap}>
             <DataTable
+              className={styles.table}
               columns={columns}
               rows={visibleRoutes}
               wrapped={false}
@@ -536,7 +544,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       <ConfirmDialog
         open={routePendingDelete !== null}
         title="Delete route?"
-        message={`Delete route ${routePendingDelete?.routeCode || routePendingDelete?.id.slice(0, 8)}? This will also delete all stops on the route.`}
+        message={`Delete route ${routePendingDelete ? routeLabel(routePendingDelete) : ''}? This will also delete all stops on the route.`}
         confirmLabel="Delete"
         tone="danger"
         busy={deletingRouteId === routePendingDelete?.id}

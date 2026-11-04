@@ -618,6 +618,53 @@ describe('Operator Routes List Page', () => {
     });
   });
 
+  describe('on a narrow screen', () => {
+    const originalMatchMedia = window.matchMedia;
+
+    beforeEach(() => {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
+    });
+    afterEach(() => {
+      window.matchMedia = originalMatchMedia;
+    });
+
+    it('moves Stops and signs under the Route Code instead of its own column', async () => {
+      window.matchMedia = jest.fn().mockImplementation(() => ({
+        matches: true,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      })) as unknown as typeof window.matchMedia;
+      render(<RoutesPage />);
+
+      const row = (await screen.findByText('W19-26-001')).closest('tr') as HTMLElement;
+      expect(screen.queryByRole('columnheader', { name: 'Stops and signs' })).not.toBeInTheDocument();
+      await waitFor(() => expect(within(row).getByText('2 stops · 7 signs')).toBeInTheDocument());
+      expect(within(row).getByText('2 stops · 7 signs').closest('td')).toContainElement(within(row).getByText('W19-26-001'));
+    });
+
+    it('keeps the Stops and signs column on a wide screen', async () => {
+      render(<RoutesPage />);
+
+      await screen.findByText('W19-26-001');
+      expect(screen.getByRole('columnheader', { name: 'Stops and signs' })).toBeInTheDocument();
+    });
+  });
+
+  describe('a Route with no Route Code', () => {
+    it('is named the same way in the list, its checkbox and its actions', async () => {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({
+        routes: [{ ...mockRoutes[0], routeCode: undefined }],
+        loading: false,
+        error: null,
+      });
+      render(<RoutesPage />);
+
+      expect(await screen.findByRole('link', { name: 'route-aa' })).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: 'Select route route-aa' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Edit route route-aa' })).toBeInTheDocument();
+    });
+  });
+
   describe('row actions menu', () => {
     beforeEach(() => {
       (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });

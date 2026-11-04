@@ -41,6 +41,7 @@ jest.mock('@/lib/useLiveRoutes', () => ({
   useLiveAllRoutes: jest.fn(),
 }));
 jest.mock('@/lib/customers');
+jest.mock('@/lib/apiClient', () => ({ callApi: jest.fn().mockResolvedValue({ users: [] }) }));
 jest.mock('@/lib/routes', () => ({
   listAllStops: jest.fn(),
 }));
@@ -459,6 +460,17 @@ describe('Operator Routes List Page', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
       expect(screen.queryByText('1 selected')).not.toBeInTheDocument();
       expect(rowBox('W19-26-001').checked).toBe(false);
+    });
+
+    it('offers Assign Operator only while Routes are selected', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+      expect(screen.queryByRole('button', { name: 'Assign Operator' })).not.toBeInTheDocument();
+
+      fireEvent.click(rowBox('W19-26-001'));
+      fireEvent.click(screen.getByRole('button', { name: 'Assign Operator' }));
+
+      expect(await screen.findByRole('dialog')).toHaveTextContent('1 Route selected');
     });
 
     it('selects exactly the shown rows from the header, and shows a partial selection as indeterminate', async () => {

@@ -315,3 +315,15 @@
 .selectionBar .clearFiltersBtn {
   padding: 0;
 }
+
+.assignBody {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.assignNote,
+.assignSummary p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}

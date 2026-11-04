@@ -299,15 +299,26 @@
   margin: 0;
 }
 
+.selectionNotice {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
+}
+
+/* Only there while Routes are selected, and stuck to the bottom of the screen after the table, so it
+   appears without moving a row. */
 .selectionBar {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: 1;
   display: flex;
   align-items: center;
-  min-height: 48px;
   gap: var(--space-4);
-  margin-bottom: var(--space-4);
   padding: var(--space-3) var(--space-5);
   border-radius: var(--radius-md);
-  background: var(--surface-hover);
+  border: var(--border-hairline) solid var(--border-subtle);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-md);
   font-size: var(--text-sm);
   font-weight: var(--fw-semibold);
   color: var(--text-heading);
@@ -315,11 +326,6 @@
 
 .selectionBar .clearFiltersBtn {
   padding: 0;
-}
-
-.selectionBar .clearFiltersBtn:disabled {
-  color: var(--text-subtle);
-  cursor: default;
 }
 
 .selectCell {

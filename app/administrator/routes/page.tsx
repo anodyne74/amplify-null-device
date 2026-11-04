@@ -91,6 +91,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
   const { sortBy, sortDirection, toggleSort } = useAdminTableSort<RouteSortKey>();
 
   const [needsAttention, setNeedsAttention] = useState(false);
+  const statusGroup = useRef<HTMLDivElement>(null);
 
   const hasRefinements = searchQuery.trim() !== '' || dateFrom !== '' || dateTo !== '' || needsAttention;
 
@@ -194,6 +195,18 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
     needsAttention ? { key: 'attention', label: 'Needs attention', remove: () => setNeedsAttention(false) } : null,
     propertyFilterActive ? { key: 'property', label: 'Property match', remove: propertySearch.clear } : null,
   ].filter((filter): filter is { key: string; label: string; remove: () => void } => filter !== null);
+
+  // A radio group is one tab stop and arrow keys move through it, selecting as they go.
+  function moveStatus(event: React.KeyboardEvent, from: StatusFilter) {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+    const last = ROUTE_STATUS_FILTERS.length - 1;
+    const index = ROUTE_STATUS_FILTERS.indexOf(from);
+    const target = event.key === 'Home' ? 0 : event.key === 'End' ? last : step ? (index + step + last + 1) % (last + 1) : null;
+    if (target === null) return;
+    event.preventDefault();
+    setStatusFilter(ROUTE_STATUS_FILTERS[target]);
+    statusGroup.current?.querySelectorAll<HTMLElement>('[role="radio"]')[target]?.focus();
+  }
 
   function clearAllFilters() {
     setSearchQuery('');
@@ -448,7 +461,7 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
           </Button>
         </div>
 
-        <div className={styles.filterRow} role="radiogroup" aria-labelledby="routes-status-label">
+        <div ref={statusGroup} className={styles.filterRow} role="radiogroup" aria-labelledby="routes-status-label">
           <span id="routes-status-label" className={styles.filterLabel}>Status</span>
           {ROUTE_STATUS_FILTERS.map((status) => (
             <Tag
@@ -456,8 +469,10 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
               role="radio"
               aria-checked={statusFilter === status}
               aria-pressed={undefined}
+              tabIndex={statusFilter === status ? 0 : -1}
               selected={statusFilter === status}
               onClick={() => setStatusFilter(status)}
+              onKeyDown={(event) => moveStatus(event, status)}
             >
               {formatStatusFilterLabel(status)}
             </Tag>

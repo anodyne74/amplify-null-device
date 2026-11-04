@@ -623,19 +623,18 @@ describe('Operator Routes List Page', () => {
       (useLiveAllRoutes as jest.Mock).mockReturnValue({ routes: mockRoutes, loading: false, error: null });
     });
 
-    it('keeps Edit and Delete out of the row until the menu is opened', async () => {
+    it('shows Edit in the row and keeps Delete in the menu until it is opened', async () => {
       render(<RoutesPage />);
 
       await screen.findByText('W19-26-001');
-      expect(screen.queryByRole('button', { name: /^Delete route/ })).not.toBeInTheDocument();
-      expect(screen.queryByRole('link', { name: /^Edit route/ })).not.toBeInTheDocument();
-
-      fireEvent.click(screen.getByRole('button', { name: 'Actions for route W19-26-001' }));
-
       expect(screen.getByRole('link', { name: 'Edit route W19-26-001' })).toHaveAttribute(
         'href',
         '/administrator/routes/edit?id=route-aaaa-1111'
       );
+      expect(screen.queryByRole('button', { name: /^Delete route/ })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Actions for route W19-26-001' }));
+
       expect(screen.getByRole('button', { name: 'Delete route W19-26-001' })).toBeInTheDocument();
     });
 

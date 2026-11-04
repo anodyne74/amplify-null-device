@@ -307,11 +307,11 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
     {
       key: 'action',
       header: <span className={styles.visuallyHidden}>Actions</span>,
-      width: 110,
+      width: 170,
       render: (route: Route) => {
         const routeLabel = route.routeCode || route.id.slice(0, 8);
         return (
-          <AdminRowMenu ariaLabel={`Actions for route ${routeLabel}`} align="end">
+          <div className={styles.rowActions}>
             <Link
               href={`/administrator/routes/edit?id=${route.id}`}
               className="nd-btn nd-btn--ghost nd-btn--sm"
@@ -320,17 +320,19 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
               Edit
             </Link>
             {canDeleteRoutes && (
-              <Button
-                size="sm"
-                variant="danger"
-                loading={deletingRouteId === route.id}
-                onClick={() => requestDeleteRoute(route)}
-                aria-label={`Delete route ${routeLabel}`}
-              >
-                {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
-              </Button>
+              <AdminRowMenu ariaLabel={`Actions for route ${routeLabel}`} align="end">
+                <Button
+                  size="sm"
+                  variant="danger"
+                  loading={deletingRouteId === route.id}
+                  onClick={() => requestDeleteRoute(route)}
+                  aria-label={`Delete route ${routeLabel}`}
+                >
+                  {deletingRouteId === route.id ? 'Deleting...' : 'Delete'}
+                </Button>
+              </AdminRowMenu>
             )}
-          </AdminRowMenu>
+          </div>
         );
       },
     },

@@ -642,11 +642,44 @@ describe('Operator Routes List Page', () => {
       expect(within(row).getByText('2 stops · 7 signs').closest('td')).toContainElement(within(row).getByText('W19-26-001'));
     });
 
+    it('shows Placement and Pickup in one Dates cell, with both sorts still in its header', async () => {
+      (useLiveAllRoutes as jest.Mock).mockReturnValue({
+        routes: [
+          { ...mockRoutes[0], pickupDate: '2999-01-01' },
+          { ...mockRoutes[1], pickupDate: '2000-01-01' },
+        ],
+        loading: false,
+        error: null,
+      });
+      window.matchMedia = jest.fn().mockImplementation(() => ({
+        matches: true,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      })) as unknown as typeof window.matchMedia;
+      render(<RoutesPage />);
+
+      await screen.findByText('W19-26-001');
+      expect(screen.queryByRole('columnheader', { name: 'Pickup' })).not.toBeInTheDocument();
+      const header = screen.getByRole('columnheader', { name: /Placement.*Pickup/ });
+      const overdueRow = screen.getByText('W19-26-002').closest('tr') as HTMLElement;
+      expect(within(overdueRow).getByText('Overdue')).toBeInTheDocument();
+      expect(within(overdueRow).getByText('Placement')).toBeInTheDocument();
+      expect(within(overdueRow).getByText('Pickup')).toBeInTheDocument();
+
+      const order = () => screen.getAllByRole('link', { name: /^W19-26-00/ }).map((link) => link.textContent);
+      fireEvent.click(within(header).getByRole('button', { name: 'Pickup' }));
+      expect(order()).toEqual(['W19-26-002', 'W19-26-001']);
+      fireEvent.click(within(header).getByRole('button', { name: 'Pickup' }));
+      expect(order()).toEqual(['W19-26-001', 'W19-26-002']);
+    });
+
     it('keeps the Stops and signs column on a wide screen', async () => {
       render(<RoutesPage />);
 
       await screen.findByText('W19-26-001');
       expect(screen.getByRole('columnheader', { name: 'Stops and signs' })).toBeInTheDocument();
+      expect(screen.getByRole('columnheader', { name: 'Pickup' })).toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: /Placement.*Pickup/ })).not.toBeInTheDocument();
     });
   });
 

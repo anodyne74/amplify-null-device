@@ -24,6 +24,7 @@ import { Input } from '@/app/components/ui/forms/Input';
 import { Checkbox } from '@/app/components/ui/forms/Checkbox';
 import { Button } from '@/app/components/ui/core/Button';
 import { Tag } from '@/app/components/ui/core/Tag';
+import { Icon } from '@/app/components/ui/core/Icon';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { PropertySearchCard } from './PropertySearchCard';
 import { AssignOperatorDialog } from './AssignOperatorDialog';
@@ -36,7 +37,8 @@ function routeDetailHref(route: Route) {
   return `/administrator/routes/detail?id=${route.id}`;
 }
 
-// Below this the table can't hold every column, so Stops and signs moves under the Route Code.
+// Below this the table can't hold every column, so Stops and signs moves under the Route Code and
+// Placement and Pickup share one Dates cell.
 const NARROW_TABLE_MAX_WIDTH = 1279;
 
 const SORT_LABELS: Record<RouteSortKey, string> = {
@@ -214,6 +216,33 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
     return formatStopTotals(stopTotalsByRoute.get(route.id));
   }
 
+  function pickupDate(route: Route) {
+    return routePickupOverdue(route, today) ? (
+      <span className={styles.dateWithFlag}>
+        <span className={styles.overdueDate}>{formatRouteDate(route.pickupDate)}</span>
+        <Badge tone="danger" size="sm">Overdue</Badge>
+      </span>
+    ) : (
+      formatRouteDate(route.pickupDate)
+    );
+  }
+
+  // The one Dates header keeps both sorts: DataTable's own sort header is one button per column.
+  function dateSortButton(key: 'placementDate' | 'pickupDate') {
+    const shown = sortBy ? { key: sortBy, direction: sortDirection } : { key: 'placementDate', direction: 'desc' };
+    const active = shown.key === key;
+    return (
+      <button type="button" className="nd-table__sort" onClick={() => toggleSort(key)}>
+        {SORT_LABELS[key]}
+        <Icon
+          name={active ? (shown.direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'chevrons-up-down'}
+          size={14}
+          className={active ? undefined : 'nd-table__sort-idle'}
+        />
+      </button>
+    );
+  }
+
   const allColumns: DataColumn<Route>[] = [
     {
       key: 'select',
@@ -285,19 +314,25 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       ),
     },
     { key: 'placementDate', header: 'Placement', sortKey: 'placementDate', render: (route) => formatRouteDate(route.scheduledDate) },
+    { key: 'pickupDate', header: 'Pickup', sortKey: 'pickupDate', render: pickupDate },
     {
-      key: 'pickupDate',
-      header: 'Pickup',
-      sortKey: 'pickupDate',
-      render: (route) =>
-        routePickupOverdue(route, today) ? (
-          <span className={styles.dateWithFlag}>
-            <span className={styles.overdueDate}>{formatRouteDate(route.pickupDate)}</span>
-            <Badge tone="danger" size="sm">Overdue</Badge>
+      key: 'dates',
+      header: (
+        <span className={styles.dateSorts}>
+          {dateSortButton('placementDate')}
+          {dateSortButton('pickupDate')}
+        </span>
+      ),
+      render: (route) => (
+        <div className={styles.datesCell}>
+          <span>
+            <span className={styles.dateLabel}>Placement</span> {formatRouteDate(route.scheduledDate)}
           </span>
-        ) : (
-          formatRouteDate(route.pickupDate)
-        ),
+          <span>
+            <span className={styles.dateLabel}>Pickup</span> {pickupDate(route)}
+          </span>
+        </div>
+      ),
     },
     {
       key: 'stopTotals',
@@ -343,7 +378,9 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       },
     },
   ];
-  const columns = narrowTable ? allColumns.filter((column) => column.key !== 'stopTotals') : allColumns;
+  const columns = allColumns.filter((column) =>
+    narrowTable ? column.key !== 'stopTotals' && column.key !== 'placementDate' && column.key !== 'pickupDate' : column.key !== 'dates'
+  );
 
   return (
     <AsyncState

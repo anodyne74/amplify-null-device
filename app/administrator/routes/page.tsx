@@ -29,6 +29,8 @@ import { AssignOperatorDialog } from './AssignOperatorDialog';
 import type { Route } from '@/amplify/types';
 import styles from './page.module.css';
 
+const ASSIGN_OPERATOR_ID = 'routes-assign-operator';
+
 function routeDetailHref(route: Route) {
   return `/administrator/routes/detail?id=${route.id}`;
 }
@@ -211,11 +213,22 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
       ),
       width: 48,
       render: (route) => (
-        <Checkbox
-          aria-label={`Select route ${route.routeCode || route.id.slice(0, 8)}`}
-          checked={selectedIds.has(route.id)}
-          onChange={() => toggleSelected(route.id)}
-        />
+        <div className={styles.selectCell}>
+          <Checkbox
+            aria-label={`Select route ${route.routeCode || route.id.slice(0, 8)}`}
+            checked={selectedIds.has(route.id)}
+            onChange={() => toggleSelected(route.id)}
+          />
+          {selectedIds.has(route.id) && (
+            <button
+              type="button"
+              className={styles.jumpToActions}
+              onClick={() => document.getElementById(ASSIGN_OPERATOR_ID)?.focus()}
+            >
+              Go to selection actions
+            </button>
+          )}
+        </div>
       ),
     },
     {
@@ -458,21 +471,17 @@ function RoutesListSection({ canDeleteRoutes, onRetry }: RoutesListSectionProps)
           : 'Sorted by Placement, latest first'}
       </p>
 
-      <div role="status">
-        {selectedCount === 0 && selectionReset && (
-          <p className={styles.resultCount}>Selection cleared because the filters changed.</p>
-        )}
-        {selectedCount > 0 && (
-          <div className={styles.selectionBar}>
-            <span>{selectedCount} selected</span>
-            <Button size="sm" variant="secondary" onClick={() => setAssignOpen(true)}>
-              Assign Operator
-            </Button>
-            <button type="button" className={styles.clearFiltersBtn} onClick={() => setSelectedIds(new Set())}>
-              Clear selection
-            </button>
-          </div>
-        )}
+      <div className={styles.selectionBar}>
+        <span role="status">
+          {selectedCount > 0 ? <span>{selectedCount} selected</span> : <span>Select Routes to assign an Operator.</span>}
+          {selectedCount === 0 && selectionReset && <span> Selection cleared because the filters changed.</span>}
+        </span>
+        <Button id={ASSIGN_OPERATOR_ID} size="sm" variant="secondary" disabled={selectedCount === 0} onClick={() => setAssignOpen(true)}>
+          Assign Operator
+        </Button>
+        <button type="button" className={styles.clearFiltersBtn} disabled={selectedCount === 0} onClick={() => setSelectedIds(new Set())}>
+          Clear selection
+        </button>
       </div>
 
       {visibleRoutes.length === 0 ? (

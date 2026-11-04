@@ -447,11 +447,12 @@ describe('Operator Routes List Page', () => {
 
     beforeEach(() => live(mockRoutes));
 
-    it('shows no selection bar until a Route is selected, then counts and clears', async () => {
+    it('keeps the selection bar in place, idle until a Route is selected, then counts and clears', async () => {
       render(<RoutesPage />);
       await screen.findByText('W19-26-001');
-      expect(screen.queryByText(/selected$/)).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Clear selection' })).not.toBeInTheDocument();
+      expect(screen.queryByText(/\d+ selected/)).not.toBeInTheDocument();
+      expect(screen.getByText('Select Routes to assign an Operator.')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Clear selection' })).toBeDisabled();
 
       fireEvent.click(rowBox('W19-26-001'));
       expect(screen.getByText('1 selected')).toBeInTheDocument();
@@ -462,10 +463,10 @@ describe('Operator Routes List Page', () => {
       expect(rowBox('W19-26-001').checked).toBe(false);
     });
 
-    it('offers Assign Operator only while Routes are selected', async () => {
+    it('enables Assign Operator only while Routes are selected', async () => {
       render(<RoutesPage />);
       await screen.findByText('W19-26-001');
-      expect(screen.queryByRole('button', { name: 'Assign Operator' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Assign Operator' })).toBeDisabled();
 
       fireEvent.click(rowBox('W19-26-001'));
       fireEvent.click(screen.getByRole('button', { name: 'Assign Operator' }));
@@ -522,6 +523,19 @@ describe('Operator Routes List Page', () => {
         fireEvent.click(remaining[0]);
         expect(screen.queryByText('Selection cleared because the filters changed.')).not.toBeInTheDocument();
       }
+    });
+
+    it('puts a jump to the selection actions right after a ticked Route, and it focuses Assign Operator', async () => {
+      render(<RoutesPage />);
+      await screen.findByText('W19-26-001');
+      expect(screen.queryByRole('button', { name: 'Go to selection actions' })).not.toBeInTheDocument();
+
+      fireEvent.click(rowBox('W19-26-001'));
+      const jump = screen.getByRole('button', { name: 'Go to selection actions' });
+      expect(rowBox('W19-26-001').closest('div')).toContainElement(jump);
+
+      fireEvent.click(jump);
+      expect(screen.getByRole('button', { name: 'Assign Operator' })).toHaveFocus();
     });
 
     it('keeps the selection when the list is sorted', async () => {

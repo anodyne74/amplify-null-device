@@ -62,8 +62,8 @@
 
 .action {
   flex: none;
-  min-height: 36px;
-  padding: 0 var(--space-3);
+  min-height: var(--control-h-touch);
+  padding: 0 var(--space-4);
   border-radius: var(--radius-md);
   border: var(--border-hairline) solid var(--border-default);
   background: transparent;

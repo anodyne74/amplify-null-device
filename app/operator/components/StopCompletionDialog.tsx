@@ -72,7 +72,7 @@ export function StopCompletionDialog({
 
   if (step === 'reason') {
     return (
-      <Dialog open title={copy.title} description={`${address} · ${copy.hint}`} onClose={onClose}>
+      <Dialog open title={copy.title} description={`${address} · ${copy.hint}`} onClose={onClose} closeSize="lg">
         <div className={styles.reasonList}>
           {STOP_PROBLEM_REASONS[phase].map((reason) => (
             <button
@@ -95,12 +95,13 @@ export function StopCompletionDialog({
       title={address}
       description={`${stop.numberOfSigns ?? '-'} signs · Agent ${stop.agent?.trim() || 'Unassigned'}`}
       onClose={onClose}
+      closeSize="lg"
       footer={
         <>
-          <Button variant="secondary" onClick={() => setStep('reason')}>
+          <Button variant="secondary" size="lg" className={styles.sheetAction} onClick={() => setStep('reason')}>
             {copy.button}
           </Button>
-          <Button onClick={onComplete}>
+          <Button size="lg" className={styles.sheetAction} onClick={onComplete}>
             {primaryLabel}
           </Button>
         </>

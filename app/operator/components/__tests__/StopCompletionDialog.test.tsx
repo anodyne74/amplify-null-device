@@ -138,4 +138,23 @@ describe('StopCompletionDialog', () => {
     expect(screen.getByText('200 Second Ave')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Signs placed' })).toBeInTheDocument();
   });
+
+  it('gives the sheet\'s actions and close button the large touch size', () => {
+    render(
+      <StopCompletionDialog
+        stop={{ id: 's1', address: '100 First St', numberOfSigns: 4 } as Stop}
+        phase="placement"
+        onComplete={jest.fn()}
+        onProblem={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+
+    for (const name of ["Can't place", 'Signs placed']) {
+      const button = screen.getByRole('button', { name });
+      expect(button).toHaveClass('nd-btn--lg');
+      expect(button.className).toContain('sheetAction');
+    }
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveClass('nd-iconbtn--lg');
+  });
 });

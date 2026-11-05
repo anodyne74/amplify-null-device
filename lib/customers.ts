@@ -7,6 +7,7 @@
  * Every function returns its data or throws a DataError (lib/graphqlResult.ts);
  * a Customer that doesn't exist is null.
  */
+import { DEVPREVIEW, FIXTURE_CUSTOMER_ID } from '@/lib/devFixtures';
 import type { StandingPickupDay } from '@/amplify/types';
 import { normalizeCustomerDefaults } from '@/lib/customerDefaults';
 import { getDataClient } from '@/lib/data-client';
@@ -24,9 +25,11 @@ export async function listAllCustomers() {
  * Fetch a specific customer by ID
  */
 export async function getCustomer(customerId: string) {
-  return withDataError('Failed to load customer.', async () =>
-    resultData(await getDataClient().models.Customer.get({ id: customerId }))
-  );
+  return withDataError('Failed to load customer.', async () => {
+    // The preview (app/devpreview) only reads the name; `never` keeps the real return type.
+    if (DEVPREVIEW && customerId === FIXTURE_CUSTOMER_ID) return { id: customerId, name: 'Beltline Group' } as never;
+    return resultData(await getDataClient().models.Customer.get({ id: customerId }));
+  });
 }
 
 /**

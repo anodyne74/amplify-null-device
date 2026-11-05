@@ -1,5 +1,6 @@
 'use client';
 
+import { DEVPREVIEW, FIXTURE_USER_ID } from '@/lib/devFixtures';
 import { useState, useEffect } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { fetchUserGroups, fetchUserId } from './amplify-config';
@@ -74,5 +75,6 @@ export function useCurrentUserId(): string | undefined {
     }
   }, [authStatus]);
 
-  return userId;
+  // The preview has no sign-in (app/devpreview).
+  return DEVPREVIEW ? FIXTURE_USER_ID : userId;
 }

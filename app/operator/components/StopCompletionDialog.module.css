@@ -24,3 +24,10 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* The sheet's two actions are the same ones as the pinned bar's, so they get the field touch size,
+ * not the default 40px button. The element selector outranks the shared button's height rule. */
+button.sheetAction {
+  flex: 1;
+  height: var(--control-h-touch);
+}

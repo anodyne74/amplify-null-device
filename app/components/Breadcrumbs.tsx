@@ -8,6 +8,8 @@ export interface BreadcrumbItem {
 
 interface BreadcrumbsProps {
   items: BreadcrumbItem[];
+  /** Operator field screens: links get a 44px tap target without the row looking any different. */
+  touch?: boolean;
 }
 
 /**
@@ -16,13 +18,13 @@ interface BreadcrumbsProps {
  * Ancestors with an href render as links; the final item is plain
  * text marked with aria-current="page".
  */
-export default function Breadcrumbs({ items }: BreadcrumbsProps) {
+export default function Breadcrumbs({ items, touch = false }: BreadcrumbsProps) {
   if (items.length === 0) {
     return null;
   }
 
   return (
-    <nav aria-label="Breadcrumb" className={styles.breadcrumbs}>
+    <nav aria-label="Breadcrumb" className={`${styles.breadcrumbs} ${touch ? styles.touch : ""}`}>
       <ol className={styles.list}>
         {items.map((item, index) => {
           const isLast = index === items.length - 1;

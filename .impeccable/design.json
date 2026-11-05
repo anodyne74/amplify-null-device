@@ -1,0 +1,420 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-03T14:14:34+00:00",
+  "title": "Design System: NullDevice",
+  "extensions": {
+    "colorMeta": {
+      "indigo-brand": {
+        "role": "primary",
+        "displayName": "Signal Indigo",
+        "canonical": "#5d65e6",
+        "tonalRamp": [
+          "#282d66",
+          "#373c89",
+          "#454cac",
+          "#535acd",
+          "#7d84eb",
+          "#9ea3f0",
+          "#c1c4f6",
+          "#e7e8fb"
+        ]
+      },
+      "indigo-deep": {
+        "role": "primary",
+        "displayName": "Deep Indigo",
+        "canonical": "#4a51cc",
+        "tonalRamp": [
+          "#21255c",
+          "#2c317b",
+          "#383d9a",
+          "#4248b6",
+          "#6e74d6",
+          "#9297e0",
+          "#babdec",
+          "#e4e5f7"
+        ]
+      },
+      "indigo-ink": {
+        "role": "primary",
+        "displayName": "Ink Indigo",
+        "canonical": "#3a40a6",
+        "tonalRamp": [
+          "#1b1f4e",
+          "#242866",
+          "#2c317e",
+          "#343a95",
+          "#6166b8",
+          "#898cca",
+          "#b4b6dd",
+          "#e1e2f2"
+        ]
+      },
+      "indigo-mist": {
+        "role": "primary",
+        "displayName": "Indigo Mist",
+        "canonical": "#eef0fe",
+        "tonalRamp": [
+          "#5f616f",
+          "#868896",
+          "#aeb0be",
+          "#d2d4e2",
+          "#f1f3fe",
+          "#f5f6fe",
+          "#f9f9ff",
+          "#fcfdff"
+        ]
+      },
+      "violet-accent": {
+        "role": "secondary",
+        "displayName": "Logo Violet",
+        "canonical": "#b181e8",
+        "tonalRamp": [
+          "#483767",
+          "#654b8a",
+          "#8260ae",
+          "#9d73cf",
+          "#c19aed",
+          "#d0b3f1",
+          "#e1cff6",
+          "#f3ecfc"
+        ]
+      },
+      "navy-ink": {
+        "role": "neutral",
+        "displayName": "Navy Ink",
+        "canonical": "#141b38",
+        "tonalRamp": [
+          "#0d1024",
+          "#0f132a",
+          "#11162f",
+          "#131934",
+          "#434960",
+          "#727688",
+          "#a6a8b3",
+          "#dcdde1"
+        ]
+      },
+      "navy-surface": {
+        "role": "neutral",
+        "displayName": "Dusk Navy",
+        "canonical": "#1c244a",
+        "tonalRamp": [
+          "#10142b",
+          "#131834",
+          "#161d3c",
+          "#1a2144",
+          "#49506e",
+          "#777c92",
+          "#a9acba",
+          "#dddee4"
+        ]
+      },
+      "night-void": {
+        "role": "neutral",
+        "displayName": "Night Void",
+        "canonical": "#0e1329",
+        "tonalRamp": [
+          "#0a0d1e",
+          "#0b0f21",
+          "#0c1024",
+          "#0d1227",
+          "#3e4254",
+          "#6e717f",
+          "#a3a5ae",
+          "#dbdcdf"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#f6f7fb",
+        "tonalRamp": [
+          "#62646e",
+          "#8b8c95",
+          "#b3b5bb",
+          "#d9dbe0",
+          "#f8f9fc",
+          "#fafafd",
+          "#fcfcfd",
+          "#fefefe"
+        ]
+      },
+      "cloud": {
+        "role": "neutral",
+        "displayName": "Cloud",
+        "canonical": "#edeff6",
+        "tonalRamp": [
+          "#5f616c",
+          "#868892",
+          "#adafb8",
+          "#d2d4db",
+          "#f1f2f8",
+          "#f4f5fa",
+          "#f8f9fc",
+          "#fcfdfe"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#dfe2ee",
+        "tonalRamp": [
+          "#5a5c69",
+          "#7e818e",
+          "#a3a6b2",
+          "#c5c8d4",
+          "#e5e8f1",
+          "#eceef5",
+          "#f3f4f9",
+          "#fafbfc"
+        ]
+      },
+      "slate-line": {
+        "role": "neutral",
+        "displayName": "Slate Line",
+        "canonical": "#c7cbdd",
+        "tonalRamp": [
+          "#515363",
+          "#717484",
+          "#9295a6",
+          "#b0b4c5",
+          "#d2d5e4",
+          "#dde0eb",
+          "#eaebf2",
+          "#f7f7fa"
+        ]
+      },
+      "slate-muted": {
+        "role": "neutral",
+        "displayName": "Slate Muted",
+        "canonical": "#5a6180",
+        "tonalRamp": [
+          "#272b40",
+          "#353a51",
+          "#434963",
+          "#505774",
+          "#7b8199",
+          "#9ca0b3",
+          "#c0c3cf",
+          "#e6e7ec"
+        ]
+      },
+      "amber-planned": {
+        "role": "status",
+        "displayName": "Planned Amber",
+        "canonical": "#bf8412",
+        "tonalRamp": [
+          "#4e3816",
+          "#6d4d15",
+          "#8c6214",
+          "#a97513",
+          "#cc9d41",
+          "#d9b571",
+          "#e7d0a5",
+          "#f5eddb"
+        ]
+      },
+      "red-danger": {
+        "role": "status",
+        "displayName": "Danger Red",
+        "canonical": "#c62b31",
+        "tonalRamp": [
+          "#501722",
+          "#701c26",
+          "#91222a",
+          "#af272e",
+          "#d1555a",
+          "#dd8083",
+          "#e9aeb1",
+          "#f6dfe0"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page h1 only."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headings."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card and panel titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All reading text."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase sidebar captions and eyebrows."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Identifiers, emails, Route Codes."
+      }
+    },
+    "shadows": [
+      {
+        "name": "rest",
+        "value": "0 1px 3px rgba(13,13,13,0.07), 0 1px 2px rgba(13,13,13,0.04)",
+        "purpose": "Default card."
+      },
+      {
+        "name": "raised",
+        "value": "0 2px 6px rgba(13,13,13,0.1)",
+        "purpose": "Raised card."
+      },
+      {
+        "name": "lifted",
+        "value": "0 12px 28px rgba(13,13,13,0.12)",
+        "purpose": "Interactive card hover, dialogs."
+      },
+      {
+        "name": "focus-ring",
+        "value": "0 0 0 3px rgba(93,101,230,0.28)",
+        "purpose": "Keyboard focus on pills, inputs, tags."
+      },
+      {
+        "name": "indigo-glow",
+        "value": "0 0 12px rgba(93,101,230,0.4)",
+        "purpose": "Legacy default-button hover."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "State transitions."
+      },
+      {
+        "name": "transition-fast",
+        "value": "0.15s",
+        "purpose": "Control state changes; all motion is zeroed under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main action on a screen; one per view.",
+      "html": "<button class=\"ds-btn-primary\">Save changes</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 20px;border-radius:999px;border:1px solid transparent;font-family:Manrope,system-ui,sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background-color .15s,box-shadow .15s,border-color .15s;background:#5d65e6;color:#fff}.ds-btn-primary:hover{background:#4a51cc}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(93,101,230,.28)}.ds-btn-primary:active{background:#3a40a6;transform:translateY(1px)}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Supporting actions beside a primary.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 20px;border-radius:999px;border:1px solid transparent;font-family:Manrope,system-ui,sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background-color .15s,box-shadow .15s,border-color .15s;background:#fff;color:#141b38;border-color:#c7cbdd}.ds-btn-secondary:hover{border-color:#9aa0ba;background:#edeff6}.ds-btn-secondary:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(93,101,230,.28)}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Low-emphasis action, e.g. in row toolbars.",
+      "html": "<button class=\"ds-btn-ghost\">View route</button>",
+      "css": ".ds-btn-ghost{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 20px;border-radius:999px;border:1px solid transparent;font-family:Manrope,system-ui,sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background-color .15s,box-shadow .15s,border-color .15s;background:transparent;color:#4a51cc}.ds-btn-ghost:hover{background:#eef0fe}.ds-btn-ghost:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(93,101,230,.28)}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive confirmation only.",
+      "html": "<button class=\"ds-btn-danger\">Delete route</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 20px;border-radius:999px;border:1px solid transparent;font-family:Manrope,system-ui,sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:background-color .15s,box-shadow .15s,border-color .15s;background:#e5484d;color:#fff}.ds-btn-danger:hover{background:#c62b31}.ds-btn-danger:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(229,72,77,.28)}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "40px field with label above.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Customer name</span><input class=\"ds-input\" placeholder=\"Search customers\"></label>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:6px;font-family:Manrope,system-ui,sans-serif}.ds-field-label{font-size:13px;font-weight:600;color:#141b38}.ds-input{height:40px;padding:0 16px;background:#fff;border:1px solid #c7cbdd;border-radius:12px;color:#141b38;font:400 15px Manrope,system-ui,sans-serif;transition:border-color .15s,box-shadow .15s}.ds-input::placeholder{color:#9aa0ba}.ds-input:hover{border-color:#9aa0ba}.ds-input:focus{outline:none;border-color:#5d65e6;box-shadow:0 0 0 3px rgba(93,101,230,.28)}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Framed panel with header and body.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-head\">Routes this week</div><div class=\"ds-card-body\">12 planned, 3 in progress</div></div>",
+      "css": ".ds-card{background:#fff;border:1px solid #dfe2ee;border-radius:16px;box-shadow:0 1px 3px rgba(13,13,13,.07),0 1px 2px rgba(13,13,13,.04);font-family:Manrope,system-ui,sans-serif;color:#2b3150}.ds-card-head{padding:20px 24px;border-bottom:1px solid #dfe2ee;font-family:Comfortaa,sans-serif;font-weight:700;font-size:16px;letter-spacing:-.01em;color:#141b38}.ds-card-body{padding:24px;font-size:15px}"
+    },
+    {
+      "name": "Status Badges",
+      "kind": "chip",
+      "refersTo": "badge-success",
+      "description": "Pill status: active (indigo), planned (amber), danger (red).",
+      "html": "<span class=\"ds-badge ds-badge-active\">Active</span> <span class=\"ds-badge ds-badge-planned\">Planned</span> <span class=\"ds-badge ds-badge-danger\">Overdue</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;border-radius:999px;font:600 12px/1 Manrope,system-ui,sans-serif;padding:5px 10px;white-space:nowrap}.ds-badge-active{background:#eef0fe;color:#3a40a6}.ds-badge-planned{background:#fff6e0;color:#8c5f08}.ds-badge-danger{background:#fdecee;color:#c62b31}"
+    },
+    {
+      "name": "Sidebar Nav Link",
+      "kind": "nav",
+      "refersTo": "nav-link-active",
+      "description": "Portal navigation; active link is tinted and sets aria-current.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-link ds-nav-active\" aria-current=\"page\" href=\"#\">Routes</a><a class=\"ds-nav-link\" href=\"#\">Invoices</a></nav>",
+      "css": ".ds-nav{display:flex;flex-direction:column;gap:4px;width:220px;font-family:Manrope,system-ui,sans-serif}.ds-nav-link{padding:11px 12px;border-radius:12px;font-size:13px;font-weight:600;color:#5a6180;text-decoration:none;transition:background-color .15s,color .15s}.ds-nav-link:hover{background:#edeff6;color:#141b38}.ds-nav-active,.ds-nav-active:hover{background:#eef0fe;color:#4a51cc}.ds-nav-link:focus-visible{outline:2px solid #5d65e6;outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Dispatch Desk",
+    "overview": "One desk, three seats: administrators at a desktop, Operators with a phone in a van after dark, Customers checking a Route. Calm, rounded and tonal, with a single indigo accent marking what can be acted on or what is current.",
+    "keyCharacteristics": [
+      "One accent (indigo) plus a rare violet; amber and red reserved for planned/warning and danger.",
+      "Pill-shaped actions, 12-16px rounded containers, hairline borders.",
+      "Comfortaa for headings, Manrope for reading, JetBrains Mono for identifiers.",
+      "Light and dark for every role; Operators default to dark; staff sidebar always navy.",
+      "Role accent, focus ring and active-nav tints come from role tokens."
+    ],
+    "rules": [
+      {
+        "name": "The One Voice Rule",
+        "body": "Indigo is the only action color. Violet decorates; it never marks something clickable.",
+        "section": "colors"
+      },
+      {
+        "name": "The Red Is Earned Rule",
+        "body": "Red appears only for overdue, failed or destructive states, including on invoices.",
+        "section": "colors"
+      },
+      {
+        "name": "The Role Token Rule",
+        "body": "Shared components read the role tokens, never a hard-coded role color or a hard-coded dark or light shell.",
+        "section": "colors"
+      },
+      {
+        "name": "The Heading Face Rule",
+        "body": "Comfortaa is for headings; everything else is Manrope. Never set body copy in Comfortaa.",
+        "section": "typography"
+      },
+      {
+        "name": "The Response-Only Glow Rule",
+        "body": "Glows and lifts appear as a reaction to hover or focus, never at rest.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use the unprefixed tokens and app/components/ui/ primitives for new UI.",
+      "Do keep indigo as the only action color and reserve red for danger, overdue and failure.",
+      "Do make every role support light and dark through the shared resolved theme mode.",
+      "Do keep touch targets at 44px minimum, and 52px for primary Operator actions.",
+      "Do give active navigation aria-current=\"page\" and a visible role-tinted focus ring.",
+      "Do confirm destructive and replacement actions."
+    ],
+    "donts": [
+      "Don't mix neon accents across equal-priority cards in the Customer portal.",
+      "Don't hard-code a role shell to dark or light where the shared theme is available.",
+      "Don't show invoices, balances or restricted placeholders to read_only Customers.",
+      "Don't nest cards or use marketing-style hero compositions in operational workflows.",
+      "Don't let global typography or button rules override MUI or Amplify component states.",
+      "Don't put glow or lift on resting elements."
+    ]
+  }
+}

@@ -177,7 +177,7 @@
   --text-heading: #f3f5fc;
   --text-body: rgba(243, 245, 252, 0.86);
   --text-muted: rgba(243, 245, 252, 0.62);
-  --text-subtle: rgba(243, 245, 252, 0.46);
+  --text-subtle: rgba(243, 245, 252, 0.54);
   --text-disabled: rgba(243, 245, 252, 0.32);
   --text-on-brand: #ffffff;
   --text-brand: var(--indigo-300);

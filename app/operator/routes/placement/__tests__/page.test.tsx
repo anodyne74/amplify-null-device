@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import OperatorPlacementPage from '../page';
 import { queueSignRunTransition } from '@/lib/signRunTransitions';
 import { signRunOutbox } from '@/lib/signRunOutbox';
@@ -201,6 +201,80 @@ describe('Operator Placement page', () => {
       );
     });
     expect(await screen.findByText('PLACEMENT · STOP 2 OF 2')).toBeInTheDocument();
+  });
+
+  describe('undoing "Signs placed"', () => {
+    afterEach(() => jest.useRealTimers());
+
+    async function placeFirstStop() {
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+      render(<OperatorPlacementPage />);
+      await screen.findByText('PLACEMENT · STOP 1 OF 2');
+      fireEvent.click(screen.getByRole('button', { name: /signs placed/i }));
+      await screen.findByText('PLACEMENT · STOP 2 OF 2');
+    }
+
+    it('offers Undo for the Stop just placed, and Undo makes it the current Stop again', async () => {
+      await placeFirstStop();
+
+      expect(screen.getByText('Signs placed', { selector: '.nd-toast__title' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+      expect(await screen.findByText('PLACEMENT · STOP 1 OF 2')).toBeInTheDocument();
+      expect(screen.getByTestId('placement-map')).toHaveAttribute('data-active-stop', 's1');
+      expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+    });
+
+    it('undoes after the settlement has saved too', async () => {
+      (updateStopExecution as jest.Mock).mockImplementation((id: string) =>
+        Promise.resolve({ data: { id, updatedAt: '2026-08-31T10:00:01.000Z' }, errors: undefined })
+      );
+      await placeFirstStop();
+      await waitFor(() => expect(updateStopExecution).toHaveBeenCalledWith('s1', expect.objectContaining({ notes: expect.stringContaining('[PLACEMENT_DONE:') })));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+      expect(await screen.findByText('PLACEMENT · STOP 1 OF 2')).toBeInTheDocument();
+      await waitFor(() =>
+        expect(updateStopExecution).toHaveBeenCalledWith('s1', {
+          notes: expect.stringContaining('[PLACEMENT_REOPENED:'),
+        })
+      );
+      const undoNotes = (updateStopExecution as jest.Mock).mock.calls.find(([, fields]) => fields.notes?.includes('REOPENED'))[1].notes;
+      expect(undoNotes).not.toContain('PLACEMENT_DONE');
+    });
+
+    it('stops offering Undo after five seconds and the placement stands', async () => {
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+      render(<OperatorPlacementPage />);
+      await screen.findByText('PLACEMENT · STOP 1 OF 2');
+
+      jest.useFakeTimers();
+      fireEvent.click(screen.getByRole('button', { name: /signs placed/i }));
+      expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+
+      act(() => {
+        jest.advanceTimersByTime(4900);
+      });
+      expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+
+      expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+      expect(screen.getByText('PLACEMENT · STOP 2 OF 2')).toBeInTheDocument();
+    });
+
+    it('moves the Undo to the next Stop when another is placed straight after', async () => {
+      await placeFirstStop();
+      fireEvent.click(screen.getByRole('button', { name: /signs placed/i }));
+      await screen.findByText('All stops done');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+      expect(await screen.findByText('PLACEMENT · STOP 2 OF 2')).toBeInTheDocument();
+      expect(screen.getByTestId('placement-map')).toHaveAttribute('data-active-stop', 's2');
+    });
   });
 
   describe('placement GPS (#285)', () => {

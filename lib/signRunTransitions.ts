@@ -25,7 +25,7 @@
  */
 import { getSignRunPhase, type SignRunPhaseInfo } from '@/lib/signRunPhase';
 import { billedTimePatch } from '@/lib/billedTime';
-import { settleStopNotes, type ExecutionPhase } from '@/lib/stopProgress';
+import { reopenPlacementNotes, settleStopNotes, type ExecutionPhase } from '@/lib/stopProgress';
 import type { Route, RouteExecutionPhase, Stop } from '@/amplify/types';
 import { signRunOutbox } from '@/lib/signRunOutbox';
 import type { StopChangeKind, StopSettlementKind } from '@/lib/signRunTiming';
@@ -236,6 +236,26 @@ export function queueStopSettlement(
     target: 'Stop',
     recordId: stop.id,
     kind: settlementKind(settlement),
+    patch: { ...patch },
+  });
+  return { patch };
+}
+
+/**
+ * Queues undoing a Placement, so the Stop is awaiting again. Saved after the
+ * settlement it undoes, whether or not that has saved yet. The Stop's arrival and
+ * departure times stay: an operator can set a Stop's fields but not clear them,
+ * and Stop Progress reads the notes (lib/stopProgress.ts).
+ */
+export function queueStopPlacementUndo(
+  stop: Pick<Stop, 'id' | 'routeId' | 'notes'>
+): { patch: { notes: string } } {
+  const patch = { notes: reopenPlacementNotes(stop.notes, new Date().toISOString()) };
+  signRunOutbox.enqueue({
+    routeId: stop.routeId,
+    target: 'Stop',
+    recordId: stop.id,
+    kind: 'placementStopUndone',
     patch: { ...patch },
   });
   return { patch };

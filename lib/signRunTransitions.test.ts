@@ -8,13 +8,14 @@ import {
   planStopSettlement,
   queueSignRunTransition,
   queueStopChange,
+  queueStopPlacementUndo,
   queueStopSettlement,
   stopPhaseOf,
   type SignRunTransition,
   type SignRunTransitionRoute,
   type StopSettlement,
 } from '@/lib/signRunTransitions';
-import { stopProgress } from '@/lib/stopProgress';
+import { settleStopNotes, stopProgress } from '@/lib/stopProgress';
 
 const AT = '2026-09-26T09:00:00.000Z';
 
@@ -179,6 +180,31 @@ describe('queueStopSettlement', () => {
     const { patch } = queueStopSettlement(stop, settlement);
 
     expect(mockEnqueue).toHaveBeenCalledWith({ routeId: 'r1', target: 'Stop', recordId: 's1', kind, patch });
+  });
+});
+
+describe('queueStopPlacementUndo', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('queues the Stop awaiting placement again, under its own kind', () => {
+    const notes = settleStopNotes('Gate code 4821', 'placement', 'complete', AT);
+    const { patch } = queueStopPlacementUndo({ id: 's1', routeId: 'r1', notes });
+
+    expect(mockEnqueue).toHaveBeenCalledWith({
+      routeId: 'r1',
+      target: 'Stop',
+      recordId: 's1',
+      kind: 'placementStopUndone',
+      patch,
+    });
+    expect(stopProgress({ notes: patch.notes }).placement.state).toBe('pending');
+  });
+
+  it('sets nothing to null: an operator may set a Stop field but not clear it', () => {
+    const { patch } = queueStopPlacementUndo({ id: 's1', routeId: 'r1', notes: null });
+    expect(Object.values(patch).every((value) => value !== null && value !== undefined)).toBe(true);
   });
 });
 

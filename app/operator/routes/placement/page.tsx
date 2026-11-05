@@ -9,11 +9,17 @@ import { Card } from '@/app/components/ui/core/Card';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
 import { SetAsideStops } from '@/app/operator/components/SetAsideStops';
+import { UndoToast } from '@/app/operator/components/UndoToast';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
 import { recordPlacementPosition } from '@/lib/placementPosition';
-import { queueSignRunTransition, queueStopChange, queueStopSettlement } from '@/lib/signRunTransitions';
+import {
+  queueSignRunTransition,
+  queueStopChange,
+  queueStopPlacementUndo,
+  queueStopSettlement,
+} from '@/lib/signRunTransitions';
 import { activeStops, isRemovedAtDoor } from '@/lib/loadChange';
 import { useCurrentUserId } from '@/lib/use-user-groups';
 import { formatClockTime } from '@/lib/format';
@@ -86,6 +92,8 @@ export default function OperatorPlacementPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
   const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
+  // The Stop just marked placed, while the Operator can still take it back.
+  const [justPlacedStopId, setJustPlacedStopId] = useState<string | null>(null);
   const { dialog, openDialog, closeDialog, submitting } = useTimestampConfirmDialog<
     'start' | 'complete'
   >();
@@ -120,6 +128,7 @@ export default function OperatorPlacementPage() {
       const stop = stops.find((s) => s.id === stopId);
       if (!stop) return;
       queueStopSettlement(stop, { phase: 'placement', action: 'complete' });
+      setJustPlacedStopId(stopId);
       // Best-effort and after the fact: placement never waits on, or fails for, GPS (#285).
       void recordPlacementPosition(stopId).then((position) => {
         if (position) patchStop(stopId, position);
@@ -127,6 +136,15 @@ export default function OperatorPlacementPage() {
     },
     [stops, patchStop]
   );
+
+  const handleUndoPlaced = useCallback(() => {
+    // From allStops, not stops: it carries the settlement still waiting to save.
+    const stop = allStops.find((s) => s.id === justPlacedStopId);
+    setJustPlacedStopId(null);
+    if (stop) queueStopPlacementUndo(stop);
+  }, [allStops, justPlacedStopId]);
+
+  const expireUndoPlaced = useCallback(() => setJustPlacedStopId(null), []);
 
   // Can't place: the Stop comes off the Route (a Removed Stop), saved like any Sign Run write.
   const handleRemoveStop = useCallback(
@@ -244,6 +262,7 @@ export default function OperatorPlacementPage() {
     );
   }
 
+  const justPlacedStop = stops.find((stop) => stop.id === justPlacedStopId) ?? null;
   const settledCount = total - openStops.length;
   // Caps at `total` once every stop is settled — otherwise the counter overshoots to
   // "17 of 16" on the confirm-to-finish state below.
@@ -382,6 +401,16 @@ export default function OperatorPlacementPage() {
           {currentStop ? 'Signs placed' : 'Complete placement'}
         </button>
       </div>
+
+      {justPlacedStop && (
+        <UndoToast
+          key={justPlacedStop.id}
+          message="Signs placed"
+          description={getPrimaryAddressLine(justPlacedStop.formattedAddress || justPlacedStop.address)}
+          onUndo={handleUndoPlaced}
+          onExpire={expireUndoPlaced}
+        />
+      )}
 
       <ConfirmDialog
         open={dialog !== null}

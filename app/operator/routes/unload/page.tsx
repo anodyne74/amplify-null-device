@@ -106,6 +106,7 @@ export default function OperatorUnloadPage() {
   return (
     <div className={shellStyles.page}>
       <Breadcrumbs
+        touch
         items={[
           { label: 'Today', href: '/operator/dashboard' },
           { label: `${route.routeCode || route.id.slice(0, 8)} · Unload` },

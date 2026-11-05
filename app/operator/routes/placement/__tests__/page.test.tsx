@@ -514,6 +514,32 @@ describe('Operator Placement page', () => {
     expect(push).toHaveBeenCalledWith('/operator/dashboard');
   });
 
+  it('shows a failed write next to the action bar, as an alert, and clears it on the next attempt', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: baseRoute(),
+      stops: [baseStops()[0]],
+    });
+    (queueSignRunTransition as jest.Mock).mockReturnValueOnce({ error: 'Could not close placement.' });
+
+    render(<OperatorPlacementPage />);
+    await screen.findByText('PLACEMENT · STOP 1 OF 1');
+    fireEvent.click(screen.getByRole('button', { name: /signs placed/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /complete placement/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Could not close placement.');
+    // Docked above the pinned bar, not in the page flow at the top.
+    expect(alert.parentElement).toHaveClass('dock');
+    expect(push).not.toHaveBeenCalled();
+
+    // Trying again clears it.
+    fireEvent.click(screen.getByRole('button', { name: /complete placement/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('shows a guard message when the route is not on the Placement phase', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ executionPhase: 'pickup' }),

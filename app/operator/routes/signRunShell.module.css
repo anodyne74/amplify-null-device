@@ -24,14 +24,14 @@
 
 .mutedText {
   font-family: var(--font-body);
-  font-size: var(--text-sm);
+  font-size: var(--text-field-min);
   color: var(--text-muted);
 }
 
 .backLink {
   font-family: var(--font-body);
   font-weight: var(--fw-semibold);
-  font-size: var(--text-sm);
+  font-size: var(--text-field-min);
   color: var(--text-brand);
 }
 
@@ -41,7 +41,7 @@
   background: var(--status-warning-bg);
   color: var(--status-warning-fg);
   font-family: var(--font-body);
-  font-size: var(--text-sm);
+  font-size: var(--text-field-min);
 }
 
 .kickerRow {
@@ -53,7 +53,7 @@
 .kicker {
   font-family: var(--font-body);
   font-weight: var(--fw-bold);
-  font-size: var(--text-2xs);
+  font-size: var(--text-field-min);
   letter-spacing: var(--ls-caps);
   text-transform: uppercase;
   color: var(--text-brand);
@@ -62,7 +62,7 @@
 .customer {
   font-family: var(--font-body);
   font-weight: var(--fw-medium);
-  font-size: var(--text-xs);
+  font-size: var(--text-field-min);
   color: var(--text-muted);
 }
 
@@ -79,7 +79,7 @@
 .subtitle {
   margin: var(--space-2) 0 0;
   font-family: var(--font-body);
-  font-size: var(--text-sm);
+  font-size: var(--text-field-min);
   line-height: var(--lh-relaxed);
   color: var(--text-muted);
 }
@@ -103,7 +103,7 @@
 .statLabel {
   font-family: var(--font-body);
   font-weight: var(--fw-bold);
-  font-size: var(--text-2xs);
+  font-size: var(--text-field-min);
   letter-spacing: var(--ls-caps);
   text-transform: uppercase;
   color: var(--text-subtle);
@@ -145,7 +145,7 @@
   color: var(--text-body);
   font-family: var(--font-body);
   font-weight: var(--fw-semibold);
-  font-size: var(--text-sm);
+  font-size: var(--text-field-min);
   cursor: pointer;
   transition: var(--transition-control);
 }
@@ -162,7 +162,7 @@
 .footnote {
   margin: 0;
   font-family: var(--font-body);
-  font-size: var(--text-xs);
+  font-size: var(--text-field-min);
   line-height: var(--lh-relaxed);
   color: var(--text-subtle);
 }

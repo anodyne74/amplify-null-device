@@ -7,7 +7,7 @@
 .heading {
   font-family: var(--font-body);
   font-weight: var(--fw-bold);
-  font-size: var(--text-2xs);
+  font-size: var(--text-field-min);
   letter-spacing: var(--ls-caps);
   text-transform: uppercase;
   color: var(--text-subtle);
@@ -51,12 +51,12 @@
 
 .address {
   font-weight: var(--fw-semibold);
-  font-size: var(--text-sm);
+  font-size: var(--text-field-min);
   color: var(--text-heading);
 }
 
 .reason {
-  font-size: var(--text-xs);
+  font-size: var(--text-field-min);
   color: var(--text-muted);
 }
 
@@ -70,6 +70,6 @@
   color: var(--text-brand);
   font-family: var(--font-body);
   font-weight: var(--fw-semibold);
-  font-size: var(--text-sm);
+  font-size: var(--text-field-min);
   cursor: pointer;
 }

@@ -33,4 +33,22 @@ describe('devpreview fixtures', () => {
     expect(removed.stops.filter((s) => s.removed && s.removedReason)).toHaveLength(1);
     expect(fixtureRouteWithStops('fixture-2').stops).toHaveLength(2);
   });
+
+  it('offers a Pickup Route with every Stop placed and an Unload Route that has finished Pickup', async () => {
+    process.env.NEXT_PUBLIC_DEVPREVIEW = '1';
+    const { fixtureRouteWithStops } = await import('@/lib/devFixtures');
+    const { stopProgress } = await import('@/lib/stopProgress');
+
+    const pickup = fixtureRouteWithStops('fixture-pickup');
+    expect(pickup.route.executionPhase).toBe('pickup');
+    expect(pickup.route.pickupStartTime).toBeTruthy();
+    expect(pickup.stops.every((s) => stopProgress(s).placement.state === 'done')).toBe(true);
+    expect(pickup.stops.every((s) => stopProgress(s).pickup.state === 'pending')).toBe(true);
+
+    const unload = fixtureRouteWithStops('fixture-unload');
+    expect(unload.route.executionPhase).toBe('unload');
+    const states = unload.stops.map((s) => stopProgress(s).pickup.state);
+    expect(states.filter((x) => x === 'couldntCollect')).toHaveLength(1);
+    expect(states.filter((x) => x === 'done')).toHaveLength(15);
+  });
 });

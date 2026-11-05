@@ -25,7 +25,7 @@
  */
 import { getSignRunPhase, type SignRunPhaseInfo } from '@/lib/signRunPhase';
 import { billedTimePatch } from '@/lib/billedTime';
-import { reopenPlacementNotes, settleStopNotes, type ExecutionPhase } from '@/lib/stopProgress';
+import { reopenPickupNotes, reopenPlacementNotes, settleStopNotes, type ExecutionPhase } from '@/lib/stopProgress';
 import type { Route, RouteExecutionPhase, Stop } from '@/amplify/types';
 import { signRunOutbox } from '@/lib/signRunOutbox';
 import type { StopChangeKind, StopSettlementKind } from '@/lib/signRunTiming';
@@ -256,6 +256,25 @@ export function queueStopPlacementUndo(
     target: 'Stop',
     recordId: stop.id,
     kind: 'placementStopUndone',
+    patch: { ...patch },
+  });
+  return { patch };
+}
+
+/**
+ * Queues undoing a Pickup, so the Stop is awaiting pickup again, the same way as
+ * queueStopPlacementUndo. Reverses a done Stop only; a Couldn't Collect one is
+ * settled again with Collected instead.
+ */
+export function queueStopPickupUndo(
+  stop: Pick<Stop, 'id' | 'routeId' | 'notes'>
+): { patch: { notes: string } } {
+  const patch = { notes: reopenPickupNotes(stop.notes, new Date().toISOString()) };
+  signRunOutbox.enqueue({
+    routeId: stop.routeId,
+    target: 'Stop',
+    recordId: stop.id,
+    kind: 'pickupStopUndone',
     patch: { ...patch },
   });
   return { patch };

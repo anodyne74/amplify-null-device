@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import OperatorPickupPage from '../page';
 import { queueSignRunTransition } from '@/lib/signRunTransitions';
 import { signRunOutbox } from '@/lib/signRunOutbox';
@@ -209,6 +209,83 @@ describe('Operator Pickup page', () => {
       );
     });
     expect(await screen.findByText('PICKUP · STOP 2 OF 2')).toBeInTheDocument();
+  });
+
+  describe('undoing "Signs picked up"', () => {
+    afterEach(() => jest.useRealTimers());
+
+    async function pickUpFirstStop() {
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+      render(<OperatorPickupPage />);
+      await screen.findByText('PICKUP · STOP 1 OF 2');
+      fireEvent.click(screen.getByRole('button', { name: /signs picked up/i }));
+      await screen.findByText('PICKUP · STOP 2 OF 2');
+    }
+
+    it('offers Undo for the Stop just picked up, and Undo makes it the current Stop again', async () => {
+      await pickUpFirstStop();
+
+      expect(screen.getByText('Signs picked up', { selector: '.nd-toast__title' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+      expect(await screen.findByText('PICKUP · STOP 1 OF 2')).toBeInTheDocument();
+      expect(screen.getByTestId('pickup-map')).toHaveAttribute('data-active-stop', 's1');
+      expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+    });
+
+    it('undoes after the settlement has saved too', async () => {
+      // No updatedAt echoed back: the outbox keeps a saved write's version to overlay stale
+      // reads, and it would outlive this test.
+      (updateStopExecution as jest.Mock).mockImplementation((id: string) =>
+        Promise.resolve({ data: { id }, errors: undefined })
+      );
+      await pickUpFirstStop();
+      await waitFor(() =>
+        expect(updateStopExecution).toHaveBeenCalledWith('s1', expect.objectContaining({ notes: expect.stringContaining('[PICKUP_DONE:') }))
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+      expect(await screen.findByText('PICKUP · STOP 1 OF 2')).toBeInTheDocument();
+      await waitFor(() =>
+        expect(updateStopExecution).toHaveBeenCalledWith('s1', {
+          notes: expect.stringContaining('[PICKUP_REOPENED:'),
+        })
+      );
+      const undoNotes = (updateStopExecution as jest.Mock).mock.calls.find(([, fields]) => fields.notes?.includes('REOPENED'))[1].notes;
+      expect(undoNotes).not.toContain('PICKUP_DONE');
+    });
+
+    it('stops offering Undo after five seconds and the pickup stands', async () => {
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+      render(<OperatorPickupPage />);
+      await screen.findByText('PICKUP · STOP 1 OF 2');
+
+      jest.useFakeTimers();
+      fireEvent.click(screen.getByRole('button', { name: /signs picked up/i }));
+      expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+
+      act(() => {
+        jest.advanceTimersByTime(4900);
+      });
+      expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+      act(() => {
+        jest.advanceTimersByTime(200);
+      });
+
+      expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+      expect(screen.getByText('PICKUP · STOP 2 OF 2')).toBeInTheDocument();
+    });
+
+    it("drops the Undo when the next Stop can't be collected, so it can't reopen a different outcome", async () => {
+      await pickUpFirstStop();
+
+      fireEvent.click(screen.getByRole('button', { name: "Couldn't collect" }));
+      expect(await screen.findByText("Why couldn't the signs be collected?")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /gate locked/i }));
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument());
+    });
   });
 
   it("marks the current stop Couldn't collect with a reason, and lets it be collected before Pickup ends", async () => {

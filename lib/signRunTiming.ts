@@ -11,6 +11,7 @@ import type { SignRunTransitionType } from '@/lib/signRunTransitions';
 export type StopSettlementKind =
   | 'placementStopDone'
   | 'placementStopUndone'
+  | 'pickupStopUndone'
   | 'pickupStopDone'
   | 'pickupStopCouldntCollect';
 
@@ -37,6 +38,7 @@ const KIND: Record<SignRunTimingKind, true> = {
   finalise: true,
   placementStopDone: true,
   placementStopUndone: true,
+  pickupStopUndone: true,
   pickupStopDone: true,
   pickupStopCouldntCollect: true,
   loadStopAdded: true,

@@ -149,7 +149,8 @@
 .thenList {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  /* Wide enough that a gloved tap on one row can't land on its neighbour. */
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -160,6 +161,8 @@
   align-items: center;
   gap: var(--space-3);
   width: 100%;
+  /* Guaranteed, not left to the text: a short address with no suburb still gives a full target. */
+  min-height: var(--control-h-touch);
   padding: var(--space-3);
   border-radius: var(--radius-lg);
   background: var(--surface-card);

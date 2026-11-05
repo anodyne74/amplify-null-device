@@ -321,7 +321,7 @@ export default function OperatorPlacementPage() {
             phase="placement"
             presentation="field"
           />
-          <div className={stopCardStyles.glassCard}>
+          <div className={`${stopCardStyles.glassCard} ${stopCardStyles.glassCardDocked}`}>
             <div className={stopCardStyles.glassTopRow}>
               <span className={stopCardStyles.glassCounter}>
                 PLACEMENT · STOP {stopNumber} OF {total}

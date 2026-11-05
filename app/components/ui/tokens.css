@@ -232,7 +232,7 @@
   --text-6xl: 64px;
 
   /* Floor for text an Operator reads mid-run, on a phone in a van. */
-  --text-field-min: 14px;
+  --text-field-min: 16px;
 
   --lh-tight: 1.15;
   --lh-snug: 1.3;

@@ -11,6 +11,7 @@ import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDi
 import { SetAsideStops } from '@/app/operator/components/SetAsideStops';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { UndoToast } from '@/app/operator/components/UndoToast';
+import { ActionBarError } from '@/app/operator/components/ActionBarError';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
 import { queueSignRunTransition, queueStopPickupUndo, queueStopSettlement } from '@/lib/signRunTransitions';
@@ -45,7 +46,9 @@ const RouteStopsMap = dynamic(
  * There's no routing engine in this codebase — approximate the "leg" between the
  * previous sequenced stop and the current one the same way the design's own
  * prototype does: a straight-line distance with a road-fudge factor, at a fixed
- * average speed. Omitted for the first stop, which has no previous leg.
+ * average speed. Omitted for the first stop, which has no previous leg. Only the
+ * distance is shown, as an estimate: the speed is a guess, so minutes would pass
+ * it off as a prediction.
  */
 function getLegLine(stops: Stop[], current: Stop): string | null {
   const currentIndex = stops.findIndex((stop) => stop.id === current.id);
@@ -64,8 +67,7 @@ function getLegLine(stops: Stop[], current: Stop): string | null {
     { lat: previous.latitude, lng: previous.longitude },
     { lat: current.latitude, lng: current.longitude }
   ) * 1.3;
-  const minutes = Math.max(2, Math.round((km / 22) * 60));
-  return `${km.toFixed(1)} km · ${minutes} min`;
+  return `~${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
 }
 
 export default function OperatorPickupPage() {
@@ -332,7 +334,6 @@ export default function OperatorPickupPage() {
         ]}
       />
 
-      {error && <div className={shellStyles.errorBanner}>{error}</div>}
 
       <div className={shellStyles.kickerRow}>
         <span className={shellStyles.kicker}>{phaseInfo.phaseKicker}</span>
@@ -350,7 +351,7 @@ export default function OperatorPickupPage() {
             phase="pickup"
             presentation="field"
           />
-          <div className={stopCardStyles.glassCard}>
+          <div className={`${stopCardStyles.glassCard} ${stopCardStyles.glassCardDocked}`}>
             <div className={stopCardStyles.glassTopRow}>
               <span className={stopCardStyles.glassCounter}>
                 PICKUP · STOP {stopNumber} OF {total}
@@ -499,6 +500,8 @@ export default function OperatorPickupPage() {
           {currentStop ? 'Signs picked up' : 'Complete pickup'}
         </button>
       </div>
+
+      {error && <ActionBarError message={error} aboveUndoToast={Boolean(justPickedUpStop)} />}
 
       {justPickedUpStop && (
         <UndoToast

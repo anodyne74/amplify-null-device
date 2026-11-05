@@ -384,6 +384,45 @@ describe('Operator Pickup page', () => {
     expect(push).toHaveBeenCalledWith('/operator/dashboard');
   });
 
+  it('shows a failed write next to the action bar, as an alert, and clears it on the next attempt', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({
+      route: baseRoute(),
+      stops: [baseStops()[0]],
+    });
+    (queueSignRunTransition as jest.Mock).mockReturnValueOnce({ error: 'Could not close pickup.' });
+
+    render(<OperatorPickupPage />);
+    await screen.findByText('PICKUP · STOP 1 OF 1');
+    fireEvent.click(screen.getByRole('button', { name: /signs picked up/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /complete pickup/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Could not close pickup.');
+    // Docked above the pinned bar, not in the page flow at the top.
+    expect(alert.parentElement).toHaveClass('dock');
+    expect(push).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /complete pickup/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/operator/dashboard'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows the distance from the previous stop as an estimate, with no travel time', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+
+    render(<OperatorPickupPage />);
+    await screen.findByText('PICKUP · STOP 1 OF 2');
+    expect(screen.queryByText(/~[\d.]+ km/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /signs picked up/i }));
+    await screen.findByText('PICKUP · STOP 2 OF 2');
+
+    expect(screen.getByText('~0.3 km')).toBeInTheDocument();
+    expect(screen.queryByText(/\bmin\b/)).not.toBeInTheDocument();
+  });
+
   it('shows a guard message when the route is not on the Pickup phase', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ executionPhase: 'placement' }),

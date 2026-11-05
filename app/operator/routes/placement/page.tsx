@@ -94,6 +94,8 @@ export default function OperatorPlacementPage() {
   const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
   // The Stop just marked placed, while the Operator can still take it back.
   const [justPlacedStopId, setJustPlacedStopId] = useState<string | null>(null);
+  // The Stop just removed at the door ("Can't place"), while the Operator can still take it back.
+  const [justRemovedStopId, setJustRemovedStopId] = useState<string | null>(null);
   const { dialog, openDialog, closeDialog, submitting } = useTimestampConfirmDialog<
     'start' | 'complete'
   >();
@@ -128,6 +130,7 @@ export default function OperatorPlacementPage() {
       const stop = stops.find((s) => s.id === stopId);
       if (!stop) return;
       queueStopSettlement(stop, { phase: 'placement', action: 'complete' });
+      setJustRemovedStopId(null);
       setJustPlacedStopId(stopId);
       // Best-effort and after the fact: placement never waits on, or fails for, GPS (#285).
       void recordPlacementPosition(stopId).then((position) => {
@@ -157,10 +160,27 @@ export default function OperatorPlacementPage() {
         return;
       }
       const result = queueStopChange(route, { type: 'remove', stop, by: userId, reason });
-      if ('error' in result) setError(result.error);
+      if ('error' in result) {
+        setError(result.error);
+        return;
+      }
+      setJustPlacedStopId(null);
+      setJustRemovedStopId(stopId);
     },
     [route, stops, userId]
   );
+
+  // Undo is the same restore as the "Removed today" list offers, so it is audited the same way.
+  const handleUndoRemoved = useCallback(() => {
+    const stop = removedAtDoor.find((s) => s.id === justRemovedStopId);
+    setJustRemovedStopId(null);
+    if (!route || !stop) return;
+    setError(null);
+    const result = queueStopChange(route, { type: 'restore', stop });
+    if ('error' in result) setError(result.error);
+  }, [route, removedAtDoor, justRemovedStopId]);
+
+  const expireUndoRemoved = useCallback(() => setJustRemovedStopId(null), []);
 
   const handleRestoreStop = useCallback(
     (stopId: string) => {
@@ -263,6 +283,7 @@ export default function OperatorPlacementPage() {
   }
 
   const justPlacedStop = stops.find((stop) => stop.id === justPlacedStopId) ?? null;
+  const justRemovedStop = removedAtDoor.find((stop) => stop.id === justRemovedStopId) ?? null;
   const settledCount = total - openStops.length;
   // Caps at `total` once every stop is settled — otherwise the counter overshoots to
   // "17 of 16" on the confirm-to-finish state below.
@@ -409,6 +430,16 @@ export default function OperatorPlacementPage() {
           description={getPrimaryAddressLine(justPlacedStop.formattedAddress || justPlacedStop.address)}
           onUndo={handleUndoPlaced}
           onExpire={expireUndoPlaced}
+        />
+      )}
+
+      {justRemovedStop && (
+        <UndoToast
+          key={justRemovedStop.id}
+          message="Stop removed"
+          description={getPrimaryAddressLine(justRemovedStop.formattedAddress || justRemovedStop.address)}
+          onUndo={handleUndoRemoved}
+          onExpire={expireUndoRemoved}
         />
       )}
 

@@ -377,6 +377,75 @@ describe('Operator Placement page', () => {
     expect(screen.queryByRole('region', { name: 'Removed today' })).not.toBeInTheDocument();
   });
 
+  describe('undoing "Can\'t place"', () => {
+    afterEach(() => jest.useRealTimers());
+
+    async function removeFirstStop() {
+      (updateStopExecution as jest.Mock).mockImplementation((id: string) =>
+        Promise.resolve({ data: { id, updatedAt: '2026-09-30T00:00:00.000Z' }, errors: undefined })
+      );
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+      render(<OperatorPlacementPage />);
+      await screen.findByText('PLACEMENT · STOP 1 OF 2');
+      fireEvent.click(screen.getByRole('button', { name: "Can't place" }));
+      fireEvent.click(await screen.findByRole('button', { name: /gate locked/i }));
+      await screen.findByText('PLACEMENT · STOP 1 OF 1');
+    }
+
+    // A saved removal stays on screen until the live data catches up, so put it back for the
+    // tests after this one.
+    async function restoreAndSettle() {
+      jest.useRealTimers();
+      fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+      await waitFor(() => expect(updateStopExecution).toHaveBeenCalledWith('s1', { removed: false }));
+    }
+
+    it('offers Undo after a removal, and Undo puts the Stop back as current', async () => {
+      await removeFirstStop();
+
+      expect(screen.getByText('Stop removed', { selector: '.nd-toast__title' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+      await waitFor(() => expect(updateStopExecution).toHaveBeenCalledWith('s1', { removed: false }));
+      expect(await screen.findByText('PLACEMENT · STOP 1 OF 2')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: 'Removed today' })).not.toBeInTheDocument();
+    });
+
+    it('lets the removal stand once the window runs out, with Restore still available', async () => {
+      (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+      render(<OperatorPlacementPage />);
+      await screen.findByText('PLACEMENT · STOP 1 OF 2');
+
+      // Fake timers go in before the removal, so the toast's window runs on them.
+      jest.useFakeTimers();
+      fireEvent.click(screen.getByRole('button', { name: "Can't place" }));
+      fireEvent.click(screen.getByRole('button', { name: /gate locked/i }));
+      expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument();
+
+      act(() => {
+        jest.advanceTimersByTime(5100);
+      });
+
+      expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument();
+      expect(screen.getByRole('region', { name: 'Removed today' })).toHaveTextContent('100 First St');
+      expect(screen.getByRole('button', { name: 'Restore' })).toBeInTheDocument();
+      await restoreAndSettle();
+    });
+
+    it('shows one Undo at a time when a placement follows a removal', async () => {
+      await removeFirstStop();
+      fireEvent.click(screen.getByRole('button', { name: /signs placed/i }));
+
+      expect(await screen.findByText('Signs placed', { selector: '.nd-toast__title' })).toBeInTheDocument();
+      expect(screen.queryByText('Stop removed', { selector: '.nd-toast__title' })).not.toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Undo' })).toHaveLength(1);
+      // Take the placement back too, so the next tests start with both Stops awaiting.
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+      await restoreAndSettle();
+    });
+  });
+
   it("doesn't offer to restore a stop removed at Load, nor show it", async () => {
     const stops = baseStops();
     // Newer than any write saved earlier in this file, as live data is once it has caught up.

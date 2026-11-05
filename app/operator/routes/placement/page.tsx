@@ -10,6 +10,7 @@ import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
 import { SetAsideStops } from '@/app/operator/components/SetAsideStops';
 import { UndoToast } from '@/app/operator/components/UndoToast';
+import { ActionBarError } from '@/app/operator/components/ActionBarError';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
@@ -299,8 +300,6 @@ export default function OperatorPlacementPage() {
         ]}
       />
 
-      {error && <div className={shellStyles.errorBanner}>{error}</div>}
-
       <div className={shellStyles.kickerRow}>
         <span className={shellStyles.kicker}>{phaseInfo.phaseKicker}</span>
         {customerName && <span className={shellStyles.customer}>{customerName}</span>}
@@ -422,6 +421,8 @@ export default function OperatorPlacementPage() {
           {currentStop ? 'Signs placed' : 'Complete placement'}
         </button>
       </div>
+
+      {error && <ActionBarError message={error} aboveUndoToast={Boolean(justPlacedStop || justRemovedStop)} />}
 
       {justPlacedStop && (
         <UndoToast

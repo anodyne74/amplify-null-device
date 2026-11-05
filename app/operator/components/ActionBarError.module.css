@@ -1,0 +1,36 @@
+/* Sits where UndoToast's dock does, just above the pinned action bar. */
+.dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(58px + var(--space-4) * 2 + env(safe-area-inset-bottom, 0px) + var(--space-3));
+  z-index: 31;
+  padding: 0 var(--gutter-page-sm);
+  pointer-events: none;
+}
+
+/* Room for one undo toast (title, address and a 52px Undo button) beneath it. */
+.aboveToast {
+  bottom: calc(58px + var(--space-4) * 2 + env(safe-area-inset-bottom, 0px) + var(--space-3) + 104px);
+}
+
+.message {
+  pointer-events: auto;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--status-warning-bg);
+  color: var(--status-warning-fg);
+  border: var(--border-hairline) solid var(--status-warning-fg);
+  box-shadow: var(--shadow-lg);
+  font-family: var(--font-body);
+  font-size: var(--text-field-min);
+}
+
+@media (min-width: 769px) {
+  .dock {
+    left: var(--sidebar-w);
+    padding: 0 var(--gutter-page);
+  }
+}

@@ -43,7 +43,11 @@ const RouteStopsMap = dynamic(
   () => import('@/app/operator/components/RouteStopsMap').then((mod) => mod.RouteStopsMap),
   {
     ssr: false,
-    loading: () => <div className={stopCardStyles.mapLoading}>Loading map...</div>,
+    loading: () => (
+      <div className={stopCardStyles.mapLoading} role="status">
+        Loading map...
+      </div>
+    ),
   }
 );
 
@@ -373,7 +377,8 @@ export default function OperatorPlacementPage() {
                     </span>
                   </span>
                   <span className={stopCardStyles.thenAgent}>
-                    {getAgentBadgeInitials(stop.agent?.trim() || 'Unassigned')}
+                    <span aria-hidden="true">{getAgentBadgeInitials(stop.agent?.trim() || 'Unassigned')}</span>
+                    <span className={stopCardStyles.srOnly}>Agent {stop.agent?.trim() || 'Unassigned'}</span>
                   </span>
                 </button>
               </li>

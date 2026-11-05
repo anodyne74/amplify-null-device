@@ -459,6 +459,24 @@ describe('Operator Placement page', () => {
     expect(screen.queryByRole('button', { name: 'Restore' })).not.toBeInTheDocument();
   });
 
+  it('names the agent on each THEN row for screen readers, not just their initials', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+
+    render(<OperatorPlacementPage />);
+    const row = (await screen.findByText('14 Second Ave')).closest('button') as HTMLElement;
+
+    expect(row).toHaveTextContent('Agent Jem Tran');
+    expect(screen.getByText('JT')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('shows the current stop\'s auction as text, not only colour', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+
+    render(<OperatorPlacementPage />);
+
+    expect(await screen.findByText('Auction')).toBeInTheDocument();
+  });
+
   it('opens the out-of-order sheet from the THEN list', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 

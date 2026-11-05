@@ -1,5 +1,6 @@
 'use client';
 
+import { isFixtureRouteId } from '@/lib/devFixtures';
 import { getDataClient } from '@/lib/data-client';
 import type { Route, Stop } from '@/amplify/types';
 
@@ -23,6 +24,8 @@ export interface RouteWithStopsFeedHandlers {
  * Returns an unsubscribe function.
  */
 export function subscribeRouteWithStops(routeId: string, handlers: RouteWithStopsFeedHandlers): () => void {
+  // A fixture Route (app/devpreview) has no backend to listen to.
+  if (isFixtureRouteId(routeId)) return () => {};
   const models = getDataClient().models;
 
   const routeSubscription = models.Route.observeQuery({ filter: { id: { eq: routeId } } }).subscribe({

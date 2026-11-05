@@ -34,6 +34,16 @@
   border: var(--border-hairline) solid var(--border-subtle);
 }
 
+.glassCardDocked {
+  /* Under the map, not over it: an overlay hides the markers it sits on, and the
+   * current Stop's marker is what the map is there to show. */
+  position: static;
+  margin: var(--space-3);
+  background: var(--surface-card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .glassTopRow {
   display: flex;
   flex-wrap: wrap;

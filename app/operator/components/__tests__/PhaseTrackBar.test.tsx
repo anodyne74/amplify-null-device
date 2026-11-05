@@ -46,4 +46,11 @@ describe('PhaseTrackBar', () => {
       'Step 2 of 2, upcoming',
     ]);
   });
+
+  it('renders no caption when none is given', () => {
+    const { container } = render(<PhaseTrackBar track={['done', 'current', 'upcoming', 'upcoming', 'upcoming']} />);
+
+    expect(container.querySelector('[class*="trackCaption"]')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('listitem')).toHaveLength(5);
+  });
 });

@@ -134,6 +134,16 @@ describe('Operator Placement page', () => {
     expect(screen.getByTestId('placement-map')).toHaveAttribute('data-active-stop', 's1');
   });
 
+  it('says which phase it is once, in the kicker, not again under the phase bar', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+
+    render(<OperatorPlacementPage />);
+    await screen.findByText('PLACEMENT · STOP 1 OF 2');
+
+    expect(screen.getByText('PHASE 2 OF 4 · PLACEMENT')).toBeInTheDocument();
+    expect(screen.queryByText('Phase 2 of 4')).not.toBeInTheDocument();
+  });
+
   it('shows a gated start panel until the driver starts placement', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({
       route: baseRoute({ placementStartTime: null }),

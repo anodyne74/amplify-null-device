@@ -259,7 +259,7 @@ export default function OperatorPlacementPage() {
         </div>
         <h2 className={shellStyles.title}>{total} stops to place</h2>
 
-        <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+        <PhaseTrackBar track={phaseInfo.track} />
 
         <div className={styles.startPanel}>Tap start once you&apos;re on the road to begin placement.</div>
 
@@ -310,7 +310,7 @@ export default function OperatorPlacementPage() {
         {customerName && <span className={shellStyles.customer}>{customerName}</span>}
       </div>
 
-      <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+      <PhaseTrackBar track={phaseInfo.track} />
 
       <Card padded={false}>
         <div className={stopCardStyles.mapShell}>

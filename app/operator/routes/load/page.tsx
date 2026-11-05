@@ -183,7 +183,7 @@ export default function OperatorLoadPage() {
         {yardAddress && <p className={shellStyles.subtitle}>{yardAddress}</p>}
       </div>
 
-      <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+      <PhaseTrackBar track={phaseInfo.track} />
 
       <div className={styles.breakdownCard}>
         <div className={styles.breakdownRow}>

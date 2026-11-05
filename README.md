@@ -83,7 +83,7 @@ Amplify Data schema currently defines 17 entities:
 git clone https://github.com/anodyne74/amplify-null-device.git
 cd amplify-null-device
 
-npm ci
+npm install
 npm run generate:config
 npm run dev
 ```

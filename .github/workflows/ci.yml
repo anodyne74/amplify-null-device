@@ -19,14 +19,13 @@ jobs:
           cache: 'npm'
       
       - name: Install dependencies
-        # npm ci currently fails on this repo's dependency tree (aws-cdk-lib's large,
-        # deeply-nested graph appears to trigger a known npm lockfileVersion 3 writer
-        # edge case: npm install succeeds and writes a lockfile that npm ci — even
-        # the same npm version — then rejects as incomplete for a shifting set of
-        # deep transitive packages). Reproduced independently of any app code change,
-        # confirmed on GitHub Actions' own runners as well as locally across multiple
-        # npm versions. npm install is slightly less strict about lockfile-exactness
-        # but has installed reliably every time in testing.
+        # Not npm ci: npm install writes a lockfile that npm ci then rejects (verified on
+        # npm 9, 10 and 11). npm drops the bundled @opentelemetry/core entries nested under
+        # @aws-amplify/data-construct and graphql-api-construct, and npm ci reports the gap
+        # as "lock file's semver@x does not satisfy semver@y". A lockfile written by
+        # npm install --package-lock-only does pass npm ci, but the next npm install (any
+        # developer's, or Dependabot's) rewrites it. So the lockfile is kept in the shape
+        # npm install leaves it, which a second npm install leaves unchanged.
         run: npm install
 
       - name: Generate Amplify config

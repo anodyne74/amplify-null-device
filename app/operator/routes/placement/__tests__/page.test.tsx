@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 import OperatorPlacementPage from '../page';
 import { queueSignRunTransition } from '@/lib/signRunTransitions';
 import { signRunOutbox } from '@/lib/signRunOutbox';
@@ -477,6 +477,20 @@ describe('Operator Placement page', () => {
     expect(await screen.findByText('Auction')).toBeInTheDocument();
   });
 
+  it('shows the distance from the previous stop as an estimate, with no travel time', async () => {
+    (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
+
+    render(<OperatorPlacementPage />);
+    await screen.findByText('PLACEMENT · STOP 1 OF 2');
+    expect(screen.queryByText(/~[\d.]+ km/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /signs placed/i }));
+    await screen.findByText('PLACEMENT · STOP 2 OF 2');
+
+    expect(screen.getByText('~0.3 km')).toBeInTheDocument();
+    expect(screen.queryByText(/\bmin\b/)).not.toBeInTheDocument();
+  });
+
   it('opens the out-of-order sheet from the THEN list', async () => {
     (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
 
@@ -486,7 +500,8 @@ describe('Operator Placement page', () => {
     fireEvent.click(screen.getByText('14 Second Ave'));
 
     expect(await screen.findByText('14 Second Ave, Northcote')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Signs Placed' })).toBeInTheDocument();
+    // The pinned action bar has the same label, so look inside the sheet.
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Signs placed' })).toBeInTheDocument();
   });
 
   it('shows a confirm-to-finish state after the last stop, without advancing the phase yet', async () => {

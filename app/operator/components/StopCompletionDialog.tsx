@@ -66,7 +66,7 @@ export function StopCompletionDialog({
 
   if (!stop) return null;
 
-  const primaryLabel = phase === 'pickup' ? 'Signs Picked Up' : 'Signs Placed';
+  const primaryLabel = phase === 'pickup' ? 'Signs picked up' : 'Signs placed';
   const address = stop.formattedAddress || stop.address || '';
   const copy = PROBLEM_COPY[phase];
 

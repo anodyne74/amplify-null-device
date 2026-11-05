@@ -444,6 +444,7 @@ export default function OperatorPlacementPage() {
         <UndoToast
           key={justRemovedStop.id}
           message="Stop removed"
+          tone="info"
           description={getPrimaryAddressLine(justRemovedStop.formattedAddress || justRemovedStop.address)}
           onUndo={handleUndoRemoved}
           onExpire={expireUndoRemoved}

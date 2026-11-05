@@ -422,6 +422,20 @@ describe('Operator Placement page', () => {
       expect(screen.queryByRole('region', { name: 'Removed today' })).not.toBeInTheDocument();
     });
 
+    it('uses a neutral tone for the removal and success for a placement', async () => {
+      await removeFirstStop();
+      const removedToast = screen.getByText('Stop removed', { selector: '.nd-toast__title' }).closest('.nd-toast') as HTMLElement;
+      expect(removedToast.querySelector('.nd-toast__icon')).toHaveStyle({ color: 'var(--status-info-fg)' });
+
+      fireEvent.click(screen.getByRole('button', { name: /signs placed/i }));
+      const placedToast = (await screen.findByText('Signs placed', { selector: '.nd-toast__title' })).closest('.nd-toast') as HTMLElement;
+      expect(placedToast.querySelector('.nd-toast__icon')).toHaveStyle({ color: 'var(--status-success-fg)' });
+
+      // Take the placement back too, so the next tests start with both Stops awaiting.
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+      await restoreAndSettle();
+    });
+
     it('lets the removal stand once the window runs out, with Restore still available', async () => {
       (getRouteWithStops as jest.Mock).mockResolvedValue({ route: baseRoute(), stops: baseStops() });
       render(<OperatorPlacementPage />);

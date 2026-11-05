@@ -44,11 +44,11 @@ describe('StopCompletionDialog', () => {
     expect(screen.getByText('100 First St, Melbourne VIC')).toBeInTheDocument();
     expect(screen.getByText('4 signs · Agent AB')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Signs Placed' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Signs placed' }));
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
-  it('uses "Signs Picked Up" wording during the pickup phase', () => {
+  it('uses "Signs picked up" wording during the pickup phase', () => {
     render(
       <StopCompletionDialog
         stop={stop}
@@ -59,7 +59,7 @@ describe('StopCompletionDialog', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'Signs Picked Up' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Signs picked up' })).toBeInTheDocument();
   });
 
   it("moves to the reason step when Can't place is pressed and calls onProblem with the chosen reason", () => {
@@ -107,7 +107,7 @@ describe('StopCompletionDialog', () => {
     );
 
     expect(screen.getByText("Why can't the signs go up?")).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Signs Placed' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Signs placed' })).not.toBeInTheDocument();
   });
 
   it('resets to the action step when a different stop is opened', () => {
@@ -136,6 +136,6 @@ describe('StopCompletionDialog', () => {
     );
 
     expect(screen.getByText('200 Second Ave')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Signs Placed' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Signs placed' })).toBeInTheDocument();
   });
 });

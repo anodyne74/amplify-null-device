@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 import OperatorPickupPage from '../page';
 import { queueSignRunTransition } from '@/lib/signRunTransitions';
 import { signRunOutbox } from '@/lib/signRunOutbox';
@@ -336,7 +336,8 @@ describe('Operator Pickup page', () => {
     fireEvent.click(screen.getByText('14 Second Ave'));
 
     expect(await screen.findByText('14 Second Ave, Northcote')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Signs Picked Up' })).toBeInTheDocument();
+    // The pinned action bar has the same label, so look inside the sheet.
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Signs picked up' })).toBeInTheDocument();
   });
 
   it('shows a confirm-to-finish state after the last stop, without advancing the phase yet', async () => {

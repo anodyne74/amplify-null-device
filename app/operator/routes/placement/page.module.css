@@ -1,8 +1,8 @@
 /* Shell classes (.page, .kicker, .customer, .primaryButton, etc.) live in
- * ../signRunShell.module.css, and the glass-card/then-list/action-bar UI
- * lives in ../../components/signRunStopCard.module.css (shared with
- * Pickup) — both imported alongside this file in page.tsx. Placement has
- * no classes of its own beyond the primaryButton font-size below.
+ * ../signRunShell.module.css, and the stop card, Then list and action bar
+ * live in ../../components/signRunStopCard.module.css (shared with Pickup).
+ * Both are imported alongside this file in page.tsx. Placement's own classes
+ * are the pre-start panel below and the primaryButton font size.
  */
 
 .startPanel {

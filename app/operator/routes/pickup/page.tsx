@@ -289,7 +289,7 @@ export default function OperatorPickupPage() {
         </div>
         <h2 className={shellStyles.title}>{total} stops to pick up</h2>
 
-        <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+        <PhaseTrackBar track={phaseInfo.track} />
 
         <div className={styles.startPanel}>Tap start once you&apos;re on the road to begin pickup.</div>
 
@@ -340,7 +340,7 @@ export default function OperatorPickupPage() {
         {customerName && <span className={shellStyles.customer}>{customerName}</span>}
       </div>
 
-      <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+      <PhaseTrackBar track={phaseInfo.track} />
 
       <Card padded={false}>
         <div className={stopCardStyles.mapShell}>

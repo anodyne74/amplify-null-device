@@ -3,7 +3,8 @@ import styles from './PhaseTrackBar.module.css';
 
 export interface PhaseTrackBarProps {
   track: SignRunTrackState[];
-  caption: string;
+  /** Under the bar. Leave out where the screen's own kicker already says the phase number. */
+  caption?: string;
 }
 
 // The segments' names, in order: the work tracker is the four phases and the completed
@@ -35,7 +36,7 @@ export function PhaseTrackBar({ track, caption }: PhaseTrackBarProps) {
           />
         ))}
       </div>
-      <div className={styles.trackCaption}>{caption}</div>
+      {caption && <div className={styles.trackCaption}>{caption}</div>}
     </div>
   );
 }

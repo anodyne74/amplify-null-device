@@ -123,7 +123,7 @@ export default function OperatorUnloadPage() {
         {yardAddress && <p className={shellStyles.subtitle}>{yardAddress}</p>}
       </div>
 
-      <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+      <PhaseTrackBar track={phaseInfo.track} />
 
       <div className={shellStyles.statsGrid}>
         <div className={shellStyles.statCell}>

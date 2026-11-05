@@ -2,6 +2,7 @@ import {
   displayNotes,
   isStopCompleted,
   isStopFinished,
+  reopenPickupNotes,
   reopenPlacementNotes,
   settleStopNotes,
   stopProgress,
@@ -52,6 +53,34 @@ describe('stopProgress', () => {
   it('trusts only the markers once any are present, since settling always writes a departure time', () => {
     const notes = settleStopNotes(null, 'placement', 'complete', AT);
     expect(stopProgress({ notes, actualDepartureTime: AT }).pickup.state).toBe('pending');
+  });
+});
+
+describe('reopenPickupNotes', () => {
+  const placed = settleStopNotes('Gate code 4821', 'placement', 'complete', AT);
+  const pickedUp = settleStopNotes(placed, 'pickup', 'complete', AT);
+
+  it('makes a picked-up Stop awaiting again and keeps what the operator typed', () => {
+    const notes = reopenPickupNotes(pickedUp, LATER);
+    expect(stopProgress({ notes }).pickup).toEqual({ state: 'pending', at: null, reason: null });
+    expect(displayNotes(notes)).toBe('Gate code 4821');
+  });
+
+  it('leaves Placement progress alone', () => {
+    expect(stopProgress({ notes: reopenPickupNotes(pickedUp, LATER) }).placement.state).toBe('done');
+  });
+
+  it("doesn't leave a Stop with nothing but a departure time reading as done", () => {
+    const notes = reopenPickupNotes(settleStopNotes(null, 'pickup', 'complete', AT), LATER);
+    expect(stopProgress({ notes, actualDepartureTime: AT }).pickup.state).toBe('pending');
+  });
+
+  it('is replaced by picking the Stop up again, and never piles up', () => {
+    const undone = reopenPickupNotes(pickedUp, AT);
+    expect(reopenPickupNotes(undone, LATER).match(/PICKUP_REOPENED/g)).toHaveLength(1);
+    const replaced = settleStopNotes(undone, 'pickup', 'complete', LATER);
+    expect(replaced).not.toContain('PICKUP_REOPENED');
+    expect(stopProgress({ notes: replaced }).pickup).toEqual({ state: 'done', at: LATER, reason: null });
   });
 });
 

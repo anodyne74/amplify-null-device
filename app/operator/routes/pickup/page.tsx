@@ -10,9 +10,10 @@ import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
 import { SetAsideStops } from '@/app/operator/components/SetAsideStops';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
+import { UndoToast } from '@/app/operator/components/UndoToast';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
-import { queueSignRunTransition, queueStopSettlement } from '@/lib/signRunTransitions';
+import { queueSignRunTransition, queueStopPickupUndo, queueStopSettlement } from '@/lib/signRunTransitions';
 import { formatClockTime } from '@/lib/format';
 import { getAgentBadgeInitials } from '@/lib/customerDefaults';
 import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } from '@/lib/routeDetailHelpers';
@@ -83,6 +84,8 @@ export default function OperatorPickupPage() {
   const [missingLogging, setMissingLogging] = useState<Record<string, boolean>>({});
   const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
   const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
+  // The Stop just picked up, while the Operator can still take it back.
+  const [justPickedUpStopId, setJustPickedUpStopId] = useState<string | null>(null);
   const { dialog, openDialog, closeDialog, submitting } = useTimestampConfirmDialog<
     'start' | 'complete'
   >();
@@ -104,6 +107,7 @@ export default function OperatorPickupPage() {
   const openStops = useMemo(() => stops.filter((stop) => stopProgress(stop).pickup.state === 'pending'), [stops]);
   const currentStop = openStops[0] ?? null;
   const upcomingStops = openStops.slice(1);
+  const justPickedUpStop = stops.find((stop) => stop.id === justPickedUpStopId) ?? null;
   // Couldn't Collect Stops stay listed, so one can still be collected before Pickup is completed.
   const couldntCollectStops = useMemo(
     () => stops.filter((stop) => stopProgress(stop).pickup.state === 'couldntCollect'),
@@ -124,10 +128,30 @@ export default function OperatorPickupPage() {
     },
     [stops]
   );
+  // The tap that picks a Stop up: it can be taken back for a few seconds, which Collected on a
+  // Couldn't Collect Stop can't (that one has nothing to go back to but the problem).
+  const handleStopPickedUp = useCallback(
+    (stopId: string) => {
+      handleStopCompleted(stopId);
+      setJustPickedUpStopId(stopId);
+    },
+    [handleStopCompleted]
+  );
+
+  const handleUndoPickedUp = useCallback(() => {
+    const stop = stops.find((s) => s.id === justPickedUpStopId);
+    setJustPickedUpStopId(null);
+    if (stop) queueStopPickupUndo(stop);
+  }, [stops, justPickedUpStopId]);
+
+  const expireUndoPickedUp = useCallback(() => setJustPickedUpStopId(null), []);
+
   const handleCouldntCollect = useCallback(
     (stopId: string, reason: string) => {
       const stop = stops.find((s) => s.id === stopId);
       if (stop) queueStopSettlement(stop, { phase: 'pickup', action: 'couldntCollect', reason });
+      // Whatever was just picked up is no longer the last thing done.
+      setJustPickedUpStopId(null);
     },
     [stops]
   );
@@ -465,7 +489,7 @@ export default function OperatorPickupPage() {
           className={`${shellStyles.primaryButton} ${styles.primaryButton} ${stopCardStyles.primaryAction}`}
           onClick={() => {
             if (currentStop) {
-              handleStopCompleted(currentStop.id);
+              handleStopPickedUp(currentStop.id);
             } else {
               openDialog('complete');
             }
@@ -475,6 +499,16 @@ export default function OperatorPickupPage() {
           {currentStop ? 'Signs picked up' : 'Complete pickup'}
         </button>
       </div>
+
+      {justPickedUpStop && (
+        <UndoToast
+          key={justPickedUpStop.id}
+          message="Signs picked up"
+          description={getPrimaryAddressLine(justPickedUpStop.formattedAddress || justPickedUpStop.address)}
+          onUndo={handleUndoPickedUp}
+          onExpire={expireUndoPickedUp}
+        />
+      )}
 
       <ConfirmDialog
         open={dialog !== null}
@@ -495,7 +529,7 @@ export default function OperatorPickupPage() {
         initialStep={actionSheetStep}
         onComplete={() => {
           if (!actionSheetStop) return;
-          handleStopCompleted(actionSheetStop.id);
+          handleStopPickedUp(actionSheetStop.id);
           closeStopSheet();
         }}
         onProblem={(reason) => {

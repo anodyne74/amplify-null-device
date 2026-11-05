@@ -20,6 +20,7 @@ const ACTION_LABEL: Record<SignRunTimingKind, string> = {
   finalise: 'Complete route',
   placementStopDone: 'Stop placed',
   placementStopUndone: 'Placement undone',
+  pickupStopUndone: 'Pickup undone',
   pickupStopDone: 'Stop picked up',
   pickupStopCouldntCollect: "Couldn't collect",
   placementStopRemoved: 'Stop removed',

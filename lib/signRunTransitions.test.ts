@@ -8,6 +8,7 @@ import {
   planStopSettlement,
   queueSignRunTransition,
   queueStopChange,
+  queueStopPickupUndo,
   queueStopPlacementUndo,
   queueStopSettlement,
   stopPhaseOf,
@@ -204,6 +205,34 @@ describe('queueStopPlacementUndo', () => {
 
   it('sets nothing to null: an operator may set a Stop field but not clear it', () => {
     const { patch } = queueStopPlacementUndo({ id: 's1', routeId: 'r1', notes: null });
+    expect(Object.values(patch).every((value) => value !== null && value !== undefined)).toBe(true);
+  });
+});
+
+describe('queueStopPickupUndo', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('queues the Stop awaiting pickup again, under its own kind', () => {
+    const placed = settleStopNotes('Gate code 4821', 'placement', 'complete', AT);
+    const notes = settleStopNotes(placed, 'pickup', 'complete', AT);
+    const { patch } = queueStopPickupUndo({ id: 's1', routeId: 'r1', notes });
+
+    expect(mockEnqueue).toHaveBeenCalledWith({
+      routeId: 'r1',
+      target: 'Stop',
+      recordId: 's1',
+      kind: 'pickupStopUndone',
+      patch,
+    });
+    const progress = stopProgress({ notes: patch.notes });
+    expect(progress.pickup.state).toBe('pending');
+    expect(progress.placement.state).toBe('done');
+  });
+
+  it('sets nothing to null: an operator may set a Stop field but not clear it', () => {
+    const { patch } = queueStopPickupUndo({ id: 's1', routeId: 'r1', notes: null });
     expect(Object.values(patch).every((value) => value !== null && value !== undefined)).toBe(true);
   });
 });

@@ -6,10 +6,10 @@ Notify Operator texts come from an alphanumeric sender name, which is one-way (A
 
 - Every Operator starts not yet asked, including those with a mobile number already on file. They are asked once, at their next sign-in, and can change their answer in their own settings. Dismissing the question is a no.
 - The text carries no opt-out footer. Its 160 characters are for the Route, and the Customer's name is the part that would be cut to make room.
-- Clients can't write Text Consent. The `Operator` model lets every Operator update every Operator, so one server route writes the field with the IAM client, refuses an Operator changing anyone else's, and records each change in the audit log with the signed-in user as actor. An administrator turns it on for an Operator only by recording that the Operator agreed to them directly; turning it off needs no such record.
+- Clients can't write Text Consent. The `Operator` model lets every Operator update every Operator, and field rules can't narrow that, so Text Consent lives in its own read-only model and one server route writes it with the IAM client, refuses an Operator changing anyone else's, and records each change in the audit log with the signed-in user as actor. An administrator turns it on for an Operator only by recording that the Operator agreed to them directly; turning it off needs no such record.
 - Consent belongs to the number it was given for. Replacing the number with a different one, or removing it, takes the Operator back to not yet asked.
 
-Whether the Spam Act applies at all is not settled by this decision. If a lawyer confirms it doesn't, the consent step can be relaxed without changing how the field is written.
+Whether the Spam Act applies at all is not settled by this decision. If a lawyer confirms it doesn't, the consent step can be relaxed without changing how it is written.
 
 ## Considered Options
 

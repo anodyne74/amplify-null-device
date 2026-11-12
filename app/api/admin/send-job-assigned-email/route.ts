@@ -207,7 +207,7 @@ async function textOperator(
     const result = await smsClient.send(
       new SendTextMessageCommand({
         DestinationPhoneNumber: mobile.international,
-        OriginationIdentity: customOutputs.smsSenderId || 'NullDevice',
+        OriginationIdentity: customOutputs.smsSenderId || 'NULLDEVICE',
         MessageBody: body,
         MessageType: 'TRANSACTIONAL',
         ConfigurationSetName: customOutputs.smsConfigurationSetName,

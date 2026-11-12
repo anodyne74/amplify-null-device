@@ -32,6 +32,15 @@ export function effectiveTextConsent(operator: Omit<TextConsentRecord, 'id'> & {
   return current && current === given ? answer : 'unset';
 }
 
+/**
+ * Whether to put the "may we text you?" question to this Operator: they have no
+ * current answer and there is a mobile to text. Without a mobile a yes can't be
+ * recorded, so the question waits until one is added.
+ */
+export function shouldAskTextConsent(operator: Omit<TextConsentRecord, 'id'> & { id?: string }): boolean {
+  return effectiveTextConsent(operator) === 'unset' && australianMobile(operator.phone) !== null;
+}
+
 export interface TextConsentChangeInput {
   caller: { sub: string; administrator: boolean };
   operator: TextConsentRecord;

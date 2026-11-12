@@ -22,6 +22,10 @@ jest.mock('@/app/operator/components/UnsavedWritesIndicator', () => ({
   UnsavedWritesIndicator: () => <div data-testid="unsaved-indicator" />,
 }));
 
+jest.mock('@/app/operator/components/TextConsentPrompt', () => ({
+  TextConsentPrompt: () => <div data-testid="text-consent-prompt" />,
+}));
+
 jest.mock('@/lib/useOperatorRouteNotifications', () => ({
   useOperatorRouteNotifications: jest.fn(),
 }));
@@ -95,6 +99,16 @@ describe('OperatorLayout', () => {
     );
 
     expect(useOperatorRouteNotifications).toHaveBeenCalledWith('op-1');
+  });
+
+  it('puts the Text Consent question to the operator on any page', () => {
+    render(
+      <OperatorLayout>
+        <div>Test content</div>
+      </OperatorLayout>
+    );
+
+    expect(screen.getByTestId('text-consent-prompt')).toBeInTheDocument();
   });
 
   it('shows the signed-in operator by name', () => {

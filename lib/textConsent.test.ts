@@ -1,4 +1,4 @@
-import { effectiveTextConsent, planTextConsentChange, NO_CONSENT_REASON } from './textConsent';
+import { effectiveTextConsent, planTextConsentChange, shouldAskTextConsent, NO_CONSENT_REASON } from './textConsent';
 
 const NOW = '2026-11-13T01:00:00.000Z';
 const base = { id: 'op-1', phone: '+61412345678' };
@@ -80,5 +80,25 @@ describe('planTextConsentChange', () => {
       caller: operator(true), operator: { id: 'op-1', phone: '0499 999 999', textConsent: 'yes', textConsentMobile: '+61412345678' }, consent: 'yes', now: NOW,
     });
     expect(plan).toMatchObject({ ok: true, details: { previous: 'unset' }, next: { textConsentMobile: '+61499999999' } });
+  });
+});
+
+describe('shouldAskTextConsent', () => {
+  it('asks an Operator with a mobile who has not answered', () => {
+    expect(shouldAskTextConsent(base)).toBe(true);
+  });
+
+  it('asks again when the number changed since the answer', () => {
+    expect(shouldAskTextConsent({ ...base, phone: '0499 999 999', textConsent: 'yes', textConsentMobile: '+61412345678' })).toBe(true);
+  });
+
+  it('never asks an Operator who has answered, yes or no', () => {
+    expect(shouldAskTextConsent({ ...base, textConsent: 'yes', textConsentMobile: '+61412345678' })).toBe(false);
+    expect(shouldAskTextConsent({ ...base, textConsent: 'no', textConsentMobile: '+61412345678' })).toBe(false);
+  });
+
+  it('does not ask an Operator with no Australian mobile, who cannot be texted', () => {
+    expect(shouldAskTextConsent({ id: 'op-1', phone: null })).toBe(false);
+    expect(shouldAskTextConsent({ id: 'op-1', phone: '02 9999 9999' })).toBe(false);
   });
 });

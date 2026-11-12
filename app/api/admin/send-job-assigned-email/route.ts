@@ -12,6 +12,7 @@ import { australianMobile, maskedMobile } from '@/lib/operatorMobile';
 import { notifyOperatorText } from '@/lib/notifyOperatorText';
 import { ensureRouteLinkCode } from '@/lib/server/routeLinkCode';
 import { NO_MOBILE_REASON, type ChannelResult } from '@/lib/notifyOperatorOutcome';
+import { effectiveTextConsent, NO_CONSENT_REASON } from '@/lib/textConsent';
 
 const region = process.env.AWS_REGION || 'ap-southeast-2';
 const sesClient = new SESClient({ region });
@@ -189,6 +190,12 @@ async function textOperator(
     return { result: { status: 'skipped', reason: 'Text not sent: the Operator\'s mobile number isn\'t an Australian mobile' } };
   }
   const masked = maskedMobile(mobile);
+  // Text Consent (ADR 0016): only an Operator who said yes for this very number. A row
+  // that can't be read is treated as no answer rather than guessed at.
+  const { data: consent } = await client.models.OperatorTextConsent.get({ id: operator.id });
+  if (effectiveTextConsent({ phone: operator.phone, textConsent: consent?.textConsent, textConsentMobile: consent?.textConsentMobile }) !== 'yes') {
+    return { result: { status: 'skipped', reason: NO_CONSENT_REASON.notAgreed }, mobile: masked };
+  }
   if (!customOutputs.smsConfigurationSetName) {
     return { result: { status: 'skipped', reason: 'Text not sent: texting isn\'t set up on this site' }, mobile: masked };
   }

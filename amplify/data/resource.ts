@@ -196,6 +196,27 @@ export const schema = a.schema({
       allow.groups(['operator']).to(['read', 'create', 'update', 'delete']),
     ]),
 
+  /**
+   * OperatorTextConsent - an Operator's Text Consent (CONTEXT.md, ADR 0016), one row per Operator
+   * with the Operator's sub as its id. It is its own model because a field rule can't narrow a
+   * group that holds the model-level update, and the Operator model lets every Operator update
+   * every Operator. Clients can only read: app/api/operator/text-consent (IAM) is the only writer,
+   * checks who is asking and audits each change. The answer stands only while the Operator's
+   * `phone` is `textConsentMobile` -- read it through effectiveTextConsent() (lib/textConsent.ts).
+   * Authorization: an Operator reads their own, administrators read all.
+   */
+  OperatorTextConsent: a
+    .model({
+      operatorSub: a.string().required(),
+      textConsent: a.enum(['yes', 'no']),
+      textConsentAt: a.datetime(),
+      textConsentMobile: a.string(),
+    })
+    .authorization((allow) => [
+      allow.ownerDefinedIn('operatorSub').identityClaim('sub').to(['read']),
+      allow.groups(['administrator']).to(['read']),
+    ]),
+
   // Route Feedback's choice: a named enum (the GraphQL name the inline one had),
   // as only a ref takes field-level auth.
   RouteCustomerFeedbackTone: a.enum(['good', 'issue']),

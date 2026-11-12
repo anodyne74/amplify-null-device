@@ -41,6 +41,21 @@ export function shouldAskTextConsent(operator: Omit<TextConsentRecord, 'id'> & {
   return effectiveTextConsent(operator) === 'unset' && australianMobile(operator.phone) !== null;
 }
 
+export interface TextConsentToggle {
+  /** The answer the administrator's switch records next. */
+  next: TextConsentAnswer;
+  /** Turning on needs "the Operator agreed to this, directly"; turning off doesn't. */
+  needsAgreement: boolean;
+  /** Why the switch can't be used now, if it can't. */
+  disabledReason: string | null;
+}
+
+/** What the administrator's switch does from the Operator's current state; mirrors planTextConsentChange. */
+export function textConsentToggle(state: TextConsentState, hasMobile: boolean): TextConsentToggle {
+  if (state === 'yes') return { next: 'no', needsAgreement: false, disabledReason: null };
+  return { next: 'yes', needsAgreement: true, disabledReason: hasMobile ? null : NO_CONSENT_REASON.noMobile };
+}
+
 export interface TextConsentChangeInput {
   caller: { sub: string; administrator: boolean };
   operator: TextConsentRecord;

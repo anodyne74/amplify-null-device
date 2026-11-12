@@ -1,4 +1,4 @@
-import { effectiveTextConsent, planTextConsentChange, shouldAskTextConsent, NO_CONSENT_REASON } from './textConsent';
+import { effectiveTextConsent, planTextConsentChange, shouldAskTextConsent, textConsentToggle, NO_CONSENT_REASON } from './textConsent';
 
 const NOW = '2026-11-13T01:00:00.000Z';
 const base = { id: 'op-1', phone: '+61412345678' };
@@ -100,5 +100,27 @@ describe('shouldAskTextConsent', () => {
   it('does not ask an Operator with no Australian mobile, who cannot be texted', () => {
     expect(shouldAskTextConsent({ id: 'op-1', phone: null })).toBe(false);
     expect(shouldAskTextConsent({ id: 'op-1', phone: '02 9999 9999' })).toBe(false);
+  });
+});
+
+describe('textConsentToggle (the administrator\'s switch)', () => {
+  it('turns a yes off without asking for anything', () => {
+    expect(textConsentToggle('yes', true)).toEqual({ next: 'no', needsAgreement: false, disabledReason: null });
+  });
+
+  it('turns off even when the number has gone', () => {
+    expect(textConsentToggle('yes', false)).toEqual({ next: 'no', needsAgreement: false, disabledReason: null });
+  });
+
+  it.each(['no', 'unset'] as const)('turns %s on only with the Operator\'s agreement', (state) => {
+    expect(textConsentToggle(state, true)).toEqual({ next: 'yes', needsAgreement: true, disabledReason: null });
+  });
+
+  it('cannot turn on without an Australian mobile', () => {
+    expect(textConsentToggle('unset', false)).toEqual({
+      next: 'yes',
+      needsAgreement: true,
+      disabledReason: NO_CONSENT_REASON.noMobile,
+    });
   });
 });

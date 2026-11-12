@@ -8,6 +8,7 @@ import PageHeader from '@/app/administrator/components/PageHeader';
 import { Card } from '@/app/components/ui/core/Card';
 import { Button } from '@/app/components/ui/core/Button';
 import { Badge } from '@/app/components/ui/core/Badge';
+import { Checkbox } from '@/app/components/ui/forms/Checkbox';
 import { Avatar } from '@/app/components/ui/core/Avatar';
 import { Field } from '@/app/components/ui/forms/Field';
 import { Input } from '@/app/components/ui/forms/Input';
@@ -17,7 +18,9 @@ import { StatTile } from '@/app/components/ui/data/StatTile';
 import { DataTable, type DataColumn } from '@/app/components/ui/data/DataTable';
 import { listOperators } from '@/lib/queries/ListOperators';
 import { updateOperator } from '@/lib/queries/UpdateOperator';
-import { mobileForDisplay, mobileToStore } from '@/lib/operatorMobile';
+import { listOperatorTextConsents } from '@/lib/queries/ListOperatorTextConsents';
+import { effectiveTextConsent, textConsentToggle, type TextConsentAnswer, type TextConsentState } from '@/lib/textConsent';
+import { australianMobile, mobileForDisplay, mobileToStore } from '@/lib/operatorMobile';
 import { getDateGroup } from '@/lib/aggregateRouteData';
 import { formatDurationCompact } from '@/lib/dashboardAnalytics';
 import { summarizeRoutesStopsThisMonth, summarizeAverageRouteDuration } from '@/lib/adminDashboardOverview';
@@ -53,11 +56,26 @@ type Driver = {
   payCycle: BillingCycle;
   paySplitOnCompletedStopsOnly: boolean;
   assignedCustomerIds: string[];
+  /** The mobile as last saved; edits in the Mobile box don't count until saved. */
+  savedPhone: string;
+  /** The stored Text Consent answer and the mobile it was given for (the answer in force is `textConsent`). */
+  storedConsent: { textConsent?: TextConsentAnswer | null; textConsentMobile?: string | null };
+  /** Text Consent in force now (CONTEXT.md): unset once the number has changed. */
+  textConsent: TextConsentState;
+};
+
+const TEXT_CONSENT_LABEL: Record<TextConsentState, string> = { yes: 'Yes', no: 'No', unset: 'Not yet asked' };
+const TEXT_CONSENT_TONE: Record<TextConsentState, 'success' | 'neutral' | 'warning'> = {
+  yes: 'success',
+  no: 'neutral',
+  unset: 'warning',
 };
 
 const PAY_CYCLES: BillingCycle[] = ['weekly', 'fortnightly', 'monthly'];
 
-function toDriver(cognitoUser: CognitoOperator, record?: Operator): Driver {
+type StoredConsent = Driver['storedConsent'];
+
+function toDriver(cognitoUser: CognitoOperator, record?: Operator, storedConsent: StoredConsent = {}): Driver {
   return {
     id: cognitoUser.id || record?.id || '',
     name: record?.name || cognitoUser.name || 'Unknown operator',
@@ -69,6 +87,9 @@ function toDriver(cognitoUser: CognitoOperator, record?: Operator): Driver {
     payCycle: record?.payCycle || 'fortnightly',
     paySplitOnCompletedStopsOnly: record?.paySplitOnCompletedStopsOnly ?? true,
     assignedCustomerIds: record?.assignedCustomerIds || [],
+    savedPhone: record?.phone ?? '',
+    storedConsent,
+    textConsent: effectiveTextConsent({ phone: record?.phone, ...storedConsent }),
   };
 }
 
@@ -101,14 +122,19 @@ export default function AdministratorDriversPage() {
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
   const [resendPending, setResendPending] = useState(false);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
+  const [consentPending, setConsentPending] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  const [confirmingOn, setConfirmingOn] = useState(false);
+  const [agreed, setAgreed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [usersPayload, operatorsResult, customersResult, routesResult, stopsResult] = await Promise.all([
+      const [usersPayload, operatorsResult, consentsResult, customersResult, routesResult, stopsResult] = await Promise.all([
         callApi('/api/admin/users', { action: 'listUsersInGroup', groupName: 'operator' }),
         listOperators(),
+        listOperatorTextConsents(),
         listAllCustomers().catch(() => []),
         listAllRoutes(),
         listAllStops(),
@@ -117,10 +143,16 @@ export default function AdministratorDriversPage() {
       const cognitoOperators = (usersPayload.users as CognitoOperator[]) || [];
       const records = operatorsResult as Operator[];
       const recordsById = new Map(records.map((r) => [r.id, r]));
+      const consentsById = new Map(
+        consentsResult.map((c) => [
+          c.id,
+          { textConsent: c.textConsent as TextConsentAnswer | null, textConsentMobile: c.textConsentMobile },
+        ])
+      );
 
       const merged = cognitoOperators
         .filter((u) => u.id)
-        .map((u) => toDriver(u, recordsById.get(u.id!)))
+        .map((u) => toDriver(u, recordsById.get(u.id!), consentsById.get(u.id!)))
         .sort((a, b) => a.name.localeCompare(b.name));
 
       setDrivers(merged);
@@ -138,6 +170,13 @@ export default function AdministratorDriversPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A half-made "turn texts on" belongs to the Operator it was started for.
+  useEffect(() => {
+    setConfirmingOn(false);
+    setAgreed(false);
+    setConsentError(null);
+  }, [selectedId]);
 
   const selected = useMemo(() => drivers.find((d) => d.id === selectedId) || null, [drivers, selectedId]);
 
@@ -171,6 +210,9 @@ export default function AdministratorDriversPage() {
       selected.id,
       {
         phone: mobileForDisplay(mobile.phone),
+        savedPhone: mobile.phone ?? '',
+        // A different or removed number takes the answer back to not yet asked.
+        textConsent: effectiveTextConsent({ phone: mobile.phone, ...selected.storedConsent }),
       },
       {
         phone: mobile.phone,
@@ -199,6 +241,36 @@ export default function AdministratorDriversPage() {
     if (!selected) return;
     const nextIds = selected.assignedCustomerIds.filter((id) => id !== customerId);
     await persist(selected.id, { assignedCustomerIds: nextIds }, { assignedCustomerIds: nextIds });
+  };
+
+  const handleTextConsent = async (consent: TextConsentAnswer) => {
+    if (!selected) return;
+    setConsentPending(true);
+    setConsentError(null);
+    try {
+      await callApi('/api/operator/text-consent', {
+        consent,
+        operatorId: selected.id,
+        ...(consent === 'yes' ? { operatorAgreed: true } : {}),
+      });
+      const mobile = australianMobile(selected.savedPhone);
+      setDrivers((prev) =>
+        prev.map((d) =>
+          d.id === selected.id
+            ? {
+                ...d,
+                textConsent: consent,
+                storedConsent: { textConsent: consent, textConsentMobile: mobile?.international ?? '' },
+              }
+            : d
+        )
+      );
+      setAgreed(false);
+      setConfirmingOn(false);
+    } catch (e) {
+      setConsentError(e instanceof Error ? e.message : 'Could not save that change.');
+    }
+    setConsentPending(false);
   };
 
   const handleInviteDriver = async () => {
@@ -313,6 +385,15 @@ export default function AdministratorDriversPage() {
       header: 'Split',
       align: 'right',
       render: (row) => (row.driverSplitPercent === '' ? '—' : `${row.driverSplitPercent}%`),
+    },
+    {
+      key: 'texts',
+      header: 'Texts',
+      render: (row) => (
+        <Badge tone={TEXT_CONSENT_TONE[row.textConsent]} dot>
+          {TEXT_CONSENT_LABEL[row.textConsent]}
+        </Badge>
+      ),
     },
     {
       key: 'covers',
@@ -485,6 +566,77 @@ export default function AdministratorDriversPage() {
                     {resendMessage}
                   </p>
                 )}
+                <div className={styles.form}>
+                  <span className={styles.sectionHeading}>Texts about Routes</span>
+                  <div className={styles.formRow}>
+                    <Badge tone={TEXT_CONSENT_TONE[selected.textConsent]} dot>
+                      {TEXT_CONSENT_LABEL[selected.textConsent]}
+                    </Badge>
+                    {selected.textConsent === 'unset' && <span className={styles.formHint}>Counts as no until they answer.</span>}
+                  </div>
+                  {consentError && <p className="nd-badge nd-badge--danger">{consentError}</p>}
+                  {(() => {
+                    const toggle = textConsentToggle(selected.textConsent, australianMobile(selected.savedPhone) !== null);
+                    if (!toggle.needsAgreement) {
+                      return (
+                        <div>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            loading={consentPending}
+                            disabled={consentPending}
+                            onClick={() => void handleTextConsent(toggle.next)}
+                          >
+                            Turn texts off
+                          </Button>
+                        </div>
+                      );
+                    }
+                    if (toggle.disabledReason) return <span className={styles.formHint}>{toggle.disabledReason}</span>;
+                    if (!confirmingOn) {
+                      return (
+                        <div>
+                          <Button type="button" variant="secondary" size="sm" onClick={() => setConfirmingOn(true)}>
+                            Turn texts on
+                          </Button>
+                        </div>
+                      );
+                    }
+                    return (
+                      <>
+                        <Checkbox
+                          checked={agreed}
+                          onChange={(e) => setAgreed(e.target.checked)}
+                          label="The Operator agreed to this, directly"
+                        />
+                        <div className={styles.formActions}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            loading={consentPending}
+                            disabled={!agreed || consentPending}
+                            onClick={() => void handleTextConsent(toggle.next)}
+                          >
+                            Record yes
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={consentPending}
+                            onClick={() => {
+                              setConfirmingOn(false);
+                              setAgreed(false);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
                 <div className={styles.formActions}>
                   <Button type="button" loading={saving} disabled={saving} onClick={() => void handleSaveDriver()}>
                     Save operator

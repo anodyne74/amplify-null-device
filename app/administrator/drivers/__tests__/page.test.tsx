@@ -3,6 +3,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AdministratorDriversPage from '../page';
 import { listOperators } from '@/lib/queries/ListOperators';
+import { listOperatorTextConsents } from '@/lib/queries/ListOperatorTextConsents';
 import { updateOperator } from '@/lib/queries/UpdateOperator';
 import { ApiError, callApi } from '@/lib/apiClient';
 import { listAllRoutes, listAllStops } from '@/lib/routes';
@@ -24,6 +25,10 @@ jest.mock('@/lib/queries/ListOperators', () => ({
 
 jest.mock('@/lib/queries/UpdateOperator', () => ({
   updateOperator: jest.fn(),
+}));
+
+jest.mock('@/lib/queries/ListOperatorTextConsents', () => ({
+  listOperatorTextConsents: jest.fn(),
 }));
 
 jest.mock('@/lib/customers', () => ({
@@ -82,6 +87,9 @@ describe('Administrator Operators page', () => {
       { id: 'cust-2', name: 'Ray White Eastwood' },
     ]);
 
+    (listOperatorTextConsents as jest.Mock).mockResolvedValue([
+      { id: 'sub-1', textConsent: 'yes', textConsentMobile: '+61412345678' },
+    ]);
     (updateOperator as jest.Mock).mockResolvedValue({ id: 'sub-1' });
     (listAllRoutes as jest.Mock).mockResolvedValue([]);
     (listAllStops as jest.Mock).mockResolvedValue([]);
@@ -325,5 +333,100 @@ describe('Administrator Operators page', () => {
 
     expect(await screen.findByText('Could not create a login for this email.')).toBeInTheDocument();
     expect(screen.getByLabelText(/email for new operator/i)).toHaveValue('broken@nulldevice.dev');
+  });
+
+  describe('Text Consent', () => {
+    const consentCalls = () => (callApi as jest.Mock).mock.calls.filter(([path]) => path === '/api/operator/text-consent');
+
+    async function open(name: string) {
+      render(<AdministratorDriversPage />);
+      fireEvent.click(await screen.findByRole('button', { name: `Configure ${name}` }));
+    }
+
+    it('shows yes, no and not yet asked in the Texts column', async () => {
+      (listOperators as jest.Mock).mockResolvedValue([
+        { id: 'sub-1', name: 'Jane Driver', phone: '+61412345678', status: 'active', assignedCustomerIds: [] },
+        { id: 'sub-2', name: 'Amir Driver', phone: '+61411111111', status: 'active', assignedCustomerIds: [] },
+      ]);
+      (listOperatorTextConsents as jest.Mock).mockResolvedValue([
+        { id: 'sub-1', textConsent: 'yes', textConsentMobile: '+61412345678' },
+        { id: 'sub-2', textConsent: 'no', textConsentMobile: '+61411111111' },
+      ]);
+      (callApi as jest.Mock).mockImplementation(async () => ({
+        users: [...operatorUsers.users, { id: 'sub-3', name: 'Zed Driver', email: 'zed@nulldevice.dev' }],
+      }));
+      render(<AdministratorDriversPage />);
+      const rows = await screen.findAllByRole('row');
+      const text = rows.map((r) => r.textContent ?? '');
+      expect(text.find((t) => t.includes('Jane Driver'))).toContain('Yes');
+      expect(text.find((t) => t.includes('Amir Driver'))).toMatch(/No/);
+      expect(text.find((t) => t.includes('Zed Driver'))).toContain('Not yet asked');
+    });
+
+    it('shows not yet asked when the stored answer was given for a different number', async () => {
+      (listOperatorTextConsents as jest.Mock).mockResolvedValue([
+        { id: 'sub-1', textConsent: 'yes', textConsentMobile: '+61499999999' },
+      ]);
+      await open('Jane Driver');
+      const jane = screen.getAllByRole('row').find((r) => r.textContent?.includes('Jane Driver'));
+      expect(jane).toHaveTextContent('Not yet asked');
+    });
+
+    it('turns texts off without asking for confirmation', async () => {
+      await open('Jane Driver');
+      fireEvent.click(await screen.findByRole('button', { name: 'Turn texts off' }));
+      await waitFor(() => expect(consentCalls()).toHaveLength(1));
+      expect(consentCalls()[0][1]).toEqual({ consent: 'no', operatorId: 'sub-1' });
+      expect(await screen.findByRole('button', { name: 'Turn texts on' })).toBeInTheDocument();
+    });
+
+    it('does not turn texts on until the Operator\'s agreement is confirmed', async () => {
+      (listOperatorTextConsents as jest.Mock).mockResolvedValue([]);
+      await open('Jane Driver');
+      fireEvent.click(await screen.findByRole('button', { name: 'Turn texts on' }));
+      const record = screen.getByRole('button', { name: 'Record yes' });
+      expect(record).toBeDisabled();
+      expect(consentCalls()).toHaveLength(0);
+
+      fireEvent.click(screen.getByLabelText('The Operator agreed to this, directly'));
+      fireEvent.click(record);
+      await waitFor(() => expect(consentCalls()).toHaveLength(1));
+      expect(consentCalls()[0][1]).toEqual({ consent: 'yes', operatorId: 'sub-1', operatorAgreed: true });
+      expect(await screen.findByRole('button', { name: 'Turn texts off' })).toBeInTheDocument();
+    });
+
+    it('cannot turn texts on for an Operator with no mobile', async () => {
+      await open('Amir Driver');
+      expect(await screen.findByText('Add an Australian mobile number before recording a yes')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Turn texts on' })).not.toBeInTheDocument();
+    });
+
+    it('shows the error and keeps the answer when the change is refused', async () => {
+      (callApi as jest.Mock).mockImplementation(async (path: string) => {
+        if (path === '/api/operator/text-consent') throw new Error('Could not record that');
+        return operatorUsers;
+      });
+      await open('Jane Driver');
+      fireEvent.click(await screen.findByRole('button', { name: 'Turn texts off' }));
+      expect(await screen.findByText('Could not record that')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Turn texts off' })).toBeInTheDocument();
+    });
+
+    it('returns to not yet asked once a different mobile is saved', async () => {
+      await open('Jane Driver');
+      fireEvent.change(screen.getByLabelText('Mobile'), { target: { value: '0499 999 999' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save operator' }));
+      await waitFor(() => expect(updateOperator).toHaveBeenCalled());
+      const jane = () => screen.getAllByRole('row').find((r) => r.textContent?.includes('Jane Driver'));
+      await waitFor(() => expect(jane()).toHaveTextContent('Not yet asked'));
+    });
+
+    it('keeps the answer when the same mobile is saved again', async () => {
+      await open('Jane Driver');
+      fireEvent.click(screen.getByRole('button', { name: 'Save operator' }));
+      await waitFor(() => expect(updateOperator).toHaveBeenCalled());
+      const jane = screen.getAllByRole('row').find((r) => r.textContent?.includes('Jane Driver'));
+      expect(jane).toHaveTextContent('Yes');
+    });
   });
 });

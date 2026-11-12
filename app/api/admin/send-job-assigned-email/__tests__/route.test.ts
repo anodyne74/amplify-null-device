@@ -84,7 +84,7 @@ describe('send job-assigned email API', () => {
     Object.assign(customOutputs, {
       branchName: 'main',
       smsConfigurationSetName: 'nulldevice-sms-main',
-      smsSenderId: 'NullDevice',
+      smsSenderId: 'NULLDEVICE',
     });
     delete process.env.SMS_TEST_NUMBERS;
 
@@ -210,13 +210,19 @@ describe('send job-assigned email API', () => {
     const sms = smsSendMock.mock.calls[0][0].input;
     expect(sms).toEqual({
       DestinationPhoneNumber: '+61412345678',
-      OriginationIdentity: 'NullDevice',
+      OriginationIdentity: 'NULLDEVICE',
       MessageBody: expect.stringMatching(
         /^NullDevice: Route W25-08-114 for Beltline Group, 2 stops, Wed 7 Oct\. https:\/\/.+\/r\/k7q2m9$/
       ),
       MessageType: 'TRANSACTIONAL',
       ConfigurationSetName: 'nulldevice-sms-main',
     });
+  });
+
+  it('sends from the registered NULLDEVICE sender ID when the outputs name none', async () => {
+    delete (customOutputs as { smsSenderId?: string }).smsSenderId;
+    await notify();
+    expect(smsSendMock.mock.calls[0][0].input.OriginationIdentity).toBe('NULLDEVICE');
   });
 
   it("links the Route by its Route Link code", async () => {

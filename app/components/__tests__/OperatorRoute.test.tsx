@@ -175,6 +175,23 @@ describe('OperatorRoute', () => {
     });
   });
 
+  it('sends an unauthenticated visitor to sign in, remembering the page they were going to', async () => {
+    window.history.pushState({}, '', '/operator/routes/detail?code=gsgjxw');
+    (useAuthenticator as jest.Mock).mockReturnValue({ authStatus: 'unauthenticated' });
+    (useUserGroups as jest.Mock).mockReturnValue({ loading: false, isAdmin: false, isOperator: false, isCustomer: false });
+
+    render(
+      <OperatorRoute>
+        <div>Protected content</div>
+      </OperatorRoute>
+    );
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith('/?next=%2Foperator%2Froutes%2Fdetail%3Fcode%3Dgsgjxw');
+    });
+    window.history.pushState({}, '', '/');
+  });
+
   it('shows loading spinner while authenticating', () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'configuring',

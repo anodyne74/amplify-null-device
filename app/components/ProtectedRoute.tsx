@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useUserGroups } from '@/lib/use-user-groups';
-import { getCustomerRouteRedirect } from '@/lib/auth-routing';
+import { getCustomerRouteRedirect, loginPathFor } from '@/lib/auth-routing';
 import LoadingSpinner from './LoadingSpinner';
 
 /**
@@ -25,7 +25,7 @@ export default function ProtectedRoute({
 
   useEffect(() => {
     if (authStatus === 'unauthenticated') {
-      router.push('/');
+      router.push(loginPathFor(window.location.pathname + window.location.search));
       return;
     }
 

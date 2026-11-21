@@ -39,4 +39,39 @@ describe('Route short link', () => {
 
     expect(response.headers.get('location')).toBe(`https://www.nulldevice.dev/operator/routes/detail?id=${id}`);
   });
+
+  describe('behind the hosting proxy, where the request origin is the internal server', () => {
+    const original = process.env.NEXT_PUBLIC_APP_URL;
+    afterEach(() => {
+      if (original === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+      else process.env.NEXT_PUBLIC_APP_URL = original;
+    });
+
+    it('redirects to the public site, not the internal origin', async () => {
+      process.env.NEXT_PUBLIC_APP_URL = 'https://nulldevice.dev';
+      const response = await GET(new NextRequest('https://localhost:3000/r/gsgjxw'), {
+        params: Promise.resolve({ id: 'gsgjxw' }),
+      });
+
+      expect(response.headers.get('location')).toBe('https://nulldevice.dev/operator/routes/detail?code=gsgjxw');
+    });
+
+    it('ignores a trailing slash on the configured site', async () => {
+      process.env.NEXT_PUBLIC_APP_URL = 'https://nulldevice.dev/';
+      const response = await GET(new NextRequest('https://localhost:3000/r/gsgjxw'), {
+        params: Promise.resolve({ id: 'gsgjxw' }),
+      });
+
+      expect(response.headers.get('location')).toBe('https://nulldevice.dev/operator/routes/detail?code=gsgjxw');
+    });
+
+    it('uses the request origin when no site is configured', async () => {
+      delete process.env.NEXT_PUBLIC_APP_URL;
+      const response = await GET(new NextRequest('http://localhost:3000/r/gsgjxw'), {
+        params: Promise.resolve({ id: 'gsgjxw' }),
+      });
+
+      expect(response.headers.get('location')).toBe('http://localhost:3000/operator/routes/detail?code=gsgjxw');
+    });
+  });
 });

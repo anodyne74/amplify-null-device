@@ -7,6 +7,7 @@ import { Icon } from '@/app/components/ui/core/Icon';
 import { Logo } from '@/app/components/ui/core/Logo';
 import { Button } from '@/app/components/ui/core/Button';
 import { Dialog } from '@/app/components/ui/feedback/Dialog';
+import { buildNumber } from '@/lib/buildNumber';
 import { useThemeMode } from '@/app/components/AmplifyThemeProvider';
 import styles from './PortalShell.module.css';
 
@@ -130,6 +131,7 @@ export default function PortalShell({
           <Button variant={staff ? 'inverse' : 'secondary'} size="sm" block onClick={() => setShowLogoutConfirm(true)}>
             Logout
           </Button>
+          {staff && <p className={styles.build}>Build {buildNumber()}</p>}
         </div>
       </aside>
 

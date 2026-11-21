@@ -166,6 +166,7 @@ export default function OperatorLoadPage() {
   return (
     <div className={shellStyles.page}>
       <Breadcrumbs
+        touch
         items={[
           { label: 'Today', href: '/operator/dashboard' },
           { label: `${route.routeCode || route.id.slice(0, 8)} · Load` },
@@ -183,7 +184,7 @@ export default function OperatorLoadPage() {
         {yardAddress && <p className={shellStyles.subtitle}>{yardAddress}</p>}
       </div>
 
-      <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+      <PhaseTrackBar track={phaseInfo.track} />
 
       <div className={styles.breakdownCard}>
         <div className={styles.breakdownRow}>

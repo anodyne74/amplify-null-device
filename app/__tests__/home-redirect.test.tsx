@@ -55,6 +55,44 @@ describe('Home Redirect', () => {
     });
   });
 
+  it('returns a signed-in operator to the page they were going to', async () => {
+    window.history.pushState({}, '', '/?next=%2Foperator%2Froutes%2Fdetail%3Fcode%3Dgsgjxw');
+    (useAuthenticator as jest.Mock).mockReturnValue({ authStatus: 'authenticated' });
+    (useUserGroups as jest.Mock).mockReturnValue({
+      groups: ['operator'],
+      loading: false,
+      isAdmin: false,
+      isOperator: true,
+      isCustomer: false,
+    });
+
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith('/operator/routes/detail?code=gsgjxw');
+    });
+    window.history.pushState({}, '', '/');
+  });
+
+  it('ignores a page to return to that is not a safe path', async () => {
+    window.history.pushState({}, '', '/?next=%2F%2Fevil.example');
+    (useAuthenticator as jest.Mock).mockReturnValue({ authStatus: 'authenticated' });
+    (useUserGroups as jest.Mock).mockReturnValue({
+      groups: ['operator'],
+      loading: false,
+      isAdmin: false,
+      isOperator: true,
+      isCustomer: false,
+    });
+
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith('/operator/dashboard');
+    });
+    window.history.pushState({}, '', '/');
+  });
+
   it('redirects operators to /operator/dashboard', async () => {
     (useAuthenticator as jest.Mock).mockReturnValue({
       authStatus: 'authenticated',

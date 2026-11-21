@@ -6,6 +6,7 @@ import { usePortalUser } from '@/lib/usePortalUser';
 import { useOperatorRouteNotifications } from '@/lib/useOperatorRouteNotifications';
 import { useSessionRefresh } from '@/lib/useSessionRefresh';
 import { signRunOutbox, useSignRunOutbox, useSignRunOutboxSender } from '@/lib/signRunOutbox';
+import { TextConsentPrompt } from '@/app/operator/components/TextConsentPrompt';
 import { UnsavedWritesIndicator, unsavedLogoutWarning } from '@/app/operator/components/UnsavedWritesIndicator';
 
 /** Rendered inside OperatorRoute, so it only runs for a signed-in operator. */
@@ -43,6 +44,7 @@ export default function OperatorLayout({ children }: { children: React.ReactNode
   return (
     <OperatorRoute>
       <SessionRefresh userId={userId ?? null} />
+      <TextConsentPrompt userId={userId} />
       <PortalShell
         variant="operator"
         navItems={OPERATOR_NAV}

@@ -9,11 +9,18 @@ import { Card } from '@/app/components/ui/core/Card';
 import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
 import { SetAsideStops } from '@/app/operator/components/SetAsideStops';
+import { UndoToast } from '@/app/operator/components/UndoToast';
+import { ActionBarError } from '@/app/operator/components/ActionBarError';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
 import { recordPlacementPosition } from '@/lib/placementPosition';
-import { queueSignRunTransition, queueStopChange, queueStopSettlement } from '@/lib/signRunTransitions';
+import {
+  queueSignRunTransition,
+  queueStopChange,
+  queueStopPlacementUndo,
+  queueStopSettlement,
+} from '@/lib/signRunTransitions';
 import { activeStops, isRemovedAtDoor } from '@/lib/loadChange';
 import { useCurrentUserId } from '@/lib/use-user-groups';
 import { formatClockTime } from '@/lib/format';
@@ -36,7 +43,11 @@ const RouteStopsMap = dynamic(
   () => import('@/app/operator/components/RouteStopsMap').then((mod) => mod.RouteStopsMap),
   {
     ssr: false,
-    loading: () => <div className={stopCardStyles.mapLoading}>Loading map...</div>,
+    loading: () => (
+      <div className={stopCardStyles.mapLoading} role="status">
+        Loading map...
+      </div>
+    ),
   }
 );
 
@@ -44,7 +55,9 @@ const RouteStopsMap = dynamic(
  * There's no routing engine in this codebase — approximate the "leg" between the
  * previous sequenced stop and the current one the same way the design's own
  * prototype does: a straight-line distance with a road-fudge factor, at a fixed
- * average speed. Omitted for the first stop, which has no previous leg.
+ * average speed. Omitted for the first stop, which has no previous leg. Only the
+ * distance is shown, as an estimate: the speed is a guess, so minutes would pass
+ * it off as a prediction.
  */
 function getLegLine(stops: Stop[], current: Stop): string | null {
   const currentIndex = stops.findIndex((stop) => stop.id === current.id);
@@ -63,8 +76,7 @@ function getLegLine(stops: Stop[], current: Stop): string | null {
     { lat: previous.latitude, lng: previous.longitude },
     { lat: current.latitude, lng: current.longitude }
   ) * 1.3;
-  const minutes = Math.max(2, Math.round((km / 22) * 60));
-  return `${km.toFixed(1)} km · ${minutes} min`;
+  return `~${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
 }
 
 export default function OperatorPlacementPage() {
@@ -86,6 +98,10 @@ export default function OperatorPlacementPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
   const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
+  // The Stop just marked placed, while the Operator can still take it back.
+  const [justPlacedStopId, setJustPlacedStopId] = useState<string | null>(null);
+  // The Stop just removed at the door ("Can't place"), while the Operator can still take it back.
+  const [justRemovedStopId, setJustRemovedStopId] = useState<string | null>(null);
   const { dialog, openDialog, closeDialog, submitting } = useTimestampConfirmDialog<
     'start' | 'complete'
   >();
@@ -120,6 +136,8 @@ export default function OperatorPlacementPage() {
       const stop = stops.find((s) => s.id === stopId);
       if (!stop) return;
       queueStopSettlement(stop, { phase: 'placement', action: 'complete' });
+      setJustRemovedStopId(null);
+      setJustPlacedStopId(stopId);
       // Best-effort and after the fact: placement never waits on, or fails for, GPS (#285).
       void recordPlacementPosition(stopId).then((position) => {
         if (position) patchStop(stopId, position);
@@ -127,6 +145,15 @@ export default function OperatorPlacementPage() {
     },
     [stops, patchStop]
   );
+
+  const handleUndoPlaced = useCallback(() => {
+    // From allStops, not stops: it carries the settlement still waiting to save.
+    const stop = allStops.find((s) => s.id === justPlacedStopId);
+    setJustPlacedStopId(null);
+    if (stop) queueStopPlacementUndo(stop);
+  }, [allStops, justPlacedStopId]);
+
+  const expireUndoPlaced = useCallback(() => setJustPlacedStopId(null), []);
 
   // Can't place: the Stop comes off the Route (a Removed Stop), saved like any Sign Run write.
   const handleRemoveStop = useCallback(
@@ -139,10 +166,27 @@ export default function OperatorPlacementPage() {
         return;
       }
       const result = queueStopChange(route, { type: 'remove', stop, by: userId, reason });
-      if ('error' in result) setError(result.error);
+      if ('error' in result) {
+        setError(result.error);
+        return;
+      }
+      setJustPlacedStopId(null);
+      setJustRemovedStopId(stopId);
     },
     [route, stops, userId]
   );
+
+  // Undo is the same restore as the "Removed today" list offers, so it is audited the same way.
+  const handleUndoRemoved = useCallback(() => {
+    const stop = removedAtDoor.find((s) => s.id === justRemovedStopId);
+    setJustRemovedStopId(null);
+    if (!route || !stop) return;
+    setError(null);
+    const result = queueStopChange(route, { type: 'restore', stop });
+    if ('error' in result) setError(result.error);
+  }, [route, removedAtDoor, justRemovedStopId]);
+
+  const expireUndoRemoved = useCallback(() => setJustRemovedStopId(null), []);
 
   const handleRestoreStop = useCallback(
     (stopId: string) => {
@@ -201,6 +245,7 @@ export default function OperatorPlacementPage() {
     return (
       <div className={shellStyles.page}>
         <Breadcrumbs
+          touch
           items={[
             { label: 'Today', href: '/operator/dashboard' },
             { label: `${route.routeCode || route.id.slice(0, 8)} · Placement` },
@@ -215,7 +260,7 @@ export default function OperatorPlacementPage() {
         </div>
         <h2 className={shellStyles.title}>{total} stops to place</h2>
 
-        <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+        <PhaseTrackBar track={phaseInfo.track} />
 
         <div className={styles.startPanel}>Tap start once you&apos;re on the road to begin placement.</div>
 
@@ -244,6 +289,8 @@ export default function OperatorPlacementPage() {
     );
   }
 
+  const justPlacedStop = stops.find((stop) => stop.id === justPlacedStopId) ?? null;
+  const justRemovedStop = removedAtDoor.find((stop) => stop.id === justRemovedStopId) ?? null;
   const settledCount = total - openStops.length;
   // Caps at `total` once every stop is settled — otherwise the counter overshoots to
   // "17 of 16" on the confirm-to-finish state below.
@@ -253,20 +300,19 @@ export default function OperatorPlacementPage() {
   return (
     <div className={shellStyles.page}>
       <Breadcrumbs
+        touch
         items={[
           { label: 'Today', href: '/operator/dashboard' },
           { label: `${route.routeCode || route.id.slice(0, 8)} · Placement` },
         ]}
       />
 
-      {error && <div className={shellStyles.errorBanner}>{error}</div>}
-
       <div className={shellStyles.kickerRow}>
         <span className={shellStyles.kicker}>{phaseInfo.phaseKicker}</span>
         {customerName && <span className={shellStyles.customer}>{customerName}</span>}
       </div>
 
-      <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+      <PhaseTrackBar track={phaseInfo.track} />
 
       <Card padded={false}>
         <div className={stopCardStyles.mapShell}>
@@ -277,7 +323,7 @@ export default function OperatorPlacementPage() {
             phase="placement"
             presentation="field"
           />
-          <div className={stopCardStyles.glassCard}>
+          <div className={`${stopCardStyles.glassCard} ${stopCardStyles.glassCardDocked}`}>
             <div className={stopCardStyles.glassTopRow}>
               <span className={stopCardStyles.glassCounter}>
                 PLACEMENT · STOP {stopNumber} OF {total}
@@ -334,7 +380,8 @@ export default function OperatorPlacementPage() {
                     </span>
                   </span>
                   <span className={stopCardStyles.thenAgent}>
-                    {getAgentBadgeInitials(stop.agent?.trim() || 'Unassigned')}
+                    <span aria-hidden="true">{getAgentBadgeInitials(stop.agent?.trim() || 'Unassigned')}</span>
+                    <span className={stopCardStyles.srOnly}>Agent {stop.agent?.trim() || 'Unassigned'}</span>
                   </span>
                 </button>
               </li>
@@ -382,6 +429,29 @@ export default function OperatorPlacementPage() {
           {currentStop ? 'Signs placed' : 'Complete placement'}
         </button>
       </div>
+
+      {error && <ActionBarError message={error} aboveUndoToast={Boolean(justPlacedStop || justRemovedStop)} />}
+
+      {justPlacedStop && (
+        <UndoToast
+          key={justPlacedStop.id}
+          message="Signs placed"
+          description={getPrimaryAddressLine(justPlacedStop.formattedAddress || justPlacedStop.address)}
+          onUndo={handleUndoPlaced}
+          onExpire={expireUndoPlaced}
+        />
+      )}
+
+      {justRemovedStop && (
+        <UndoToast
+          key={justRemovedStop.id}
+          message="Stop removed"
+          tone="info"
+          description={getPrimaryAddressLine(justRemovedStop.formattedAddress || justRemovedStop.address)}
+          onUndo={handleUndoRemoved}
+          onExpire={expireUndoRemoved}
+        />
+      )}
 
       <ConfirmDialog
         open={dialog !== null}

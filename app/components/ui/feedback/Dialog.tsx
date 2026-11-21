@@ -10,10 +10,12 @@ export interface DialogProps {
   /** Action row — secondary then primary, right aligned. */
   footer?: React.ReactNode;
   size?: 'md' | 'lg';
+  /** Size of the close button. Field screens ask for 'lg' so it clears the touch minimum. */
+  closeSize?: 'md' | 'lg';
   children?: React.ReactNode;
 }
 
-export function Dialog({ open = false, title, description, onClose, footer, size = 'md', children }: DialogProps) {
+export function Dialog({ open = false, title, description, onClose, footer, size = 'md', closeSize = 'md', children }: DialogProps) {
   if (!open) return null;
 
   return (
@@ -29,7 +31,7 @@ export function Dialog({ open = false, title, description, onClose, footer, size
             <div className="nd-dialog__title">{title}</div>
             {description && <div className="nd-dialog__desc">{description}</div>}
           </div>
-          {onClose && <IconButton icon="x" label="Close" onClick={onClose} />}
+          {onClose && <IconButton icon="x" label="Close" size={closeSize} onClick={onClose} />}
         </div>
         {children && <div className="nd-dialog__body">{children}</div>}
         {footer && <div className="nd-dialog__footer">{footer}</div>}

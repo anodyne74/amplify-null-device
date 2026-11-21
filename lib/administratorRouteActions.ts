@@ -283,3 +283,33 @@ export async function changePickupDate(
     }
   );
 }
+
+/**
+ * An administrator assigns an Operator to a Route: Operator, name and email, and the time assigned.
+ * Audited with the Operator before and after. Sends nothing; Notify Operator is its own action.
+ */
+export async function assignOperator(
+  route: Pick<Route, 'id' | 'customerId' | 'assignedOperatorSub'>,
+  operator: { sub: string; name: string; email: string }
+): Promise<AdministratorActionResult> {
+  return saveAudited(
+    () =>
+      updateRoute(route.id, {
+        assignedOperatorSub: operator.sub,
+        assignedOperatorName: operator.name,
+        assignedOperatorEmail: operator.email,
+        assignedAt: new Date().toISOString(),
+      }),
+    {
+      resourceType: 'route',
+      resourceId: route.id,
+      customerId: route.customerId,
+      action: 'route.operator.assign',
+      details: { before: route.assignedOperatorSub ?? null, after: operator.sub },
+    },
+    {
+      failed: 'Could not assign the Operator. Nothing was changed.',
+      unaudited: 'The Operator was assigned, but its audit entry could not be written.',
+    }
+  );
+}

@@ -31,6 +31,6 @@
 .trackCaption {
   font-family: var(--font-body);
   font-weight: var(--fw-medium);
-  font-size: var(--text-2xs);
+  font-size: var(--text-field-min);
   color: var(--text-subtle);
 }

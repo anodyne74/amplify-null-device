@@ -9,7 +9,7 @@ Role-based delivery management system built on **Next.js 15 + AWS Amplify Gen 2*
 ## Commands
 
 ```bash
-npm ci                    # Install dependencies
+npm install               # Install dependencies (not npm ci: see .github/workflows/ci.yml)
 npm run generate:config   # Create local amplify_outputs.json (uses placeholder values)
 npm run dev               # Start Next.js dev server at localhost:3000
 npm run typecheck         # tsc --noEmit

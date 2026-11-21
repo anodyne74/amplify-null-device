@@ -33,8 +33,13 @@ const DONE_MARKER: Record<ExecutionPhase, string> = { placement: 'PLACEMENT_DONE
 const COULDNT_COLLECT_MARKER = 'PICKUP_SKIPPED';
 // Never written any more, and never was in practice; still stripped from notes and read as nothing.
 const RETIRED_MARKERS = ['PLACEMENT_SKIPPED'];
+// Written when a Placement or Pickup is undone. Reads as nothing (the Stop is awaiting again), but
+// it is a marker, so a Stop whose only settlement was undone doesn't fall back to the legacy reading
+// below: an operator can set Stop fields but not clear them, so the departure time stays.
+const REOPENED_MARKER: Record<ExecutionPhase, string> = { placement: 'PLACEMENT_REOPENED', pickup: 'PICKUP_REOPENED' };
+const REOPENED_MARKERS = Object.values(REOPENED_MARKER);
 
-const ALL_MARKERS = [...Object.values(DONE_MARKER), COULDNT_COLLECT_MARKER, ...RETIRED_MARKERS];
+const ALL_MARKERS = [...Object.values(DONE_MARKER), COULDNT_COLLECT_MARKER, ...RETIRED_MARKERS, ...REOPENED_MARKERS];
 
 const PENDING: PhaseProgress = { state: 'pending', at: null, reason: null };
 const LEGACY_DONE: PhaseProgress = { state: 'done', at: null, reason: null };
@@ -98,10 +103,26 @@ export function settleStopNotes(
   const [marker, other] = action === 'complete' ? [done, COULDNT_COLLECT_MARKER] : [COULDNT_COLLECT_MARKER, done];
   let base = removeMarker(notes ?? '', marker);
   if (phase === 'pickup') base = removeMarker(base, other);
+  base = removeMarker(base, REOPENED_MARKER[phase]);
   // A reason can't hold the marker's own delimiters.
   const cleanReason = action === 'couldntCollect' ? (reason ?? '').replace(/[|\]]/g, ' ').replace(/\s+/g, ' ').trim() : '';
   const value = cleanReason ? `${at}|${cleanReason}` : at;
   return `${base}${base ? ' ' : ''}[${marker}:${value}]`;
+}
+
+function reopenNotes(notes: string | null | undefined, phase: ExecutionPhase, at: string): string {
+  const base = removeMarker(removeMarker(notes ?? '', DONE_MARKER[phase]), REOPENED_MARKER[phase]);
+  return `${base}${base ? ' ' : ''}[${REOPENED_MARKER[phase]}:${at}]`;
+}
+
+/** The notes with a Placement undone: the Stop is awaiting placement again. */
+export function reopenPlacementNotes(notes: string | null | undefined, at: string): string {
+  return reopenNotes(notes, 'placement', at);
+}
+
+/** The notes with a Pickup undone: the Stop is awaiting pickup again. */
+export function reopenPickupNotes(notes: string | null | undefined, at: string): string {
+  return reopenNotes(notes, 'pickup', at);
 }
 
 /** The operator-typed part of Stop.notes, with the progress markers stripped. */

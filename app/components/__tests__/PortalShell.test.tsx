@@ -112,6 +112,18 @@ describe('PortalShell', () => {
     expect(screen.getByAltText('Null Device')).toHaveAttribute('src', expect.stringContaining('logo-full-dark.svg'));
   });
 
+  it.each(['administrator', 'operator'] as const)('shows the %s the Build Number', (variant) => {
+    process.env.NEXT_PUBLIC_BUILD_NUMBER = '20261102-a6f6444-64';
+    renderShell(variant);
+    expect(screen.getByText('Build 20261102-a6f6444-64')).toBeInTheDocument();
+    delete process.env.NEXT_PUBLIC_BUILD_NUMBER;
+  });
+
+  it('keeps the Build Number from the customer', () => {
+    renderShell('customer');
+    expect(screen.queryByText(/^Build /)).not.toBeInTheDocument();
+  });
+
   it('does not show a theme toggle in the side nav', () => {
     renderShell('customer');
 

@@ -54,3 +54,11 @@
   color: var(--text-heading);
   font-weight: var(--fw-semibold);
 }
+
+/* Field screens: pad the link out to a 44px-high target, and pull it back with an equal negative
+ * margin so the row keeps the size and spacing it has. The padding sits inside the link's own box,
+ * so its overflow clip doesn't cut it off. */
+.touch .link {
+  padding: 12px var(--space-3);
+  margin: -12px calc(-1 * var(--space-3));
+}

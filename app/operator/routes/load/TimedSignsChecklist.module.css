@@ -254,7 +254,7 @@
 }
 
 .addButton:hover:not(:disabled) {
-  box-shadow: 0 6px 20px rgba(93, 101, 230, 0.35);
+  box-shadow: var(--shadow-brand-glow);
 }
 
 .addButton:disabled {

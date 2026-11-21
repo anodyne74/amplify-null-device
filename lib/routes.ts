@@ -14,6 +14,7 @@
  * `errors` itself: they never throw, so an unchecked failure reads as saved.
  */
 
+import { fixtureRouteWithStops, isFixtureRouteId } from '@/lib/devFixtures';
 import { getDataClient } from '@/lib/data-client';
 import { DataError, resultData, withDataError } from '@/lib/graphqlResult';
 import { listAll } from '@/lib/listAll';
@@ -99,6 +100,8 @@ async function readStopsForRoute(routeId: string) {
  */
 export async function getRouteWithStops(routeId: string) {
   return withDataError('Failed to load route.', async () => {
+    // The preview (app/devpreview); `never` keeps the real return type.
+    if (isFixtureRouteId(routeId)) return fixtureRouteWithStops(routeId) as never;
     const route = resultData(await getDataClient().models.Route.get({ id: routeId }));
     if (!route) return null;
 

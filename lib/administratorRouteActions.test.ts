@@ -26,6 +26,7 @@ jest.mock('./requestMissingSignsReport', () => ({
 }));
 
 import {
+  assignOperator,
   changePickupDate,
   correctBilledTime,
   finaliseRouteAsAdministrator,
@@ -473,5 +474,42 @@ describe('changePickupDate', () => {
     const result = await changePickupDate(route, '2026-10-12');
 
     expect(result).toEqual({ ok: false, error: 'The pickup date was saved, but its audit entry could not be written.', saved: true });
+  });
+});
+
+describe('assignOperator', () => {
+  const route = { id: 'route-1', customerId: 'cust-1', assignedOperatorSub: 'old-sub' };
+  const operator = { sub: 'op-1', name: 'Pat Lee', email: 'pat@example.com' };
+
+  it('sets the Operator, name, email and time assigned, and audits who it was before and after', async () => {
+    await expect(assignOperator(route, operator)).resolves.toEqual({ ok: true });
+
+    expect(mockRouteUpdate).toHaveBeenCalledWith({
+      id: 'route-1',
+      assignedOperatorSub: 'op-1',
+      assignedOperatorName: 'Pat Lee',
+      assignedOperatorEmail: 'pat@example.com',
+      assignedAt: expect.any(String),
+    });
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customerId: 'cust-1',
+        operatorId: 'admin-sub',
+        resourceId: 'route-1',
+        action: 'route.operator.assign',
+        details: JSON.stringify({ before: 'old-sub', after: 'op-1' }),
+      })
+    );
+  });
+
+  it('reports a failed save and writes no audit entry', async () => {
+    mockRouteUpdate.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
+
+    await expect(assignOperator(route, operator)).resolves.toEqual({
+      ok: false,
+      error: 'Could not assign the Operator. Nothing was changed.',
+      saved: false,
+    });
+    expect(mockAuditLogCreate).not.toHaveBeenCalled();
   });
 });

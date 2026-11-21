@@ -1,0 +1,12 @@
+.footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.error {
+  margin: 0;
+  color: var(--status-danger-fg);
+  font-size: var(--text-sm);
+}

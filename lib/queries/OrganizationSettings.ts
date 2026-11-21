@@ -4,6 +4,7 @@
  * Always read/written by the well-known id 'organization'. Returns its data or
  * throws a DataError (lib/graphqlResult.ts).
  */
+import { DEVPREVIEW } from '@/lib/devFixtures';
 import { getDataClient } from '@/lib/data-client';
 import { resultData, withDataError } from '@/lib/graphqlResult';
 
@@ -36,6 +37,8 @@ export type OrganizationSettingsUpdates = Partial<{
  * Get the organization's settings row; null if it hasn't been created yet.
  */
 export async function getOrganizationSettings() {
+  // The preview (app/devpreview) has no backend; Unload only reads the yard address.
+  if (DEVPREVIEW) return { address: '12 Depot Rd, Thomastown VIC 3074' } as OrganizationSettingsRecord;
   return withDataError('Failed to load pay-to details.', readOrganizationSettings);
 }
 

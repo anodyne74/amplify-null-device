@@ -60,16 +60,20 @@
   transform: rotate(var(--nd-marker-counter-rotation, 0deg));
 }
 
+/* Each fill keeps its label at 4.5:1 or better: white on indigo-500 (4.7:1), and
+ * dark navy on the two light fills, where white would be about 1.7:1 and 2.5:1. */
 .stopMarkerAwaiting {
-  background: var(--indigo-400);
+  background: var(--indigo-500);
 }
 
 .stopMarkerPlaced {
   background: var(--amber-400);
+  color: var(--neutral-950);
 }
 
 .stopMarkerPickedUp {
   background: var(--neutral-400);
+  color: var(--neutral-950);
 }
 
 .stopMarkerActive {

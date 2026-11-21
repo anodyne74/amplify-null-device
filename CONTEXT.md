@@ -9,8 +9,12 @@ A person who runs Routes in the field: loads signs, places and picks them up at 
 _Avoid_: Driver, staff (staff means operators and administrators together)
 
 **Notify Operator**:
-An administrator's deliberate action telling a Route's assigned Operator about the Route: an email, plus a text message when the Operator has a mobile number. It is never sent automatically on assignment, only ever reaches the currently assigned Operator, and each one is kept in the Route's audit trail with the channels that went out.
+An administrator's deliberate action telling a Route's assigned Operator about the Route: an email, plus a text message when the Operator has a mobile number and Text Consent. It is never sent automatically on assignment, only ever reaches the currently assigned Operator, and each one is kept in the Route's audit trail with the channels that went out.
 _Avoid_: Alert, dispatch, job-assigned email
+
+**Text Consent**:
+An Operator's yes or no to being texted by Notify Operator. It starts as not yet asked for every Operator, including those with a mobile number already on file, and counts as no until they answer. They are asked once, when they next sign in, and dismissing the question is a no; they can change their answer in their own settings. It covers Notify Operator texts only; email is unaffected. An administrator can turn it off for an Operator at any time, and can turn it on only by recording that the Operator agreed to them directly. It belongs to the mobile number it was given for: replacing the number with a different one, or removing it, takes the Operator back to not yet asked. Every change is in the audit log with who made it.
+_Avoid_: Opt-in flag, subscription, SMS permission
 
 **Route Link**:
 The short address in a Notify Operator text that opens the Route for the Operator. It identifies one Route by a six-character code made the first time the Route is notified, and the Route keeps that code for good, so every later Notify Operator sends the same link. The code is lowercase and read without regard to case. The link only takes the Operator to the Route; they still sign in, and see only what they could see anyway. Texts sent before Route Links existed identified the Route differently and still open it.
@@ -179,3 +183,7 @@ _Avoid_: Driver payment, wage, commission
 **Outstanding**:
 The total of an Operator's Pending Payouts: raised for them but not yet marked Paid. Work not yet raised as a Payout is not Outstanding.
 _Avoid_: Owed, unpaid balance
+
+**Build**:
+One deploy of the app, identified by a Build Number: the build date, the commit and the Amplify job that produced it, written `YYYYMMDD-<short commit>-<job>`, such as 20261102-a6f6444-64. The same Build Number is what the portal shows staff and what a running deploy reports about itself, so they cannot disagree. A copy running outside a deploy, such as a developer's machine, has no Build Number.
+_Avoid_: Version, release (there are no release numbers; a deploy is promoted, not released)

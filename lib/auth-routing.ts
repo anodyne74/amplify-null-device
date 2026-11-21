@@ -44,13 +44,39 @@ export function getHomePortalPath({ isAdmin, isOperator, isCustomer }: RoleFlags
 }
 
 /**
+ * A page inside a portal that a visitor can be sent back to after signing in:
+ * a same-site path under /operator, /administrator or /customer. Anything else
+ * -- another site, a protocol-relative or backslash path, an API route, a path
+ * that climbs out with `..` -- is not one, so a crafted `?next=` can't send
+ * anyone elsewhere. The page's own guard still decides whether they may stay.
+ */
+export function returnPath(raw: string | null | undefined): string | null {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return null;
+  if (/[\\\u0000-\u001f]/.test(raw) || raw.split('?')[0].split('/').includes('..')) return null;
+  const root = raw.split(/[/?#]/)[1];
+  return root === 'operator' || root === 'administrator' || root === 'customer' ? raw : null;
+}
+
+/** Where a guard sends someone who isn't signed in: sign-in, remembering the page they were going to. */
+export function loginPathFor(current: string): string {
+  const back = returnPath(current);
+  return back ? `/?next=${encodeURIComponent(back)}` : '/';
+}
+
+/**
  * Landing page (app/page.tsx) decision.
+ * - a safe `next` page inside a portal the user belongs to → that page
  * - exactly one portal role → that portal's path
  * - no portal roles → pending approval
  * - multiple portal roles → null (caller shows the portal selector)
  */
-export function getLandingRedirect(groups: string[]): string | null {
+export function getLandingRedirect(groups: string[], next?: string | null): string | null {
   const options = buildPortalOptions(groups);
+  const back = returnPath(next);
+  // The first path segment is the portal's role name.
+  if (back && groups.includes(back.split(/[/?#]/)[1])) {
+    return back;
+  }
   if (options.length === 1) {
     return options[0].path;
   }

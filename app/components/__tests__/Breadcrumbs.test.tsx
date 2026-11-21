@@ -69,4 +69,14 @@ describe('Breadcrumbs', () => {
     const { container } = render(<Breadcrumbs items={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it('marks the trail as a touch trail only when asked', () => {
+    const items = [{ label: 'Today', href: '/operator/dashboard' }, { label: 'W45-26-001 · Placement' }];
+    const { rerender } = render(<Breadcrumbs items={items} />);
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' }).className).not.toContain('touch');
+
+    rerender(<Breadcrumbs items={items} touch />);
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' }).className).toContain('touch');
+    expect(screen.getByRole('link', { name: 'Today' })).toHaveAttribute('href', '/operator/dashboard');
+  });
 });

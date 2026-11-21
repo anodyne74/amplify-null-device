@@ -8,7 +8,12 @@
  */
 import type { SignRunTransitionType } from '@/lib/signRunTransitions';
 
-export type StopSettlementKind = 'placementStopDone' | 'pickupStopDone' | 'pickupStopCouldntCollect';
+export type StopSettlementKind =
+  | 'placementStopDone'
+  | 'placementStopUndone'
+  | 'pickupStopUndone'
+  | 'pickupStopDone'
+  | 'pickupStopCouldntCollect';
 
 /** A Removed Stop or Load Change (lib/loadChange.ts), saved through the same outbox. */
 export type StopChangeKind =
@@ -32,6 +37,8 @@ const KIND: Record<SignRunTimingKind, true> = {
   confirmUnload: true,
   finalise: true,
   placementStopDone: true,
+  placementStopUndone: true,
+  pickupStopUndone: true,
   pickupStopDone: true,
   pickupStopCouldntCollect: true,
   loadStopAdded: true,

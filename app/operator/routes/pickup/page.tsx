@@ -10,9 +10,11 @@ import { PhaseTrackBar } from '@/app/operator/components/PhaseTrackBar';
 import { StopCompletionDialog } from '@/app/operator/components/StopCompletionDialog';
 import { SetAsideStops } from '@/app/operator/components/SetAsideStops';
 import { ConfirmDialog } from '@/app/operator/components/ConfirmDialog';
+import { UndoToast } from '@/app/operator/components/UndoToast';
+import { ActionBarError } from '@/app/operator/components/ActionBarError';
 import { useSignRunPhaseScreen } from '@/lib/useSignRunPhaseScreen';
 import { useTimestampConfirmDialog } from '@/lib/useTimestampConfirmDialog';
-import { queueSignRunTransition, queueStopSettlement } from '@/lib/signRunTransitions';
+import { queueSignRunTransition, queueStopPickupUndo, queueStopSettlement } from '@/lib/signRunTransitions';
 import { formatClockTime } from '@/lib/format';
 import { getAgentBadgeInitials } from '@/lib/customerDefaults';
 import { getPrimaryAddressLine, getSecondaryAddressLine, haversineDistanceKm } from '@/lib/routeDetailHelpers';
@@ -44,7 +46,9 @@ const RouteStopsMap = dynamic(
  * There's no routing engine in this codebase — approximate the "leg" between the
  * previous sequenced stop and the current one the same way the design's own
  * prototype does: a straight-line distance with a road-fudge factor, at a fixed
- * average speed. Omitted for the first stop, which has no previous leg.
+ * average speed. Omitted for the first stop, which has no previous leg. Only the
+ * distance is shown, as an estimate: the speed is a guess, so minutes would pass
+ * it off as a prediction.
  */
 function getLegLine(stops: Stop[], current: Stop): string | null {
   const currentIndex = stops.findIndex((stop) => stop.id === current.id);
@@ -63,8 +67,7 @@ function getLegLine(stops: Stop[], current: Stop): string | null {
     { lat: previous.latitude, lng: previous.longitude },
     { lat: current.latitude, lng: current.longitude }
   ) * 1.3;
-  const minutes = Math.max(2, Math.round((km / 22) * 60));
-  return `${km.toFixed(1)} km · ${minutes} min`;
+  return `~${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
 }
 
 export default function OperatorPickupPage() {
@@ -83,6 +86,8 @@ export default function OperatorPickupPage() {
   const [missingLogging, setMissingLogging] = useState<Record<string, boolean>>({});
   const [actionSheetStopId, setActionSheetStopId] = useState<string | null>(null);
   const [actionSheetStep, setActionSheetStep] = useState<'action' | 'reason'>('action');
+  // The Stop just picked up, while the Operator can still take it back.
+  const [justPickedUpStopId, setJustPickedUpStopId] = useState<string | null>(null);
   const { dialog, openDialog, closeDialog, submitting } = useTimestampConfirmDialog<
     'start' | 'complete'
   >();
@@ -104,6 +109,7 @@ export default function OperatorPickupPage() {
   const openStops = useMemo(() => stops.filter((stop) => stopProgress(stop).pickup.state === 'pending'), [stops]);
   const currentStop = openStops[0] ?? null;
   const upcomingStops = openStops.slice(1);
+  const justPickedUpStop = stops.find((stop) => stop.id === justPickedUpStopId) ?? null;
   // Couldn't Collect Stops stay listed, so one can still be collected before Pickup is completed.
   const couldntCollectStops = useMemo(
     () => stops.filter((stop) => stopProgress(stop).pickup.state === 'couldntCollect'),
@@ -124,10 +130,30 @@ export default function OperatorPickupPage() {
     },
     [stops]
   );
+  // The tap that picks a Stop up: it can be taken back for a few seconds, which Collected on a
+  // Couldn't Collect Stop can't (that one has nothing to go back to but the problem).
+  const handleStopPickedUp = useCallback(
+    (stopId: string) => {
+      handleStopCompleted(stopId);
+      setJustPickedUpStopId(stopId);
+    },
+    [handleStopCompleted]
+  );
+
+  const handleUndoPickedUp = useCallback(() => {
+    const stop = stops.find((s) => s.id === justPickedUpStopId);
+    setJustPickedUpStopId(null);
+    if (stop) queueStopPickupUndo(stop);
+  }, [stops, justPickedUpStopId]);
+
+  const expireUndoPickedUp = useCallback(() => setJustPickedUpStopId(null), []);
+
   const handleCouldntCollect = useCallback(
     (stopId: string, reason: string) => {
       const stop = stops.find((s) => s.id === stopId);
       if (stop) queueStopSettlement(stop, { phase: 'pickup', action: 'couldntCollect', reason });
+      // Whatever was just picked up is no longer the last thing done.
+      setJustPickedUpStopId(null);
     },
     [stops]
   );
@@ -249,6 +275,7 @@ export default function OperatorPickupPage() {
     return (
       <div className={shellStyles.page}>
         <Breadcrumbs
+          touch
           items={[
             { label: 'Today', href: '/operator/dashboard' },
             { label: `${route.routeCode || route.id.slice(0, 8)} · Pickup` },
@@ -263,7 +290,7 @@ export default function OperatorPickupPage() {
         </div>
         <h2 className={shellStyles.title}>{total} stops to pick up</h2>
 
-        <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+        <PhaseTrackBar track={phaseInfo.track} />
 
         <div className={styles.startPanel}>Tap start once you&apos;re on the road to begin pickup.</div>
 
@@ -302,20 +329,20 @@ export default function OperatorPickupPage() {
   return (
     <div className={shellStyles.page}>
       <Breadcrumbs
+        touch
         items={[
           { label: 'Today', href: '/operator/dashboard' },
           { label: `${route.routeCode || route.id.slice(0, 8)} · Pickup` },
         ]}
       />
 
-      {error && <div className={shellStyles.errorBanner}>{error}</div>}
 
       <div className={shellStyles.kickerRow}>
         <span className={shellStyles.kicker}>{phaseInfo.phaseKicker}</span>
         {customerName && <span className={shellStyles.customer}>{customerName}</span>}
       </div>
 
-      <PhaseTrackBar track={phaseInfo.track} caption={phaseInfo.phaseNumberLabel} />
+      <PhaseTrackBar track={phaseInfo.track} />
 
       <Card padded={false}>
         <div className={stopCardStyles.mapShell}>
@@ -326,7 +353,7 @@ export default function OperatorPickupPage() {
             phase="pickup"
             presentation="field"
           />
-          <div className={stopCardStyles.glassCard}>
+          <div className={`${stopCardStyles.glassCard} ${stopCardStyles.glassCardDocked}`}>
             <div className={stopCardStyles.glassTopRow}>
               <span className={stopCardStyles.glassCounter}>
                 PICKUP · STOP {stopNumber} OF {total}
@@ -465,7 +492,7 @@ export default function OperatorPickupPage() {
           className={`${shellStyles.primaryButton} ${styles.primaryButton} ${stopCardStyles.primaryAction}`}
           onClick={() => {
             if (currentStop) {
-              handleStopCompleted(currentStop.id);
+              handleStopPickedUp(currentStop.id);
             } else {
               openDialog('complete');
             }
@@ -475,6 +502,18 @@ export default function OperatorPickupPage() {
           {currentStop ? 'Signs picked up' : 'Complete pickup'}
         </button>
       </div>
+
+      {error && <ActionBarError message={error} aboveUndoToast={Boolean(justPickedUpStop)} />}
+
+      {justPickedUpStop && (
+        <UndoToast
+          key={justPickedUpStop.id}
+          message="Signs picked up"
+          description={getPrimaryAddressLine(justPickedUpStop.formattedAddress || justPickedUpStop.address)}
+          onUndo={handleUndoPickedUp}
+          onExpire={expireUndoPickedUp}
+        />
+      )}
 
       <ConfirmDialog
         open={dialog !== null}
@@ -495,7 +534,7 @@ export default function OperatorPickupPage() {
         initialStep={actionSheetStep}
         onComplete={() => {
           if (!actionSheetStop) return;
-          handleStopCompleted(actionSheetStop.id);
+          handleStopPickedUp(actionSheetStop.id);
           closeStopSheet();
         }}
         onProblem={(reason) => {

@@ -13,6 +13,7 @@ const routeGetMock = jest.fn();
 const stopListMock = jest.fn();
 const customerGetMock = jest.fn();
 const operatorGetMock = jest.fn();
+const consentGetMock = jest.fn();
 const auditCreateMock = jest.fn();
 const smsSendMock = jest.fn();
 const ensureCodeMock = jest.fn();
@@ -55,6 +56,7 @@ jest.mock('@/lib/server/iamDataClient', () => ({
       Stop: { list: stopListMock },
       Customer: { get: customerGetMock },
       Operator: { get: operatorGetMock },
+      OperatorTextConsent: { get: consentGetMock },
       AuditLog: { create: auditCreateMock },
     },
   }),
@@ -82,7 +84,7 @@ describe('send job-assigned email API', () => {
     Object.assign(customOutputs, {
       branchName: 'main',
       smsConfigurationSetName: 'nulldevice-sms-main',
-      smsSenderId: 'NullDevice',
+      smsSenderId: 'NULLDEVICE',
     });
     delete process.env.SMS_TEST_NUMBERS;
 
@@ -103,6 +105,7 @@ describe('send job-assigned email API', () => {
     customerGetMock.mockResolvedValue({ data: { id: 'cust-1', name: 'Beltline Group' }, errors: undefined });
     sesSendMock.mockResolvedValue({ MessageId: 'ses-message-id-1' });
     operatorGetMock.mockResolvedValue({ data: { id: 'sub-operator-1', phone: '0412 345 678' } });
+    consentGetMock.mockResolvedValue({ data: { id: 'sub-operator-1', textConsent: 'yes', textConsentMobile: '+61412345678' } });
     smsSendMock.mockResolvedValue({ MessageId: 'sms-message-id-1' });
     ensureCodeMock.mockResolvedValue('k7q2m9');
     auditCreateMock.mockResolvedValue({ errors: undefined });
@@ -207,13 +210,19 @@ describe('send job-assigned email API', () => {
     const sms = smsSendMock.mock.calls[0][0].input;
     expect(sms).toEqual({
       DestinationPhoneNumber: '+61412345678',
-      OriginationIdentity: 'NullDevice',
+      OriginationIdentity: 'NULLDEVICE',
       MessageBody: expect.stringMatching(
         /^NullDevice: Route W25-08-114 for Beltline Group, 2 stops, Wed 7 Oct\. https:\/\/.+\/r\/k7q2m9$/
       ),
       MessageType: 'TRANSACTIONAL',
       ConfigurationSetName: 'nulldevice-sms-main',
     });
+  });
+
+  it('sends from the registered NULLDEVICE sender ID when the outputs name none', async () => {
+    delete (customOutputs as { smsSenderId?: string }).smsSenderId;
+    await notify();
+    expect(smsSendMock.mock.calls[0][0].input.OriginationIdentity).toBe('NULLDEVICE');
   });
 
   it("links the Route by its Route Link code", async () => {
@@ -266,6 +275,27 @@ describe('send job-assigned email API', () => {
     expect(body.text).toEqual({ status: 'skipped', reason });
     expect(smsSendMock).not.toHaveBeenCalled();
     expect(auditDetails().details.text).toEqual({ status: 'skipped', reason });
+  });
+
+  it.each([
+    ['never answered', { data: null }],
+    ['said no', { data: { id: 'sub-operator-1', textConsent: 'no', textConsentMobile: '+61412345678' } }],
+    ['said yes for a different mobile', { data: { id: 'sub-operator-1', textConsent: 'yes', textConsentMobile: '+61499999999' } }],
+  ])('emails but skips the text when the Operator %s', async (_label, consent) => {
+    consentGetMock.mockResolvedValue(consent);
+
+    const body = await (await notify()).json();
+    expect(body.email.status).toBe('sent');
+    expect(body.text).toEqual({ status: 'skipped', reason: "Text not sent: the Operator hasn't agreed to texts" });
+    expect(smsSendMock).not.toHaveBeenCalled();
+  });
+
+  it('skips the text, rather than guessing, when Text Consent cannot be read', async () => {
+    consentGetMock.mockResolvedValue({ data: null, errors: [{ message: 'boom' }] });
+
+    const body = await (await notify()).json();
+    expect(body.text.status).toBe('skipped');
+    expect(smsSendMock).not.toHaveBeenCalled();
   });
 
   it('only texts test numbers off production', async () => {

@@ -26,9 +26,11 @@ interface UserSettingsPageProps {
   roleVariant: RoleVariant;
   /** Shown beside the heading, e.g. the customer portal's help link. */
   headingAction?: ReactNode;
+  /** Own card below the form, for settings that save as soon as they change. */
+  instantSettings?: ReactNode;
 }
 
-export default function UserSettingsPage({ title, roleVariant, headingAction }: UserSettingsPageProps) {
+export default function UserSettingsPage({ title, roleVariant, headingAction, instantSettings }: UserSettingsPageProps) {
   const userId = useCurrentUserId();
   const { mode, setMode } = useThemeMode();
   const [fallbackDisplayName, setFallbackDisplayName] = useState('');
@@ -165,6 +167,8 @@ export default function UserSettingsPage({ title, roleVariant, headingAction }: 
           Current theme in app: {mode}
         </p>
       </Card>
+
+      {instantSettings && <Card>{instantSettings}</Card>}
     </div>
   );
 }

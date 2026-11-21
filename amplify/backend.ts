@@ -935,9 +935,9 @@ activeReceiptRuleSet.node.addDependency(receiptRule);
 // User Messaging SMS, from the registered sender name below. Each branch gets
 // its own configuration set, so its delivery events land in its own log
 // group. The account's SMS sandbox, sender name and spend limit are shared by
-// every branch; only production texts any Operator (the route itself limits
+// every branch (the sender name must match the registered ID's case: NULLDEVICE); only production texts any Operator (the route itself limits
 // other branches to SMS_TEST_NUMBERS).
-const smsSenderId = 'NullDevice';
+const smsSenderId = 'NULLDEVICE';
 const smsStack = Stack.of(backend.data.resources.graphqlApi);
 const smsConfigurationSetName = withMaxLength(`nulldevice-sms-${branchName}`, 64);
 const smsEventsLogGroup = new LogGroup(smsStack, 'SmsEventsLogGroup', {

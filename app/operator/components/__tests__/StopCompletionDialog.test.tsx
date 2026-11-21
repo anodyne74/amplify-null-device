@@ -44,11 +44,11 @@ describe('StopCompletionDialog', () => {
     expect(screen.getByText('100 First St, Melbourne VIC')).toBeInTheDocument();
     expect(screen.getByText('4 signs · Agent AB')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Signs Placed' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Signs placed' }));
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
-  it('uses "Signs Picked Up" wording during the pickup phase', () => {
+  it('uses "Signs picked up" wording during the pickup phase', () => {
     render(
       <StopCompletionDialog
         stop={stop}
@@ -59,7 +59,7 @@ describe('StopCompletionDialog', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'Signs Picked Up' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Signs picked up' })).toBeInTheDocument();
   });
 
   it("moves to the reason step when Can't place is pressed and calls onProblem with the chosen reason", () => {
@@ -107,7 +107,7 @@ describe('StopCompletionDialog', () => {
     );
 
     expect(screen.getByText("Why can't the signs go up?")).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Signs Placed' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Signs placed' })).not.toBeInTheDocument();
   });
 
   it('resets to the action step when a different stop is opened', () => {
@@ -136,6 +136,25 @@ describe('StopCompletionDialog', () => {
     );
 
     expect(screen.getByText('200 Second Ave')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Signs Placed' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Signs placed' })).toBeInTheDocument();
+  });
+
+  it('gives the sheet\'s actions and close button the large touch size', () => {
+    render(
+      <StopCompletionDialog
+        stop={{ id: 's1', address: '100 First St', numberOfSigns: 4 } as Stop}
+        phase="placement"
+        onComplete={jest.fn()}
+        onProblem={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+
+    for (const name of ["Can't place", 'Signs placed']) {
+      const button = screen.getByRole('button', { name });
+      expect(button).toHaveClass('nd-btn--lg');
+      expect(button.className).toContain('sheetAction');
+    }
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveClass('nd-iconbtn--lg');
   });
 });

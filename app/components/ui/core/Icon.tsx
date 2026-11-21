@@ -42,6 +42,9 @@ import {
   Flag,
   History,
   Download,
+  ArrowUp,
+  ArrowDown,
+  ChevronsUpDown,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -91,6 +94,9 @@ const ICONS: Record<string, LucideIcon> = {
   flag: Flag,
   history: History,
   download: Download,
+  'arrow-up': ArrowUp,
+  'arrow-down': ArrowDown,
+  'chevrons-up-down': ChevronsUpDown,
 };
 
 export interface IconProps extends Omit<React.SVGProps<SVGSVGElement>, 'name'> {

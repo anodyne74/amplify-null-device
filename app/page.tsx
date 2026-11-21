@@ -77,7 +77,7 @@ export default function Home() {
 
   useEffect(() => {
     if (authStatus === 'authenticated' && !loading) {
-      const destination = getLandingRedirect(groups);
+      const destination = getLandingRedirect(groups, new URLSearchParams(window.location.search).get('next'));
       if (destination) {
         router.push(destination);
       }

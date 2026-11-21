@@ -1,5 +1,7 @@
 import {
   getLandingRedirect,
+  loginPathFor,
+  returnPath,
   getCustomerRouteRedirect,
   getOperatorRouteRedirect,
   getAdminRouteRedirect,
@@ -133,5 +135,74 @@ describe('getAdminRouteRedirect', () => {
 
   it('sends users with only unknown groups to pending approval', () => {
     expect(getAdminRouteRedirect(flags(['something-else']))).toBe(PENDING_APPROVAL_PATH);
+  });
+});
+
+describe('returnPath', () => {
+  it.each([
+    '/operator/routes/detail?code=gsgjxw',
+    '/operator/dashboard',
+    '/administrator/invoices',
+    '/customer/dashboard',
+    '/operator',
+  ])('keeps %s', (path) => {
+    expect(returnPath(path)).toBe(path);
+  });
+
+  it.each([
+    null,
+    undefined,
+    '',
+    '/',
+    'operator/dashboard',
+    'https://evil.example/operator/dashboard',
+    '//evil.example/operator',
+    '/\\evil.example',
+    '/operators',
+    '/administrator-x',
+    '/api/admin/users',
+    '/pending-approval',
+    '/operator/../api/x',
+    '/operator/x\ny',
+  ])('refuses %p', (path) => {
+    expect(returnPath(path)).toBeNull();
+  });
+});
+
+describe('loginPathFor', () => {
+  it('sends a visitor to sign in with where they were going', () => {
+    expect(loginPathFor('/operator/routes/detail?code=gsgjxw')).toBe(
+      '/?next=%2Foperator%2Froutes%2Fdetail%3Fcode%3Dgsgjxw'
+    );
+  });
+
+  it('sends them to plain sign in when the page is not one to come back to', () => {
+    expect(loginPathFor('/')).toBe('/');
+    expect(loginPathFor('/pending-approval')).toBe('/');
+  });
+});
+
+describe('getLandingRedirect with a page to return to', () => {
+  const next = '/operator/routes/detail?code=gsgjxw';
+
+  it('returns an Operator to the page they were going to', () => {
+    expect(getLandingRedirect(['operator'], next)).toBe(next);
+  });
+
+  it('returns a multi-role user there too, skipping the portal selector', () => {
+    expect(getLandingRedirect(['administrator', 'operator'], next)).toBe(next);
+  });
+
+  it('ignores a page in a portal the user does not belong to', () => {
+    expect(getLandingRedirect(['customer'], next)).toBe('/customer/dashboard');
+    expect(getLandingRedirect(['administrator', 'customer'], next)).toBeNull();
+  });
+
+  it('ignores a page that is not a safe path', () => {
+    expect(getLandingRedirect(['operator'], '//evil.example')).toBe('/operator/dashboard');
+  });
+
+  it('still sends a user with no portal role to pending approval', () => {
+    expect(getLandingRedirect([], next)).toBe(PENDING_APPROVAL_PATH);
   });
 });
